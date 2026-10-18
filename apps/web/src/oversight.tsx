@@ -23,10 +23,10 @@ class ApiError extends Error {
     super(message);
   }
 }
-async function api<T>(
+export async function api<T>(
   schema: z.ZodType<T>,
   path: string,
-  init: { body?: unknown; csrf?: string } = {},
+  init: { body?: unknown; csrf?: string; timeoutMs?: number } = {},
 ): Promise<T> {
   const response = await fetch(`/api/${path}`, {
     ...(init.body === undefined
@@ -39,7 +39,7 @@ async function api<T>(
           },
           body: JSON.stringify(init.body),
         }),
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(init.timeoutMs ?? 5000),
   });
   const body: unknown = await response.json();
   if (!response.ok) {
@@ -54,14 +54,15 @@ async function api<T>(
   }
   return parse(schema, body);
 }
-const message = (e: unknown) =>
+export const message = (e: unknown) =>
   e instanceof Error ? e.message : 'The request failed.';
-const when = (iso: string) =>
+export const when = (iso: string) =>
   new Date(iso).toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
-const words = (s: string) => s.replaceAll('_', ' ').replaceAll('.', ' · ');
+export const words = (s: string) =>
+  s.replaceAll('_', ' ').replaceAll('.', ' · ');
 const short = (h: string | null | undefined) =>
   h ? `${h.slice(0, 12)}…` : '—';
 

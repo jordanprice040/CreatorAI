@@ -82,6 +82,29 @@ pnpm cli humility-gate <workspace> <review-id>
 
 The web page shows the same decisions in a Human decisions panel: the concise request, what an approval covers (action, target version, content/spec hash, amount, expiry), approve once versus a previewed standing policy, option answers for judgment questions, standing policies with Revoke, and runs with Stop.
 
+## Budgets and metered model calls (T04)
+
+Every model or metered tool call goes through one broker (`packages/broker`). For each attempt it commits, in one transaction, the T03 admission and a reservation of the call's **maximum** exposure against a budget envelope; only then does an adapter see the request. Afterwards the provider's reported usage settles the charge and releases the rest. Anything short of "allowed and funded" is recorded as a denial and nothing is sent.
+
+- **Pricing.** An owner records a dated pricing snapshot per workspace. `config/pricing/fixture-model-v1.json` holds simulated units for fixture workspaces; `config/pricing/openai-gpt-6-astra.json` copies the official GPT-6 Astra page (retrieved 2026-10-18). Calls without a matching snapshot are denied, never priced at zero.
+- **Exposure bound.** Input tokens ≤ UTF-8 bytes + framing allowance, priced at the highest input rate (cache writes), plus `max_output_tokens` at the output rate, with the documented long-context surcharge when the bound could cross it.
+- **Envelopes.** `global` (owner-funded), `period` (with a window), `run` and `task`. A child is carved out of its parent (`allocated`), so spending is never counted twice; `rollup_incurred` adds children for reporting. Each envelope also limits calls in flight. Only a signed-in human owner can fund, allocate or close; closing returns only the unspent remainder.
+- **Outcomes.** `settled` (charged from usage, once), `released` (provider refused before processing: rate limit, auth, invalid request), `unknown` (timeout, 5xx, network loss, cancellation in flight, unpriced usage). Unknown exposure stays held until a late answer settles it or the owner reconciles it from provider records. A restarted API turns attempts left in flight past their deadline into `unknown`.
+
+```powershell
+pnpm cli pricing-add <workspace> config/pricing/fixture-model-v1.json
+pnpm cli budget-create <workspace> '{"parent_id":null,"kind":"global","run_id":null,"name":"Owner budget","cap_nano_usd":"50000000","starts_at":null,"ends_at":null,"max_in_flight":3}'
+pnpm cli model-call <workspace> <run-id> '{"envelope_id":"…","action_type":"model.generate","task_id":null,"logical_operation_id":"<new uuid>","pricing_snapshot_id":"…","data_class":"synthetic","input":[{"role":"user","text":"Hello"}],"max_output_tokens":100,"output_format":"text","tool":null,"max_attempts":1,"timeout_ms":30000,"justification":"Why"}'
+pnpm cli budgets <workspace>
+pnpm cli reservations <workspace> [envelope-id]
+pnpm cli reconcile <workspace> <reservation-id> '{"outcome":"no_charge","evidence":"Provider usage page shows no request"}'
+pnpm cli broker-status
+```
+
+The run also needs a grant covering the action with an amount cap at least the exposure (or a person approves the exact amount). Repeating a `logical_operation_id` returns the stored outcome without calling the provider again. The web page shows a Budgets panel with balances, recent calls, refusal reasons and a fixture test call.
+
+**Live calls.** A real workspace is denied (`live_provider_not_configured`) unless the API runs with `CREATOR_LIVE_PROVIDER=openai` and `OPENAI_API_KEY` (optional `CREATOR_OPENAI_MODEL`, default `gpt-6-astra`). The key stays in the API process. It is not permission to spend: the call still needs documented pricing, a covering grant and a funded envelope. No live call has been made or verified.
+
 ## Checks
 
 ```powershell
@@ -118,9 +141,12 @@ Environment variables are read explicitly; no `.env` loader is installed.
 | `CREATOR_API_URL`           | CLI only; default `http://127.0.0.1:4310`; loopback HTTP origin without credentials/path/query |
 | `CREATOR_DATABASE_URL`      | Unset (no persistence) or a loopback `postgresql://` URL; never logged                         |
 | `CREATOR_OWNER_ACTOR_ID`    | UUID the local API acts as; default `00000000-0000-4000-8000-000000000001`                     |
+| `CREATOR_LIVE_PROVIDER`     | `none` (default) or `openai`; live adapter only with `OPENAI_API_KEY`                          |
+| `OPENAI_API_KEY`            | API process only; never logged, stored or returned                                             |
+| `CREATOR_OPENAI_MODEL`      | Live model id; default `gpt-6-astra`                                                           |
 | `CREATOR_TEST_DATABASE_URL` | Tests only; loopback server where the role may create databases                                |
 
-For example, set `$env:CREATOR_API_PORT = '4311'` and `$env:CREATOR_WEB_PORT = '5174'` before `pnpm dev`. Set `$env:CREATOR_API_URL = 'http://127.0.0.1:4311'` in the CLI terminal. Invalid settings fail startup. There is no live-provider switch; live admission is denied even for structurally complete live configs. Provider availability remains unverified in `config/provider-availability.json`.
+For example, set `$env:CREATOR_API_PORT = '4311'` and `$env:CREATOR_WEB_PORT = '5174'` before `pnpm dev`. Set `$env:CREATOR_API_URL = 'http://127.0.0.1:4311'` in the CLI terminal. Invalid settings fail startup. `CREATOR_PROVIDER`/`CREATOR_LIVE_ENABLED` still describe the stateless T01 fixture route. Metered live calls go only through the broker under the T04 conditions above; provider status is recorded in `config/provider-availability.json`.
 
 ## Actual paths and boundaries
 
@@ -129,6 +155,7 @@ For example, set `$env:CREATOR_API_PORT = '4311'` and `$env:CREATOR_WEB_PORT = '
 | `packages/contracts/src/` | Strict Zod schemas, inferred types, schema 1.0 and stable error codes                                                             |
 | `packages/domain/src/`    | Pure admission prerequisites, delegation containment, version/evidence-bound transitions, result checks and deterministic fixture |
 | `packages/db/src/`        | PostgreSQL migrations, schema gate, record/link repository, audit hash chain, outbox relay and history projection                 |
+| `packages/broker/src/`    | Model/tool broker, deterministic fixture adapter and OpenAI Responses adapter                                                     |
 | `apps/api/src/`           | Node HTTP routes, configuration, size/Host/origin checks and errors                                                               |
 | `apps/cli/src/`           | HTTP client and response validation                                                                                               |
 | `apps/web/src/`           | React form, actual API health, explicit synthetic outcomes, accessible error/empty states                                         |

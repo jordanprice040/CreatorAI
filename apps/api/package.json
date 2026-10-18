@@ -10,6 +10,7 @@
     }
   },
   "dependencies": {
+    "@creator/broker": "workspace:*",
     "@creator/contracts": "workspace:*",
     "@creator/db": "workspace:*",
     "@creator/domain": "workspace:*",

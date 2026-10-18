@@ -137,6 +137,8 @@ export const ErrorCodeSchema = z.enum([
   'STORAGE_UNAVAILABLE',
   'UNAUTHENTICATED',
   'CSRF_DENIED',
+  'BUDGET_EXCEEDED',
+  'PRICING_MISSING',
   'INTERNAL_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

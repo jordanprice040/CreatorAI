@@ -145,7 +145,7 @@ export class OversightStore extends Store {
     return rows[0].kind;
   }
   /** Policy changes (grants, run registration, cancellation) are owner actions by a person. */
-  private async requireOwner(c: PoolClient, ws: string, actorId: string) {
+  protected async requireOwner(c: PoolClient, ws: string, actorId: string) {
     const role = await this.role(c, ws, actorId, true);
     if (role !== 'owner' || (await this.actorKind(c, actorId)) !== 'human')
       throw fail(
@@ -265,7 +265,7 @@ export class OversightStore extends Store {
 
   // ---- Runs -----------------------------------------------------------------------------
 
-  private async lockRun(c: PoolClient, ws: string, runId: string) {
+  protected async lockRun(c: PoolClient, ws: string, runId: string) {
     const { rows } = await c.query(
       'select * from run_controls where workspace_id = $1 and run_id = $2 for update',
       [ws, runId],
@@ -1170,7 +1170,20 @@ export class OversightStore extends Store {
     ws = uuid(ws);
     runId = uuid(runId);
     const req = parse(ActionRequestSchema, raw);
-    return this.idempotent(ws, ctx, { op: 'admit', runId, req }, async (c) => {
+    return this.idempotent(ws, ctx, { op: 'admit', runId, req }, (c) =>
+      this.admitIn(c, ctx, ws, runId, req),
+    );
+  }
+
+  /** Admission inside the caller's transaction, so the broker can reserve atomically with it. */
+  protected async admitIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    req: ActionRequest,
+  ): Promise<Admission> {
+    {
       await this.role(c, ws, ctx.actorId, true);
       await this.expireDue(c, ctx, ws);
       const run = await this.lockRun(c, ws, runId);
@@ -1395,7 +1408,7 @@ export class OversightStore extends Store {
         ],
       });
       return toAdmission(rows[0] as Row);
-    });
+    }
   }
 
   async listAdmissions(

@@ -379,3 +379,44 @@ a.primary.link {
     flex-direction: column;
   }
 }
+.meter {
+  display: flex;
+  height: 10px;
+  margin: 12px 0 4px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #e3e8de;
+}
+.meter span {
+  display: block;
+  height: 100%;
+}
+.m-incurred {
+  background: #2f5b45;
+}
+.m-reserved {
+  background: #7aa38b;
+}
+.m-unknown {
+  background: #c58b2a;
+}
+.m-allocated {
+  background: #a9b6c9;
+}
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+}
+.balances {
+  font-size: 12px;
+}
+.state-overrun,
+.res-unknown {
+  color: #8a5a0f;
+}
+.state-closed,
+.res-denied {
+  color: #687168;
+}

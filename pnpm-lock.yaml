@@ -23,6 +23,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@creator/broker':
+        specifier: workspace:*
+        version: link:../../packages/broker
       '@creator/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -74,6 +77,18 @@ importers:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.19.0)
 
+  packages/broker:
+    dependencies:
+      '@creator/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@creator/db':
+        specifier: workspace:*
+        version: link:../db
+      '@creator/domain':
+        specifier: workspace:*
+        version: link:../domain
+
   packages/contracts:
     dependencies:
       zod:
@@ -107,6 +122,9 @@ importers:
       '@creator/api':
         specifier: workspace:*
         version: link:../apps/api
+      '@creator/broker':
+        specifier: workspace:*
+        version: link:../packages/broker
       '@creator/contracts':
         specifier: workspace:*
         version: link:../packages/contracts

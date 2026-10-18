@@ -8,6 +8,7 @@ import {
 } from '@creator/contracts';
 import { Records } from './records.js';
 import { Oversight, SignIn, useSession } from './oversight.js';
+import { Budgets } from './budgets.js';
 import './style.css';
 
 const choices = [
@@ -227,10 +228,13 @@ function App() {
         {auth.session && (
           <Oversight session={auth.session} signOut={auth.signOut} />
         )}
+        {auth.session && <Budgets session={auth.session} />}
         {(!persistent || auth.session) && <Records persistent={persistent} />}
         <footer>
           <span>Schema 1.0 · Local control</span>
-          <span>Live providers are a later milestone.</span>
+          <span>
+            Live calls need a provider, pricing, a grant and a budget.
+          </span>
         </footer>
       </main>
     </div>

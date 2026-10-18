@@ -27,3 +27,4 @@ export const contractSchemas = {
   assignment: ExperimentAssignmentSchema,
 } as const;
 export * from './oversight.js';
+export * from './budget.js';

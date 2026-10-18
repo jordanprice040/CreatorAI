@@ -211,6 +211,25 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return `Answered decision: ${String(p.choice)}`;
     case 'decision.closed':
       return `Closed decision as ${String(p.status)}`;
+    case 'pricing.recorded':
+      return `Recorded ${String(p.basis)} pricing for ${String(p.provider)}/${String(p.model_id)}`;
+    case 'budget.funded':
+    case 'budget.allocated':
+      return `${action === 'budget.funded' ? 'Funded' : 'Allocated'} ${String(p.kind)} budget of ${String(p.cap_nano)} nano-USD${p.fixture ? ' (simulated)' : ''}`;
+    case 'budget.closed':
+      return `Closed budget; returned ${String(p.returned_nano)} nano-USD to its parent`;
+    case 'budget.reserved':
+      return `Reserved ${String(p.reserved_nano)} for ${String(p.action_type)} attempt ${String(p.attempt)}`;
+    case 'budget.denied':
+      return `Did not send ${String(p.action_type)} (${String(p.reason_code)})`;
+    case 'budget.settled':
+      return `Charged ${String(p.incurred_nano)} of ${String(p.reserved_nano)} reserved`;
+    case 'budget.released':
+      return `Released ${String(p.reserved_nano)} uncharged (${String(p.reason_code)})`;
+    case 'budget.unknown':
+      return `Holding ${String(p.reserved_nano)} for an unknown outcome (${String(p.reason_code)})`;
+    case 'budget.late_result_conflict':
+      return 'A late provider result arrived for a call already reconciled as uncharged';
     case 'action.evaluated':
       return `Action ${String(p.action_type)}: ${String(p.verdict)} (${String(p.reason_code)})`;
     default:

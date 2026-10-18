@@ -5,6 +5,7 @@ import {
 } from 'node:http';
 import pg from 'pg';
 import {
+  BrokerStatusSchema,
   ContractError,
   contractSchemas,
   HealthSchema,
@@ -13,11 +14,12 @@ import {
 } from '@creator/contracts';
 import { authConfig, runFixture, serviceConfig } from '@creator/domain';
 import {
-  OversightStore,
+  BudgetStore,
   assertSchemaCurrent,
   databaseUrl,
   type CommandContext,
 } from '@creator/db';
+import { FixtureAdapter, ModelBroker, OpenAIAdapter } from '@creator/broker';
 import { createAuth } from './auth.js';
 
 const MAX_BODY = 65536;
@@ -55,6 +57,37 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 }
 // Local single-owner deployment: a signed-in session acts as this configured owner actor.
 export const DEFAULT_OWNER_ACTOR_ID = '00000000-0000-4000-8000-000000000001';
+/** System actor that records crash recovery of lost broker attempts. */
+export const BROKER_ACTOR_ID = '00000000-0000-4000-8000-000000000002';
+/**
+ * A live adapter exists only when the owner opts in explicitly and supplies a key. The key
+ * stays in this process; it is not an authorization to spend (grants and envelopes are).
+ */
+function liveAdapter(env: Record<string, string | undefined>) {
+  const provider = env.CREATOR_LIVE_PROVIDER ?? 'none';
+  if (provider === 'none') return null;
+  if (provider !== 'openai')
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'CREATOR_LIVE_PROVIDER must be none or openai.',
+    );
+  if (!env.OPENAI_API_KEY)
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'CREATOR_LIVE_PROVIDER=openai needs OPENAI_API_KEY on the API process.',
+    );
+  try {
+    return new OpenAIAdapter({
+      apiKey: env.OPENAI_API_KEY,
+      model_id: env.CREATOR_OPENAI_MODEL ?? 'gpt-6-astra',
+      ...(env.CREATOR_OPENAI_BASE_URL
+        ? { baseUrl: env.CREATOR_OPENAI_BASE_URL }
+        : {}),
+    });
+  } catch (e) {
+    throw new ContractError('INVALID_CONFIG', (e as Error).message);
+  }
+}
 const CONNECTION_FAILURES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -89,6 +122,8 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   UNAUTHENTICATED: 401,
   CSRF_DENIED: 403,
   EXPIRED: 409,
+  BUDGET_EXCEEDED: 409,
+  PRICING_MISSING: 409,
   SCOPE_EXCEEDED: 403,
   BODY_TOO_LARGE: 413,
   VERSION_CONFLICT: 409,
@@ -98,7 +133,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -121,7 +156,12 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   pool?.on('error', (e) =>
     console.error(`PostgreSQL idle client error: ${e.message}`),
   );
-  const store = pool ? new OversightStore(pool) : null;
+  const live = liveAdapter(env);
+  const store = pool ? new BudgetStore(pool) : null;
+  const broker = store
+    ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
+    : null;
+  const brokerActor = { actorId: BROKER_ACTOR_ID };
   const authn = createAuth(auth, store, ownerId);
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
@@ -134,7 +174,13 @@ export function createApi(env: Record<string, string | undefined> = {}) {
       kind: 'human',
       display_name: 'Local owner',
     });
+    await store.ensureActor({
+      id: BROKER_ACTOR_ID,
+      kind: 'system',
+      display_name: 'Budget broker',
+    });
     storage = 'postgresql';
+    await store.sweepStale(brokerActor);
     await store.drainOutbox();
   }
   let ready = init();
@@ -149,10 +195,13 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     }
   }
   // Outbox relay: deliveries are idempotent, so a crash between projection and ack is safe.
+  let ticks = 0;
   const relay = store
     ? setInterval(() => {
-        if (storage === 'postgresql')
-          void store.drainOutbox().catch(() => undefined);
+        if (storage !== 'postgresql') return;
+        void store.drainOutbox().catch(() => undefined);
+        if (++ticks % 15 === 0)
+          void store.sweepStale(brokerActor).catch(() => undefined);
       }, 1000)
     : null;
   relay?.unref();
@@ -270,10 +319,21 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await store.registerRun(ctx, ws, await readJson(req)),
           true,
         );
-      if (item && method === 'POST' && action === 'cancel')
+      if (item && method === 'POST' && action === 'cancel') {
+        const cancelled = await store.cancelRun(
+          ctx,
+          ws,
+          item,
+          await readJson(req),
+        );
+        // Stop in-flight calls too; their exposure stays held until reconciled.
+        broker?.cancelRun(cancelled.run_id);
+        return send(200, cancelled, true);
+      }
+      if (item && method === 'POST' && action === 'model-calls')
         return send(
           200,
-          await store.cancelRun(ctx, ws, item, await readJson(req)),
+          await broker!.call(ctx, ws, item, await readJson(req)),
           true,
         );
       if (item && method === 'POST' && action === 'actions')
@@ -332,6 +392,53 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await store.answerDecision(ctx, ws, item, await readJson(req)),
           true,
         );
+    } else if (collection === 'pricing' && !item) {
+      if (method === 'GET')
+        return send(200, await store.listPricing(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          201,
+          await store.createPricing(ctx, ws, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'budgets') {
+      if (!item && method === 'GET')
+        return send(200, await store.listEnvelopes(ctx, ws), false);
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.createEnvelope(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (item && !action && method === 'GET')
+        return send(200, await store.getEnvelope(ctx, ws, item), false);
+      if (item && action === 'close' && method === 'POST')
+        return send(
+          200,
+          await store.closeEnvelope(ctx, ws, item, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'reservations') {
+      if (!item && method === 'GET') {
+        const envelope = url.searchParams.get('envelope');
+        const run = url.searchParams.get('run');
+        const operation = url.searchParams.get('operation');
+        return send(
+          200,
+          await store.listReservations(ctx, ws, {
+            ...(envelope ? { envelopeId: envelope } : {}),
+            ...(run ? { runId: run } : {}),
+            ...(operation ? { operationId: operation } : {}),
+          }),
+          false,
+        );
+      }
+      if (item && action === 'reconcile' && method === 'POST')
+        return send(
+          200,
+          await store.reconcile(ctx, ws, item, await readJson(req)),
+          true,
+        );
     } else if (collection === 'history' && !item) {
       if (method === 'GET') {
         await store.drainOutbox();
@@ -386,6 +493,18 @@ export function createApi(env: Record<string, string | undefined> = {}) {
             live_enabled: false,
             persistent: storage === 'postgresql',
             storage,
+          }),
+        );
+      if (req.method === 'GET' && req.url === '/api/broker/status')
+        return respond(
+          res,
+          200,
+          parse(BrokerStatusSchema, {
+            fixture_adapter: 'deterministic-fixture-broker-v1',
+            live: { openai: live ? 'configured_unverified' : 'not_configured' },
+            note: live
+              ? `Live adapter for ${live.model_id} is configured; a call still needs pricing, a covering grant and a funded envelope. No live call has been verified.`
+              : 'Fixture workspaces use the deterministic adapter. Real workspaces are denied until a live provider is configured.',
           }),
         );
       if (req.method === 'POST' && req.url === '/api/fixture')
@@ -475,6 +594,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     server,
     config,
     store,
+    broker,
     ready: () => ready,
     close,
     authMode: authn.mode,

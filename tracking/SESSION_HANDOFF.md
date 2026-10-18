@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T04 budgets and a metered model/tool broker (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t04-budgets-broker-px0108`, stacked on the T03 branch (`claude/t03-decisions-autonomy-5gpinz`, draft PR #4, not yet merged). Rebase onto `main` once #4 merges. Opened as a stacked draft PR.
+
+What works: record a pricing snapshot, fund a budget, then send model or tool calls for a registered run through `POST …/runs/{run}/model-calls` (CLI `model-call`, or the web Budgets panel's fixture test call). Each attempt reserves its maximum exposure with the T03 admission, then settles from usage. Refusals, unknown outcomes and reconciliation are visible in `reservations`, history and the panel. See docs/LOCAL_DEVELOPMENT.md.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (33 pass, 28 skipped without DB), `pnpm test:db` (61/61), `pnpm smoke`, headless Chromium check of the panel. Evidence: tracking/evidence/t04/.
+
+Not done / limits: no live call (no key, no spend grant); Windows untested; CI still runs only `pnpm check`. ADR-0007 records the design.
+
+**Next eligible prompt: T05 — Durable bounded orchestration and recovery**, after T03 and T04 merge. Requires a new request.
+
 ## Latest — T03 human decisions, autonomy modes and humility (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t03-decisions-autonomy-5gpinz` from `main` at 2a2d028 (T02 merged as PR #3). Opened as a draft PR.

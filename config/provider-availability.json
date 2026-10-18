@@ -1,10 +1,13 @@
 {
-  "recorded_on": "2026-10-17",
-  "reference_preference": "GPT-6 Astra (historical owner preference)",
+  "recorded_on": "2026-10-18",
+  "reference_preference": "GPT-6 Astra (owner's reference model)",
+  "documented_api_model_id": "gpt-6-astra",
+  "documented_source": "https://developers.openai.com/api/docs/models/gpt-6-astra",
   "verified_api_model_id": null,
-  "availability": "unverified",
-  "pricing": null,
+  "availability": "documented_by_provider; account access unverified (no key in the build environment)",
+  "pricing": "config/pricing/openai-gpt-6-astra.json (documented Standard tier, retrieved 2026-10-18)",
   "live_dispatch_enabled": false,
-  "fixture_provider": "deterministic-fixture-v1",
-  "note": "No real provider SDK, account lookup, key, spend grant or inference call. Fixture is explicitly selected, never a fallback."
+  "live_adapter": "packages/broker OpenAIAdapter (Responses API), contract-tested against a loopback server only",
+  "fixture_provider": "deterministic-fixture-v1; broker fixture adapter fixture-model-v1",
+  "note": "No live inference call, account lookup, key or spend grant has been used. Fixture is explicitly selected for fixture workspaces, never a fallback."
 }
