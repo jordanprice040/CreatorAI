@@ -875,9 +875,17 @@ export function createApi(
             schema_version: '1.0',
             status: 'ok',
             service: 'creator-agent-api',
-            data_mode: 'fixture',
-            provider: 'deterministic-fixture-v1',
-            live_enabled: false,
+            // Derived from the configured adapters (audit 2026-10-18 #5); fixture is the default.
+            data_mode:
+              live || sourceConfig.adapter ? 'live_configured' : 'fixture',
+            provider: live
+              ? `${live.provider}/${live.model_id} (configured, unverified) + deterministic-fixture-v1`
+              : 'deterministic-fixture-v1',
+            live_enabled: Boolean(live || sourceConfig.adapter),
+            live: {
+              model: live ? 'configured_unverified' : 'not_configured',
+              sources: sourceConfig.adapter ? 'configured_unverified' : 'off',
+            },
             persistent: storage === 'postgresql',
             storage,
           }),

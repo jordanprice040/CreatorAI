@@ -56,5 +56,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # The T17 backup/restore test needs a pg_dump at least as new as the server; fail loudly
+      # here rather than let that test skip.
+      - run: pg_dump --version
       # WSL2 isolation tests skip visibly here; they remain a manual Windows gate.
       - run: pnpm test:db

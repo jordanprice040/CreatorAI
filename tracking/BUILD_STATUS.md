@@ -1,5 +1,17 @@
 # Implementation status
 
+T17 update, October 18, 2026 (Claude Code, branch claude/project-thread-k4si82 from main
+e46b2cf; ADR-0020; built in parallel with T14): requirements-to-evidence report for C01–C51,
+S01–S18 and the T17 priority risks in tracking/evidence/t17/REQUIREMENTS_EVIDENCE.md. New
+local backup/restore (`pnpm backup`, docs/BACKUP_AND_RESTORE.md): a restored database and
+product store pass the audit chain, artifact hash, catalog search, lineage and exact-byte
+download checks through the real API, and tampering is refused. Fixed: a child overrun now
+counts against every ancestor; `/api/health` reports configured live adapters; preview stdin
+survives split UTF-8; workflow lease heartbeats work (an ambiguous SQL column had made every
+heartbeat fail silently, so long calls were redelivered). Cloud `pnpm test:db`: 162 tests,
+152 pass, 0 fail, 10 WSL skips; after merging T14, 168 tests, 158 pass, 0 fail, 10 WSL skips.
+Real WSL2 gate on Jordan's Windows machine (reported by Jordan, October 18, 2026, on merge commit 38b3e46): `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` 168 tests, 167 pass, 0 fail, 1 skip (the no-worker test, which always skips where the worker exists, so the restore test ran there). No critical blocker found; not production-ready or live.
+
 T14 update, October 18, 2026 (Claude Code, branch claude/project-thread-ocgg8g from main
 e46b2cf; ADR-0019): `pnpm pilot <dir>` runs a pilot rehearsal (arms A, B, C on one fictional
 decision task plus one structured/open-ended pair) through the real study path, with fixture
@@ -19,7 +31,8 @@ fail, 10 WSL skips**; GitHub CI (including the new database job) green. Real WSL
 Jordan's Windows machine (reported by Jordan, October 18, 2026): `CREATOR_TEST_ISOLATION=wsl2
 pnpm test:db` **158 tests, 157 pass, 0 fail, 1 skip** (the no-worker test). Remaining
 audit items (parent envelope overrun, health labels, preview cookie scope, small fixes) are
-in /mnt/project-files/audits/2026-10-18-codebase-audit.md and are not fixed.
+in /mnt/project-files/audits/2026-10-18-codebase-audit.md; T17 (above) fixes 4, 5 and 7
+and records 6.
 
 T13 update, October 18, 2026 (Claude Code, branch claude/t13-8h288j from main at
 6fe5bab, T12 merged as PR #14): a T12 verified candidate now packages into a
@@ -71,9 +84,7 @@ Python template, not independent model-quality evidence or a whole-product
 readiness claim. Browser/persistence recipes, dependent-task integration, build
 catalog indexing, participant implementation execution, previews and delivery
 remain unavailable. No live provider, real spend, public release or study
-activation. T11/T12 source review/merge is not claimed. Next milestone: **T13 —
-Verified artifacts, private preview, and feedback revision**, after review and a
-new request; no automatic advancement.
+activation. T11 and T12 were later merged (PRs #13 and #14) and T13 is done.
 
 | Requirement | T12 verified scope | Remaining limitation |
 | --- | --- | --- |
@@ -148,7 +159,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
 | T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
-| T17 | Failure recovery, boundary checks, and requirements audit | planned | No application code at T00 | T13; may run alongside preparation for T14–T16 |
+| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
 | X01 | Model registry and qualified automatic routing | deferred | No application code at T00 | T10 and measured task outcomes |
@@ -162,7 +173,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | X09 | Portfolio scheduling, maintenance, and reusable knowledge | deferred | No application code at T00 | T13; X01/X07/X08 for their enabled features |
 | X10 | Full-product acceptance and bounded owner pilot | deferred | No application code at T00 | Applicable X01–X09 gates |
 
-Requirement-level evidence: add C01–C51 status/evidence rows here during implementation and the final audit. No requirement is pre-marked complete.
+Requirement-level evidence: the T17 audit lists every C01–C51 status with evidence in [evidence/t17/REQUIREMENTS_EVIDENCE.md](evidence/t17/REQUIREMENTS_EVIDENCE.md). No requirement is pre-marked complete.
 
 ## T00 checks and limitations
 

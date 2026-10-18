@@ -145,3 +145,27 @@ test('compiled CLI reaches the HTTP API and fails visibly when unavailable', asy
       e !== null && typeof e === 'object' && 'code' in e && e.code === 1,
   );
 });
+test('health reports configured live adapters instead of always claiming fixture mode', async (t) => {
+  const { server } = createApi({
+    CREATOR_LIVE_PROVIDER: 'openai',
+    OPENAI_API_KEY: 'sk-test-not-a-real-key',
+    CREATOR_SOURCE_FETCH: 'live',
+    CREATOR_SOURCE_HOSTS: 'example.org',
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const { port } = server.address() as { port: number };
+  const raw = await (await fetch(`http://127.0.0.1:${port}/api/health`)).text();
+  const health = parse(HealthSchema, JSON.parse(raw));
+  assert.equal(health.data_mode, 'live_configured');
+  assert.equal(health.live_enabled, true);
+  assert.deepEqual(health.live, {
+    model: 'configured_unverified',
+    sources: 'configured_unverified',
+  });
+  assert.ok(!raw.includes('sk-test'), 'the key never appears in health');
+});

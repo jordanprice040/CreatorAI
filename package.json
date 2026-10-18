@@ -22,6 +22,7 @@
     "worker": "pnpm build:code && node packages/orchestrator/dist/main.js",
     "pilot": "pnpm build:code && node packages/orchestrator/dist/pilot-main.js",
     "db:migrate": "pnpm build:code && node packages/db/dist/migrate-main.js",
+    "backup": "pnpm build:code && node packages/db/dist/backup-main.js",
     "dev:web": "pnpm --filter @creator/web dev",
     "cli": "node apps/cli/dist/main.js",
     "smoke": "pnpm build && node scripts/smoke.mjs"

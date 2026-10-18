@@ -334,9 +334,14 @@ export const HealthSchema = z.strictObject({
   schema_version: schemaVersion,
   status: z.literal('ok'),
   service: z.literal('creator-agent-api'),
-  data_mode: z.literal('fixture'),
-  provider: z.literal('deterministic-fixture-v1'),
-  live_enabled: z.literal(false),
+  /** `live_configured` means a live adapter is configured, not that a live call was verified. */
+  data_mode: z.enum(['fixture', 'live_configured']),
+  provider: z.string().max(120),
+  live_enabled: z.boolean(),
+  live: z.strictObject({
+    model: z.enum(['not_configured', 'configured_unverified']),
+    sources: z.enum(['off', 'configured_unverified']),
+  }),
   persistent: z.boolean(),
   storage: z.enum(['postgresql', 'not_configured', 'unavailable']),
 });

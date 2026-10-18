@@ -247,6 +247,70 @@ test('concurrent reservations cannot overspend an envelope', async (t) => {
   );
 });
 
+test('concurrent parent calls and child carve-outs cannot both take the last budget (S07)', async (t) => {
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  const adapter = new ScriptedAdapter(async () => {
+    await gate;
+    return completed();
+  });
+  const s = await setup(t, adapter);
+  if (!s) return;
+  t.after(open);
+  const runId = await s.run();
+  // Room for exactly two maximum exposures, contested by parent calls and child envelopes.
+  const parent = await s.envelope(EXPOSURE * 2n + EXPOSURE / 2n);
+  let decided = 0;
+  const calls = Array.from({ length: 4 }, () =>
+    s.broker
+      .call(owner, s.ws.id, runId, s.request(parent.id))
+      .then((r) => ((decided += 1), r)),
+  );
+  const carve = Array.from({ length: 4 }, (_, i) =>
+    s.store
+      .createEnvelope(owner, s.ws.id, {
+        parent_id: parent.id,
+        kind: 'run',
+        run_id: runId,
+        name: `Child ${i}`,
+        cap_nano_usd: String(EXPOSURE),
+        starts_at: null,
+        ends_at: null,
+        max_in_flight: 1,
+      })
+      .then(
+        () => ((decided += 1), true),
+        (e: unknown) => {
+          decided += 1;
+          assert.ok(e instanceof ContractError && e.code === 'BUDGET_EXCEEDED');
+          return false;
+        },
+      ),
+  );
+  const deadline = Date.now() + 4500;
+  while (decided < 6 && Date.now() < deadline) await sleep(20);
+  const during = await s.balanced(parent.id);
+  assert.ok(
+    BigInt(during.allocated) + BigInt(during.reserved) <= BigInt(during.cap),
+    'allocation plus reservation never exceeds the cap',
+  );
+  open();
+  const results = await Promise.all(calls);
+  const created = (await Promise.all(carve)).filter(Boolean).length;
+  const reserved = results.filter((r) => r.status === 'succeeded').length;
+  assert.equal(
+    reserved + created,
+    2,
+    'exactly the authority that existed was used',
+  );
+  assert.equal(adapter.calls, reserved);
+  assert.ok(
+    results
+      .filter((r) => r.status === 'denied')
+      .every((r) => r.reason_code === 'budget_exceeded'),
+  );
+});
+
 test('in-flight limit bounds concurrency independently of money', async (t) => {
   let open!: () => void;
   const gate = new Promise<void>((resolve) => (open = resolve));
@@ -721,19 +785,6 @@ test('child envelopes conserve authority; rollups do not double count; overrun b
   );
   assert.equal(rootView.rollup_incurred, String(ACTUAL));
   assert.equal(rootView.allocated, String(EXPOSURE * 6n));
-  // Overrun: the provider charged more than the bound. Recorded truthfully, then blocked.
-  const over = await s.broker.call(owner, s.ws.id, runId, s.request(runEnv.id));
-  assert.equal(over.status, 'succeeded');
-  let r = await s.balanced(runEnv.id);
-  assert.equal(r.status, 'overrun');
-  const blocked = await s.broker.call(
-    owner,
-    s.ws.id,
-    runId,
-    s.request(runEnv.id),
-  );
-  assert.equal(blocked.reason_code, 'envelope_inactive');
-  assert.equal(adapter.calls, 2);
   // Closing a normal child returns only its unspent remainder.
   const spare = await s.store.createEnvelope(owner, s.ws.id, {
     parent_id: period.id,
@@ -756,6 +807,53 @@ test('child envelopes conserve authority; rollups do not double count; overrun b
     BigInt(before.allocated) - BigInt(afterClose.allocated),
     EXPOSURE,
   );
-  r = await s.balanced(runEnv.id);
+  // A sibling under the same period, funded before anything goes wrong.
+  const sibling = await s.store.createEnvelope(owner, s.ws.id, {
+    parent_id: period.id,
+    kind: 'run',
+    run_id: runId,
+    name: 'Sibling',
+    cap_nano_usd: String(EXPOSURE),
+    starts_at: null,
+    ends_at: null,
+    max_in_flight: 1,
+  });
+  // Overrun: the provider charged more than the bound. Recorded truthfully, then blocked.
+  const over = await s.broker.call(owner, s.ws.id, runId, s.request(runEnv.id));
+  assert.equal(over.status, 'succeeded');
+  const r = await s.balanced(runEnv.id);
+  assert.equal(r.status, 'overrun');
+  const blocked = await s.broker.call(
+    owner,
+    s.ws.id,
+    runId,
+    s.request(runEnv.id),
+  );
+  assert.equal(blocked.reason_code, 'envelope_inactive');
+  assert.equal(adapter.calls, 2);
+  // The excess also counts against every ancestor: the period and the root are now past their
+  // caps, so the sibling cannot spend and nothing new can be carved out (audit 2026-10-18 #4).
+  const siblingCall = await s.broker.call(
+    owner,
+    s.ws.id,
+    runId,
+    s.request(sibling.id),
+  );
+  assert.equal(siblingCall.reason_code, 'ancestor_overrun');
+  for (const parentId of [period.id, root.id])
+    await rejects(
+      'BUDGET_EXCEEDED',
+      s.store.createEnvelope(owner, s.ws.id, {
+        parent_id: parentId,
+        kind: 'run',
+        run_id: runId,
+        name: 'After overrun',
+        cap_nano_usd: '1',
+        starts_at: null,
+        ends_at: null,
+        max_in_flight: 1,
+      }),
+    );
+  assert.equal(adapter.calls, 2);
   assert.ok(BigInt(r.incurred) > BigInt(r.cap));
 });

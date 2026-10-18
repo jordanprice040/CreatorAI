@@ -381,12 +381,16 @@ export function createPreviewServer(
             'INVALID_CONTRACT',
             'Expected application/json.',
           );
-        let raw = '';
-        for await (const chunk of req) {
-          raw += String(chunk);
-          if (raw.length > 16384)
+        // Collect bytes and decode once, so a multibyte character split across chunks survives.
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req as AsyncIterable<Buffer>) {
+          size += chunk.length;
+          if (size > 16384)
             throw new ContractError('BODY_TOO_LARGE', 'Request too large.');
+          chunks.push(chunk);
         }
+        const raw = Buffer.concat(chunks).toString('utf8');
         const input = parse(RunInputSchema, JSON.parse(raw || 'null'));
         const a = await store.previewAccess(id, session, true);
         const e = await artifacts.start(
