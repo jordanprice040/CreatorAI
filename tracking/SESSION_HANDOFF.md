@@ -10,8 +10,7 @@ product store. Fixed audit items 4 (overrun now counts against ancestors, `ances
 in budget-store.ts), 5 (health derives live labels) and 7 (preview stdin decoded once); item
 6 recorded in ADR-0020; workflow-store heartbeat SQL fixed (`t.version`; it had failed on every
 call and the worker swallowed the error); item 7's export note was not a defect (each study attempt has its own
-workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate not re-run
-for this branch. Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
+workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate on Jordan's Windows machine (reported by Jordan, October 18, 2026, on merge commit 38b3e46): `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` 168 tests, 167 pass, 0 fail, 1 skip (the no-worker test, which always skips where the worker exists, so the restore test ran there). Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
 
 ## Latest - T14 pilot rehearsal and proposed protocol (October 18, 2026)
 

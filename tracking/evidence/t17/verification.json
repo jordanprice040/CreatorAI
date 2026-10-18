@@ -56,9 +56,17 @@
     "broker.test.ts: child envelopes conserve authority; rollups do not double count; overrun blocks (now also ancestors)",
     "artifact-api.test.ts: split multibyte preview stdin"
   ],
-  "not_run": [
-    "CREATOR_TEST_ISOLATION=wsl2 pnpm test:db on Jordan's Windows machine",
-    "pnpm backup on Windows"
-  ],
+  "windows_wsl2_gate": {
+    "reported_by": "Jordan",
+    "date": "2026-10-18",
+    "commit": "38b3e46",
+    "command": "CREATOR_TEST_ISOLATION=wsl2 pnpm test:db",
+    "tests": 168,
+    "pass": 167,
+    "fail": 0,
+    "skipped": 1,
+    "skip_note": "no-worker test (skips wherever the WSL2 worker exists); inferred, skip name not reported"
+  },
+  "not_run": ["pnpm backup CLI by hand on Windows"],
   "artifact_mode": "labelled test double (executes nothing; not isolation evidence)"
 }

@@ -9,8 +9,8 @@ download checks through the real API, and tampering is refused. Fixed: a child o
 counts against every ancestor; `/api/health` reports configured live adapters; preview stdin
 survives split UTF-8; workflow lease heartbeats work (an ambiguous SQL column had made every
 heartbeat fail silently, so long calls were redelivered). Cloud `pnpm test:db`: 162 tests,
-152 pass, 0 fail, 10 WSL skips; after merging T14, 168 tests, 158 pass, 0 fail, 10 WSL skips. Not re-run on
-Jordan's Windows machine. No critical blocker found; not production-ready or live.
+152 pass, 0 fail, 10 WSL skips; after merging T14, 168 tests, 158 pass, 0 fail, 10 WSL skips.
+Real WSL2 gate on Jordan's Windows machine (reported by Jordan, October 18, 2026, on merge commit 38b3e46): `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` 168 tests, 167 pass, 0 fail, 1 skip (the no-worker test, which always skips where the worker exists, so the restore test ran there). No critical blocker found; not production-ready or live.
 
 T14 update, October 18, 2026 (Claude Code, branch claude/project-thread-ocgg8g from main
 e46b2cf; ADR-0019): `pnpm pilot <dir>` runs a pilot rehearsal (arms A, B, C on one fictional
@@ -159,7 +159,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
 | T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
-| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15); Windows re-run pending | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | WSL2 gate and Windows `pnpm backup` not re-run; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
+| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
 | X01 | Model registry and qualified automatic routing | deferred | No application code at T00 | T10 and measured task outcomes |
