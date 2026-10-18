@@ -5,18 +5,52 @@
   "base": "e46b2cf",
   "platform": "Linux cloud container, Node 22, PostgreSQL 16.15 (client and server)",
   "checks": [
-    { "command": "pnpm test:db (before changes)", "tests": 158, "pass": 148, "fail": 0, "skipped": 10, "skip_reason": "real WSL2 worker gate is opt-in" },
-    { "command": "pnpm test:db (after changes)", "tests": 161, "pass": 151, "fail": 0, "skipped": 10, "skip_reason": "real WSL2 worker gate is opt-in" },
-    { "command": "pnpm typecheck", "result": "pass" },
-    { "command": "pnpm format:check", "result": "pass" },
-    { "command": "reproduce audit item 4 on base code (broker.test.ts overrun test)", "result": "fails as expected: sibling call 'succeeded' instead of 'ancestor_overrun'" },
-    { "command": "reproduce audit item 7 on base code (artifact-api.test.ts split UTF-8 stdin)", "result": "fails as expected: stdin corrupted" },
-    { "command": "pnpm backup create/restore/verify by hand on a migrated empty database", "result": "pass; restore into non-empty database refused; wrong password not printed" }
+    {
+      "command": "pnpm test:db (before changes)",
+      "tests": 158,
+      "pass": 148,
+      "fail": 0,
+      "skipped": 10,
+      "skip_reason": "real WSL2 worker gate is opt-in"
+    },
+    {
+      "command": "pnpm test:db (after changes)",
+      "tests": 162,
+      "pass": 152,
+      "fail": 0,
+      "skipped": 10,
+      "skip_reason": "real WSL2 worker gate is opt-in"
+    },
+    {
+      "command": "pnpm typecheck",
+      "result": "pass"
+    },
+    {
+      "command": "pnpm format:check",
+      "result": "pass"
+    },
+    {
+      "command": "reproduce audit item 4 on base code (broker.test.ts overrun test)",
+      "result": "fails as expected: sibling call 'succeeded' instead of 'ancestor_overrun'"
+    },
+    {
+      "command": "reproduce audit item 7 on base code (artifact-api.test.ts split UTF-8 stdin)",
+      "result": "fails as expected: stdin corrupted"
+    },
+    {
+      "command": "pnpm backup create/restore/verify by hand on a migrated empty database",
+      "result": "pass; restore into non-empty database refused; wrong password not printed"
+    },
+    {
+      "command": "reproduce heartbeat bug on base code (workflow.test.ts heartbeats keep a live lease)",
+      "result": "fails as expected: deliveries 2, server log 'column reference \"version\" is ambiguous'"
+    }
   ],
   "new_tests": [
     "restore.test.ts: a backup restores the catalog and artifact references into a new database and product store, and refuses tampering",
     "broker.test.ts: concurrent parent calls and child carve-outs cannot both take the last budget (S07)",
-    "api.test.ts: health reports configured live adapters instead of always claiming fixture mode"
+    "api.test.ts: health reports configured live adapters instead of always claiming fixture mode",
+    "workflow.test.ts: heartbeats keep a live lease past its first expiry, and refuse a stale token"
   ],
   "extended_tests": [
     "broker.test.ts: child envelopes conserve authority; rollups do not double count; overrun blocks (now also ancestors)",

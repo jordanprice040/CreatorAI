@@ -7,7 +7,9 @@ local backup/restore (`pnpm backup`, docs/BACKUP_AND_RESTORE.md): a restored dat
 product store pass the audit chain, artifact hash, catalog search, lineage and exact-byte
 download checks through the real API, and tampering is refused. Fixed: a child overrun now
 counts against every ancestor; `/api/health` reports configured live adapters; preview stdin
-survives split UTF-8. Cloud `pnpm test:db`: 161 tests, 151 pass, 0 fail, 10 WSL skips. Not re-run on
+survives split UTF-8; workflow lease heartbeats work (an ambiguous SQL column had made every
+heartbeat fail silently, so long calls were redelivered). Cloud `pnpm test:db`: 162 tests,
+152 pass, 0 fail, 10 WSL skips. Not re-run on
 Jordan's Windows machine. No critical blocker found; not production-ready or live.
 
 Audit fixes, October 18, 2026 (Claude Code, branch claude/project-thread-mccbs5 from
@@ -147,7 +149,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T14 | Pilot, rubric calibration, and protocol freeze | planned | No application code at T00 | T10 and T13 |
 | T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
-| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15); Windows re-run pending | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 fixed with reproduced failures | WSL2 gate and Windows `pnpm backup` not re-run; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
+| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15); Windows re-run pending | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | WSL2 gate and Windows `pnpm backup` not re-run; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
 | X01 | Model registry and qualified automatic routing | deferred | No application code at T00 | T10 and measured task outcomes |

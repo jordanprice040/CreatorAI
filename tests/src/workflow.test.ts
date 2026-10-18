@@ -267,6 +267,47 @@ test('a workflow runs to a structured result and continues after a restart', asy
   );
 });
 
+test('heartbeats keep a live lease past its first expiry, and refuse a stale token', async (t) => {
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  const adapter = new ScriptedAdapter(async (req, _signal, n) => {
+    if (n === 1) await gate;
+    return byKind(req);
+  });
+  const s = await setup(t, adapter);
+  if (!s) return;
+  t.after(open);
+  const runId = await s.run();
+  const { workflow } = await s.store.startWorkflow(
+    owner,
+    s.ws.id,
+    runId,
+    s.request(['evidence']),
+  );
+  const a = s.worker(s.store, s.brokerFor(s.store), 300);
+  await a.tick();
+  for (let i = 0; i < 50 && adapter.calls.length < 1; i += 1) await sleep(10);
+  assert.equal(adapter.calls.length, 1, 'worker A is in a slow provider call');
+  // Three lease lengths later, A's heartbeats have kept the lease: B finds nothing to take.
+  await sleep(900);
+  const b = s.worker(s.store, s.brokerFor(s.store), 300);
+  await b.tick();
+  const view = await s.store.getWorkflow(owner, s.ws.id, workflow.id);
+  const task = view.tasks.find((x) => x.kind === 'critique')!;
+  assert.equal(task.deliveries, 1, 'a live lease is not redelivered');
+  assert.equal(task.state, 'leased');
+  assert.deepEqual(
+    await s.store.heartbeat(task.id, '999999999', 300),
+    { held: false, cancel: false },
+    'a token that does not hold the lease extends nothing',
+  );
+  open();
+  await a.settle();
+  const done = await s.store.getWorkflow(owner, s.ws.id, workflow.id);
+  assert.equal(done.workflow.state, 'succeeded');
+  assert.equal(adapter.calls.length, 2);
+});
+
 test('a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice', async (t) => {
   let open!: () => void;
   const gate = new Promise<void>((resolve) => (open = resolve));

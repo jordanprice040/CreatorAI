@@ -8,7 +8,8 @@ T14 (ADR-0020; no migration). Report: tracking/evidence/t17/REQUIREMENTS_EVIDENC
 with tests/src/restore.test.ts restoring the catalog and an artifact into a new database and
 product store. Fixed audit items 4 (overrun now counts against ancestors, `ancestor_overrun`
 in budget-store.ts), 5 (health derives live labels) and 7 (preview stdin decoded once); item
-6 recorded in ADR-0020; item 7's export note was not a defect (each study attempt has its own
+6 recorded in ADR-0020; workflow-store heartbeat SQL fixed (`t.version`; it had failed on every
+call and the worker swallowed the error); item 7's export note was not a defect (each study attempt has its own
 workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate not re-run
 for this branch. Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
 

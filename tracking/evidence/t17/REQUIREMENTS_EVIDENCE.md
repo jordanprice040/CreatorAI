@@ -15,12 +15,13 @@ model call, real web fetch, real participant or public release has happened.
 | Check | Platform | Result |
 | --- | --- | --- |
 | Full PostgreSQL suite `pnpm test:db` (before changes) | Linux cloud, PostgreSQL 16.15 | 158 tests, 148 pass, 0 fail, 10 WSL-only skips |
-| Full PostgreSQL suite after T17 changes | Linux cloud, PostgreSQL 16.15 | 161 tests, 151 pass, 0 fail, 10 WSL-only skips; typecheck and format pass |
+| Full PostgreSQL suite after T17 changes | Linux cloud, PostgreSQL 16.15 | 162 tests, 152 pass, 0 fail, 10 WSL-only skips; typecheck and format pass. The PostgreSQL server log shows only errors the tests provoke on purpose |
 | Backup → restore into a new database and product store → real API on the restored copy (`tests/src/restore.test.ts`) | Linux cloud | pass: counts equal, audit chain intact, artifact manifest and package hashes match, catalog search returns the same hits, artifact lineage and download return the exact bytes; a second restore over a non-empty target is refused; a tampered restored package fails verify and the download is refused (400 hash mismatch); a stray file in the backup is refused; redacted text is absent from a plain dump of the restored data |
 | `pnpm backup create / restore / verify` CLI by hand | Linux cloud | pass on an empty migrated database; restore into a non-empty database refused; a wrong password errors without printing it |
 | Parent overrun (audit item 4), reproduced first | Linux cloud | before: a sibling under an overrun parent still spent (`succeeded`); after: `ancestor_overrun`, and new carve-outs under the period and the root fail `BUDGET_EXCEEDED`, adapter calls unchanged |
 | Concurrent parent calls vs child carve-outs for the last budget (S07) | Linux cloud | pass three runs: reservations + created children = exactly the authority that existed |
 | Preview stdin split mid-character (audit item 7), reproduced first | Linux cloud | before: `café ✓` corrupted; after: arrives intact |
+| Workflow lease heartbeat, found from CI server logs and reproduced first | Linux cloud | before: every heartbeat failed with `column reference "version" is ambiguous` and the worker swallowed it, so a provider call longer than one lease was redelivered (deliveries 2); after: the lease is kept across three lease lengths and a stale token extends nothing |
 | Health labels (audit item 5) | Linux cloud | live adapter configured → `live_configured`, `live.model` and `live.sources` = `configured_unverified`; the key never appears |
 | Real WSL2 worker gate | Jordan's Windows machine | **not run for T17**; last run (audit fixes) 157 pass / 1 expected skip. The T17 changes touch no executor code. Re-run recommended before merge: `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` (the restore test needs `pg_dump` 18 for the Docker database; set `CREATOR_PG_BIN` or it skips visibly) |
 
@@ -31,7 +32,7 @@ model call, real web fetch, real participant or public release has happened.
 | Concurrent budgets | `broker.test.ts`: 8 concurrent calls vs a 3-call envelope; new S07 parent/child race | verified (cloud) |
 | Child inheritance | `domain.test.ts` delegation contains paths/grants/depth; `broker.test.ts` child envelopes conserve authority; `orchestration.test.ts` limits | verified (cloud); overrun now reaches ancestors (fixed in T17) |
 | Unknown external outcome | `broker.test.ts` unknown outcomes need owner reconciliation, lost worker leaves exposure unknown; `orchestration.test.ts` unknown is never retried | verified (cloud, fixture provider) |
-| Crash / replay | `workflow.test.ts` crashed worker loses its lease, stale worker cannot commit; `workflow-api.test.ts` killed worker and API processes; `executor.test.ts` unresolved dispatch blocks another worker | verified (cloud; executor part WSL2) |
+| Crash / replay | `workflow.test.ts` heartbeats keep a live lease (fixed in T17); crashed worker loses its lease, stale worker cannot commit; `workflow-api.test.ts` killed worker and API processes; `executor.test.ts` unresolved dispatch blocks another worker | verified (cloud; executor part WSL2) |
 | Source injection | `research-store.test.ts` retrieved instructions change nothing (no grants, decisions, policy or fetches); passages flagged `instruction_like`; `research.test.ts` packets carry text as data | verified (fixture and loopback adapters) |
 | Stale approval | `oversight-store.test.ts` changed target or expiry needs a new decision; `selection.test.ts` spec change invalidates approval versions; `artifacts.test.ts` changed commits invalidate packaging | verified (cloud) |
 | Worker escape | T11/T12/T13 WSL2 gates: namespace, mount, network, resource, symlink/hardlink, tree cancellation; Linux hosts refuse execution by design (`artifacts.test.ts` no-worker test) | verified for the reviewed Python template on Windows + WSL2; hostile-workload breadth (seccomp, arbitrary toolchains) not audited |
@@ -92,7 +93,7 @@ model call, real web fetch, real participant or public release has happened.
 | C19 | Intervention quality and effort | partial | intervention and time fields in export | Real measurement: T15–T16 |
 | C20 | Specs and task DAGs | verified (fixture) | cycles, coverage, ownership checks before freeze | — |
 | C21 | Bounded delegation | verified | child scope/budget/call limits; cancellation propagates | — |
-| C22 | Persistent state and crash recovery | verified (cloud) | killed worker and API restart, fencing | Build crash intents need manual inspection (T12 limit) |
+| C22 | Persistent state and crash recovery | verified (cloud) | killed worker and API restart, fencing; lease heartbeats fixed in T17 (they had never extended a lease) | Build crash intents need manual inspection (T12 limit) |
 | C23 | Independent review and executed QA | verified (WSL2, synthetic roles) | T12 gate; held-out cases (ADR-0018) | stdout/exit CLI recipe only |
 | C24 | Tested artifacts and downloads | verified (WSL2) | T13 gate; restore keeps hashes | CLI-only demo; no installer |
 | C25 | Feedback revision | verified (WSL2) | T13 one feedback-driven revision | — |

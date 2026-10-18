@@ -1366,8 +1366,10 @@ export class WorkflowStore extends BudgetStore {
     leaseMs: number,
   ): Promise<{ held: boolean; cancel: boolean }> {
     const { rows } = await this.pool.query<{ control: string }>(
+      // "t.version": workflows also has a version column, and an ambiguous reference made every
+      // heartbeat fail (and the worker swallowed it), so leases were never extended.
       `update workflow_tasks t set lease_expires_at = now() + make_interval(secs => $3::double precision / 1000),
-         version = version + 1
+         version = t.version + 1
        from workflows w
        where t.id = $1 and t.lease_token = $2 and t.state = 'leased' and w.id = t.workflow_id
        returning w.control`,
