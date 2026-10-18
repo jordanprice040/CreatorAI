@@ -9,12 +9,18 @@ import {
   ContractError,
   contractSchemas,
   HealthSchema,
+  SourceBrokerStatusSchema,
   parse,
   id as idSchema,
 } from '@creator/contracts';
-import { authConfig, runFixture, serviceConfig } from '@creator/domain';
 import {
-  WorkflowStore,
+  authConfig,
+  runFixture,
+  serviceConfig,
+  sourcePolicyHash,
+} from '@creator/domain';
+import {
+  ResearchStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -26,6 +32,12 @@ import {
   liveAdapterFromEnv,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
+import {
+  FIXTURE_SOURCE_POLICY,
+  FixtureSourceAdapter,
+  SourceBroker,
+  sourceConfigFromEnv,
+} from '@creator/research';
 import { createAuth } from './auth.js';
 
 const MAX_BODY = 65536;
@@ -65,6 +77,8 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 export const DEFAULT_OWNER_ACTOR_ID = '00000000-0000-4000-8000-000000000001';
 /** System actor that records crash recovery of lost broker attempts. */
 export const BROKER_ACTOR_ID = '00000000-0000-4000-8000-000000000002';
+/** An in-flight fetch older than this lost its process; sweeps close it as interrupted. */
+const RETRIEVAL_STALE_MS = 120_000;
 const CONNECTION_FAILURES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -112,7 +126,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -136,9 +150,18 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     console.error(`PostgreSQL idle client error: ${e.message}`),
   );
   const live = liveAdapterFromEnv(env);
-  const store = pool ? new WorkflowStore(pool) : null;
+  const sourceConfig = sourceConfigFromEnv(env);
+  const store = pool ? new ResearchStore(pool) : null;
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
+    : null;
+  // Pages reach the app only through this broker, under the owner-approved source policy.
+  const sources = store
+    ? new SourceBroker(
+        store,
+        { fixture: new FixtureSourceAdapter(), live: sourceConfig.adapter },
+        { fixture: FIXTURE_SOURCE_POLICY, live: sourceConfig.policy },
+      )
     : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };
   // Workflows run on the server, not in the page: this in-process worker (or a separate
@@ -182,6 +205,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     });
     storage = 'postgresql';
     await store.sweepStale(brokerActor);
+    await store.sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS);
     await store.drainOutbox();
     worker?.start();
   }
@@ -202,8 +226,12 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     ? setInterval(() => {
         if (storage !== 'postgresql') return;
         void store.drainOutbox().catch(() => undefined);
-        if (++ticks % 15 === 0)
+        if (++ticks % 15 === 0) {
           void store.sweepStale(brokerActor).catch(() => undefined);
+          void store
+            .sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS)
+            .catch(() => undefined);
+        }
       }, 1000)
     : null;
   relay?.unref();
@@ -344,6 +372,12 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await broker!.call(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && method === 'POST' && action === 'source-fetches')
+        return send(
+          200,
+          await sources!.fetch(ctx, ws, item, await readJson(req)),
+          true,
+        );
       if (item && method === 'POST' && action === 'actions')
         return send(
           200,
@@ -474,6 +508,45 @@ export function createApi(env: Record<string, string | undefined> = {}) {
         if (action === 'cancel') broker?.cancelRun(detail.workflow.run_id);
         return send(200, detail, true);
       }
+    } else if (collection === 'sources') {
+      if (!item && method === 'GET')
+        return send(200, await store.listSources(ctx, ws), false);
+      if (item && !action && method === 'GET')
+        return send(200, await store.getSource(ctx, ws, item), false);
+    } else if (collection === 'retrievals' && !item && method === 'GET') {
+      const run = url.searchParams.get('run');
+      return send(
+        200,
+        await store.listRetrievals(ctx, ws, run ? { runId: run } : {}),
+        false,
+      );
+    } else if (collection === 'claims' && item) {
+      if (action === 'support' && method === 'POST')
+        return send(
+          201,
+          await store.addClaimSupport(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (action === 'evidence' && method === 'GET') {
+        const days = url.searchParams.get('max_age_days');
+        return send(
+          200,
+          await store.claimEvidence(
+            ctx,
+            ws,
+            item,
+            days === null ? undefined : Number(days),
+          ),
+          false,
+        );
+      }
+    } else if (collection === 'claim-support' && item) {
+      if (action === 'retract' && method === 'POST')
+        return send(
+          200,
+          await store.retractClaimSupport(ctx, ws, item, await readJson(req)),
+          true,
+        );
     } else if (collection === 'history' && !item) {
       if (method === 'GET') {
         await store.drainOutbox();
@@ -540,6 +613,28 @@ export function createApi(env: Record<string, string | undefined> = {}) {
             note: live
               ? `Live adapter for ${live.model_id} is configured; a call still needs pricing, a covering grant and a funded envelope. No live call has been verified.`
               : 'Fixture workspaces use the deterministic adapter. Real workspaces are denied until a live provider is configured.',
+          }),
+        );
+      if (req.method === 'GET' && req.url === '/api/sources/status')
+        return respond(
+          res,
+          200,
+          parse(SourceBrokerStatusSchema, {
+            fixture_adapter: 'deterministic-fixture-corpus-v1',
+            live: sourceConfig.adapter
+              ? 'configured_unverified'
+              : 'not_configured',
+            approved_hosts:
+              sourceConfig.policy?.hosts.map(
+                (h) =>
+                  `${h.host}${h.retention === 'hash_only' ? ' (hash only)' : ''}`,
+              ) ?? [],
+            policy_hash: sourceConfig.policy
+              ? sourcePolicyHash(sourceConfig.policy)
+              : null,
+            note: sourceConfig.adapter
+              ? 'Live fetch is configured for the approved hosts; each fetch still needs a covering source.fetch grant. No live fetch has been verified.'
+              : 'Fixture workspaces read the synthetic fixture corpus. Real workspaces are denied until CREATOR_SOURCE_FETCH=live and CREATOR_SOURCE_HOSTS are set.',
           }),
         );
       if (req.method === 'POST' && req.url === '/api/fixture')
@@ -631,6 +726,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     config,
     store,
     broker,
+    sources,
     worker,
     ready: () => ready,
     close,

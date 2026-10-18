@@ -42,6 +42,8 @@ export const ACTION_REGISTRY: Record<ActionType, ActionSpec> = {
   'model.summarize': spec({ uses_model: true }),
   'model.embed': spec({ uses_model: true }),
   'tool.search_public': spec({}),
+  // Read-only GET through the source broker under its network policy; no model, no spend.
+  'source.fetch': spec({}),
   'spec.freeze': spec({ reversible: false, requires_target: true }),
   'product.commit_build': spec({
     requires_target: true,

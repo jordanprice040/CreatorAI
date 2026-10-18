@@ -1,4 +1,4 @@
-# Local development — T05
+# Local development — T06
 
 Creator Agent has a local API, CLI and React page. The task demonstration still uses the **deterministic fixture provider** and is not saved. Since T02, records (sources, claims, problems, ideas, alternatives, assessments, products, specifications, runs, tasks, decisions, grants, artifacts), typed many-to-many links and an audit history persist in **PostgreSQL** when `CREATOR_DATABASE_URL` is set. Without it the app still starts, reports `persistent: false`, and record routes return `503 STORAGE_UNAVAILABLE`. Nothing here researches problems, invokes AI, builds generated products, or runs studies.
 
@@ -127,6 +127,30 @@ pnpm worker
 
 The run needs a covering grant (or a person approves each call), an active budget and a pricing snapshot, exactly as for T04 calls. The web page has a Workflow runs panel: start a skeptic review on an idea or problem record, watch each step, its deliveries and usage, and pause, resume or cancel. In a fixture workspace the deterministic adapter answers, so critiques are placeholders.
 
+## Sources and claim evidence (T06)
+
+Runs fetch web pages only through the API's source broker (`packages/research`). Each fetch is a `source.fetch` action: the URL is checked against the source policy, admitted against the run's grants (T03) and recorded as in flight in one transaction; only then is the page requested. Every redirect target is checked again, DNS answers are checked at connection time and the socket connects to the checked address. Private, loopback, link-local and reserved addresses, non-HTTPS URLs, other ports, URLs with credentials and hosts not on the approved list are refused and recorded as `blocked`. Byte and time limits, allowed content types and a per-run fetch limit apply. No cookies or credentials are sent.
+
+- **What is kept.** Each source keeps its URL, final URL, content hash, retrieval and publication dates, the retrieval state (fetched, inaccessible, removed, blocked, failed, too large, unsupported type, denied) and its passages: exact text offsets, a hash, and a bounded excerpt. Hosts with `hash_only` retention keep hashes and offsets but no text. A changed page becomes a new source version; an unchanged one only records the check.
+- **Claims and support.** Support links a passage to the current claim version as supports, contradicts or does not support, typed as source assertion, quotation, observation or our inference. Supports and contradicts must quote text that occurs in the stored excerpt (`EVIDENCE_MISMATCH` otherwise). An inaccessible source can be recorded as such, never as support. The claim's evidence status (supported, contested, contradicted, inferred, needs recheck, inaccessible, insufficient) counts reposts of one story once (origin clusters by matching text or canonical link) and stops counting rows whose source or claim changed, was removed or is older than `max_age_days` (default 180).
+- **Retrieved text has no authority.** Page text is stored and shown as evidence only. Text that looks like instructions is labelled; it cannot change grants, policy, budgets or what is fetched next.
+
+```powershell
+pnpm cli seed-research
+pnpm cli source-status
+pnpm cli source-fetch <workspace> <run-id> https://wire.fixture.test/stories/clinic-waits
+pnpm cli sources <workspace>
+pnpm cli source <workspace> <source-id>
+pnpm cli retrievals <workspace> [run-id]
+pnpm cli claim-support <workspace> <claim-id> '{"evidence":"passage","claim_version":1,"passage_id":"…","stance":"supports","support_type":"quotation","quote":"exact words from the passage","rationale":"…"}'
+pnpm cli claim-evidence <workspace> <claim-id> [max-age-days]
+pnpm cli support-retract <workspace> <support-id> <reason>
+```
+
+`seed-research` creates a fixture workspace with a run, a grant, fetches of the synthetic corpus (a report and its corrected version, a wire story with a repost and a copy, a contradicting survey, a paywalled page, a page that disappears, a redirect to a metadata address and a forum page with injected instructions) and three claims. The web page has a Sources and evidence panel showing sources, passages, recent fetches and each claim's evidence, with a fetch form.
+
+**Live fetching.** Fixture workspaces read only the synthetic `.fixture.test` corpus. A real workspace is denied (`live_fetch_not_configured`) unless the API runs with `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS` (and optionally `CREATOR_SOURCE_HASH_ONLY_HOSTS`). The run still needs a covering `source.fetch` grant; approve-once covers exactly one URL. Live fetching has not been verified against a real site. There is no live search adapter yet.
+
 ## Checks
 
 ```powershell
@@ -151,24 +175,27 @@ Restricted runners may require permission for dependency-cache symlinks and loop
 
 Environment variables are read explicitly; no `.env` loader is installed.
 
-| Variable                    | Default / accepted value                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
-| `CREATOR_HOST`              | `127.0.0.1` only                                                                               |
-| `CREATOR_API_PORT`          | `4310`; integer 1024–65535                                                                     |
-| `CREATOR_WEB_PORT`          | `5173`; integer 1024–65535, different from API port                                            |
-| `CREATOR_DEPLOYMENT_MODE`   | `local` only                                                                                   |
-| `CREATOR_DATA_MODE`         | `fixture` only                                                                                 |
-| `CREATOR_PROVIDER`          | `fixture` only                                                                                 |
-| `CREATOR_LIVE_ENABLED`      | `false` only                                                                                   |
-| `CREATOR_API_URL`           | CLI only; default `http://127.0.0.1:4310`; loopback HTTP origin without credentials/path/query |
-| `CREATOR_DATABASE_URL`      | Unset (no persistence) or a loopback `postgresql://` URL; never logged                         |
-| `CREATOR_OWNER_ACTOR_ID`    | UUID the local API acts as; default `00000000-0000-4000-8000-000000000001`                     |
-| `CREATOR_LIVE_PROVIDER`     | `none` (default) or `openai`; live adapter only with `OPENAI_API_KEY`                          |
-| `OPENAI_API_KEY`            | API process only; never logged, stored or returned                                             |
-| `CREATOR_OPENAI_MODEL`      | Live model id; default `gpt-6-astra`                                                           |
-| `CREATOR_WORKER`            | `on` (default) runs the workflow worker inside the API; `off` leaves it to `pnpm worker`       |
-| `CREATOR_WORKER_POLL_MS`    | Worker poll interval; default `1000`                                                           |
-| `CREATOR_TEST_DATABASE_URL` | Tests only; loopback server where the role may create databases                                |
+| Variable                         | Default / accepted value                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `CREATOR_HOST`                   | `127.0.0.1` only                                                                               |
+| `CREATOR_API_PORT`               | `4310`; integer 1024–65535                                                                     |
+| `CREATOR_WEB_PORT`               | `5173`; integer 1024–65535, different from API port                                            |
+| `CREATOR_DEPLOYMENT_MODE`        | `local` only                                                                                   |
+| `CREATOR_DATA_MODE`              | `fixture` only                                                                                 |
+| `CREATOR_PROVIDER`               | `fixture` only                                                                                 |
+| `CREATOR_LIVE_ENABLED`           | `false` only                                                                                   |
+| `CREATOR_API_URL`                | CLI only; default `http://127.0.0.1:4310`; loopback HTTP origin without credentials/path/query |
+| `CREATOR_DATABASE_URL`           | Unset (no persistence) or a loopback `postgresql://` URL; never logged                         |
+| `CREATOR_OWNER_ACTOR_ID`         | UUID the local API acts as; default `00000000-0000-4000-8000-000000000001`                     |
+| `CREATOR_LIVE_PROVIDER`          | `none` (default) or `openai`; live adapter only with `OPENAI_API_KEY`                          |
+| `OPENAI_API_KEY`                 | API process only; never logged, stored or returned                                             |
+| `CREATOR_OPENAI_MODEL`           | Live model id; default `gpt-6-astra`                                                           |
+| `CREATOR_WORKER`                 | `on` (default) runs the workflow worker inside the API; `off` leaves it to `pnpm worker`       |
+| `CREATOR_WORKER_POLL_MS`         | Worker poll interval; default `1000`                                                           |
+| `CREATOR_SOURCE_FETCH`           | `off` (default) or `live`; live web fetching for real workspaces through the source broker     |
+| `CREATOR_SOURCE_HOSTS`           | Comma-separated approved hosts (`example.org` or `*.example.org`); excerpts kept               |
+| `CREATOR_SOURCE_HASH_ONLY_HOSTS` | Approved hosts whose text is not kept (hashes and offsets only)                                |
+| `CREATOR_TEST_DATABASE_URL`      | Tests only; loopback server where the role may create databases                                |
 
 For example, set `$env:CREATOR_API_PORT = '4311'` and `$env:CREATOR_WEB_PORT = '5174'` before `pnpm dev`. Set `$env:CREATOR_API_URL = 'http://127.0.0.1:4311'` in the CLI terminal. Invalid settings fail startup. `CREATOR_PROVIDER`/`CREATOR_LIVE_ENABLED` still describe the stateless T01 fixture route. Metered live calls go only through the broker under the T04 conditions above; provider status is recorded in `config/provider-availability.json`.
 
@@ -180,6 +207,7 @@ For example, set `$env:CREATOR_API_PORT = '4311'` and `$env:CREATOR_WEB_PORT = '
 | `packages/domain/src/`       | Pure admission prerequisites, delegation containment, version/evidence-bound transitions, result checks and deterministic fixture |
 | `packages/db/src/`           | PostgreSQL migrations, schema gate, record/link repository, audit hash chain, outbox relay and history projection                 |
 | `packages/broker/src/`       | Model/tool broker, deterministic fixture adapter and OpenAI Responses adapter                                                     |
+| `packages/research/src/`     | Source broker, URL/network policy per hop, HTTP and fixture adapters, HTML passage extraction                                     |
 | `packages/orchestrator/src/` | Workflow worker loop (leases, heartbeats, broker calls, fenced commits) and the standalone `pnpm worker` entry                    |
 | `apps/api/src/`              | Node HTTP routes, configuration, size/Host/origin checks and errors                                                               |
 | `apps/cli/src/`              | HTTP client and response validation                                                                                               |
@@ -214,3 +242,5 @@ Consulted October 17, 2026; exact direct pins and transitive integrity are in th
 T02 adds `pg` 8.23.1 (node-postgres; runtime) and `@types/pg` 8.23.1. Consulted October 18, 2026: [node-postgres transactions](https://node-postgres.com/features/transactions) (every statement of a transaction on one checked-out client, never `pool.query`) and [pooling](https://node-postgres.com/features/pooling) (always release clients; handle idle-client `error` events). PostgreSQL features used (advisory locks, `FOR UPDATE SKIP LOCKED`, PL/pgSQL triggers, composite foreign keys, partial unique indexes) were verified by the executed test suite against PostgreSQL 16.15, not by a separate documentation review.
 
 No provider SDK was added. No CI run, hosted deployment or real research capability is implied by local checks.
+
+T06 adds `htmlparser2` 12.0.0 (published 2026-03-20 per the npm registry; runtime, in `packages/research`) for streaming HTML tokenizing without a DOM or script execution. Node's built-in `net.BlockList`, `dns.lookup` and `https.request` (connecting to the checked IP with the original host as TLS server name) provide the address checks.

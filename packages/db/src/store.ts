@@ -138,7 +138,7 @@ export function isPgError(
       ('constraint' in e && e.constraint === constraint))
   );
 }
-function validateBody(
+export function validateBody(
   kind: StoredKind,
   body: unknown,
 ): Record<string, unknown> {
@@ -151,6 +151,16 @@ function validateBody(
     );
   return parsed;
 }
+/** Only the source broker records retrievals; a typed-in source stays visibly manual. */
+function refuseRetrievalFacts(kind: StoredKind, body: Record<string, unknown>) {
+  if (kind === 'source' && 'retrieval' in body)
+    throw fail(
+      'INVALID_CONTRACT',
+      'Retrieval facts are recorded only by the source broker from an actual fetch.',
+    );
+}
+export const contentHashOf = (kind: string, title: string, body: unknown) =>
+  canonicalHash({ kind, title, body });
 /** UUIDs are compared as strings and hashed, so normalize them to PostgreSQL's lowercase form. */
 export const uuid = (
   v: string,
@@ -248,6 +258,14 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return `Lease expired on ${String(p.worker)}; task ${String(p.state)}`;
     case 'task.woken':
       return `Decision closed; task ${String(p.state)}`;
+    case 'source.fetch_recorded':
+      return `Fetch ${String(p.state)} (${String(p.reason_code)})`;
+    case 'source.fetch_finished':
+      return `Fetch ${String(p.state)} (${String(p.reason_code)})${p.changed ? '; new source version' : ''}`;
+    case 'claim.support_recorded':
+      return `Recorded ${String(p.stance)} evidence (${String(p.support_type ?? 'no passage')}) for claim v${String(p.claim_version)} from source v${String(p.source_version)}`;
+    case 'claim.support_retracted':
+      return 'Retracted claim evidence';
     case 'action.evaluated':
       return `Action ${String(p.action_type)}: ${String(p.verdict)} (${String(p.reason_code)})`;
     default:
@@ -517,6 +535,7 @@ export class Store {
         `Create ${req.kind}s through the decision and grant API, where their authority is enforced.`,
       );
     const body = validateBody(req.kind, req.body);
+    refuseRetrievalFacts(req.kind, body);
     const lifecycle = lifecycleField[req.kind];
     if (lifecycle && body[lifecycle.field] !== lifecycle.initial)
       throw fail(
@@ -525,30 +544,42 @@ export class Store {
       );
     return this.idempotent(ws, ctx, { op: 'create', req }, async (c) => {
       await this.role(c, ws, ctx.actorId, true);
-      const entityId = randomUUID();
-      const hash = contentHash(req.kind, req.title, body);
-      const { rows } = await c.query(
-        `insert into entities (id, workspace_id, fixture, kind, version, status, title, body, content_hash, created_by)
-         select $1, w.id, w.fixture, $3, 1, 'active', $4, $5, $6, $7 from workspaces w where w.id = $2
-         returning *`,
-        [entityId, ws, req.kind, req.title, body, hash, ctx.actorId],
-      );
-      const eventId = await this.append(c, ctx, {
-        workspaceId: ws,
-        action: 'entity.created',
-        subjectKind: req.kind,
-        subjectId: entityId,
-        subjectVersion: 1,
-        contentHash: hash,
-        payload: { kind: req.kind },
-      });
-      await c.query(
-        `insert into entity_versions (entity_id, workspace_id, version, status, title, body, content_hash, reason, corrects_version, actor_id, event_id)
-         values ($1, $2, 1, 'active', $3, $4, $5, null, null, $6, $7)`,
-        [entityId, ws, req.title, body, hash, ctx.actorId, eventId],
-      );
-      return toEntity(rows[0] as Row);
+      return this.insertEntity(c, ctx, ws, req.kind, req.title, body);
     });
+  }
+
+  /** Writes version 1 of a record with its audit event, in the caller's transaction. */
+  protected async insertEntity(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    kind: StoredKind,
+    title: string,
+    body: Record<string, unknown>,
+    entityId: string = randomUUID(),
+  ) {
+    const hash = contentHash(kind, title, body);
+    const { rows } = await c.query(
+      `insert into entities (id, workspace_id, fixture, kind, version, status, title, body, content_hash, created_by)
+       select $1, w.id, w.fixture, $3, 1, 'active', $4, $5, $6, $7 from workspaces w where w.id = $2
+       returning *`,
+      [entityId, ws, kind, title, body, hash, ctx.actorId],
+    );
+    const eventId = await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'entity.created',
+      subjectKind: kind,
+      subjectId: entityId,
+      subjectVersion: 1,
+      contentHash: hash,
+      payload: { kind },
+    });
+    await c.query(
+      `insert into entity_versions (entity_id, workspace_id, version, status, title, body, content_hash, reason, corrects_version, actor_id, event_id)
+       values ($1, $2, 1, 'active', $3, $4, $5, null, null, $6, $7)`,
+      [entityId, ws, title, body, hash, ctx.actorId, eventId],
+    );
+    return toEntity(rows[0] as Row);
   }
 
   protected async lockCurrent(
@@ -571,7 +602,7 @@ export class Store {
     return toEntity(row);
   }
 
-  private async writeVersion(
+  protected async writeVersion(
     c: PoolClient,
     ctx: CommandContext,
     current: StoredEntity,
@@ -656,7 +687,13 @@ export class Store {
           'INVALID_TRANSITION',
           `A ${current.status} record cannot be revised.`,
         );
+      if (current.body && 'retrieval' in current.body)
+        throw fail(
+          'INVALID_TRANSITION',
+          'This source is maintained by the source broker; re-fetch it instead of editing it.',
+        );
       const body = validateBody(current.kind, req.body);
+      refuseRetrievalFacts(current.kind, body);
       const lifecycle = lifecycleField[current.kind];
       if (
         lifecycle &&

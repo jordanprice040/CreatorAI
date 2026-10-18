@@ -17,6 +17,9 @@
       "path": "packages/orchestrator"
     },
     {
+      "path": "packages/research"
+    },
+    {
       "path": "apps/api"
     },
     {

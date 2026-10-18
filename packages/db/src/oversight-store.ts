@@ -1182,6 +1182,8 @@ export class OversightStore extends Store {
     ws: string,
     runId: string,
     req: ActionRequest,
+    /** What a person would be approving when there is no target record (e.g. a URL). */
+    subjectLabel?: string,
   ): Promise<Admission> {
     {
       await this.role(c, ws, ctx.actorId, true);
@@ -1280,7 +1282,7 @@ export class OversightStore extends Store {
         const authorization = verdict.decision_kind === 'authorization';
         const subject = binding.target
           ? `${binding.target.kind} v${binding.target.version}`
-          : 'this run';
+          : (subjectLabel?.slice(0, 300) ?? 'this run');
         const { row, created } = await this.insertDecision(c, ctx, ws, run, {
           kind: verdict.decision_kind,
           reason: first,
