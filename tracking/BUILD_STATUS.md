@@ -1,5 +1,14 @@
 # Implementation status
 
+Audit fixes, October 18, 2026 (Claude Code, branch claude/project-thread-mccbs5 from
+main c162376; ADR-0018): build QA cases are now frozen in the spec and checked against the
+plan, with at least one held-out case no role sees; study participant ids compare
+case-insensitively so a participant can no longer be granted grader access; CI runs the
+PostgreSQL suites. Cloud check: typecheck, format, `pnpm test:db` **158 tests, 148 pass, 0
+fail, 10 WSL skips**. The real WSL2 gate has not been re-run on these changes. Remaining
+audit items (parent envelope overrun, health labels, preview cookie scope, small fixes) are
+in /mnt/project-files/audits/2026-10-18-codebase-audit.md and are not fixed.
+
 T13 update, October 18, 2026 (Claude Code, branch claude/t13-8h288j from main at
 6fe5bab, T12 merged as PR #14): a T12 verified candidate now packages into a
 deterministic source archive and an immutable `build-manifest/1` binding repo,

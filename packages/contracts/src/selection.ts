@@ -511,6 +511,23 @@ export const SpecContentSchema = z.strictObject({
           'manual_review',
           'metric',
         ]),
+        /**
+         * Executable cases for an automated test, frozen with the spec so a build cannot pick
+         * its own tests. Held-out cases run in QA but are never shown to builder or reviewer.
+         */
+        cases: z
+          .array(
+            z.strictObject({
+              args: z.array(z.string().max(500)).max(12),
+              stdin: z.string().max(4000),
+              stdout: z.string().max(12000),
+              exit_code: z.number().int().min(0).max(125),
+              held_out: z.boolean(),
+            }),
+          )
+          .min(1)
+          .max(10)
+          .optional(),
       }),
     )
     .min(1)

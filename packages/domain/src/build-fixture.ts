@@ -1,5 +1,6 @@
 /** Synthetic Python checklist fixture only; no model reasoning or empirical validation. */
 import type { SpecContent } from '@creator/contracts';
+import { frozenCases } from './selection.js';
 export const BUILD_FIXTURE_SPEC: SpecContent = {
   audience: 'Synthetic local checklist operator',
   problem_statement:
@@ -37,6 +38,16 @@ export const BUILD_FIXTURE_SPEC: SpecContent = {
       statement: 'Print inspect, build, review, verify as JSON checklist/1',
       measure: 'Exact stdout and zero exit for no arguments',
       method: 'automated_test',
+      cases: [
+        {
+          args: [],
+          stdin: '',
+          stdout:
+            '{"template": "checklist/1", "items": ["inspect", "build", "review", "verify"]}\n',
+          exit_code: 0,
+          held_out: false,
+        },
+      ],
     },
     {
       key: 'A2',
@@ -45,6 +56,16 @@ export const BUILD_FIXTURE_SPEC: SpecContent = {
         'Reject an unexpected argument with invalid input and exit two',
       measure: 'Exact stdout invalid input followed by newline and exit code 2',
       method: 'automated_test',
+      // Held out: QA runs it, but neither fixture role sees its expected output.
+      cases: [
+        {
+          args: ['unexpected'],
+          stdin: '',
+          stdout: 'invalid input\n',
+          exit_code: 2,
+          held_out: true,
+        },
+      ],
     },
   ],
   risks: [
@@ -70,23 +91,10 @@ export const BUILD_FIXTURE_SPEC: SpecContent = {
     },
   ],
 };
-export const BUILD_FIXTURE_CASES = [
-  {
-    check_key: 'A1',
-    args: [],
-    stdin: '',
-    stdout:
-      '{"template": "checklist/1", "items": ["inspect", "build", "review", "verify"]}\n',
-    exit_code: 0,
-  },
-  {
-    check_key: 'A2',
-    args: ['unexpected'],
-    stdin: '',
-    stdout: 'invalid input\n',
-    exit_code: 2,
-  },
-];
+/** Plan cases are the frozen cases without the held-out flag, which the spec keeps. */
+const planCases = (spec: SpecContent) =>
+  frozenCases(spec).map(({ held_out: _, ...c }) => c);
+export const BUILD_FIXTURE_CASES = planCases(BUILD_FIXTURE_SPEC);
 export const BUILD_FIXTURE_SOURCE =
   'import json\nimport sys\nif len(sys.argv) > 1:\n    print("invalid input")\n    sys.exit(2)\nprint(json.dumps({"template": "checklist/1", "items": ["inspect", "build", "review", "verify"]}))\n';
 export function buildFixtureAnswer(
@@ -164,6 +172,15 @@ export const BUILD_FIXTURE_REVISION_SPEC: SpecContent = {
       statement: 'Print the four steps one per line with --plain',
       measure: 'Exact stdout of four lines and zero exit for --plain',
       method: 'automated_test',
+      cases: [
+        {
+          args: ['--plain'],
+          stdin: '',
+          stdout: 'inspect\nbuild\nreview\nverify\n',
+          exit_code: 0,
+          held_out: false,
+        },
+      ],
     },
   ],
   tasks: [
@@ -174,15 +191,8 @@ export const BUILD_FIXTURE_REVISION_SPEC: SpecContent = {
     },
   ],
 };
-export const BUILD_FIXTURE_REVISION_CASES = [
-  ...BUILD_FIXTURE_CASES,
-  {
-    check_key: 'A3',
-    args: ['--plain'],
-    stdin: '',
-    stdout: 'inspect\nbuild\nreview\nverify\n',
-    exit_code: 0,
-  },
-];
+export const BUILD_FIXTURE_REVISION_CASES = planCases(
+  BUILD_FIXTURE_REVISION_SPEC,
+);
 export const BUILD_FIXTURE_REVISION_SOURCE =
   'import json\nimport sys\nITEMS = ["inspect", "build", "review", "verify"]\nif sys.argv[1:] == ["--plain"]:\n    print("\\n".join(ITEMS))\n    sys.exit(0)\nif len(sys.argv) > 1:\n    print("invalid input")\n    sys.exit(2)\nprint(json.dumps({"template": "checklist/1", "items": ITEMS}))\n';
