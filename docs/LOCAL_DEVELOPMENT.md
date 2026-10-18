@@ -1,5 +1,14 @@
 # Local development - T10 update
 
+T12's bounded owner CLI builder, fresh review and exact-candidate WSL QA are
+documented in [Bounded builder](BOUNDED_BUILDER.md). Its verified path is the
+synthetic offline Python template; web/persistence recipes and live activation
+remain unavailable. Historical milestone notes below retain their original scope.
+
+For the optional Docker PostgreSQL setup verified October 18, 2026, see
+[Docker for local PostgreSQL](DOCKER.md). It supplies separate development/test
+containers and preserves the host API's loopback boundary and existing WSL worker.
+
 The sections below retain the historical setup notes. T10 adds a **synthetic-only study runner** through the API, CLI and Studies view. It is not an activated participant study. PostgreSQL 18 on native Windows is now exercised in an isolated loopback cluster; the earlier PostgreSQL 16 Linux evidence remains separate.
 
 ## Studies (T10)

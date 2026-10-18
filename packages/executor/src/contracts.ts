@@ -75,6 +75,14 @@ export const changesSchema = z.strictObject({
     .max(100),
 });
 export type Changes = z.infer<typeof changesSchema>;
+export const qaCaseSchema = z.strictObject({
+  check_key: z.string().regex(/^A[1-9][0-9]?$/),
+  args: z.array(z.string().max(500)).max(12),
+  stdin: z.string().max(4000),
+  stdout: z.string().max(12000),
+  exit_code: z.number().int().min(0).max(125),
+});
+export type QaCase = z.infer<typeof qaCaseSchema>;
 export const executionSchema = z.strictObject({
   id,
   product_id: id,

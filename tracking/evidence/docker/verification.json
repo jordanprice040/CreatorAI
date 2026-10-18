@@ -1,0 +1,77 @@
+{
+  "date": "2026-10-18",
+  "scope": "Optional local PostgreSQL; existing WSL generated-code isolation retained",
+  "docker_desktop": "4.95.0 (242831)",
+  "engine": "29.8.2",
+  "compose": "5.6.0",
+  "context": "desktop-linux",
+  "connection": "CLI and daemon verified; no Docker MCP tool exposed in chat",
+  "image": "postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c",
+  "migrations_applied": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "persistence": "9 schema migrations retained after container restart",
+  "host_authentication": "Correct password accepted; wrong password in connection URL rejected with SQLSTATE 28P01",
+  "resource_inspection": {
+    "pids": 256,
+    "memory_bytes": 1073741824,
+    "published_host": "127.0.0.1",
+    "dev_port": 55433,
+    "test_port": 55434,
+    "nano_cpus": 2000000000
+  },
+  "tests": {
+    "failed": 0,
+    "passed": 140,
+    "log": "test-db.log",
+    "command": "CREATOR_TEST_ISOLATION=wsl2 pnpm test:db",
+    "skipped": 0
+  },
+  "end_state": {
+    "dev": "running",
+    "test": "stopped",
+    "credentials": "ignored .env.docker; not included in evidence",
+    "volumes": "retained"
+  },
+  "limitations": [
+    "Database storage has no volume quota",
+    "No generated-code Docker backend",
+    "No existing database import",
+    "No persistent application URL selection",
+    "No MCP selector state verification"
+  ],
+  "sources": [
+    {
+      "path": "compose.yaml",
+      "sha256": "2dc2fa9a8cd53411500d94e4472117ef14ea6ea1be0eb92eaf3597fc36547cdb"
+    },
+    {
+      "path": "docs/DOCKER.md",
+      "sha256": "f9e111e9f1eeec559957e116f9308cc113c6b88c7e167262208b66a404f5e72c"
+    },
+    {
+      "path": "docs/LOCAL_DEVELOPMENT.md",
+      "sha256": "5db5c9b60e097354f97239705c687ca7546568e894fb3ea8df4809079e2157b8"
+    }
+  ],
+  "base_commit": "2c14f9acd8379dcb8b6b4c2f9e8680a09848ccc4",
+  "standard_check": {
+    "formatting": "passed",
+    "passed": 63,
+    "typecheck": "passed",
+    "explicitly_skipped": 77,
+    "initial_sandbox_attempt": "57 pass, 6 fail, 77 skip due to localhost/hardlink restrictions; preserved in check-sandbox-limited.log, then rerun outside sandbox",
+    "command": "pnpm check",
+    "failed": 0,
+    "log": "check.log",
+    "exit_code": 0
+  }
+}

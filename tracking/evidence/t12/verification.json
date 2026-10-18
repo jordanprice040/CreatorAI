@@ -1,0 +1,123 @@
+{
+  "milestone": "T12",
+  "date": "2026-10-18",
+  "verified_at": "2026-10-18T07:26:23.8747028-04:00",
+  "base_commit": "2c14f9acd8379dcb8b6b4c2f9e8680a09848ccc4",
+  "branch": "codex/t11-isolated-execution",
+  "status": "verified_synthetic_reviewed_python_task_path",
+  "source_manifest": "source-files.sha256.json",
+  "manifest_sha256": "bbae17bc9b356b1419bd4b85bf68c3e1ca806f2454fcc04baa206bbf11dea40e",
+  "source_files": 168,
+  "source_note": "Working-tree bytes; no T12 source commit or independent code certification. Preexisting Docker changes preserved.",
+  "checks": {
+    "standard": {
+      "final_source": true,
+      "command": "pnpm check",
+      "failed": 0,
+      "log": "check.log",
+      "skipped": 80,
+      "passed": 69
+    },
+    "database_isolation": {
+      "command": "CREATOR_TEST_ISOLATION=wsl2 pnpm test:db",
+      "failed": 0,
+      "log": "database-isolation.log",
+      "skipped": 0,
+      "note": "Serial test files; internal concurrency tests unchanged. Full run precedes final CLI authority guard; affected path rerun below.",
+      "passed": 149
+    },
+    "final_cli_authority": {
+      "final_source": true,
+      "command": "node --test tests/dist/build-cli.test.js with disposable DB, real WSL and evidence recording",
+      "failed": 0,
+      "log": "final-cli-authority.log",
+      "skipped": 0,
+      "passed": 1
+    },
+    "smoke": {
+      "log": "smoke.log",
+      "passed": true,
+      "note": "HTTP built-web/API smoke, not browser rendering. No web product behavior changed.",
+      "command": "pnpm smoke"
+    },
+    "initial_failures": {
+      "parallel_runs": [
+        "database-isolation-initial-failed.log",
+        "database-isolation-parallel-failed.log"
+      ],
+      "resolution": "Deterministic duplicate delivery and API teardown; serialize test files to bound WSL contention",
+      "counts": [
+        "147/149",
+        "148/149"
+      ]
+    }
+  },
+  "environment": {
+    "node": "v22.21.0",
+    "pnpm": "11.25.0",
+    "database": "PostgreSQL 18.6 Docker disposable test databases on 55434",
+    "worker": {
+      "backend": "wsl2-bwrap-systemd",
+      "distribution": "Ubuntu",
+      "supervisor_pid": 38068,
+      "bridge_hash": "67c57285456eabccc0bfa52846feb76d4eacabecdcb88bdb9201044157c7a539",
+      "local_compute_billing": "not_metered_by_studio",
+      "acceptance_hash": "0652862424bcd367725befa267d0496c779b7d262898e1c123c3c9d9a5bdbf16",
+      "kernel": "6.18.33.2-microsoft-standard-WSL2",
+      "bwrap": "bubblewrap 0.11.1",
+      "systemd": "systemd 259 (259.5-0ubuntu3)",
+      "python": "3.14.4",
+      "policy": {
+        "format": "isolation/1",
+        "backend": "wsl2-bwrap-systemd",
+        "network": "none",
+        "memory_bytes": 268435456,
+        "swap_bytes": 0,
+        "tasks": 32,
+        "cpu_percent": 50,
+        "runtime_seconds": 20,
+        "lease_seconds": 5,
+        "disk_bytes": 16777216,
+        "log_bytes": 65536,
+        "file_bytes": 8388608,
+        "uid": 1000
+      },
+      "os_release": "PRETTY_NAME=\"Ubuntu 26.04 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04 (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+      "binary_hashes": {
+        "/usr/bin/bwrap": "8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b",
+        "/usr/bin/python3": "fa9796cd3a30878e11a2f40372f773d3fcd913fff35e5bee8dd9a036e22e93ab",
+        "/usr/bin/systemd-run": "6cb217524b113f56c7d514b10eb914b365aad787b4b3d3fdf9b8cc7ae675d8a9"
+      },
+      "host_network_namespace": "net:[4026531833]",
+      "recipe_hash": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+      "unit": "creator-exec-9478decc-a27b-4c78-8bd9-c0c5153a60c1",
+      "effective_limits": "RuntimeMaxUSec=20s\nCPUQuotaPerSecUSec=500ms\nMemoryMax=268435456\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group",
+      "cleanup": "inactive",
+      "heartbeat_write_errors": 0
+    }
+  },
+  "authorization": {
+    "paid_dispatch": false,
+    "source_push_or_merge": false,
+    "request": "Start implementing T12",
+    "live_provider": false,
+    "public_release": false,
+    "study_activation": false
+  },
+  "limits": [
+    "Fixed synthetic role logic; not independent model reasoning",
+    "Reviewed offline Python CLI only; no browser/persistence/dependent-task recipes",
+    "Task candidate only; integration commit needs re-verification",
+    "Local evidence not yet indexed by catalog",
+    "Crash intents/unknown calls need inspection; no automatic replay",
+    "T11 owner-controlled host trust boundary and unmetered local compute remain"
+  ],
+  "next_prompt": "T13 after T11/T12 review and new request",
+  "cleanup": {
+    "shared_wsl_vm": "not shut down",
+    "test_database": "stopped; volume preserved",
+    "temporary_api": "closed by test cleanup",
+    "development_database": "preserved running"
+  },
+  "publication_note": "Rebased onto main after confirmed T11 PR #13 merge. Git normalized the manifest document to LF; all 168 listed source hashes remain unchanged. Publication adds the Claude T13 handoff only to tracking."
+}

@@ -134,6 +134,9 @@ importers:
       '@creator/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@creator/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/orchestrator:
     dependencies:

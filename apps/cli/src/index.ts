@@ -4,6 +4,9 @@ import { randomUUID } from 'node:crypto';
 import {
   ProductSupervisor,
   ExecutionSupervisor,
+  BuildSupervisor,
+  buildPlanSchema,
+  type BuildPorts,
   bindingSchema,
   type Binding,
 } from '@creator/executor';
@@ -68,6 +71,8 @@ const USAGE = `Usage:
   pnpm cli product-patch <product-id> <task-id> <changes.json>
   pnpm cli product-integrate <product-id> <task-id> <expected-integration-commit> <expected-task-commit>
   pnpm cli product-build <product-id> <task-id> <expected-task-commit>
+  pnpm cli build-task <product-id> <task-id> <expected-task-commit> <build-plan.json>
+  pnpm cli build-status <product-id> <build-id>
   pnpm cli product-status <product-id>
   pnpm cli product-cancel <product-id> <execution-id>
   pnpm cli product-reconcile <product-id> <execution-id>
@@ -308,8 +313,130 @@ export async function runCli(
       local.assertBinding(p, binding);
       return binding;
     };
+    const buildPorts = (productId: string): BuildPorts => {
+      let coverage: { grant_id: string; grant_version: number } | null = null;
+      let humility: { id: string; version: number } | null = null;
+      return {
+        current: async () => {
+          const binding = await currentBinding(productId);
+          const detail = await call(
+            EntityDetailSchema,
+            `${ws(binding.workspace_id)}/entities/${binding.spec_id}`,
+          );
+          if (
+            detail.entity.version !== binding.spec_version ||
+            detail.entity.content_hash !== binding.spec_hash
+          )
+            throw new Error(
+              'Specification changed while reading build context',
+            );
+          return { binding, spec: parse(SpecBodySchema, detail.entity.body) };
+        },
+        assertActive: async (runId) => {
+          const p = await local.product(productId);
+          const runs = await call(
+            z.array(RunControlSchema),
+            `${ws(p.binding.workspace_id)}/runs`,
+          );
+          const run = runs.find((r) => r.run_id === runId);
+          if (
+            !run ||
+            run.state !== 'active' ||
+            run.experiment_condition === 'human_only' ||
+            run.autonomy_mode === 'human_only'
+          )
+            throw new Error(
+              'An active non-human-only registered run is required',
+            );
+          if (coverage && humility) {
+            const [grants, review] = await Promise.all([
+              call(
+                z.array(GrantSchema),
+                `${ws(p.binding.workspace_id)}/grants`,
+              ),
+              call(
+                EntityDetailSchema,
+                `${ws(p.binding.workspace_id)}/entities/${humility.id}`,
+              ),
+            ]);
+            const grant = grants.find((g) => g.id === coverage!.grant_id);
+            if (
+              !grant ||
+              grant.version !==
+                coverage.grant_version + (grant.scope === 'once' ? 1 : 0) ||
+              grant.status !==
+                (grant.scope === 'once' ? 'consumed' : 'active') ||
+              Date.parse(grant.expires_at) <= Date.now() ||
+              review.entity.version !== humility.version ||
+              review.entity.status !== 'active'
+            )
+              throw new Error(
+                'Build authority or humility review changed or expired',
+              );
+          }
+        },
+        authorize: async (plan) => {
+          const p = await local.product(productId);
+          const admission = await call(
+            AdmissionSchema,
+            `${ws(p.binding.workspace_id)}/runs/${plan.run_id}/actions`,
+            {
+              action_type: 'product.commit_build',
+              task_id: null,
+              target: {
+                id: p.binding.spec_id,
+                version: p.binding.spec_version,
+              },
+              spec_hash: p.binding.spec_hash,
+              amount_nano_usd: null,
+              data_class: plan.data_class,
+              assumption_ids: [],
+              humility_review: plan.humility_review,
+              flags: [],
+              justification:
+                'T12 scoped local builder patch and isolated acceptance execution for frozen specification',
+            },
+          );
+          if (admission.verdict !== 'allow')
+            throw new Error(
+              `Build admission ${admission.outcome}; decision ${admission.decision_id ?? 'none'}`,
+            );
+          if (!admission.covered_by)
+            throw new Error('Build admission has no covering grant');
+          coverage = admission.covered_by;
+          humility = plan.humility_review;
+          return admission;
+        },
+        call: async (runId, request) => {
+          const p = await local.product(productId);
+          return call(
+            BrokerCallResultSchema,
+            `${ws(p.binding.workspace_id)}/runs/${runId}/model-calls`,
+            request,
+            request.timeout_ms + 5000,
+          );
+        },
+      };
+    };
     let data: unknown;
     switch (command) {
+      case 'build-task':
+        data = await new BuildSupervisor(local, executor).run(
+          rest[0]!,
+          rest[1]!,
+          rest[2]!,
+          parse(buildPlanSchema, JSON.parse(readFileSync(rest[3]!, 'utf8'))),
+          buildPorts(rest[0]!),
+          (build_id) => write(JSON.stringify({ build_id, state: 'running' })),
+        );
+        break;
+      case 'build-status':
+        data = await new BuildSupervisor(local, executor).status(
+          rest[0]!,
+          rest[1]!,
+          buildPorts(rest[0]!),
+        );
+        break;
       case 'product-init':
         data = await local.create(await frozenBinding(rest[0]!, rest[1]!));
         break;
@@ -355,6 +482,7 @@ export async function runCli(
           product: p,
           tasks: await local.tasks(p.id),
           executions: await executor.executions(p.id),
+          builds: await new BuildSupervisor(local, executor).list(p.id),
         };
         break;
       }

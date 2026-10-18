@@ -1,0 +1,355 @@
+{
+  "synthetic": true,
+  "empirical_results": false,
+  "product": {
+    "format": "local-product/1",
+    "id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+    "binding": {
+      "workspace_id": "99b468b2-5371-424d-9820-88577aea0787",
+      "owner_id": "00000000-0000-4000-8000-000000000001",
+      "spec_id": "230ba972-caad-4e38-a35b-4b2277bc8c75",
+      "spec_version": 3,
+      "spec_hash": "baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9",
+      "freeze_id": "29a9ca78-9491-4ff2-b78e-8a20791b96e3",
+      "tasks": [
+        {
+          "key": "T1",
+          "hash": "5c7eeb8c35bdf494a33d859caa876fca24e004d4d6b5176ad4f7faae301418c8",
+          "file_scope": [
+            "src"
+          ]
+        }
+      ]
+    },
+    "integration_owner": "00000000-0000-4000-8000-000000000001",
+    "template_hash": "58475808dd957b944a75eb76971bf99c0a774850b8920287d0881f9137a754f4",
+    "initial_commit": "b93cea8965edd5d291960b7becc702a82bff37fd",
+    "git_version": "git version 2.45.1.windows.1"
+  },
+  "task": {
+    "id": "99674445-c5df-44a4-9be0-5b41c2b47be1",
+    "product_id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+    "key": "T1",
+    "base_commit": "b93cea8965edd5d291960b7becc702a82bff37fd",
+    "file_scope": [
+      "src"
+    ],
+    "spec_task_hash": "5c7eeb8c35bdf494a33d859caa876fca24e004d4d6b5176ad4f7faae301418c8"
+  },
+  "result": {
+    "id": "1428cfe0-32cc-4be7-bd4c-a6fa830a22ce",
+    "product_id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+    "task_id": "99674445-c5df-44a4-9be0-5b41c2b47be1",
+    "plan_hash": "379082639430c211ee90ebcc4ffb409e9245caa55ff5dd44edf879b6ed38c857",
+    "spec_hash": "baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9",
+    "commit": "396dea9dc16643fa87ae9df61eef4bf896be1fde",
+    "state": "verified_candidate",
+    "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+    "calls": 2,
+    "repairs": 0,
+    "fixture": true,
+    "finished_at": "2026-10-18T11:24:49.339Z"
+  },
+  "executions": [
+    {
+      "id": "9478decc-a27b-4c78-8bd9-c0c5153a60c1",
+      "product_id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+      "task_id": "99674445-c5df-44a4-9be0-5b41c2b47be1",
+      "commit": "396dea9dc16643fa87ae9df61eef4bf896be1fde",
+      "recipe": "python-build/1",
+      "recipe_hash": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+      "policy_hash": "1cd1c03df7a41cebc319773a35bf9c2244c44d1151ebe2e698b402ebd939e3d7",
+      "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+      "state": "failed",
+      "started_at": "2026-10-18T11:24:48.718Z",
+      "finished_at": "2026-10-18T11:24:49.111Z",
+      "environment": {
+        "backend": "wsl2-bwrap-systemd",
+        "distribution": "Ubuntu",
+        "supervisor_pid": 38068,
+        "bridge_hash": "67c57285456eabccc0bfa52846feb76d4eacabecdcb88bdb9201044157c7a539",
+        "local_compute_billing": "not_metered_by_studio",
+        "acceptance_hash": "0652862424bcd367725befa267d0496c779b7d262898e1c123c3c9d9a5bdbf16",
+        "kernel": "6.18.33.2-microsoft-standard-WSL2",
+        "bwrap": "bubblewrap 0.11.1",
+        "systemd": "systemd 259 (259.5-0ubuntu3)",
+        "python": "3.14.4",
+        "policy": {
+          "format": "isolation/1",
+          "backend": "wsl2-bwrap-systemd",
+          "network": "none",
+          "memory_bytes": 268435456,
+          "swap_bytes": 0,
+          "tasks": 32,
+          "cpu_percent": 50,
+          "runtime_seconds": 20,
+          "lease_seconds": 5,
+          "disk_bytes": 16777216,
+          "log_bytes": 65536,
+          "file_bytes": 8388608,
+          "uid": 1000
+        },
+        "os_release": "PRETTY_NAME=\"Ubuntu 26.04 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04 (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+        "binary_hashes": {
+          "/usr/bin/bwrap": "8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b",
+          "/usr/bin/python3": "fa9796cd3a30878e11a2f40372f773d3fcd913fff35e5bee8dd9a036e22e93ab",
+          "/usr/bin/systemd-run": "6cb217524b113f56c7d514b10eb914b365aad787b4b3d3fdf9b8cc7ae675d8a9"
+        },
+        "host_network_namespace": "net:[4026531833]",
+        "recipe_hash": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+        "unit": "creator-exec-9478decc-a27b-4c78-8bd9-c0c5153a60c1",
+        "effective_limits": "RuntimeMaxUSec=20s\nCPUQuotaPerSecUSec=500ms\nMemoryMax=268435456\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group",
+        "cleanup": "inactive",
+        "heartbeat_write_errors": 0
+      },
+      "log": "invalid input\n",
+      "exit_code": 2,
+      "reason": null
+    },
+    {
+      "id": "d2bd4b45-2360-4a7d-a407-f2e96edf43c3",
+      "product_id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+      "task_id": "99674445-c5df-44a4-9be0-5b41c2b47be1",
+      "commit": "396dea9dc16643fa87ae9df61eef4bf896be1fde",
+      "recipe": "python-build/1",
+      "recipe_hash": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+      "policy_hash": "1cd1c03df7a41cebc319773a35bf9c2244c44d1151ebe2e698b402ebd939e3d7",
+      "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+      "state": "succeeded",
+      "started_at": "2026-10-18T11:24:45.926Z",
+      "finished_at": "2026-10-18T11:24:48.482Z",
+      "environment": {
+        "backend": "wsl2-bwrap-systemd",
+        "distribution": "Ubuntu",
+        "supervisor_pid": 38068,
+        "bridge_hash": "67c57285456eabccc0bfa52846feb76d4eacabecdcb88bdb9201044157c7a539",
+        "local_compute_billing": "not_metered_by_studio",
+        "acceptance_hash": "665fff9992f549379424252cae47343e5e586b08052b6da347ac40e7900c653d",
+        "kernel": "6.18.33.2-microsoft-standard-WSL2",
+        "bwrap": "bubblewrap 0.11.1",
+        "systemd": "systemd 259 (259.5-0ubuntu3)",
+        "python": "3.14.4",
+        "policy": {
+          "format": "isolation/1",
+          "backend": "wsl2-bwrap-systemd",
+          "network": "none",
+          "memory_bytes": 268435456,
+          "swap_bytes": 0,
+          "tasks": 32,
+          "cpu_percent": 50,
+          "runtime_seconds": 20,
+          "lease_seconds": 5,
+          "disk_bytes": 16777216,
+          "log_bytes": 65536,
+          "file_bytes": 8388608,
+          "uid": 1000
+        },
+        "os_release": "PRETTY_NAME=\"Ubuntu 26.04 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04 (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+        "binary_hashes": {
+          "/usr/bin/bwrap": "8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b",
+          "/usr/bin/python3": "fa9796cd3a30878e11a2f40372f773d3fcd913fff35e5bee8dd9a036e22e93ab",
+          "/usr/bin/systemd-run": "6cb217524b113f56c7d514b10eb914b365aad787b4b3d3fdf9b8cc7ae675d8a9"
+        },
+        "host_network_namespace": "net:[4026531833]",
+        "recipe_hash": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+        "unit": "creator-exec-d2bd4b45-2360-4a7d-a407-f2e96edf43c3",
+        "effective_limits": "RuntimeMaxUSec=20s\nCPUQuotaPerSecUSec=500ms\nMemoryMax=268435456\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group",
+        "cleanup": "inactive",
+        "heartbeat_write_errors": 0
+      },
+      "log": "{\"template\": \"checklist/1\", \"items\": [\"inspect\", \"build\", \"review\", \"verify\"]}\n",
+      "exit_code": 0,
+      "reason": null
+    }
+  ],
+  "broker_calls": [
+    {
+      "status": "succeeded",
+      "reason_code": "succeeded",
+      "explanation": "The call completed and was charged from authoritative usage.",
+      "logical_operation_id": "b8773edc-e200-475d-a097-627bb68b9206",
+      "attempts": [
+        {
+          "id": "c160a836-3c9a-4214-a8ae-072aeceb5987",
+          "workspace_id": "99b468b2-5371-424d-9820-88577aea0787",
+          "envelope_id": "fc13d20e-89f5-4f4b-8cd1-3110728ed591",
+          "run_id": "e9e17cc6-5ce7-438f-980e-532a79ba870d",
+          "task_id": null,
+          "logical_operation_id": "b8773edc-e200-475d-a097-627bb68b9206",
+          "attempt": 1,
+          "action_type": "model.generate",
+          "provider": "fixture",
+          "model_id": "fixture-model-v1",
+          "pricing_snapshot_id": "919e0ffe-5813-4c88-9ab6-f0585e366065",
+          "admission_id": "f1463845-59ee-47fa-9353-4d182f4cdff3",
+          "decision_id": null,
+          "status": "settled",
+          "reason_code": "settled",
+          "explanation": "Charged 14310000 of 190325000 reserved.",
+          "reserved": "190325000",
+          "exposure": {
+            "max_input_tokens": 3226,
+            "max_output_tokens": 3000,
+            "max_tool_calls": {},
+            "long_context": false,
+            "amount": "190325000",
+            "method": "utf8_bytes_upper_bound/1"
+          },
+          "incurred": "14310000",
+          "usage": {
+            "uncached_input_tokens": 791,
+            "cached_input_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 128,
+            "reasoning_tokens": 0,
+            "tool_calls": {}
+          },
+          "usage_source": "fixture",
+          "provider_response_id": "fixture-9bfa2498292a",
+          "fixture": true,
+          "created_at": "2026-10-18T11:24:44.740Z",
+          "finished_at": "2026-10-18T11:24:44.766Z"
+        }
+      ],
+      "output": {
+        "text": "{\"summary\":\"FIXTURE: fixed synthetic checklist implementation; no model reasoning.\",\"submission\":{\"expected_commit\":\"b93cea8965edd5d291960b7becc702a82bff37fd\",\"changes\":[{\"path\":\"src/main.py\",\"before_hash\":\"00b22dd8a06a69a360b9d95b03d0cee4778410ef37052ba719c0f3cb730f8906\",\"content\":\"import json\\nimport sys\\nif len(sys.argv) > 1:\\n    print(\\\"invalid input\\\")\\n    sys.exit(2)\\nprint(json.dumps({\\\"template\\\": \\\"checklist/1\\\", \\\"items\\\": [\\\"inspect\\\", \\\"build\\\", \\\"review\\\", \\\"verify\\\"]}))\\n\"}]},\"blocker\":null}",
+        "json": {
+          "summary": "FIXTURE: fixed synthetic checklist implementation; no model reasoning.",
+          "submission": {
+            "expected_commit": "b93cea8965edd5d291960b7becc702a82bff37fd",
+            "changes": [
+              {
+                "path": "src/main.py",
+                "before_hash": "00b22dd8a06a69a360b9d95b03d0cee4778410ef37052ba719c0f3cb730f8906",
+                "content": "import json\nimport sys\nif len(sys.argv) > 1:\n    print(\"invalid input\")\n    sys.exit(2)\nprint(json.dumps({\"template\": \"checklist/1\", \"items\": [\"inspect\", \"build\", \"review\", \"verify\"]}))\n"
+              }
+            ]
+          },
+          "blocker": null
+        },
+        "vector": null
+      },
+      "decision_id": null,
+      "fixture": true,
+      "replayed": false
+    },
+    {
+      "status": "succeeded",
+      "reason_code": "succeeded",
+      "explanation": "The call completed and was charged from authoritative usage.",
+      "logical_operation_id": "18d112c1-7374-4206-9e39-d6dc94270c15",
+      "attempts": [
+        {
+          "id": "b37e0b3f-60da-41cd-8d74-f1b2effc9dba",
+          "workspace_id": "99b468b2-5371-424d-9820-88577aea0787",
+          "envelope_id": "fc13d20e-89f5-4f4b-8cd1-3110728ed591",
+          "run_id": "e9e17cc6-5ce7-438f-980e-532a79ba870d",
+          "task_id": null,
+          "logical_operation_id": "18d112c1-7374-4206-9e39-d6dc94270c15",
+          "attempt": 1,
+          "action_type": "model.generate",
+          "provider": "fixture",
+          "model_id": "fixture-model-v1",
+          "pricing_snapshot_id": "919e0ffe-5813-4c88-9ab6-f0585e366065",
+          "admission_id": "b4c15233-1d80-4fd2-98fb-bc13c8cef516",
+          "decision_id": null,
+          "status": "settled",
+          "reason_code": "settled",
+          "explanation": "Charged 12640000 of 198475000 reserved.",
+          "reserved": "198475000",
+          "exposure": {
+            "max_input_tokens": 3878,
+            "max_output_tokens": 3000,
+            "max_tool_calls": {},
+            "long_context": false,
+            "amount": "198475000",
+            "method": "utf8_bytes_upper_bound/1"
+          },
+          "incurred": "12640000",
+          "usage": {
+            "uncached_input_tokens": 954,
+            "cached_input_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 62,
+            "reasoning_tokens": 0,
+            "tool_calls": {}
+          },
+          "usage_source": "fixture",
+          "provider_response_id": "fixture-bfdfa3f2388a",
+          "fixture": true,
+          "created_at": "2026-10-18T11:24:45.551Z",
+          "finished_at": "2026-10-18T11:24:45.573Z"
+        }
+      ],
+      "output": {
+        "text": "{\"candidate\":\"396dea9dc16643fa87ae9df61eef4bf896be1fde\",\"spec_hash\":\"baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9\",\"task_hash\":\"5c7eeb8c35bdf494a33d859caa876fca24e004d4d6b5176ad4f7faae301418c8\",\"verdict\":\"approve\",\"findings\":[]}",
+        "json": {
+          "candidate": "396dea9dc16643fa87ae9df61eef4bf896be1fde",
+          "spec_hash": "baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9",
+          "task_hash": "5c7eeb8c35bdf494a33d859caa876fca24e004d4d6b5176ad4f7faae301418c8",
+          "verdict": "approve",
+          "findings": []
+        },
+        "vector": null
+      },
+      "decision_id": null,
+      "fixture": true,
+      "replayed": false
+    }
+  ],
+  "zero_budget": {
+    "id": "7b9a9086-8113-4390-8580-0d6eb89f54dc",
+    "product_id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+    "task_id": "99674445-c5df-44a4-9be0-5b41c2b47be1",
+    "plan_hash": "a3242dcd29b55c272cb78b16f5186feac76654cee1e3ac855835304014ede161",
+    "spec_hash": "baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9",
+    "commit": "396dea9dc16643fa87ae9df61eef4bf896be1fde",
+    "state": "checkpoint",
+    "reason": "Error: Role stopped: denied budget_exceeded",
+    "calls": 1,
+    "repairs": 0,
+    "fixture": true,
+    "finished_at": "2026-10-18T11:24:51.421Z"
+  },
+  "revoked_authority": {
+    "id": "5692421a-f57a-46f2-90c0-d478b1e89781",
+    "product_id": "b0239a30-ac6e-4779-80de-c6f77795bc9b",
+    "task_id": "99674445-c5df-44a4-9be0-5b41c2b47be1",
+    "plan_hash": "379082639430c211ee90ebcc4ffb409e9245caa55ff5dd44edf879b6ed38c857",
+    "spec_hash": "baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9",
+    "commit": "396dea9dc16643fa87ae9df61eef4bf896be1fde",
+    "state": "checkpoint",
+    "reason": "Error: Build admission waiting_human; decision fa26d78d-6ec0-410a-8b59-2aa3cffb2473",
+    "calls": 0,
+    "repairs": 0,
+    "fixture": false,
+    "finished_at": "2026-10-18T11:24:52.211Z"
+  },
+  "one_time_authority": {
+    "id": "5051799a-0cad-4135-86b2-3168f040f4eb",
+    "product_id": "6c4e1c0e-e72c-4fc6-bc4f-eb7ddc6ef525",
+    "task_id": "1b6ba020-b8ee-44e5-9a90-19bb082cfe12",
+    "plan_hash": "379082639430c211ee90ebcc4ffb409e9245caa55ff5dd44edf879b6ed38c857",
+    "spec_hash": "baeab21195aec84a8b3bef29b48af583be744bb7245cb5601a7c99d114e7d8c9",
+    "commit": "0c36dd4e607a0e7ec8663e08eece08762adb0dff",
+    "state": "verified_candidate",
+    "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+    "calls": 2,
+    "repairs": 0,
+    "fixture": true,
+    "finished_at": "2026-10-18T11:24:57.153Z"
+  },
+  "checks": [
+    "authenticated owner",
+    "current frozen spec",
+    "exact task hashes",
+    "build admission and humility",
+    "two settled broker reservations",
+    "fresh review",
+    "normal and invalid-input QA",
+    "zero-budget denial",
+    "human-only denial",
+    "changed spec denial",
+    "unauthenticated denial"
+  ]
+}

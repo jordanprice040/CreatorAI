@@ -1,5 +1,95 @@
 # Session handoff
 
+## PR publication and Claude Code handoff (October 18, 2026)
+
+Owner requested a T12 PR and a handoff for Claude Code to start T13. GitHub
+confirmed T11 merged as PR #13; main is 2ee0dca. T12 is being published on
+codex/t12-bounded-builder with the preserved optional Docker database follow-up.
+See [T13 Claude Code handoff](T13_CLAUDE_HANDOFF.md) for the authorized next task,
+prerequisite branch, implementation boundaries and verification/machine state.
+T12 source review remains pending; no merge or T13 implementation is claimed here.
+The earlier session notes below describe their state before this publication.
+
+## Latest - T12 bounded builder, fresh review and actual QA (October 18, 2026)
+
+Implemented on the existing codex/t11-isolated-execution checkout, HEAD 2c14f9a.
+The owner's explicit new T12 request authorized this work; T11 review/merge was
+not inferred. Preexisting uncommitted Docker files and edits were preserved. No
+staging, source commit, push or merge was performed in this T12 session.
+
+Commands: `pnpm cli build-task <product> <task> <expected-commit> <plan.json>`;
+`build-status <product> <build>`; product-status includes build IDs. See
+docs/BOUNDED_BUILDER.md for exact prerequisites and plan. CLI -> authenticated API
+checks current owner/frozen spec/run and exact-spec humility/build admission ->
+metered broker builder -> T11 CAS patch/commit -> fresh reviewer -> supervisor
+stdout/exit assertions in real clean WSL sandboxes -> task-specific candidate gate.
+Grant versions/revocation/expiry and humility freshness are rechecked while running.
+Consumed one-time authority covers its admitted operation without a second prompt.
+
+Evidence in .creator/products/<id>/builds is immutable: intent/spec/prompts/plan,
+context hashes, admissions/reservations/output, candidate commits, review, executed
+commands and full execution/check results. Broker accounting stays in PostgreSQL.
+Status rejects changed heads, dirty files or changed frozen specs. There is no
+automatic recovery/replay; unfinished intents, unknown calls, locks and worker
+leases require inspection. Failed commits and logs survive. Existing explicit
+owner integration is separate, and a merge commit needs its own verification.
+
+Checks: full Docker PostgreSQL 18.6 + real WSL gate **149/149, zero skipped**;
+compiled authenticated CLI/API/broker acceptance and smoke. Final CLI authority
+checks and standard check logs are recorded separately. Initial parallel-file
+runs were 147/149 and 148/149: fixed an existing duplicate-delivery test's 200 ms
+timing assumption and API/DB cleanup order; serialized test files to prevent
+competing WSL lease/resource probes. Internal concurrency assertions remain.
+Failure logs were preserved; no production gate was loosened.
+
+Limits: fixed synthetic model roles, offline reviewed Python CLI, one independent
+task and owner-authored exact stdout/exit checks. No browser/persistence/dependency
+recipe, build catalog indexing, participant implementation path, live model,
+real spend, public release, preview or artifact export. This is not independent
+model reasoning or empirical validation. Shared-model correlated errors remain.
+Local compute remains monetarily unmetered. See ADR-0016 and evidence/t12.
+
+Next: T13 — Verified artifacts, private preview, and feedback revision, after
+T11/T12 review and a new request. Do not advance automatically. Test database and
+temporary API lifecycles are recorded in evidence; preserve the existing dev DB
+and do not shut down the shared WSL VM or delete partial generated repositories.
+
+## Latest - Docker follow-up (October 18, 2026)
+
+Owner requested checking newly installed Docker and implementing it where useful.
+Docker Desktop 4.95.0 / Engine 29.8.2 / Compose 5.6.0 connects via desktop-linux.
+This session's stale PATH omitted the per-user CLI and credential helper; prepend
+`$env:LOCALAPPDATA/Programs/DockerDesktop/resources/bin` in affected terminals.
+No Docker MCP tools appeared in the chat catalogue; CLI and daemon were verified.
+
+Added compose.yaml with digest-pinned official PostgreSQL 18.6 Bookworm, separate
+dev/test named volumes and 127.0.0.1 ports 55433/55434, password authentication,
+health checks, CPU/memory/PID limits and rotated logs. Generated a private password
+in ignored .env.docker; do not overwrite it. See docs/DOCKER.md for commands to
+load the password and set application/test URLs. Existing database data was not
+migrated/imported or automatically selected by the app. Dev is running; test is
+stopped. Both volumes persist; no automatic restart or Docker-socket mounts.
+
+Executed all nine migrations, restart persistence, inspected port/resource limits,
+and host-TCP correct/wrong-password checks. An initial in-container negative check
+used the image's internal trust connection; a first host probe mistakenly retained
+the URL's correct password over the separate pg option. The corrected probe changed
+the URL itself and observed SQLSTATE 28P01. Full Docker-backed `pnpm test:db` with
+`CREATOR_TEST_ISOLATION=wsl2`: **140 pass / 0 fail / 0 skip**. Logs and source hashes
+are in tracking/evidence/docker. Prior T11 evidence remains historical and bound to
+its original candidate; no executor code changed.
+
+Standard `pnpm check` also passed (63 pass / 77 explicitly skipped without DB/WSL,
+typecheck and formatting passed); Compose formatting checked separately. An initial
+sandboxed check failed six localhost/hardlink checks due to host restrictions;
+its log is retained, and the unsandboxed repeat passed without changing code.
+
+Decision ADR-0015 uses Docker for conventional database infrastructure and retains
+the verified WSL2/Bubblewrap sandbox. Docker disk storage is not quota bounded;
+local compute cost is not monetarily metered. No live providers, remote deployment
+or study activation. **Next eligible prompt remains T12**, after T11 owner
+review/merge and a new request; this follow-up did not start it.
+
 ## Latest - T11 isolated execution and local product Git (October 18, 2026)
 
 T11's reviewed-template gate is verified on `codex/t11-isolated-execution`, based on `5f9bb1bf71673b4c5aa27f418cbb2c842948266b` (T10 merged PR #12, confirmed before updating main). Exact staged source bytes are bound by [T11 verification](evidence/t11/verification.json) and its source manifest. Owner review/merge remains pending.

@@ -87,6 +87,10 @@ def main():
                '--remount-ro', '/', '--remount-ro', '/dev', '--remount-ro', '/proc',
                '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'HOME', '/nonexistent',
                '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
+    acceptance = job / 'acceptance.json'
+    if acceptance.is_file():
+        # Supervisor-owned input, outside the generated snapshot and mounted read-only.
+        sandbox[1:1] = ['--ro-bind', str(acceptance), '/acceptance.json']
     launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pipe', '--wait', '--collect', '--unit=' + unit,
               '-p', 'MemoryMax=268435456', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32',
               '-p', 'CPUQuota=50%', '-p', 'RuntimeMaxSec=20', '-p', 'KillMode=control-group',

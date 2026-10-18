@@ -1,5 +1,45 @@
 # Implementation status
 
+T12 update, October 18, 2026: the bounded local Python task path now connects
+authenticated current frozen T08 tasks to build admission and exact-spec humility
+review, the existing metered broker, scoped committed T11 patches, fresh reviewer
+context and actually executed WSL QA. Immutable plans/prompts/contexts, broker
+traces, commits, reviews, commands and execution identities are retained. Only
+supervisor code can mark the exact task candidate verified. Broken behavior,
+unsupported success claims, stale reviewed commits/specs, scope expansion,
+cancelled/human-only runs and zero budgets fail; two-repair exhaustion preserves
+partial code. **149/149 database + real-isolation checks passed, no skips** after
+serializing test files; earlier failed logs remain. See ADR-0016,
+docs/BOUNDED_BUILDER.md and evidence/t12. The final authority-freshness guard has
+separate compiled CLI verification in that evidence directory.
+
+This is fixed synthetic builder/reviewer verification for the reviewed offline
+Python template, not independent model-quality evidence or a whole-product
+readiness claim. Browser/persistence recipes, dependent-task integration, build
+catalog indexing, participant implementation execution, previews and delivery
+remain unavailable. No live provider, real spend, public release or study
+activation. T11/T12 source review/merge is not claimed. Next milestone: **T13 —
+Verified artifacts, private preview, and feedback revision**, after review and a
+new request; no automatic advancement.
+
+| Requirement | T12 verified scope | Remaining limitation |
+| --- | --- | --- |
+| C21, C29 | Finite broker calls, bounded context/output/deadline, typed scoped tools, two repairs, cancellation and preserved partial commits | One independent builder task; crash intents require inspection, no automatic continuation |
+| C23 | Fresh review plus real normal/error assertions bound to exact commit/spec/task/plan | Fixed synthetic roles; stdout/exit CLI recipe only, no browser/persistence verification |
+| C27, C34 | Immutable prompt/context/command/output traces and broker reservation IDs | Local build records are not yet searchable in the catalog |
+
+Docker follow-up, October 18, 2026: CLI/daemon connection verified (Docker Desktop
+4.95.0, Engine 29.8.2, Compose 5.6.0, desktop-linux). Optional digest-pinned
+PostgreSQL 18.6 Compose development/test services now work on distinct loopback
+ports and named volumes. All nine migrations applied, restart persistence and host
+TCP password rejection checked; **140/140 tests passed, zero skipped**, including
+real WSL isolation. Development DB remains running on 55433; test container on
+55434 is stopped. Credentials are in ignored `.env.docker`; application URLs are
+opt-in per terminal. No Docker MCP tool was exposed; direct CLI connection is
+verified. Generated-code execution remains the T11 WSL worker. See ADR-0015,
+docs/DOCKER.md and evidence/docker. T12 is not started; its review/merge and new
+request prerequisites remain.
+
 T11 update, October 18, 2026: verified local owner CLI and reviewed Python template execution on Windows + the existing Ubuntu WSL2 VM (Bubblewrap 0.11.1, systemd 259, Python 3.14.4). Separate Git repositories/task/review worktrees bind exact frozen T08 spec/task hashes; typed CAS changes enforce portable file scopes, reject linked paths and stale heads, preserve edits and conflicts, and serialize one integration owner. Generated code runs offline/non-root with narrow read-only mounts and bounded CPU/memory/processes/disk/time/output. Worker leases, process-tree cancellation, uncertain-dispatch fencing, crash reconciliation and cleanup were exercised. **140/140** database + real-isolation checks pass; standard check **63 pass / 77 explicitly skipped**, smoke and authenticated compiled CLI acceptance pass. ADR-0014, docs/ISOLATED_EXECUTION.md and evidence/t11 bind the exact source. No model builder, independent QA, persistent preview, participant implementation execution or public release. T10 is merged as PR #12 at 5f9bb1b; T12 is next after T11 review/merge and a new request.
 
 T10 update, October 18, 2026: verified synthetic study runner on native Windows, Node 22.21.0 and PostgreSQL 18.6. Migration 9 and ADR-0013 add immutable protocol/task/config manifests and hashes, seeded order and condition assignments, isolated attempt workspaces, human-only verbatim document/code/artifact entry with conventional bound text checks, separate human grader authorization, intervention/deviation records, structured T07 execution and a versioned open-ended broker baseline, condition-stable outcomes and excluded assisted continuations, metrics and a repeatable hashed export. Database gate: 130/130; non-database check: 59 pass, 71 explicitly skipped; smoke, compiled CLI/API and headless Edge acceptance passed. No live model, real spend, recruitment or empirical results. Unverified snapshots stop structured execution; arbitrary code and AI implementation execution wait for T11. See [T10 evidence](evidence/t10/verification.json), [review](evidence/t10/review.md) and the [local guide](../docs/LOCAL_DEVELOPMENT.md).
