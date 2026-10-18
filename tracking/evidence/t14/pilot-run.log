@@ -1,0 +1,18 @@
+pass metrics.terminal: 5/5 attempts reached a terminal state.
+pass metrics.wall_clock: Every attempt has an observed wall time.
+pass metrics.time_cap: No attempt exceeded its cap without a deadline outcome.
+pass metrics.ai_usage: Every AI arm recorded calls and simulated spend (A: 1 calls; B: 1 calls; D-structured: 1 calls; D-open: 1 calls).
+pass metrics.autonomous_human_effort: Autonomous attempts record zero human task minutes.
+pass timing.interventions.B: 1 logged intervention(s); 0 with wait or active time longer than the attempt; none after finish.
+warn metrics.assisted_human_totals.B: The workflow finish leaves assisted human totals empty; assisted effort must be summed from intervention rows (intervention_active_minutes).
+pass sources.unverified_snapshots.A: Packet snapshots are unverified, and the structured run ended with "insufficient_evidence". Unverified snapshots must not count as supporting evidence.
+pass sources.unverified_snapshots.B: Packet snapshots are unverified, and the structured run ended with "insufficient_evidence". Unverified snapshots must not count as supporting evidence.
+pass sources.unverified_snapshots.D-structured: Packet snapshots are unverified, and the structured run ended with "insufficient_evidence". Unverified snapshots must not count as supporting evidence.
+pass contamination.baseline_treatment.D-open: Open-ended baseline context has no rubric and no structured role prompt.
+pass contamination.cross_arm_and_grader: No other-arm output or grader sentinel appears in any of 5 contexts.
+pass contamination.separate_workspaces: Each attempt has its own workspace.
+pass contamination.human_only_no_model.C: 0 admitted model reservations; 3 recorded helper denials.
+pass reviewer.blinding: Reviewer packet has no condition terms, attempt ids or workspace ids.
+pass reviewer.key_complete: The private key maps every packet code to exactly one assigned attempt.
+pass export.repeatable: 2 study exports re-exported to identical hashes.
+Package ba68519040957252dab614b76b80873ac09b54bc5148fe47619b3e9b78f919e1 in <output-dir>; 0 failed check(s). Not empirical results.

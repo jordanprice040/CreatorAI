@@ -1,5 +1,15 @@
 # Implementation status
 
+T14 update, October 18, 2026 (Claude Code, branch claude/project-thread-ocgg8g from main
+e46b2cf; ADR-0019): `pnpm pilot <dir>` runs a pilot rehearsal (arms A, B, C on one fictional
+decision task plus one structured/open-ended pair) through the real study path, with fixture
+AI and scripted, labelled human entries. Checks: 16 pass, 1 warn, 0 fail; reproducible digest
+stable across databases. Blinded reviewer packet, feasibility estimate, pilot report and
+proposed final protocol in docs/PILOT_AND_PROTOCOL.md. The owner-only freeze route refuses
+until 10 research decisions (RD1-RD10) are answered; **protocol not adopted**. Cloud
+`pnpm test:db` **164 tests, 154 pass, 0 fail, 10 WSL skips**. No live model, participant,
+reviewer or empirical result. Evidence: tracking/evidence/t14.
+
 Audit fixes, October 18, 2026 (Claude Code, branch claude/project-thread-mccbs5 from
 main c162376; ADR-0018): build QA cases are now frozen in the spec and checked against the
 plan, with at least one held-out case no role sees; study participant ids compare
@@ -135,7 +145,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T11 | Isolated execution and local product Git | verified (Windows + WSL2; reviewed synthetic template) | Branch codex/t11-isolated-execution from 5f9bb1b; ADR-0014; evidence/t11/verification.json and source manifest; 140/140 DB + real isolation, check, smoke, CLI/API admission | Owner review/merge; fixed offline Python recipe; no model builder/independent QA, catalog indexing, dedicated appliance or persistent preview; T12 next on request |
 | T12 | Bounded builder, independent review, and QA | verified (Windows + WSL2; fixed synthetic roles) | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation | Merged PR #14 at 6fe5bab |
 | T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles) | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request |
-| T14 | Pilot, rubric calibration, and protocol freeze | planned | No application code at T00 | T10 and T13 |
+| T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
 | T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
 | T17 | Failure recovery, boundary checks, and requirements audit | planned | No application code at T00 | T13; may run alongside preparation for T14–T16 |

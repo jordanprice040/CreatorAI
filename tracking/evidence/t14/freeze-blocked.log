@@ -1,0 +1,3 @@
+$ pnpm cli protocol-freeze <workspace> decisions.json   # every decision answered "Pending"
+{"error":"CLI_ERROR","message":"API returned 409: {\"error\":{\"code\":\"INVALID_TRANSITION\",\"message\":\"Protocol not frozen: Consequential research decisions are unsettled.\",\"details\":[\"RD1-priority\",\"RD2-primary-outcome\",\"RD3-participants\",\"RD4-reviewers\",\"RD5-human-subjects\",\"RD6-model-and-cap\",\"RD7-design-counts\",\"RD8-final-tasks\",\"RD9-source-snapshots\",\"RD10-retry-and-search\"]}}"}
+exit=1

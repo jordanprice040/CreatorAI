@@ -1,0 +1,34 @@
+{
+  "milestone": "T14",
+  "date": "2026-10-18",
+  "environment": "Linux cloud container, Node 22, PostgreSQL 16, branch claude/project-thread-ocgg8g from main e46b2cf",
+  "empirical_results": false,
+  "checks": [
+    { "command": "pnpm typecheck", "result": "pass" },
+    { "command": "pnpm format:check", "result": "pass" },
+    {
+      "command": "pnpm test:db",
+      "result": "164 tests: 154 pass, 0 fail, 10 skipped (all need the WSL2 worker)",
+      "note": "A first run had one cleanup-hook error ('permission denied to terminate process') in catalog.test because the test role lacked pg_signal_backend; granted it and re-ran with no code change."
+    },
+    { "command": "node --test tests/dist/pilot.test.js", "result": "6 pass" },
+    {
+      "command": "CREATOR_DATABASE_URL=<fresh db> pnpm pilot <dir>",
+      "result": "16 pass, 1 warn, 0 fail; reproducible_digest 29141363f77148d97945ab811651b140eaabf42ae3ea78cc89e8d99423fe35ef (same digest on a second database across three runs)",
+      "files": ["pilot-run.log", "pilot-package.json", "reviewer-packet.json"]
+    },
+    {
+      "command": "pnpm cli protocol-freeze <workspace> decisions.json (all answers 'Pending')",
+      "result": "409 INVALID_TRANSITION listing all 10 blocking decision ids",
+      "files": ["freeze-blocked.log"]
+    }
+  ],
+  "proposed_protocol_hash": "f160ccd10cf9f0b5560ef7731145ffeb2ec50a6d790fe3dabcd1a3bbb68eb95d",
+  "not_committed": "reviewer-key.private.json (the private assignment key) is written next to the package and kept out of the repository.",
+  "limitations": [
+    "AI arms ran on the fixture adapter; no live model, timing or cost evidence.",
+    "Human entries in arms B and C are scripted rehearsal entries, not participant work.",
+    "No reviewer calibration; reviewer minutes per item is an assumption.",
+    "Protocol not frozen: 10 research decisions are open."
+  ]
+}
