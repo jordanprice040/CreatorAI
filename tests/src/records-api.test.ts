@@ -14,7 +14,10 @@ import {
   WorkspaceSchema,
   z,
 } from '@creator/contracts';
-import { freshDatabase } from './pg-harness.js';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 const exec = promisify(execFile);
 
 async function freePort(): Promise<number> {
@@ -62,20 +65,27 @@ test('records survive a real API process restart; HTTP enforces versions, scope 
     CREATOR_DATABASE_URL: db.url,
     CREATOR_API_PORT: String(port),
     CREATOR_WEB_PORT: String(await freePort()),
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
   };
   const base = `http://127.0.0.1:${port}/api`;
+  let api = await startApi(env);
+  t.after(() => stop(api));
+  const auth = await login(base);
+  const fetch = (url: string) => globalThis.fetch(url, { headers: auth.read });
   const post = (
     path: string,
     body: unknown,
     headers: Record<string, string> = {},
   ) =>
-    fetch(`${base}/${path}`, {
+    globalThis.fetch(`${base}/${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...auth.write,
+        ...headers,
+      },
       body: JSON.stringify(body),
     });
-  let api = await startApi(env);
-  t.after(() => stop(api));
 
   const ws = parse(
     WorkspaceSchema,
@@ -208,13 +218,22 @@ test('records survive a real API process restart; HTTP enforces versions, scope 
   ).json();
   assert.equal(lineage[0].link.to.id, ideaRecord.id);
 
+  const cliEnv = {
+    ...process.env,
+    CREATOR_API_URL: `http://127.0.0.1:${port}`,
+    CREATOR_SESSION_FILE: join(
+      await mkdtemp(join(tmpdir(), 'creator-cli-')),
+      'session.json',
+    ),
+  };
+  await exec(process.execPath, ['apps/cli/dist/main.js', 'login', LOGIN_CODE], {
+    env: cliEnv,
+    timeout: 10000,
+  });
   const cli = await exec(
     process.execPath,
     ['apps/cli/dist/main.js', 'seed-lineage'],
-    {
-      env: { ...process.env, CREATOR_API_URL: `http://127.0.0.1:${port}` },
-      timeout: 20000,
-    },
+    { env: cliEnv, timeout: 20000 },
   );
   const seeded = JSON.parse(cli.stdout);
   const idea2 = await exec(
@@ -226,10 +245,7 @@ test('records survive a real API process restart; HTTP enforces versions, scope 
       seeded.idea_with_two_descendants,
       'downstream',
     ],
-    {
-      env: { ...process.env, CREATOR_API_URL: `http://127.0.0.1:${port}` },
-      timeout: 10000,
-    },
+    { env: cliEnv, timeout: 10000 },
   );
   assert.equal(JSON.parse(idea2.stdout).length, 2);
   const product2 = await exec(
@@ -240,12 +256,21 @@ test('records survive a real API process restart; HTTP enforces versions, scope 
       seeded.workspace.id,
       seeded.product_from_two_ideas,
     ],
-    {
-      env: { ...process.env, CREATOR_API_URL: `http://127.0.0.1:${port}` },
-      timeout: 10000,
-    },
+    { env: cliEnv, timeout: 10000 },
   );
   assert.equal(JSON.parse(product2.stdout).outgoing.length, 2);
+  const cliRun = (...args: string[]) =>
+    exec(process.execPath, ['apps/cli/dist/main.js', ...args], {
+      env: cliEnv,
+      timeout: 10000,
+    });
+  assert.equal(JSON.parse((await cliRun('whoami')).stdout).method, 'dev_local');
+  assert.deepEqual(
+    JSON.parse((await cliRun('decisions', seeded.workspace.id)).stdout),
+    [],
+  );
+  await cliRun('logout');
+  await assert.rejects(cliRun('whoami'));
 });
 
 test('without a database the records API reports unavailable instead of pretending to persist', async (t) => {

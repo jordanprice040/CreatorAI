@@ -138,7 +138,7 @@ export function Records({ persistent }: { persistent: boolean }) {
 
   return (
     <section className="panel records" aria-labelledby="records-title">
-      <div className="eyebrow">03 / SAVED RECORDS</div>
+      <div className="eyebrow">04 / SAVED RECORDS</div>
       <h2 id="records-title">Records and history</h2>
       {!persistent ? (
         <p>

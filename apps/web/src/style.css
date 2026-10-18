@@ -105,7 +105,8 @@ label {
   margin: 23px 0 9px;
 }
 textarea,
-select {
+select,
+input {
   width: 100%;
   font: inherit;
   font-size: 14px;
@@ -294,6 +295,65 @@ code {
 .retracted {
   text-decoration: line-through;
   opacity: 0.6;
+}
+a.primary.link {
+  text-decoration: none;
+  max-width: 420px;
+}
+.decision {
+  border: 1px solid #d7ddd2;
+  border-radius: 6px;
+  padding: 18px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.decision-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.decision .question {
+  font-size: 15px;
+  line-height: 1.4;
+}
+.decision dl {
+  margin: 12px 0;
+}
+.decision dd {
+  max-width: 70%;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.secondary.strong {
+  background: #264c38;
+  border-color: #264c38;
+  color: #fff;
+}
+.notice.policy {
+  display: grid;
+  margin-top: 14px;
+}
+.notice.policy label {
+  margin: 8px 0 4px;
+}
+.kind-authorization {
+  background: #f1e8c9;
+  color: #6b5414;
+}
+.kind-judgment {
+  background: #e7e3f1;
+  color: #4b3f74;
+}
+.kind-clarification {
+  background: #e1ecf1;
+  color: #2f5566;
 }
 @media (max-width: 760px) {
   .records-grid {

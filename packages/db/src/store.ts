@@ -8,6 +8,7 @@ import {
   provenanceOrigin,
   lifecycleField,
   MAX_BODY_BYTES,
+  UNMANAGED_KINDS,
   StoredBodySchemas,
   CreateWorkspaceRequestSchema,
   CreateEntityRequestSchema,
@@ -41,18 +42,19 @@ export interface CommandContext {
   causationId?: string | null;
   idempotencyKey?: string;
 }
-type Role = 'owner' | 'editor' | 'viewer';
-type Row = Record<string, unknown>;
+export type Role = 'owner' | 'editor' | 'viewer';
+export type Row = Record<string, unknown>;
 
 const AUDIT_CHAIN_LOCK = 4_310_001;
 const HISTORY_CONSUMER = 'history_projection';
-const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v));
-const fail = (
+export const iso = (v: unknown) =>
+  v instanceof Date ? v.toISOString() : String(v);
+export const fail = (
   code: ConstructorParameters<typeof ContractError>[0],
   m: string,
 ) => new ContractError(code, m);
 
-function toEntity(r: Row): StoredEntity {
+export function toEntity(r: Row): StoredEntity {
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
@@ -122,7 +124,11 @@ function toHistory(r: Row): HistoryEntry {
     summary: String(r.summary),
   };
 }
-function isPgError(e: unknown, code: string, constraint?: string): boolean {
+export function isPgError(
+  e: unknown,
+  code: string,
+  constraint?: string,
+): boolean {
   return (
     e !== null &&
     typeof e === 'object' &&
@@ -146,11 +152,11 @@ function validateBody(
   return parsed;
 }
 /** UUIDs are compared as strings and hashed, so normalize them to PostgreSQL's lowercase form. */
-const uuid = (
+export const uuid = (
   v: string,
   code: 'NOT_FOUND' | 'INVALID_CONTRACT' = 'NOT_FOUND',
 ) => parse(idSchema, v, code).toLowerCase();
-function normalize(ctx: CommandContext): CommandContext {
+export function normalize(ctx: CommandContext): CommandContext {
   return {
     ...ctx,
     actorId: uuid(ctx.actorId, 'INVALID_CONTRACT'),
@@ -186,6 +192,27 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
     case 'link.created':
     case 'link.retracted':
       return `${action === 'link.created' ? 'Linked' : 'Retracted link'} ${String(p.from_kind)} v${String(p.from_version)} ${String(p.relation)} ${String(p.to_kind)} v${String(p.to_version)}`;
+    case 'auth.session_started':
+      return `Signed in (${String(p.method)})`;
+    case 'auth.session_ended':
+      return 'Signed out';
+    case 'run.registered':
+      return `Registered ${String(p.autonomy_mode)} run`;
+    case 'run.cancelled':
+      return `Cancelled run; ${String(p.closed_decisions)} pending decisions closed`;
+    case 'grant.created':
+    case 'grant.revised':
+    case 'grant.revoked':
+    case 'grant.consumed':
+      return `${action.slice(6)[0]?.toUpperCase()}${action.slice(7)} ${String(p.scope)} grant v${String(version)}`;
+    case 'decision.requested':
+      return `Requested ${String(p.kind)} decision (${String(p.reason)})`;
+    case 'decision.answered':
+      return `Answered decision: ${String(p.choice)}`;
+    case 'decision.closed':
+      return `Closed decision as ${String(p.status)}`;
+    case 'action.evaluated':
+      return `Action ${String(p.action_type)}: ${String(p.verdict)} (${String(p.reason_code)})`;
     default:
       return action;
   }
@@ -203,9 +230,9 @@ interface EventInput {
 }
 
 export class Store {
-  constructor(private readonly pool: Pool) {}
+  constructor(protected readonly pool: Pool) {}
 
-  private async tx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+  protected async tx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
       await client.query('begin');
@@ -225,7 +252,7 @@ export class Store {
    * The chain is tamper-evident only against edits that do not also rewrite later hashes;
    * a database superuser can still rewrite everything.
    */
-  private async append(c: PoolClient, ctx: CommandContext, e: EventInput) {
+  protected async append(c: PoolClient, ctx: CommandContext, e: EventInput) {
     await c.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
     const prev = await c.query<{ event_hash: string }>(
       'select event_hash from audit_events order by sequence desc limit 1',
@@ -283,7 +310,7 @@ export class Store {
     return eventId;
   }
 
-  private async role(
+  protected async role(
     c: PoolClient,
     ws: string,
     actorId: string,
@@ -302,7 +329,7 @@ export class Store {
   }
 
   /** Replays a stored response for a repeated idempotency key, or rejects a changed request. */
-  private async idempotent<T>(
+  protected async idempotent<T>(
     ws: string,
     ctx: CommandContext,
     request: unknown,
@@ -447,6 +474,11 @@ export class Store {
     ctx = normalize(ctx);
     ws = uuid(ws);
     const req = parse(CreateEntityRequestSchema, raw);
+    if (UNMANAGED_KINDS.includes(req.kind))
+      throw fail(
+        'INVALID_CONTRACT',
+        `Create ${req.kind}s through the decision and grant API, where their authority is enforced.`,
+      );
     const body = validateBody(req.kind, req.body);
     const lifecycle = lifecycleField[req.kind];
     if (lifecycle && body[lifecycle.field] !== lifecycle.initial)
@@ -482,7 +514,7 @@ export class Store {
     });
   }
 
-  private async lockCurrent(
+  protected async lockCurrent(
     c: PoolClient,
     ws: string,
     entityId: string,

@@ -11,13 +11,14 @@ import {
   parse,
   id as idSchema,
 } from '@creator/contracts';
-import { runFixture, serviceConfig } from '@creator/domain';
+import { authConfig, runFixture, serviceConfig } from '@creator/domain';
 import {
-  Store,
+  OversightStore,
   assertSchemaCurrent,
   databaseUrl,
   type CommandContext,
 } from '@creator/db';
+import { createAuth } from './auth.js';
 
 const MAX_BODY = 65536;
 function respond(res: ServerResponse, status: number, value: unknown) {
@@ -52,8 +53,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
     throw new ContractError('INVALID_CONTRACT', 'Malformed JSON.');
   }
 }
-// Local single-owner deployment: requests act as this configured actor. There is no
-// authentication yet (T03); the loopback Host/Origin checks below are the boundary.
+// Local single-owner deployment: a signed-in session acts as this configured owner actor.
 export const DEFAULT_OWNER_ACTOR_ID = '00000000-0000-4000-8000-000000000001';
 const CONNECTION_FAILURES = new Set([
   'ECONNREFUSED',
@@ -86,6 +86,9 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   NOT_FOUND: 404,
   ORIGIN_DENIED: 403,
   ACCESS_DENIED: 403,
+  UNAUTHENTICATED: 401,
+  CSRF_DENIED: 403,
+  EXPIRED: 409,
   SCOPE_EXCEEDED: 403,
   BODY_TOO_LARGE: 413,
   VERSION_CONFLICT: 409,
@@ -95,9 +98,11 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
+  // Checked first so a hosted deployment with development login fails with that reason.
+  const auth = authConfig(env);
   const config = serviceConfig(env);
   const dbUrl = databaseUrl(env.CREATOR_DATABASE_URL);
   const ownerId = parse(
@@ -116,7 +121,8 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   pool?.on('error', (e) =>
     console.error(`PostgreSQL idle client error: ${e.message}`),
   );
-  const store = pool ? new Store(pool) : null;
+  const store = pool ? new OversightStore(pool) : null;
+  const authn = createAuth(auth, store, ownerId);
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
     : 'not_configured';
@@ -165,17 +171,18 @@ export function createApi(env: Record<string, string | undefined> = {}) {
         : (storageError(e) ??
             new ContractError('STORAGE_UNAVAILABLE', 'Database unavailable.'));
     });
+    const method = req.method ?? 'GET';
+    const session = await authn.require(req, method !== 'GET');
     const [, ws, collection, item, action] = match;
     const correlation = header(req, 'x-correlation-id');
     const causation = header(req, 'x-causation-id');
     const key = header(req, 'idempotency-key');
     const ctx: CommandContext = {
-      actorId: ownerId,
+      actorId: session.actor_id,
       ...(correlation ? { correlationId: correlation } : {}),
       ...(causation ? { causationId: causation } : {}),
       ...(key ? { idempotencyKey: key } : {}),
     };
-    const method = req.method ?? 'GET';
     const send = async (status: number, value: unknown, mutated: boolean) => {
       if (mutated) await store.drainOutbox().catch(() => undefined);
       respond(res, status, value);
@@ -212,6 +219,8 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     } else if (collection === 'entities' && item) {
       if (method === 'GET' && !action)
         return send(200, await store.getEntity(ctx, ws, item), false);
+      if (method === 'GET' && action === 'humility-gate')
+        return send(200, await store.humilityVerdict(ctx, ws, item), false);
       if (method === 'GET' && action === 'lineage') {
         const direction = url.searchParams.get('direction') ?? 'upstream';
         if (direction !== 'upstream' && direction !== 'downstream')
@@ -250,6 +259,77 @@ export function createApi(env: Record<string, string | undefined> = {}) {
         return send(
           200,
           await store.retractLink(ctx, ws, item, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'runs') {
+      if (!item && method === 'GET')
+        return send(200, await store.listRuns(ctx, ws), false);
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.registerRun(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (item && method === 'POST' && action === 'cancel')
+        return send(
+          200,
+          await store.cancelRun(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && method === 'POST' && action === 'actions')
+        return send(
+          200,
+          await store.admitAction(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && method === 'GET' && action === 'admissions')
+        return send(200, await store.listAdmissions(ctx, ws, item), false);
+      if (item && method === 'POST' && action === 'decisions')
+        return send(
+          201,
+          await store.requestDecision(ctx, ws, item, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'grants') {
+      if (!item && method === 'GET')
+        return send(200, await store.listGrants(ctx, ws), false);
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.createStandingGrant(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (item && method === 'POST' && action === 'revisions')
+        return send(
+          200,
+          await store.reviseGrant(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && method === 'POST' && action === 'revoke')
+        return send(
+          200,
+          await store.revokeGrant(ctx, ws, item, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'decisions') {
+      if (!item && method === 'GET') {
+        const status = url.searchParams.get('status');
+        const run = url.searchParams.get('run');
+        return send(
+          200,
+          await store.listDecisions(ctx, ws, {
+            ...(status ? { status } : {}),
+            ...(run ? { runId: run } : {}),
+          }),
+          false,
+        );
+      }
+      if (item && method === 'GET' && !action)
+        return send(200, await store.getDecision(ctx, ws, item), false);
+      if (item && method === 'POST' && action === 'answer')
+        return send(
+          200,
+          await store.answerDecision(ctx, ws, item, await readJson(req)),
           true,
         );
     } else if (collection === 'history' && !item) {
@@ -343,8 +423,32 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           note: 'Structural validation only; not authorization or verified evidence.',
         });
       }
-      if (await records(req, res, new URL(req.url ?? '/', 'http://local')))
+      const url = new URL(req.url ?? '/', 'http://local');
+      if (
+        url.pathname.startsWith('/api/auth/') &&
+        url.pathname !== '/api/auth/status' &&
+        store
+      )
+        await ensureReady().catch((e: unknown) => {
+          throw e instanceof ContractError
+            ? e
+            : (storageError(e) ??
+                new ContractError(
+                  'STORAGE_UNAVAILABLE',
+                  'Database unavailable.',
+                ));
+        });
+      if (
+        await authn.route(
+          req,
+          res,
+          url,
+          () => readJson(req),
+          (status, value) => respond(res, status, value),
+        )
+      )
         return;
+      if (await records(req, res, url)) return;
       throw new ContractError('NOT_FOUND', 'Route not found.');
     })().catch((error: unknown) => {
       const e =
@@ -367,5 +471,14 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await pool?.end();
   }
-  return { server, config, store, ready: () => ready, close };
+  return {
+    server,
+    config,
+    store,
+    ready: () => ready,
+    close,
+    authMode: authn.mode,
+    /** The development login code generated at startup, if one was not configured. */
+    loginCode: authn.generatedCode,
+  };
 }

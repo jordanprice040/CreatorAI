@@ -33,3 +33,23 @@ export async function freshDatabase(
   await migrate(pool);
   return { url: url.toString(), pool };
 }
+
+/** Fixed development login code for test servers (never a real deployment value). */
+export const LOGIN_CODE = 'test-login-code-0123456789abcdefghij';
+/** Signs in with the development code; returns headers for reads and for writes. */
+export async function login(base: string) {
+  const response = await fetch(`${base}/auth/dev-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: LOGIN_CODE }),
+  });
+  if (!response.ok) throw new Error(`login failed: ${response.status}`);
+  const session = (await response.json()) as { csrf_token: string };
+  const cookie = response.headers.getSetCookie()[0]?.split(';')[0] ?? '';
+  return {
+    cookie,
+    csrf: session.csrf_token,
+    read: { Cookie: cookie },
+    write: { Cookie: cookie, 'X-CSRF-Token': session.csrf_token },
+  };
+}

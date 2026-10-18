@@ -1,0 +1,18 @@
+{
+  "milestone": "T03",
+  "date": "2026-10-18",
+  "base_commit": "2a2d028",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15"
+  },
+  "checks": [
+    { "command": "pnpm check", "result": "pass", "tests": 47, "passed": 29, "skipped": 18, "log": "check-without-db.log" },
+    { "command": "pnpm test:db", "result": "pass", "tests": 47, "passed": 47, "log": "test-db.log" },
+    { "command": "pnpm smoke", "result": "pass" },
+    { "command": "node browser-check.mjs (headless Chromium 1194 against pnpm dev)", "result": "pass", "log": "browser-check.log", "screenshots": ["browser-decisions.png", "browser-answered.png", "browser-mobile.png"] }
+  ],
+  "not_verified": ["Windows PostgreSQL", "real OIDC identity provider", "Node 24 with DB suites", "CI with database"]
+}

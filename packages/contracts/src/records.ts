@@ -200,8 +200,15 @@ export const linkPairs: Record<LinkRelation, readonly string[]> = {
   forks: ['product:product'],
   reuses: ['product:artifact'],
   released_as: ['product:artifact'],
-  assesses: ['assessment:alternative', 'assessment:idea', 'assessment:problem'],
-  part_of: ['task:run', 'run:product'],
+  assesses: [
+    'assessment:alternative',
+    'assessment:idea',
+    'assessment:problem',
+    'humility_review:product',
+    'humility_review:alternative',
+    'humility_review:problem',
+  ],
+  part_of: ['task:run', 'run:product', 'assumption:run'],
   authorizes: [
     'grant:run',
     'grant:task',

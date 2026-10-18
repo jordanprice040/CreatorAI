@@ -1,0 +1,12 @@
+console: Failed to load resource: the server responded with a status of 404 (Not Found)
+console: Failed to load resource: the server responded with a status of 401 (Unauthorized)
+signed-out view shows sign-in: ok
+fragment cleared: http://127.0.0.1:5173/
+pending cards: 2
+judgment has approve button: 0
+judgment buttons: Proceed | Revise | Defer | Request evidence
+approve disabled without reason: true
+policy preview: It lets every future record · revise on idea with synthetic data in this run proceed without asking, until the expiry below. You can revoke it at any time.
+approve once: card left the pending list
+answered view shows approve once with rationale: ok
+mobile horizontal overflow: false

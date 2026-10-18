@@ -1,5 +1,13 @@
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import {
   ContractError,
+  AdmissionSchema,
+  DecisionSchema,
+  GrantSchema,
+  HumilityVerdictSchema,
+  RunControlSchema,
+  SessionInfoSchema,
   HealthSchema,
   FixtureResponseSchema,
   FixtureRequestSchema,
@@ -25,7 +33,37 @@ const USAGE = `Usage:
   pnpm cli link <workspace> <relation> <from-id>@<version> <to-id>@<version> <rationale>
   pnpm cli lineage <workspace> <id> [upstream|downstream]
   pnpm cli history <workspace> [subject-id]
-  pnpm cli seed-lineage`;
+  pnpm cli seed-lineage
+  pnpm cli login <code> | logout | whoami
+  pnpm cli runs <workspace>
+  pnpm cli run-register <workspace> <run-id>@<version> <mode> [grant-id@version ...]
+  pnpm cli run-cancel <workspace> <run-id> <reason>
+  pnpm cli admit <workspace> <run-id> <action-json>
+  pnpm cli decisions <workspace> [status]
+  pnpm cli decision <workspace> <decision-id>
+  pnpm cli answer <workspace> <decision-id> <coverage-hash> <choice> [option-id] <rationale> [--standing-days <n>]
+  pnpm cli grants <workspace>
+  pnpm cli grant-create <workspace> <grant-json>
+  pnpm cli grant-revoke <workspace> <grant-id> <expected-version> <reason>
+  pnpm cli humility-gate <workspace> <review-id>
+
+Sign-in state is kept in CREATOR_SESSION_FILE (default .creator/cli-session.json).`;
+interface Saved {
+  origin: string;
+  token: string;
+  csrf: string;
+}
+function sessionFile(): string {
+  return process.env.CREATOR_SESSION_FILE ?? '.creator/cli-session.json';
+}
+function loadSession(origin: string): Saved | null {
+  try {
+    const saved = JSON.parse(readFileSync(sessionFile(), 'utf8')) as Saved;
+    return saved.origin === origin ? saved : null;
+  } catch {
+    return null;
+  }
+}
 
 function json(raw: string | undefined, label: string): unknown {
   try {
@@ -63,21 +101,31 @@ export async function runCli(
       url.hash
     )
       throw new Error('CLI requires a loopback HTTP API origin.');
+    const saved = loadSession(url.origin);
+    let lastResponse: Response | null = null;
     async function call<T>(
       schema: z.ZodType<T>,
       path: string,
       body?: unknown,
     ): Promise<T> {
+      const auth: Record<string, string> = saved
+        ? { Cookie: `creator_session=${saved.token}` }
+        : {};
       const response = await fetch(`${url.origin}/api/${path}`, {
         ...(body === undefined
-          ? {}
+          ? { headers: auth }
           : {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...auth,
+                ...(saved ? { 'X-CSRF-Token': saved.csrf } : {}),
+              },
               body: JSON.stringify(body),
             }),
         signal: AbortSignal.timeout(5000),
       });
+      lastResponse = response;
       const value: unknown = await response.json();
       if (!response.ok)
         throw new Error(
@@ -179,6 +227,128 @@ export async function runCli(
         break;
       case 'seed-lineage':
         data = await seedLineage(call);
+        break;
+      case 'login': {
+        const session = await call(SessionInfoSchema, 'auth/dev-login', {
+          code: rest[0],
+        });
+        const cookie = (lastResponse as Response | null)?.headers
+          .getSetCookie()
+          .find((c) => c.startsWith('creator_session='));
+        const value = cookie?.split(';')[0]?.slice('creator_session='.length);
+        if (!value) throw new Error('The API did not start a session.');
+        mkdirSync(dirname(sessionFile()), { recursive: true });
+        writeFileSync(
+          sessionFile(),
+          JSON.stringify({
+            origin: url.origin,
+            token: value,
+            csrf: session.csrf_token,
+          }),
+          { mode: 0o600 },
+        );
+        data = { signed_in: true, expires_at: session.expires_at };
+        break;
+      }
+      case 'logout':
+        data = await call(
+          z.strictObject({ signed_out: z.literal(true) }),
+          'auth/logout',
+          {},
+        );
+        rmSync(sessionFile(), { force: true });
+        break;
+      case 'whoami':
+        data = await call(SessionInfoSchema, 'auth/session');
+        break;
+      case 'runs':
+        data = await call(z.array(RunControlSchema), `${ws(rest[0])}/runs`);
+        break;
+      case 'run-register':
+        data = await call(RunControlSchema, `${ws(rest[0])}/runs`, {
+          run: ref(rest[1]),
+          autonomy_mode: rest[2],
+          stage_gates: null,
+          initial_grants: rest.slice(3).map(ref),
+        });
+        break;
+      case 'run-cancel':
+        data = await call(
+          RunControlSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/cancel`,
+          { reason: rest.slice(2).join(' ') },
+        );
+        break;
+      case 'admit':
+        data = await call(
+          AdmissionSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/actions`,
+          json(rest[2], 'Action'),
+        );
+        break;
+      case 'decisions':
+        data = await call(
+          z.array(DecisionSchema),
+          `${ws(rest[0])}/decisions${rest[1] ? `?status=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'decision':
+        data = await call(
+          DecisionSchema,
+          `${ws(rest[0])}/decisions/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'answer': {
+        const [workspace, decision, coverage, choice, ...tail] = rest;
+        const days = tail.indexOf('--standing-days');
+        const standingDays = days >= 0 ? Number(tail.splice(days, 2)[1]) : null;
+        const option =
+          choice === 'choose_option' ? (tail.shift() ?? null) : null;
+        data = await call(
+          DecisionSchema,
+          `${ws(workspace)}/decisions/${encodeURIComponent(decision ?? '')}/answer`,
+          {
+            choice,
+            option_id: option,
+            rationale: tail.join(' '),
+            coverage_hash: coverage,
+            standing_expires_at:
+              standingDays === null
+                ? null
+                : new Date(
+                    Date.now() + standingDays * 86_400_000,
+                  ).toISOString(),
+            time_spent_ms: null,
+            interruption: null,
+          },
+        );
+        break;
+      }
+      case 'grants':
+        data = await call(z.array(GrantSchema), `${ws(rest[0])}/grants`);
+        break;
+      case 'grant-create':
+        data = await call(
+          GrantSchema,
+          `${ws(rest[0])}/grants`,
+          json(rest[1], 'Grant'),
+        );
+        break;
+      case 'grant-revoke':
+        data = await call(
+          GrantSchema,
+          `${ws(rest[0])}/grants/${encodeURIComponent(rest[1] ?? '')}/revoke`,
+          {
+            expected_version: version(rest[2]),
+            reason: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'humility-gate':
+        data = await call(
+          HumilityVerdictSchema,
+          `${ws(rest[0])}/entities/${encodeURIComponent(rest[1] ?? '')}/humility-gate`,
+        );
         break;
       default:
         throw new Error(USAGE);

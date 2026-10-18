@@ -226,6 +226,197 @@ create trigger entity_links_retraction_only before update on entity_links
   for each row execute function creator_link_retraction_only();
 `,
   },
+  {
+    version: 2,
+    name: 'oversight_sessions_decisions_grants',
+    sql: `
+alter table entities drop constraint entities_kind_check;
+alter table entities add constraint entities_kind_check check (kind in ('source',
+  'claim', 'problem', 'idea', 'alternative', 'assessment', 'product',
+  'specification', 'run', 'task', 'decision', 'grant', 'artifact', 'assumption',
+  'humility_review'));
+
+-- Opaque session tokens: only their SHA-256 is stored, so a database read cannot replay one.
+create table auth_sessions (
+  token_hash char(64) primary key,
+  actor_id uuid not null references actors (id),
+  method text not null check (method in ('dev_local', 'oidc')),
+  subject text check (length(subject) <= 600),
+  csrf_token text not null check (csrf_token ~ '^[A-Za-z0-9_-]{43}$'),
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  revoked_at timestamptz,
+  check (expires_at > created_at)
+);
+create index auth_sessions_actor on auth_sessions (actor_id);
+
+create table oidc_logins (
+  state_hash char(64) primary key,
+  code_verifier text not null,
+  nonce text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  consumed_at timestamptz
+);
+
+create table run_controls (
+  workspace_id uuid not null,
+  run_id uuid not null,
+  run_kind text not null default 'run' check (run_kind = 'run'),
+  run_version integer not null,
+  autonomy_mode text not null check (autonomy_mode in ('supervised',
+    'human_in_loop', 'autonomous_within_scope', 'human_only')),
+  experiment_condition text not null check (experiment_condition in
+    ('autonomous', 'human_in_loop', 'human_only')),
+  policy_version text not null,
+  stage_gates text[] not null,
+  initial_grants jsonb not null,
+  state text not null check (state in ('active', 'cancelled')),
+  cancel_reason text,
+  created_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  cancelled_at timestamptz,
+  cancelled_by uuid references actors (id),
+  primary key (workspace_id, run_id),
+  foreign key (workspace_id, run_id, run_kind)
+    references entities (workspace_id, id, kind),
+  foreign key (run_id, run_version) references entity_versions (entity_id, version),
+  check ((autonomy_mode = 'human_only') = (experiment_condition = 'human_only')),
+  check ((autonomy_mode = 'autonomous_within_scope') = (experiment_condition = 'autonomous')),
+  check ((state = 'cancelled') = (cancelled_at is not null)),
+  check ((state = 'cancelled') = (cancel_reason is not null))
+);
+-- Mode, condition, gates and initial grants are fixed; a run can only be cancelled, once.
+create function creator_run_control_cancel_only() returns trigger language plpgsql as $$
+begin
+  if old.state = 'active' and new.state = 'cancelled'
+     and (new.workspace_id, new.run_id, new.run_version, new.autonomy_mode,
+          new.experiment_condition, new.policy_version, new.stage_gates,
+          new.initial_grants, new.created_by, new.created_at)
+       = (old.workspace_id, old.run_id, old.run_version, old.autonomy_mode,
+          old.experiment_condition, old.policy_version, old.stage_gates,
+          old.initial_grants, old.created_by, old.created_at) then
+    return new;
+  end if;
+  raise exception 'run_controls can only be cancelled' using errcode = 'P0001';
+end $$;
+create trigger run_controls_cancel_only before update on run_controls
+  for each row execute function creator_run_control_cancel_only();
+create trigger run_controls_no_delete before delete on run_controls
+  for each row execute function creator_reject_change();
+
+create table grants (
+  id uuid primary key,
+  workspace_id uuid not null references workspaces (id),
+  version integer not null check (version >= 1),
+  scope text not null check (scope in ('once', 'standing')),
+  status text not null check (status in ('active', 'revoked', 'consumed')),
+  run_id uuid,
+  action_types text[] not null check (cardinality(action_types) >= 1),
+  target_kind text,
+  target jsonb,
+  spec_hash char(64),
+  max_amount_nano_usd numeric(30, 0) check (max_amount_nano_usd >= 0),
+  allow_irreversible boolean not null,
+  allow_external_effects boolean not null,
+  data_classes text[] not null check (cardinality(data_classes) >= 1),
+  expires_at timestamptz not null,
+  decision_id uuid,
+  policy_version text not null,
+  rationale text not null,
+  created_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  revoked_by uuid references actors (id),
+  revoke_reason text,
+  consumed_at timestamptz,
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  check (scope = 'standing' or (run_id is not null and decision_id is not null)),
+  check (status <> 'consumed' or scope = 'once'),
+  check ((status = 'revoked') = (revoked_at is not null)),
+  check ((status = 'consumed') = (consumed_at is not null))
+);
+create index grants_scope on grants (workspace_id, status);
+
+create table grant_versions (
+  grant_id uuid not null references grants (id),
+  version integer not null,
+  snapshot jsonb not null,
+  actor_id uuid not null references actors (id),
+  event_id uuid not null references audit_events (id),
+  created_at timestamptz not null default now(),
+  primary key (grant_id, version)
+);
+create trigger grant_versions_append_only before update or delete on grant_versions
+  for each row execute function creator_reject_change();
+
+create table decision_requests (
+  id uuid primary key,
+  workspace_id uuid not null,
+  run_id uuid not null,
+  task_id uuid,
+  version integer not null check (version >= 1),
+  kind text not null check (kind in ('clarification', 'judgment',
+    'authorization', 'feedback')),
+  reason text not null,
+  status text not null check (status in ('pending', 'answered', 'expired',
+    'cancelled', 'superseded')),
+  dedupe_key char(64) not null,
+  request jsonb not null,
+  binding jsonb,
+  binding_hash char(64),
+  expires_at timestamptz not null,
+  requested_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  response jsonb,
+  answered_by uuid references actors (id),
+  answered_at timestamptz,
+  grant_id uuid references grants (id),
+  closed_reason text,
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  check ((status = 'answered') = (response is not null)),
+  check ((status = 'answered') = (answered_at is not null)),
+  check ((binding is null) = (binding_hash is null)),
+  check (kind <> 'authorization' or binding is not null),
+  check (expires_at > created_at)
+);
+-- The same open question is asked once; a repeat returns the pending request.
+create unique index decision_requests_open on decision_requests
+  (workspace_id, run_id, dedupe_key) where status = 'pending';
+create index decision_requests_binding on decision_requests
+  (workspace_id, run_id, binding_hash);
+create trigger decision_requests_no_delete before delete on decision_requests
+  for each row execute function creator_reject_change();
+alter table grants add foreign key (decision_id) references decision_requests (id);
+
+create table action_admissions (
+  id uuid primary key,
+  workspace_id uuid not null,
+  run_id uuid not null,
+  binding jsonb not null,
+  binding_hash char(64) not null,
+  verdict text not null check (verdict in ('allow', 'request_human', 'deny', 'defer')),
+  outcome text not null check (outcome in ('admitted', 'needs_human', 'denied',
+    'waiting_human')),
+  reason_code text not null,
+  reasons text[] not null,
+  explanation text not null,
+  policy_version text not null,
+  grant_id uuid references grants (id),
+  grant_version integer,
+  provisional_assumptions uuid[] not null,
+  decision_id uuid references decision_requests (id),
+  actor_id uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  check ((verdict = 'allow') = (grant_id is not null)),
+  check ((grant_id is null) = (grant_version is null))
+);
+create index action_admissions_run on action_admissions (workspace_id, run_id, created_at);
+create trigger action_admissions_append_only before update or delete on action_admissions
+  for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
