@@ -3,6 +3,7 @@ import { createApi } from '../apps/api/dist/index.js';
 
 const {
   server: api,
+  preview,
   config,
   ready,
   close,
@@ -15,6 +16,10 @@ try {
     api.once('error', reject);
     api.listen(config.api_port, config.host, resolve);
   });
+  await new Promise((resolve, reject) => {
+    preview.once('error', reject);
+    preview.listen(config.preview_port, config.host, resolve);
+  });
   web = await createServer({
     root: 'apps/web',
     configFile: 'apps/web/vite.config.ts',
@@ -24,6 +29,9 @@ try {
     `Fixture API: http://${config.host}:${config.api_port}/api/health`,
   );
   web.printUrls();
+  console.log(
+    `Private previews: http://${config.host}:${config.preview_port} (separate origin)`,
+  );
   const records = process.env.CREATOR_DATABASE_URL
     ? await ready().then(
         () => 'records saved in PostgreSQL',

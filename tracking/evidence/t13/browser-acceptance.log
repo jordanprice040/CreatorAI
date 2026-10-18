@@ -1,0 +1,13 @@
+PASS sign in and list both versions: the revision is current, the original superseded
+PASS revision detail: integrity, availability labels, test-double notice, manifest and tests
+PASS compare: the revision adds A3 from the accepted feedback, earlier tests still pass
+PASS download the exact archive and match its hash to the manifest
+PASS stale version: a download naming another manifest hash is refused
+PASS start a private preview: ready only after the readiness check, one-time link
+PASS open the preview on its own origin and run the exact package with arguments
+PASS the one-time ticket cannot be reused from another browser
+PASS a cross-origin run request is refused
+PASS revoke access in the studio; the open preview tab is then refused
+PASS submit feedback on this exact version and accept it
+PASS the superseded original stays downloadable with its own hash
+PASS narrow screen: the gallery fits a 390px phone width

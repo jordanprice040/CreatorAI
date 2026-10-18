@@ -35,3 +35,4 @@ export * from './selection.js';
 export * from './catalog.js';
 
 export * from './study.js';
+export * from './artifacts.js';

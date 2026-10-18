@@ -1,5 +1,12 @@
 # Integration readiness
 
+T13, October 18, 2026: no new external integration. A local preview origin
+(CREATOR_PREVIEW_PORT, default 127.0.0.1:4320) serves studio-authored pages that
+start the exact verified package in the existing T11 WSL2 worker. Downloads and
+previews are owner-only and local; public publication, hosting and native
+installers are not implemented or activated. See ADR-0017 and
+docs/ARTIFACTS_AND_PREVIEW.md.
+
 T12, October 18, 2026: the authenticated owner CLI now connects current frozen
 T08 tasks to existing model-call admission/reservations, scoped T11 Git patches,
 fresh reviewer context and real WSL2 QA. Fixed synthetic Python checklist roles

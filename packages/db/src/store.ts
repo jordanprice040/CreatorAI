@@ -280,6 +280,27 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return 'Retracted claim evidence';
     case 'action.evaluated':
       return `Action ${String(p.action_type)}: ${String(p.verdict)} (${String(p.reason_code)})`;
+    case 'artifact.registered':
+      return `Registered ${String(p.state)} package for spec v${String(p.spec_version)}`;
+    case 'preview.leased':
+      return `Leased private preview for ${String(p.ttl_minutes)} min, ${String(p.max_runs)} runs`;
+    case 'preview.ready':
+    case 'preview.failed':
+    case 'preview.blocked':
+    case 'preview.stopped':
+    case 'preview.revoked':
+      return `Preview ${action.slice(8)}`;
+    case 'preview.opened':
+      return 'Opened private preview';
+    case 'preview.run':
+      return `Ran preview (${String(p.state)}, exit ${String(p.exit_code)})`;
+    case 'feedback.submitted':
+      return `Recorded ${String(p.category)} feedback`;
+    case 'feedback.accepted':
+    case 'feedback.declined':
+      return `Feedback ${action.slice(9)}`;
+    case 'feedback.revised':
+      return `Feedback became spec v${String(p.spec_version)}`;
     default:
       return action;
   }

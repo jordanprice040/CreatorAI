@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
+  ArtifactSupervisor,
   ProductSupervisor,
   ExecutionSupervisor,
   BuildSupervisor,
@@ -12,6 +13,12 @@ import {
 } from '@creator/executor';
 import {
   ContractError,
+  ArtifactComparisonSchema,
+  ArtifactDetailSchema,
+  ArtifactSummarySchema,
+  FeedbackSchema,
+  PreviewSchema,
+  PreviewStartSchema,
   AdmissionSchema,
   BrokerCallResultSchema,
   BrokerStatusSchema,
@@ -66,7 +73,7 @@ import {
 } from '@creator/domain';
 
 const USAGE = `Usage:
-  pnpm cli product-init <workspace> <frozen-spec-id>
+  pnpm cli product-init <workspace> <frozen-spec-id> [--from <artifact-id>]
   pnpm cli product-task <product-id> <Tn> <expected-integration-commit>
   pnpm cli product-patch <product-id> <task-id> <changes.json>
   pnpm cli product-integrate <product-id> <task-id> <expected-integration-commit> <expected-task-commit>
@@ -74,6 +81,16 @@ const USAGE = `Usage:
   pnpm cli build-task <product-id> <task-id> <expected-task-commit> <build-plan.json>
   pnpm cli build-status <product-id> <build-id>
   pnpm cli product-status <product-id>
+  pnpm cli artifact-package <product-id> <build-id> [--previous <artifact-id>] [--feedback <feedback-id> ...]
+  pnpm cli artifacts <workspace>
+  pnpm cli artifact <workspace> <artifact-id>
+  pnpm cli artifact-download <workspace> <artifact-id> <manifest-sha256> <output.tar>
+  pnpm cli artifact-compare <workspace> <base-artifact-id> <candidate-artifact-id>
+  pnpm cli preview-start <workspace> <artifact-id> <manifest-sha256> [ttl-minutes] [max-runs]
+  pnpm cli preview-stop <workspace> <preview-id> <expected-version> <reason> [--revoke]
+  pnpm cli feedback-submit <workspace> <artifact-id> <manifest-sha256> <defect|change_request|question|praise> <text>
+  pnpm cli feedback-decide <workspace> <feedback-id> <expected-version> <accept|decline> <rationale>
+  pnpm cli feedback-revise <workspace> <feedback-id> <revision.json>
   pnpm cli product-cancel <product-id> <execution-id>
   pnpm cli product-reconcile <product-id> <execution-id>
   pnpm cli study-seed <workspace>
@@ -251,6 +268,14 @@ export async function runCli(
       local,
       process.env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
     );
+    const artifacts = new ArtifactSupervisor(local, executor);
+    const flagged = (flag: string) => {
+      const out: string[] = [];
+      rest.forEach((v, i) => {
+        if (v === flag && rest[i + 1]) out.push(rest[i + 1]!);
+      });
+      return out;
+    };
     const localOwner = async (workspace: string) => {
       const [session, workspaces] = await Promise.all([
         call(SessionInfoSchema, 'auth/session'),
@@ -437,8 +462,175 @@ export async function runCli(
           buildPorts(rest[0]!),
         );
         break;
-      case 'product-init':
-        data = await local.create(await frozenBinding(rest[0]!, rest[1]!));
+      case 'product-init': {
+        const binding = await frozenBinding(rest[0]!, rest[1]!);
+        const [from] = flagged('--from');
+        if (!from) {
+          data = await local.create(binding);
+          break;
+        }
+        // A revision starts from the exact verified package bytes, re-hashed against the index.
+        const detail = await call(
+          ArtifactDetailSchema,
+          `${ws(rest[0])}/artifacts/${encodeURIComponent(from)}`,
+        );
+        if (
+          detail.manifest.state !== 'verified' ||
+          detail.manifest.spec.id !== binding.spec_id
+        )
+          throw new Error(
+            'Revision base must be a verified package of the same specification',
+          );
+        const opened = await artifacts.open(
+          detail.manifest.product_id,
+          from,
+          detail.artifact.manifest_sha256,
+        );
+        data = await local.create(binding, {
+          files: opened.files,
+          lineage: {
+            artifact_id: from,
+            manifest_sha256: detail.artifact.manifest_sha256,
+            product_id: detail.manifest.product_id,
+            commit: detail.manifest.repository.commit,
+          },
+        });
+        break;
+      }
+      case 'artifact-package': {
+        const p = await local.product(rest[0]!);
+        const [previous] = flagged('--previous');
+        const prior = previous
+          ? await call(
+              ArtifactDetailSchema,
+              `${ws(p.binding.workspace_id)}/artifacts/${encodeURIComponent(previous)}`,
+            )
+          : null;
+        const packaged = await artifacts.package(
+          p.id,
+          rest[1]!,
+          buildPorts(p.id),
+          {
+            previous: prior
+              ? {
+                  artifact_id: prior.artifact.id,
+                  manifest_sha256: prior.artifact.manifest_sha256,
+                }
+              : null,
+            feedback_ids: flagged('--feedback'),
+          },
+          (artifact_id) =>
+            write(JSON.stringify({ artifact_id, state: 'verifying' })),
+        );
+        const registered = await call(
+          ArtifactSummarySchema,
+          `${ws(p.binding.workspace_id)}/artifacts`,
+          {
+            product_id: p.id,
+            artifact_id: packaged.manifest.id,
+            manifest_sha256: packaged.manifest_sha256,
+          },
+        );
+        data = {
+          artifact: registered,
+          state: packaged.manifest.state,
+          package_checks: packaged.manifest.tests.package,
+          limitations: packaged.manifest.limitations,
+        };
+        break;
+      }
+      case 'artifacts':
+        data = await call(
+          z.array(ArtifactSummarySchema),
+          `${ws(rest[0])}/artifacts`,
+        );
+        break;
+      case 'artifact':
+        data = await call(
+          ArtifactDetailSchema,
+          `${ws(rest[0])}/artifacts/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'artifact-download': {
+        if (!rest[3]) throw new Error(USAGE);
+        const response = await fetch(
+          `${url.origin}/api/${ws(rest[0])}/artifacts/${encodeURIComponent(rest[1]!)}/download?sha256=${encodeURIComponent(rest[2]!)}`,
+          {
+            headers: saved ? { Cookie: `creator_session=${saved.token}` } : {},
+            signal: AbortSignal.timeout(10000),
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            `API returned ${response.status}: ${await response.text()}`,
+          );
+        const bytes = Buffer.from(await response.arrayBuffer());
+        const { createHash } = await import('node:crypto');
+        const got = createHash('sha256').update(bytes).digest('hex');
+        if (got !== response.headers.get('x-content-sha256'))
+          throw new Error('Downloaded bytes do not match the manifest sha256');
+        mkdirSync(dirname(rest[3]), { recursive: true });
+        writeFileSync(rest[3], bytes, { flag: 'wx' });
+        data = { path: rest[3], sha256: got, bytes: bytes.length };
+        break;
+      }
+      case 'artifact-compare':
+        data = await call(
+          ArtifactComparisonSchema,
+          `${ws(rest[0])}/artifacts/${encodeURIComponent(rest[1] ?? '')}/compare?with=${encodeURIComponent(rest[2] ?? '')}`,
+        );
+        break;
+      case 'preview-start':
+        data = await call(
+          PreviewStartSchema,
+          `${ws(rest[0])}/artifacts/${encodeURIComponent(rest[1] ?? '')}/previews`,
+          {
+            expected_manifest_sha256: rest[2],
+            ttl_minutes: Number(rest[3] ?? 15),
+            max_runs: Number(rest[4] ?? 10),
+          },
+          120000,
+        );
+        break;
+      case 'preview-stop':
+        data = await call(
+          PreviewSchema,
+          `${ws(rest[0])}/previews/${encodeURIComponent(rest[1] ?? '')}/stop`,
+          {
+            expected_version: version(rest[2]),
+            revoke: rest.includes('--revoke'),
+            reason: rest[3],
+          },
+        );
+        break;
+      case 'feedback-submit':
+        data = await call(
+          FeedbackSchema,
+          `${ws(rest[0])}/artifacts/${encodeURIComponent(rest[1] ?? '')}/feedback`,
+          {
+            expected_manifest_sha256: rest[2],
+            category: rest[3],
+            text: rest.slice(4).join(' '),
+          },
+        );
+        break;
+      case 'feedback-decide':
+        data = await call(
+          FeedbackSchema,
+          `${ws(rest[0])}/feedback/${encodeURIComponent(rest[1] ?? '')}/decide`,
+          {
+            expected_version: version(rest[2]),
+            decision: rest[3],
+            rationale: rest.slice(4).join(' '),
+          },
+        );
+        break;
+      case 'feedback-revise':
+        data = await call(
+          FeedbackSchema,
+          `${ws(rest[0])}/feedback/${encodeURIComponent(rest[1] ?? '')}/revision`,
+          json(rest[2] && readFileSync(rest[2], 'utf8'), 'revision.json'),
+        );
         break;
       case 'product-task':
         data = await local.createTask(

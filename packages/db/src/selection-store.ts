@@ -237,11 +237,11 @@ export class SelectionStore extends DiscoveryStore {
     return subject;
   }
 
-  private async linkTo(
+  protected async linkTo(
     c: PoolClient,
     ctx: CommandContext,
     ws: string,
-    relation: 'assesses' | 'derived_from',
+    relation: 'assesses' | 'derived_from' | 'implements',
     from: StoredEntity,
     to: { id: string; kind: string; version: number },
     rationale: string,
@@ -659,7 +659,20 @@ export class SelectionStore extends DiscoveryStore {
     ws = uuid(ws);
     specId = uuid(specId);
     const req = parse(ReviseSpecRequestSchema, raw);
-    await this.tx(async (c) => {
+    await this.tx((c) => this.reviseSpecIn(c, ctx, ws, specId, req));
+    return this.specStatus(ctx, ws, specId);
+  }
+
+  /** Writes the next spec version in the caller's transaction and returns that version. */
+  protected async reviseSpecIn(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    specId: string,
+    req: ReturnType<typeof ReviseSpecRequestSchema.parse>,
+    payload: Record<string, unknown> = {},
+  ): Promise<number> {
+    {
       await this.role(c, ws, ctx.actorId, true);
       const current = await this.lockCurrent(
         c,
@@ -704,13 +717,14 @@ export class SelectionStore extends DiscoveryStore {
             .filter((t) => t.status === 'added')
             .map((t) => t.key),
           removed_tasks: impact.removed,
+          ...payload,
         },
       });
-    });
-    return this.specStatus(ctx, ws, specId);
+      return current.version + 1;
+    }
   }
 
-  private specBody(e: StoredEntity): SpecBody {
+  protected specBody(e: StoredEntity): SpecBody {
     if (e.kind !== 'specification' || e.body?.format !== 'spec/1')
       throw fail('NOT_FOUND', 'Specification not found.');
     return parse(SpecBodySchema, e.body);
@@ -728,7 +742,7 @@ export class SelectionStore extends DiscoveryStore {
     return alt;
   }
 
-  private async latestFreeze(c: PoolClient, ws: string, specId: string) {
+  protected async latestFreeze(c: PoolClient, ws: string, specId: string) {
     const { rows } = await c.query(
       `select * from spec_freezes where workspace_id = $1 and spec_id = $2
         order by spec_version desc limit 1`,

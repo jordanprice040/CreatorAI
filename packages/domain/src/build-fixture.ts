@@ -99,6 +99,7 @@ export function buildFixtureAnswer(
     return null;
   const packet = JSON.parse(input[1]!.text) as {
     format: string;
+    acceptance?: { key: string }[];
     candidate: string;
     spec_hash: string;
     task_hash: string;
@@ -106,6 +107,10 @@ export function buildFixtureAnswer(
   };
   if (packet.format !== 'build-task/1') return null;
   const main = packet.files.find((f) => f.path === 'src/main.py');
+  // The feedback revision adds A3; the fixture answers each spec version with its fixed source.
+  const source = packet.acceptance?.some((a) => a.key === 'A3')
+    ? BUILD_FIXTURE_REVISION_SOURCE
+    : BUILD_FIXTURE_SOURCE;
   if (input[0]!.text.startsWith('builder/1:'))
     return JSON.stringify({
       summary:
@@ -116,14 +121,14 @@ export function buildFixtureAnswer(
           {
             path: 'src/main.py',
             before_hash: main?.hash ?? null,
-            content: BUILD_FIXTURE_SOURCE,
+            content: source,
           },
         ],
       },
       blocker: null,
     });
   const findings =
-    main?.content === BUILD_FIXTURE_SOURCE
+    main?.content === source
       ? []
       : ['Synthetic candidate differs from the fixed reviewed fixture'];
   return JSON.stringify({
@@ -134,3 +139,50 @@ export function buildFixtureAnswer(
     findings,
   });
 }
+
+/**
+ * Synthetic owner feedback and the spec revision it leads to (T13). Fixed text, not a real
+ * user's request: it exercises feedback-to-revision bookkeeping only.
+ */
+export const BUILD_FIXTURE_FEEDBACK =
+  'Synthetic feedback: I want a plain list, one step per line, to paste into notes.';
+export const BUILD_FIXTURE_REVISION_SPEC: SpecContent = {
+  ...BUILD_FIXTURE_SPEC,
+  user_flows: [
+    ...BUILD_FIXTURE_SPEC.user_flows,
+    {
+      key: 'F3',
+      name: 'Plain list',
+      steps: ['Run with --plain', 'Read one checklist step per line'],
+    },
+  ],
+  acceptance_checks: [
+    ...BUILD_FIXTURE_SPEC.acceptance_checks,
+    {
+      key: 'A3',
+      flow: 'F3',
+      statement: 'Print the four steps one per line with --plain',
+      measure: 'Exact stdout of four lines and zero exit for --plain',
+      method: 'automated_test',
+    },
+  ],
+  tasks: [
+    {
+      ...BUILD_FIXTURE_SPEC.tasks[0]!,
+      acceptance: ['A1', 'A2', 'A3'],
+      deliverable: 'Committed checklist with a --plain list mode',
+    },
+  ],
+};
+export const BUILD_FIXTURE_REVISION_CASES = [
+  ...BUILD_FIXTURE_CASES,
+  {
+    check_key: 'A3',
+    args: ['--plain'],
+    stdin: '',
+    stdout: 'inspect\nbuild\nreview\nverify\n',
+    exit_code: 0,
+  },
+];
+export const BUILD_FIXTURE_REVISION_SOURCE =
+  'import json\nimport sys\nITEMS = ["inspect", "build", "review", "verify"]\nif sys.argv[1:] == ["--plain"]:\n    print("\\n".join(ITEMS))\n    sys.exit(0)\nif len(sys.argv) > 1:\n    print("invalid input")\n    sys.exit(2)\nprint(json.dumps({"template": "checklist/1", "items": ITEMS}))\n';

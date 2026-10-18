@@ -9,12 +9,17 @@ export const ServiceConfigSchema = z
     host: z.literal('127.0.0.1'),
     api_port: port,
     web_port: port,
+    /** Separate origin for private previews; never the management API or web origin. */
+    preview_port: port,
     deployment_mode: z.literal('local'),
     data_mode: z.literal('fixture'),
     provider: z.literal('fixture'),
     live_enabled: z.literal('false'),
   })
-  .refine((c) => c.api_port !== c.web_port, 'API and web ports must differ.');
+  .refine(
+    (c) => new Set([c.api_port, c.web_port, c.preview_port]).size === 3,
+    'API, web and preview ports must differ.',
+  );
 export function serviceConfig(env: Record<string, string | undefined>) {
   return parse(
     ServiceConfigSchema,
@@ -22,6 +27,7 @@ export function serviceConfig(env: Record<string, string | undefined>) {
       host: env.CREATOR_HOST ?? '127.0.0.1',
       api_port: env.CREATOR_API_PORT ?? '4310',
       web_port: env.CREATOR_WEB_PORT ?? '5173',
+      preview_port: env.CREATOR_PREVIEW_PORT ?? '4320',
       deployment_mode: env.CREATOR_DEPLOYMENT_MODE ?? 'local',
       data_mode: env.CREATOR_DATA_MODE ?? 'fixture',
       provider: env.CREATOR_PROVIDER ?? 'fixture',

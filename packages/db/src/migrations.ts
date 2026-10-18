@@ -1108,6 +1108,56 @@ create table study_grader_material (
 create trigger study_grader_material_immutable before update or delete on study_grader_material for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 10,
+    name: 'artifacts_previews_feedback',
+    sql: `
+-- T13 verified artifacts. The package bytes and manifest live in the local product store; this
+-- index binds the manifest hash to an exact frozen spec version and is append-only.
+create table artifact_manifests (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ entity_kind text not null default 'artifact' check (entity_kind = 'artifact'),
+ entity_id uuid not null, product_id uuid not null,
+ spec_id uuid not null, spec_version integer not null,
+ freeze_id uuid not null references spec_freezes(id),
+ commit char(40) not null, state text not null check (state in ('verified','failed','blocked')),
+ manifest jsonb not null, manifest_sha256 char(64) not null unique, archive_sha256 char(64) not null,
+ previous_id uuid references artifact_manifests(id),
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, entity_id, entity_kind) references entities(workspace_id, id, kind),
+ foreign key (spec_id, spec_version) references entity_versions(entity_id, version)
+);
+create index artifact_manifests_spec on artifact_manifests(workspace_id, spec_id, created_at);
+create trigger artifact_manifests_immutable before update or delete on artifact_manifests
+ for each row execute function creator_reject_change();
+-- A preview is a short resource lease on one exact manifest. Tickets and sessions are stored
+-- only as hashes; state changes are versioned and audited.
+create table artifact_previews (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ artifact_id uuid not null references artifact_manifests(id), manifest_sha256 char(64) not null,
+ actor_id uuid not null references actors(id),
+ ticket_hash char(64) not null, ticket_used boolean not null default false, session_hash char(64),
+ state text not null check (state in ('starting','ready','failed','blocked','stopped','revoked')),
+ readiness jsonb, max_runs integer not null check (max_runs between 1 and 20),
+ runs_used integer not null default 0 check (runs_used <= max_runs),
+ expires_at timestamptz not null, created_at timestamptz not null default clock_timestamp(),
+ ended_at timestamptz, end_reason text, version integer not null default 1
+);
+create index artifact_previews_artifact on artifact_previews(artifact_id, created_at);
+create table artifact_feedback (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ artifact_id uuid not null references artifact_manifests(id), manifest_sha256 char(64) not null,
+ spec_id uuid not null, spec_version integer not null,
+ category text not null check (category in ('defect','change_request','question','praise')),
+ body text not null, content_hash char(64) not null,
+ status text not null check (status in ('submitted','accepted','declined','revised')),
+ rationale text, revision_spec_version integer, version integer not null default 1,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ foreign key (spec_id, spec_version) references entity_versions(entity_id, version)
+);
+create index artifact_feedback_artifact on artifact_feedback(artifact_id, created_at);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

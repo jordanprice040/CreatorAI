@@ -1,0 +1,51 @@
+{
+  "milestone": "T13",
+  "date": "2026-10-18",
+  "agent": "Claude Code (cloud Linux container)",
+  "base_commit": "6fe5bab (T12 merged as PR #14)",
+  "branch": "claude/t13-8h288j",
+  "source_hashes": "source-files.sha256.json",
+  "environment": {
+    "os": "Linux (cloud container, no WSL2)",
+    "node": "v22.22.0",
+    "postgresql": "16 (local test role)",
+    "browser": "Chromium headless via Playwright"
+  },
+  "checks": [
+    {
+      "name": "pnpm typecheck && pnpm test && pnpm format:check",
+      "result": "pass",
+      "tests": 156,
+      "pass": 146,
+      "fail": 0,
+      "skipped": 10,
+      "skipped_reason": "all ten need the reviewed WSL2 worker (CREATOR_TEST_ISOLATION=wsl2)",
+      "log": "check.log"
+    },
+    {
+      "name": "browser walkthrough (double-harness.mjs + browser-acceptance.mjs)",
+      "result": "pass",
+      "steps": 13,
+      "console_problems": 0,
+      "backend": "test-double (executes nothing; not isolation evidence)",
+      "log": "browser-acceptance.log",
+      "result_file": "browser-acceptance.json"
+    }
+  ],
+  "pending": [
+    {
+      "name": "real WSL2 compiled CLI gate tests/src/artifact-cli.test.ts",
+      "how": "CREATOR_TEST_ISOLATION=wsl2 CREATOR_RECORD_T13_EVIDENCE=true pnpm test:db on Windows",
+      "writes": "cli-acceptance.json",
+      "covers": "package re-extract and start in the worker, download hash, preview ticket/run/revoke/expiry, tampered archive, feedback revision, freeze, rebuild from package, reverified comparison, stale feedback revision"
+    }
+  ],
+  "not_claimed": [
+    "isolation evidence from this container",
+    "live provider or real spend",
+    "public publication",
+    "native installer",
+    "web-app previews",
+    "T14"
+  ]
+}

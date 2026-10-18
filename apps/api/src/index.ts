@@ -20,8 +20,9 @@ import {
   serviceConfig,
   sourcePolicyHash,
 } from '@creator/domain';
+import { resolve } from 'node:path';
 import {
-  StudyStore,
+  ArtifactStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -39,7 +40,13 @@ import {
   SourceBroker,
   sourceConfigFromEnv,
 } from '@creator/research';
+import {
+  ArtifactSupervisor,
+  ExecutionSupervisor,
+  ProductSupervisor,
+} from '@creator/executor';
 import { createAuth } from './auth.js';
+import { artifactRoutes, createPreviewServer } from './artifacts.js';
 
 const MAX_BODY = 65536;
 function respond(res: ServerResponse, status: number, value: unknown) {
@@ -114,6 +121,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   UNAUTHENTICATED: 401,
   CSRF_DENIED: 403,
   EXPIRED: 409,
+  LIMIT_EXCEEDED: 429,
   BUDGET_EXCEEDED: 409,
   LEASE_LOST: 409,
   HUMAN_ONLY_DENIED: 403,
@@ -127,9 +135,12 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|artifacts|previews|feedback)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|download|compare|feedback|previews|stop|decide|revision))?)?)?)?$/;
 
-export function createApi(env: Record<string, string | undefined> = {}) {
+export function createApi(
+  env: Record<string, string | undefined> = {},
+  deps: { artifacts?: ArtifactSupervisor } = {},
+) {
   // Checked first so a hosted deployment with development login fails with that reason.
   const auth = authConfig(env);
   const config = serviceConfig(env);
@@ -152,7 +163,22 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new StudyStore(pool) : null;
+  const store = pool ? new ArtifactStore(pool) : null;
+  // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
+  const artifacts =
+    deps.artifacts ??
+    (() => {
+      const products = new ProductSupervisor(
+        resolve(env.CREATOR_PRODUCTS_ROOT ?? '.creator/products'),
+      );
+      return new ArtifactSupervisor(
+        products,
+        new ExecutionSupervisor(
+          products,
+          env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
+        ),
+      );
+    })();
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
     : null;
@@ -237,6 +263,12 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     : null;
   relay?.unref();
 
+  const preview = createPreviewServer(store, artifacts);
+  const previewOrigin = () => {
+    const a = preview.address();
+    return a && typeof a === 'object' ? `http://127.0.0.1:${a.port}` : null;
+  };
+
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match = RECORD_ROUTE.exec(url.pathname);
     if (!match) return false;
@@ -268,6 +300,27 @@ export function createApi(env: Record<string, string | undefined> = {}) {
       respond(res, status, value);
       return true;
     };
+    if (
+      ws &&
+      collection &&
+      ['artifacts', 'previews', 'feedback'].includes(collection) &&
+      (await artifactRoutes({
+        store,
+        artifacts,
+        previewOrigin,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        url,
+        res,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
     if (!ws) {
       if (method === 'GET')
         return send(200, await store.listWorkspaces(ctx), false);
@@ -924,11 +977,17 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     if (relay) clearInterval(relay);
     await worker?.stop();
     server.closeAllConnections();
+    preview.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (preview.listening)
+      await new Promise<void>((resolve) => preview.close(() => resolve()));
     await pool?.end();
   }
   return {
     server,
+    /** Separate private-preview origin; listen on config.preview_port at 127.0.0.1. */
+    preview,
+    artifacts,
     config,
     store,
     broker,

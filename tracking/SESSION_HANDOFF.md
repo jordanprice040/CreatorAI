@@ -1,5 +1,30 @@
 # Session handoff
 
+## Latest - T13 verified artifacts, private preview and feedback (October 18, 2026)
+
+Claude Code implemented T13 on claude/t13-8h288j from main 6fe5bab (T12 merged as
+PR #14). See docs/ARTIFACTS_AND_PREVIEW.md for the owner workflow, ADR-0017 for the
+design and tracking/evidence/t13 for executed checks.
+
+Key code: packages/executor/src/{tar,artifacts}.ts and runPackage in execution.ts;
+packages/db/src/artifact-store.ts and migration 10; apps/api/src/artifacts.ts
+(management routes and the preview origin server); new CLI commands in
+apps/cli/src/index.ts; apps/web/src/gallery.tsx. Revision fixtures are in
+packages/domain/src/build-fixture.ts.
+
+Done in the Linux cloud container: typecheck, format check, full suite with
+PostgreSQL 16 (146 pass, 0 fail, 10 WSL-only skips) and a 13-step headless Chromium
+walkthrough through double-harness.mjs and browser-acceptance.mjs. That harness
+uses the labeled test double, which executes nothing.
+
+Still to run on Windows with the reviewed worker: `CREATOR_TEST_ISOLATION=wsl2
+CREATOR_RECORD_T13_EVIDENCE=true pnpm test:db` (artifact-cli.test.ts writes
+tracking/evidence/t13/cli-acceptance.json). It packages and re-runs in the real
+worker, performs the feedback revision end to end, and checks hash mismatch,
+expired preview, revoked access and stale-version refusals. Do not shut down the
+shared WSL VM or echo the .env.docker password. Next eligible milestone after
+review: T14, on a new request.
+
 ## PR publication and Claude Code handoff (October 18, 2026)
 
 Owner requested a T12 PR and a handoff for Claude Code to start T13. GitHub
