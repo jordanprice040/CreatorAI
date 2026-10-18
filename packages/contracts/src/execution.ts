@@ -337,7 +337,8 @@ export const HealthSchema = z.strictObject({
   data_mode: z.literal('fixture'),
   provider: z.literal('deterministic-fixture-v1'),
   live_enabled: z.literal(false),
-  persistent: z.literal(false),
+  persistent: z.boolean(),
+  storage: z.enum(['postgresql', 'not_configured', 'unavailable']),
 });
 export const FixtureResponseSchema = z.strictObject({
   fixture: z.literal(true),

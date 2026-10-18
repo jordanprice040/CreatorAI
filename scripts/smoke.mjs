@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { preview } from 'vite';
 import { createApi } from '../apps/api/dist/index.js';
 
-const { server: api, config } = createApi(process.env);
+const { server: api, config, close } = createApi(process.env);
 let web;
 try {
   api.listen(config.api_port, config.host);
@@ -33,8 +33,7 @@ try {
     'PASS: built web page → Vite preview proxy → API health and fixture. This is HTTP smoke verification, not browser rendering.',
   );
 } finally {
-  api.closeAllConnections();
-  await new Promise((resolve) => api.close(resolve));
+  await close();
   if (web) {
     web.httpServer.closeAllConnections();
     await new Promise((resolve) => web.httpServer.close(resolve));

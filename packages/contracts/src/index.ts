@@ -1,6 +1,7 @@
 export * from './primitives.js';
 export * from './records.js';
 export * from './execution.js';
+export * from './storage.js';
 import { TaskSchema, TaskResultSchema, RunConfigSchema } from './execution.js';
 import {
   SourceSchema,

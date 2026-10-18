@@ -1,5 +1,7 @@
 # Implementation status
 
+T02 update, October 18, 2026: PostgreSQL persistence, migrations, many-to-many typed links, optimistic versions, workspace scopes, a hash-chained audit log with transactional outbox, an idempotent history projection, corrections and redaction tombstones now exist behind the API, CLI and a read-only web Records panel. Verified in a Linux cloud container against PostgreSQL 16.15 (29/29 tests with the database; 21 pass and 8 visibly skipped without it). Not yet run on the owner's Windows machine. See [T02 evidence](evidence/t02/verification.json) and ADR-0005 in [decisions](DECISIONS.md). The task demonstration remains fixture-only; no AI, research or authentication exists.
+
 Claude Code tooling, October 18, 2026: the same skills (now 30, adding Matt Pocock `grill-me`, `grilling` and `improve-codebase-architecture`) are mirrored to `.claude/skills`, both MCP servers are in `.mcp.json`, and a cloud-only SessionStart hook runs `pnpm install`. Playwright MCP was verified in a Linux cloud container with environment overrides; Firecrawl was not reachable from the cloud network (403) and is untested there. Product status unchanged: T01 complete, T02 next.
 
 CI update, October 18, 2026: `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile` and `pnpm check` on Node 22 for every push and pull request. It does not advance T02.
@@ -13,8 +15,8 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | ID | Milestone | Status | Code/version and evidence | Remaining work |
 | --- | --- | --- | --- | --- |
 | T00 | Repository intake and verified starting point | verified | Historical T00 snapshot in evidence/t00; ADR-0001 | Intake complete; T01 subsequently implemented |
-| T01 | Minimal workspace, typed contracts, and lifecycle | verified | Package 0.1.0, schema 1.0; evidence/t01/final-files.sha256; clean install/build/check, 20 passing tests on Node 22 and 24, HTTP smoke and browser checks | Fixture-only and stateless; next eligible T02 |
-| T02 | Persistence, provenance, and durable audit | planned | No application code at T00 | T01 |
+| T01 | Minimal workspace, typed contracts, and lifecycle | verified | Package 0.1.0, schema 1.0; evidence/t01/final-files.sha256; clean install/build/check, 20 passing tests on Node 22 and 24, HTTP smoke and browser checks | Superseded as current status by T02 |
+| T02 | Persistence, provenance, and durable audit | verified (cloud Linux, PostgreSQL 16.15) | Branch claude/project-thread-lzo59n; migration 1; evidence/t02/verification.json; 29/29 tests incl. real process restart, stale/concurrent writes, cross-scope links, duplicate outbox delivery and two-ideas/two-descendants lineage; browser check of Records panel | Owner review; Windows PostgreSQL setup untested; no authentication (T03); next eligible T03 |
 | T03 | Human decisions, autonomy modes, and humility | planned | No application code at T00 | T02 |
 | T04 | Budgets and a metered model/tool broker | planned | No application code at T00 | T03 |
 | T05 | Durable bounded orchestration and recovery | planned | No application code at T00 | T04 |
@@ -77,4 +79,19 @@ T00 acceptance covered inventory, path/dependency ADR, baseline evidence and nex
 | C35 | partial | Thin real health/fixture UI with empty/error states; full catalog/controls remain T09 |
 | C49 | partial | Visible fixture labels and separate implementation/contract/live status; real adapters remain unverified |
 
-T02–T19 remain planned; X01–X10 remain deferred. No full requirement or product completion is inferred from the T01 gate. Next: T02 only after a new request.
+T02–T19 remain planned; X01–X10 remain deferred. No full requirement or product completion is inferred from the T01 gate. Next: T02 only after a new request. (T02 since completed; see below.)
+
+## T02 acceptance and evidence
+
+- New package `packages/db` (node-postgres `pg` 8.23.1): one immutable migration (checksum-verified, advisory-locked), a startup schema gate, and a `Store` repository. Tables: actors, workspaces/members (owner/editor/viewer), entities with immutable `entity_versions`, typed `entity_links` bound to exact endpoint versions, `audit_events` (database-sequenced, hash-chained), `outbox`, `consumer_inbox`, `history_projection`, `command_receipts`.
+- Stored kinds: source, claim, problem, idea, alternative, assessment, product, specification, run, task, decision, grant, artifact. Bodies are strict Zod schemas capped at 16 KiB; artifacts and sources hold URIs and hashes, not content. Product stage and run/task state are stored at their initial value and generic revisions cannot move them.
+- Fixture separation: a workspace is `fixture` or `real`; a composite foreign key keeps fixture records out of real workspaces. Cross-workspace links fail in code (`SCOPE_EXCEEDED`) and in the schema.
+- Every mutation commits record + version + audit event + outbox row in one transaction. Audit payloads carry ids, kinds, versions, hashes and enums only. Corrections append a version that names the corrected one; links are retracted, not deleted; triggers reject edits/deletes of audit events and versions except redaction, which blanks titles/bodies/reasons and leaves identity, versions, hashes, links and audit intact.
+- API record routes, CLI commands (`workspaces`, `create`, `show`, `list`, `revise`, `archive`, `link`, `lineage`, `history`, `seed-lineage`) and a read-only web Records panel. Lineage walks typed links by provenance direction (many-to-many, not parent IDs).
+- Checks executed: see [verification.json](evidence/t02/verification.json), [with-database log](evidence/t02/test-db.log), [without-database log](evidence/t02/check-without-db.log), [browser screenshot](evidence/t02/browser-records.png).
+- Limitations: no authentication (API acts as one configured local owner; repository role checks are real but the actor is asserted); global advisory lock serializes writes for the hash chain (fine locally, revisit for hosted use); hash chain is tamper-evident only against parties who do not also rewrite later hashes (the table owner can); content hashes of redacted records remain and could be guessed for very short bodies; no search beyond lineage/history; Windows PostgreSQL path untested; schema 1.0 extended additively (ADR-0005).
+
+| Requirement | Current status | T02 evidence / remaining gate |
+| --- | --- | --- |
+| C32 | partial | Records persist across real API restart; usable control/orchestration remains T05/T17 |
+| C20–C23 | partial | Version-bound links and optimistic versions persist; scheduler and independent review remain T05/T12 |

@@ -76,7 +76,9 @@ export const EntityKindSchema = z.enum([
   'source',
   'claim',
   'problem',
+  'idea',
   'alternative',
+  'assessment',
   'decision',
   'specification',
   'task',
@@ -127,6 +129,10 @@ export const ErrorCodeSchema = z.enum([
   'ORIGIN_DENIED',
   'BODY_TOO_LARGE',
   'NOT_FOUND',
+  'ACCESS_DENIED',
+  'DUPLICATE',
+  'IDEMPOTENCY_CONFLICT',
+  'STORAGE_UNAVAILABLE',
   'INTERNAL_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

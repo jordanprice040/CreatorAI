@@ -6,6 +6,7 @@ import {
   parse,
   type FixtureResponse,
 } from '@creator/contracts';
+import { Records } from './records.js';
 import './style.css';
 
 const choices = [
@@ -32,6 +33,7 @@ async function readResponse(response: Response): Promise<unknown> {
 }
 function App() {
   const [health, setHealth] = useState('Checking connection…');
+  const [persistent, setPersistent] = useState(false);
   const [goal, setGoal] = useState(
     'Compare a shared checklist with custom software',
   );
@@ -48,10 +50,18 @@ function App() {
           await fetch('/api/health', { signal: AbortSignal.timeout(5000) }),
         ),
       );
+      setPersistent(data.persistent);
       setHealth(
-        data.status === 'ok' ? 'Connected · fixture API' : 'API unavailable',
+        `Connected · fixture provider · ${
+          data.persistent
+            ? 'records saved in PostgreSQL'
+            : data.storage === 'unavailable'
+              ? 'database unavailable'
+              : 'persistence off'
+        }`,
       );
     } catch {
+      setPersistent(false);
       setHealth('API unavailable · start the local API and retry');
     }
   }
@@ -83,7 +93,7 @@ function App() {
         <a className="brand" href="/">
           CA<span>Creator Agent</span>
         </a>
-        <span className="local">LOCAL STUDIO · T01</span>
+        <span className="local">LOCAL STUDIO · T02</span>
       </header>
       <main>
         <div className="eyebrow">THE STARTING POINT</div>
@@ -98,8 +108,8 @@ function App() {
         <aside className="notice">
           <strong>Fixture demonstration</strong>
           <span>
-            Deterministic synthetic responses. No AI calls, research, spending
-            or saved records.
+            Deterministic synthetic responses. No AI calls, research or
+            spending. Fixture runs below are not saved.
           </span>
         </aside>
         <div className="connection">
@@ -209,9 +219,10 @@ function App() {
             )}
           </section>
         </div>
+        <Records persistent={persistent} />
         <footer>
           <span>Schema 1.0 · Local control</span>
-          <span>Persistence and live providers are later milestones.</span>
+          <span>Live providers and authentication are later milestones.</span>
         </footer>
       </main>
     </div>

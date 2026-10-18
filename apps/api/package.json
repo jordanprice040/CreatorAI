@@ -11,6 +11,11 @@
   },
   "dependencies": {
     "@creator/contracts": "workspace:*",
-    "@creator/domain": "workspace:*"
+    "@creator/domain": "workspace:*",
+    "@creator/db": "workspace:*",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
   }
 }

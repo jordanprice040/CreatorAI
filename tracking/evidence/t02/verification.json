@@ -1,0 +1,30 @@
+{
+  "milestone": "T02",
+  "date": "2026-10-18",
+  "environment": {
+    "where": "Claude Code cloud container (Linux), not the owner's Windows machine",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1), local cluster on 127.0.0.1:5432"
+  },
+  "checks": [
+    { "command": "pnpm check (CREATOR_TEST_DATABASE_URL unset)", "result": "exit 0; 29 tests: 21 pass, 8 PostgreSQL suites reported skipped with reason; typecheck and formatting pass", "log": "check-without-db.log" },
+    { "command": "pnpm test:db (CREATOR_TEST_DATABASE_URL set)", "result": "exit 0; 29 tests, 29 pass, 0 skipped", "log": "test-db.log" },
+    { "command": "pnpm smoke (no database)", "result": "PASS: built page, preview proxy, API health and fixture" },
+    { "command": "node packages/db/dist/migrate-main.js twice", "result": "first applied migration 1; second reported schema current" },
+    { "command": "headless Chromium against pnpm dev with PostgreSQL after pnpm cli seed-lineage", "result": "Records panel listed 10 fixture records; product detail showed two outgoing derived_from links to both ideas and its history", "artifact": "browser-records.png", "note": "one console 404 for a static resource (likely favicon), not an API route" }
+  ],
+  "acceptance_gate": {
+    "records_survive_restart": "records-api.test: API child process stopped with SIGTERM and restarted; entity versions, links and identical history read back",
+    "stale_updates_fail": "storage.test and records-api.test: stale expected_version returns VERSION_CONFLICT / 409; two concurrent writers with the same version produce exactly one success",
+    "cross_scope_links_fail": "repository returns SCOPE_EXCEEDED / 403; direct SQL insert rejected by composite foreign key (23503)",
+    "duplicate_outbox_delivery": "re-delivering every event and three concurrent relays after resetting delivery leave exactly 4 history rows",
+    "one_product_from_two_ideas_and_one_idea_with_two_descendants": "storage.test lineage case and pnpm cli seed-lineage via records-api.test"
+  },
+  "not_verified": [
+    "PostgreSQL install/migration on the owner's Windows machine",
+    "Node 24 run of the PostgreSQL suites",
+    "CI (none configured)",
+    "authentication: the API acts as one configured local owner"
+  ]
+}
