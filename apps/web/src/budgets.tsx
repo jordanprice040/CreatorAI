@@ -6,7 +6,6 @@ import {
   PricingSnapshotSchema,
   ReservationSchema,
   RunControlSchema,
-  WorkspaceSchema,
   z,
   type BrokerCallResult,
   type Envelope,
@@ -85,9 +84,16 @@ const STATUS_NOTE: Record<Reservation['status'], string> = {
 };
 
 /** Budgets, the calls charged against them, and why any call was refused. */
-export function Budgets({ session }: { session: SessionInfo }) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspace, setWorkspace] = useState('');
+export function Budgets({
+  session,
+  workspace: current,
+}: {
+  session: SessionInfo;
+  workspace: Workspace;
+}) {
+  const workspace = current.id;
+  const [fundName, setFundName] = useState('');
+  const [fundCap, setFundCap] = useState('');
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
@@ -99,7 +105,6 @@ export function Budgets({ session }: { session: SessionInfo }) {
   const [runId, setRunId] = useState('');
   const [last, setLast] = useState<BrokerCallResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const current = workspaces.find((w) => w.id === workspace);
   async function load() {
     if (!workspace) return;
     setError('');
@@ -133,9 +138,6 @@ export function Budgets({ session }: { session: SessionInfo }) {
       try {
         const s = await api(BrokerStatusSchema, 'broker/status');
         setStatus(s.note);
-        const list = await api(z.array(WorkspaceSchema), 'workspaces');
-        setWorkspaces(list);
-        setWorkspace(list[0]?.id ?? '');
       } catch (err) {
         setError(message(err));
       }
@@ -160,6 +162,48 @@ export function Budgets({ session }: { session: SessionInfo }) {
       );
     } catch (err) {
       setError(message(err));
+    }
+    await load();
+  }
+  /** Funds a new top-level budget. A cap is a whole number with up to six decimals. */
+  async function fund(e: FormEvent) {
+    e.preventDefault();
+    const m = /^(\d{1,12})(?:\.(\d{1,6}))?$/.exec(fundCap.trim());
+    if (!m) {
+      setError('Enter the cap as a number with up to six decimals.');
+      return;
+    }
+    const nano = (
+      BigInt(m[1]!) * 1_000_000_000n +
+      BigInt((m[2] ?? '').padEnd(9, '0'))
+    ).toString();
+    setBusy(true);
+    setError('');
+    try {
+      const created = await api(
+        EnvelopeSchema,
+        `workspaces/${workspace}/budgets`,
+        {
+          csrf: session.csrf_token,
+          body: {
+            parent_id: null,
+            kind: 'global',
+            run_id: null,
+            name: fundName.trim(),
+            cap_nano_usd: nano,
+            starts_at: null,
+            ends_at: null,
+            max_in_flight: 4,
+          },
+        },
+      );
+      setFundName('');
+      setFundCap('');
+      setEnvelopeId(created.id);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
     }
     await load();
   }
@@ -204,7 +248,6 @@ export function Budgets({ session }: { session: SessionInfo }) {
   }
   return (
     <section className="panel records" aria-labelledby="budget-title">
-      <div className="eyebrow">04 / BUDGETS AND METERED CALLS</div>
       <h2 id="budget-title">Budgets and spending</h2>
       <p>
         Every model or tool call reserves its maximum possible cost before it is
@@ -214,28 +257,11 @@ export function Budgets({ session }: { session: SessionInfo }) {
       </p>
       {status && <p className="small">{status}</p>}
       <div className="connection">
-        <label htmlFor="bws" className="inline">
-          Workspace
-        </label>
-        <select
-          id="bws"
-          value={workspace}
-          onChange={(e) => setWorkspace(e.target.value)}
-        >
-          {workspaces.length === 0 && (
-            <option value="">No workspaces yet</option>
-          )}
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-            </option>
-          ))}
-        </select>
         <button className="secondary" onClick={() => void load()}>
           Refresh
         </button>
       </div>
-      {current?.record_mode === 'fixture' && (
+      {current.record_mode === 'fixture' && (
         <p className="notice">
           Fixture workspace: amounts are simulated units from the deterministic
           adapter, not money.
@@ -246,8 +272,7 @@ export function Budgets({ session }: { session: SessionInfo }) {
           <h3>Budgets</h3>
           {envelopes.length === 0 ? (
             <p className="small">
-              No budgets. Without one, no model or tool call can be sent. Create
-              one with <code>pnpm cli budget-create</code>.
+              No budgets. Without one, no model or tool call can be sent.
             </p>
           ) : (
             envelopes.map((e) => (
@@ -268,7 +293,41 @@ export function Budgets({ session }: { session: SessionInfo }) {
               </article>
             ))
           )}
-          {current?.record_mode === 'fixture' &&
+          {current.role !== 'viewer' && (
+            <form onSubmit={(e) => void fund(e)}>
+              <h3>Fund a budget</h3>
+              <label htmlFor="fname">Name</label>
+              <input
+                id="fname"
+                required
+                maxLength={200}
+                value={fundName}
+                onChange={(e) => setFundName(e.target.value)}
+              />
+              <label htmlFor="fcap">
+                Cap{' '}
+                {current.record_mode === 'fixture'
+                  ? '(simulated units)'
+                  : '(US dollars)'}
+              </label>
+              <input
+                id="fcap"
+                required
+                inputMode="decimal"
+                placeholder="0.000001"
+                value={fundCap}
+                onChange={(e) => setFundCap(e.target.value)}
+              />
+              <button
+                className="secondary"
+                type="submit"
+                disabled={busy || !fundName.trim() || !fundCap.trim()}
+              >
+                Fund budget
+              </button>
+            </form>
+          )}
+          {current.record_mode === 'fixture' &&
             envelopes.length > 0 &&
             runs.length > 0 &&
             pricing.length > 0 && (

@@ -36,6 +36,10 @@ import {
   SelectionReportSchema,
   SelectionSchema,
   SpecStatusSchema,
+  ActivityPageSchema,
+  OverviewSchema,
+  ProblemComparisonSchema,
+  SearchResultSchema,
   type SelectionReport,
   type SpecStatus,
   type WorkflowDetail,
@@ -62,7 +66,11 @@ const USAGE = `Usage:
   pnpm cli revise <workspace> <id> <expected-version> <title> <body-json> <reason>
   pnpm cli archive <workspace> <id> <expected-version> <reason>
   pnpm cli link <workspace> <relation> <from-id>@<version> <to-id>@<version> <rationale>
-  pnpm cli lineage <workspace> <id> [upstream|downstream]
+  pnpm cli lineage <workspace> <id> [upstream|downstream] [depth 1-8]
+  pnpm cli search <workspace> <query> [record,passage,decision,activity] [kind] [status]
+  pnpm cli activity <workspace> [query] [action-prefix]
+  pnpm cli overview <workspace>
+  pnpm cli compare <workspace> <problem-id>
   pnpm cli history <workspace> [subject-id]
   pnpm cli seed-lineage
   pnpm cli login <code> | logout | whoami
@@ -287,13 +295,62 @@ export async function runCli(
           z.array(
             z.strictObject({ depth: z.number(), link: StoredLinkSchema }),
           ),
-          `${ws(rest[0])}/entities/${encodeURIComponent(rest[1] ?? '')}/lineage?direction=${rest[2] ?? 'upstream'}`,
+          `${ws(rest[0])}/entities/${encodeURIComponent(rest[1] ?? '')}/lineage?direction=${rest[2] ?? 'upstream'}${rest[3] ? `&depth=${encodeURIComponent(rest[3])}` : ''}`,
         );
         break;
       case 'history':
         data = await call(
           z.array(HistoryEntrySchema),
           `${ws(rest[0])}/history${rest[1] ? `?subject=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'search': {
+        const p = new URLSearchParams({ q: rest[1] ?? '' });
+        if (rest[2]) p.set('types', rest[2]);
+        if (rest[3]) p.set('kind', rest[3]);
+        if (rest[4]) p.set('status', rest[4]);
+        const r = await call(SearchResultSchema, `${ws(rest[0])}/search?${p}`);
+        data = {
+          mode: r.mode,
+          fixture: r.fixture,
+          counts: r.counts,
+          truncated: r.truncated,
+          hits: r.hits.map((h) => ({
+            type: h.type,
+            id: h.id,
+            match: h.match,
+            kind: h.kind,
+            title: h.title,
+            status: h.status,
+            snippet: h.snippet
+              .map((x) => (x.match ? `[${x.text}]` : x.text))
+              .join(''),
+          })),
+        };
+        break;
+      }
+      case 'activity': {
+        const p = new URLSearchParams();
+        if (rest[1]) p.set('q', rest[1]);
+        if (rest[2]) p.set('action', rest[2]);
+        data = (
+          await call(ActivityPageSchema, `${ws(rest[0])}/activity?${p}`)
+        ).entries.map((e) => ({
+          at: e.occurred_at,
+          actor: `${e.actor.display_name} (${e.actor.kind})`,
+          action: e.action,
+          summary: e.summary,
+          subject: `${e.subject_kind} ${e.subject_id}`,
+        }));
+        break;
+      }
+      case 'overview':
+        data = await call(OverviewSchema, `${ws(rest[0])}/overview`);
+        break;
+      case 'compare':
+        data = await call(
+          ProblemComparisonSchema,
+          `${ws(rest[0])}/problems/${encodeURIComponent(rest[1] ?? '')}/comparison`,
         );
         break;
       case 'seed-lineage':

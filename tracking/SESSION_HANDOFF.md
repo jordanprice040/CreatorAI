@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T09 usable catalog, decisions, search and run monitor (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t09-catalog-monitor-ml1t89` from `main` at bba9e9a (T08 merged as PR #9).
+
+What works: `pnpm dev` (or the API plus `vite preview`) and the web page now cover the whole loop without the CLI: submit a theme and start a discovery run, watch it on the Monitor (pause, resume, cancel), read claims and passages, compare alternatives side by side and record a selection (with the supervised approval round in Decisions), then find it again in Search and Activity. The address keeps the view, workspace and selection across refresh. Budgets can be funded from the page. New CLI commands: `search`, `activity`, `overview`, `compare`; `lineage` takes a depth. See docs/LOCAL_DEVELOPMENT.md "Studio interface (T09)" and ADR-0012.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (58 pass, 64 skipped without DB), `pnpm test:db` (122/122), `pnpm smoke`, and the 12-step headless Chromium acceptance script on a freshly seeded database. Evidence: tracking/evidence/t09/.
+
+Not done / limits: fixture model and reviewers only; lexical search (semantic search is X03); no products, tasks or artifacts exist yet, so those views show honest empty states and the Gallery is reserved; Windows, screen readers and measured contrast untested.
+
+**Next eligible prompt: T10 — Study runner and human-only workflow.** Requires a new request.
+
 ## Latest — T08 versioned scoring, selection and frozen specifications (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t08-aq72aq` from `main` at df04354 (T07 merged as PR #8).

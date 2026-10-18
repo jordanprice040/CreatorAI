@@ -5,7 +5,6 @@ import {
   GrantSchema,
   RunControlSchema,
   SessionInfoSchema,
-  WorkspaceSchema,
   parse,
   z,
   type Decision,
@@ -15,7 +14,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public readonly code: string,
     message: string,
@@ -45,11 +44,14 @@ export async function api<T>(
   if (!response.ok) {
     const e =
       body && typeof body === 'object' && 'error' in body
-        ? (body.error as { code?: string; message?: string })
+        ? (body.error as { code?: string; message?: string; details?: unknown })
         : {};
+    const details = Array.isArray(e.details)
+      ? ` ${e.details.map(String).slice(0, 6).join('; ')}`
+      : '';
     throw new ApiError(
       e.code ?? 'ERROR',
-      e.message ?? `API error ${response.status}`,
+      `${e.message ?? `API error ${response.status}`}${details}`,
     );
   }
   return parse(schema, body);
@@ -137,7 +139,6 @@ export function SignIn({
   }
   return (
     <section className="panel records" aria-labelledby="signin-title">
-      <div className="eyebrow">03 / OWNER SIGN-IN</div>
       <h2 id="signin-title">Sign in to review decisions and records</h2>
       {mode === 'oidc' ? (
         <a className="primary link" href="/api/auth/oidc/login">
@@ -231,11 +232,15 @@ function Coverage({ d }: { d: Decision }) {
 
 function DecisionCard({
   d,
+  focused,
+  names,
   csrf,
   workspace,
   onDone,
 }: {
   d: Decision;
+  focused: boolean;
+  names: (id: string) => string;
   csrf: string;
   workspace: string;
   onDone: () => void;
@@ -282,7 +287,10 @@ function DecisionCard({
   }
   const disabled = busy || !rationale.trim() || !d.coverage.current;
   return (
-    <article className="decision">
+    <article
+      className={`decision${focused ? ' focused' : ''}`}
+      aria-label={`${d.kind} decision`}
+    >
       <div className="decision-head">
         <span className={`badge kind-${d.kind}`}>{d.kind.toUpperCase()}</span>
         <span className="small">
@@ -290,7 +298,14 @@ function DecisionCard({
           {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
         </span>
       </div>
-      <h3 className="question">Decision needed: {d.question}</h3>
+      <h3 className="question">
+        {d.status === 'pending' ? 'Decision needed' : 'Decision'}: {d.question}
+      </h3>
+      <p className="small">
+        Asked by {names(d.requested_by)} on {when(d.created_at)} for run{' '}
+        {d.run_id.slice(0, 8)}
+        {d.status === 'pending' ? ` · expires ${when(d.expires_at)}` : ''}
+      </p>
       <dl>
         <div>
           <dt>Evidence</dt>
@@ -337,7 +352,8 @@ function DecisionCard({
       )}
       {d.response && (
         <p className="small">
-          Answered {when(d.response.responded_at)}:{' '}
+          Answered by {names(d.response.responder_id)} on{' '}
+          {when(d.response.responded_at)}:{' '}
           <strong>{words(d.response.choice)}</strong>
           {d.response.option_id ? ` (${d.response.option_id})` : ''} ·{' '}
           {d.response.rationale}
@@ -475,37 +491,43 @@ function DecisionCard({
 /** Pending human decisions, standing policies and runs under oversight. */
 export function Oversight({
   session,
-  signOut,
+  workspace: current,
+  focus,
+  names,
 }: {
   session: SessionInfo;
-  signOut: () => Promise<void>;
+  workspace: Workspace;
+  /** A decision to show first (from a link elsewhere in the page). */
+  focus: string;
+  names: (id: string) => string;
 }) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspace, setWorkspace] = useState('');
+  const workspace = current.id;
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState('');
-  async function loadWorkspaces() {
-    try {
-      const list = await api(z.array(WorkspaceSchema), 'workspaces');
-      setWorkspaces(list);
-      setWorkspace((c) =>
-        list.some((w) => w.id === c) ? c : (list[0]?.id ?? ''),
-      );
-    } catch (e) {
-      setError(message(e));
-    }
-  }
   async function load() {
     if (!workspace) return;
     setError('');
     try {
+      const list = await api(
+        z.array(DecisionSchema),
+        `workspaces/${workspace}/decisions${showAll ? '' : '?status=pending'}`,
+      );
+      // A linked decision is shown first even when it is no longer pending.
+      const linked =
+        focus && !list.some((d) => d.id === focus)
+          ? await api(
+              DecisionSchema,
+              `workspaces/${workspace}/decisions/${focus}`,
+            )
+              .then((d) => [d])
+              .catch(() => [])
+          : [];
       setDecisions(
-        await api(
-          z.array(DecisionSchema),
-          `workspaces/${workspace}/decisions${showAll ? '' : '?status=pending'}`,
+        [...linked, ...list].sort(
+          (a, b) => Number(b.id === focus) - Number(a.id === focus),
         ),
       );
       setGrants(
@@ -519,11 +541,8 @@ export function Oversight({
     }
   }
   useEffect(() => {
-    void loadWorkspaces();
-  }, []);
-  useEffect(() => {
     void load();
-  }, [workspace, showAll]);
+  }, [workspace, showAll, focus]);
   async function revoke(g: Grant) {
     try {
       await api(GrantSchema, `workspaces/${workspace}/grants/${g.id}/revoke`, {
@@ -558,40 +577,13 @@ export function Oversight({
   );
   return (
     <section className="panel records" aria-labelledby="oversight-title">
-      <div className="eyebrow">03 / HUMAN DECISIONS</div>
-      <div className="decision-head">
-        <h2 id="oversight-title">Decisions, policies and runs</h2>
-        <span className="small">
-          Signed in as {session.display_name} (
-          {session.method === 'dev_local' ? 'local development' : 'OIDC'}){' '}
-          <button className="text" onClick={() => void signOut()}>
-            Sign out
-          </button>
-        </span>
-      </div>
+      <h2 id="oversight-title">Decisions, policies and runs</h2>
       <p>
         Only work that needs a person appears here. Covered, reversible routine
         actions proceed without asking. Approving once permits exactly the
         action shown; a standing policy changes what future actions may do.
       </p>
       <div className="connection">
-        <label htmlFor="ows" className="inline">
-          Workspace
-        </label>
-        <select
-          id="ows"
-          value={workspace}
-          onChange={(e) => setWorkspace(e.target.value)}
-        >
-          {workspaces.length === 0 && (
-            <option value="">No workspaces yet</option>
-          )}
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-            </option>
-          ))}
-        </select>
         <button className="secondary" onClick={() => setShowAll((v) => !v)}>
           {showAll ? 'Pending only' : 'Show answered and closed'}
         </button>
@@ -611,6 +603,8 @@ export function Oversight({
               <DecisionCard
                 key={`${d.id}-${d.version}`}
                 d={d}
+                focused={d.id === focus}
+                names={names}
                 csrf={session.csrf_token}
                 workspace={workspace}
                 onDone={() => void load()}

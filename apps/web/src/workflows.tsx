@@ -6,7 +6,6 @@ import {
   StoredEntitySchema,
   WorkflowDetailSchema,
   WorkflowSchema,
-  WorkspaceSchema,
   z,
   type DiscoveryResult,
   type Envelope,
@@ -28,11 +27,23 @@ const SUBJECT_KINDS = ['idea', 'problem', 'alternative', 'specification'];
  * Starts and monitors durable workflows. The page only reads state the server keeps: closing
  * it does not stop a workflow, and only Cancel does.
  */
-export function Workflows({ session }: { session: SessionInfo }) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspace, setWorkspace] = useState('');
+export function Workflows({
+  session,
+  workspace: current,
+  focus,
+  onFocus,
+}: {
+  session: SessionInfo;
+  workspace: Workspace;
+  /** The workflow to open, kept in the page address so a refresh returns to it. */
+  focus: string;
+  onFocus: (id: string) => void;
+}) {
+  const workspace = current.id;
   const [list, setList] = useState<Workflow[]>([]);
-  const [selected, setSelected] = useState('');
+  const selected = focus;
+  const setSelected = (u: string | ((c: string) => string)) =>
+    onFocus(typeof u === 'function' ? u(focus) : u);
   const [detail, setDetail] = useState<WorkflowDetail | null>(null);
   const [subjects, setSubjects] = useState<StoredEntity[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
@@ -84,18 +95,6 @@ export function Workflows({ session }: { session: SessionInfo }) {
     }
   }
   useEffect(() => {
-    void (async () => {
-      try {
-        const ws = await api(z.array(WorkspaceSchema), 'workspaces');
-        setWorkspaces(ws);
-        setWorkspace(ws[0]?.id ?? '');
-      } catch (err) {
-        setError(message(err));
-      }
-    })();
-  }, []);
-  useEffect(() => {
-    setSelected('');
     setDetail(null);
     void load();
   }, [workspace]);
@@ -200,38 +199,19 @@ export function Workflows({ session }: { session: SessionInfo }) {
   }
   const wf = detail?.workflow;
   const live = wf && !wf.finished_at;
-  const fixture =
-    workspaces.find((w) => w.id === workspace)?.record_mode === 'fixture';
+  const fixture = current.record_mode === 'fixture';
   return (
     <section className="panel records" aria-labelledby="wf-title">
-      <div className="eyebrow">05 / DURABLE RUNS</div>
       <h2 id="wf-title">Workflow runs</h2>
       <p>
         A skeptic review critiques one record from several perspectives, then
-        combines them. Discovery runs (started from the API or{' '}
+        combines them. Discovery runs (started from Submit a theme, the API or{' '}
         <code>creator seed-discovery</code>) also show here with each proposal's
         disposition and the skeptic's dissent. Each step is checkpointed in the
         database and runs on the server: closing this page does not stop it. Use
         Cancel to stop it.
       </p>
       <div className="connection">
-        <label htmlFor="wws" className="inline">
-          Workspace
-        </label>
-        <select
-          id="wws"
-          value={workspace}
-          onChange={(e) => setWorkspace(e.target.value)}
-        >
-          {workspaces.length === 0 && (
-            <option value="">No workspaces yet</option>
-          )}
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-            </option>
-          ))}
-        </select>
         <button className="secondary" onClick={() => void load()}>
           Refresh
         </button>
@@ -259,7 +239,11 @@ export function Workflows({ session }: { session: SessionInfo }) {
                     <span className={`badge wf-${w.state}`}>
                       {words(w.state)}
                     </span>{' '}
-                    {w.perspectives.length} perspectives · {when(w.created_at)}
+                    {w.role === 'r02_discovery'
+                      ? 'Discovery'
+                      : 'Skeptic review'}{' '}
+                    · {w.perspectives.length} perspectives ·{' '}
+                    {when(w.created_at)}
                   </button>
                 </li>
               ))}
@@ -331,7 +315,9 @@ export function Workflows({ session }: { session: SessionInfo }) {
           ) : (
             <article className="decision" aria-live="polite">
               <div className="decision-head">
-                <span className="kind">{wf.role_version}</span>
+                <span className="kind">
+                  {wf.role_version} · {wf.id.slice(0, 8)}
+                </span>
                 <span className={`badge wf-${wf.state}`}>
                   {words(wf.state)}
                 </span>

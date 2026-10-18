@@ -1,0 +1,105 @@
+{
+  "base": "http://127.0.0.1:5173",
+  "workspace": "00efc4a5-549c-4b11-ab75-6898e7e3b241",
+  "workflow": "59cb553c-7a7c-416f-bf1e-41f6b2fe1f78",
+  "revoked_run": "9ccc0a1d",
+  "steps": [
+    {
+      "step": "sign in with the development code and land on the monitor",
+      "result": "pass",
+      "ms": 421,
+      "screenshot": "01-monitor.png"
+    },
+    {
+      "step": "keyboard: the first Tab reaches the skip link",
+      "result": "pass",
+      "ms": 12,
+      "focused": "Skip to content"
+    },
+    {
+      "step": "submit a theme: brief, claims, new run with a model permission",
+      "result": "pass",
+      "ms": 775,
+      "workflow": "59cb553c-7a7c-416f-bf1e-41f6b2fe1f78",
+      "url": "http://127.0.0.1:5173/#/runs?ws=00efc4a5-549c-4b11-ab75-6898e7e3b241&id=59cb553c-7a7c-416f-bf1e-41f6b2fe1f78",
+      "screenshot": "02-run-started.png"
+    },
+    {
+      "step": "the new run is visible on the monitor and persists after a reload",
+      "result": "pass",
+      "ms": 8477,
+      "monitor_line": "succeeded Discovery 59cb553c · succeeded · Oct 18, 2026, 9:20 AM",
+      "screenshot": "03-monitor-after-submit.png"
+    },
+    {
+      "step": "inspect evidence: claim passages, origin and freshness",
+      "result": "pass",
+      "ms": 367,
+      "has_passage": true,
+      "url": "http://127.0.0.1:5173/#/evidence?ws=00efc4a5-549c-4b11-ab75-6898e7e3b241&id=claim%3A3d51c036-c5f9-4ad4-a705-a6712cc3c54b",
+      "screenshot": "04-evidence.png"
+    },
+    {
+      "step": "compare the clinic problem: alternatives side by side with scores and gates",
+      "result": "pass",
+      "ms": 693,
+      "alternatives": 5,
+      "screenshot": "05-compare.png"
+    },
+    {
+      "step": "decide: supervised gate asks, approval in Decisions, then recorded",
+      "result": "pass",
+      "ms": 2888,
+      "asked_for_approval": true,
+      "persisted_after_reload": true,
+      "screenshot": "08-decided.png"
+    },
+    {
+      "step": "search history: text, exact id prefix and the activity log",
+      "result": "pass",
+      "ms": 494,
+      "text_hits_with_marks": 31,
+      "sections": [
+        "Records",
+        "Source passages",
+        "Decisions",
+        "Activity"
+      ],
+      "screenshot": "11-activity.png"
+    },
+    {
+      "step": "budget denial: a tiny budget refuses the call before it is sent",
+      "result": "pass",
+      "ms": 527,
+      "outcome": "denied (budget exceeded): Maximum exposure 11562500 exceeds the 1000 available in the envelope.",
+      "screenshot": "12-budget-denied.png"
+    },
+    {
+      "step": "permission revocation: revoked standing permission makes the next call ask",
+      "result": "pass",
+      "ms": 1388,
+      "run": "9ccc0a1d",
+      "policies_before": 4,
+      "policies_after": 3,
+      "outcome": "needs human (outside grant): Needs a person: outside grant.",
+      "screenshot": "14-after-revocation.png"
+    },
+    {
+      "step": "gallery is reserved and offers no download or preview",
+      "result": "pass",
+      "ms": 91,
+      "screenshot": "15-gallery.png"
+    },
+    {
+      "step": "narrow screen: monitor and compare fit a 390px phone width",
+      "result": "pass",
+      "ms": 546,
+      "horizontal_overflow_px": [
+        0,
+        0
+      ],
+      "screenshot": "17-mobile-compare.png"
+    }
+  ],
+  "console_problems": []
+}
