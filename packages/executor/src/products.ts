@@ -24,6 +24,7 @@ import {
   newFile,
 } from './files.js';
 import { git, clean, head, safeTree } from './git.js';
+import type { PackageFile } from './tar.js';
 
 export const TEMPLATE = {
   'readme.md':
@@ -100,8 +101,14 @@ export class ProductSupervisor {
         'Frozen specification or task hashes changed; create a new bound product',
       );
   }
-  async create(raw: unknown): Promise<Product> {
+  async create(
+    raw: unknown,
+    base?: { files: PackageFile[]; lineage: NonNullable<Product['base']> },
+  ): Promise<Product> {
     const binding = checked(bindingSchema, raw);
+    const files = base
+      ? base.files.map((f) => [f.path, f.content.toString('utf8')] as const)
+      : Object.entries(TEMPLATE);
     await this.initialize();
     const productId = randomUUID();
     const dir = this.dir(productId);
@@ -113,14 +120,23 @@ export class ProductSupervisor {
       await event(dir, 'product.create.intent', {
         binding,
         template_hash: TEMPLATE_HASH,
+        base: base?.lineage ?? null,
       });
       const repo = this.repo(productId);
       await mkdir(repo);
       await git(repo, ['init', '--initial-branch=integration']);
-      for (const [path, content] of Object.entries(TEMPLATE))
+      for (const [path, content] of files) {
+        await fileAt(repo, path);
         await newFile(join(repo, path), content);
-      await git(repo, ['add', '--', ...Object.keys(TEMPLATE)]);
-      await git(repo, ['commit', '-m', 'Reviewed checklist template v1']);
+      }
+      await git(repo, ['add', '--', ...files.map(([path]) => path)]);
+      await git(repo, [
+        'commit',
+        '-m',
+        base
+          ? `Revision base: verified package ${base.lineage.artifact_id}`
+          : 'Reviewed checklist template v1',
+      ]);
       const p: Product = {
         format: 'local-product/1',
         id: productId,
@@ -129,6 +145,7 @@ export class ProductSupervisor {
         template_hash: TEMPLATE_HASH,
         initial_commit: await head(repo),
         git_version: await git(repo, ['--version']),
+        ...(base ? { base: base.lineage } : {}),
       };
       await jsonWrite(join(dir, 'product.json'), p);
       await event(dir, 'product.create.outcome', p);
@@ -352,12 +369,12 @@ export class ProductSupervisor {
       return { state: 'integrated', commit, merge_workspace: mergeDir };
     });
   }
-  async snapshot(
+  /** Exact committed bytes of a clean task worktree, verified blob by blob against Git. */
+  async committedFiles(
     productId: string,
     taskId: string,
     commit: string,
-    destination: string,
-  ): Promise<string> {
+  ): Promise<PackageFile[]> {
     checked(sha, commit);
     const t = await this.task(productId, taskId);
     const dir = this.worktree(productId, t.id);
@@ -367,7 +384,7 @@ export class ProductSupervisor {
     const entries = (await git(dir, ['ls-tree', '-r', commit]))
       .split('\n')
       .filter(Boolean);
-    const manifest: { path: string; hash: string }[] = [];
+    const files: PackageFile[] = [];
     let bytes = 0;
     if (entries.length > 100) throw new Error('Snapshot file limit exceeded');
     for (const entry of entries) {
@@ -385,10 +402,20 @@ export class ProductSupervisor {
         throw new Error('Reviewed template accepts UTF-8 text only');
       bytes += exact.length;
       if (bytes > 512 * 1024) throw new Error('Snapshot byte limit exceeded');
-      await newFile(join(destination, name), exact.toString('utf8'));
-      manifest.push({ path: name, hash: digest(exact) });
+      files.push({ path: name, content: exact });
     }
-    return digest(JSON.stringify(manifest));
+    return files;
+  }
+  async snapshot(
+    productId: string,
+    taskId: string,
+    commit: string,
+    destination: string,
+  ): Promise<string> {
+    const files = await this.committedFiles(productId, taskId, commit);
+    for (const f of files)
+      await newFile(join(destination, f.path), f.content.toString('utf8'));
+    return inputHash(files);
   }
   async tasks(productId: string): Promise<Task[]> {
     return Promise.all(
@@ -409,4 +436,12 @@ function digestGitBlob(bytes: Buffer): string {
     .update(`blob ${bytes.length}\0`)
     .update(bytes)
     .digest('hex');
+}
+/** Same identity for a worktree snapshot and a re-extracted package with identical files. */
+export function inputHash(files: PackageFile[]): string {
+  return digest(
+    JSON.stringify(
+      files.map((f) => ({ path: f.path, hash: digest(f.content) })),
+    ),
+  );
 }

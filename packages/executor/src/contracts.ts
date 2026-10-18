@@ -47,6 +47,15 @@ export const productSchema = z.strictObject({
   integration_owner: id,
   initial_commit: sha,
   git_version: z.string().max(200),
+  /** A revision starts from an earlier verified package instead of the bare template. */
+  base: z
+    .strictObject({
+      artifact_id: id,
+      manifest_sha256: hash,
+      product_id: id,
+      commit: sha,
+    })
+    .optional(),
 });
 export type Product = z.infer<typeof productSchema>;
 export const taskSchema = z.strictObject({

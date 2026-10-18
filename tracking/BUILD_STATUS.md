@@ -1,5 +1,31 @@
 # Implementation status
 
+T13 update, October 18, 2026 (Claude Code, branch claude/t13-8h288j from main at
+6fe5bab, T12 merged as PR #14): a T12 verified candidate now packages into a
+deterministic source archive and an immutable `build-manifest/1` binding repo,
+commit, spec/freeze/task hashes, template, toolchain, dependency statement, archive
+and file hashes, startup requirements, build QA and exported-package results, cost,
+lineage and limitations. The archive is re-read, re-extracted and every acceptance
+case re-run from those bytes; matching input hashes prove the tested bytes ran.
+Migration 10 indexes manifests, private previews and feedback. A separate preview
+origin with one-time tickets, owner rechecks, leases, readiness, expiry, stop and
+revoke runs the exact package; downloads recheck access and hash. Accepted feedback
+on one exact version becomes a new spec version, a revision repo starts from the
+package bytes, and versions compare by spec, tasks, tests, files, cost and feedback.
+Source archive, runnable demo and native installer are separate labels.
+
+Verified in the Linux cloud container (PostgreSQL 16): typecheck, format, full test
+suite **146 pass, 0 fail, 10 skipped** (every skip needs the reviewed WSL2 worker),
+and a 13-step headless Chromium walkthrough of gallery, download, compare, preview
+origin, ticket reuse, cross-origin, revoke and feedback. That walkthrough used the
+visibly labeled test double, which runs nothing and is **not isolation evidence**.
+**Pending:** the real WSL2 compiled CLI gate (`tests/src/artifact-cli.test.ts`,
+`CREATOR_TEST_ISOLATION=wsl2`) on the owner's Windows machine, which performs the
+actual feedback-driven revision in the worker. Until it passes, T13 is implemented
+but not verified on the reviewed backend. See ADR-0017,
+docs/ARTIFACTS_AND_PREVIEW.md and tracking/evidence/t13. No live provider, public
+release or T14 work.
+
 T12 update, October 18, 2026: the bounded local Python task path now connects
 authenticated current frozen T08 tasks to build admission and exact-spec humility
 review, the existing metered broker, scoped committed T11 patches, fresh reviewer
@@ -90,8 +116,8 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T09 | Usable catalog, decisions, search, and run monitor | verified (cloud Linux, PostgreSQL 16.15; fixture workspace in headless Chromium) | Branch claude/t09-catalog-monitor-ml1t89 from main at bba9e9a; migration 8; ADR-0012; evidence/t09/verification.json; 122/122 tests incl. search permissions before snippets and counts, redaction, id and prefix search, activity paging and validation, comparison assumptions; 12-step browser acceptance run with screenshots | Owner review; fixture model and reviewers only; search is lexical (no semantic search, X03); lineage traversal bounded at 8 hops with no graph view; no product stages exist yet so stage and task views show empty states; Windows and real screen readers untested; next eligible T10 |
 | T10 | Study runner and human-only workflow | verified (Windows, PostgreSQL 18.6; synthetic only) | Branch codex/t10-study-runner from a9edf68 (T09 merged PR #10); migration 9; ADR-0013; evidence/t10/verification.json; 130/130 DB tests, check, smoke, CLI/API export and headless Edge acceptance | Merged PR #12 at 5f9bb1b; no empirical study or live AI; study-arm implementation integration remains separate from the T11 owner CLI |
 | T11 | Isolated execution and local product Git | verified (Windows + WSL2; reviewed synthetic template) | Branch codex/t11-isolated-execution from 5f9bb1b; ADR-0014; evidence/t11/verification.json and source manifest; 140/140 DB + real isolation, check, smoke, CLI/API admission | Owner review/merge; fixed offline Python recipe; no model builder/independent QA, catalog indexing, dedicated appliance or persistent preview; T12 next on request |
-| T12 | Bounded builder, independent review, and QA | planned | No application code at T00 | T11 |
-| T13 | Verified artifacts, private preview, and feedback revision | planned | No application code at T00 | T12 |
+| T12 | Bounded builder, independent review, and QA | verified (Windows + WSL2; fixed synthetic roles) | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation | Merged PR #14 at 6fe5bab |
+| T13 | Verified artifacts, private preview, and feedback revision | implemented; cloud-verified with test double, WSL2 gate pending | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; 146 pass / 10 WSL skips; 13-step browser walkthrough | Real WSL2 CLI gate on Windows; owner review/merge; CLI-only runnable demo, no native installer or public release; next eligible T14 on request |
 | T14 | Pilot, rubric calibration, and protocol freeze | planned | No application code at T00 | T10 and T13 |
 | T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |

@@ -406,7 +406,14 @@ function App() {
       case 'studies':
         return <Studies workspace={workspace} session={s} />;
       case 'gallery':
-        return <Gallery workspace={workspace} open={open} />;
+        return (
+          <Gallery
+            workspace={workspace}
+            session={s}
+            focus={route.id}
+            open={open}
+          />
+        );
     }
   }
   const signedIn = persistent && auth.session;
@@ -419,7 +426,7 @@ function App() {
         <a className="brand" href="#/overview">
           CA<span>Creator Agent</span>
         </a>
-        <span className="local">LOCAL STUDIO · T10</span>
+        <span className="local">LOCAL STUDIO · T13</span>
       </header>
       <div className="topbar">
         <span role="status" className="small">

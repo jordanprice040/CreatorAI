@@ -11,3 +11,4 @@ export * from './selection-store.js';
 export * from './catalog-store.js';
 
 export * from './study-store.js';
+export * from './artifact-store.js';

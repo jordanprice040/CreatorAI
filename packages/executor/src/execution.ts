@@ -11,7 +11,7 @@ import {
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { ProductSupervisor } from './products.js';
+import { ProductSupervisor, inputHash } from './products.js';
 import {
   digest,
   checked,
@@ -21,8 +21,19 @@ import {
   type Execution,
   qaCaseSchema,
   type QaCase,
+  sha,
 } from './contracts.js';
-import { canonical, jsonWrite, readJson, event, withLock } from './files.js';
+import { RunInputSchema, type RunInput } from '@creator/contracts';
+import {
+  canonical,
+  jsonWrite,
+  readJson,
+  event,
+  withLock,
+  fileAt,
+  newFile,
+} from './files.js';
+import type { PackageFile } from './tar.js';
 
 const WORKER = fileURLToPath(new URL('../worker/bridge.py', import.meta.url));
 const RECIPE = fileURLToPath(new URL('../worker/recipe.py', import.meta.url));
@@ -101,6 +112,68 @@ export class ExecutionSupervisor {
     onStarted: (id: string) => void = () => {},
     qa?: QaCase,
   ): Promise<Execution> {
+    const p = await this.products.product(productId);
+    this.products.assertBinding(p, binding);
+    this.products.assertOwner(p, binding.owner_id);
+    return this.dispatch(
+      productId,
+      taskId,
+      commit,
+      (input) =>
+        withLock(this.products.dir(productId), () =>
+          this.products.snapshot(productId, taskId, commit, input),
+        ),
+      { source: 'task_worktree' },
+      onStarted,
+      qa ? checked(qaCaseSchema, qa) : undefined,
+    );
+  }
+  /**
+   * Starts an exported package, not the worktree: the archive bytes are re-extracted into a
+   * fresh input directory. The caller has already checked the archive against its manifest.
+   */
+  async runPackage(
+    productId: string,
+    taskId: string,
+    commit: string,
+    files: PackageFile[],
+    owner: string,
+    archiveSha256: string,
+    onStarted: (id: string) => void = () => {},
+    input?: QaCase | RunInput,
+  ): Promise<Execution> {
+    const p = await this.products.product(productId);
+    this.products.assertOwner(p, owner);
+    checked(sha, commit);
+    return this.dispatch(
+      productId,
+      taskId,
+      commit,
+      async (dir) => {
+        for (const f of files) {
+          await fileAt(dir, f.path);
+          await newFile(join(dir, f.path), f.content.toString('utf8'));
+        }
+        return inputHash(files);
+      },
+      { source: 'exported_package', package_sha256: archiveSha256 },
+      onStarted,
+      input && 'check_key' in input
+        ? checked(qaCaseSchema, input)
+        : input
+          ? checked(RunInputSchema, input)
+          : undefined,
+    );
+  }
+  private async dispatch(
+    productId: string,
+    taskId: string,
+    commit: string,
+    prepare: (input: string) => Promise<string>,
+    source: Record<string, unknown>,
+    onStarted: (id: string) => void,
+    qa?: QaCase | RunInput,
+  ): Promise<Execution> {
     // One local generated-code unit at a time. A crash leaves the lock for explicit reconciliation.
     return withLock(this.products.root, async () => {
       try {
@@ -111,20 +184,27 @@ export class ExecutionSupervisor {
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       }
-      return this.runOne(productId, taskId, commit, binding, onStarted, qa);
+      return this.runOne(
+        productId,
+        taskId,
+        commit,
+        prepare,
+        source,
+        onStarted,
+        qa,
+      );
     });
   }
   private async runOne(
     productId: string,
     taskId: string,
     commit: string,
-    binding: Binding,
+    prepare: (input: string) => Promise<string>,
+    source: Record<string, unknown>,
     onStarted: (id: string) => void,
-    qa?: QaCase,
+    qa?: QaCase | RunInput,
   ): Promise<Execution> {
-    const p = await this.products.product(productId);
-    this.products.assertBinding(p, binding);
-    this.products.assertOwner(p, binding.owner_id);
+    await this.products.task(productId, taskId);
     const executionId = randomUUID(),
       dir = this.dir(productId, executionId),
       job = join(dir, 'job');
@@ -133,16 +213,13 @@ export class ExecutionSupervisor {
     await mkdir(join(job, 'input'));
     let inputHash: string;
     try {
-      inputHash = await withLock(this.products.dir(productId), () =>
-        this.products.snapshot(productId, taskId, commit, join(job, 'input')),
-      );
+      inputHash = await prepare(join(job, 'input'));
     } catch (e) {
       await rm(job, { recursive: true });
       throw e;
     }
     const recipeHash = digest(await readFile(RECIPE));
-    if (qa)
-      await jsonWrite(join(job, 'acceptance.json'), checked(qaCaseSchema, qa));
+    if (qa) await jsonWrite(join(job, 'acceptance.json'), qa);
     const record: Execution = {
       id: executionId,
       product_id: productId,
@@ -161,9 +238,8 @@ export class ExecutionSupervisor {
         supervisor_pid: process.pid,
         bridge_hash: digest(await readFile(WORKER)),
         local_compute_billing: 'not_metered_by_studio',
-        acceptance_hash: qa
-          ? digest(JSON.stringify(checked(qaCaseSchema, qa)))
-          : null,
+        acceptance_hash: qa ? digest(JSON.stringify(qa)) : null,
+        ...source,
       },
       log: '',
       exit_code: null,

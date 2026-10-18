@@ -35,6 +35,9 @@ importers:
       '@creator/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@creator/executor':
+        specifier: workspace:*
+        version: link:../../packages/executor
       '@creator/orchestrator':
         specifier: workspace:*
         version: link:../../packages/orchestrator
