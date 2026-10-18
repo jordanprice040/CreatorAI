@@ -1,0 +1,12 @@
+Refused: No adopted protocol freeze in this workspace. Answer the research decisions and run protocol-freeze first.
+  RD1-priority
+  RD2-primary-outcome
+  RD3-participants
+  RD4-reviewers
+  RD5-human-subjects
+  RD6-model-and-cap
+  RD7-design-counts
+  RD8-final-tasks
+  RD9-source-snapshots
+  RD10-retry-and-search
+exit 2

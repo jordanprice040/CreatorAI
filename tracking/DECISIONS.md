@@ -1,5 +1,15 @@
 # Decision log
 
+## ADR-0021 - T15 frozen schedule, deterministic admission, run ledger and blinded packets
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's T15 request; branch claude/t15-hdrwqz from main 3f3544a. No migration. The protocol is not frozen, so no final run exists.
+- Schedule: built only from a freeze manifest (rebuilt from the `study.protocol_frozen` audit event against the proposal in code; a changed proposal is a VERSION_CONFLICT) and the owner's final tasks in the frozen counts. Slot ids hash the freeze, packet and arm; the order (one run at a time) comes from a seed derived from the freeze hash. The planned schedule hash goes to the audit log (`evaluation.schedule_planned`).
+- Admission is domain code: final slots need non-synthetic study records, verified live AI (RD6) and, for AI implementation work, the isolated builder. None exists, so today every final slot is `blocked` with its reasons. Fixture output and scripted people are admitted only in rehearsal mode. Rejected: building non-synthetic study records now, because their shape depends on RD3, RD5, RD6 and RD9.
+- Ledger: every slot is listed once (blocked, deferred, missing, or attempt states); a blocked slot with an attempt is an error; RD10's single infrastructure retry keeps the failed attempt.
+- Reviewer packets: identical template, per-reviewer order, codes from a per-package secret kept in the private key. A scan fails on filename, template or id leaks and flags condition-like words inside submissions for owner review instead of rewriting them. Implementation outcomes are functional checks, not reviewer items. Packets are written to disk only.
+- Rehearsal: `pnpm evaluate rehearsal` runs the frozen counts on 8 synthetic tasks with a labelled stand-in freeze; 10/10 checks pass.
+- Rollback: revert the commit.
+
 ## ADR-0020 - T17 local backup/restore, overrun propagation and boundary audit
 
 - Date: October 18, 2026. Status: implemented by Claude Code for T17 (branch claude/project-thread-k4si82 from main e46b2cf). Follows ADR-0019 (T14, built in parallel). No migration.

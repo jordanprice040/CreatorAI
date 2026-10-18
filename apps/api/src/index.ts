@@ -383,6 +383,7 @@ export function createApi(
             proposal: PROPOSED_PROTOCOL,
             proposal_hash: canonicalHash(PROPOSED_PROTOCOL),
             blocking_decisions: BLOCKING_DECISIONS,
+            latest_freeze: await store.latestProtocolFreeze(ctx, ws),
           },
           false,
         );

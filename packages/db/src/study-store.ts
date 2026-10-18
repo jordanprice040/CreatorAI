@@ -25,6 +25,7 @@ import {
   studyOrder,
   freezeProtocol,
   PROPOSED_PROTOCOL,
+  type OwnerDecision,
   SYNTHETIC_STUDY,
   STUDY_FIXTURE_PRICING,
 } from '@creator/domain';
@@ -1127,6 +1128,63 @@ export class StudyStore extends CatalogStore {
         },
       });
       return { ...result, frozen_by: ctx.actorId };
+    });
+  }
+
+  /** The adopted protocol freeze rebuilt from the audit log against the proposal in code. */
+  async latestProtocolFreeze(ctx: CommandContext, ws: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const r = await c.query(
+        "select payload from audit_events where workspace_id=$1 and action='study.protocol_frozen' order by sequence desc limit 1",
+        [ws],
+      );
+      const p = r.rows[0]?.payload as
+        | {
+            freeze_hash: string;
+            proposal_hash: string;
+            decisions: OwnerDecision[];
+          }
+        | undefined;
+      if (!p) return null;
+      return {
+        origin: 'adopted' as const,
+        freeze_hash: p.freeze_hash,
+        manifest: {
+          schema_version: 'protocol-freeze/1' as const,
+          proposal_hash: p.proposal_hash,
+          proposal: PROPOSED_PROTOCOL,
+          decisions: p.decisions,
+        },
+      };
+    });
+  }
+  /** Binds a final evaluation schedule to the owner's audit log before anything runs. */
+  async recordEvaluationSchedule(
+    ctx: CommandContext,
+    ws: string,
+    schedule: { schedule_hash: string; freeze_hash: string; slots: unknown[] },
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      await c.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
+      return this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'evaluation.schedule_planned',
+        subjectKind: 'workspace',
+        subjectId: ws,
+        subjectVersion: null,
+        contentHash: schedule.schedule_hash,
+        payload: {
+          schedule_hash: schedule.schedule_hash,
+          freeze_hash: schedule.freeze_hash,
+          slots: schedule.slots.length,
+        },
+      });
     });
   }
 }

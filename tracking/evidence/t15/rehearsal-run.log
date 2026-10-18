@@ -1,0 +1,18 @@
+pass flow.every_slot_once: 26 scheduled slots, each listed once.
+pass flow.truthful_terminal: 21 slots ran and ended in a terminal state; 5 did not run and say why.
+pass packets.identical_across_arms: Every attempt received exactly the scheduled packet for its task.
+pass versions.matched: All task studies share one config, rubric, prompt, model and pricing version.
+pass contamination.no_cross_arm_or_grader_text: No other-arm output or hidden grading material appears in any runtime context.
+pass contamination.human_only_no_model: Human-only attempts recorded no admitted model call.
+pass contamination.separate_workspaces: Each attempt has its own workspace.
+pass reviewer.blinding: 42 reviewer files: no hidden metadata in filenames, templates or ids.
+pass reviewer.key_complete: The private key maps all 19 reviewed items, one code each.
+pass export.repeatable: 8 study exports re-exported to identical hashes.
+States: {"blocked":4,"submitted":8,"failed":12,"cancelled":1,"deferred":1}
+flag reviewers/reviewer-1/items/item-02.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-14.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-17.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-2/items/item-08.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-2/items/item-12.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-2/items/item-16.md: submission text contains "Fixture"; owner review before sending.
+Package 27477baa6bbc795c55930e51284f4923717af48d006bdcd488318a3fb270b3db in <out-dir>; 0 failed check(s). Not empirical results. reviewers/ is shareable only after owner review; private/ never is.

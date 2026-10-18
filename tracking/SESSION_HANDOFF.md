@@ -1,5 +1,19 @@
 # Session handoff
 
+## Latest - T15 final evaluation machinery (October 18, 2026)
+
+Claude Code on claude/t15-hdrwqz from main 3f3544a (ADR-0021, no migration). The protocol is
+still not frozen, so T15 is partial: no final run exists. Key code:
+packages/domain/src/evaluation.ts (`buildSchedule`, `admitSlot`, `flowTable`,
+`retryPermitted`, `blindedPackets`, `scanBlinding`, `rehearsalFreeze`),
+packages/orchestrator/src/evaluation.ts and evaluate-main.ts (`pnpm evaluate rehearsal <dir>`,
+`pnpm evaluate final <ws> <tasks.json> <dir>`), `latestProtocolFreeze` and
+`recordEvaluationSchedule` in study-store.ts, `latest_freeze` on GET `/protocol-freezes`.
+Tests: tests/src/evaluation.test.ts. Report: docs/FINAL_EVALUATION.md. Before a real final
+run: Jordan's RD1-RD10 answers and freeze, then non-synthetic study records (shape depends
+on RD3/RD5/RD6/RD9), a verified live model, and builder-backed AI implementation runs. Next
+eligible: finish T15 after the freeze; T16 needs actual ratings.
+
 ## Latest - T17 boundary checks and requirements audit (October 18, 2026)
 
 Claude Code built T17 on claude/project-thread-k4si82 from main e46b2cf, in parallel with
