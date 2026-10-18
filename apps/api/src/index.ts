@@ -20,7 +20,7 @@ import {
   sourcePolicyHash,
 } from '@creator/domain';
 import {
-  DiscoveryStore,
+  SelectionStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -126,7 +126,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -151,7 +151,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new DiscoveryStore(pool) : null;
+  const store = pool ? new SelectionStore(pool) : null;
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
     : null;
@@ -372,6 +372,18 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await store.startDiscovery(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && method === 'POST' && action === 'selections')
+        return send(
+          200,
+          await store.select(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && method === 'POST' && action === 'spec-freezes')
+        return send(
+          200,
+          await store.freezeSpec(ctx, ws, item, await readJson(req)),
+          true,
+        );
       if (item && method === 'POST' && action === 'model-calls')
         return send(
           200,
@@ -516,6 +528,50 @@ export function createApi(env: Record<string, string | undefined> = {}) {
         if (action === 'cancel') broker?.cancelRun(detail.workflow.run_id);
         return send(200, detail, true);
       }
+    } else if (collection === 'problems' && item && method === 'GET') {
+      if (action === 'report') {
+        const n = url.searchParams.get('shortlist');
+        return send(
+          200,
+          await store.selectionReport(
+            ctx,
+            ws,
+            item,
+            n === null ? undefined : Number(n),
+          ),
+          false,
+        );
+      }
+      if (action === 'selections')
+        return send(200, await store.listSelections(ctx, ws, item), false);
+    } else if (collection === 'scorecards' && method === 'POST') {
+      if (!item)
+        return send(
+          201,
+          await store.recordScorecard(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (action === 'revisions')
+        return send(
+          200,
+          await store.reviseScorecard(ctx, ws, item, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'specs') {
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.createSpec(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (item && !action && method === 'GET')
+        return send(200, await store.specStatus(ctx, ws, item), false);
+      if (item && action === 'revisions' && method === 'POST')
+        return send(
+          200,
+          await store.reviseSpec(ctx, ws, item, await readJson(req)),
+          true,
+        );
     } else if (collection === 'sources') {
       if (!item && method === 'GET')
         return send(200, await store.listSources(ctx, ws), false);

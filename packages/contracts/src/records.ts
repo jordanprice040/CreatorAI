@@ -208,6 +208,7 @@ export const linkPairs: Record<LinkRelation, readonly string[]> = {
     'humility_review:product',
     'humility_review:alternative',
     'humility_review:problem',
+    'scorecard:alternative',
   ],
   part_of: ['task:run', 'run:product', 'assumption:run'],
   authorizes: [

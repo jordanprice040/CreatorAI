@@ -173,6 +173,26 @@ pnpm cli discovery-packet <workspace> <workflow-id>
 
 **Fixture only.** In fixture workspaces the deterministic adapter answers discovery tasks with fixed rules over the packet; that shows the flow and the checks, not real reasoning. A real workspace needs the T04 live provider conditions. The locator does not search or fetch; it works from claims already recorded through T06.
 
+## Scoring, selection and specs (T08)
+
+Scores rank the candidates a discovery run produced; selection and freezing are admitted actions with a human decision under the supervised defaults.
+
+1. **Scorecards.** A `scorecard` record rates one current alternative version against a versioned rubric (`opportunity-rubric/1.0` for software opportunity, `suitability-rubric/1.0` for every response type). Each criterion gets 1–5 with at least one claim or source reference and a rationale, or `null` for unknown. A card also records the reviewer, confidence, the ethics and access gates and the checks done (including which existing alternatives were checked and when). A card for an old alternative version is stale and is listed but not counted.
+2. **Report.** `report` computes both rankings from the current cards: score = 100·Σw(r−1)/(4Σw) with equal weights, kept as an exact fraction and shown to one decimal. A candidate with any unknown rating has no score, only bounds (unknowns at 1 and at 5). Several reviewers are averaged and their differences listed; candidates whose ranges overlap are marked unresolved; ties share a rank. Sensitivity tries each weight removed and doubled and reports whether the shortlist changes. Ethics/access, the T07 disposition and the T03 humility review are gates beside the score, not part of it.
+3. **Selection.** `select` names the report hash it was made on and gives every candidate a disposition (select for build, proceed to validation, recommend an alternative, research further, defer, reject) with reasons and what would reverse it. Code refuses a selection on a changed report, through a closed gate, or `select_for_build` for a non-code response. Advancing a candidate over a higher-ranked one needs an override reason; the original ranking is stored with it. The action `candidate.select` is admitted against the run policy (supervised: a human decision).
+4. **Specification.** `spec-create` writes a `spec/1` specification for the alternative the current selection chose for build: audience, flows, scope, non-goals, data contracts, measurable acceptance checks, risks, maintenance and a task graph. Validation rejects cycles, unknown references, checks no task delivers and parallel tasks that own overlapping paths. `spec-freeze` is the admitted `spec.freeze` action; it records a hash per task. After `spec-revise`, `spec` shows which tasks are still frozen and which changed, and the earlier freeze no longer covers the changed ones.
+
+```powershell
+pnpm cli seed-selection
+pnpm cli report <workspace> <problem-id>
+pnpm cli select <workspace> <run-id> '{"problem":{"id":"…","version":1},"report_hash":"…","dispositions":[…],"override_reason":null,"rationale":"…","data_class":"synthetic"}'
+pnpm cli spec <workspace> <spec-id>
+```
+
+`seed-selection` runs `seed-discovery`, scores the clinic no-show candidates with two fixture reviewers (one disagreement, one unknown rating), records a selection with one override after an owner approval, creates and freezes a specification and revises one task. The web Scoring and selection panel shows the result read-only.
+
+**Fixture only.** Fixture reviewers are fixed data written to show the arithmetic, gates and overrides; they are not judgments. No model assessor role exists yet, and selecting does not move a product into a build stage.
+
 ## Checks
 
 ```powershell

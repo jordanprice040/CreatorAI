@@ -44,6 +44,8 @@ export const ACTION_REGISTRY: Record<ActionType, ActionSpec> = {
   'tool.search_public': spec({}),
   // Read-only GET through the source broker under its network policy; no model, no spend.
   'source.fetch': spec({}),
+  // T08: recording a selection for a problem; a later selection replaces it.
+  'candidate.select': spec({ requires_target: true }),
   'spec.freeze': spec({ reversible: false, requires_target: true }),
   'product.commit_build': spec({
     requires_target: true,
@@ -63,7 +65,12 @@ export const ACTION_REGISTRY: Record<ActionType, ActionSpec> = {
 /** Stage gates each mode asks at unless the run registers its own list. */
 export const DEFAULT_STAGE_GATES: Record<AutonomyMode, readonly ActionType[]> =
   {
-    supervised: ['spec.freeze', 'product.commit_build', 'release.publish'],
+    supervised: [
+      'candidate.select',
+      'spec.freeze',
+      'product.commit_build',
+      'release.publish',
+    ],
     human_in_loop: ['release.publish'],
     autonomous_within_scope: [],
     human_only: [],

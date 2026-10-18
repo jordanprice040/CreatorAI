@@ -7,3 +7,4 @@ export * from './budget-store.js';
 export * from './workflow-store.js';
 export * from './research-store.js';
 export * from './discovery-store.js';
+export * from './selection-store.js';

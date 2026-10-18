@@ -980,6 +980,68 @@ begin
 end $$;
 `,
   },
+  {
+    version: 7,
+    name: 'scoring_selection_specs',
+    sql: `
+-- T08 scoring, selection and frozen specifications. Scorecards and specs are versioned
+-- records; a selection keeps the report it was made from (original scores and ranks), and a
+-- freeze binds one exact spec version and its task hashes. Both are append-only.
+alter table entities drop constraint entities_kind_check;
+alter table entities add constraint entities_kind_check check (kind in ('source',
+  'claim', 'problem', 'idea', 'alternative', 'assessment', 'product',
+  'specification', 'run', 'task', 'decision', 'grant', 'artifact', 'assumption',
+  'humility_review', 'search_brief', 'scorecard'));
+create table selections (
+  id uuid primary key,
+  workspace_id uuid not null,
+  run_id uuid not null,
+  problem_kind text not null default 'problem' check (problem_kind = 'problem'),
+  problem_id uuid not null,
+  problem_version integer not null,
+  report_hash char(64) not null,
+  report jsonb not null,
+  dispositions jsonb not null,
+  overrides jsonb not null,
+  override_reason text,
+  rationale text not null,
+  admission_id uuid not null references action_admissions (id),
+  actor_id uuid not null references actors (id),
+  created_at timestamptz not null default clock_timestamp(),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  foreign key (workspace_id, problem_id, problem_kind)
+    references entities (workspace_id, id, kind),
+  foreign key (problem_id, problem_version) references entity_versions (entity_id, version),
+  unique (workspace_id, id),
+  check (jsonb_array_length(overrides) = 0 or override_reason is not null)
+);
+create index selections_problem on selections (workspace_id, problem_id, created_at);
+create trigger selections_append_only before update or delete on selections
+  for each row execute function creator_reject_change();
+create table spec_freezes (
+  id uuid primary key,
+  workspace_id uuid not null,
+  run_id uuid not null,
+  spec_kind text not null default 'specification' check (spec_kind = 'specification'),
+  spec_id uuid not null,
+  spec_version integer not null,
+  content_hash char(64) not null,
+  selection_id uuid not null,
+  task_hashes jsonb not null,
+  admission_id uuid not null references action_admissions (id),
+  actor_id uuid not null references actors (id),
+  created_at timestamptz not null default clock_timestamp(),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  foreign key (workspace_id, spec_id, spec_kind) references entities (workspace_id, id, kind),
+  foreign key (spec_id, spec_version) references entity_versions (entity_id, version),
+  foreign key (workspace_id, selection_id) references selections (workspace_id, id),
+  unique (spec_id, spec_version)
+);
+create index spec_freezes_spec on spec_freezes (workspace_id, spec_id, created_at);
+create trigger spec_freezes_append_only before update or delete on spec_freezes
+  for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

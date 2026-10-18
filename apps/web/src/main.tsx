@@ -11,6 +11,7 @@ import { Oversight, SignIn, useSession } from './oversight.js';
 import { Budgets } from './budgets.js';
 import { Workflows } from './workflows.js';
 import { Evidence } from './evidence.js';
+import { Scoring } from './selection.js';
 import './style.css';
 
 const choices = [
@@ -233,6 +234,7 @@ function App() {
         {auth.session && <Budgets session={auth.session} />}
         {auth.session && <Workflows session={auth.session} />}
         {auth.session && <Evidence session={auth.session} />}
+        {auth.session && <Scoring />}
         {(!persistent || auth.session) && <Records persistent={persistent} />}
         <footer>
           <span>Schema 1.0 · Local control</span>

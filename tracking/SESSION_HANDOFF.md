@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T08 versioned scoring, selection and frozen specifications (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t08-aq72aq` from `main` at df04354 (T07 merged as PR #8).
+
+What works: with PostgreSQL configured, `pnpm cli seed-selection` runs the T07 discovery seed, scores the clinic no-show candidates with two fixture reviewers, records a selection (owner approval, one override), creates and freezes a specification and revises one task. Inspect with `pnpm cli report <workspace> <problem>`, `selections` and `spec`, or the web Scoring and selection panel. Record your own with `scorecard`, `select`, `spec-create`, `spec-revise` and `spec-freeze`. See docs/LOCAL_DEVELOPMENT.md "Scoring, selection and specs (T08)" and ADR-0011.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (57 pass, 60 skipped without DB), `pnpm test:db` (117/117), `pnpm smoke`, CLI seed run against the API, headless Chromium check of the panel. Evidence: tracking/evidence/t08/.
+
+Not done / limits: fixture reviewers are fixed data, and no model assessor role writes scorecards yet; selection does not move a product into a build stage (T11–T12 consume frozen specs); rubrics are `proposed` until T14 calibration; no web form for selecting or freezing; Windows untested.
+
+**Next eligible prompt: T09 — Usable catalog, decisions, search, and run monitor.** Requires a new request.
+
 ## Latest — T07 locator and competing response generation (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t07-locator-responses-nyj7cq` from `main` at 5a07713 (T06 merged as PR #7). Opened as a draft PR.
