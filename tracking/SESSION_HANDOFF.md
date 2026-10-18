@@ -6,8 +6,9 @@ Codebase audit of T00-T13 found three items Jordan asked to fix (ADR-0018): spec
 and held-out QA cases (packages/contracts/src/selection.ts, frozenCases in
 packages/domain/src/selection.ts, packages/executor/src/build.ts), lowercase study ids
 (packages/db/src/study-store.ts) and a PostgreSQL CI job. Cloud `pnpm test:db`: 148 pass,
-0 fail, 10 WSL skips. Re-run `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` on Windows before
-relying on real-worker builds. Next eligible milestone is still T14, on request.
+0 fail, 10 WSL skips. Real WSL2 gate on Jordan's Windows machine: 157 pass, 0 fail, 1
+expected skip. That machine has pnpm 12 on PATH; run tests through a terminal-local corepack
+shim (`corepack enable --install-directory <dir> pnpm`, prepend to PATH). Next eligible milestone is still T14, on request.
 
 ## Latest - T13 verified artifacts, private preview and feedback (October 18, 2026)
 

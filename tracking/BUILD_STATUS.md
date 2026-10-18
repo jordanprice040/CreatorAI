@@ -5,7 +5,9 @@ main c162376; ADR-0018): build QA cases are now frozen in the spec and checked a
 plan, with at least one held-out case no role sees; study participant ids compare
 case-insensitively so a participant can no longer be granted grader access; CI runs the
 PostgreSQL suites. Cloud check: typecheck, format, `pnpm test:db` **158 tests, 148 pass, 0
-fail, 10 WSL skips**. The real WSL2 gate has not been re-run on these changes. Remaining
+fail, 10 WSL skips**; GitHub CI (including the new database job) green. Real WSL2 gate on
+Jordan's Windows machine (reported by Jordan, October 18, 2026): `CREATOR_TEST_ISOLATION=wsl2
+pnpm test:db` **158 tests, 157 pass, 0 fail, 1 skip** (the no-worker test). Remaining
 audit items (parent envelope overrun, health labels, preview cookie scope, small fixes) are
 in /mnt/project-files/audits/2026-10-18-codebase-audit.md and are not fixed.
 
