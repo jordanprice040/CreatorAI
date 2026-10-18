@@ -1,5 +1,14 @@
 # Decision log
 
+## ADR-0019 - T14 pilot rehearsal, proposal freeze gate and open research decisions
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's T14 request; branch claude/project-thread-ocgg8g from main e46b2cf. No live provider, participant, reviewer or adopted protocol.
+- Pilot: `pnpm pilot <dir>` runs one fictional decision task through arms A, B and C and one structured/open-ended pair through the existing T10 store, broker and worker in a new fixture workspace. AI arms use the fixture adapter (live dispatch disabled); B and C human entries are scripted and labelled `scripted_rehearsal`. Pilot tasks are listed as excluded from final tasks. Rejected: skipping the human arms entirely, which would leave their instrumentation unchecked.
+- Checks and classification are deterministic domain code (packages/domain/src/pilot.ts) over the real exports and contexts: metrics, intervention timing, source validation, contamination, reviewer blinding and export repeatability; each attempt is classed instrumentation or substantive and kept. A `reproducible_digest` excludes ids and timestamps.
+- Findings carried into the proposal: structured runs end `insufficient_evidence` on unverified packet snapshots (RD9), and workflow-finished assisted attempts leave human totals empty, so analysis sums intervention rows. Not changed in code: the first is correct behaviour; the second is an analysis rule.
+- Freeze: the API freezes only the server's `PROPOSED_PROTOCOL`, for the signed-in human workspace owner, when every one of 10 blocking decisions has a non-deferred answer recorded against the exact proposal hash. The manifest goes to the hash-chained audit log; no migration (avoids colliding with parallel T17 work). Rejected: a file-only freeze, which any process could write without an owner session.
+- Rollback: revert the commit; no schema change.
+
 ## ADR-0018 - Audit fixes: frozen and held-out QA cases, case-insensitive study ids, database CI
 
 - Date: October 18, 2026. Status: implemented by Claude Code after Jordan's codebase audit (report: /mnt/project-files/audits/2026-10-18-codebase-audit.md) and his request to fix findings 1-3. Branch claude/project-thread-mccbs5 from main c162376.

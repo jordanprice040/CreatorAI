@@ -1,0 +1,34 @@
+{
+  "schema_version": "reviewer-packet/1",
+  "rubric": {
+    "version": "pilot-rubric/1",
+    "text": "Anchored 1-5 ratings of usefulness, feasibility, evidence support, differentiation and appropriateness (SCORING_RUBRIC.md anchors). Pilot calibration only."
+  },
+  "items": [
+    {
+      "code": "15d001f6",
+      "task": "pilot-discovery/1",
+      "submission": "Fixture model.generate over 1183 input bytes."
+    },
+    {
+      "code": "363d1215",
+      "task": "pilot-discovery/1",
+      "submission": "No submitted output."
+    },
+    {
+      "code": "8747bb03",
+      "task": "pilot-autonomy/1",
+      "submission": "No submitted output."
+    },
+    {
+      "code": "a19deeae",
+      "task": "pilot-autonomy/1",
+      "submission": "Rehearsal text, no participant: PILOT_OTHER_ARM_SENTINEL"
+    },
+    {
+      "code": "a7ee7ba3",
+      "task": "pilot-autonomy/1",
+      "submission": "Rehearsal text, no participant: add an overnight return bin with a dated tag and a morning check against the sign-out sheet."
+    }
+  ]
+}

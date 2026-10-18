@@ -102,6 +102,8 @@ const USAGE = `Usage:
   pnpm cli study-execute <workspace> <attempt-id>
   pnpm cli study-context <workspace> <attempt-id>
   pnpm cli study-write <workspace> <attempt-id> <artifacts|tests|interventions|finish|deviations|helpers> <entry.json>
+  pnpm cli protocol-proposal <workspace>
+  pnpm cli protocol-freeze <workspace> <decisions.json> [freeze.json]
   pnpm cli health
   pnpm cli demo [outcome] [goal]
   pnpm cli workspaces
@@ -745,6 +747,21 @@ export async function runCli(
         writeFileSync(rest[2], JSON.stringify(data, null, 2) + '\n', {
           flag: 'wx',
         });
+        break;
+      case 'protocol-proposal':
+        data = await call(z.unknown(), `${ws(rest[0])}/protocol-freezes`);
+        break;
+      case 'protocol-freeze':
+        // decisions.json: { proposal_hash, decisions: [{ id, choice, rationale }] }, owner-authored.
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/protocol-freezes`,
+          JSON.parse(readFileSync(rest[1]!, 'utf8')),
+        );
+        if (rest[2])
+          writeFileSync(rest[2], JSON.stringify(data, null, 2) + '\n', {
+            flag: 'wx',
+          });
         break;
       case 'health':
         data = await call(HealthSchema, 'health');

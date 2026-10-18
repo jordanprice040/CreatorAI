@@ -20,6 +20,7 @@
     "dev": "pnpm build:code && node scripts/dev.mjs",
     "dev:api": "pnpm build:code && node apps/api/dist/main.js",
     "worker": "pnpm build:code && node packages/orchestrator/dist/main.js",
+    "pilot": "pnpm build:code && node packages/orchestrator/dist/pilot-main.js",
     "db:migrate": "pnpm build:code && node packages/db/dist/migrate-main.js",
     "dev:web": "pnpm --filter @creator/web dev",
     "cli": "node apps/cli/dist/main.js",
