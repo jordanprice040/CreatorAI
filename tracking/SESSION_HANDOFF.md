@@ -13,6 +13,17 @@ call and the worker swallowed the error); item 7's export note was not a defect 
 workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate not re-run
 for this branch. Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
 
+## Latest - T14 pilot rehearsal and proposed protocol (October 18, 2026)
+
+Claude Code on claude/project-thread-ocgg8g from main e46b2cf (ADR-0019). Key code:
+packages/domain/src/pilot.ts (pilot tasks, checks, classifier, reviewer packet, estimate,
+`PROPOSED_PROTOCOL`, `BLOCKING_DECISIONS`, `freezeProtocol`), packages/orchestrator/src/pilot.ts
+and pilot-main.ts (`pnpm pilot <dir>`), `freezeStudyProtocol` in study-store.ts, API
+`/protocol-freezes`, CLI `protocol-proposal` / `protocol-freeze`. Report and decision list:
+docs/PILOT_AND_PROTOCOL.md. Protocol is not frozen; next step is Jordan's answers to RD1-RD10
+(several need the committee), then `protocol-freeze`. T15 needs an adopted protocol. T17 is
+being built in parallel. The cloud test role needs `pg_signal_backend` for forced drops.
+
 ## Latest - audit fixes (October 18, 2026)
 
 Codebase audit of T00-T13 found three items Jordan asked to fix (ADR-0018): spec-frozen

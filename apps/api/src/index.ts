@@ -16,6 +16,9 @@ import {
 } from '@creator/contracts';
 import {
   authConfig,
+  BLOCKING_DECISIONS,
+  canonicalHash,
+  PROPOSED_PROTOCOL,
   runFixture,
   serviceConfig,
   sourcePolicyHash,
@@ -135,7 +138,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|artifacts|previews|feedback)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|download|compare|feedback|previews|stop|decide|revision))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|download|compare|feedback|previews|stop|decide|revision))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -371,6 +374,23 @@ export function createApi(
             method === 'POST' ? await readJson(req) : undefined,
           ),
           method === 'POST',
+        );
+    } else if (collection === 'protocol-freezes' && !item) {
+      if (method === 'GET')
+        return send(
+          200,
+          {
+            proposal: PROPOSED_PROTOCOL,
+            proposal_hash: canonicalHash(PROPOSED_PROTOCOL),
+            blocking_decisions: BLOCKING_DECISIONS,
+          },
+          false,
+        );
+      if (method === 'POST')
+        return send(
+          201,
+          await store.freezeStudyProtocol(ctx, ws, await readJson(req)),
+          true,
         );
     } else if (collection === 'study-attempts' && item) {
       if (action === 'execute' && method === 'POST') {

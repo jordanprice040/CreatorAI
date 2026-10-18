@@ -2,13 +2,22 @@
 
 ## ADR-0020 - T17 local backup/restore, overrun propagation and boundary audit
 
-- Date: October 18, 2026. Status: implemented by Claude Code for T17 (branch claude/project-thread-k4si82 from main e46b2cf). Numbered 0020 because T14 is being built in parallel and may take 0019. No migration.
+- Date: October 18, 2026. Status: implemented by Claude Code for T17 (branch claude/project-thread-k4si82 from main e46b2cf). Follows ADR-0019 (T14, built in parallel). No migration.
 - Backup: `pnpm backup create|restore|verify` (packages/db/src/backup.ts) pairs a `pg_dump --format=custom` archive with a byte copy of the product store under one SHA-256 manifest. Restore re-hashes everything first, needs an empty database and products folder and the same schema version, then verifies the audit chain and every artifact's manifest and package hash. Alternatives rejected: a JSON export through the API (would have to re-implement immutable tables, identity columns and the hash chain); a database-only backup (artifact rows would point at missing bytes). Not covered: schedules, retention, encryption, hosted operation (C43/X06).
 - Budget overrun: when actual charges pass a child's cap, the excess now counts against every ancestor. New reservations anywhere under an ancestor whose rollup passed its cap are denied (`ancestor_overrun`) and new carve-outs under it fail. Computed from current rows at admission; a settle that overruns concurrently with another admission is not serialized against it (overrun already means the provider exceeded the exposure bound, so this guard stops further spending rather than restoring an exact cap).
 - Heartbeat: `WorkflowStore.heartbeat` referenced an ambiguous `version` column, so every lease extension failed and the worker ignored the error; a task whose call outlasted one lease was redelivered and parked in reconciling. Fixed to `t.version`; covered by a test that holds a call for three lease lengths.
 - Health: `/api/health` derives `data_mode`, `live_enabled` and a `live` block from the configured adapters; `live_configured` means configured, not verified.
 - Preview origin (audit item 6, recorded rather than changed): browsers do not scope cookies by port, so the management session cookie is also sent to the preview port. Accepted because previews render only `textContent`, the cookie is HttpOnly, the preview server ignores it and the API rejects the preview origin. Serving generated web content on the preview origin requires a distinct host name first.
 - Rollback: revert the commit. Restored databases are ordinary databases.
+
+## ADR-0019 - T14 pilot rehearsal, proposal freeze gate and open research decisions
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's T14 request; branch claude/project-thread-ocgg8g from main e46b2cf. No live provider, participant, reviewer or adopted protocol.
+- Pilot: `pnpm pilot <dir>` runs one fictional decision task through arms A, B and C and one structured/open-ended pair through the existing T10 store, broker and worker in a new fixture workspace. AI arms use the fixture adapter (live dispatch disabled); B and C human entries are scripted and labelled `scripted_rehearsal`. Pilot tasks are listed as excluded from final tasks. Rejected: skipping the human arms entirely, which would leave their instrumentation unchecked.
+- Checks and classification are deterministic domain code (packages/domain/src/pilot.ts) over the real exports and contexts: metrics, intervention timing, source validation, contamination, reviewer blinding and export repeatability; each attempt is classed instrumentation or substantive and kept. A `reproducible_digest` excludes ids and timestamps.
+- Findings carried into the proposal: structured runs end `insufficient_evidence` on unverified packet snapshots (RD9), and workflow-finished assisted attempts leave human totals empty, so analysis sums intervention rows. Not changed in code: the first is correct behaviour; the second is an analysis rule.
+- Freeze: the API freezes only the server's `PROPOSED_PROTOCOL`, for the signed-in human workspace owner, when every one of 10 blocking decisions has a non-deferred answer recorded against the exact proposal hash. The manifest goes to the hash-chained audit log; no migration (avoids colliding with parallel T17 work). Rejected: a file-only freeze, which any process could write without an owner session.
+- Rollback: revert the commit; no schema change.
 
 ## ADR-0018 - Audit fixes: frozen and held-out QA cases, case-insensitive study ids, database CI
 

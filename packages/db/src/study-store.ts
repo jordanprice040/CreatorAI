@@ -11,6 +11,8 @@ import {
   z,
   text,
   id,
+  hash,
+  ContractError,
   type StudyInput,
   type StudyAssignment,
   type StudyAttempt,
@@ -21,6 +23,8 @@ import {
   studyManifest,
   studyContext,
   studyOrder,
+  freezeProtocol,
+  PROPOSED_PROTOCOL,
   SYNTHETIC_STUDY,
   STUDY_FIXTURE_PRICING,
 } from '@creator/domain';
@@ -1073,6 +1077,56 @@ export class StudyStore extends CatalogStore {
         primary: a.primary,
       });
       return this.attemptIn(c, a.id);
+    });
+  }
+
+  /**
+   * Freezes the server's proposed protocol (never a caller-supplied one) once the signed-in
+   * human owner has answered every blocking research decision against its exact hash. The
+   * freeze is a hash-chained audit event, so it cannot be edited later.
+   */
+  async freezeStudyProtocol(ctx: CommandContext, ws: string, raw: unknown) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const req = parse(
+      z.strictObject({
+        proposal_hash: hash,
+        decisions: z
+          .array(
+            z.strictObject({
+              id: z.string().max(40),
+              choice: text,
+              rationale: text,
+            }),
+          )
+          .max(20),
+      }),
+      raw,
+    );
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const result = freezeProtocol(PROPOSED_PROTOCOL, req);
+      if (result.status === 'blocked')
+        throw new ContractError(
+          'INVALID_TRANSITION',
+          `Protocol not frozen: ${result.reason}`,
+          result.blocking,
+        );
+      await c.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'study.protocol_frozen',
+        subjectKind: 'workspace',
+        subjectId: ws,
+        subjectVersion: null,
+        contentHash: result.freeze_hash,
+        payload: {
+          freeze_hash: result.freeze_hash,
+          proposal_hash: result.manifest.proposal_hash,
+          decisions: result.manifest.decisions,
+        },
+      });
+      return { ...result, frozen_by: ctx.actorId };
     });
   }
 }
