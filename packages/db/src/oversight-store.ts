@@ -437,7 +437,7 @@ export class OversightStore extends Store {
 
   // ---- Grants ---------------------------------------------------------------------------
 
-  private async insertGrant(
+  protected async insertGrant(
     c: PoolClient,
     ctx: CommandContext,
     ws: string,

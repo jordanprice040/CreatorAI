@@ -56,6 +56,15 @@ import {
 } from '@creator/domain';
 
 const USAGE = `Usage:
+  pnpm cli study-seed <workspace>
+  pnpm cli studies <workspace>
+  pnpm cli study <workspace> <study-id>
+  pnpm cli study-create <workspace> <manifest.json>
+  pnpm cli study-assign <workspace> <study-id> <assignment.json>
+  pnpm cli study-export <workspace> <study-id> <output.json>
+  pnpm cli study-execute <workspace> <attempt-id>
+  pnpm cli study-context <workspace> <attempt-id>
+  pnpm cli study-write <workspace> <attempt-id> <artifacts|tests|interventions|finish|deviations|helpers> <entry.json>
   pnpm cli health
   pnpm cli demo [outcome] [goal]
   pnpm cli workspaces
@@ -219,6 +228,62 @@ export async function runCli(
     const [command = 'health', ...rest] = args;
     let data: unknown;
     switch (command) {
+      case 'studies':
+        data = await call(z.unknown(), `${ws(rest[0])}/studies`);
+        break;
+      case 'study':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/studies/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'study-seed':
+        data = await call(z.unknown(), `${ws(rest[0])}/studies/seed`, {});
+        break;
+      case 'study-create':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/studies`,
+          JSON.parse(readFileSync(rest[1]!, 'utf8')),
+        );
+        break;
+      case 'study-assign':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/studies/${encodeURIComponent(rest[1] ?? '')}/assign`,
+          JSON.parse(readFileSync(rest[2]!, 'utf8')),
+        );
+        break;
+      case 'study-execute':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/study-attempts/${encodeURIComponent(rest[1] ?? '')}/execute`,
+          {},
+        );
+        break;
+      case 'study-context':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/study-attempts/${encodeURIComponent(rest[1] ?? '')}/context`,
+        );
+        break;
+      case 'study-write':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/study-attempts/${encodeURIComponent(rest[1] ?? '')}/${encodeURIComponent(rest[2] ?? '')}`,
+          JSON.parse(readFileSync(rest[3]!, 'utf8')),
+        );
+        break;
+      case 'study-export':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/studies/${encodeURIComponent(rest[1] ?? '')}/export`,
+        );
+        if (!rest[2]) throw new Error('Supply an export filename.');
+        writeFileSync(rest[2], JSON.stringify(data, null, 2) + '\n', {
+          flag: 'wx',
+        });
+        break;
       case 'health':
         data = await call(HealthSchema, 'health');
         break;

@@ -801,6 +801,15 @@ export class BudgetStore extends OversightStore {
         justification: req.justification,
       });
       // 1–2. Non-delegable state: a cancelled or human-only run is refused by admission itself.
+      // Broker search is not the conventional source browser; refuse all broker helpers.
+      if (
+        run.autonomy_mode === 'human_only' &&
+        req.action_type === 'tool.search_public'
+      )
+        return deny(
+          'human_only_broker_denied',
+          'Human-only work cannot use model-broker tools.',
+        );
       if (run.state !== 'active' || run.autonomy_mode === 'human_only') {
         const admission = await this.admitIn(
           c,
@@ -812,6 +821,74 @@ export class BudgetStore extends OversightStore {
         return deny(admission.reason_code, admission.explanation, {
           admission,
         });
+      }
+      // Study runs use only application-rendered, frozen contexts. LockRun above serializes caps.
+      const studyRows = await c.query(
+        `select a.id,a.assignment,a.created_at,s.manifest,e.kind,e.request
+        from study_attempts a join studies s on s.id=a.study_id
+        left join study_execution_requests e on e.attempt_id=a.id
+        where a.workspace_id=$1 and a.run_id=$2`,
+        [ws, runId],
+      );
+      const study = studyRows.rows[0];
+      if (study) {
+        const frozen = study.manifest;
+        const finished = await c.query(
+          "select 1 from study_events where attempt_id=$1 and kind='finished'",
+          [study.id],
+        );
+        if (
+          finished.rowCount ||
+          Date.now() >
+            new Date(study.created_at).getTime() +
+              frozen.packet.time_cap_seconds * 1000
+        )
+          return deny(
+            'study_stopped',
+            'The study attempt is terminal or past its frozen deadline.',
+          );
+        if (
+          !study.request ||
+          req.envelope_id !== study.request.envelope_id ||
+          req.pricing_snapshot_id !== study.request.pricing_snapshot_id ||
+          plan.model_id !== frozen.config.model_version ||
+          plan.provider !== 'fixture'
+        )
+          return deny(
+            'study_context_denied',
+            'Only the frozen study execution request is admitted.',
+          );
+        if (
+          study.kind === 'open_ended' &&
+          canonicalHash(req) !== canonicalHash(study.request)
+        )
+          return deny(
+            'study_context_denied',
+            'Baseline input cannot contain extra context or changed caps.',
+          );
+        if (study.kind === 'structured') {
+          const task = await c.query(
+            'select 1 from workflow_tasks t join workflows w on w.id=t.workflow_id where w.run_id=$1 and t.id=$2 and t.logical_operation_id=$3',
+            [runId, req.task_id, req.logical_operation_id],
+          );
+          if (
+            ctx.actorId !== '00000000-0000-4000-8000-000000000003' ||
+            !task.rowCount ||
+            req.action_type !== 'model.generate' ||
+            req.tool !== null ||
+            req.max_output_tokens > frozen.config.max_output_tokens
+          )
+            return deny(
+              'study_context_denied',
+              'Structured study calls must come from the bounded workflow worker.',
+            );
+        }
+        const counts = await c.query(
+          "select count(*)::int as n from budget_reservations where workspace_id=$1 and run_id=$2 and status<>'denied'",
+          [ws, runId],
+        );
+        if (Number(counts.rows[0].n) >= frozen.config.max_calls)
+          return deny('study_call_cap', 'Frozen study call cap reached.');
       }
       if (!plan.adapterAvailable)
         return deny(

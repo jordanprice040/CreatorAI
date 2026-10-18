@@ -1,0 +1,1731 @@
+{
+  "schema_version": "study-export/1",
+  "synthetic": true,
+  "empirical_results": false,
+  "study": {
+    "id": "bee28521-e07e-4fab-8792-528f35929b03",
+    "title": "Synthetic shared-checklist study",
+    "synthetic": true,
+    "status": "draft_not_frozen",
+    "manifest_hash": "ccbb386f5c2357a1fe40c04c9afacb49e0c599988bb8eb40f5d9b36b1ee6ee9c",
+    "created_at": "2026-10-18T10:08:25.799Z"
+  },
+  "manifest": {
+    "title": "Synthetic shared-checklist study",
+    "config": {
+      "max_calls": 7,
+      "max_retries": 0,
+      "tool_access": [],
+      "model_version": "fixture-model-v1",
+      "candidate_count": 3,
+      "pricing_version": "3f141843adc3e9e3eb9620612f099f71d13d1fdfcd47c3cd920e14925296c8cf",
+      "max_cost_nano_usd": "1000000000",
+      "max_output_tokens": 2000
+    },
+    "hashes": {
+      "config": "5454deb0096fbda6fa67d6868bb66a844b859cc3af0e6438b440f8ae034ebb6c",
+      "packet": "54a679a38debdd18d1075c08db1abf37ee101705dddf891a7641d8d3a333afa9",
+      "rubric": "f8ee41db1475d08ad378f42171aafc3a04111c17e5b3536664c4a0c0d057476e",
+      "prompts": "4c832480382701e9cbf3843335ae1b9bb260face4caf22cd2e77b0bbda9311bc",
+      "protocol": "7307574fc88d8fced5a86594eb42508f8ab85ab408f1fb3d1dfe53eb2e8137b2",
+      "tool_access": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "analysis_plan": "b15f52a8df756a0d5e235657e9544d8340c2f22ba77926d6674b896ad78f9a0c",
+      "model_version": "9b170da5a23ef53ee01f0f39f0ea284f9718490c1dbc6c11bcbf5a230bc00596",
+      "pricing_version": "5eccc69b8f22ab7d2f7f0758a5d8882241e2da2c24f93f57b5f64e4ed407debd",
+      "stop_retry_rules": "361eba9c8bbc40e67b9704c3c072b9c666c4189919ab98c0671750e495040b23",
+      "intervention_policy": "7b392944b50829c5f1dab419323632e5c472d783dffb1bce16b3d5b7edcfad65",
+      "missing_data_policy": "4be237e39a13b1943d3564f12b5891d02536b3246bab72e833f78fdc8cbeb782"
+    },
+    "packet": {
+      "outcome": "Recommend a response and a validation plan.",
+      "problem": "A fictional team misses handoffs.",
+      "stratum": "decision",
+      "version": "checklist/1",
+      "structured_brief": {
+        "theme": "Fictional team handoffs",
+        "fields": [
+          "coordination",
+          "information design"
+        ],
+        "context": null,
+        "nae_seed": null,
+        "time_limit": "One hour",
+        "constraints": [
+          "Synthetic task; no empirical conclusions."
+        ],
+        "budget_limit": "Synthetic fixture budget only",
+        "target_users": "Fictional volunteers",
+        "data_and_tools": [
+          "Shared document"
+        ],
+        "outcome_measure": "Recommend a response and a validation plan.",
+        "measurable_problem": "A fictional team misses handoffs."
+      },
+      "time_cap_seconds": 3600,
+      "initial_resources": [
+        {
+          "locator": "fixture://team",
+          "snapshot": "Synthetic team already has a shared document."
+        }
+      ]
+    },
+    "rubric": {
+      "text": "Evidence, usefulness, feasibility and appropriateness.",
+      "version": "draft/1"
+    },
+    "status": "draft_not_frozen",
+    "protocol": {
+      "text": "Synthetic plumbing only. All assigned attempts remain in accounting; no empirical inference.",
+      "version": "draft/1"
+    },
+    "synthetic": true,
+    "analysis_plan": {
+      "text": "Count every assigned run. No synthetic performance claims.",
+      "version": "draft/1"
+    },
+    "schema_version": "study/1",
+    "assignment_seed": "synthetic-seed-1",
+    "primary_outcomes": [
+      "Decision quality (not rated in fixtures)"
+    ],
+    "stop_retry_rules": {
+      "text": "No retries; stop at deadline or need for human judgment.",
+      "version": "draft/1"
+    },
+    "intervention_policy": {
+      "text": "A stops when human judgment is needed; B records assistance; C uses no AI.",
+      "version": "draft/1"
+    },
+    "missing_data_policy": {
+      "text": "Keep incomplete and missing runs visible.",
+      "version": "draft/1"
+    },
+    "review_and_consent_status": "unresolved_before_recruitment"
+  },
+  "attempts": [
+    {
+      "id": "05280c1b-33d1-41a1-ab6a-9c30e861c375",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+      "run_id": "02c877bd-53d7-4f41-b23a-8259f5c1f681",
+      "synthetic": true,
+      "condition": "human_in_loop",
+      "comparison": "autonomy",
+      "manifest_hash": "ccbb386f5c2357a1fe40c04c9afacb49e0c599988bb8eb40f5d9b36b1ee6ee9c",
+      "continuation_of": null,
+      "discovery_method": "structured",
+      "participant_code": "synthetic-owner",
+      "prior_familiarity": "Synthetic plumbing exercise, same operator; not independent participants.",
+      "participant_actor_id": "00000000-0000-4000-8000-000000000001",
+      "order": 1,
+      "primary": true,
+      "context_hash": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+      "state": "failed",
+      "created_at": "2026-10-18T10:08:25.818Z",
+      "finished_at": "2026-10-18T10:08:27.749Z",
+      "context_manifest": {
+        "sha256": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+        "packet_hash": "54a679a38debdd18d1075c08db1abf37ee101705dddf891a7641d8d3a333afa9",
+        "content_redacted": true
+      },
+      "execution": [
+        {
+          "kind": "structured",
+          "request_hash": "d4693e2cbe7fbbe9244fb40e2d6ee4db81832bcbf2310c15cd7c7d3009205a3a"
+        }
+      ],
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0.022,
+        "human_active_minutes": null,
+        "human_wait_seconds": null,
+        "intervention_active_minutes": 2,
+        "intervention_wait_seconds": 3,
+        "wall_seconds": 1.93,
+        "known_simulated_spend_nano_usd": "24660000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 1,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      },
+      "reservations": [
+        {
+          "id": "07ba7fa2-c119-445f-b28a-dda9b4281ea9",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "fixture": true,
+          "envelope_id": "da368791-2074-4c68-a07d-87d4e858d646",
+          "run_id": "02c877bd-53d7-4f41-b23a-8259f5c1f681",
+          "task_id": "51a2bd03-31ae-4e13-b69f-88dc21b08c30",
+          "logical_operation_id": "22a9988b-9e85-4581-8873-d6200f2e3749",
+          "attempt": 1,
+          "request_hash": "179845a1d2c1b7c2b61e98617760fbe4914f896dd10750816b3ae57690ecce23",
+          "action_type": "model.generate",
+          "provider": "fixture",
+          "model_id": "fixture-model-v1",
+          "pricing_snapshot_id": "9c95b0e0-7ab5-49f4-95fc-17dc3a4a8cce",
+          "admission_id": "5e799941-824d-4cfa-a39c-d100765f3dc0",
+          "decision_id": null,
+          "status": "settled",
+          "reason_code": "settled",
+          "explanation": "Charged 24660000 of 159287500 reserved.",
+          "reserved_nano": "159287500",
+          "exposure": {
+            "amount": "159287500",
+            "method": "utf8_bytes_upper_bound/1",
+            "long_context": false,
+            "max_tool_calls": {},
+            "max_input_tokens": 4743,
+            "max_output_tokens": 2000
+          },
+          "incurred_nano": "24660000",
+          "provider_response_id": "fixture-00655b2f5dc8",
+          "result": {
+            "output": {
+              "json": {
+                "gaps": [
+                  "Evidence for the problem is insufficient; no current passage supports it.",
+                  "No claim in the packet addresses who is affected.",
+                  "No claim in the packet addresses urgency or frequency.",
+                  "No claim in the packet addresses current workarounds.",
+                  "No claim in the packet addresses existing tools.",
+                  "No claim in the packet addresses a gap in existing tools.",
+                  "No claim in the packet addresses data availability.",
+                  "No claim in the packet addresses a transferable mechanism."
+                ],
+                "fixture": true,
+                "urgency": {
+                  "severity": "unknown",
+                  "frequency": "Not evidenced in the packet.",
+                  "claim_refs": []
+                },
+                "cross_field": null,
+                "workarounds": [],
+                "alternatives": [],
+                "affected_users": "Fictional volunteers",
+                "evidence_strength": "insufficient",
+                "problem_statement": "A fictional team misses handoffs. The packet has no current passage supporting this problem.",
+                "observable_problem": "Recommend a response and a validation plan.",
+                "software_hypothesis": null,
+                "cross_field_absent_reason": "No claim in the packet describes a mechanism that transfers between the two fields."
+              },
+              "text": "{\"fixture\":true,\"problem_statement\":\"A fictional team misses handoffs. The packet has no current passage supporting this problem.\",\"affected_users\":\"Fictional volunteers\",\"observable_problem\":\"Recommend a response and a validation plan.\",\"urgency\":{\"frequency\":\"Not evidenced in the packet.\",\"severity\":\"unknown\",\"claim_refs\":[]},\"workarounds\":[],\"alternatives\":[],\"software_hypothesis\":null,\"cross_field\":null,\"cross_field_absent_reason\":\"No claim in the packet describes a mechanism that transfers between the two fields.\",\"evidence_strength\":\"insufficient\",\"gaps\":[\"Evidence for the problem is insufficient; no current passage supports it.\",\"No claim in the packet addresses who is affected.\",\"No claim in the packet addresses urgency or frequency.\",\"No claim in the packet addresses current workarounds.\",\"No claim in the packet addresses existing tools.\",\"No claim in the packet addresses a gap in existing tools.\",\"No claim in the packet addresses data availability.\",\"No claim in the packet addresses a transferable mechanism.\"]}",
+              "vector": null
+            },
+            "status": "succeeded",
+            "reason_code": "succeeded"
+          },
+          "deadline_at": "2026-10-18T10:18:57.691Z",
+          "created_by": "00000000-0000-4000-8000-000000000003",
+          "created_at": "2026-10-18T10:08:27.691Z",
+          "finished_at": "2026-10-18T10:08:27.713Z"
+        }
+      ],
+      "usage": [
+        {
+          "id": "a8136250-0bd1-49f6-a46f-ac6e368c7d91",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "reservation_id": "07ba7fa2-c119-445f-b28a-dda9b4281ea9",
+          "source": "fixture",
+          "provider_response_id": "fixture-00655b2f5dc8",
+          "usage": {
+            "tool_calls": {},
+            "output_tokens": 259,
+            "reasoning_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "uncached_input_tokens": 1171
+          },
+          "amount_nano": "24660000",
+          "pricing_snapshot_id": "9c95b0e0-7ab5-49f4-95fc-17dc3a4a8cce",
+          "evidence": null,
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "created_at": "2026-10-18T10:08:27.713Z"
+        }
+      ],
+      "audit_events": [
+        {
+          "sequence": "67",
+          "id": "553b42f4-a1ba-4301-852b-36caea608487",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:25.811Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "run",
+          "subject_id": "02c877bd-53d7-4f41-b23a-8259f5c1f681",
+          "subject_version": 1,
+          "content_hash": "a6b58abff1265ad6202e907060d70cd396ad942de30997c22d50ec8070206395",
+          "correlation_id": "ef8057fb-5339-4244-899d-b8741b296b14",
+          "causation_id": null,
+          "payload": {
+            "kind": "run",
+            "related_ids": []
+          },
+          "previous_hash": "5193b690519928c8ea461f631bd25b62a7b5a8d1f76b4042adc8943177e2352a",
+          "event_hash": "72d3d79bbe4e56d295ddb3c6952c5d82fc583d3fe60eff5ea428aabf051b7479"
+        },
+        {
+          "sequence": "68",
+          "id": "a63100de-c469-4d9f-8b8d-bc93fd35850f",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:25.815Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "grant.created",
+          "subject_kind": "grant",
+          "subject_id": "4535dc69-3344-4f7e-9199-ba32cb80152f",
+          "subject_version": 1,
+          "content_hash": "696bbc3a95760219cc59c891719761e54604bbe18b77321226c257f970cf802c",
+          "correlation_id": "43361e40-3094-44f4-b2d3-49191fd5a31c",
+          "causation_id": null,
+          "payload": {
+            "scope": "standing",
+            "status": "active",
+            "related_ids": []
+          },
+          "previous_hash": "72d3d79bbe4e56d295ddb3c6952c5d82fc583d3fe60eff5ea428aabf051b7479",
+          "event_hash": "af170c15c60f303dfa239e9f15f53c97f46ae01cd56bfb55e732fd8f1147933f"
+        },
+        {
+          "sequence": "80",
+          "id": "8e5f0f62-68c9-4313-8b7b-e9d1487cb25b",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.863Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "pricing.recorded",
+          "subject_kind": "pricing",
+          "subject_id": "9c95b0e0-7ab5-49f4-95fc-17dc3a4a8cce",
+          "subject_version": null,
+          "content_hash": "3f141843adc3e9e3eb9620612f099f71d13d1fdfcd47c3cd920e14925296c8cf",
+          "correlation_id": "f2d09aa8-28e0-474d-bc13-617411f2effb",
+          "causation_id": null,
+          "payload": {
+            "basis": "fixture",
+            "model_id": "fixture-model-v1",
+            "provider": "fixture",
+            "related_ids": []
+          },
+          "previous_hash": "a4597e3a167919d07bbd162f264903180f97519d28b500c83cb455348ccd2ca7",
+          "event_hash": "c7cb9c4d9f7f5ce5c139743cdf0cca8963d8d6bb32546ad5fb1ece86b4aa9f98"
+        },
+        {
+          "sequence": "81",
+          "id": "71fd8ef4-1573-46da-8524-7863f403e0f1",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.868Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "budget.funded",
+          "subject_kind": "envelope",
+          "subject_id": "da368791-2074-4c68-a07d-87d4e858d646",
+          "subject_version": 1,
+          "content_hash": null,
+          "correlation_id": "c97e84f2-e349-44fe-a342-cece6bb4394b",
+          "causation_id": null,
+          "payload": {
+            "kind": "global",
+            "fixture": true,
+            "cap_nano": "1000000000",
+            "related_ids": []
+          },
+          "previous_hash": "c7cb9c4d9f7f5ce5c139743cdf0cca8963d8d6bb32546ad5fb1ece86b4aa9f98",
+          "event_hash": "6afa361f717d45e4384c2550d525cbbd3800428340e5c2c36fe214838d38863d"
+        },
+        {
+          "sequence": "82",
+          "id": "4e4691e7-9faf-4680-b2ec-09104d091d1c",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.876Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "search_brief",
+          "subject_id": "a4f50e41-f87d-4905-804d-66a28b57ca84",
+          "subject_version": 1,
+          "content_hash": "2781eebd312010d6536d35ab0eb6f64de3846caf08b5e74f64bba00bf9b1f847",
+          "correlation_id": "98126867-2696-498e-82ae-8fabbdf1f6d4",
+          "causation_id": null,
+          "payload": {
+            "kind": "search_brief",
+            "related_ids": []
+          },
+          "previous_hash": "6afa361f717d45e4384c2550d525cbbd3800428340e5c2c36fe214838d38863d",
+          "event_hash": "a15fc9077bea94739b1912546fb433e2078c37f6f4a13430d68689a74d95b22e"
+        },
+        {
+          "sequence": "83",
+          "id": "08eaae41-4e7f-44ce-ba5f-4e04ce150f72",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.881Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "claim",
+          "subject_id": "c55b2f30-dd4c-4414-bdf5-ad4148ef31a3",
+          "subject_version": 1,
+          "content_hash": "7b7f21a3b9f84098805884abd1a4029aef0a946e7fd34398308d4c3eecea8468",
+          "correlation_id": "5537232b-237b-413d-8b22-4c87c93aa4a7",
+          "causation_id": null,
+          "payload": {
+            "kind": "claim",
+            "related_ids": []
+          },
+          "previous_hash": "a15fc9077bea94739b1912546fb433e2078c37f6f4a13430d68689a74d95b22e",
+          "event_hash": "12ac7a052623af7f6f059b0601225e646c95b8a5fe56a376c7591480559ded79"
+        },
+        {
+          "sequence": "85",
+          "id": "8530f2d7-76a9-4301-aac7-da4e8d450f45",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.908Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "member.added",
+          "subject_kind": "actor",
+          "subject_id": "00000000-0000-4000-8000-000000000003",
+          "subject_version": null,
+          "content_hash": null,
+          "correlation_id": "1ccb0219-8dad-45e2-813e-228a4f5a8d84",
+          "causation_id": null,
+          "payload": {
+            "role": "editor",
+            "related_ids": []
+          },
+          "previous_hash": "296711ddab19dabcb3473258187237b876946f724c9af9f908bf6441a498f9d7",
+          "event_hash": "fe09b2e7c17b3e1333838a1b0648c913271c42fec27ddda887a3b88745704073"
+        },
+        {
+          "sequence": "86",
+          "id": "f8c9f795-d33c-469b-9640-66e1079d2cf4",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.910Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "workflow.started",
+          "subject_kind": "workflow",
+          "subject_id": "49df9746-d6d2-4ead-a31c-f384a59bfc7f",
+          "subject_version": 1,
+          "content_hash": "8410fc6e1ada43bd4a9b11ea9942e56a94ce8de7d3f17161729413209e10946d",
+          "correlation_id": "0436e76b-9449-4147-a0f2-719698deda79",
+          "causation_id": null,
+          "payload": {
+            "role": "r02_discovery",
+            "claims": 1,
+            "limits": {
+              "max_calls": 7,
+              "max_depth": 1,
+              "max_repairs": 0,
+              "max_attempts": 1,
+              "max_children": 3,
+              "call_timeout_ms": 30000,
+              "max_concurrency": 1,
+              "max_wall_seconds": 3600,
+              "max_output_tokens": 2000
+            },
+            "catalog": 0,
+            "packet_hash": "31ab33b9b249e1703d5542e532910abb53c7336e4eddbf2fc86d41e317361d68",
+            "prompt_hash": "2d52acb883206732e902bd4ef52536391b2fe3a84ae2cd8715dadeb7e7af1275",
+            "related_ids": [
+              "02c877bd-53d7-4f41-b23a-8259f5c1f681",
+              "a4f50e41-f87d-4905-804d-66a28b57ca84"
+            ],
+            "sufficiency": "insufficient",
+            "perspectives": 3,
+            "role_version": "r02-discovery/1.0"
+          },
+          "previous_hash": "fe09b2e7c17b3e1333838a1b0648c913271c42fec27ddda887a3b88745704073",
+          "event_hash": "b1f4d11db4b1605060e2ed3ea8e0fa8d69182d0d4f988ef603b3d02942ab5db6"
+        },
+        {
+          "sequence": "87",
+          "id": "e65640db-4df9-4bd7-ba2e-aa435a222db3",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.913Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "workflow.delegated",
+          "subject_kind": "workflow_task",
+          "subject_id": "51a2bd03-31ae-4e13-b69f-88dc21b08c30",
+          "subject_version": 1,
+          "content_hash": "59f564ba6554f953ded6150383fb8544f1aba4d21c39b8b665e661b57847ddcb",
+          "correlation_id": "18864964-d348-48c4-849c-9f53cb79b99e",
+          "causation_id": null,
+          "payload": {
+            "kind": "locate",
+            "round": 0,
+            "repair": 0,
+            "ordinal": 0,
+            "related_ids": [
+              "49df9746-d6d2-4ead-a31c-f384a59bfc7f"
+            ]
+          },
+          "previous_hash": "b1f4d11db4b1605060e2ed3ea8e0fa8d69182d0d4f988ef603b3d02942ab5db6",
+          "event_hash": "18353da8b9d55e915495385c8aec40598804f690e8fdc9dfb541d523ba96c658"
+        },
+        {
+          "sequence": "88",
+          "id": "13af9198-6e1d-4352-9e8c-b8d7477cc860",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:26.920Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "workflow.state",
+          "subject_kind": "workflow",
+          "subject_id": "49df9746-d6d2-4ead-a31c-f384a59bfc7f",
+          "subject_version": 2,
+          "content_hash": null,
+          "correlation_id": "88039e02-6c32-440c-9e14-cf2c32f2dfd2",
+          "causation_id": null,
+          "payload": {
+            "state": "running",
+            "reason": "running",
+            "related_ids": [
+              "02c877bd-53d7-4f41-b23a-8259f5c1f681"
+            ]
+          },
+          "previous_hash": "18353da8b9d55e915495385c8aec40598804f690e8fdc9dfb541d523ba96c658",
+          "event_hash": "595e9688c786203a1d692225823961f60b9defa0925ef4215e0fe94933a8c869"
+        },
+        {
+          "sequence": "91",
+          "id": "a072485b-c460-4b45-a8fb-47c2eaa645f5",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.681Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "task.leased",
+          "subject_kind": "workflow_task",
+          "subject_id": "51a2bd03-31ae-4e13-b69f-88dc21b08c30",
+          "subject_version": 2,
+          "content_hash": "59f564ba6554f953ded6150383fb8544f1aba4d21c39b8b665e661b57847ddcb",
+          "correlation_id": "2707b184-585b-4bfa-96cc-98632f17afe6",
+          "causation_id": null,
+          "payload": {
+            "worker": "worker-7c84bc67",
+            "delivery": 1,
+            "lease_token": "2",
+            "related_ids": [
+              "49df9746-d6d2-4ead-a31c-f384a59bfc7f"
+            ]
+          },
+          "previous_hash": "ca7d63d20c10a5a645530ec196f65f271c2017b4d7fce2caba3776889b357d1d",
+          "event_hash": "34222e9dcfc7850fc2189a0b10344799daa1db6ea728dd88373588b497bfdeac"
+        },
+        {
+          "sequence": "92",
+          "id": "66b11ee1-11aa-42c9-bfd6-32de4ea3d090",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.704Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "action.evaluated",
+          "subject_kind": "admission",
+          "subject_id": "5e799941-824d-4cfa-a39c-d100765f3dc0",
+          "subject_version": null,
+          "content_hash": "296fc9c5f59a80175a3d43c45b78647ea0416e8b9704f42bfa68574d94ea23f7",
+          "correlation_id": "d79eac43-b0cd-4178-b6ae-f3c2bafeb53a",
+          "causation_id": null,
+          "payload": {
+            "verdict": "allow",
+            "action_type": "model.generate",
+            "reason_code": "covered",
+            "related_ids": [
+              "02c877bd-53d7-4f41-b23a-8259f5c1f681"
+            ],
+            "policy_version": "oversight/1.0"
+          },
+          "previous_hash": "34222e9dcfc7850fc2189a0b10344799daa1db6ea728dd88373588b497bfdeac",
+          "event_hash": "de0a5bbfa924186d57b383ee837e04ce6cbf0879ea18f6e28a4d40e9e5a9f24e"
+        },
+        {
+          "sequence": "93",
+          "id": "8772008f-cac7-4a8f-8ba2-432b84c3ffd5",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.708Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "budget.reserved",
+          "subject_kind": "reservation",
+          "subject_id": "07ba7fa2-c119-445f-b28a-dda9b4281ea9",
+          "subject_version": null,
+          "content_hash": "179845a1d2c1b7c2b61e98617760fbe4914f896dd10750816b3ae57690ecce23",
+          "correlation_id": "bb91d19d-c9b4-4d4c-8bc3-59e68dfada4d",
+          "causation_id": null,
+          "payload": {
+            "attempt": 1,
+            "provider": "fixture",
+            "action_type": "model.generate",
+            "reason_code": "reserved",
+            "related_ids": [
+              "da368791-2074-4c68-a07d-87d4e858d646",
+              "02c877bd-53d7-4f41-b23a-8259f5c1f681",
+              "22a9988b-9e85-4581-8873-d6200f2e3749",
+              "5e799941-824d-4cfa-a39c-d100765f3dc0"
+            ],
+            "reserved_nano": "159287500",
+            "policy_version": "budget/1.0"
+          },
+          "previous_hash": "de0a5bbfa924186d57b383ee837e04ce6cbf0879ea18f6e28a4d40e9e5a9f24e",
+          "event_hash": "e19f3ffb56a1841a36f2456e42a4b8e3c0c861df8863bdad665aec0de0cbf724"
+        },
+        {
+          "sequence": "94",
+          "id": "403e3ce1-5e8f-4e36-99c0-be2bd9740eb5",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.720Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "budget.settled",
+          "subject_kind": "reservation",
+          "subject_id": "07ba7fa2-c119-445f-b28a-dda9b4281ea9",
+          "subject_version": null,
+          "content_hash": null,
+          "correlation_id": "2decfd45-e2dd-4556-8deb-417cc267babe",
+          "causation_id": null,
+          "payload": {
+            "from": "in_flight",
+            "reason_code": "settled",
+            "related_ids": [
+              "da368791-2074-4c68-a07d-87d4e858d646",
+              "02c877bd-53d7-4f41-b23a-8259f5c1f681"
+            ],
+            "incurred_nano": "24660000",
+            "reserved_nano": "159287500"
+          },
+          "previous_hash": "e19f3ffb56a1841a36f2456e42a4b8e3c0c861df8863bdad665aec0de0cbf724",
+          "event_hash": "6c2de79dfe3c0a93e6dd3c4804c36ea060e1044b3cc307af8f683d2a8f93f1ca"
+        },
+        {
+          "sequence": "96",
+          "id": "38c19e53-2ac4-486d-827f-a0af9236702d",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.734Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "task.completed",
+          "subject_kind": "workflow_task",
+          "subject_id": "51a2bd03-31ae-4e13-b69f-88dc21b08c30",
+          "subject_version": 3,
+          "content_hash": null,
+          "correlation_id": "57e5d674-beb9-4bc7-b84a-82d343dc5ce0",
+          "causation_id": null,
+          "payload": {
+            "state": "succeeded",
+            "reason": "succeeded",
+            "related_ids": [
+              "49df9746-d6d2-4ead-a31c-f384a59bfc7f"
+            ]
+          },
+          "previous_hash": "1d30dd79060d34a0eb3cd712dc183d9574fcdea1a5ae5d7fe41d810b5a5fb289",
+          "event_hash": "950b561c88ba371700934d0d24458cbbe08f131e7a91d3f4b2b769d26be62a49"
+        },
+        {
+          "sequence": "97",
+          "id": "e865a5d2-f2db-4537-aa5a-8b217ace0b0f",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.740Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "entity.created",
+          "subject_kind": "problem",
+          "subject_id": "4334e0d1-aa34-44d3-9ed2-b799731fd114",
+          "subject_version": 1,
+          "content_hash": "2b58beb5b4e31c458b253cc99e8bcfe006ab7c0493d943ee2fa6a21bed61b965",
+          "correlation_id": "fa846ffa-3c01-4d6c-a225-b5c80f1056d9",
+          "causation_id": null,
+          "payload": {
+            "kind": "problem",
+            "related_ids": []
+          },
+          "previous_hash": "950b561c88ba371700934d0d24458cbbe08f131e7a91d3f4b2b769d26be62a49",
+          "event_hash": "383d53c72904a438dbe3bc543689487ceb3a3246759fe1f919ed42447d02faee"
+        },
+        {
+          "sequence": "98",
+          "id": "866b5b6b-1dd9-46eb-9bd5-c18bd6931639",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.745Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "link.created",
+          "subject_kind": "link",
+          "subject_id": "b0e0742d-1c27-49ff-993a-624d71e7d4d2",
+          "subject_version": null,
+          "content_hash": null,
+          "correlation_id": "6a1679ae-c6e0-4531-a1c1-8074fe6c9d19",
+          "causation_id": null,
+          "payload": {
+            "to_kind": "search_brief",
+            "relation": "derived_from",
+            "from_kind": "problem",
+            "to_version": 1,
+            "related_ids": [
+              "4334e0d1-aa34-44d3-9ed2-b799731fd114",
+              "a4f50e41-f87d-4905-804d-66a28b57ca84"
+            ],
+            "from_version": 1
+          },
+          "previous_hash": "383d53c72904a438dbe3bc543689487ceb3a3246759fe1f919ed42447d02faee",
+          "event_hash": "e3639a27968d478a4de25efdea25a35cb822078271a74c12177e57b4da660e8e"
+        },
+        {
+          "sequence": "99",
+          "id": "7182d1d0-fb17-4583-80d7-3ab9263fcbae",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "occurred_at": "2026-10-18T10:08:27.747Z",
+          "actor_id": "00000000-0000-4000-8000-000000000003",
+          "action": "workflow.finished",
+          "subject_kind": "workflow",
+          "subject_id": "49df9746-d6d2-4ead-a31c-f384a59bfc7f",
+          "subject_version": 3,
+          "content_hash": "9731ca99bf36e353fab9d035bdcd8dfbf1b3fcb3351c155b56f1be6d66302cdb",
+          "correlation_id": "8f485314-d72b-458b-8725-809e72fe0abf",
+          "causation_id": null,
+          "payload": {
+            "state": "succeeded",
+            "outcome": "insufficient_evidence",
+            "related_ids": [
+              "02c877bd-53d7-4f41-b23a-8259f5c1f681"
+            ]
+          },
+          "previous_hash": "e3639a27968d478a4de25efdea25a35cb822078271a74c12177e57b4da660e8e",
+          "event_hash": "259fa3b121c6506b253ba60e872034cbee76717cc6c494bc4b9f78cade367a93"
+        }
+      ],
+      "decisions": [],
+      "workflows": [
+        {
+          "id": "49df9746-d6d2-4ead-a31c-f384a59bfc7f",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "fixture": true,
+          "run_id": "02c877bd-53d7-4f41-b23a-8259f5c1f681",
+          "version": 3,
+          "role": "r02_discovery",
+          "role_version": "r02-discovery/1.0",
+          "prompt_hash": "2d52acb883206732e902bd4ef52536391b2fe3a84ae2cd8715dadeb7e7af1275",
+          "policy_version": "orchestration/1.0",
+          "subject_id": "a4f50e41-f87d-4905-804d-66a28b57ca84",
+          "subject_version": 1,
+          "context_hash": "8410fc6e1ada43bd4a9b11ea9942e56a94ce8de7d3f17161729413209e10946d",
+          "limits": {
+            "max_calls": 7,
+            "max_depth": 1,
+            "max_repairs": 0,
+            "max_attempts": 1,
+            "max_children": 3,
+            "call_timeout_ms": 30000,
+            "max_concurrency": 1,
+            "max_wall_seconds": 3600,
+            "max_output_tokens": 2000
+          },
+          "envelope_id": "da368791-2074-4c68-a07d-87d4e858d646",
+          "pricing_snapshot_id": "9c95b0e0-7ab5-49f4-95fc-17dc3a4a8cce",
+          "data_class": "synthetic",
+          "state": "succeeded",
+          "reason": "insufficient_evidence",
+          "control": "run",
+          "steps": 2,
+          "deadline_at": "2026-10-18T11:08:26.902Z",
+          "result": {
+            "fixture": true,
+            "outcome": "insufficient_evidence",
+            "critiques": [],
+            "discovery": {
+              "locator": {
+                "task_id": "51a2bd03-31ae-4e13-b69f-88dc21b08c30",
+                "output_hash": "473db6ea41c759ee7e3383d4eef6df4d0038c8092ef601efaa22b1da517f2bc4",
+                "mechanism_support": "none"
+              },
+              "outcome": "insufficient_evidence",
+              "excluded": [
+                {
+                  "reason": "Outside the frozen candidate count.",
+                  "perspective": "human_led"
+                },
+                {
+                  "reason": "Outside the frozen candidate count.",
+                  "perspective": "hybrid"
+                }
+              ],
+              "proposals": [
+                {
+                  "title": null,
+                  "dissent": [],
+                  "reasons": [
+                    "Not proposed: the packet has no current support for the problem."
+                  ],
+                  "task_id": null,
+                  "verdict": null,
+                  "proposal": "P1",
+                  "revisions": 0,
+                  "disposition": "insufficient_evidence",
+                  "output_hash": null,
+                  "perspective": "software",
+                  "duplicate_of": null,
+                  "recommendation": null
+                },
+                {
+                  "title": null,
+                  "dissent": [],
+                  "reasons": [
+                    "Not proposed: the packet has no current support for the problem."
+                  ],
+                  "task_id": null,
+                  "verdict": null,
+                  "proposal": "P2",
+                  "revisions": 0,
+                  "disposition": "insufficient_evidence",
+                  "output_hash": null,
+                  "perspective": "existing_tool",
+                  "duplicate_of": null,
+                  "recommendation": null
+                },
+                {
+                  "title": null,
+                  "dissent": [],
+                  "reasons": [
+                    "Not proposed: the packet has no current support for the problem."
+                  ],
+                  "task_id": null,
+                  "verdict": null,
+                  "proposal": "P3",
+                  "revisions": 0,
+                  "disposition": "insufficient_evidence",
+                  "output_hash": null,
+                  "perspective": "process_change",
+                  "duplicate_of": null,
+                  "recommendation": null
+                }
+              ],
+              "packet_hash": "31ab33b9b249e1703d5542e532910abb53c7336e4eddbf2fc86d41e317361d68",
+              "sufficiency": {
+                "by_role": {
+                  "problem": "insufficient"
+                },
+                "reasons": [
+                  "Evidence for the problem is insufficient; no current passage supports it.",
+                  "No claim in the packet addresses who is affected.",
+                  "No claim in the packet addresses urgency or frequency.",
+                  "No claim in the packet addresses current workarounds.",
+                  "No claim in the packet addresses existing tools.",
+                  "No claim in the packet addresses a gap in existing tools.",
+                  "No claim in the packet addresses data availability.",
+                  "No claim in the packet addresses a transferable mechanism."
+                ],
+                "verdict": "insufficient"
+              },
+              "independence": {
+                "problems": [],
+                "verified": false,
+                "packet_hash": "31ab33b9b249e1703d5542e532910abb53c7336e4eddbf2fc86d41e317361d68",
+                "shared_inputs": [],
+                "proposal_contexts": []
+              },
+              "skeptic_passes": 0,
+              "catalog_records": {
+                "problem": {
+                  "id": "4334e0d1-aa34-44d3-9ed2-b799731fd114",
+                  "version": 1
+                },
+                "alternatives": []
+              },
+              "revision_rounds": 0
+            },
+            "synthesis": null,
+            "explanation": "The evidence packet has no current support for the problem, so no responses were proposed. The locator brief is kept."
+          },
+          "created_by": "00000000-0000-4000-8000-000000000001",
+          "created_at": "2026-10-18T10:08:26.902Z",
+          "updated_at": "2026-10-18T10:08:27.726Z",
+          "finished_at": "2026-10-18T10:08:27.726Z",
+          "context_manifest": {
+            "sha256": "8410fc6e1ada43bd4a9b11ea9942e56a94ce8de7d3f17161729413209e10946d",
+            "content_redacted": true
+          }
+        }
+      ],
+      "task_manifests": [
+        {
+          "id": "51a2bd03-31ae-4e13-b69f-88dc21b08c30",
+          "workspace_id": "27fb579b-a99a-4833-8974-c5c0089bb611",
+          "workflow_id": "49df9746-d6d2-4ead-a31c-f384a59bfc7f",
+          "kind": "locate",
+          "ordinal": 0,
+          "repair": 0,
+          "repair_of": null,
+          "depth": 1,
+          "logical_operation_id": "22a9988b-9e85-4581-8873-d6200f2e3749",
+          "state": "succeeded",
+          "reason": "succeeded",
+          "version": 3,
+          "deliveries": 1,
+          "lease_owner": null,
+          "lease_token": "2",
+          "lease_expires_at": null,
+          "decision_id": null,
+          "context_hash": "59f564ba6554f953ded6150383fb8544f1aba4d21c39b8b665e661b57847ddcb",
+          "output": {
+            "gaps": [
+              "Evidence for the problem is insufficient; no current passage supports it.",
+              "No claim in the packet addresses who is affected.",
+              "No claim in the packet addresses urgency or frequency.",
+              "No claim in the packet addresses current workarounds.",
+              "No claim in the packet addresses existing tools.",
+              "No claim in the packet addresses a gap in existing tools.",
+              "No claim in the packet addresses data availability.",
+              "No claim in the packet addresses a transferable mechanism."
+            ],
+            "fixture": true,
+            "urgency": {
+              "severity": "unknown",
+              "frequency": "Not evidenced in the packet.",
+              "claim_refs": []
+            },
+            "cross_field": null,
+            "workarounds": [],
+            "alternatives": [],
+            "affected_users": "Fictional volunteers",
+            "evidence_strength": "insufficient",
+            "problem_statement": "A fictional team misses handoffs. The packet has no current passage supporting this problem.",
+            "observable_problem": "Recommend a response and a validation plan.",
+            "software_hypothesis": null,
+            "cross_field_absent_reason": "No claim in the packet describes a mechanism that transfers between the two fields."
+          },
+          "output_hash": "473db6ea41c759ee7e3383d4eef6df4d0038c8092ef601efaa22b1da517f2bc4",
+          "created_at": "2026-10-18T10:08:26.902Z",
+          "updated_at": "2026-10-18T10:08:27.726Z",
+          "finished_at": "2026-10-18T10:08:27.726Z",
+          "round": 0,
+          "context_manifest": {
+            "sha256": "59f564ba6554f953ded6150383fb8544f1aba4d21c39b8b665e661b57847ddcb",
+            "content_redacted": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "72c9e957-d085-4ce8-9bc7-17ae4e033aff",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "workspace_id": "6d05b8ac-baaf-40a5-af19-35831fb310ff",
+      "run_id": "104b36cb-d4fa-4a5c-88ca-051b45d0f70a",
+      "synthetic": true,
+      "condition": "autonomous",
+      "comparison": "autonomy",
+      "manifest_hash": "ccbb386f5c2357a1fe40c04c9afacb49e0c599988bb8eb40f5d9b36b1ee6ee9c",
+      "continuation_of": null,
+      "discovery_method": "structured",
+      "participant_code": "synthetic-owner",
+      "prior_familiarity": "Synthetic plumbing exercise, same operator; not independent participants.",
+      "participant_actor_id": "00000000-0000-4000-8000-000000000001",
+      "order": 2,
+      "primary": true,
+      "context_hash": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+      "state": "needs_human",
+      "created_at": "2026-10-18T10:08:25.829Z",
+      "finished_at": "2026-10-18T10:08:26.090Z",
+      "context_manifest": {
+        "sha256": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+        "packet_hash": "54a679a38debdd18d1075c08db1abf37ee101705dddf891a7641d8d3a333afa9",
+        "content_redacted": true
+      },
+      "execution": [],
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 0.261,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      },
+      "reservations": [],
+      "usage": [],
+      "audit_events": [
+        {
+          "sequence": "70",
+          "id": "a2428e25-06ce-40f9-ab48-806c08a5257d",
+          "workspace_id": "6d05b8ac-baaf-40a5-af19-35831fb310ff",
+          "occurred_at": "2026-10-18T10:08:25.826Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "run",
+          "subject_id": "104b36cb-d4fa-4a5c-88ca-051b45d0f70a",
+          "subject_version": 1,
+          "content_hash": "4f2321102731f84ff63d191b00e8f2481218e708d31aba51f6a29d6e70e24651",
+          "correlation_id": "ff36eeb1-3c8b-4fd1-883a-71c2d3672baf",
+          "causation_id": null,
+          "payload": {
+            "kind": "run",
+            "related_ids": []
+          },
+          "previous_hash": "4ad70abf9af0f5a1dede685beb6693432549253261c19efc8b1ebcb890d1e3ac",
+          "event_hash": "39304ebc2ea40a9b7eee13f802465786fca6944060876689eb23a0eb4f06e4dd"
+        },
+        {
+          "sequence": "71",
+          "id": "a75b6d14-50d2-49db-a8fa-eeb3cc1d79a6",
+          "workspace_id": "6d05b8ac-baaf-40a5-af19-35831fb310ff",
+          "occurred_at": "2026-10-18T10:08:25.828Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "grant.created",
+          "subject_kind": "grant",
+          "subject_id": "f13023d1-2c0d-417b-8a3a-c17947c318b9",
+          "subject_version": 1,
+          "content_hash": "f49d3c8720d8c034ef690f1cfbf14657d887ac415e55dfe89b633a5248b678ed",
+          "correlation_id": "cec3c1c8-3b37-4973-900a-6aafcec6f494",
+          "causation_id": null,
+          "payload": {
+            "scope": "standing",
+            "status": "active",
+            "related_ids": []
+          },
+          "previous_hash": "39304ebc2ea40a9b7eee13f802465786fca6944060876689eb23a0eb4f06e4dd",
+          "event_hash": "10df46180feb1f94a8c3c842cf143a5496ebe016ed9c2348df3e997a1f5aedf5"
+        }
+      ],
+      "decisions": [],
+      "workflows": [],
+      "task_manifests": []
+    },
+    {
+      "id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "workspace_id": "1f1aee80-e1d3-42ee-9b4b-377ed349078c",
+      "run_id": "fa3bf650-55fb-4659-befd-96b58d700728",
+      "synthetic": true,
+      "condition": "human_only",
+      "comparison": "autonomy",
+      "manifest_hash": "ccbb386f5c2357a1fe40c04c9afacb49e0c599988bb8eb40f5d9b36b1ee6ee9c",
+      "continuation_of": null,
+      "discovery_method": "human_defined",
+      "participant_code": "synthetic-owner",
+      "prior_familiarity": "Synthetic plumbing exercise, same operator; not independent participants.",
+      "participant_actor_id": "00000000-0000-4000-8000-000000000001",
+      "order": 3,
+      "primary": true,
+      "context_hash": "9637a32b394e856500f16d109804dd092f407747ae1c67bf48c96e8ef0e01d19",
+      "state": "submitted",
+      "created_at": "2026-10-18T10:08:25.837Z",
+      "finished_at": "2026-10-18T10:08:27.978Z",
+      "context_manifest": {
+        "sha256": "9637a32b394e856500f16d109804dd092f407747ae1c67bf48c96e8ef0e01d19",
+        "packet_hash": "54a679a38debdd18d1075c08db1abf37ee101705dddf891a7641d8d3a333afa9",
+        "content_redacted": true
+      },
+      "execution": [],
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 4,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 2.14,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      },
+      "reservations": [],
+      "usage": [],
+      "audit_events": [
+        {
+          "sequence": "73",
+          "id": "2be9a353-e63c-4d2d-8e62-043dadad3c6f",
+          "workspace_id": "1f1aee80-e1d3-42ee-9b4b-377ed349078c",
+          "occurred_at": "2026-10-18T10:08:25.836Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "run",
+          "subject_id": "fa3bf650-55fb-4659-befd-96b58d700728",
+          "subject_version": 1,
+          "content_hash": "5d5256a2b792548d12373e7f486f9ba87ae366de390d466d6681aaacf4cc3e3a",
+          "correlation_id": "34328d1e-0d06-45c7-8917-d85dadf0e4e4",
+          "causation_id": null,
+          "payload": {
+            "kind": "run",
+            "related_ids": []
+          },
+          "previous_hash": "ff97c6a4b53122f7e839efcfedf00b362117d109dbeaaab2b6633b99a7c70682",
+          "event_hash": "3691c945bba56a1306805fc7bc9c9dce065f93953b9bb8508639b4ed01706e8c"
+        }
+      ],
+      "decisions": [],
+      "workflows": [],
+      "task_manifests": []
+    },
+    {
+      "id": "0f1ead23-fbfe-4f67-97de-65c7bf32ccb0",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "workspace_id": "6545019b-564b-4f2d-9b9e-5a3636f432f5",
+      "run_id": "4457157b-dfe8-48b1-bd48-1e3ec4349272",
+      "synthetic": true,
+      "condition": "human_in_loop",
+      "comparison": "autonomy",
+      "manifest_hash": "ccbb386f5c2357a1fe40c04c9afacb49e0c599988bb8eb40f5d9b36b1ee6ee9c",
+      "continuation_of": "72c9e957-d085-4ce8-9bc7-17ae4e033aff",
+      "discovery_method": "structured",
+      "participant_code": "synthetic-owner",
+      "prior_familiarity": "Linked synthetic continuation.",
+      "participant_actor_id": "00000000-0000-4000-8000-000000000001",
+      "order": 4,
+      "primary": false,
+      "context_hash": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+      "state": "assigned",
+      "created_at": "2026-10-18T10:08:26.343Z",
+      "finished_at": null,
+      "context_manifest": {
+        "sha256": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+        "packet_hash": "54a679a38debdd18d1075c08db1abf37ee101705dddf891a7641d8d3a333afa9",
+        "content_redacted": true
+      },
+      "execution": [],
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": null,
+        "human_wait_seconds": null,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": null,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      },
+      "reservations": [],
+      "usage": [],
+      "audit_events": [
+        {
+          "sequence": "76",
+          "id": "1c4fb5b5-b211-44d1-b538-d92cbce75d5b",
+          "workspace_id": "6545019b-564b-4f2d-9b9e-5a3636f432f5",
+          "occurred_at": "2026-10-18T10:08:26.340Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "run",
+          "subject_id": "4457157b-dfe8-48b1-bd48-1e3ec4349272",
+          "subject_version": 1,
+          "content_hash": "a6b58abff1265ad6202e907060d70cd396ad942de30997c22d50ec8070206395",
+          "correlation_id": "b45336d6-784d-458f-9002-3db64c77e57e",
+          "causation_id": null,
+          "payload": {
+            "kind": "run",
+            "related_ids": []
+          },
+          "previous_hash": "09acc2e9330fc62a767301ac123fde9a1b9aceddda50637e4fcc7c6d8ceef270",
+          "event_hash": "8d7a796f0cc8df332f016b5084da3e54650dac9ce6504c6ff4d96f51ecb3b779"
+        },
+        {
+          "sequence": "77",
+          "id": "12b19ccd-fc16-4cc5-8341-8b24d9174f85",
+          "workspace_id": "6545019b-564b-4f2d-9b9e-5a3636f432f5",
+          "occurred_at": "2026-10-18T10:08:26.341Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "grant.created",
+          "subject_kind": "grant",
+          "subject_id": "75ba6452-32bc-468c-8a52-329c14a0562f",
+          "subject_version": 1,
+          "content_hash": "8d15ea1bc16871f19f7954541ae24160a4fda292a6b5d101e7d7364d9fdc5da6",
+          "correlation_id": "8392f071-11de-49df-8e20-3e0f2c2e159b",
+          "causation_id": null,
+          "payload": {
+            "scope": "standing",
+            "status": "active",
+            "related_ids": []
+          },
+          "previous_hash": "8d7a796f0cc8df332f016b5084da3e54650dac9ce6504c6ff4d96f51ecb3b779",
+          "event_hash": "72b9253145d7af8df655b69d17b79b7996858fa06c3ca162806e4ce3424269f2"
+        }
+      ],
+      "decisions": [],
+      "workflows": [],
+      "task_manifests": []
+    },
+    {
+      "id": "557a743e-1d0a-4257-a987-175f40726fa2",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+      "run_id": "a653f1cf-aef4-4797-99b7-68cb92667a17",
+      "synthetic": true,
+      "condition": "autonomous",
+      "comparison": "discovery",
+      "manifest_hash": "ccbb386f5c2357a1fe40c04c9afacb49e0c599988bb8eb40f5d9b36b1ee6ee9c",
+      "continuation_of": null,
+      "discovery_method": "open_ended",
+      "participant_code": "synthetic-owner",
+      "prior_familiarity": "Synthetic secondary comparison.",
+      "participant_actor_id": "00000000-0000-4000-8000-000000000001",
+      "order": 5,
+      "primary": true,
+      "context_hash": "c1440adcd71ead1a2b58f2df42b78ab9ede522a45dbff0514fa4402b89bfce7d",
+      "state": "submitted",
+      "created_at": "2026-10-18T10:08:28.218Z",
+      "finished_at": "2026-10-18T10:08:28.481Z",
+      "context_manifest": {
+        "sha256": "c1440adcd71ead1a2b58f2df42b78ab9ede522a45dbff0514fa4402b89bfce7d",
+        "packet_hash": "54a679a38debdd18d1075c08db1abf37ee101705dddf891a7641d8d3a333afa9",
+        "content_redacted": true
+      },
+      "execution": [
+        {
+          "kind": "open_ended",
+          "request_hash": "1cffc6e75b33b098981eb27e80028514ec86047d9e1cf9d457aa09265c0ecfc4"
+        }
+      ],
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0.01,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 0.263,
+        "known_simulated_spend_nano_usd": "3920000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 1,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      },
+      "reservations": [
+        {
+          "id": "53b6b777-b431-4fda-a087-d8081c00c58c",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "fixture": true,
+          "envelope_id": "967a2bb6-dd89-4722-be3d-eb30e3745d08",
+          "run_id": "a653f1cf-aef4-4797-99b7-68cb92667a17",
+          "task_id": null,
+          "logical_operation_id": "557a743e-1d0a-4257-a987-175f40726fa2",
+          "attempt": 1,
+          "request_hash": "09909e78407c8f527aae6e82da8164092b211cc89f26c335ca723718189a7df5",
+          "action_type": "model.generate",
+          "provider": "fixture",
+          "model_id": "fixture-model-v1",
+          "pricing_snapshot_id": "b10f0fea-46dc-418a-8e08-85167df249ea",
+          "admission_id": "63f055f0-3b89-4514-9b5a-5e6b42f97521",
+          "decision_id": null,
+          "status": "settled",
+          "reason_code": "settled",
+          "explanation": "Charged 3920000 of 114375000 reserved.",
+          "reserved_nano": "114375000",
+          "exposure": {
+            "amount": "114375000",
+            "method": "utf8_bytes_upper_bound/1",
+            "long_context": false,
+            "max_tool_calls": {},
+            "max_input_tokens": 1150,
+            "max_output_tokens": 2000
+          },
+          "incurred_nano": "3920000",
+          "provider_response_id": "fixture-556b966fe8c7",
+          "result": {
+            "output": {
+              "json": null,
+              "text": "Fixture model.generate over 1054 input bytes.",
+              "vector": null
+            },
+            "status": "succeeded",
+            "reason_code": "succeeded"
+          },
+          "deadline_at": "2026-10-18T10:18:58.461Z",
+          "created_by": "00000000-0000-4000-8000-000000000001",
+          "created_at": "2026-10-18T10:08:28.461Z",
+          "finished_at": "2026-10-18T10:08:28.471Z"
+        }
+      ],
+      "usage": [
+        {
+          "id": "8c33e372-3f4e-4589-8edb-0c5df7bc4051",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "reservation_id": "53b6b777-b431-4fda-a087-d8081c00c58c",
+          "source": "fixture",
+          "provider_response_id": "fixture-556b966fe8c7",
+          "usage": {
+            "tool_calls": {},
+            "output_tokens": 24,
+            "reasoning_tokens": 0,
+            "cache_write_tokens": 0,
+            "cached_input_tokens": 0,
+            "uncached_input_tokens": 272
+          },
+          "amount_nano": "3920000",
+          "pricing_snapshot_id": "b10f0fea-46dc-418a-8e08-85167df249ea",
+          "evidence": null,
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "created_at": "2026-10-18T10:08:28.471Z"
+        }
+      ],
+      "audit_events": [
+        {
+          "sequence": "101",
+          "id": "4376b778-8c80-4c9f-a2e8-50cf13da329c",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.212Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "entity.created",
+          "subject_kind": "run",
+          "subject_id": "a653f1cf-aef4-4797-99b7-68cb92667a17",
+          "subject_version": 1,
+          "content_hash": "402bf7d73be4bc57347dbe170316527eed2e200b946429d56f5bcf75fcf541d3",
+          "correlation_id": "f13c626d-4b7f-4904-bbcd-db4f111baf30",
+          "causation_id": null,
+          "payload": {
+            "kind": "run",
+            "related_ids": []
+          },
+          "previous_hash": "6d0fdcac5bd07698a9a06f67171683e97405d2847b24331e1d642fb8417733fd",
+          "event_hash": "e622200e70bf877025506f7d35ceb58d688f10e0ac9103174b251e3b903e6dc0"
+        },
+        {
+          "sequence": "102",
+          "id": "53aabd24-24ba-4074-8d95-07d032b13ecb",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.215Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "grant.created",
+          "subject_kind": "grant",
+          "subject_id": "9d8edc30-bec0-41b8-ab05-2294a13871ed",
+          "subject_version": 1,
+          "content_hash": "b8491ac6bbe6f525bfbfb0eda93f0e2a479a0830145983ceb35c6c8cb8a02e10",
+          "correlation_id": "8d0b6a4d-1eb6-4016-bf1c-fbab390d6547",
+          "causation_id": null,
+          "payload": {
+            "scope": "standing",
+            "status": "active",
+            "related_ids": []
+          },
+          "previous_hash": "e622200e70bf877025506f7d35ceb58d688f10e0ac9103174b251e3b903e6dc0",
+          "event_hash": "8eec969a1c7a372109a4c5b10accdd658c54fea027c7b1e904464873f4c5ef98"
+        },
+        {
+          "sequence": "104",
+          "id": "b95d5e8d-5895-4a42-8b23-55cbad37784a",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.450Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "pricing.recorded",
+          "subject_kind": "pricing",
+          "subject_id": "b10f0fea-46dc-418a-8e08-85167df249ea",
+          "subject_version": null,
+          "content_hash": "3f141843adc3e9e3eb9620612f099f71d13d1fdfcd47c3cd920e14925296c8cf",
+          "correlation_id": "b1062aeb-2953-4fcd-a9e3-6fc89215d858",
+          "causation_id": null,
+          "payload": {
+            "basis": "fixture",
+            "model_id": "fixture-model-v1",
+            "provider": "fixture",
+            "related_ids": []
+          },
+          "previous_hash": "dae90b79e555b3e89d16432fa8a8280a005b2c2b1aea03286f20e9b8a81cdc1c",
+          "event_hash": "b5ba429c0c3f28c0768744c07352b1dfa294d8dc2d9b4c01cde85856edefcb60"
+        },
+        {
+          "sequence": "105",
+          "id": "3a5a5ef8-6501-4a32-b155-33b41a6155ed",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.454Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "budget.funded",
+          "subject_kind": "envelope",
+          "subject_id": "967a2bb6-dd89-4722-be3d-eb30e3745d08",
+          "subject_version": 1,
+          "content_hash": null,
+          "correlation_id": "b38e3dfe-da1e-460b-b3cc-e666f2c8db6f",
+          "causation_id": null,
+          "payload": {
+            "kind": "global",
+            "fixture": true,
+            "cap_nano": "1000000000",
+            "related_ids": []
+          },
+          "previous_hash": "b5ba429c0c3f28c0768744c07352b1dfa294d8dc2d9b4c01cde85856edefcb60",
+          "event_hash": "53ca5f745336289106adac11e1ac5dc4bc4c477ed63262db5afc39e481739512"
+        },
+        {
+          "sequence": "107",
+          "id": "48e2bf1a-b3fe-4ee5-a6dd-4a288eefc124",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.467Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "action.evaluated",
+          "subject_kind": "admission",
+          "subject_id": "63f055f0-3b89-4514-9b5a-5e6b42f97521",
+          "subject_version": null,
+          "content_hash": "969669b76cbdb62bb3d9f5a21cc74bef11ce047e8a159a982d9426fa855f91c5",
+          "correlation_id": "fb9e13b1-4940-447e-8898-1130ece36c4b",
+          "causation_id": null,
+          "payload": {
+            "verdict": "allow",
+            "action_type": "model.generate",
+            "reason_code": "covered",
+            "related_ids": [
+              "a653f1cf-aef4-4797-99b7-68cb92667a17"
+            ],
+            "policy_version": "oversight/1.0"
+          },
+          "previous_hash": "cc0ea4bdeb0f6938b84cafd5a6e554d8551423d1b5642ba15ec655a36bff3ecc",
+          "event_hash": "7968375b87823ff92547e4bac516671cc87adcd12ffd62ce2f90c97f5254f48e"
+        },
+        {
+          "sequence": "108",
+          "id": "0c38d6a0-90e6-4e5e-a199-92c60f43b29d",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.469Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "budget.reserved",
+          "subject_kind": "reservation",
+          "subject_id": "53b6b777-b431-4fda-a087-d8081c00c58c",
+          "subject_version": null,
+          "content_hash": "09909e78407c8f527aae6e82da8164092b211cc89f26c335ca723718189a7df5",
+          "correlation_id": "a2d9d1eb-fe52-4dc4-a2e9-2f623701d302",
+          "causation_id": null,
+          "payload": {
+            "attempt": 1,
+            "provider": "fixture",
+            "action_type": "model.generate",
+            "reason_code": "reserved",
+            "related_ids": [
+              "967a2bb6-dd89-4722-be3d-eb30e3745d08",
+              "a653f1cf-aef4-4797-99b7-68cb92667a17",
+              "557a743e-1d0a-4257-a987-175f40726fa2",
+              "63f055f0-3b89-4514-9b5a-5e6b42f97521"
+            ],
+            "reserved_nano": "114375000",
+            "policy_version": "budget/1.0"
+          },
+          "previous_hash": "7968375b87823ff92547e4bac516671cc87adcd12ffd62ce2f90c97f5254f48e",
+          "event_hash": "93a9ce96b4fd4db5d8948e441c3aa1e09c7898e769f603a10044f9793d6c6c28"
+        },
+        {
+          "sequence": "109",
+          "id": "3ce5d573-1160-47d0-8eba-7765c17bacc0",
+          "workspace_id": "dd343619-ff05-489d-a7f1-05ceb2da7677",
+          "occurred_at": "2026-10-18T10:08:28.474Z",
+          "actor_id": "00000000-0000-4000-8000-000000000001",
+          "action": "budget.settled",
+          "subject_kind": "reservation",
+          "subject_id": "53b6b777-b431-4fda-a087-d8081c00c58c",
+          "subject_version": null,
+          "content_hash": null,
+          "correlation_id": "977b1e4d-acc1-450a-b109-5f07186b7cba",
+          "causation_id": null,
+          "payload": {
+            "from": "in_flight",
+            "reason_code": "settled",
+            "related_ids": [
+              "967a2bb6-dd89-4722-be3d-eb30e3745d08",
+              "a653f1cf-aef4-4797-99b7-68cb92667a17"
+            ],
+            "incurred_nano": "3920000",
+            "reserved_nano": "114375000"
+          },
+          "previous_hash": "93a9ce96b4fd4db5d8948e441c3aa1e09c7898e769f603a10044f9793d6c6c28",
+          "event_hash": "f907a67c7c5a95040eebc89184539c9371d11513a2e323d993ae637366a9ee92"
+        }
+      ],
+      "decisions": [],
+      "workflows": [],
+      "task_manifests": []
+    }
+  ],
+  "raw_events": [
+    {
+      "sequence": "23",
+      "id": "9717fda6-c428-4f2b-8533-d4643f72f4ac",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "05280c1b-33d1-41a1-ab6a-9c30e861c375",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "assigned",
+      "payload": {
+        "order": 1,
+        "primary": true,
+        "condition": "human_in_loop",
+        "context_hash": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+        "discovery_method": "structured"
+      },
+      "content_hash": "16f34073ac49f9eea2e0134e88b347c33fd300f7a3abb859860c8f03d5f96997",
+      "created_at": "2026-10-18T10:08:25.819Z"
+    },
+    {
+      "sequence": "24",
+      "id": "d7c25d8a-e4dc-4016-9603-cdcda137ca7b",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "72c9e957-d085-4ce8-9bc7-17ae4e033aff",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "assigned",
+      "payload": {
+        "order": 2,
+        "primary": true,
+        "condition": "autonomous",
+        "context_hash": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+        "discovery_method": "structured"
+      },
+      "content_hash": "c7a45d5aa066d900d67e480520b5b0576033b267d2daa3b6a4c732f637f71633",
+      "created_at": "2026-10-18T10:08:25.830Z"
+    },
+    {
+      "sequence": "25",
+      "id": "a8272a10-5939-407e-994a-ffeeec15ec24",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "assigned",
+      "payload": {
+        "order": 3,
+        "primary": true,
+        "condition": "human_only",
+        "context_hash": "9637a32b394e856500f16d109804dd092f407747ae1c67bf48c96e8ef0e01d19",
+        "discovery_method": "human_defined"
+      },
+      "content_hash": "7b6dd507faa14f90681d6726531673341de583b5f25c653b2b39ebd4ac7a620a",
+      "created_at": "2026-10-18T10:08:25.837Z"
+    },
+    {
+      "sequence": "26",
+      "id": "421d68c4-b01e-4f03-a4d4-7a65be39ca1e",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "72c9e957-d085-4ce8-9bc7-17ae4e033aff",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "finished",
+      "payload": {
+        "status": "needs_human",
+        "primary": true,
+        "summary": "Synthetic stakeholder judgment stop.",
+        "condition": "autonomous",
+        "wall_seconds": 0.261,
+        "human_wait_seconds": 0,
+        "measurement_source": "participant_report_except_wall_clock",
+        "human_active_minutes": 0
+      },
+      "content_hash": "169988e0aecc46f56257ed42d4c708a0d86718579bf9a1dc214d6c0d094dfc65",
+      "created_at": "2026-10-18T10:08:26.090Z"
+    },
+    {
+      "sequence": "27",
+      "id": "a85d1423-7fc6-47a5-a517-0baa4c4c1bb9",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "0f1ead23-fbfe-4f67-97de-65c7bf32ccb0",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "assigned",
+      "payload": {
+        "order": 4,
+        "primary": false,
+        "condition": "human_in_loop",
+        "context_hash": "60dddfff0c9da6a6b3e53f0669377abb105779fd17123c237775b723d9efabe0",
+        "discovery_method": "structured"
+      },
+      "content_hash": "dfdc5539eaa46836fd03aca73e1e0e83a463aa6d542156353249596d13055bff",
+      "created_at": "2026-10-18T10:08:26.344Z"
+    },
+    {
+      "sequence": "28",
+      "id": "7cbcefdd-11fb-47c4-b68d-e3ba291b4771",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "05280c1b-33d1-41a1-ab6a-9c30e861c375",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "interventions",
+      "payload": {
+        "gate": "dynamic",
+        "type": "judgment",
+        "stage": "selection",
+        "reason": "Synthetic choice needed",
+        "trigger": "conflicting options",
+        "data_shown": "Frozen packet",
+        "human_input": "Prefer a shared checklist",
+        "wait_seconds": 3,
+        "resulting_change": "Record a validation plan",
+        "prevented_problem": "unknown",
+        "human_active_minutes": 2
+      },
+      "content_hash": "e8d60b95be71b45b531069254ba4c3a7a18fe2774f610f5d7b019955f4e6d22a",
+      "created_at": "2026-10-18T10:08:26.627Z"
+    },
+    {
+      "sequence": "29",
+      "id": "053dc4e0-85b6-4ea3-91de-a7b040cd3efb",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "05280c1b-33d1-41a1-ab6a-9c30e861c375",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "execution_prepared",
+      "payload": {
+        "request_hash": "d4693e2cbe7fbbe9244fb40e2d6ee4db81832bcbf2310c15cd7c7d3009205a3a",
+        "workflow_version": "r02-discovery/1.0"
+      },
+      "content_hash": "cd88a90eb83749fa274d91981438be4b751d161df875a346f740e44959431ae4",
+      "created_at": "2026-10-18T10:08:26.887Z"
+    },
+    {
+      "sequence": "30",
+      "id": "cfd1c244-fb9d-49e6-8b0f-bdc5ccb91d6e",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "artifacts",
+      "payload": {
+        "kind": "document",
+        "name": "Synthetic human entry",
+        "content": "Use a shared checklist and measure missed handoffs."
+      },
+      "content_hash": "f81c8318f68518a163f8f945fc7d0798c79886b12e174df1368e186d028c48a3",
+      "created_at": "2026-10-18T10:08:27.186Z"
+    },
+    {
+      "sequence": "31",
+      "id": "ff8a2482-da5e-4d2e-8286-fe75095a3e3d",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "tests",
+      "payload": {
+        "check": "contains",
+        "passed": true,
+        "executor": "conventional-text-check/1",
+        "expected": "checklist",
+        "artifact_id": "cfd1c244-fb9d-49e6-8b0f-bdc5ccb91d6e",
+        "executed_at": "2026-10-18T10:08:27.432Z",
+        "artifact_hash": "f81c8318f68518a163f8f945fc7d0798c79886b12e174df1368e186d028c48a3"
+      },
+      "content_hash": "684c60b8e11063e7c767065dd3e00d4d99ef0a1550dee598c51f45e815718872",
+      "created_at": "2026-10-18T10:08:27.433Z"
+    },
+    {
+      "sequence": "32",
+      "id": "d625a3eb-950a-411d-9042-1829fbb1d469",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "helper_denied",
+      "payload": {
+        "helper": "model.summarize",
+        "condition": "human_only"
+      },
+      "content_hash": "3d87e5f517695286d167fa3a95bf6eaa50bd33ffcf4af03d415f5214c2845a68",
+      "created_at": "2026-10-18T10:08:27.728Z"
+    },
+    {
+      "sequence": "33",
+      "id": "955e08b2-e6c3-448e-93e3-73365ef0e0b3",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "05280c1b-33d1-41a1-ab6a-9c30e861c375",
+      "actor_id": "00000000-0000-4000-8000-000000000003",
+      "kind": "finished",
+      "payload": {
+        "status": "failed",
+        "outcome": "insufficient_evidence",
+        "primary": true,
+        "summary": "The evidence packet has no current support for the problem, so no responses were proposed. The locator brief is kept.",
+        "condition": "human_in_loop",
+        "workflow_id": "49df9746-d6d2-4ead-a31c-f384a59bfc7f",
+        "wall_seconds": 1.93,
+        "human_wait_seconds": null,
+        "measurement_source": "fixture_workflow",
+        "human_active_minutes": null
+      },
+      "content_hash": "2ac10cf92173c0198ca4e2982a88cf476d7cf9caaff05761962a2a08c11bab13",
+      "created_at": "2026-10-18T10:08:27.749Z"
+    },
+    {
+      "sequence": "34",
+      "id": "cbab3271-fc49-4192-b154-88ace1679929",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "finished",
+      "payload": {
+        "status": "submitted",
+        "primary": true,
+        "summary": "Synthetic manually entered document; not independent human research.",
+        "condition": "human_only",
+        "wall_seconds": 2.14,
+        "human_wait_seconds": 0,
+        "measurement_source": "participant_report_except_wall_clock",
+        "human_active_minutes": 4
+      },
+      "content_hash": "5b510b132119a27ea30975223d074e8637da268d8f3ac7fd63166e44b1733ca8",
+      "created_at": "2026-10-18T10:08:27.978Z"
+    },
+    {
+      "sequence": "35",
+      "id": "19d8ec54-7c84-4e86-99c8-18611d7b7d54",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "557a743e-1d0a-4257-a987-175f40726fa2",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "assigned",
+      "payload": {
+        "order": 5,
+        "primary": true,
+        "condition": "autonomous",
+        "context_hash": "c1440adcd71ead1a2b58f2df42b78ab9ede522a45dbff0514fa4402b89bfce7d",
+        "discovery_method": "open_ended"
+      },
+      "content_hash": "57094bcaae231449f939a9137b3d8726c32d81145333df72d631d7c0c6c8ae0f",
+      "created_at": "2026-10-18T10:08:28.218Z"
+    },
+    {
+      "sequence": "36",
+      "id": "d0a2123f-0c4a-4185-9735-f7b126b7f9ed",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "557a743e-1d0a-4257-a987-175f40726fa2",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "execution_prepared",
+      "payload": {
+        "request_hash": "1cffc6e75b33b098981eb27e80028514ec86047d9e1cf9d457aa09265c0ecfc4",
+        "workflow_version": "study-open-ended/1"
+      },
+      "content_hash": "52f84c518f4fd8da1d78bb8653b39fe256b7909eabee4b7f70c2b4b9a72cc1ac",
+      "created_at": "2026-10-18T10:08:28.458Z"
+    },
+    {
+      "sequence": "37",
+      "id": "2c9eb0a3-ef70-47f5-92bf-390945735e6a",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "557a743e-1d0a-4257-a987-175f40726fa2",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "artifacts",
+      "payload": {
+        "kind": "document",
+        "name": "Neutral baseline output",
+        "content": "Fixture model.generate over 1054 input bytes.",
+        "formatter": "verbatim/1"
+      },
+      "content_hash": "1ff6315df8b2eebb0b22967a5c7bb35f4b07c1d7b8ab1a3f24e541d878045cb7",
+      "created_at": "2026-10-18T10:08:28.479Z"
+    },
+    {
+      "sequence": "38",
+      "id": "7e98cb9a-2b0b-4eb0-ab4c-f307992d8764",
+      "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+      "attempt_id": "557a743e-1d0a-4257-a987-175f40726fa2",
+      "actor_id": "00000000-0000-4000-8000-000000000001",
+      "kind": "finished",
+      "payload": {
+        "status": "submitted",
+        "outcome": "succeeded",
+        "primary": true,
+        "summary": "Synthetic baseline succeeded; no independent quality rating.",
+        "condition": "autonomous",
+        "wall_seconds": 0.263,
+        "human_wait_seconds": 0,
+        "measurement_source": "fixture_runner",
+        "human_active_minutes": 0
+      },
+      "content_hash": "a208e48606f6bd262717d0706b847a359d11a58b984f58db4b27aaec563b2220",
+      "created_at": "2026-10-18T10:08:28.481Z"
+    }
+  ],
+  "grader_manifest": [],
+  "grader_content": null,
+  "grader_access": "withheld_requires_grader_authority",
+  "limitations": [
+    "Synthetic only; no participants recruited.",
+    "Human timing is reported, not observed.",
+    "Text checks are executed; arbitrary code execution awaits T11."
+  ],
+  "export_hash": "cc06e599e7818e790432522be9a5995ffe78c600c19ece894251191549119d9e"
+}

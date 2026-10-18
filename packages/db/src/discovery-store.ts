@@ -51,6 +51,7 @@ export class DiscoveryStore extends ResearchStore {
     ws = uuid(ws);
     runId = uuid(runId);
     const req = parse(StartDiscoveryRequestSchema, raw);
+    await this.studyWorkflowGate(ctx, ws, runId, canonicalHash(req));
     // Read the evidence as the owner sees it now; its versions are re-checked at insert.
     const evidence: {
       claim: ClaimEvidence;
@@ -69,6 +70,31 @@ export class DiscoveryStore extends ResearchStore {
           'INVALID_CONTRACT',
           'Start a discovery run from a search_brief record.',
         );
+      const assigned = await c.query(
+        `select e.input_bindings from study_attempts a join study_execution_requests e on e.attempt_id=a.id where a.workspace_id=$1 and a.run_id=$2`,
+        [ws, runId],
+      );
+      const bindings = assigned.rows[0]?.input_bindings as
+        Record<string, string> | undefined;
+      if (bindings) {
+        const current = await c.query(
+          'select id,content_hash,version,status from entities where workspace_id=$1 and id=any($2::uuid[])',
+          [ws, Object.keys(bindings)],
+        );
+        if (
+          current.rows.length !== Object.keys(bindings).length ||
+          current.rows.some(
+            (r) =>
+              r.content_hash !== bindings[r.id] ||
+              r.version !== 1 ||
+              r.status !== 'active',
+          )
+        )
+          throw fail(
+            'VERSION_CONFLICT',
+            'Frozen study inputs changed before dispatch.',
+          );
+      }
       const rows = (
         await c.query(
           `select id, kind, version, title, body from entities
@@ -86,7 +112,7 @@ export class DiscoveryStore extends ResearchStore {
           title: String(s.title),
           body: parse(SearchBriefBodySchema, s.body),
         },
-        catalog: rows.map((r): Omit<CatalogEntry, 'ref'> => ({
+        catalog: (bindings ? [] : rows).map((r): Omit<CatalogEntry, 'ref'> => ({
           id: String(r.id),
           kind: r.kind as CatalogEntry['kind'],
           version: Number(r.version),
@@ -133,6 +159,31 @@ export class DiscoveryStore extends ResearchStore {
               'VERSION_CONFLICT',
               `Claim ${claim.ref} changed while the packet was built; start again.`,
             );
+        const bound = await c.query(
+          `select e.input_bindings from study_attempts a join study_execution_requests e on e.attempt_id=a.id where a.workspace_id=$1 and a.run_id=$2`,
+          [ws, runId],
+        );
+        const bindings = bound.rows[0]?.input_bindings as
+          Record<string, string> | undefined;
+        if (bindings) {
+          const current = await c.query(
+            'select id,content_hash,version,status from entities where workspace_id=$1 and id=any($2::uuid[]) for share',
+            [ws, Object.keys(bindings)],
+          );
+          if (
+            current.rows.length !== Object.keys(bindings).length ||
+            current.rows.some(
+              (r) =>
+                r.content_hash !== bindings[r.id] ||
+                r.version !== 1 ||
+                r.status !== 'active',
+            )
+          )
+            throw fail(
+              'VERSION_CONFLICT',
+              'Frozen study inputs changed during dispatch.',
+            );
+        }
         const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
           role: 'r02_discovery',
           roleVersion: DISCOVERY_ROLE_VERSION,

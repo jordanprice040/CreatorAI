@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "synthetic": true,
+  "study_id": "373d81ed-34f0-4518-b571-1ecae0ba1cd8",
+  "checks": [
+    "three-arm seed",
+    "human-only helper absent",
+    "verbatim save",
+    "bound conventional check",
+    "submission",
+    "autonomous human-entry disabled",
+    "condition-stable needs_human stop",
+    "separate continuation",
+    "open-ended baseline",
+    "export download",
+    "390px no horizontal overflow"
+  ],
+  "page_errors": []
+}

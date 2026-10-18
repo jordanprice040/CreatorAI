@@ -23,6 +23,7 @@ import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
 import { VIEWS, useActors, useRoute, type View } from './ui.js';
 import './style.css';
+import { Studies } from './study.js';
 
 const choices = [
   ['use_existing', 'Use an existing tool'],
@@ -402,6 +403,8 @@ function App() {
             open={open}
           />
         );
+      case 'studies':
+        return <Studies workspace={workspace} session={s} />;
       case 'gallery':
         return <Gallery workspace={workspace} open={open} />;
     }
@@ -416,7 +419,7 @@ function App() {
         <a className="brand" href="#/overview">
           CA<span>Creator Agent</span>
         </a>
-        <span className="local">LOCAL STUDIO · T09</span>
+        <span className="local">LOCAL STUDIO · T10</span>
       </header>
       <div className="topbar">
         <span role="status" className="small">

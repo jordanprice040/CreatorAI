@@ -1,5 +1,22 @@
 # Session handoff
 
+## Latest - T10 study runner and human-only workflow (October 18, 2026)
+
+T10's synthetic acceptance gate is verified on `codex/t10-study-runner`, based on `a9edf68f6fe3492a7dace8d0fbd5fd9de41989bb` (T09 merged PR #10, confirmed via GitHub before the local fast-forward). Source and verification hashes are in [T10 verification](evidence/t10/verification.json). Historical notes below remain historical.
+
+What works: strict study/1 manifests with frozen problem/outcome/resource/config/prompt hashes; three-arm assignments with seed, order and prior familiarity; isolated attempt workspaces; participant context/entries and separate human grader access; human-only document/code/artifact entry and executed contains/equals/JSON tests on exact entry hashes; intervention and deviation capture; T07 structured execution and a neutral open-ended fixture baseline with comparable frozen caps; needs_human/failure/cancel outcomes preserved under the assigned condition, with separate assisted continuations excluded from primary outcomes; and a reproducible export containing all assignments, available raw events/results, costs/exposure, audit, decisions, artifacts/checks and redacted context manifests. Grader content is explicitly withheld without separate grader authority. See the Studies view, CLI study-* commands, docs/LOCAL_DEVELOPMENT.md's T10 section and ADR-0013.
+
+Checks executed: frozen dependency install; pnpm test:db **130/130** against a disposable PostgreSQL **18.6** cluster on native Windows; pnpm check **59 pass / 71 explicitly skipped** without a database; pnpm smoke; node scripts/verify-study.mjs against the authenticated API; and project Playwright MCP/headless Edge desktop + 390px acceptance with screenshots, zero page errors and no horizontal overflow. Tests cover input changes, cross-participant/grader access, all human-only broker/helper/workflow paths with zero adapter calls, continuation exclusion, concurrent finish, stops denying further dispatch, late charged output retained as failure, HTTP errors and seed retry idempotency. The serialized export hash was recomputed. Evidence is in tracking/evidence/t10/.
+
+Review repairs: late output cannot complete an expired assignment; stop and broker admission share the run lock; event/parent-lock ordering avoids terminal-event audit inversion; graders must be separate humans; malformed manifests return contract errors; seed retries preserve assignments; snapshots cannot be silently truncated in one arm; problem and outcome must match the shared packet. Windows formatting normalized line endings without changing unrelated source content; .gitattributes prevents recurrence. Earlier migrations, ADRs and protocol history were preserved.
+
+Limits: synthetic fixtures only; no real participants, independent ratings, live provider invocation or spending. Institutional/recruitment/protocol choices remain unresolved. Human timing is reported effort; active AI inference is zero for fixtures. Supplied snapshots are unverified, so the structured fixture study stops with insufficient evidence. Code can be recorded and checked as text; arbitrary/AI implementation execution awaits T11 isolation. The seed uses one synthetic operator and does not establish participant independence. Windows checks used installed PostgreSQL 18.6, not a new PostgreSQL 16 run. Screen readers and comprehensive contrast checks were not performed.
+
+The disposable demo used API 4314, web 5176, and .verification/t10-pg on loopback port 55432. Do not assume those processes are still running in a later chat. Session/database files are ignored. The saved synthetic-study-export.json contains labeled synthetic data, with no session credentials. A source manifest binds the candidate independently of tracking documentation.
+
+**Next eligible prompt: T11 - Isolated execution and local product Git**, after owner review/merge and a new request. T11 is not started. Protocol adoption remains T14; empirical collection and analysis remain T15-T16.
+
+
 ## Latest — T09 usable catalog, decisions, search and run monitor (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t09-catalog-monitor-ml1t89` from `main` at bba9e9a (T08 merged as PR #9).

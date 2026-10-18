@@ -1,0 +1,110 @@
+{
+  "milestone": "T10",
+  "date": "2026-10-18",
+  "verified_at": "2026-10-18T10:15:14.085737+00:00",
+  "base_commit": "a9edf68f6fe3492a7dace8d0fbd5fd9de41989bb",
+  "branch": "codex/t10-study-runner",
+  "prerequisite": "T09 merged PR #10, confirmed through GitHub before updating the clean local T01 checkout",
+  "status": "verified_synthetic_gate_only",
+  "schema": "study/1",
+  "migration": 9,
+  "adr": "ADR-0013",
+  "candidate": {
+    "source_manifest": "source-files.sha256.json",
+    "manifest_sha256": "2065c69280c31c5ea539a1532bf5bb919f6b90bd0528bdacddab7495ba52771d",
+    "files": 150,
+    "note": "Exact staged Git blob bytes for source/config/spec, including lockfile; LF checkout policy. Tracking evidence excluded to avoid a cyclic hash. Final Git commit is reported with the review branch."
+  },
+  "environment": {
+    "os": "native Windows",
+    "node": "v22.21.0",
+    "pnpm": "11.25.0",
+    "postgresql": "18.6, isolated loopback cluster on 55432",
+    "browser": "project Playwright MCP, headless Microsoft Edge; 1280x900 and 390x844"
+  },
+  "checks": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "result": "pass",
+      "note": "Executed after the T09 fast-forward; no lockfile or dependency changes"
+    },
+    {
+      "command": "pnpm test:db",
+      "result": "pass",
+      "tests": 130,
+      "pass": 130,
+      "fail": 0,
+      "skipped": 0,
+      "log": "test-db.log"
+    },
+    {
+      "command": "pnpm check",
+      "result": "pass",
+      "tests": 130,
+      "pass": 59,
+      "fail": 0,
+      "skipped": 71,
+      "log": "check-without-db.log",
+      "note": "Database suites intentionally skipped without CREATOR_TEST_DATABASE_URL; separate full database gate passed"
+    },
+    {
+      "command": "pnpm smoke",
+      "result": "pass",
+      "log": "smoke.log"
+    },
+    {
+      "command": "node scripts/verify-study.mjs",
+      "result": "pass",
+      "log": "cli-acceptance.log",
+      "results": "cli-acceptance.json",
+      "export": "synthetic-study-export.json",
+      "export_integrity": "export-verification.json"
+    },
+    {
+      "command": "project Playwright MCP browser acceptance",
+      "result": "pass",
+      "script": "browser-acceptance.js",
+      "results": "browser-acceptance.json",
+      "screenshots": [
+        "human-only-desktop.png",
+        "study-mobile.png"
+      ]
+    }
+  ],
+  "verification_boundaries": {
+    "fixture": "executed",
+    "contract_and_negative_admission": "executed",
+    "database": "executed_on_Windows_PostgreSQL_18.6",
+    "live_model": "not_run",
+    "paid_spend": "none",
+    "participant_recruitment": "not_enabled",
+    "empirical_results": "none",
+    "independent_review": "not_claimed; self-review in review.md",
+    "activation": "synthetic local fixture only"
+  },
+  "acceptance": [
+    "immutable manifests and hash-bound inputs",
+    "same problem/outcome across arms",
+    "condition/participant/grader context isolation",
+    "every human-only broker action and helper denied with zero adapter calls",
+    "both workflow starts refuse human-only work and retain audit evidence",
+    "needs_human originals and separate excluded assisted continuations",
+    "intervention/deviation records",
+    "concurrent terminal writes",
+    "stop overrides further admission",
+    "late results retain spend/output but fail the assignment deadline",
+    "baseline without structured brief, role or rubric treatment",
+    "all assigned attempts and available raw records exported; serialized hash verified"
+  ],
+  "limitations": [
+    "Synthetic fixtures only; protocol adoption, real participant work and independent ratings remain future milestones.",
+    "Supplied snapshots are not independently verified; structured fixture study stops at insufficient evidence.",
+    "Grader content is withheld without separate human grader authority; its hashes are exported.",
+    "Human effort is reported; fixture active AI inference is zero; no real monetary cost inference.",
+    "Code is stored and conventional text/JSON checks execute; arbitrary and AI implementation execution requires T11 isolation.",
+    "Single synthetic operator does not establish participant independence.",
+    "PostgreSQL 16 was not newly tested; Windows verification used installed PostgreSQL 18.6.",
+    "Screen readers and comprehensive contrast measurements were not tested."
+  ],
+  "next_eligible_prompt": "T11 - Isolated execution and local product Git, after owner review/merge and a new request"
+}

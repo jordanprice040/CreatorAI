@@ -1,5 +1,7 @@
 # Integration readiness
 
+T10, October 18, 2026: synthetic study execution reuses the fixture broker and T07 workflow worker. No new external integration, paid route, credentials, recruitment or real participant data. Native Windows PostgreSQL 18 was exercised in a disposable loopback-only cluster on port 55432. Human-only entries and conventional text checks require no model. Grader material remains under separate authorization; see ADR-0013 and evidence/t10.
+
 ## Development tools installed October 18, 2026
 
 These are tools for the coding agent in this checkout, separate from the product integration table below. Setup details: [development tool guide](../docs/DEVELOPMENT_TOOLS.md).

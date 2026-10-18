@@ -21,7 +21,7 @@ import {
   sourcePolicyHash,
 } from '@creator/domain';
 import {
-  CatalogStore,
+  StudyStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -127,7 +127,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -152,7 +152,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new CatalogStore(pool) : null;
+  const store = pool ? new StudyStore(pool) : null;
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
     : null;
@@ -275,6 +275,93 @@ export function createApi(env: Record<string, string | undefined> = {}) {
         return send(
           201,
           await store.createWorkspace(ctx, await readJson(req)),
+          true,
+        );
+    } else if (collection === 'studies') {
+      if (!item && method === 'GET')
+        return send(200, await store.listStudies(ctx, ws), false);
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.createStudy(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (item === 'seed' && method === 'POST')
+        return send(201, await store.seedStudy(ctx, ws), true);
+      if (item && !action && method === 'GET')
+        return send(200, await store.studyDetail(ctx, ws, item), false);
+      if (item && action === 'assign' && method === 'POST')
+        return send(
+          201,
+          await store.assignStudy(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && action === 'export' && method === 'GET')
+        return send(200, await store.exportStudy(ctx, ws, item), false);
+      if (item && action === 'graders' && method === 'POST')
+        return send(
+          201,
+          await store.grantGrader(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (
+        item &&
+        action === 'grader-material' &&
+        (method === 'GET' || method === 'POST')
+      )
+        return send(
+          200,
+          await store.graderMaterial(
+            ctx,
+            ws,
+            item,
+            method === 'POST' ? await readJson(req) : undefined,
+          ),
+          method === 'POST',
+        );
+    } else if (collection === 'study-attempts' && item) {
+      if (action === 'execute' && method === 'POST') {
+        const prepared = await store.prepareStudyExecution(ctx, ws, item);
+        const a = prepared.attempt;
+        if (a.discovery_method === 'structured')
+          return send(
+            201,
+            await store.startDiscovery(
+              { ...ctx, idempotencyKey: `study:${item}:workflow` },
+              a.workspace_id,
+              a.run_id,
+              prepared.request,
+            ),
+            true,
+          );
+        const result = await broker!.call(
+          ctx,
+          a.workspace_id,
+          a.run_id,
+          prepared.request,
+        );
+        await store.recordBaselineOutcome(ctx, ws, item, result);
+        return send(200, result, true);
+      }
+      if (action === 'context' && method === 'GET')
+        return send(200, await store.participantContext(ctx, ws, item), false);
+      if (action === 'entries' && method === 'GET')
+        return send(200, await store.attemptEntries(ctx, ws, item), false);
+      if (
+        action &&
+        [
+          'artifacts',
+          'tests',
+          'interventions',
+          'finish',
+          'deviations',
+          'helpers',
+        ].includes(action) &&
+        method === 'POST'
+      )
+        return send(
+          201,
+          await store.writeAttempt(ctx, ws, item, action, await readJson(req)),
           true,
         );
     } else if (collection === 'entities' && !item) {

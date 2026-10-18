@@ -1,0 +1,129 @@
+{
+  "synthetic": true,
+  "checks": "compiled CLI → authenticated HTTP → PostgreSQL: seeded three arms; A needs_human; linked continuation; B intervention and structured insufficient-evidence stop; C verbatim artifact and executed check, helper denial; separate open-ended baseline; serialized export hash verified",
+  "workspace_id": "bed68ace-886e-4a1f-9b96-bfac55e6f96b",
+  "study_id": "bee28521-e07e-4fab-8792-528f35929b03",
+  "export_hash": "cc06e599e7818e790432522be9a5995ffe78c600c19ece894251191549119d9e",
+  "attempts": [
+    {
+      "id": "05280c1b-33d1-41a1-ab6a-9c30e861c375",
+      "condition": "human_in_loop",
+      "comparison": "autonomy",
+      "state": "failed",
+      "primary": true,
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0.022,
+        "human_active_minutes": null,
+        "human_wait_seconds": null,
+        "intervention_active_minutes": 2,
+        "intervention_wait_seconds": 3,
+        "wall_seconds": 1.93,
+        "known_simulated_spend_nano_usd": "24660000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 1,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "72c9e957-d085-4ce8-9bc7-17ae4e033aff",
+      "condition": "autonomous",
+      "comparison": "autonomy",
+      "state": "needs_human",
+      "primary": true,
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 0.261,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "48480297-8e7c-4b53-96b5-a2fe9364d0b1",
+      "condition": "human_only",
+      "comparison": "autonomy",
+      "state": "submitted",
+      "primary": true,
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 4,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 2.14,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "0f1ead23-fbfe-4f67-97de-65c7bf32ccb0",
+      "condition": "human_in_loop",
+      "comparison": "autonomy",
+      "state": "assigned",
+      "primary": false,
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": null,
+        "human_wait_seconds": null,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": null,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "557a743e-1d0a-4257-a987-175f40726fa2",
+      "condition": "autonomous",
+      "comparison": "discovery",
+      "state": "submitted",
+      "primary": true,
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0.01,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 0.263,
+        "known_simulated_spend_nano_usd": "3920000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 1,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    }
+  ]
+}
