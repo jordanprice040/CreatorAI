@@ -1,5 +1,7 @@
 # Implementation status
 
+CI update, October 18, 2026: `.github/workflows/ci.yml` runs `pnpm install --frozen-lockfile` and `pnpm check` on Node 22 for every push and pull request. It does not advance T02.
+
 Tooling update, October 18, 2026: the owner's requested development setup is installed project-locally: 27 pinned skills, Playwright MCP 0.0.83, Firecrawl's keyless hosted MCP, and Impeccable engine 0.1.15. MCP handshakes/tool discovery and an isolated blank browser check passed; Firecrawl data/account operations remain untested. See [tool guide](../docs/DEVELOPMENT_TOOLS.md) and [tooling evidence](evidence/development-tools/install-manifest.json). This does not advance T02 or activate product integrations. T01 source and application dependencies are unchanged.
 
 Updated October 17, 2026 (America/New_York). T00 and T01 verified. A minimal TypeScript workspace now provides strict runtime contracts, deterministic domain rules, a fixture-only Node API/CLI and React web page. No real AI, research, persistence or generated-product execution exists. Local main remains unborn (no HEAD commit); exact source/evidence hashes identify the candidate. See [decisions](DECISIONS.md), [startup guide](../docs/LOCAL_DEVELOPMENT.md) and [T01 evidence](evidence/t01/verification.json).
