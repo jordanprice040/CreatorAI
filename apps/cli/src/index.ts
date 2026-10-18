@@ -31,11 +31,25 @@ import {
   SourceDetailSchema,
   SourceSummarySchema,
   EvidencePacketSchema,
+  FreezeOutcomeSchema,
+  SelectOutcomeSchema,
+  SelectionReportSchema,
+  SelectionSchema,
+  SpecStatusSchema,
+  type SelectionReport,
+  type SpecStatus,
   type WorkflowDetail,
   z,
   parse,
 } from '@creator/contracts';
-import { DISCOVERY_SCENARIOS } from '@creator/domain';
+import {
+  DISCOVERY_SCENARIOS,
+  FIXTURE_SPEC,
+  fixtureDispositions,
+  fixtureHumilityReview,
+  fixtureScorecards,
+  fixtureSpecRevision,
+} from '@creator/domain';
 
 const USAGE = `Usage:
   pnpm cli health
@@ -90,6 +104,15 @@ const USAGE = `Usage:
   pnpm cli discovery <workspace> <workflow-id> [--wait]
   pnpm cli discovery-packet <workspace> <workflow-id>
   pnpm cli seed-discovery
+  pnpm cli scorecard <workspace> <scorecard-json>
+  pnpm cli report <workspace> <problem-id> [shortlist-size]
+  pnpm cli select <workspace> <run-id> <select-json>
+  pnpm cli selections <workspace> <problem-id>
+  pnpm cli spec-create <workspace> <spec-json>
+  pnpm cli spec <workspace> <spec-id>
+  pnpm cli spec-revise <workspace> <spec-id> <revise-json>
+  pnpm cli spec-freeze <workspace> <run-id> <freeze-json>
+  pnpm cli seed-selection
 
 Workflows run on the API server's worker (or \`pnpm worker\`), not in this command: exiting the
 CLI or closing the web page does not stop or cancel them.
@@ -605,6 +628,64 @@ export async function runCli(
       case 'seed-discovery':
         data = await seedDiscovery(call);
         break;
+      case 'scorecard':
+        data = await call(
+          StoredEntitySchema,
+          `${ws(rest[0])}/scorecards`,
+          json(rest[1], 'Scorecard'),
+        );
+        break;
+      case 'report':
+        data = reportSummary(
+          await call(
+            SelectionReportSchema,
+            `${ws(rest[0])}/problems/${encodeURIComponent(rest[1] ?? '')}/report${rest[2] ? `?shortlist=${encodeURIComponent(rest[2])}` : ''}`,
+          ),
+        );
+        break;
+      case 'select':
+        data = await call(
+          SelectOutcomeSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/selections`,
+          json(rest[2], 'Selection'),
+        );
+        break;
+      case 'selections':
+        data = await call(
+          z.array(SelectionSchema),
+          `${ws(rest[0])}/problems/${encodeURIComponent(rest[1] ?? '')}/selections`,
+        );
+        break;
+      case 'spec-create':
+        data = await call(
+          SpecStatusSchema,
+          `${ws(rest[0])}/specs`,
+          json(rest[1], 'Spec'),
+        );
+        break;
+      case 'spec':
+        data = await call(
+          SpecStatusSchema,
+          `${ws(rest[0])}/specs/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'spec-revise':
+        data = await call(
+          SpecStatusSchema,
+          `${ws(rest[0])}/specs/${encodeURIComponent(rest[1] ?? '')}/revisions`,
+          json(rest[2], 'Spec revision'),
+        );
+        break;
+      case 'spec-freeze':
+        data = await call(
+          FreezeOutcomeSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/spec-freezes`,
+          json(rest[2], 'Freeze request'),
+        );
+        break;
+      case 'seed-selection':
+        data = await seedSelection(call);
+        break;
       default:
         throw new Error(USAGE);
     }
@@ -945,7 +1026,7 @@ async function seedDiscovery(call: Call) {
     max_in_flight: 8,
   });
   const expires = new Date(Date.now() + 86_400_000).toISOString();
-  const started: { scenario: string; workflow: string }[] = [];
+  const started: { scenario: string; workflow: string; run: string }[] = [];
   for (const s of DISCOVERY_SCENARIOS) {
     const run = await call(StoredEntitySchema, `${base}/entities`, {
       kind: 'run',
@@ -1077,11 +1158,15 @@ async function seedDiscovery(call: Call) {
         },
       },
     );
-    started.push({ scenario: s.key, workflow: detail.workflow.id });
+    started.push({
+      scenario: s.key,
+      workflow: detail.workflow.id,
+      run: run.id,
+    });
   }
   // The API's worker runs them; this only waits to report what happened.
   const results = [];
-  for (const { scenario, workflow } of started) {
+  for (const { scenario, workflow, run } of started) {
     const path = `${base}/workflows/${workflow}`;
     let detail = await call(WorkflowDetailSchema, path);
     const until = Date.now() + 90_000;
@@ -1089,7 +1174,190 @@ async function seedDiscovery(call: Call) {
       await new Promise((r) => setTimeout(r, 500));
       detail = await call(WorkflowDetailSchema, path);
     }
-    results.push({ scenario, ...discoverySummary(detail) });
+    results.push({ scenario, run, ...discoverySummary(detail) });
   }
   return { workspace: ws, results };
+}
+
+function reportSummary(r: SelectionReport) {
+  const rows = (k: 'opportunity' | 'suitability') =>
+    r[k].candidates.map((c) => ({
+      alternative: c.alternative.id,
+      kind: c.alternative.kind,
+      title: c.alternative.title,
+      status: c.status,
+      rank: c.rank,
+      score: c.score?.display ?? null,
+      range: c.range
+        ? `${c.range.lower.display}–${c.range.upper.display}`
+        : null,
+      unknown: c.unknown_criteria,
+      disagreements: c.disagreements.map((d) => d.criterion),
+      gates: c.gates,
+    }));
+  return {
+    problem: r.problem,
+    report_hash: r.report_hash,
+    opportunity: rows('opportunity'),
+    opportunity_excluded: r.opportunity.excluded,
+    suitability: rows('suitability'),
+    sensitivity: {
+      opportunity_stable: r.opportunity.sensitivity.stable,
+      suitability_stable: r.suitability.sensitivity.stable,
+      suitability_changes: r.suitability.sensitivity.scenarios
+        .filter((s) => s.shortlist_changed)
+        .map((s) => s.name),
+    },
+  };
+}
+const specSummary = (s: SpecStatus) => ({
+  spec: s.spec,
+  frozen_current: s.frozen_current,
+  frozen_version: s.latest_freeze?.spec.version ?? null,
+  tasks: s.tasks.map((t) => `${t.key} ${t.status}`),
+  removed_tasks: s.removed_tasks,
+  problems: s.problems,
+  blockers: s.blockers,
+});
+
+/**
+ * Runs the T07 seed, then scores the clinic case with labeled fixture reviewers, records a
+ * humility review, selects (with an override and its reason), writes and freezes a spec, and
+ * revises one task to show which tasks the change invalidates. Every authorization the run
+ * asks for is answered here as the signed-in owner, approve-once, for the exact version shown.
+ */
+async function seedSelection(call: Call) {
+  const seeded = await seedDiscovery(call);
+  const clinic = seeded.results.find((r) => r.scenario === 'software');
+  const problemId = clinic?.discovery?.catalog_records.problem?.id;
+  if (!clinic || !problemId)
+    throw new Error('The software discovery scenario wrote no problem record.');
+  const base = `workspaces/${seeded.workspace.id}`;
+  const runId = clinic.run;
+  const packet = await call(
+    z.strictObject({ packet: EvidencePacketSchema, packet_hash: z.string() }),
+    `${base}/workflows/${clinic.workflow}/packet`,
+  );
+  const evidence = packet.packet.claims
+    .filter((c) => c.status === 'supported')
+    .map((c) => ({ id: c.claim_id, version: c.version }));
+  const report = () =>
+    call(SelectionReportSchema, `${base}/problems/${problemId}/report`);
+  const before = await report();
+  const alts = before.suitability.candidates.map((c) => c.alternative);
+  for (const card of fixtureScorecards(alts, evidence))
+    await call(StoredEntitySchema, `${base}/scorecards`, card);
+  const build = alts.find((a) => a.kind === 'build');
+  if (!build) throw new Error('No software alternative to select.');
+  await call(StoredEntitySchema, `${base}/entities`, {
+    kind: 'humility_review',
+    title: `Humility review: ${build.title}`.slice(0, 300),
+    body: fixtureHumilityReview(
+      { id: build.id, version: build.version },
+      evidence,
+    ),
+  });
+  const scored = await report();
+  const approveOnce = async (decisionId: string | null) => {
+    if (!decisionId) throw new Error('Expected a decision request.');
+    const d = await call(DecisionSchema, `${base}/decisions/${decisionId}`);
+    await call(DecisionSchema, `${base}/decisions/${decisionId}/answer`, {
+      choice: 'approve_once',
+      option_id: null,
+      rationale:
+        'Fixture seed: approved as the signed-in owner for this exact version.',
+      coverage_hash: d.coverage.coverage_hash,
+      standing_expires_at: null,
+      time_spent_ms: null,
+      interruption: null,
+    });
+  };
+  const selectRequest = {
+    problem: { id: scored.problem.id, version: scored.problem.version },
+    report_hash: scored.report_hash,
+    dispositions: fixtureDispositions(scored),
+    override_reason:
+      'The human-led option is deferred only because no coordinator is funded this quarter (fixture).',
+    rationale:
+      'Recommend turning on reminders now and prototype risk flags against a manual baseline (fixture).',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  };
+  const asked = await call(
+    SelectOutcomeSchema,
+    `${base}/runs/${runId}/selections`,
+    selectRequest,
+  );
+  await approveOnce(asked.admission.decision_id);
+  const selected = await call(
+    SelectOutcomeSchema,
+    `${base}/runs/${runId}/selections`,
+    selectRequest,
+  );
+  if (!selected.selection)
+    throw new Error(
+      `Selection not recorded: ${selected.admission.explanation}`,
+    );
+  const created = await call(SpecStatusSchema, `${base}/specs`, {
+    selection_id: selected.selection.id,
+    alternative: { id: build.id, version: build.version },
+    title: 'No-show risk flags prototype (fixture)',
+    content: FIXTURE_SPEC,
+  });
+  const freezeRequest = {
+    spec: { id: created.spec.id, version: created.spec.version },
+    justification: 'Freeze the prototype spec for a bounded build (fixture).',
+    data_class: 'synthetic',
+  };
+  const freezeAsked = await call(
+    FreezeOutcomeSchema,
+    `${base}/runs/${runId}/spec-freezes`,
+    freezeRequest,
+  );
+  await approveOnce(freezeAsked.admission.decision_id);
+  const frozen = await call(
+    FreezeOutcomeSchema,
+    `${base}/runs/${runId}/spec-freezes`,
+    freezeRequest,
+  );
+  const afterFreeze = await call(
+    SpecStatusSchema,
+    `${base}/specs/${created.spec.id}`,
+  );
+  const revised = await call(
+    SpecStatusSchema,
+    `${base}/specs/${created.spec.id}/revisions`,
+    {
+      expected_version: created.spec.version,
+      title: created.spec.title,
+      content: fixtureSpecRevision(FIXTURE_SPEC),
+      reason: 'A printable list was requested (fixture).',
+    },
+  );
+  return {
+    workspace: seeded.workspace,
+    run: runId,
+    problem: problemId,
+    report: reportSummary(scored),
+    selection: {
+      status: selected.status,
+      id: selected.selection.id,
+      first_attempt: asked.status,
+      dispositions: selected.selection.dispositions.map((d) => ({
+        alternative: d.alternative.id,
+        disposition: d.disposition,
+        reasons: d.reasons,
+        reverse_if: d.reverse_if,
+      })),
+      overrides: selected.selection.overrides,
+      override_reason: selected.selection.override_reason,
+    },
+    spec: {
+      id: created.spec.id,
+      first_attempt: freezeAsked.status,
+      freeze: frozen.status,
+      after_freeze: specSummary(afterFreeze),
+      after_revision: specSummary(revised),
+    },
+  };
 }

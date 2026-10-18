@@ -120,6 +120,7 @@ test('owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and 
     }),
   );
   assert.deepEqual(run.stage_gates, [
+    'candidate.select',
     'spec.freeze',
     'product.commit_build',
     'release.publish',

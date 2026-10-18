@@ -158,6 +158,18 @@ function refuseRetrievalFacts(kind: StoredKind, body: Record<string, unknown>) {
       'INVALID_CONTRACT',
       'Retrieval facts are recorded only by the source broker from an actual fetch.',
     );
+  // T08: scorecards and frozen-spec candidates are checked against their subjects, evidence
+  // and selection by the selection API; the generic path cannot do that.
+  if (kind === 'scorecard')
+    throw fail(
+      'INVALID_CONTRACT',
+      'Record scorecards through the scorecard API, which checks the subject and evidence.',
+    );
+  if (kind === 'specification' && body.format === 'spec/1')
+    throw fail(
+      'INVALID_CONTRACT',
+      'Write specifications through the spec API, which checks the selection and task graph.',
+    );
 }
 export const contentHashOf = (kind: string, title: string, body: unknown) =>
   canonicalHash({ kind, title, body });
@@ -691,6 +703,11 @@ export class Store {
         throw fail(
           'INVALID_TRANSITION',
           'This source is maintained by the source broker; re-fetch it instead of editing it.',
+        );
+      if (current.body?.format === 'spec/1')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Revise this specification through the spec API so its task impact is recorded.',
         );
       const body = validateBody(current.kind, req.body);
       refuseRetrievalFacts(current.kind, body);

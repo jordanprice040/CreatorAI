@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { assertSchemaCurrent, databaseUrl, DiscoveryStore } from '@creator/db';
+import { assertSchemaCurrent, databaseUrl, SelectionStore } from '@creator/db';
 import {
   FixtureAdapter,
   ModelBroker,
@@ -19,7 +19,7 @@ pool.on('error', (e) =>
   console.error(`PostgreSQL idle client error: ${e.message}`),
 );
 await assertSchemaCurrent(pool);
-const store = new DiscoveryStore(pool);
+const store = new SelectionStore(pool);
 const broker = new ModelBroker(store, {
   fixture: new FixtureAdapter(),
   live: liveAdapterFromEnv(process.env),

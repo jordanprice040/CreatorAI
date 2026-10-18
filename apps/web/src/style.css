@@ -465,3 +465,59 @@ button.text[aria-current='true'] {
   font-size: 13px;
   color: #4a524a;
 }
+.table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+table.ranking {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.ranking th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #536657;
+  border-bottom: 1px solid #d8ded4;
+  padding: 6px 8px 6px 0;
+}
+table.ranking td {
+  vertical-align: top;
+  border-bottom: 1px solid #e6e9e0;
+  padding: 8px 8px 8px 0;
+  overflow-wrap: anywhere;
+}
+table.ranking td:first-child,
+table.ranking td:nth-child(3),
+table.ranking td:nth-child(4) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.score-incomplete,
+.score-unscored,
+.gate-not_assessed,
+.gate-missing,
+.task-changed,
+.task-added {
+  color: #8a5a0f;
+}
+.gate-unresolved,
+.gate-failing,
+.gate-needs_judgment,
+.task-removed {
+  color: #9b2c2c;
+}
+.task-frozen {
+  color: #2f5b45;
+}
+.override {
+  font-size: 13px;
+  border-left: 3px solid #c9a24a;
+  padding-left: 10px;
+  margin: 8px 0;
+}
+.selections > li > ul {
+  margin-top: 6px;
+}

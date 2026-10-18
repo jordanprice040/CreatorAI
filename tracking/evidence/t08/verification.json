@@ -1,0 +1,58 @@
+{
+  "milestone": "T08",
+  "date": "2026-10-18",
+  "base": "main at df04354 (T07 merged as PR #8)",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15"
+  },
+  "checks": [
+    {
+      "command": "pnpm check",
+      "result": "pass",
+      "tests": 117,
+      "passed": 57,
+      "skipped": 60,
+      "log": "check-without-db.log"
+    },
+    {
+      "command": "pnpm test:db",
+      "result": "pass",
+      "tests": 117,
+      "passed": 117,
+      "log": "test-db.log",
+      "note": "storage.test now expects schema version 7; auth-api.test expects candidate.select among supervised stage gates"
+    },
+    { "command": "pnpm smoke", "result": "pass", "log": "smoke.log" },
+    {
+      "command": "pnpm cli seed-selection against the API on a freshly migrated PostgreSQL database (fixture provider and fixture reviewers)",
+      "result": "pass",
+      "output": "seed-selection.json",
+      "observed": "opportunity: build 56.3 (range 54.2-58.3, reviewers differ on differentiation), hybrid incomplete 45.8-62.5; suitability: use_existing 66.7 #1, human_led 58.3 #2, change_process and build tied 54.2 #3, hybrid incomplete; suitability sensitivity not stable; selection recorded after one owner approval with one suitability override; spec frozen at v1; after revising T3, T1/T2 frozen and T3/T4 changed"
+    },
+    {
+      "command": "Playwright (headless Chromium) against vite preview + API after seed-selection: Scoring and selection panel shows rankings, gates, sensitivity, the selection with its override, and spec v2 task statuses",
+      "result": "pass",
+      "screenshots": ["browser-scoring.png"]
+    }
+  ],
+  "acceptance_gate": {
+    "unknown_distinct_from_average": "selection-domain.test.js: one unknown gives no score and bounds 50 and 200/3; selection.test.js: hybrid is incomplete with a range",
+    "reproducible_scores": "selection-domain.test.js: exact fractions and displays; report hash identical for reordered inputs",
+    "ties_and_disagreement": "selection.test.js: shared rank 3 for the tied candidates, shortlist widened to 4, reviewer disagreement on differentiation listed",
+    "override_retains_original": "selection.test.js: advancing a lower-ranked candidate without a reason is refused; with a reason the selection stores the override and original report",
+    "gates_separate_from_scores": "selection.test.js: an ethics-unresolved or humility-blocked candidate cannot be advanced whatever its score; a gate closing after selection blocks the freeze",
+    "non_code_not_forced_to_build": "selection.test.js: select_for_build for a use_existing response is refused; recommend_alternative succeeds",
+    "spec_task_dag": "selection-domain.test.js and selection.test.js: cycles, unknown dependencies, uncovered checks and parallel ownership conflicts rejected",
+    "frozen_spec_invalidation": "selection.test.js: revising one task changes its hash and its dependants', leaves others frozen, and the earlier approval does not cover the new version",
+    "run_policy": "selection.test.js: supervised selection needs a human decision; autonomous with a covering grant is recorded, without one deferred"
+  },
+  "not_verified": [
+    "model-written scorecards (no assessor role yet)",
+    "real reviewers or calibrated rubric weights",
+    "Windows PostgreSQL",
+    "CI with database"
+  ]
+}

@@ -15,6 +15,7 @@ import { LinkRelationSchema } from './records.js';
 import { AssumptionBodySchema, HumilityBodySchema } from './oversight.js';
 import { RetentionSchema } from './research.js';
 import { SearchBriefBodySchema } from './discovery.js';
+import { ScorecardBodySchema, SpecBodySchema } from './selection.js';
 
 // Persistent record bodies (T02). Bodies hold references and hashes; source content and
 // large artifacts stay outside the database and workflow history.
@@ -37,6 +38,7 @@ export const StoredKindSchema = z.enum([
   'assumption',
   'humility_review',
   'search_brief',
+  'scorecard',
 ]);
 export type StoredKind = z.infer<typeof StoredKindSchema>;
 export const RecordModeSchema = z.enum(['fixture', 'real']);
@@ -104,11 +106,15 @@ export const StoredBodySchemas = {
     stage: ProductStageSchema,
     summary: text.max(2000),
   }),
-  specification: z.strictObject({
-    spec_hash: hash,
-    summary: text.max(2000),
-    acceptance_criteria: z.array(short).min(1).max(30),
-  }),
+  // T02 summary form, or a T08 `spec/1` specification (written only through the spec API).
+  specification: z.union([
+    z.strictObject({
+      spec_hash: hash,
+      summary: text.max(2000),
+      acceptance_criteria: z.array(short).min(1).max(30),
+    }),
+    SpecBodySchema,
+  ]),
   run: z.strictObject({
     state: ExecutionStateSchema,
     experiment_condition: ConditionSchema,
@@ -147,6 +153,7 @@ export const StoredBodySchemas = {
   assumption: AssumptionBodySchema,
   humility_review: HumilityBodySchema,
   search_brief: SearchBriefBodySchema,
+  scorecard: ScorecardBodySchema,
 } as const satisfies Record<StoredKind, z.ZodType>;
 export const lifecycleField: Partial<
   Record<StoredKind, { field: string; initial: string }>
