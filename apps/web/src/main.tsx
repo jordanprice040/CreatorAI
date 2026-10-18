@@ -9,6 +9,7 @@ import {
 import { Records } from './records.js';
 import { Oversight, SignIn, useSession } from './oversight.js';
 import { Budgets } from './budgets.js';
+import { Workflows } from './workflows.js';
 import './style.css';
 
 const choices = [
@@ -229,6 +230,7 @@ function App() {
           <Oversight session={auth.session} signOut={auth.signOut} />
         )}
         {auth.session && <Budgets session={auth.session} />}
+        {auth.session && <Workflows session={auth.session} />}
         {(!persistent || auth.session) && <Records persistent={persistent} />}
         <footer>
           <span>Schema 1.0 · Local control</span>

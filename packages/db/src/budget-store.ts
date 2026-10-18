@@ -82,7 +82,7 @@ function toEnvelope(r: Row): Envelope {
     closed_at: nullableIso(r.closed_at),
   };
 }
-function toReservation(r: Row): Reservation {
+export function toReservation(r: Row): Reservation {
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
@@ -115,7 +115,7 @@ function toReservation(r: Row): Reservation {
     finished_at: nullableIso(r.finished_at),
   };
 }
-const RESERVATION_SELECT = `select r.*, u.usage, u.source as usage_source
+export const RESERVATION_SELECT = `select r.*, u.usage, u.source as usage_source
   from budget_reservations r left join usage_records u on u.reservation_id = r.id`;
 
 /** What the broker asks the store to admit and reserve for one attempt. */

@@ -230,6 +230,24 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return `Holding ${String(p.reserved_nano)} for an unknown outcome (${String(p.reason_code)})`;
     case 'budget.late_result_conflict':
       return 'A late provider result arrived for a call already reconciled as uncharged';
+    case 'workflow.started':
+      return `Started ${String(p.role)} workflow over ${String(p.perspectives)} perspectives`;
+    case 'workflow.delegated':
+      return `Delegated ${String(p.kind)} task ${String(p.ordinal)}${Number(p.repair) ? ` (repair ${String(p.repair)})` : ''}`;
+    case 'workflow.state':
+      return `Workflow ${String(p.state)} (${String(p.reason)})`;
+    case 'workflow.control':
+      return `Owner requested ${String(p.control)}: ${String(p.reason)}`;
+    case 'workflow.finished':
+      return `Workflow finished: ${String(p.outcome)}`;
+    case 'task.leased':
+      return `Leased task to ${String(p.worker)} (delivery ${String(p.delivery)})`;
+    case 'task.completed':
+      return `Task ${String(p.state)} (${String(p.reason)})`;
+    case 'task.lease_expired':
+      return `Lease expired on ${String(p.worker)}; task ${String(p.state)}`;
+    case 'task.woken':
+      return `Decision closed; task ${String(p.state)}`;
     case 'action.evaluated':
       return `Action ${String(p.action_type)}: ${String(p.verdict)} (${String(p.reason_code)})`;
     default:
@@ -1032,17 +1050,23 @@ export class Store {
   }
 
   /** Idempotent consumer: the inbox row makes repeated delivery of one event a no-op. */
+  /**
+   * Applies one event to every idempotent consumer: the history projection here, plus any
+   * consumer a subclass adds in `consume`. Each consumer claims the event in its own inbox
+   * row, so a redelivered event changes nothing twice. Returns whether history changed.
+   */
   private async project(c: PoolClient, eventId: string): Promise<boolean> {
-    const claim = await c.query(
-      'insert into consumer_inbox (consumer, event_id) values ($1, $2) on conflict do nothing',
-      [HISTORY_CONSUMER, eventId],
-    );
-    if (claim.rowCount === 0) return false;
     const { rows } = await c.query('select * from audit_events where id = $1', [
       eventId,
     ]);
     const e = rows[0] as Row | undefined;
     if (!e) throw fail('NOT_FOUND', 'Audit event not found.');
+    await this.consume(c, e);
+    const claim = await c.query(
+      'insert into consumer_inbox (consumer, event_id) values ($1, $2) on conflict do nothing',
+      [HISTORY_CONSUMER, eventId],
+    );
+    if (claim.rowCount === 0) return false;
     const payload = e.payload as Row;
     const related = Array.isArray(payload.related_ids)
       ? payload.related_ids
@@ -1075,6 +1099,8 @@ export class Store {
     );
     return true;
   }
+  /** Extra outbox consumers; each must claim the event in consumer_inbox itself. */
+  protected async consume(_c: PoolClient, _event: Row): Promise<void> {}
 
   /** Delivers one outbox message. Safe to call repeatedly (at-least-once delivery). */
   async deliver(eventId: string): Promise<boolean> {

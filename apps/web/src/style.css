@@ -420,3 +420,23 @@ a.primary.link {
 .res-denied {
   color: #687168;
 }
+.wf-waiting_human,
+.wf-reconciling,
+.wf-paused_operator,
+.task-waiting_human,
+.task-reconciling {
+  color: #8a5a0f;
+}
+.wf-failed,
+.task-failed,
+.task-needs_human {
+  color: #9b2c2c;
+}
+.wf-cancelled,
+.task-cancelled,
+.task-waiting_dependency {
+  color: #687168;
+}
+button.text[aria-current='true'] {
+  font-weight: 700;
+}

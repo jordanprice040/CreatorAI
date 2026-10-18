@@ -14,6 +14,7 @@
     "@creator/contracts": "workspace:*",
     "@creator/db": "workspace:*",
     "@creator/domain": "workspace:*",
+    "@creator/orchestrator": "workspace:*",
     "openid-client": "6.8.8",
     "pg": "8.23.1"
   },

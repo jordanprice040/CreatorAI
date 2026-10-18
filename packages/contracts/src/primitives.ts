@@ -139,6 +139,7 @@ export const ErrorCodeSchema = z.enum([
   'CSRF_DENIED',
   'BUDGET_EXCEEDED',
   'PRICING_MISSING',
+  'LEASE_LOST',
   'INTERNAL_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

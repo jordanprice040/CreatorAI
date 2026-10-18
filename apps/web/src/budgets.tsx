@@ -19,7 +19,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 
 /** Exact decimal display of nano-USD. Fixture amounts are simulated units, not money. */
-function money(nano: string | null, fixture: boolean): string {
+export function money(nano: string | null, fixture: boolean): string {
   if (nano === null) return '—';
   const v = BigInt(nano);
   const whole = v / 1_000_000_000n;

@@ -14,12 +14,18 @@ import {
 } from '@creator/contracts';
 import { authConfig, runFixture, serviceConfig } from '@creator/domain';
 import {
-  BudgetStore,
+  WorkflowStore,
   assertSchemaCurrent,
   databaseUrl,
+  ORCHESTRATOR_ACTOR_ID,
   type CommandContext,
 } from '@creator/db';
-import { FixtureAdapter, ModelBroker, OpenAIAdapter } from '@creator/broker';
+import {
+  FixtureAdapter,
+  ModelBroker,
+  liveAdapterFromEnv,
+} from '@creator/broker';
+import { Worker } from '@creator/orchestrator';
 import { createAuth } from './auth.js';
 
 const MAX_BODY = 65536;
@@ -59,35 +65,6 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 export const DEFAULT_OWNER_ACTOR_ID = '00000000-0000-4000-8000-000000000001';
 /** System actor that records crash recovery of lost broker attempts. */
 export const BROKER_ACTOR_ID = '00000000-0000-4000-8000-000000000002';
-/**
- * A live adapter exists only when the owner opts in explicitly and supplies a key. The key
- * stays in this process; it is not an authorization to spend (grants and envelopes are).
- */
-function liveAdapter(env: Record<string, string | undefined>) {
-  const provider = env.CREATOR_LIVE_PROVIDER ?? 'none';
-  if (provider === 'none') return null;
-  if (provider !== 'openai')
-    throw new ContractError(
-      'INVALID_CONFIG',
-      'CREATOR_LIVE_PROVIDER must be none or openai.',
-    );
-  if (!env.OPENAI_API_KEY)
-    throw new ContractError(
-      'INVALID_CONFIG',
-      'CREATOR_LIVE_PROVIDER=openai needs OPENAI_API_KEY on the API process.',
-    );
-  try {
-    return new OpenAIAdapter({
-      apiKey: env.OPENAI_API_KEY,
-      model_id: env.CREATOR_OPENAI_MODEL ?? 'gpt-6-astra',
-      ...(env.CREATOR_OPENAI_BASE_URL
-        ? { baseUrl: env.CREATOR_OPENAI_BASE_URL }
-        : {}),
-    });
-  } catch (e) {
-    throw new ContractError('INVALID_CONFIG', (e as Error).message);
-  }
-}
 const CONNECTION_FAILURES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -123,6 +100,8 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   CSRF_DENIED: 403,
   EXPIRED: 409,
   BUDGET_EXCEEDED: 409,
+  LEASE_LOST: 409,
+  HUMAN_ONLY_DENIED: 403,
   PRICING_MISSING: 409,
   SCOPE_EXCEEDED: 403,
   BODY_TOO_LARGE: 413,
@@ -133,7 +112,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -156,12 +135,29 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   pool?.on('error', (e) =>
     console.error(`PostgreSQL idle client error: ${e.message}`),
   );
-  const live = liveAdapter(env);
-  const store = pool ? new BudgetStore(pool) : null;
+  const live = liveAdapterFromEnv(env);
+  const store = pool ? new WorkflowStore(pool) : null;
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
     : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };
+  // Workflows run on the server, not in the page: this in-process worker (or a separate
+  // `pnpm worker`) continues them after restarts. CREATOR_WORKER=off leaves it to others.
+  const workerMode = env.CREATOR_WORKER ?? 'on';
+  if (workerMode !== 'on' && workerMode !== 'off')
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'CREATOR_WORKER must be on or off.',
+    );
+  const worker =
+    store && broker && workerMode === 'on'
+      ? new Worker(store, broker, {
+          log: (m) => console.error(m),
+          ...(env.CREATOR_WORKER_POLL_MS
+            ? { pollMs: Number(env.CREATOR_WORKER_POLL_MS) }
+            : {}),
+        })
+      : null;
   const authn = createAuth(auth, store, ownerId);
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
@@ -179,9 +175,15 @@ export function createApi(env: Record<string, string | undefined> = {}) {
       kind: 'system',
       display_name: 'Budget broker',
     });
+    await store.ensureActor({
+      id: ORCHESTRATOR_ACTOR_ID,
+      kind: 'agent',
+      display_name: 'Workflow worker',
+    });
     storage = 'postgresql';
     await store.sweepStale(brokerActor);
     await store.drainOutbox();
+    worker?.start();
   }
   let ready = init();
   ready.catch(() => undefined);
@@ -330,6 +332,12 @@ export function createApi(env: Record<string, string | undefined> = {}) {
         broker?.cancelRun(cancelled.run_id);
         return send(200, cancelled, true);
       }
+      if (item && method === 'POST' && action === 'workflows')
+        return send(
+          201,
+          await store.startWorkflow(ctx, ws, item, await readJson(req)),
+          true,
+        );
       if (item && method === 'POST' && action === 'model-calls')
         return send(
           200,
@@ -439,6 +447,33 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await store.reconcile(ctx, ws, item, await readJson(req)),
           true,
         );
+    } else if (collection === 'workflows') {
+      if (!item && method === 'GET') {
+        const run = url.searchParams.get('run');
+        return send(
+          200,
+          await store.listWorkflows(ctx, ws, run ? { runId: run } : {}),
+          false,
+        );
+      }
+      if (item && !action && method === 'GET')
+        return send(200, await store.getWorkflow(ctx, ws, item), false);
+      if (
+        item &&
+        method === 'POST' &&
+        (action === 'pause' || action === 'resume' || action === 'cancel')
+      ) {
+        const detail = await store.controlWorkflow(
+          ctx,
+          ws,
+          item,
+          action,
+          await readJson(req),
+        );
+        // Stop this process's in-flight calls now; other workers see it on their next heartbeat.
+        if (action === 'cancel') broker?.cancelRun(detail.workflow.run_id);
+        return send(200, detail, true);
+      }
     } else if (collection === 'history' && !item) {
       if (method === 'GET') {
         await store.drainOutbox();
@@ -586,6 +621,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   server.headersTimeout = 10000;
   async function close() {
     if (relay) clearInterval(relay);
+    await worker?.stop();
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await pool?.end();
@@ -595,6 +631,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
     config,
     store,
     broker,
+    worker,
     ready: () => ready,
     close,
     authMode: authn.mode,

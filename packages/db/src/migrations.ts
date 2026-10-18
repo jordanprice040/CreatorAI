@@ -598,6 +598,142 @@ create trigger budget_journal_append_only before update or delete on budget_jour
   for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 4,
+    name: 'durable_workflows_tasks_leases',
+    sql: `
+-- T05 workflows: a finite coordinator per registered run. Identity, bound context and limits
+-- are fixed at start; only state, control, step count and result move, and terminal is final.
+create table workflows (
+  id uuid primary key,
+  workspace_id uuid not null,
+  fixture boolean not null,
+  run_id uuid not null,
+  version integer not null default 1 check (version >= 1),
+  role text not null check (role = 'r05_skeptic'),
+  role_version text not null,
+  prompt_hash char(64) not null,
+  policy_version text not null,
+  subject_id uuid not null,
+  subject_version integer not null,
+  context jsonb not null,
+  context_hash char(64) not null,
+  limits jsonb not null,
+  envelope_id uuid not null,
+  pricing_snapshot_id uuid not null,
+  data_class text not null check (data_class in ('synthetic', 'public', 'private_approved')),
+  state text not null check (state in ('queued', 'running', 'waiting_dependency',
+    'waiting_human', 'paused_operator', 'reconciling', 'succeeded', 'failed', 'cancelled')),
+  reason text not null,
+  control text not null default 'run' check (control in ('run', 'pause', 'cancel')),
+  steps integer not null default 0 check (steps >= 0),
+  deadline_at timestamptz not null,
+  result jsonb,
+  created_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  finished_at timestamptz,
+  unique (workspace_id, id),
+  foreign key (workspace_id, fixture) references workspaces (id, fixture),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  foreign key (workspace_id, envelope_id) references budget_envelopes (workspace_id, id),
+  foreign key (workspace_id, pricing_snapshot_id) references pricing_snapshots (workspace_id, id),
+  foreign key (subject_id, subject_version) references entity_versions (entity_id, version),
+  check ((state in ('succeeded', 'failed', 'cancelled')) = (finished_at is not null)),
+  check ((finished_at is null) = (result is null))
+);
+-- One live coordinator per run, so a run's broker calls belong to one workflow.
+create unique index workflows_one_live_per_run on workflows (workspace_id, run_id)
+  where finished_at is null;
+create index workflows_live on workflows (state) where finished_at is null;
+create function creator_workflow_fixed() returns trigger language plpgsql as $$
+begin
+  if old.finished_at is not null
+     or (new.id, new.workspace_id, new.fixture, new.run_id, new.role, new.role_version,
+         new.prompt_hash, new.policy_version, new.subject_id, new.subject_version,
+         new.context, new.context_hash, new.limits, new.envelope_id,
+         new.pricing_snapshot_id, new.data_class, new.deadline_at, new.created_by,
+         new.created_at)
+       is distinct from
+        (old.id, old.workspace_id, old.fixture, old.run_id, old.role, old.role_version,
+         old.prompt_hash, old.policy_version, old.subject_id, old.subject_version,
+         old.context, old.context_hash, old.limits, old.envelope_id,
+         old.pricing_snapshot_id, old.data_class, old.deadline_at, old.created_by,
+         old.created_at)
+     or new.version <> old.version + 1
+     or (old.control = 'cancel' and new.control <> 'cancel') then
+    raise exception 'workflow identity, context and limits are immutable' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger workflows_fixed before update on workflows
+  for each row execute function creator_workflow_fixed();
+create trigger workflows_no_delete before delete on workflows
+  for each row execute function creator_reject_change();
+
+-- Fencing tokens: every lease takes a new, larger value; only the current holder may commit.
+create sequence workflow_lease_tokens;
+create table workflow_tasks (
+  id uuid primary key,
+  workspace_id uuid not null,
+  workflow_id uuid not null,
+  kind text not null check (kind in ('critique', 'synthesis')),
+  ordinal integer not null check (ordinal between 0 and 7),
+  repair integer not null check (repair between 0 and 2),
+  repair_of uuid references workflow_tasks (id),
+  depth integer not null check (depth = 1),
+  logical_operation_id uuid not null unique,
+  state text not null check (state in ('waiting_dependency', 'queued', 'leased',
+    'waiting_human', 'reconciling', 'succeeded', 'failed', 'needs_human', 'cancelled')),
+  reason text not null,
+  version integer not null default 1 check (version >= 1),
+  deliveries integer not null default 0 check (deliveries >= 0),
+  lease_owner text,
+  lease_token bigint,
+  lease_expires_at timestamptz,
+  decision_id uuid references decision_requests (id),
+  context jsonb not null,
+  context_hash char(64) not null,
+  output jsonb,
+  output_hash char(64),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  finished_at timestamptz,
+  foreign key (workspace_id, workflow_id) references workflows (workspace_id, id),
+  unique (workflow_id, kind, ordinal, repair),
+  check ((repair = 0) = (repair_of is null)),
+  check ((state = 'leased') = (lease_owner is not null and lease_expires_at is not null)),
+  check ((state = 'leased') <= (lease_token is not null)),
+  check ((state = 'waiting_human') <= (decision_id is not null)),
+  check ((state in ('succeeded', 'failed', 'needs_human', 'cancelled')) = (finished_at is not null)),
+  check ((state = 'succeeded') = (output is not null)),
+  check ((output is null) = (output_hash is null))
+);
+create index workflow_tasks_ready on workflow_tasks (workflow_id, state);
+create index workflow_tasks_decision on workflow_tasks (decision_id) where decision_id is not null;
+-- Context is fixed once a task can run; terminal tasks never change; tokens only grow.
+create function creator_workflow_task_transition() returns trigger language plpgsql as $$
+begin
+  if old.finished_at is not null
+     or (new.id, new.workspace_id, new.workflow_id, new.kind, new.ordinal, new.repair,
+         new.repair_of, new.depth, new.logical_operation_id, new.created_at)
+       is distinct from
+        (old.id, old.workspace_id, old.workflow_id, old.kind, old.ordinal, old.repair,
+         old.repair_of, old.depth, old.logical_operation_id, old.created_at)
+     or (old.state <> 'waiting_dependency'
+         and (new.context, new.context_hash) is distinct from (old.context, old.context_hash))
+     or new.version <> old.version + 1
+     or coalesce(new.lease_token, 0) < coalesce(old.lease_token, 0) then
+    raise exception 'invalid workflow task change' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger workflow_tasks_transition before update on workflow_tasks
+  for each row execute function creator_workflow_task_transition();
+create trigger workflow_tasks_no_delete before delete on workflow_tasks
+  for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
