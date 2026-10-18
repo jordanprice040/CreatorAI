@@ -1,0 +1,80 @@
+{
+  "milestone": "T09",
+  "date": "2026-10-18",
+  "base": "main at bba9e9a (T08 merged as PR #9)",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15",
+    "browser": "Playwright headless Chromium (/opt/pw-browsers/chromium)"
+  },
+  "checks": [
+    {
+      "command": "pnpm check (no database variables)",
+      "result": "pass",
+      "tests": 122,
+      "passed": 58,
+      "skipped": 64,
+      "log": "check-without-db.log"
+    },
+    {
+      "command": "pnpm test:db",
+      "result": "pass",
+      "tests": 122,
+      "passed": 122,
+      "log": "test-db.log",
+      "note": "storage.test now expects schema version 8; new catalog.test.ts (5 tests)"
+    },
+    { "command": "pnpm smoke", "result": "pass", "log": "smoke.log" },
+    {
+      "command": "pnpm cli seed-selection against the API on a freshly created and migrated database",
+      "result": "pass",
+      "output": "seed-selection.json"
+    },
+    {
+      "command": "node tracking/evidence/t09/browser-acceptance.mjs (headless Chromium against vite preview + API)",
+      "result": "pass",
+      "steps": 12,
+      "console_errors": 0,
+      "results": "browser-acceptance.json",
+      "log": "browser-acceptance.log",
+      "screenshots": [
+        "01-monitor.png", "02-run-started.png", "03-monitor-after-submit.png", "04-evidence.png",
+        "05-compare.png", "06-decide-needs-approval.png", "07-decision-approved.png", "08-decided.png",
+        "09-search-text.png", "10-search-id.png", "11-activity.png", "12-budget-denied.png",
+        "13-permission-revoked.png", "14-after-revocation.png", "15-gallery.png",
+        "16-mobile-monitor.png", "17-mobile-compare.png"
+      ]
+    }
+  ],
+  "acceptance_gate": {
+    "submit": "theme with two claims and a new human_in_loop run submitted from the form; the discovery workflow finished on the server and was listed on the Monitor after reload",
+    "inspect_evidence": "Compare → 'All evidence for this claim' opened the Evidence view with the 23 percent passage",
+    "compare": "five alternatives side by side with scores, ranks, ethics/access and humility gates",
+    "decide": "selection returned needs_human under the supervised gate; approved once in Decisions; resubmitted and recorded; still shown after reload",
+    "search_history": "text search 'no-show' with highlighted hits in records, passages and activity; 8-character id prefix matched; activity filtered to selection events and 'Answered decision'",
+    "budget_denial": "denied (budget exceeded): maximum exposure 11562500 exceeds the 1000 available in the envelope; shown as 'Not sent'",
+    "permission_revocation": "standing model grant revoked from Decisions (4 → 3 policies); next call on that run: needs human (outside grant); 'Revoked standing grant v2' in Activity",
+    "permissions_before_snippets": "catalog.test.js: non-member NOT_FOUND for search, activity, overview, actors and comparison; other workspaces never counted; redacted text and redacted sources' passages unsearchable",
+    "reserved_gallery": "'Not available yet' notice; no download or preview link or button",
+    "fixture_mode": "FIXTURE MODE banner on every view of a fixture workspace; search reports 'fixture workspace'",
+    "responsive_keyboard": "first Tab focuses 'Skip to content'; 0 px horizontal overflow at 390 px on Monitor and Compare (all other views also checked at 0 px during repair)"
+  },
+  "defects_repaired_after_inspection": [
+    "raw schema validation messages shown before any input",
+    "navigation column centred vertically",
+    "problem picker overflowing a 390 px screen",
+    "Monitor did not update while a workflow ran",
+    "grant subjects linked to a page that could not show them",
+    "workflow id missing from the run detail",
+    "old numbered panel eyebrows; favicon 404"
+  ],
+  "not_verified": [
+    "real model or real reviewers (fixture only)",
+    "screen readers or a measured contrast audit",
+    "Windows",
+    "CI with database",
+    "product stages, tasks and artifacts (none exist before T11–T13)"
+  ]
+}

@@ -1042,6 +1042,24 @@ create trigger spec_freezes_append_only before update or delete on spec_freezes
   for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 8,
+    name: 'catalog_search',
+    sql: `
+-- T09 lexical search. Expression indexes only: the searchable text is the stored title and
+-- string values, so a redacted record (title '[redacted]', body null) and a passage whose
+-- excerpt was removed have nothing left to match. Queries repeat these exact expressions.
+create index entities_search on entities using gin ((
+  to_tsvector('english'::regconfig, title)
+  || jsonb_to_tsvector('english'::regconfig, coalesce(body, '{}'::jsonb), '["string"]')));
+create index source_passages_search on source_passages using gin (
+  (to_tsvector('english'::regconfig, coalesce(excerpt, ''))));
+create index history_search on history_projection using gin (
+  (to_tsvector('english'::regconfig, summary)));
+create index decision_requests_search on decision_requests using gin ((
+  jsonb_to_tsvector('english'::regconfig, request, '["string"]')));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

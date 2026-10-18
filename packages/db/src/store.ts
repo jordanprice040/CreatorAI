@@ -106,7 +106,7 @@ function toLink(r: Row): StoredLink {
       r.retraction_reason === null ? null : String(r.retraction_reason),
   };
 }
-function toHistory(r: Row): HistoryEntry {
+export function toHistory(r: Row): HistoryEntry {
   return {
     event_id: String(r.event_id),
     sequence: String(r.sequence),

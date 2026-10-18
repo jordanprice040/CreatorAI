@@ -193,6 +193,26 @@ pnpm cli spec <workspace> <spec-id>
 
 **Fixture only.** Fixture reviewers are fixed data written to show the arithmetic, gates and overrides; they are not judgments. No model assessor role exists yet, and selecting does not move a product into a build stage.
 
+## Studio interface (T09)
+
+Open the web page (`pnpm dev`, or the API with `pnpm --filter @creator/web build` and `vite preview`) and sign in with the development link. Pick a workspace at the top; the address keeps the view, workspace, selected record and search, so refreshing or sharing the link returns to the same place.
+
+- **Monitor**: decisions waiting for you, workflows in progress with Pause, Resume and Cancel, recently finished runs, record counts, product stages, spend (charged, in flight, held unknown, refused calls) and the latest activity. It refreshes itself while work runs. Closing the page stops nothing.
+- **Submit a theme**: writes a versioned `search_brief`, attaches recorded claims with what each bears on, keeps or excludes each response type (an exclusion needs a reason), then registers a run (or reuses a free one) and starts a discovery run. The optional model permission is a 24-hour standing grant capped per call, revocable under Decisions.
+- **Compare and decide**: one problem with its brief, claims, passages and their freshness, the run's assumptions, and every alternative side by side with scores, gates, humility review, discovery disposition and dissent. The selection form disables choices a gate blocks. Under supervised defaults the server asks for a decision first; approve it in Decisions and submit again.
+- **Search**: words search record text, source passages, decision questions and activity; a full id or its first 8 characters finds that exact item. Filters narrow by result type, record kind and status. **Activity**: every audit event with who made it, filterable by action and paged.
+- **Gallery** is reserved: nothing has been built, so it shows no preview or download.
+
+```powershell
+pnpm cli search <workspace> "no-show" [record,passage,decision,activity] [kind] [status]
+pnpm cli activity <workspace> [words] [action-prefix]
+pnpm cli overview <workspace>
+pnpm cli compare <workspace> <problem-id>
+pnpm cli lineage <workspace> <record-id> [upstream|downstream] [depth 1-8]
+```
+
+Browser acceptance check (needs Playwright with Chromium; not a project dependency): seed with `pnpm cli seed-selection`, serve the built page with `vite preview`, then run `node tracking/evidence/t09/browser-acceptance.mjs <playwright module> <chromium>` with `T09_WS`, `T09_PROBLEM`, `T09_RUN` and `CREATOR_DEV_LOGIN_CODE` set. It writes screenshots and a JSON result next to itself.
+
 ## Checks
 
 ```powershell

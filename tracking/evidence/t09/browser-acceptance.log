@@ -1,0 +1,12 @@
+PASS sign in with the development code and land on the monitor
+PASS keyboard: the first Tab reaches the skip link
+PASS submit a theme: brief, claims, new run with a model permission
+PASS the new run is visible on the monitor and persists after a reload
+PASS inspect evidence: claim passages, origin and freshness
+PASS compare the clinic problem: alternatives side by side with scores and gates
+PASS decide: supervised gate asks, approval in Decisions, then recorded
+PASS search history: text, exact id prefix and the activity log
+PASS budget denial: a tiny budget refuses the call before it is sent
+PASS permission revocation: revoked standing permission makes the next call ask
+PASS gallery is reserved and offers no download or preview
+PASS narrow screen: monitor and compare fit a 390px phone width

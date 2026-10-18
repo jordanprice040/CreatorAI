@@ -32,3 +32,4 @@ export * from './orchestration.js';
 export * from './research.js';
 export * from './discovery.js';
 export * from './selection.js';
+export * from './catalog.js';

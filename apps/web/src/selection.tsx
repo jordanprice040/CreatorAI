@@ -4,7 +4,6 @@ import {
   SelectionSchema,
   SpecStatusSchema,
   StoredEntitySchema,
-  WorkspaceSchema,
   z,
   type RubricRanking,
   type Selection,
@@ -21,7 +20,7 @@ const GATE_LABEL: Record<string, string> = {
   not_assessed: 'not assessed',
 };
 
-function Ranking({
+export function Ranking({
   title,
   ranking,
   names,
@@ -140,11 +139,21 @@ function Ranking({
  * current scorecards; selecting and freezing are admitted actions done through the CLI/API,
  * and their approvals appear in Human decisions.
  */
-export function Scoring() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspace, setWorkspace] = useState('');
+export function Scoring({
+  workspace: current,
+  focus,
+  onFocus,
+}: {
+  workspace: Workspace;
+  /** The problem whose report is shown, kept in the page address. */
+  focus: string;
+  onFocus: (problemId: string) => void;
+}) {
+  const workspace = current.id;
   const [problems, setProblems] = useState<StoredEntity[]>([]);
-  const [problem, setProblem] = useState('');
+  const problem = focus;
+  const setProblem = (u: string | ((c: string) => string)) =>
+    onFocus(typeof u === 'function' ? u(focus) : u);
   const [alternatives, setAlternatives] = useState<StoredEntity[]>([]);
   const [report, setReport] = useState<SelectionReport | null>(null);
   const [selections, setSelections] = useState<Selection[]>([]);
@@ -154,17 +163,6 @@ export function Scoring() {
   const [error, setError] = useState('');
   const base = `workspaces/${workspace}`;
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const list = await api(z.array(WorkspaceSchema), 'workspaces');
-        setWorkspaces(list);
-        setWorkspace((c) => c || (list[0]?.id ?? ''));
-      } catch (e) {
-        setError(message(e));
-      }
-    })();
-  }, []);
   async function loadWorkspace() {
     if (!workspace) return;
     setError('');
@@ -222,39 +220,20 @@ export function Scoring() {
     }
   }
   const names = new Map(alternatives.map((a) => [a.id, a.title]));
-  const fixture =
-    workspaces.find((w) => w.id === workspace)?.record_mode === 'fixture';
+  const fixture = current.record_mode === 'fixture';
 
   return (
     <section className="panel records" aria-labelledby="sel-title">
-      <div className="eyebrow">07 / SCORING AND SELECTION</div>
       <h2 id="sel-title">Rankings, selections and specs</h2>
       <p>
         Scores are transparent prioritization aids from reviewers&apos; 1–5
         ratings, not probabilities or measured impact. Unknown ratings are never
         averaged away. Ethics, access and the humility review are gates that no
-        score can clear. Select and freeze through the CLI (
-        <code>pnpm cli select</code>, <code>pnpm cli spec-freeze</code>);
-        approvals appear under Human decisions.
+        score can clear. Record a selection under Compare and decide; freeze a
+        specification through the CLI (<code>pnpm cli spec-freeze</code>).
+        Approvals appear under Decisions.
       </p>
       <div className="connection">
-        <label htmlFor="sel-ws" className="inline">
-          Workspace
-        </label>
-        <select
-          id="sel-ws"
-          value={workspace}
-          onChange={(e) => setWorkspace(e.target.value)}
-        >
-          {workspaces.length === 0 && (
-            <option value="">No workspaces yet</option>
-          )}
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-            </option>
-          ))}
-        </select>
         <label htmlFor="sel-problem" className="inline">
           Problem
         </label>

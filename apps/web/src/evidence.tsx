@@ -7,7 +7,6 @@ import {
   SourceDetailSchema,
   SourceSummarySchema,
   StoredEntitySchema,
-  WorkspaceSchema,
   z,
   type ClaimEvidence,
   type Retrieval,
@@ -31,9 +30,19 @@ const TYPE_LABEL: Record<string, string> = {
  * Sources the broker retrieved, their passages, and what each claim's evidence shows. Fetching
  * goes through the server's source broker under its policy; this page never fetches pages.
  */
-export function Evidence({ session }: { session: SessionInfo }) {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspace, setWorkspace] = useState('');
+export function Evidence({
+  session,
+  workspace: current,
+  focus,
+  onFocus,
+}: {
+  session: SessionInfo;
+  workspace: Workspace;
+  /** `claim:<id>` or `source:<id>`, kept in the page address. */
+  focus: string;
+  onFocus: (focus: string) => void;
+}) {
+  const workspace = current.id;
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [claims, setClaims] = useState<StoredEntity[]>([]);
   const [retrievals, setRetrievals] = useState<Retrieval[]>([]);
@@ -74,9 +83,6 @@ export function Evidence({ session }: { session: SessionInfo }) {
       try {
         const st = await api(SourceBrokerStatusSchema, 'sources/status');
         setStatus(st.note);
-        const list = await api(z.array(WorkspaceSchema), 'workspaces');
-        setWorkspaces(list);
-        setWorkspace((c) => c || (list[0]?.id ?? ''));
       } catch (e) {
         setError(message(e));
       }
@@ -88,11 +94,18 @@ export function Evidence({ session }: { session: SessionInfo }) {
     setLast(null);
     void load();
   }, [workspace]);
+  useEffect(() => {
+    const [kind, id] = focus.split(':');
+    if (!id) return;
+    if (kind === 'claim' && evidence?.claim.id !== id) void openClaim(id);
+    if (kind === 'source' && source?.source.id !== id) void openSource(id);
+  }, [focus, workspace]);
 
   async function openSource(id: string) {
     setError('');
     try {
       setSource(await api(SourceDetailSchema, `${base}/sources/${id}`));
+      onFocus(`source:${id}`);
     } catch (e) {
       setError(message(e));
     }
@@ -103,6 +116,7 @@ export function Evidence({ session }: { session: SessionInfo }) {
       setEvidence(
         await api(ClaimEvidenceSchema, `${base}/claims/${id}/evidence`),
       );
+      onFocus(`claim:${id}`);
     } catch (e) {
       setError(message(e));
     }
@@ -135,12 +149,10 @@ export function Evidence({ session }: { session: SessionInfo }) {
       setBusy(false);
     }
   }
-  const fixture =
-    workspaces.find((w) => w.id === workspace)?.record_mode === 'fixture';
+  const fixture = current.record_mode === 'fixture';
 
   return (
     <section className="panel records" aria-labelledby="ev-title">
-      <div className="eyebrow">06 / SOURCES AND EVIDENCE</div>
       <h2 id="ev-title">Sources and claim evidence</h2>
       <p>
         Pages are fetched only by the server’s source broker, from approved
@@ -150,23 +162,6 @@ export function Evidence({ session }: { session: SessionInfo }) {
       </p>
       {status && <p className="small">{status}</p>}
       <div className="connection">
-        <label htmlFor="evws" className="inline">
-          Workspace
-        </label>
-        <select
-          id="evws"
-          value={workspace}
-          onChange={(e) => setWorkspace(e.target.value)}
-        >
-          {workspaces.length === 0 && (
-            <option value="">No workspaces yet</option>
-          )}
-          {workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-            </option>
-          ))}
-        </select>
         <button className="secondary" onClick={() => void load()}>
           Refresh
         </button>

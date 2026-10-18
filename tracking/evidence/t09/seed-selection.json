@@ -1,0 +1,323 @@
+{
+  "workspace": {
+    "id": "00efc4a5-549c-4b11-ab75-6898e7e3b241",
+    "name": "Fixture discovery demonstration",
+    "record_mode": "fixture",
+    "role": "owner",
+    "created_at": "2026-10-18T09:20:17.578Z"
+  },
+  "run": "428aba20-ebe1-4013-bfe2-895e06f57665",
+  "problem": "123bb9ee-f982-450a-8291-f0343830dab6",
+  "report": {
+    "problem": {
+      "id": "123bb9ee-f982-450a-8291-f0343830dab6",
+      "version": 1,
+      "title": "Unused first-appointment slots at rural clinics: Rural clinics recorded a 23 percent no-show rate for first appointments in 2025."
+    },
+    "report_hash": "29335635f3ead90da6d21941d12834c77ecbb2bce1da1ff9093a31542db7c6d7",
+    "opportunity": [
+      {
+        "alternative": "5872dbfc-128d-4619-9367-151748a0dbdc",
+        "kind": "build",
+        "title": "Software: Airline overbooking calculations from historical no-show rates have been used to double-book outpatient slots with a high predicted no-show probability.",
+        "status": "complete",
+        "rank": 1,
+        "score": "56.3",
+        "range": "54.2–58.3",
+        "unknown": [],
+        "disagreements": [
+          "differentiation"
+        ],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "candidate",
+          "humility": "passing",
+          "blocked": {
+            "recommend_alternative": [
+              "Custom software is selected for build or validation, not recommended as an alternative."
+            ]
+          }
+        }
+      },
+      {
+        "alternative": "ab58eefb-39e8-4244-a44a-9f7d98a6bdb7",
+        "kind": "hybrid",
+        "title": "Hybrid: routine workaround supported by a simple list from existing data",
+        "status": "incomplete",
+        "rank": null,
+        "score": null,
+        "range": "45.8–62.5",
+        "unknown": [
+          "differentiation"
+        ],
+        "disagreements": [],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "candidate",
+          "humility": "missing",
+          "blocked": {
+            "select_for_build": [
+              "The opportunity assessment is incomplete; unknown is not a neutral score.",
+              "No humility review of this exact version."
+            ]
+          }
+        }
+      }
+    ],
+    "opportunity_excluded": [
+      {
+        "id": "cfe0d5b8-64e7-4634-afaa-33c40e64e41d",
+        "reason": "No software part: the software-opportunity ranking does not apply; see the suitability ranking."
+      },
+      {
+        "id": "de574b72-c75b-41f4-ad1b-56b632c226c1",
+        "reason": "No software part: the software-opportunity ranking does not apply; see the suitability ranking."
+      },
+      {
+        "id": "ff8e3f96-aa50-4f05-a3aa-209bcb5e521a",
+        "reason": "No software part: the software-opportunity ranking does not apply; see the suitability ranking."
+      }
+    ],
+    "suitability": [
+      {
+        "alternative": "cfe0d5b8-64e7-4634-afaa-33c40e64e41d",
+        "kind": "use_existing",
+        "title": "Use the existing tool: The clinics’ scheduling systems send reminders but do not predict no-shows.",
+        "status": "complete",
+        "rank": 1,
+        "score": "66.7",
+        "range": "66.7–66.7",
+        "unknown": [],
+        "disagreements": [],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "candidate",
+          "humility": "not_applicable",
+          "blocked": {
+            "select_for_build": [
+              "A use existing response has no software to build; it cannot be made build-ready."
+            ]
+          }
+        }
+      },
+      {
+        "alternative": "ff8e3f96-aa50-4f05-a3aa-209bcb5e521a",
+        "kind": "human_led",
+        "title": "Human-led: a named coordinator owns Share of first-appointment slots left unused each month",
+        "status": "complete",
+        "rank": 2,
+        "score": "58.3",
+        "range": "58.3–58.3",
+        "unknown": [],
+        "disagreements": [],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "candidate",
+          "humility": "not_applicable",
+          "blocked": {
+            "select_for_build": [
+              "A human led response has no software to build; it cannot be made build-ready."
+            ]
+          }
+        }
+      },
+      {
+        "alternative": "5872dbfc-128d-4619-9367-151748a0dbdc",
+        "kind": "build",
+        "title": "Software: Airline overbooking calculations from historical no-show rates have been used to double-book outpatient slots with a high predicted no-show probability.",
+        "status": "complete",
+        "rank": 3,
+        "score": "54.2",
+        "range": "54.2–54.2",
+        "unknown": [],
+        "disagreements": [],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "candidate",
+          "humility": "passing",
+          "blocked": {
+            "recommend_alternative": [
+              "Custom software is selected for build or validation, not recommended as an alternative."
+            ]
+          }
+        }
+      },
+      {
+        "alternative": "de574b72-c75b-41f4-ad1b-56b632c226c1",
+        "kind": "change_process",
+        "title": "Front-desk staff phone patients the day before appointments to confirm attendance.",
+        "status": "complete",
+        "rank": 3,
+        "score": "54.2",
+        "range": "54.2–54.2",
+        "unknown": [],
+        "disagreements": [],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "duplicate",
+          "humility": "not_applicable",
+          "blocked": {
+            "select_for_build": [
+              "A change process response has no software to build; it cannot be made build-ready.",
+              "Discovery disposition: duplicate."
+            ],
+            "recommend_alternative": [
+              "Discovery disposition: duplicate."
+            ],
+            "proceed_to_validation": [
+              "Discovery disposition: duplicate."
+            ]
+          }
+        }
+      },
+      {
+        "alternative": "ab58eefb-39e8-4244-a44a-9f7d98a6bdb7",
+        "kind": "hybrid",
+        "title": "Hybrid: routine workaround supported by a simple list from existing data",
+        "status": "incomplete",
+        "rank": null,
+        "score": null,
+        "range": "50.0–66.7",
+        "unknown": [
+          "evidence_support"
+        ],
+        "disagreements": [],
+        "gates": {
+          "ethics_access": "clear",
+          "discovery": "candidate",
+          "humility": "missing",
+          "blocked": {
+            "select_for_build": [
+              "The opportunity assessment is incomplete; unknown is not a neutral score.",
+              "No humility review of this exact version."
+            ]
+          }
+        }
+      }
+    ],
+    "sensitivity": {
+      "opportunity_stable": true,
+      "suitability_stable": false,
+      "suitability_changes": [
+        "without problem_fit",
+        "double problem_fit",
+        "without expected_outcome",
+        "double expected_outcome",
+        "without feasibility_burden",
+        "double feasibility_burden",
+        "without evidence_support",
+        "double evidence_support",
+        "without maintenance_burden",
+        "double maintenance_burden"
+      ]
+    }
+  },
+  "selection": {
+    "status": "recorded",
+    "id": "e413b707-dd1c-4eb8-a22a-a37eb71f010e",
+    "first_attempt": "needs_human",
+    "dispositions": [
+      {
+        "alternative": "cfe0d5b8-64e7-4634-afaa-33c40e64e41d",
+        "disposition": "recommend_alternative",
+        "reasons": [
+          "Highest suitability; turn on reminders now regardless of the build."
+        ],
+        "reverse_if": "Reminders are already fully configured at every clinic."
+      },
+      {
+        "alternative": "ff8e3f96-aa50-4f05-a3aa-209bcb5e521a",
+        "disposition": "defer",
+        "reasons": [
+          "No coordinator time is available this quarter (fixture)."
+        ],
+        "reverse_if": "A coordinator is funded."
+      },
+      {
+        "alternative": "5872dbfc-128d-4619-9367-151748a0dbdc",
+        "disposition": "select_for_build",
+        "reasons": [
+          "Gates pass and a two-week manual baseline exists to compare against."
+        ],
+        "reverse_if": "The manual flagging pilot shows no fewer unused slots."
+      },
+      {
+        "alternative": "de574b72-c75b-41f4-ad1b-56b632c226c1",
+        "disposition": "reject",
+        "reasons": [
+          "Discovery found it duplicate."
+        ],
+        "reverse_if": "It proves distinct from the existing catalog entry."
+      },
+      {
+        "alternative": "ab58eefb-39e8-4244-a44a-9f7d98a6bdb7",
+        "disposition": "research_further",
+        "reasons": [
+          "Assessment incomplete: evidence support is unknown."
+        ],
+        "reverse_if": "Evidence on combined flags and follow-up appears."
+      }
+    ],
+    "overrides": [
+      {
+        "alternative": "5872dbfc-128d-4619-9367-151748a0dbdc",
+        "ranking": "suitability",
+        "original_rank": 3,
+        "original_score": "54.2",
+        "outranked_by": [
+          {
+            "id": "ff8e3f96-aa50-4f05-a3aa-209bcb5e521a",
+            "rank": 2,
+            "score": "58.3"
+          }
+        ]
+      }
+    ],
+    "override_reason": "The human-led option is deferred only because no coordinator is funded this quarter (fixture)."
+  },
+  "spec": {
+    "id": "912b8a6e-4d47-45f4-8472-a19c7c937927",
+    "first_attempt": "needs_human",
+    "freeze": "frozen",
+    "after_freeze": {
+      "spec": {
+        "id": "912b8a6e-4d47-45f4-8472-a19c7c937927",
+        "version": 1,
+        "status": "active",
+        "title": "No-show risk flags prototype (fixture)",
+        "content_hash": "66c86c67dc83ceefb24f4325056a493abfb2774a3f73c1cabfc9db8f7c18cf33"
+      },
+      "frozen_current": true,
+      "frozen_version": 1,
+      "tasks": [
+        "T1 frozen",
+        "T2 frozen",
+        "T3 frozen",
+        "T4 frozen"
+      ],
+      "removed_tasks": [],
+      "problems": [],
+      "blockers": []
+    },
+    "after_revision": {
+      "spec": {
+        "id": "912b8a6e-4d47-45f4-8472-a19c7c937927",
+        "version": 2,
+        "status": "active",
+        "title": "No-show risk flags prototype (fixture)",
+        "content_hash": "2ce65b68e356612819281c8a9642a71e45fbbee569dfb5fe3f1855ec7a497b06"
+      },
+      "frozen_current": false,
+      "frozen_version": 1,
+      "tasks": [
+        "T1 frozen",
+        "T2 frozen",
+        "T3 changed",
+        "T4 changed"
+      ],
+      "removed_tasks": [],
+      "problems": [],
+      "blockers": []
+    }
+  }
+}

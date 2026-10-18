@@ -10,6 +10,7 @@ import {
   contractSchemas,
   HealthSchema,
   SourceBrokerStatusSchema,
+  SEARCH_TYPES,
   parse,
   id as idSchema,
 } from '@creator/contracts';
@@ -20,7 +21,7 @@ import {
   sourcePolicyHash,
 } from '@creator/domain';
 import {
-  SelectionStore,
+  CatalogStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -126,7 +127,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -151,7 +152,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new SelectionStore(pool) : null;
+  const store = pool ? new CatalogStore(pool) : null;
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
     : null;
@@ -307,7 +308,14 @@ export function createApi(env: Record<string, string | undefined> = {}) {
             'INVALID_CONTRACT',
             'direction must be upstream or downstream.',
           );
-        return send(200, await store.lineage(ctx, ws, item, direction), false);
+        const depth = Number(url.searchParams.get('depth') ?? 8);
+        if (!Number.isInteger(depth) || depth < 1 || depth > 8)
+          throw new ContractError('INVALID_CONTRACT', 'depth must be 1–8.');
+        return send(
+          200,
+          await store.lineage(ctx, ws, item, direction, depth),
+          false,
+        );
       }
       if (method === 'POST' && action === 'revisions')
         return send(
@@ -544,6 +552,19 @@ export function createApi(env: Record<string, string | undefined> = {}) {
       }
       if (action === 'selections')
         return send(200, await store.listSelections(ctx, ws, item), false);
+      if (action === 'comparison') {
+        const days = url.searchParams.get('max_age_days');
+        return send(
+          200,
+          await store.comparison(
+            ctx,
+            ws,
+            item,
+            days === null ? undefined : Number(days),
+          ),
+          false,
+        );
+      }
     } else if (collection === 'scorecards' && method === 'POST') {
       if (!item)
         return send(
@@ -611,6 +632,40 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await store.retractClaimSupport(ctx, ws, item, await readJson(req)),
           true,
         );
+    } else if (collection === 'search' && !item && method === 'GET') {
+      await store.drainOutbox();
+      const p = url.searchParams;
+      const types = p.get('types');
+      return send(
+        200,
+        await store.search(ctx, ws, {
+          q: p.get('q') ?? '',
+          types: types ? types.split(',') : [...SEARCH_TYPES],
+          kind: p.get('kind') || null,
+          status: p.get('status') || null,
+          limit: Number(p.get('limit') ?? 20),
+        }),
+        false,
+      );
+    } else if (collection === 'activity' && !item && method === 'GET') {
+      await store.drainOutbox();
+      const p = url.searchParams;
+      const filter: Parameters<typeof store.activity>[2] = {};
+      const q = p.get('q');
+      const a = p.get('action');
+      const subject = p.get('subject');
+      const before = p.get('before');
+      const limit = p.get('limit');
+      if (q) filter.q = q;
+      if (a) filter.action = a;
+      if (subject) filter.subjectId = subject;
+      if (before) filter.before = before;
+      if (limit) filter.limit = Number(limit);
+      return send(200, await store.activity(ctx, ws, filter), false);
+    } else if (collection === 'actors' && !item && method === 'GET') {
+      return send(200, await store.actors(ctx, ws), false);
+    } else if (collection === 'overview' && !item && method === 'GET') {
+      return send(200, await store.overview(ctx, ws), false);
     } else if (collection === 'history' && !item) {
       if (method === 'GET') {
         await store.drainOutbox();

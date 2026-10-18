@@ -1,5 +1,15 @@
 # Decision log
 
+## ADR-0012 — T09 studio interface, PostgreSQL text search and address-kept state
+
+- Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T09. Decision-maker: coding agent; owner review pending on the pull request.
+- Interface: one React shell with a workspace picker and a list of views instead of stacked panels. State that should survive refresh (view, workspace, selected record, query, activity filter) lives in the hash address `#/view?ws=&id=&q=`; everything else is re-read from the API, so nothing is cached in browser storage. Views take plain props and call `api`, so a future desktop shell can host them unchanged. No new UI dependency.
+- Search: PostgreSQL full text (`websearch_to_tsquery('english')`, plus a title substring match) over record titles and string values in bodies, source passage excerpts, decision request text and audit summaries, with GIN indexes (migration 8). Snippets come from `ts_headline` with control-character markers split into segments, so the page never renders HTML from the database. A full UUID or 8+ hex prefix switches to exact id search. Membership is resolved first; a non-member gets NOT_FOUND before any query runs. Redaction already nulls bodies, titles and excerpts, so redacted text cannot match.
+- Comparison: one read route assembles the problem, its brief, claims linked to it with T06 evidence, alternatives derived from it with humility review and scorecard count, the discovery workflow and run, and run-level assumptions (assumptions may only be `part_of` a run, per the T02 link rules). Scores and gates still come from the T08 report; the page does not compute them.
+- Actions: the page shows only actions the API exposes for the role and lets the server decide admission; a supervised selection returns `needs_human`, the page links to the decision and resubmits after approval. The submit form registers a run and, if asked, a 24-hour standing model grant capped per call, visible and revocable in Decisions.
+- Alternatives considered: a client router library (rejected: hash state is enough and adds no dependency); a separate search engine (rejected: X03 owns semantic and audit questions; PostgreSQL covers lexical search with the existing access path); storing view state in localStorage (rejected: not shareable and survives sign-out).
+- Not done: semantic search, graph view of lineage, product/task/gallery content (T11–T13), measured accessibility audit. Rollback: migration 8 only adds indexes; removing `catalog-store.ts`, `catalog.ts` contracts and the new routes restores T08 server behaviour.
+
 ## ADR-0011 — T08 computed selection reports, admitted selection and per-task spec freezes
 
 - Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T08. Decision-maker: coding agent; owner review pending on the pull request.
