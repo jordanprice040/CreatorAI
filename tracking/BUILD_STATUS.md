@@ -19,10 +19,16 @@ suite **146 pass, 0 fail, 10 skipped** (every skip needs the reviewed WSL2 worke
 and a 13-step headless Chromium walkthrough of gallery, download, compare, preview
 origin, ticket reuse, cross-origin, revoke and feedback. That walkthrough used the
 visibly labeled test double, which runs nothing and is **not isolation evidence**.
-**Pending:** the real WSL2 compiled CLI gate (`tests/src/artifact-cli.test.ts`,
-`CREATOR_TEST_ISOLATION=wsl2`) on the owner's Windows machine, which performs the
-actual feedback-driven revision in the worker. Until it passes, T13 is implemented
-but not verified on the reviewed backend. See ADR-0017,
+
+Real-worker gate, October 18, 2026, on Jordan's Windows machine (WSL2
+`wsl2-bwrap-systemd` worker, Docker test PostgreSQL): `pnpm test:db` with
+`CREATOR_TEST_ISOLATION=wsl2` ran **156 tests, 155 passed, 0 failed, 1 skipped**
+(the skip is the no-worker test, which only runs where the worker is absent). The
+compiled CLI flow packaged a verified artifact, re-ran it in the worker, ran a
+preview, completed one feedback-driven revision (spec v3 to v4, new verified
+package with A3) and refused revoked (403), expired (410), tampered download (400)
+and stale feedback revision (409). Evidence: tracking/evidence/t13/cli-acceptance.json
+and wsl-gate.log. PR #15 merged at b035d99. See ADR-0017,
 docs/ARTIFACTS_AND_PREVIEW.md and tracking/evidence/t13. No live provider, public
 release or T14 work.
 
@@ -117,7 +123,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T10 | Study runner and human-only workflow | verified (Windows, PostgreSQL 18.6; synthetic only) | Branch codex/t10-study-runner from a9edf68 (T09 merged PR #10); migration 9; ADR-0013; evidence/t10/verification.json; 130/130 DB tests, check, smoke, CLI/API export and headless Edge acceptance | Merged PR #12 at 5f9bb1b; no empirical study or live AI; study-arm implementation integration remains separate from the T11 owner CLI |
 | T11 | Isolated execution and local product Git | verified (Windows + WSL2; reviewed synthetic template) | Branch codex/t11-isolated-execution from 5f9bb1b; ADR-0014; evidence/t11/verification.json and source manifest; 140/140 DB + real isolation, check, smoke, CLI/API admission | Owner review/merge; fixed offline Python recipe; no model builder/independent QA, catalog indexing, dedicated appliance or persistent preview; T12 next on request |
 | T12 | Bounded builder, independent review, and QA | verified (Windows + WSL2; fixed synthetic roles) | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation | Merged PR #14 at 6fe5bab |
-| T13 | Verified artifacts, private preview, and feedback revision | implemented; cloud-verified with test double, WSL2 gate pending | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; 146 pass / 10 WSL skips; 13-step browser walkthrough | Real WSL2 CLI gate on Windows; owner review/merge; CLI-only runnable demo, no native installer or public release; next eligible T14 on request |
+| T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles) | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request |
 | T14 | Pilot, rubric calibration, and protocol freeze | planned | No application code at T00 | T10 and T13 |
 | T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
