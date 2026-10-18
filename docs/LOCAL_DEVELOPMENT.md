@@ -151,6 +151,28 @@ pnpm cli support-retract <workspace> <support-id> <reason>
 
 **Live fetching.** Fixture workspaces read only the synthetic `.fixture.test` corpus. A real workspace is denied (`live_fetch_not_configured`) unless the API runs with `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS` (and optionally `CREATOR_SOURCE_HASH_ONLY_HOSTS`). The run still needs a covering `source.fetch` grant; approve-once covers exactly one URL. Live fetching has not been verified against a real site. There is no live search adapter yet.
 
+## Discovery runs (T07)
+
+A discovery run narrows a search brief into a located problem and competing responses. It is a T05 workflow (same leases, broker, budgets, pause/resume/cancel) with a different role and plan:
+
+1. **Brief.** A `search_brief` record: theme, two different fields to borrow from, target users, context, measurable problem, outcome measure, data and tools, time and budget limits, constraints and an optional NAE Grand Challenge seed (it must be narrowed; the theme cannot just repeat it).
+2. **Evidence packet.** At start the API reads each chosen claim's current T06 evidence (status, quoted passages) and the matching catalog records, computes a sufficiency verdict and binds the packet to the workflow by hash. It never changes afterwards; `discovery-packet` shows it. A claim revised while the packet was built fails the start (`VERSION_CONFLICT`).
+3. **Locator.** Affected users, urgency, the current workaround, alternatives, gaps and the cross-field mechanism (or why none was found). If the packet has no current support for the problem the run stops here with `insufficient_evidence`.
+4. **Independent proposals.** One per response type you list (software, existing tool, process change, human-led, hybrid). Every type is either proposed or excluded with your reason, and at least one non-software type is proposed. First proposals receive only the packet, their assignment and the locator's answer, never each other's; the result records that proof.
+5. **Skeptic and revision.** The skeptic reviews every proposal; proposals asked to revise are revised up to `max_revisions` (0–2), then reviewed again. Objections that remain are kept as dissent.
+6. **Dispositions and records.** Code, not the model, decides each disposition: duplicate of a catalog record, rejected, not recommended (for example software when an existing tool already covers the need), insufficient evidence or candidate. The run writes a problem record (derived from the brief, supported by the problem claims) and one alternative per proposal.
+
+```powershell
+pnpm cli seed-discovery
+pnpm cli discovery-start <workspace> <run-id> '{"brief":{"id":"…","version":1},"evidence":[{"claim_id":"…","bears_on":["problem"]}],"perspectives":["software","existing_tool","process_change"],"excluded":[{"perspective":"human_led","reason":"…"},{"perspective":"hybrid","reason":"…"}],"max_revisions":1,"envelope_id":"…","pricing_snapshot_id":"…","data_class":"synthetic","limits":{…}}'
+pnpm cli discovery <workspace> <workflow-id> --wait
+pnpm cli discovery-packet <workspace> <workflow-id>
+```
+
+`seed-discovery` creates a fixture workspace and runs three scenarios: rural clinic no-shows (cross-field overbooking mechanism, a known duplicate in the catalog, one revision), food bank shifts (an existing tool wins and software is not recommended; two types excluded with reasons) and course e-books (evidence only from an inaccessible page, so nothing is proposed). Results appear in the web Workflow runs panel. Starting a discovery run has no web form yet.
+
+**Fixture only.** In fixture workspaces the deterministic adapter answers discovery tasks with fixed rules over the packet; that shows the flow and the checks, not real reasoning. A real workspace needs the T04 live provider conditions. The locator does not search or fetch; it works from claims already recorded through T06.
+
 ## Checks
 
 ```powershell

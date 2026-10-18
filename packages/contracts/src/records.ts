@@ -189,6 +189,7 @@ export const linkPairs: Record<LinkRelation, readonly string[]> = {
     'idea:problem',
     'idea:idea',
     'alternative:idea',
+    'problem:search_brief',
     'product:idea',
     'specification:product',
     'artifact:task',

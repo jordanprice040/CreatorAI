@@ -1,5 +1,14 @@
 # Decision log
 
+## ADR-0010 — T07 discovery runs on the workflow engine with a hashed evidence packet
+
+- Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T07. Decision-maker: coding agent; owner review pending on the pull request.
+- Engine: discovery is a second role (`r02_discovery`, `r02-discovery/1.0`) on the T05 workflow tables rather than a new runner, so leases, fencing, replay through the T04 broker, budgets, decisions and owner controls apply unchanged. Migration 6 adds the `search_brief` kind, the discovery task kinds (locate, propose, skeptic, revise) and a revision `round` in the task's logical slot. The plan is a pure function (`coordinateDiscovery`) next to the T05 `coordinate`, sharing its guards and settlement.
+- Evidence packet: built by the application from T06 claim evidence and the active catalog at start, size-capped, hashed and stored in the workflow's immutable context. Task contexts carry only the packet hash, their assignment and input task ids with output hashes; the worker renders packet and inputs as untrusted data with no authority. Independence of first proposals is checked from the stored contexts (same packet, only the locator as input) and recorded in the result.
+- Deterministic gates in code: packet sufficiency (current supported or contested problem evidence), output validation against the packet (refs must exist, cross-field answers must name both fields and explain a mechanism in other words, perspectives must match, the skeptic covers each proposal once), duplicate detection by word overlap against catalog titles and summaries, per-type evidence checks (software needs usable data and tool-gap evidence; an existing-tool recommendation needs existing-tool evidence) and final dispositions. Model outputs that fail validation are repaired within `max_repairs`; they are never accepted.
+- Alternatives considered: letting the model choose the plan or delegate (rejected: T05 keeps depth 1 and code-owned plans); embedding-based duplicate detection (needs a provider and a model version to pin; word overlap is transparent and enough for the gate); one call producing all proposals (cannot prove independence).
+- Not done: the locator does not run searches or fetches itself; no live model run; semantic duplicates beyond word overlap are missed; scoring and selection are T08. Rollback: migration 6 rebuilds three check constraints and one unique key; removing `discovery-store.ts`, the discovery domain modules and routes restores T06 behaviour once no `r02_discovery` rows exist.
+
 ## ADR-0009 — T06 source broker, passages and claim support
 
 - Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T06. Decision-maker: coding agent; owner review pending on the pull request.

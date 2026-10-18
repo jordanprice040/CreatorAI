@@ -14,6 +14,7 @@ import {
 import { LinkRelationSchema } from './records.js';
 import { AssumptionBodySchema, HumilityBodySchema } from './oversight.js';
 import { RetentionSchema } from './research.js';
+import { SearchBriefBodySchema } from './discovery.js';
 
 // Persistent record bodies (T02). Bodies hold references and hashes; source content and
 // large artifacts stay outside the database and workflow history.
@@ -35,6 +36,7 @@ export const StoredKindSchema = z.enum([
   'artifact',
   'assumption',
   'humility_review',
+  'search_brief',
 ]);
 export type StoredKind = z.infer<typeof StoredKindSchema>;
 export const RecordModeSchema = z.enum(['fixture', 'real']);
@@ -144,6 +146,7 @@ export const StoredBodySchemas = {
   }),
   assumption: AssumptionBodySchema,
   humility_review: HumilityBodySchema,
+  search_brief: SearchBriefBodySchema,
 } as const satisfies Record<StoredKind, z.ZodType>;
 export const lifecycleField: Partial<
   Record<StoredKind, { field: string; initial: string }>

@@ -940,6 +940,46 @@ create trigger entities_redact_source_text after update on entities
   for each row execute function creator_redact_source_text();
 `,
   },
+  {
+    version: 6,
+    name: 'discovery_briefs_rounds',
+    sql: `
+-- T07 discovery: search briefs are versioned records; discovery runs reuse the T05 workflow
+-- tables with a second role, four task kinds and a revision round per task.
+alter table entities drop constraint entities_kind_check;
+alter table entities add constraint entities_kind_check check (kind in ('source',
+  'claim', 'problem', 'idea', 'alternative', 'assessment', 'product',
+  'specification', 'run', 'task', 'decision', 'grant', 'artifact', 'assumption',
+  'humility_review', 'search_brief'));
+alter table workflows drop constraint workflows_role_check;
+alter table workflows add constraint workflows_role_check
+  check (role in ('r05_skeptic', 'r02_discovery'));
+alter table workflow_tasks drop constraint workflow_tasks_kind_check;
+alter table workflow_tasks add constraint workflow_tasks_kind_check
+  check (kind in ('critique', 'synthesis', 'locate', 'propose', 'skeptic', 'revise'));
+alter table workflow_tasks add column round integer not null default 0
+  check (round between 0 and 2);
+alter table workflow_tasks drop constraint workflow_tasks_workflow_id_kind_ordinal_repair_key;
+alter table workflow_tasks add constraint workflow_tasks_logical_slot
+  unique (workflow_id, kind, ordinal, round, repair);
+create or replace function creator_workflow_task_transition() returns trigger language plpgsql as $$
+begin
+  if old.finished_at is not null
+     or (new.id, new.workspace_id, new.workflow_id, new.kind, new.ordinal, new.round,
+         new.repair, new.repair_of, new.depth, new.logical_operation_id, new.created_at)
+       is distinct from
+        (old.id, old.workspace_id, old.workflow_id, old.kind, old.ordinal, old.round,
+         old.repair, old.repair_of, old.depth, old.logical_operation_id, old.created_at)
+     or (old.state <> 'waiting_dependency'
+         and (new.context, new.context_hash) is distinct from (old.context, old.context_hash))
+     or new.version <> old.version + 1
+     or coalesce(new.lease_token, 0) < coalesce(old.lease_token, 0) then
+    raise exception 'invalid workflow task change' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

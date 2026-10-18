@@ -1,0 +1,329 @@
+{
+  "workspace": {
+    "id": "c5879115-88c3-490f-8612-a94501c1490c",
+    "name": "Fixture discovery demonstration",
+    "record_mode": "fixture",
+    "role": "owner",
+    "created_at": "2026-10-18T07:38:29.208Z"
+  },
+  "results": [
+    {
+      "scenario": "software",
+      "workflow": "540c8d57-8e6b-43c3-b63f-2d54e94cc1ff",
+      "state": "succeeded",
+      "reason": "succeeded",
+      "fixture": true,
+      "outcome": "succeeded",
+      "explanation": "2 skeptic passes completed; no proposal awaits revision.",
+      "discovery": {
+        "outcome": "candidates",
+        "sufficiency": "sufficient",
+        "gaps": [
+          "Evidence for urgency or frequency is contested."
+        ],
+        "cross_field": "supported",
+        "independence": true,
+        "proposals": [
+          {
+            "proposal": "P1 software",
+            "disposition": "candidate",
+            "title": "Software: Airline overbooking calculations from historical no-show rates have been used to double-book outpatient slots with a high predicted no-show probability.",
+            "recommendation": "consider",
+            "skeptic": "stands",
+            "revisions": 1,
+            "reasons": [],
+            "dissent": [
+              "Pass 1, counterevidence: C2 is contested: Rural first-appointment waits rose between 2022 and 2025.",
+              "Pass 1, cheaper test: Run the flagging by hand from an export for two weeks before building anything.",
+              "Pass 2, counterevidence: C2 is contested: Rural first-appointment waits rose between 2022 and 2025.",
+              "Pass 2, cheaper test: Run the flagging by hand from an export for two weeks before building anything."
+            ]
+          },
+          {
+            "proposal": "P2 existing_tool",
+            "disposition": "candidate",
+            "title": "Use the existing tool: The clinics’ scheduling systems send reminders but do not predict no-shows.",
+            "recommendation": "consider",
+            "skeptic": "stands",
+            "revisions": 0,
+            "reasons": [],
+            "dissent": []
+          },
+          {
+            "proposal": "P3 process_change",
+            "disposition": "duplicate",
+            "title": "Front-desk staff phone patients the day before appointments to confirm attendance.",
+            "recommendation": "consider",
+            "skeptic": "reject",
+            "revisions": 0,
+            "reasons": [
+              "Duplicates catalog idea \"Phone patients the day before appointments to confirm attendance\" (similarity 0.7)."
+            ],
+            "dissent": [
+              "Pass 1, duplicate: Resembles catalog entry K1 (similarity 0.7).",
+              "Pass 2, duplicate: Resembles catalog entry K1 (similarity 0.7)."
+            ]
+          },
+          {
+            "proposal": "P4 human_led",
+            "disposition": "candidate",
+            "title": "Human-led: a named coordinator owns Share of first-appointment slots left unused each month",
+            "recommendation": "consider",
+            "skeptic": "stands",
+            "revisions": 0,
+            "reasons": [],
+            "dissent": []
+          },
+          {
+            "proposal": "P5 hybrid",
+            "disposition": "candidate",
+            "title": "Hybrid: routine workaround supported by a simple list from existing data",
+            "recommendation": "consider",
+            "skeptic": "stands",
+            "revisions": 0,
+            "reasons": [],
+            "dissent": []
+          }
+        ],
+        "excluded": [],
+        "catalog_records": {
+          "problem": {
+            "id": "9c4f49b6-5801-4485-ba28-19dcc539b0ca",
+            "version": 1
+          },
+          "alternatives": [
+            {
+              "proposal": "P1",
+              "id": "cb5e619a-add2-4c2c-9931-ed8714607f42",
+              "version": 1
+            },
+            {
+              "proposal": "P2",
+              "id": "3009f9a9-7cc8-47c0-9ba4-6aa734564b3b",
+              "version": 1
+            },
+            {
+              "proposal": "P3",
+              "id": "1ce451f6-466e-4a18-aaae-34324264920f",
+              "version": 1
+            },
+            {
+              "proposal": "P4",
+              "id": "fc348702-54aa-470b-b41b-a03554bcd9b4",
+              "version": 1
+            },
+            {
+              "proposal": "P5",
+              "id": "a3a52131-98b9-4849-9a17-5cd3a58327ec",
+              "version": 1
+            }
+          ]
+        }
+      },
+      "usage": {
+        "attempts": 9,
+        "reserved": "0",
+        "incurred": "361370000",
+        "unknown": "0",
+        "in_flight": 0
+      }
+    },
+    {
+      "scenario": "existing_tool",
+      "workflow": "0245f268-b22a-48c6-8383-b5527f7b73d0",
+      "state": "succeeded",
+      "reason": "succeeded",
+      "fixture": true,
+      "outcome": "succeeded",
+      "explanation": "1 skeptic pass completed; no proposal awaits revision.",
+      "discovery": {
+        "outcome": "candidates",
+        "sufficiency": "sufficient",
+        "gaps": [
+          "No claim in the packet addresses who is affected.",
+          "No claim in the packet addresses a gap in existing tools.",
+          "No claim in the packet addresses data availability.",
+          "No claim in the packet addresses a transferable mechanism."
+        ],
+        "cross_field": "none",
+        "independence": true,
+        "proposals": [
+          {
+            "proposal": "P1 software",
+            "disposition": "not_recommended",
+            "title": "Software: Understaffed volunteer shifts at a community food bank",
+            "recommendation": "not_recommended",
+            "skeptic": "stands",
+            "revisions": 0,
+            "reasons": [
+              "The designer did not recommend it: An existing tool already covers the need (C2): Free volunteer sign-up services already publish shifts, collect sign-ups and send reminders."
+            ],
+            "dissent": []
+          },
+          {
+            "proposal": "P2 existing_tool",
+            "disposition": "candidate",
+            "title": "Use the existing tool: Free volunteer sign-up services already publish shifts, collect sign-ups and send reminders.",
+            "recommendation": "recommend",
+            "skeptic": "stands",
+            "revisions": 0,
+            "reasons": [],
+            "dissent": []
+          },
+          {
+            "proposal": "P3 process_change",
+            "disposition": "candidate",
+            "title": "Coordinators fill gaps by texting regular volunteers on Friday evenings.",
+            "recommendation": "consider",
+            "skeptic": "stands",
+            "revisions": 0,
+            "reasons": [],
+            "dissent": []
+          }
+        ],
+        "excluded": [
+          {
+            "perspective": "human_led",
+            "reason": "The coordinators already lead this work; a new role is out of scope for one site."
+          },
+          {
+            "perspective": "hybrid",
+            "reason": "Covered by the process-change and existing-tool designers for this small brief."
+          }
+        ],
+        "catalog_records": {
+          "problem": {
+            "id": "0096508a-762d-4e15-a18c-c6e9633c3f75",
+            "version": 1
+          },
+          "alternatives": [
+            {
+              "proposal": "P1",
+              "id": "14781937-513a-4e34-b6df-774f07cfc89f",
+              "version": 1
+            },
+            {
+              "proposal": "P2",
+              "id": "4db194ec-9c13-4332-99ef-343762d4dfc0",
+              "version": 1
+            },
+            {
+              "proposal": "P3",
+              "id": "aaa2ce72-e1f7-4e50-accb-ea1249d13e8a",
+              "version": 1
+            }
+          ]
+        }
+      },
+      "usage": {
+        "attempts": 5,
+        "reserved": "0",
+        "incurred": "150200000",
+        "unknown": "0",
+        "in_flight": 0
+      }
+    },
+    {
+      "scenario": "insufficient",
+      "workflow": "1c670fb8-fa35-4bc6-972a-5417d921e883",
+      "state": "succeeded",
+      "reason": "insufficient_evidence",
+      "fixture": true,
+      "outcome": "insufficient_evidence",
+      "explanation": "The evidence packet has no current support for the problem, so no responses were proposed. The locator brief is kept.",
+      "discovery": {
+        "outcome": "insufficient_evidence",
+        "sufficiency": "insufficient",
+        "gaps": [
+          "Evidence for the problem is inaccessible; no current passage supports it.",
+          "Evidence for who is affected is inaccessible; no current passage supports it.",
+          "No claim in the packet addresses urgency or frequency.",
+          "No claim in the packet addresses current workarounds.",
+          "No claim in the packet addresses existing tools.",
+          "No claim in the packet addresses a gap in existing tools.",
+          "No claim in the packet addresses data availability.",
+          "Evidence for a transferable mechanism is insufficient; no current passage supports it."
+        ],
+        "cross_field": "unsupported",
+        "independence": false,
+        "proposals": [
+          {
+            "proposal": "P1 software",
+            "disposition": "insufficient_evidence",
+            "title": null,
+            "recommendation": null,
+            "skeptic": null,
+            "revisions": 0,
+            "reasons": [
+              "Not proposed: the packet has no current support for the problem."
+            ],
+            "dissent": []
+          },
+          {
+            "proposal": "P2 existing_tool",
+            "disposition": "insufficient_evidence",
+            "title": null,
+            "recommendation": null,
+            "skeptic": null,
+            "revisions": 0,
+            "reasons": [
+              "Not proposed: the packet has no current support for the problem."
+            ],
+            "dissent": []
+          },
+          {
+            "proposal": "P3 process_change",
+            "disposition": "insufficient_evidence",
+            "title": null,
+            "recommendation": null,
+            "skeptic": null,
+            "revisions": 0,
+            "reasons": [
+              "Not proposed: the packet has no current support for the problem."
+            ],
+            "dissent": []
+          },
+          {
+            "proposal": "P4 human_led",
+            "disposition": "insufficient_evidence",
+            "title": null,
+            "recommendation": null,
+            "skeptic": null,
+            "revisions": 0,
+            "reasons": [
+              "Not proposed: the packet has no current support for the problem."
+            ],
+            "dissent": []
+          },
+          {
+            "proposal": "P5 hybrid",
+            "disposition": "insufficient_evidence",
+            "title": null,
+            "recommendation": null,
+            "skeptic": null,
+            "revisions": 0,
+            "reasons": [
+              "Not proposed: the packet has no current support for the problem."
+            ],
+            "dissent": []
+          }
+        ],
+        "excluded": [],
+        "catalog_records": {
+          "problem": {
+            "id": "72310c33-c520-4901-a540-b0ab6a27ed43",
+            "version": 1
+          },
+          "alternatives": []
+        }
+      },
+      "usage": {
+        "attempts": 1,
+        "reserved": "0",
+        "incurred": "31890000",
+        "unknown": "0",
+        "in_flight": 0
+      }
+    }
+  ]
+}

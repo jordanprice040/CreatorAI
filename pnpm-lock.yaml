@@ -57,6 +57,9 @@ importers:
       '@creator/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@creator/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
 
   apps/web:
     dependencies:

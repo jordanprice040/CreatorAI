@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { discoveryFixtureAnswer } from '@creator/domain';
 import type {
   BrokerCallRequest,
   MeteredAction,
@@ -92,6 +93,30 @@ export class FixtureAdapter implements ModelAdapter {
         vector: [...h.subarray(0, 8)].map((b) => b / 255),
         usage: usage(input, 0, {}),
         incomplete_reason: null,
+      });
+    // Discovery roles get deterministic, rule-based answers derived from the packet they were
+    // given (labelled fixture), so fixture runs exercise the whole discovery pipeline.
+    let scripted: string | null = null;
+    try {
+      scripted = discoveryFixtureAnswer(req.input);
+    } catch {
+      scripted = null;
+    }
+    if (scripted)
+      return Promise.resolve({
+        kind: 'completed',
+        response_id: `fixture-${h.toString('hex').slice(0, 12)}`,
+        text: scripted,
+        vector: null,
+        usage: usage(
+          input,
+          Math.min(req.max_output_tokens, Math.ceil(scripted.length / 4)),
+          {},
+        ),
+        incomplete_reason:
+          Math.ceil(scripted.length / 4) > req.max_output_tokens
+            ? 'max_output_tokens'
+            : null,
       });
     const out = Math.min(req.max_output_tokens, 24);
     const summary = `Fixture ${req.action} over ${bytes} input bytes.`;

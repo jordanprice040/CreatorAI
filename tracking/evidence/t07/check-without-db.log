@@ -1,0 +1,642 @@
+$ pnpm typecheck && pnpm test && pnpm format:check
+$ tsc -b && pnpm --filter @creator/web typecheck
+$ tsc --noEmit
+$ pnpm build:code && node --test tests/dist/*.test.js
+$ tsc -b
+TAP version 13
+# Subtest: real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+ok 1 - real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+  ---
+  duration_ms: 114.894847
+  type: 'test'
+  ...
+# Subtest: compiled CLI reaches the HTTP API and fails visibly when unavailable
+ok 2 - compiled CLI reaches the HTTP API and fails visibly when unavailable
+  ---
+  duration_ms: 850.486945
+  type: 'test'
+  ...
+# Subtest: owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and the decision API
+ok 3 - owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and the decision API # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.099768
+  type: 'test'
+  ...
+# Subtest: OIDC sign-in with authorization code + PKCE admits only the configured owner, once per attempt
+ok 4 - OIDC sign-in with authorization code + PKCE admits only the configured owner, once per attempt # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.356422
+  type: 'test'
+  ...
+# Subtest: concurrent reservations cannot overspend an envelope
+ok 5 - concurrent reservations cannot overspend an envelope # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.498345
+  type: 'test'
+  ...
+# Subtest: in-flight limit bounds concurrency independently of money
+ok 6 - in-flight limit bounds concurrency independently of money # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.268676
+  type: 'test'
+  ...
+# Subtest: a denied call never reaches the provider
+ok 7 - a denied call never reaches the provider # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.391235
+  type: 'test'
+  ...
+# Subtest: late results reconcile without duplicate charge; replays never re-dispatch
+ok 8 - late results reconcile without duplicate charge; replays never re-dispatch # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.354845
+  type: 'test'
+  ...
+# Subtest: concurrent duplicate deliveries dispatch once
+ok 9 - concurrent duplicate deliveries dispatch once # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.193899
+  type: 'test'
+  ...
+# Subtest: rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation
+ok 10 - rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.400278
+  type: 'test'
+  ...
+# Subtest: cancellation stops new calls and keeps in-flight exposure held
+ok 11 - cancellation stops new calls and keeps in-flight exposure held # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.276385
+  type: 'test'
+  ...
+# Subtest: a lost worker leaves exposure unknown, not released
+ok 12 - a lost worker leaves exposure unknown, not released # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.176297
+  type: 'test'
+  ...
+# Subtest: child envelopes conserve authority; rollups do not double count; overrun blocks
+ok 13 - child envelopes conserve authority; rollups do not double count; overrun blocks # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.611742
+  type: 'test'
+  ...
+# Subtest: budget API and CLI: pricing, envelopes, a metered fixture call, a refusal and the error view
+ok 14 - budget API and CLI: pricing, envelopes, a metered fixture call, a refusal and the error view # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.238815
+  type: 'test'
+  ...
+# Subtest: maximum exposure bounds input by UTF-8 bytes at the highest input rate
+ok 15 - maximum exposure bounds input by UTF-8 bytes at the highest input rate
+  ---
+  duration_ms: 2.142642
+  type: 'test'
+  ...
+# Subtest: usage is priced in disjoint categories; reasoning is not charged twice
+ok 16 - usage is priced in disjoint categories; reasoning is not charged twice
+  ---
+  duration_ms: 1.795923
+  type: 'test'
+  ...
+# Subtest: pricing snapshots must say where documented prices came from
+ok 17 - pricing snapshots must say where documented prices came from
+  ---
+  duration_ms: 1.378895
+  type: 'test'
+  ...
+# Subtest: OpenAI adapter speaks the Responses API and maps outcomes without leaking the key
+ok 18 - OpenAI adapter speaks the Responses API and maps outcomes without leaking the key
+  ---
+  duration_ms: 74.458001
+  type: 'test'
+  ...
+# Subtest: exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+ok 19 - exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+  ---
+  duration_ms: 2.546058
+  type: 'test'
+  ...
+# Subtest: versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+ok 20 - versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+  ---
+  duration_ms: 3.953923
+  type: 'test'
+  ...
+# Subtest: source/claim contracts require version/hash/locator and keep inference and contrary evidence
+ok 21 - source/claim contracts require version/hash/locator and keep inference and contrary evidence
+  ---
+  duration_ms: 4.732647
+  type: 'test'
+  ...
+# Subtest: alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+ok 22 - alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+  ---
+  duration_ms: 3.11548
+  type: 'test'
+  ...
+# Subtest: decision request cannot invent an answer, choose an absent option or answer after expiry
+ok 23 - decision request cannot invent an answer, choose an absent option or answer after expiry
+  ---
+  duration_ms: 7.265988
+  type: 'test'
+  ...
+# Subtest: typed many-to-many links reject cross-workspace and impossible relations
+ok 24 - typed many-to-many links reject cross-workspace and impossible relations
+  ---
+  duration_ms: 1.213139
+  type: 'test'
+  ...
+# Subtest: experiment assignment keeps condition/method separate and excludes generative human-only setup
+ok 25 - experiment assignment keeps condition/method separate and excludes generative human-only setup
+  ---
+  duration_ms: 1.764893
+  type: 'test'
+  ...
+# Subtest: result success cannot replace missing evidence or unknown usage with fixture claims
+ok 26 - result success cannot replace missing evidence or unknown usage with fixture claims
+  ---
+  duration_ms: 8.684811
+  type: 'test'
+  ...
+# Subtest: service configuration rejects hosted/live/invalid ports and binds loopback
+ok 27 - service configuration rejects hosted/live/invalid ports and binds loopback
+  ---
+  duration_ms: 2.529739
+  type: 'test'
+  ...
+# Subtest: search briefs: Grand Challenge seeds must be narrowed and the two fields must differ
+ok 28 - search briefs: Grand Challenge seeds must be narrowed and the two fields must differ
+  ---
+  duration_ms: 8.409771
+  type: 'test'
+  ...
+# Subtest: start requests name every response type and include a non-software option
+ok 29 - start requests name every response type and include a non-software option
+  ---
+  duration_ms: 7.501047
+  type: 'test'
+  ...
+# Subtest: sufficiency depends on current problem evidence; other gaps are named
+ok 30 - sufficiency depends on current problem evidence; other gaps are named
+  ---
+  duration_ms: 0.77205
+  type: 'test'
+  ...
+# Subtest: duplicates are found by deterministic word overlap with the catalog
+ok 31 - duplicates are found by deterministic word overlap with the catalog
+  ---
+  duration_ms: 2.939419
+  type: 'test'
+  ...
+# Subtest: answers are checked against the packet, the brief fields and the task
+ok 32 - answers are checked against the packet, the brief fields and the task
+  ---
+  duration_ms: 10.006151
+  type: 'test'
+  ...
+# Subtest: the coordinator runs locator, independent proposals, skeptic and bounded revision in order
+ok 33 - the coordinator runs locator, independent proposals, skeptic and bounded revision in order
+  ---
+  duration_ms: 1.884224
+  type: 'test'
+  ...
+# Subtest: independence problems are reported when a first proposal could read another answer
+ok 34 - independence problems are reported when a first proposal could read another answer
+  ---
+  duration_ms: 1.55856
+  type: 'test'
+  ...
+# Subtest: software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+ok 35 - software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.29616
+  type: 'test'
+  ...
+# Subtest: justified existing-tool choice: software is not recommended when an existing tool covers the need
+ok 36 - justified existing-tool choice: software is not recommended when an existing tool covers the need # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.240976
+  type: 'test'
+  ...
+# Subtest: insufficient evidence stops after the locator and proposes nothing
+ok 37 - insufficient evidence stops after the locator and proposes nothing # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.196336
+  type: 'test'
+  ...
+# Subtest: answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+ok 38 - answers that cite evidence outside the packet or only name the fields are repaired, not accepted # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.231605
+  type: 'test'
+  ...
+# Subtest: the revision limit is enforced and unresolved objections are kept as dissent
+ok 39 - the revision limit is enforced and unresolved objections are kept as dissent # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.262854
+  type: 'test'
+  ...
+# Subtest: start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+ok 40 - start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.254707
+  type: 'test'
+  ...
+# Subtest: deterministic fixture exercises all outcomes without real model or tool effects
+ok 41 - deterministic fixture exercises all outcomes without real model or tool effects
+  ---
+  duration_ms: 58.356785
+  type: 'test'
+  ...
+# Subtest: missing/invalid paid limits fail before dispatch and even complete live config remains denied
+ok 42 - missing/invalid paid limits fail before dispatch and even complete live config remains denied
+  ---
+  duration_ms: 2.974157
+  type: 'test'
+  ...
+# Subtest: human-only configuration cannot reach even the fake provider
+ok 43 - human-only configuration cannot reach even the fake provider
+  ---
+  duration_ms: 0.822395
+  type: 'test'
+  ...
+# Subtest: delegation contains paths, grants, classifications, research condition and depth
+ok 44 - delegation contains paths, grants, classifications, research condition and depth
+  ---
+  duration_ms: 4.470543
+  type: 'test'
+  ...
+# Subtest: sibling allocations conserve exact money and calls rather than checking children separately
+ok 45 - sibling allocations conserve exact money and calls rather than checking children separately
+  ---
+  duration_ms: 3.990622
+  type: 'test'
+  ...
+# Subtest: results bind exact task/config/spec/version and check evidence
+ok 46 - results bind exact task/config/spec/version and check evidence
+  ---
+  duration_ms: 3.020195
+  type: 'test'
+  ...
+# Subtest: product transitions reject skipped stages, stale versions and stale candidate evidence
+ok 47 - product transitions reject skipped stages, stale versions and stale candidate evidence
+  ---
+  duration_ms: 1.910052
+  type: 'test'
+  ...
+# Subtest: ready-to-try needs candidate-bound independent test/review and export evidence
+ok 48 - ready-to-try needs candidate-bound independent test/review and export evidence
+  ---
+  duration_ms: 3.137093
+  type: 'test'
+  ...
+# Subtest: execution cannot resurrect cancellation or silently change research dimensions
+ok 49 - execution cannot resurrect cancellation or silently change research dimensions
+  ---
+  duration_ms: 1.807957
+  type: 'test'
+  ...
+# Subtest: the coordinator delegates within concurrency and waits on dependencies
+ok 50 - the coordinator delegates within concurrency and waits on dependencies
+  ---
+  duration_ms: 2.639221
+  type: 'test'
+  ...
+# Subtest: repairs are bounded by max_repairs and the call ceiling; unknown is never retried
+ok 51 - repairs are bounded by max_repairs and the call ceiling; unknown is never retried
+  ---
+  duration_ms: 0.550531
+  type: 'test'
+  ...
+# Subtest: stops cancel open work but wait for leased work; the step limit terminates
+ok 52 - stops cancel open work but wait for leased work; the step limit terminates
+  ---
+  duration_ms: 0.23756
+  type: 'test'
+  ...
+# Subtest: limits and role input are bounded; subject text is passed as data
+ok 53 - limits and role input are bounded; subject text is passed as data
+  ---
+  duration_ms: 5.136765
+  type: 'test'
+  ...
+# Subtest: covered routine reversible actions proceed repeatedly without creating a decision
+ok 54 - covered routine reversible actions proceed repeatedly without creating a decision # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.080409
+  type: 'test'
+  ...
+# Subtest: approve-once covers one exact action; a changed target or an expiry needs a new decision
+ok 55 - approve-once covers one exact action; a changed target or an expiry needs a new decision # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.297411
+  type: 'test'
+  ...
+# Subtest: duplicate answers are idempotent, conflicting second answers are refused, concurrency has one winner
+ok 56 - duplicate answers are idempotent, conflicting second answers are refused, concurrency has one winner # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.3184
+  type: 'test'
+  ...
+# Subtest: cancellation closes pending decisions, revokes run grants and overrides an approval
+ok 57 - cancellation closes pending decisions, revokes run grants and overrides an approval # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.230542
+  type: 'test'
+  ...
+# Subtest: autonomous runs end as needs_human, cannot ask for help, and ignore grants added after start
+ok 58 - autonomous runs end as needs_human, cannot ask for help, and ignore grants added after start # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.311275
+  type: 'test'
+  ...
+# Subtest: human-only runs are denied model calls even with a grant, and the denial is recorded
+ok 59 - human-only runs are denied model calls even with a grant, and the denial is recorded # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.159035
+  type: 'test'
+  ...
+# Subtest: build commitment passes the humility gate, then a judgment on ethics, then an exact approval
+ok 60 - build commitment passes the humility gate, then a judgment on ethics, then an exact approval # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.313163
+  type: 'test'
+  ...
+# Subtest: standing approval from a decision creates a run-scoped, expiring policy grant
+ok 61 - standing approval from a decision creates a run-scoped, expiring policy grant # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.244322
+  type: 'test'
+  ...
+# Subtest: a routine reversible action covered by a standing grant proceeds with no human input
+ok 62 - a routine reversible action covered by a standing grant proceeds with no human input
+  ---
+  duration_ms: 3.180511
+  type: 'test'
+  ...
+# Subtest: expired, revoked, changed-target and over-cap grants do not authorize
+ok 63 - expired, revoked, changed-target and over-cap grants do not authorize
+  ---
+  duration_ms: 0.975337
+  type: 'test'
+  ...
+# Subtest: human-only runs cannot call models, even for summaries and even with a grant
+ok 64 - human-only runs cannot call models, even for summaries and even with a grant
+  ---
+  duration_ms: 0.322245
+  type: 'test'
+  ...
+# Subtest: autonomous runs defer as needs_human and use only their initial grant packet
+ok 65 - autonomous runs defer as needs_human and use only their initial grant packet
+  ---
+  duration_ms: 0.38152
+  type: 'test'
+  ...
+# Subtest: stage gates need an approval of the exact action; flags only add reasons; owner-only actions never pass
+ok 66 - stage gates need an approval of the exact action; flags only add reasons; owner-only actions never pass
+  ---
+  duration_ms: 0.774343
+  type: 'test'
+  ...
+# Subtest: the humility gate blocks non-build dispositions and escalates unresolved ethics as judgment
+ok 67 - the humility gate blocks non-build dispositions and escalates unresolved ethics as judgment
+  ---
+  duration_ms: 9.9283
+  type: 'test'
+  ...
+# Subtest: answers: only owners who are people, only while current, and only the right kind of answer
+ok 68 - answers: only owners who are people, only while current, and only the right kind of answer
+  ---
+  duration_ms: 0.883373
+  type: 'test'
+  ...
+# Subtest: development login fails validation in hosted mode; hosted deployment stays unavailable
+ok 69 - development login fails validation in hosted mode; hosted deployment stays unavailable
+  ---
+  duration_ms: 5.32205
+  type: 'test'
+  ...
+# Subtest: records survive a real API process restart; HTTP enforces versions, scope and idempotency
+ok 70 - records survive a real API process restart; HTTP enforces versions, scope and idempotency # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.169369
+  type: 'test'
+  ...
+# Subtest: without a database the records API reports unavailable instead of pretending to persist
+ok 71 - without a database the records API reports unavailable instead of pretending to persist
+  ---
+  duration_ms: 75.311953
+  type: 'test'
+  ...
+# Subtest: the research demonstration runs over HTTP and the CLI against PostgreSQL
+ok 72 - the research demonstration runs over HTTP and the CLI against PostgreSQL # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.099506
+  type: 'test'
+  ...
+# Subtest: supporting and non-supporting passages; fabricated quotes are refused
+ok 73 - supporting and non-supporting passages; fabricated quotes are refused # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.45166
+  type: 'test'
+  ...
+# Subtest: reposts form one origin; an independent source contests the claim
+ok 74 - reposts form one origin; an independent source contests the claim # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.297273
+  type: 'test'
+  ...
+# Subtest: a changed source version invalidates earlier support until re-assessed
+ok 75 - a changed source version invalidates earlier support until re-assessed # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.306422
+  type: 'test'
+  ...
+# Subtest: inaccessible and removed sources are labeled, never filled in
+ok 76 - inaccessible and removed sources are labeled, never filled in # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.214867
+  type: 'test'
+  ...
+# Subtest: redirects and URLs that reach inward are blocked before any contact
+ok 77 - redirects and URLs that reach inward are blocked before any contact # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.455896
+  type: 'test'
+  ...
+# Subtest: retrieved instructions change nothing: no grants, decisions, policy or extra fetches
+ok 78 - retrieved instructions change nothing: no grants, decisions, policy or extra fetches # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.224244
+  type: 'test'
+  ...
+# Subtest: byte, time, type and retention limits; failures keep no content
+ok 79 - byte, time, type and retention limits; failures keep no content # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.260098
+  type: 'test'
+  ...
+# Subtest: admission, idempotency, run limits and no fixture fallback in real workspaces
+ok 80 - admission, idempotency, run limits and no fixture fallback in real workspaces # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.241739
+  type: 'test'
+  ...
+# Subtest: concurrent fetches of one URL record one source; a lost attempt is closed on sweep
+ok 81 - concurrent fetches of one URL record one source; a lost attempt is closed on sweep # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.471993
+  type: 'test'
+  ...
+# Subtest: only the broker records retrievals, and redaction removes kept text
+ok 82 - only the broker records retrievals, and redaction removes kept text # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.513613
+  type: 'test'
+  ...
+# Subtest: URL policy refuses inward, credentialed and unapproved targets before contact
+ok 83 - URL policy refuses inward, credentialed and unapproved targets before contact
+  ---
+  duration_ms: 11.268354
+  type: 'test'
+  ...
+# Subtest: address blocklist covers private, metadata, mapped and NAT64 forms
+ok 84 - address blocklist covers private, metadata, mapped and NAT64 forms
+  ---
+  duration_ms: 0.410798
+  type: 'test'
+  ...
+# Subtest: extraction keeps locators exact, skips scripts and finds reposts
+ok 85 - extraction keeps locators exact, skips scripts and finds reposts
+  ---
+  duration_ms: 8.819212
+  type: 'test'
+  ...
+# Subtest: quotes must occur verbatim in the stored excerpt
+ok 86 - quotes must occur verbatim in the stored excerpt
+  ---
+  duration_ms: 0.298671
+  type: 'test'
+  ...
+# Subtest: claim evidence counts origins once and names gaps instead of filling them
+ok 87 - claim evidence counts origins once and names gaps instead of filling them
+  ---
+  duration_ms: 1.120384
+  type: 'test'
+  ...
+# Subtest: evidence packets carry retrieved text as data with no authority
+ok 88 - evidence packets carry retrieved text as data with no authority
+  ---
+  duration_ms: 0.314795
+  type: 'test'
+  ...
+# Subtest: live configuration requires an explicit opt-in and approved hosts
+ok 89 - live configuration requires an explicit opt-in and approved hosts
+  ---
+  duration_ms: 4.54768
+  type: 'test'
+  ...
+# Subtest: HTTP adapter checks DNS answers, pins the address and sends no credentials
+ok 90 - HTTP adapter checks DNS answers, pins the address and sends no credentials
+  ---
+  duration_ms: 141.909814
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 91 - migrations apply once, refuse edited history, and gate an unmigrated schema # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.944474
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 92 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.401168
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 93 - optimistic versions reject stale and concurrent writes; corrections append instead of editing # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.466473
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 94 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.253495
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 95 - outbox projection is idempotent under duplicate and concurrent delivery # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.328629
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 96 - idempotency keys replay one create and reject a changed request # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.182774
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 97 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.581166
+  type: 'test'
+  ...
+# Subtest: a workflow started over HTTP survives killed worker and API processes
+ok 98 - a workflow started over HTTP survives killed worker and API processes # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.076031
+  type: 'test'
+  ...
+# Subtest: a workflow runs to a structured result and continues after a restart
+ok 99 - a workflow runs to a structured result and continues after a restart # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.102638
+  type: 'test'
+  ...
+# Subtest: a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice
+ok 100 - a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.340381
+  type: 'test'
+  ...
+# Subtest: a workflow waits for a decision, survives duplicate wake-ups, then completes
+ok 101 - a workflow waits for a decision, survives duplicate wake-ups, then completes # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.235924
+  type: 'test'
+  ...
+# Subtest: cancellation stops delegation and keeps in-flight exposure held
+ok 102 - cancellation stops delegation and keeps in-flight exposure held # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.213821
+  type: 'test'
+  ...
+# Subtest: autonomous runs stop as needs-human; human-only and unbounded workflows never start
+ok 103 - autonomous runs stop as needs-human; human-only and unbounded workflows never start # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.243872
+  type: 'test'
+  ...
+# Subtest: a malformed answer is repaired within limits; pause holds dispatch until resume
+ok 104 - a malformed answer is repaired within limits; pause holds dispatch until resume # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.25939
+  type: 'test'
+  ...
+1..104
+# tests 104
+# suites 0
+# pass 52
+# fail 0
+# cancelled 0
+# skipped 52
+# todo 0
+# duration_ms 2500.423177
+$ prettier --check apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json
+Checking formatting...
+All matched files use Prettier code style!

@@ -3,13 +3,25 @@ import type { PoolClient } from 'pg';
 import {
   CancelRunRequestSchema,
   CritiqueOutputSchema,
+  DiscoveryTaskContextSchema,
+  EvidencePacketSchema,
   ORCHESTRATION_POLICY_VERSION,
+  RESPONSE_OUTCOME,
   StartWorkflowRequestSchema,
+  StoredBodySchemas,
   SynthesisOutputSchema,
   TaskContextSchema,
   WorkflowControlRequestSchema,
   parse,
+  type DiscoveryResult,
+  type DiscoveryTaskContext,
+  type DiscoveryTaskKind,
+  type EvidencePacket,
+  type LocatorOutput,
+  type ProposalOutput,
   type Reservation,
+  type ResponseType,
+  type SkepticTaskContext,
   type TaskContext,
   type TaskKind,
   type TaskState,
@@ -18,14 +30,23 @@ import {
   type WorkflowLimits,
   type WorkflowResult,
   type WorkflowTask,
+  type z,
 } from '@creator/contracts';
 import {
+  DISCOVERY_ROLE_VERSION,
   PROMPT_HASH,
   ROLE_VERSION,
   canonicalHash,
+  catalogMatches,
+  checkDiscoveryOutput,
   coordinate,
+  coordinateDiscovery,
+  disposeDiscovery,
   isTerminalTask,
+  proposalLabel,
+  type CoordinatorAction,
   type CoordinatorPlan,
+  type DiscoveryInput,
 } from '@creator/domain';
 import {
   BudgetStore,
@@ -55,7 +76,7 @@ function toWorkflow(r: Row): Workflow {
     run_id: String(r.run_id),
     fixture: Boolean(r.fixture),
     version: Number(r.version),
-    role: 'r05_skeptic',
+    role: r.role as Workflow['role'],
     role_version: String(r.role_version),
     prompt_hash: String(r.prompt_hash),
     policy_version: String(r.policy_version),
@@ -85,6 +106,7 @@ function toTask(r: Row): WorkflowTask {
     workflow_id: String(r.workflow_id),
     kind: r.kind as TaskKind,
     ordinal: Number(r.ordinal),
+    round: Number(r.round ?? 0),
     repair: Number(r.repair),
     repair_of: r.repair_of === null ? null : String(r.repair_of),
     depth: Number(r.depth),
@@ -119,6 +141,8 @@ export interface TaskLease {
   limits: WorkflowLimits;
   /** Synthesis only: the critique outputs named in its context, verified by hash. */
   critiques: { perspective: string; output: unknown }[];
+  /** Discovery tasks: the packet (verified by hash) and the inputs the context names. */
+  discovery: { packet: EvidencePacket; inputs: DiscoveryInput[] } | null;
 }
 export type TaskOutcome =
   | { state: 'succeeded'; reason: string; output: unknown }
@@ -128,12 +152,109 @@ export type TaskOutcome =
     }
   | { state: 'waiting_human'; reason: string; decisionId: string };
 
-/** Validates a role answer; anything else is a known, charged failure. */
-export function validateOutput(kind: TaskKind, json: unknown) {
+const DISCOVERY_KINDS: readonly TaskKind[] = [
+  'locate',
+  'propose',
+  'skeptic',
+  'revise',
+];
+export const isDiscoveryKind = (k: TaskKind): k is DiscoveryTaskKind =>
+  DISCOVERY_KINDS.includes(k);
+/** Discovery workflow context: the packet and the run's fixed choices. */
+export interface DiscoveryWorkflowContext {
+  packet: EvidencePacket;
+  packet_hash: string;
+  perspectives: ResponseType[];
+  excluded: { perspective: ResponseType; reason: string }[];
+  max_revisions: number;
+  constraints: string[];
+}
+
+/**
+ * Validates a role answer; anything else is a known, charged failure. Discovery answers are
+ * also checked against the packet and the task's own context.
+ */
+export function validateOutput(
+  kind: TaskKind,
+  json: unknown,
+  discovery?: { packet: EvidencePacket; context: TaskContext },
+) {
+  if (isDiscoveryKind(kind)) {
+    if (
+      !discovery ||
+      discovery.context.context_version !== 'discovery-context/1'
+    )
+      return null;
+    const checked = checkDiscoveryOutput(
+      kind,
+      json,
+      discovery.packet,
+      discovery.context,
+    );
+    return checked.ok ? checked.output : null;
+  }
   const schema =
     kind === 'critique' ? CritiqueOutputSchema : SynthesisOutputSchema;
   const parsed = schema.safeParse(json);
   return parsed.success ? parsed.data : null;
+}
+
+/** How a discovery task's output is labelled when another task reads it. */
+export function discoveryLabel(
+  t: Pick<WorkflowTask, 'kind' | 'ordinal' | 'round'>,
+  perspectives: ResponseType[],
+): string {
+  if (t.kind === 'locate') return 'locator';
+  if (t.kind === 'skeptic') return `skeptic pass ${t.round + 1}`;
+  return `${proposalLabel(t.ordinal)} ${perspectives[t.ordinal] ?? ''}${t.kind === 'revise' ? ` revision ${t.round}` : ''}`.trim();
+}
+
+/**
+ * Context for a new discovery task: the packet by hash and exactly the inputs the coordinator
+ * named, by output hash. A skeptic also gets the catalog entries application code found
+ * similar to each proposal.
+ */
+function discoveryTaskContext(
+  d: DiscoveryWorkflowContext,
+  a: Extract<CoordinatorAction, { type: 'delegate' }>,
+  tasks: WorkflowTask[],
+): DiscoveryTaskContext {
+  const inputs = (a.inputs ?? []).map((id) => {
+    const t = tasks.find((x) => x.id === id);
+    if (!t?.output_hash || !isDiscoveryKind(t.kind))
+      throw fail(
+        'EVIDENCE_MISMATCH',
+        'A discovery input is not a finished task.',
+      );
+    return { task: t, kind: t.kind };
+  });
+  const designer = a.kind === 'propose' || a.kind === 'revise';
+  return parse(DiscoveryTaskContextSchema, {
+    context_version: 'discovery-context/1',
+    role_version: DISCOVERY_ROLE_VERSION,
+    packet_hash: d.packet_hash,
+    perspective: designer ? (d.perspectives[a.ordinal] ?? null) : null,
+    proposal: designer ? proposalLabel(a.ordinal) : null,
+    round: a.round ?? 0,
+    inputs: inputs.map(({ task, kind }) => ({
+      task_id: task.id,
+      output_hash: task.output_hash,
+      kind,
+      label: discoveryLabel(task, d.perspectives),
+    })),
+    catalog_matches:
+      a.kind === 'skeptic'
+        ? inputs.flatMap(({ task }) =>
+            catalogMatches(task.output as ProposalOutput, d.packet.catalog)
+              .slice(0, 3)
+              .map((m) => ({
+                proposal: proposalLabel(task.ordinal),
+                catalog: m.entry.ref,
+                similarity: m.similarity,
+              })),
+          )
+        : [],
+  });
 }
 
 /**
@@ -159,53 +280,7 @@ export class WorkflowStore extends BudgetStore {
       ctx,
       { op: 'workflow.start', runId, req },
       async (c) => {
-        await this.requireOwner(c, ws, ctx.actorId);
-        await c.query(
-          `insert into actors (id, kind, display_name) values ($1, 'agent', 'Workflow worker')
-           on conflict do nothing`,
-          [ORCHESTRATOR_ACTOR_ID],
-        );
-        const run = await this.lockRun(c, ws, runId);
-        if (run.state !== 'active')
-          throw fail('INVALID_TRANSITION', 'The run is cancelled.');
-        if (run.autonomy_mode === 'human_only')
-          throw fail(
-            'HUMAN_ONLY_DENIED',
-            'A human-only run cannot start a model role.',
-          );
-        const live = await c.query(
-          'select 1 from workflows where workspace_id = $1 and run_id = $2 and finished_at is null',
-          [ws, runId],
-        );
-        if (live.rowCount)
-          throw fail('DUPLICATE', 'This run already has a live workflow.');
-        const env = await c.query(
-          `select status, run_id from budget_envelopes where workspace_id = $1 and id = $2`,
-          [ws, req.envelope_id.toLowerCase()],
-        );
-        const e = env.rows[0] as Row | undefined;
-        if (!e) throw fail('NOT_FOUND', 'Budget envelope not found.');
-        if (e.status !== 'active' || (e.run_id !== null && e.run_id !== runId))
-          throw fail(
-            'SCOPE_EXCEEDED',
-            'Use an active envelope that is workspace-wide or belongs to this run.',
-          );
-        const price = await c.query(
-          'select 1 from pricing_snapshots where workspace_id = $1 and id = $2',
-          [ws, req.pricing_snapshot_id.toLowerCase()],
-        );
-        if (!price.rowCount)
-          throw fail('PRICING_MISSING', 'Pricing snapshot not found.');
-        const sub = await c.query(
-          `select e.kind, v.title, v.body, v.content_hash, v.status
-             from entity_versions v join entities e on e.id = v.entity_id
-            where v.workspace_id = $1 and v.entity_id = $2 and v.version = $3`,
-          [ws, req.subject.id.toLowerCase(), req.subject.version],
-        );
-        const s = sub.rows[0] as Row | undefined;
-        if (!s) throw fail('NOT_FOUND', 'Subject record version not found.');
-        if (s.status === 'redacted')
-          throw fail('NOT_FOUND', 'A redacted record cannot be reviewed.');
+        const s = await this.subjectVersion(c, ws, req.subject);
         const subject = {
           id: req.subject.id.toLowerCase(),
           version: req.subject.version,
@@ -214,78 +289,22 @@ export class WorkflowStore extends BudgetStore {
           title: String(s.title).slice(0, 500),
           excerpt: JSON.stringify(s.body ?? null).slice(0, 4000),
         };
-        const fixture = (
-          await c.query<{ fixture: boolean }>(
-            'select fixture from workspaces where id = $1',
-            [ws],
-          )
-        ).rows[0]?.fixture;
         const context = {
           subject,
           constraints: req.constraints,
           perspectives: req.perspectives,
         };
-        const workflowId = randomUUID();
-        await c.query(
-          `insert into workflows (id, workspace_id, fixture, run_id, role, role_version,
-             prompt_hash, policy_version, subject_id, subject_version, context, context_hash,
-             limits, envelope_id, pricing_snapshot_id, data_class, state, reason, deadline_at,
-             created_by)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'queued','started',
-             now() + make_interval(secs => $17::double precision), $18)`,
-          [
-            workflowId,
-            ws,
-            fixture,
-            runId,
-            req.role,
-            ROLE_VERSION,
-            PROMPT_HASH,
-            ORCHESTRATION_POLICY_VERSION,
-            subject.id,
-            subject.version,
-            JSON.stringify(context),
-            canonicalHash(context),
-            JSON.stringify(req.limits),
-            req.envelope_id.toLowerCase(),
-            req.pricing_snapshot_id.toLowerCase(),
-            req.data_class,
-            req.limits.max_wall_seconds,
-            ctx.actorId,
-          ],
-        );
-        // The agent that runs tasks acts in this workspace only as an editor: it can submit
-        // actions for admission, never answer decisions or change grants.
-        const member = await c.query(
-          `insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, 'editor')
-           on conflict do nothing`,
-          [ws, ORCHESTRATOR_ACTOR_ID],
-        );
-        if (member.rowCount)
-          await this.append(c, ctx, {
-            workspaceId: ws,
-            action: 'member.added',
-            subjectKind: 'actor',
-            subjectId: ORCHESTRATOR_ACTOR_ID,
-            subjectVersion: null,
-            contentHash: null,
-            payload: { role: 'editor' },
-          });
-        await this.append(c, ctx, {
-          workspaceId: ws,
-          action: 'workflow.started',
-          subjectKind: 'workflow',
-          subjectId: workflowId,
-          subjectVersion: 1,
-          contentHash: canonicalHash(context),
-          payload: {
-            role: req.role,
-            role_version: ROLE_VERSION,
-            prompt_hash: PROMPT_HASH,
-            perspectives: req.perspectives.length,
-            limits: req.limits,
-          },
-          relatedIds: [runId, subject.id],
+        const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
+          role: req.role,
+          roleVersion: ROLE_VERSION,
+          promptHash: PROMPT_HASH,
+          subject: req.subject,
+          context,
+          limits: req.limits,
+          envelopeId: req.envelope_id,
+          pricingSnapshotId: req.pricing_snapshot_id,
+          dataClass: req.data_class,
+          audit: { perspectives: req.perspectives.length },
         });
         await this.insertTask(c, ctx, ws, workflowId, {
           kind: 'synthesis',
@@ -302,10 +321,160 @@ export class WorkflowStore extends BudgetStore {
     return this.getWorkflow(ctx, ws, id);
   }
 
+  /** The pinned record version a workflow starts from; redacted records cannot be used. */
+  protected async subjectVersion(
+    c: PoolClient,
+    ws: string,
+    ref: { id: string; version: number },
+  ): Promise<Row> {
+    const sub = await c.query(
+      `select e.kind, v.title, v.body, v.content_hash, v.status
+         from entity_versions v join entities e on e.id = v.entity_id
+        where v.workspace_id = $1 and v.entity_id = $2 and v.version = $3`,
+      [ws, ref.id.toLowerCase(), ref.version],
+    );
+    const s = sub.rows[0] as Row | undefined;
+    if (!s) throw fail('NOT_FOUND', 'Subject record version not found.');
+    if (s.status === 'redacted')
+      throw fail('NOT_FOUND', 'A redacted record cannot be reviewed.');
+    return s;
+  }
+
+  /**
+   * Checks the run, envelope and pricing, then writes the workflow row, the worker's editor
+   * membership and the start event, all in the caller's transaction.
+   */
+  protected async insertWorkflow(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    w: {
+      role: Workflow['role'];
+      roleVersion: string;
+      promptHash: string;
+      subject: { id: string; version: number };
+      context: Record<string, unknown>;
+      limits: WorkflowLimits;
+      envelopeId: string;
+      pricingSnapshotId: string;
+      dataClass: Workflow['data_class'];
+      audit: Row;
+    },
+  ): Promise<string> {
+    await this.requireOwner(c, ws, ctx.actorId);
+    await c.query(
+      `insert into actors (id, kind, display_name) values ($1, 'agent', 'Workflow worker')
+       on conflict do nothing`,
+      [ORCHESTRATOR_ACTOR_ID],
+    );
+    const run = await this.lockRun(c, ws, runId);
+    if (run.state !== 'active')
+      throw fail('INVALID_TRANSITION', 'The run is cancelled.');
+    if (run.autonomy_mode === 'human_only')
+      throw fail(
+        'HUMAN_ONLY_DENIED',
+        'A human-only run cannot start a model role.',
+      );
+    const live = await c.query(
+      'select 1 from workflows where workspace_id = $1 and run_id = $2 and finished_at is null',
+      [ws, runId],
+    );
+    if (live.rowCount)
+      throw fail('DUPLICATE', 'This run already has a live workflow.');
+    const env = await c.query(
+      `select status, run_id from budget_envelopes where workspace_id = $1 and id = $2`,
+      [ws, w.envelopeId.toLowerCase()],
+    );
+    const e = env.rows[0] as Row | undefined;
+    if (!e) throw fail('NOT_FOUND', 'Budget envelope not found.');
+    if (e.status !== 'active' || (e.run_id !== null && e.run_id !== runId))
+      throw fail(
+        'SCOPE_EXCEEDED',
+        'Use an active envelope that is workspace-wide or belongs to this run.',
+      );
+    const price = await c.query(
+      'select 1 from pricing_snapshots where workspace_id = $1 and id = $2',
+      [ws, w.pricingSnapshotId.toLowerCase()],
+    );
+    if (!price.rowCount)
+      throw fail('PRICING_MISSING', 'Pricing snapshot not found.');
+    const fixture = (
+      await c.query<{ fixture: boolean }>(
+        'select fixture from workspaces where id = $1',
+        [ws],
+      )
+    ).rows[0]?.fixture;
+    const workflowId = randomUUID();
+    const contextHash = canonicalHash(w.context);
+    await c.query(
+      `insert into workflows (id, workspace_id, fixture, run_id, role, role_version,
+         prompt_hash, policy_version, subject_id, subject_version, context, context_hash,
+         limits, envelope_id, pricing_snapshot_id, data_class, state, reason, deadline_at,
+         created_by)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'queued','started',
+         now() + make_interval(secs => $17::double precision), $18)`,
+      [
+        workflowId,
+        ws,
+        fixture,
+        runId,
+        w.role,
+        w.roleVersion,
+        w.promptHash,
+        ORCHESTRATION_POLICY_VERSION,
+        w.subject.id.toLowerCase(),
+        w.subject.version,
+        JSON.stringify(w.context),
+        contextHash,
+        JSON.stringify(w.limits),
+        w.envelopeId.toLowerCase(),
+        w.pricingSnapshotId.toLowerCase(),
+        w.dataClass,
+        w.limits.max_wall_seconds,
+        ctx.actorId,
+      ],
+    );
+    // The agent that runs tasks acts in this workspace only as an editor: it can submit
+    // actions for admission, never answer decisions or change grants.
+    const member = await c.query(
+      `insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, 'editor')
+       on conflict do nothing`,
+      [ws, ORCHESTRATOR_ACTOR_ID],
+    );
+    if (member.rowCount)
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'member.added',
+        subjectKind: 'actor',
+        subjectId: ORCHESTRATOR_ACTOR_ID,
+        subjectVersion: null,
+        contentHash: null,
+        payload: { role: 'editor' },
+      });
+    await this.append(c, ctx, {
+      workspaceId: ws,
+      action: 'workflow.started',
+      subjectKind: 'workflow',
+      subjectId: workflowId,
+      subjectVersion: 1,
+      contentHash: contextHash,
+      payload: {
+        role: w.role,
+        role_version: w.roleVersion,
+        prompt_hash: w.promptHash,
+        limits: w.limits,
+        ...w.audit,
+      },
+      relatedIds: [runId, w.subject.id.toLowerCase()],
+    });
+    return workflowId;
+  }
+
   private taskContext(
-    wf: { subject: TaskContext['subject']; constraints: string[] },
+    wf: { subject: SkepticTaskContext['subject']; constraints: string[] },
     perspective: string | null,
-    inputs: TaskContext['inputs'],
+    inputs: SkepticTaskContext['inputs'],
   ): TaskContext {
     return parse(TaskContextSchema, {
       context_version: 'skeptic-context/1',
@@ -317,7 +486,7 @@ export class WorkflowStore extends BudgetStore {
     });
   }
 
-  private async insertTask(
+  protected async insertTask(
     c: PoolClient,
     ctx: CommandContext,
     ws: string,
@@ -325,6 +494,7 @@ export class WorkflowStore extends BudgetStore {
     t: {
       kind: TaskKind;
       ordinal: number;
+      round?: number;
       repair: number;
       repairOf: string | null;
       state: 'queued' | 'waiting_dependency';
@@ -333,15 +503,16 @@ export class WorkflowStore extends BudgetStore {
   ) {
     const id = randomUUID();
     await c.query(
-      `insert into workflow_tasks (id, workspace_id, workflow_id, kind, ordinal, repair,
+      `insert into workflow_tasks (id, workspace_id, workflow_id, kind, ordinal, round, repair,
          repair_of, depth, logical_operation_id, state, reason, context, context_hash)
-       values ($1,$2,$3,$4,$5,$6,$7,1,$8,$9,$10,$11,$12)`,
+       values ($1,$2,$3,$4,$5,$6,$7,$8,1,$9,$10,$11,$12,$13)`,
       [
         id,
         ws,
         workflowId,
         t.kind,
         t.ordinal,
+        t.round ?? 0,
         t.repair,
         t.repairOf,
         randomUUID(),
@@ -358,7 +529,12 @@ export class WorkflowStore extends BudgetStore {
       subjectId: id,
       subjectVersion: 1,
       contentHash: canonicalHash(t.context),
-      payload: { kind: t.kind, ordinal: t.ordinal, repair: t.repair },
+      payload: {
+        kind: t.kind,
+        ordinal: t.ordinal,
+        round: t.round ?? 0,
+        repair: t.repair,
+      },
       relatedIds: [workflowId],
     });
     return id;
@@ -399,7 +575,7 @@ export class WorkflowStore extends BudgetStore {
       if (!w.rows[0]) throw fail('NOT_FOUND', 'Workflow not found.');
       const tasks = (
         await c.query(
-          'select * from workflow_tasks where workflow_id = $1 order by kind, ordinal, repair',
+          'select * from workflow_tasks where workflow_id = $1 order by kind, ordinal, round, repair',
           [workflowId],
         )
       ).rows.map((r: Row) => toTask(r));
@@ -448,7 +624,18 @@ export class WorkflowStore extends BudgetStore {
         [workflowId],
       )
     ).rows.map((r: Row) => toTask(r));
-    const plan: CoordinatorPlan = coordinate({
+    const now = new Date(
+      (await c.query<{ now: Date }>('select now() as now')).rows[0]?.now ??
+        Date.now(),
+    );
+    const ctxRow = (
+      await c.query('select context from workflows where id = $1', [workflowId])
+    ).rows[0]?.context as Row;
+    const discovery =
+      wf.role === 'r02_discovery'
+        ? (ctxRow as unknown as DiscoveryWorkflowContext)
+        : null;
+    const view = {
       state: wf.state,
       control: wf.control,
       limits: wf.limits,
@@ -456,15 +643,18 @@ export class WorkflowStore extends BudgetStore {
       deadline_at: wf.deadline_at,
       steps: wf.steps,
       tasks,
-      now: new Date(
-        (await c.query<{ now: Date }>('select now() as now')).rows[0]?.now ??
-          Date.now(),
-      ),
-    });
-    const ctxRow = (
-      await c.query('select context from workflows where id = $1', [workflowId])
-    ).rows[0]?.context as {
-      subject: TaskContext['subject'];
+      now,
+    };
+    const plan: CoordinatorPlan = discovery
+      ? coordinateDiscovery({
+          ...view,
+          perspectives: discovery.perspectives,
+          max_revisions: discovery.max_revisions,
+          sufficient: discovery.packet.sufficiency.verdict === 'sufficient',
+        })
+      : coordinate(view);
+    const skepticRow = ctxRow as unknown as {
+      subject: SkepticTaskContext['subject'];
       constraints: string[];
       perspectives: string[];
     };
@@ -476,19 +666,22 @@ export class WorkflowStore extends BudgetStore {
         await this.insertTask(c, ctx, ws, workflowId, {
           kind: a.kind,
           ordinal: a.ordinal,
+          round: a.round ?? 0,
           repair: a.repair,
           repairOf: a.repair_of,
           state: 'queued',
           context:
             prior?.context ??
-            this.taskContext(
-              ctxRow,
-              ctxRow.perspectives[a.ordinal] ?? null,
-              [],
-            ),
+            (discovery
+              ? discoveryTaskContext(discovery, a, tasks)
+              : this.taskContext(
+                  skepticRow,
+                  skepticRow.perspectives[a.ordinal] ?? null,
+                  [],
+                )),
         });
       } else if (a.type === 'release_synthesis') {
-        const inputs = ctxRow.perspectives.flatMap((p, i) => {
+        const inputs = skepticRow.perspectives.flatMap((p, i) => {
           const t = tasks
             .filter(
               (x) =>
@@ -501,7 +694,7 @@ export class WorkflowStore extends BudgetStore {
             ? [{ task_id: t.id, output_hash: t.output_hash, perspective: p }]
             : [];
         });
-        const context = this.taskContext(ctxRow, null, inputs);
+        const context = this.taskContext(skepticRow, null, inputs);
         await this.setTask(
           c,
           ctx,
@@ -553,31 +746,66 @@ export class WorkflowStore extends BudgetStore {
           workflowId,
         ])
       ).rows.map((r: Row) => toTask(r));
-      const synthesis = final
-        .filter((t) => t.kind === 'synthesis' && t.state === 'succeeded')
-        .sort((x, y) => y.repair - x.repair)[0];
-      result = {
-        outcome: plan.terminal.outcome,
-        explanation: plan.terminal.explanation,
-        synthesis: synthesis
-          ? (validateOutput(
-              'synthesis',
-              synthesis.output,
-            ) as WorkflowResult['synthesis'])
-          : null,
-        critiques: wf.perspectives.map((p, i) => {
-          const t = final
-            .filter((x) => x.kind === 'critique' && x.ordinal === i)
-            .sort((x, y) => y.repair - x.repair)[0];
-          return {
-            task_id: t?.id ?? workflowId,
-            perspective: p,
-            state: t?.state ?? 'cancelled',
-            output_hash: t?.output_hash ?? null,
-          };
-        }),
-        fixture: wf.fixture,
-      };
+      if (discovery) {
+        const disposition = disposeDiscovery({
+          packet: discovery.packet,
+          packet_hash: discovery.packet_hash,
+          perspectives: discovery.perspectives,
+          excluded: discovery.excluded,
+          tasks: final.flatMap((t) =>
+            t.context.context_version === 'discovery-context/1'
+              ? [{ ...t, context: t.context }]
+              : [],
+          ),
+          stopped_insufficient:
+            plan.terminal.outcome === 'insufficient_evidence',
+        });
+        const catalog_records =
+          plan.terminal.state === 'succeeded'
+            ? await this.recordDiscovery(
+                c,
+                ws,
+                wf,
+                discovery,
+                final,
+                disposition,
+              )
+            : { problem: null, alternatives: [] };
+        result = {
+          outcome: plan.terminal.outcome,
+          explanation: plan.terminal.explanation,
+          synthesis: null,
+          critiques: [],
+          fixture: wf.fixture,
+          discovery: { ...disposition, catalog_records },
+        };
+      } else {
+        const synthesis = final
+          .filter((t) => t.kind === 'synthesis' && t.state === 'succeeded')
+          .sort((x, y) => y.repair - x.repair)[0];
+        result = {
+          outcome: plan.terminal.outcome,
+          explanation: plan.terminal.explanation,
+          synthesis: synthesis
+            ? (validateOutput(
+                'synthesis',
+                synthesis.output,
+              ) as WorkflowResult['synthesis'])
+            : null,
+          critiques: wf.perspectives.map((p, i) => {
+            const t = final
+              .filter((x) => x.kind === 'critique' && x.ordinal === i)
+              .sort((x, y) => y.repair - x.repair)[0];
+            return {
+              task_id: t?.id ?? workflowId,
+              perspective: p,
+              state: t?.state ?? 'cancelled',
+              output_hash: t?.output_hash ?? null,
+            };
+          }),
+          fixture: wf.fixture,
+        };
+      }
     }
     await c.query(
       `update workflows set state = $2, reason = $3, steps = steps + 1, version = version + 1,
@@ -644,6 +872,178 @@ export class WorkflowStore extends BudgetStore {
       payload: { state, reason },
       relatedIds: [String(rows[0]?.workflow_id)],
     });
+  }
+
+  /** A discovery workflow's fixed context, with its packet checked against the bound hash. */
+  protected async discoveryContextOf(
+    c: PoolClient,
+    workflowId: string,
+  ): Promise<DiscoveryWorkflowContext> {
+    const { rows } = await c.query(
+      `select context from workflows where id = $1 and role = 'r02_discovery'`,
+      [workflowId],
+    );
+    const d = rows[0]?.context as DiscoveryWorkflowContext | undefined;
+    if (!d) throw fail('NOT_FOUND', 'Discovery workflow not found.');
+    const packet = parse(EvidencePacketSchema, d.packet);
+    if (canonicalHash(packet) !== d.packet_hash)
+      throw fail('EVIDENCE_MISMATCH', 'The evidence packet changed.');
+    return { ...d, packet };
+  }
+
+  /**
+   * Writes a finished discovery run into the catalog as the workflow agent: the locator's
+   * problem (derived from the brief, supported by the packet's usable problem claims) and one
+   * alternative per proposal, whatever its disposition, so later runs can find duplicates and
+   * dissent stays attached to the proposal it concerns.
+   */
+  private async recordDiscovery(
+    c: PoolClient,
+    ws: string,
+    wf: Workflow,
+    d: DiscoveryWorkflowContext,
+    tasks: WorkflowTask[],
+    result: Omit<DiscoveryResult, 'catalog_records'>,
+  ): Promise<DiscoveryResult['catalog_records']> {
+    const agent: CommandContext = { actorId: ORCHESTRATOR_ACTOR_ID };
+    const clip = (v: string, n: number) =>
+      v.length > n ? `${v.slice(0, n - 1)}…` : v;
+    const locate = tasks.find((t) => t.id === result.locator?.task_id);
+    const out = locate?.output as LocatorOutput | undefined;
+    if (!out) return { problem: null, alternatives: [] };
+    const link = async (
+      relation: 'derived_from' | 'supports',
+      from: { id: string; kind: string; version: number },
+      to: { id: string; kind: string; version: number },
+      rationale: string,
+    ) => {
+      const linkId = randomUUID();
+      await c.query(
+        `insert into entity_links (id, workspace_id, relation, from_id, from_kind, from_version,
+           to_id, to_kind, to_version, rationale, asserted_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) on conflict do nothing`,
+        [
+          linkId,
+          ws,
+          relation,
+          from.id,
+          from.kind,
+          from.version,
+          to.id,
+          to.kind,
+          to.version,
+          clip(rationale, 500),
+          agent.actorId,
+        ],
+      );
+      await this.append(c, agent, {
+        workspaceId: ws,
+        action: 'link.created',
+        subjectKind: 'link',
+        subjectId: linkId,
+        subjectVersion: null,
+        contentHash: null,
+        payload: {
+          relation,
+          from_kind: from.kind,
+          from_version: from.version,
+          to_kind: to.kind,
+          to_version: to.version,
+        },
+        relatedIds: [from.id, to.id],
+      });
+    };
+    const create = async (
+      kind: 'problem' | 'alternative',
+      title: string,
+      body: Record<string, unknown>,
+    ) =>
+      this.insertEntity(
+        c,
+        agent,
+        ws,
+        kind,
+        clip(title, 500),
+        (StoredBodySchemas[kind] as z.ZodType).parse(body) as Record<
+          string,
+          unknown
+        >,
+      );
+    const problem = await create(
+      'problem',
+      `${d.packet.brief.title}: ${out.observable_problem}`,
+      {
+        statement: clip(out.problem_statement, 2000),
+        affected_group: clip(out.affected_users, 500),
+        uncertainty: clip(
+          `Discovery run ${wf.id} (${wf.fixture ? 'fixture' : 'real'}): locator rated the evidence ${out.evidence_strength.replace('_', ' ')}; packet ${d.packet.sufficiency.verdict}. ${d.packet.sufficiency.reasons.join(' ')}`,
+          2000,
+        ),
+      },
+    );
+    const ref = (e: { id: string; kind: string; version: number }) => ({
+      id: e.id,
+      kind: e.kind,
+      version: e.version,
+    });
+    await link(
+      'derived_from',
+      ref(problem),
+      {
+        id: d.packet.brief.id,
+        kind: 'search_brief',
+        version: d.packet.brief.version,
+      },
+      `Narrowed from this search brief by discovery run ${wf.id}.`,
+    );
+    for (const claim of d.packet.claims)
+      if (
+        claim.bears_on.includes('problem') &&
+        (claim.status === 'supported' || claim.status === 'contested')
+      )
+        await link(
+          'supports',
+          { id: claim.claim_id, kind: 'claim', version: claim.version },
+          ref(problem),
+          `Packet ${claim.ref}, evidence ${claim.status} when the run started.`,
+        );
+    const alternatives: DiscoveryResult['catalog_records']['alternatives'] = [];
+    for (const p of result.proposals) {
+      const t = tasks.find((x) => x.id === p.task_id);
+      const o = t?.output as ProposalOutput | undefined;
+      if (!o) continue;
+      const alt = await create('alternative', o.title, {
+        kind: RESPONSE_OUTCOME[p.perspective],
+        rationale: clip(
+          `${o.mechanism} Software warranted: ${o.software_warranted.verdict}. ${o.software_warranted.reason}`,
+          2000,
+        ),
+        tradeoffs: [
+          `Feasibility: ${o.feasibility}`,
+          `Maintenance: ${o.maintenance}`,
+          ...o.assumptions.map((a) => `Assumes: ${a.statement}`),
+        ].map((x) => clip(x, 500)),
+        uncertainty: clip(
+          `Disposition: ${p.disposition}. ${p.reasons.join(' ')}${p.dissent.length ? ` Dissent: ${p.dissent.join(' | ')}` : ''}`,
+          2000,
+        ),
+      });
+      await link(
+        'derived_from',
+        ref(alt),
+        ref(problem),
+        `${p.proposal} (${p.perspective}) from discovery run ${wf.id}.`,
+      );
+      alternatives.push({
+        proposal: p.proposal,
+        id: alt.id,
+        version: alt.version,
+      });
+    }
+    return {
+      problem: { id: problem.id, version: problem.version },
+      alternatives,
+    };
   }
 
   /** Runs one coordinator step for a workflow (worker ticks, deadlines, owner controls). */
@@ -801,18 +1201,34 @@ export class WorkflowStore extends BudgetStore {
             relatedIds: [wf.id],
           });
           const critiques = [];
-          for (const input of task.context.inputs) {
+          let discovery: TaskLease['discovery'] = null;
+          const output = async (taskId: string, hash: string) => {
             const { rows: src } = await c.query(
               'select output, output_hash from workflow_tasks where id = $1 and workflow_id = $2',
-              [input.task_id, wf.id],
+              [taskId, wf.id],
             );
-            if (src[0]?.output_hash !== input.output_hash)
-              throw fail('EVIDENCE_MISMATCH', 'A synthesis input changed.');
-            critiques.push({
-              perspective: input.perspective,
-              output: src[0]?.output as unknown,
-            });
-          }
+            if (src[0]?.output_hash !== hash)
+              throw fail('EVIDENCE_MISMATCH', 'A task input changed.');
+            return src[0]?.output as unknown;
+          };
+          if (task.context.context_version === 'discovery-context/1') {
+            const d = await this.discoveryContextOf(c, wf.id);
+            if (d.packet_hash !== task.context.packet_hash)
+              throw fail('EVIDENCE_MISMATCH', 'The evidence packet changed.');
+            const inputs: DiscoveryInput[] = [];
+            for (const input of task.context.inputs)
+              inputs.push({
+                label: input.label,
+                kind: input.kind,
+                output: await output(input.task_id, input.output_hash),
+              });
+            discovery = { packet: d.packet, inputs };
+          } else
+            for (const input of task.context.inputs)
+              critiques.push({
+                perspective: input.perspective,
+                output: await output(input.task_id, input.output_hash),
+              });
           leases.push({
             task,
             token: String(task.lease_token),
@@ -824,6 +1240,7 @@ export class WorkflowStore extends BudgetStore {
             dataClass: wf.data_class,
             limits: wf.limits,
             critiques,
+            discovery,
           });
         }
       }
@@ -1070,7 +1487,16 @@ export class WorkflowStore extends BudgetStore {
         };
         let outcome: TaskOutcome;
         if (a.status === 'settled' && stored.status === 'succeeded') {
-          const output = validateOutput(task.kind, stored.output?.json);
+          const output = validateOutput(
+            task.kind,
+            stored.output?.json,
+            isDiscoveryKind(task.kind)
+              ? {
+                  packet: (await this.discoveryContextOf(c, wf.id)).packet,
+                  context: task.context,
+                }
+              : undefined,
+          );
           outcome = output
             ? { state: 'succeeded', reason: 'late_result', output }
             : { state: 'failed', reason: 'invalid_output' };
