@@ -20,7 +20,7 @@ import {
   sourcePolicyHash,
 } from '@creator/domain';
 import {
-  ResearchStore,
+  DiscoveryStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -126,7 +126,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet))?)?)?)?$/;
 
 export function createApi(env: Record<string, string | undefined> = {}) {
   // Checked first so a hosted deployment with development login fails with that reason.
@@ -151,7 +151,7 @@ export function createApi(env: Record<string, string | undefined> = {}) {
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new ResearchStore(pool) : null;
+  const store = pool ? new DiscoveryStore(pool) : null;
   const broker = store
     ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
     : null;
@@ -366,6 +366,12 @@ export function createApi(env: Record<string, string | undefined> = {}) {
           await store.startWorkflow(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && method === 'POST' && action === 'discoveries')
+        return send(
+          201,
+          await store.startDiscovery(ctx, ws, item, await readJson(req)),
+          true,
+        );
       if (item && method === 'POST' && action === 'model-calls')
         return send(
           200,
@@ -492,6 +498,8 @@ export function createApi(env: Record<string, string | undefined> = {}) {
       }
       if (item && !action && method === 'GET')
         return send(200, await store.getWorkflow(ctx, ws, item), false);
+      if (item && action === 'packet' && method === 'GET')
+        return send(200, await store.discoveryPacket(ctx, ws, item), false);
       if (
         item &&
         method === 'POST' &&

@@ -10,6 +10,13 @@ import {
 } from './primitives.js';
 import { DataClassSchema, TargetRefSchema } from './oversight.js';
 import { ReservationSchema } from './budget.js';
+import {
+  DiscoveryResultSchema,
+  DiscoveryTaskContextSchema,
+  DiscoveryTaskKindSchema,
+  EvidenceRoleSchema,
+  ResponseTypeSchema,
+} from './discovery.js';
 
 // T05 durable orchestration. A workflow is one finite coordinator run of one bounded role
 // for a registered run; its state lives in PostgreSQL, not in a browser or a worker's memory.
@@ -17,8 +24,12 @@ const short = z.string().trim().min(1).max(300);
 const note = z.string().trim().min(1).max(1200);
 
 export const ORCHESTRATION_POLICY_VERSION = 'orchestration/1.0' as const;
-/** The one bounded role connected end to end in T05 (agents/ROLE_PROMPTS.md R05). */
-export const WorkflowRoleSchema = z.literal('r05_skeptic');
+/**
+ * Bounded roles connected end to end: the T05 skeptic review (R05) and the T07 discovery run
+ * (R02 locator, R04 designers, R05 skeptic and bounded revision).
+ */
+export const WorkflowRoleSchema = z.enum(['r05_skeptic', 'r02_discovery']);
+export type WorkflowRole = z.infer<typeof WorkflowRoleSchema>;
 export const WorkflowStateSchema = ExecutionStateSchema.exclude([
   'admitted',
   'paused_budget',
@@ -43,7 +54,11 @@ export const TERMINAL_TASK_STATES: readonly TaskState[] = [
   'needs_human',
   'cancelled',
 ];
-export const TaskKindSchema = z.enum(['critique', 'synthesis']);
+export const TaskKindSchema = z.enum([
+  'critique',
+  'synthesis',
+  ...DiscoveryTaskKindSchema.options,
+]);
 export type TaskKind = z.infer<typeof TaskKindSchema>;
 
 /** Hard ceilings; a workflow's own limits must sit inside them. */
@@ -74,7 +89,7 @@ export type WorkflowLimits = z.infer<typeof WorkflowLimitsSchema>;
 
 export const StartWorkflowRequestSchema = z
   .strictObject({
-    role: WorkflowRoleSchema,
+    role: z.literal('r05_skeptic'),
     /** The record under review, pinned to one version; its content hash is bound at start. */
     subject: TargetRefSchema,
     /** Immutable constraints every task receives verbatim. */
@@ -101,7 +116,7 @@ export const WorkflowControlRequestSchema = z.strictObject({
 });
 
 /** Task-specific context: only what the task needs, by reference and hash. */
-export const TaskContextSchema = z.strictObject({
+export const SkepticTaskContextSchema = z.strictObject({
   context_version: z.literal('skeptic-context/1'),
   role_version: short,
   subject: z.strictObject({
@@ -119,7 +134,79 @@ export const TaskContextSchema = z.strictObject({
     z.strictObject({ task_id: id, output_hash: hash, perspective: short }),
   ),
 });
+export type SkepticTaskContext = z.infer<typeof SkepticTaskContextSchema>;
+export const TaskContextSchema = z.discriminatedUnion('context_version', [
+  SkepticTaskContextSchema,
+  DiscoveryTaskContextSchema,
+]);
 export type TaskContext = z.infer<typeof TaskContextSchema>;
+
+/**
+ * T07: start a discovery run from a pinned search brief and chosen claim evidence. Every
+ * response type is either assigned to a designer or excluded with a reason.
+ */
+export const StartDiscoveryRequestSchema = z
+  .strictObject({
+    brief: TargetRefSchema,
+    evidence: z
+      .array(
+        z.strictObject({
+          claim_id: id,
+          bears_on: z.array(EvidenceRoleSchema).min(1).max(8),
+        }),
+      )
+      .min(1)
+      .max(30),
+    perspectives: z.array(ResponseTypeSchema).min(2).max(5),
+    excluded: z
+      .array(z.strictObject({ perspective: ResponseTypeSchema, reason: short }))
+      .max(3),
+    max_revisions: counter.max(2),
+    max_age_days: counter.min(1).max(3650).default(180),
+    envelope_id: id,
+    pricing_snapshot_id: id,
+    data_class: DataClassSchema,
+    limits: WorkflowLimitsSchema,
+  })
+  .superRefine((r, ctx) => {
+    const named = [...r.perspectives, ...r.excluded.map((e) => e.perspective)];
+    if (new Set(named).size !== named.length)
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Name each response type once, as a perspective or an exclusion.',
+      });
+    if (named.length !== ResponseTypeSchema.options.length)
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Every response type must be assigned or excluded with a reason.',
+      });
+    if (!r.perspectives.some((p) => p !== 'software'))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Include at least one response that is not new software.',
+      });
+    if (r.perspectives.length > r.limits.max_children)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'More perspectives than max_children.',
+      });
+    const ids = r.evidence.map((e) => e.claim_id.toLowerCase());
+    if (new Set(ids).size !== ids.length)
+      ctx.addIssue({ code: 'custom', message: 'List each claim once.' });
+    // Locator, one proposal per perspective and at least one skeptic pass.
+    if (
+      r.limits.max_calls <
+      (r.perspectives.length + 2) * r.limits.max_attempts
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'max_calls must cover the locator, one call per perspective and a skeptic pass, at max_attempts each.',
+      });
+  });
+export type StartDiscoveryRequest = z.infer<typeof StartDiscoveryRequestSchema>;
 
 // Role outputs. The runtime validates them; a malformed answer is a known failure, charged.
 const severity = z.enum(['low', 'medium', 'high']);
@@ -153,6 +240,7 @@ export const WorkflowTaskSchema = z.strictObject({
   workflow_id: id,
   kind: TaskKindSchema,
   ordinal: counter,
+  round: counter,
   repair: counter,
   repair_of: id.nullable(),
   depth: counter,
@@ -185,6 +273,7 @@ export const WorkflowOutcomeSchema = z.enum([
   'declined',
   'cancelled',
   'deadline_exceeded',
+  'insufficient_evidence',
 ]);
 export const WorkflowResultSchema = z.strictObject({
   outcome: WorkflowOutcomeSchema,
@@ -199,6 +288,8 @@ export const WorkflowResultSchema = z.strictObject({
     }),
   ),
   fixture: z.boolean(),
+  /** Discovery runs only. */
+  discovery: DiscoveryResultSchema.optional(),
 });
 export type WorkflowResult = z.infer<typeof WorkflowResultSchema>;
 export const WorkflowUsageSchema = z.strictObject({

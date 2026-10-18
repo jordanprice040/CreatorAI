@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T07 locator and competing response generation (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t07-locator-responses-nyj7cq` from `main` at 5a07713 (T06 merged as PR #7). Opened as a draft PR.
+
+What works: with PostgreSQL configured, `pnpm cli seed-discovery` builds a fixture workspace and runs three discovery scenarios through the API (a software-suitable clinic case with a known duplicate, a food-bank case where an existing tool wins, and an insufficient-evidence case). Each run is a T05 workflow: locator, independent proposals per response type, skeptic, bounded revision, final skeptic, then problem and alternative records. Start your own with `pnpm cli discovery-start` (brief record + claims); inspect with `pnpm cli discovery <workflow> --wait` and `discovery-packet`, or the web Workflow runs panel. See docs/LOCAL_DEVELOPMENT.md "Discovery runs (T07)" and ADR-0010.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (52 pass, 52 skipped without DB), `pnpm test:db` (104/104), `pnpm smoke`, CLI seed run against the API, headless Chromium check of the panel. Evidence: tracking/evidence/t07/.
+
+Not done / limits: fixture model only (the deterministic answers are rules over the packet, not reasoning); the locator works from claims already recorded through T06 and does not search or fetch; duplicate detection is word overlap; no web form to start a discovery run; scoring and selection belong to T08; Windows untested.
+
+**Next eligible prompt: T08 — Versioned scoring, selection, and frozen specifications.** Requires a new request.
+
 ## Latest — T06 source ingestion, claim support and research boundaries (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t06-sources-claims-ogwzbb` from `main` at da976c7 (T05 merged as PR #6). Opened as a draft PR.
@@ -10,7 +22,7 @@ Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (45 pass, 
 
 Not done / limits: fixture corpus only; the HTTP adapter is tested against loopback servers, not real sites; no live search adapter (search stays the T04 fixture `tool.search_public` path); the T05 skeptic role does not fetch sources yet; instruction detection is a label, not a security boundary; origin clusters are fixed when a source is first recorded; adding support has no web form (CLI/API only); Windows untested.
 
-**Next eligible prompt: T07 — Locator and competing response generation.** Requires a new request.
+T06 merged as PR #7; T07 followed (above).
 
 ## Latest — T05 durable bounded orchestration and recovery (October 18, 2026)
 

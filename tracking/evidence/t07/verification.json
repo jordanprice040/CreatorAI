@@ -1,0 +1,57 @@
+{
+  "milestone": "T07",
+  "date": "2026-10-18",
+  "base": "main at 5a07713 (T06 merged as PR #7)",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15"
+  },
+  "checks": [
+    {
+      "command": "pnpm check",
+      "result": "pass",
+      "tests": 104,
+      "passed": 52,
+      "skipped": 52,
+      "log": "check-without-db.log"
+    },
+    {
+      "command": "pnpm test:db",
+      "result": "pass",
+      "tests": 104,
+      "passed": 104,
+      "log": "test-db.log",
+      "note": "storage.test now expects schema version 6"
+    },
+    { "command": "pnpm smoke", "result": "pass", "log": "smoke.log" },
+    {
+      "command": "pnpm cli seed-discovery against the API on a migrated PostgreSQL database (fixture provider)",
+      "result": "pass",
+      "output": "seed-discovery.json",
+      "observed": "software: 4 candidates + 1 duplicate after 1 revision; existing_tool: software not_recommended, 2 exclusions with reasons; insufficient: 1 call, every proposal insufficient_evidence"
+    },
+    {
+      "command": "Playwright (headless Chromium) against vite preview + API after seed-discovery: Workflow runs panel shows the software-case discovery result, dispositions, duplicate reason and skeptic findings",
+      "result": "pass",
+      "screenshots": ["browser-evidence.png"]
+    }
+  ],
+  "acceptance_gate": {
+    "cross_field_reasoning": "discovery.test.js software case: locator cross_field names both brief fields ('airline revenue management', 'primary care scheduling') and a mechanism; discovery-domain.test.js: answers that only name the fields are rejected; discovery.test.js repair case: a names-only answer is repaired",
+    "known_duplicate": "discovery.test.js software case: the process-change proposal matches the pre-existing catalog idea and is disposed 'duplicate' with the catalog id and similarity",
+    "existing_tool_or_non_software_choice": "discovery.test.js existing-tool case: software is not_recommended because an existing tool covers the need; existing_tool is a candidate; human_led and hybrid exclusions carry reasons",
+    "software_suitable_case": "discovery.test.js software case: software proposal is a candidate after one revision answering a contested-urgency finding, with data and tool-gap evidence usable",
+    "insufficient_evidence": "discovery.test.js insufficient case: problem evidence is only an inaccessible source; the run makes one model call and proposes nothing",
+    "proposal_independence": "discovery.test.js software case: every first proposal's provider input has 4 messages (system, packet, assignment, locator) and contains no other proposal's output or skeptic input; result.independence.verified with identical packet hash and shared inputs = [locator]; discovery-domain.test.js: a context that lists a sibling is reported",
+    "bounded_skeptic_and_revision": "discovery.test.js revision cap 0: findings are kept as dissent, no revise task; discovery-domain.test.js coordinator order test"
+  },
+  "not_verified": [
+    "live model run (fixture adapter only)",
+    "locator issuing its own searches",
+    "semantic duplicate detection beyond word overlap",
+    "Windows PostgreSQL",
+    "CI with database"
+  ]
+}

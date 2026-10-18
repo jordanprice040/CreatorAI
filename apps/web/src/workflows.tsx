@@ -8,6 +8,7 @@ import {
   WorkflowSchema,
   WorkspaceSchema,
   z,
+  type DiscoveryResult,
   type Envelope,
   type PricingSnapshot,
   type RunControl,
@@ -207,8 +208,11 @@ export function Workflows({ session }: { session: SessionInfo }) {
       <h2 id="wf-title">Workflow runs</h2>
       <p>
         A skeptic review critiques one record from several perspectives, then
-        combines them. Each step is checkpointed in the database and runs on the
-        server: closing this page does not stop it. Use Cancel to stop it.
+        combines them. Discovery runs (started from the API or{' '}
+        <code>creator seed-discovery</code>) also show here with each proposal's
+        disposition and the skeptic's dissent. Each step is checkpointed in the
+        database and runs on the server: closing this page does not stop it. Use
+        Cancel to stop it.
       </p>
       <div className="connection">
         <label htmlFor="wws" className="inline">
@@ -374,6 +378,10 @@ export function Workflows({ session }: { session: SessionInfo }) {
                     </span>{' '}
                     {t.kind}
                     {t.context.perspective ? ` · ${t.context.perspective}` : ''}
+                    {'proposal' in t.context && t.context.proposal
+                      ? ` · ${t.context.proposal}`
+                      : ''}
+                    {t.round ? ` · round ${t.round}` : ''}
                     {t.repair ? ` · repair ${t.repair}` : ''}
                     <br />
                     <small>
@@ -395,6 +403,9 @@ export function Workflows({ session }: { session: SessionInfo }) {
                 <>
                   <h3>Result: {words(wf.result.outcome)}</h3>
                   <p>{wf.result.explanation}</p>
+                  {wf.result.discovery && (
+                    <Discovery result={wf.result.discovery} />
+                  )}
                   {wf.result.synthesis && (
                     <p>
                       <strong>{words(wf.result.synthesis.disposition)}</strong>:{' '}
@@ -417,5 +428,62 @@ export function Workflows({ session }: { session: SessionInfo }) {
         </p>
       )}
     </section>
+  );
+}
+
+/** One discovery run's outcome: every proposal, why it ended where it did, and the dissent. */
+function Discovery({ result }: { result: DiscoveryResult }) {
+  return (
+    <div className="discovery">
+      <p className="small">
+        Evidence {words(result.sufficiency.verdict)} · mechanism{' '}
+        {result.locator
+          ? words(result.locator.mechanism_support)
+          : 'not located'}{' '}
+        · {result.skeptic_passes} skeptic passes · {result.revision_rounds}{' '}
+        revision rounds · independence{' '}
+        {result.independence.verified ? 'verified' : 'NOT verified'}
+      </p>
+      {result.sufficiency.reasons.length > 0 && (
+        <ul className="small">
+          {result.sufficiency.reasons.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      )}
+      <ul>
+        {result.proposals.map((p) => (
+          <li key={p.proposal}>
+            <span className="kind">{words(p.disposition)}</span>{' '}
+            <strong>
+              {p.proposal} · {words(p.perspective)}
+            </strong>
+            {p.title ? `: ${p.title}` : ''}
+            {p.reasons.map((r) => (
+              <small key={r}>
+                <br />
+                {r}
+              </small>
+            ))}
+            {p.dissent.length > 0 && (
+              <details>
+                <summary>Skeptic findings ({p.dissent.length})</summary>
+                <ul>
+                  {p.dissent.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </li>
+        ))}
+        {result.excluded.map((x) => (
+          <li key={x.perspective}>
+            <span className="kind">excluded</span>{' '}
+            <strong>{words(x.perspective)}</strong>: {x.reason}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

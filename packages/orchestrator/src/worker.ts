@@ -1,8 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { ContractError, type BrokerCallResult } from '@creator/contracts';
-import { roleInput } from '@creator/domain';
+import {
+  ContractError,
+  type BrokerCallResult,
+  type TaskKind,
+} from '@creator/contracts';
+import { discoveryRoleInput, roleInput } from '@creator/domain';
 import {
   ORCHESTRATOR_ACTOR_ID,
+  isDiscoveryKind,
   validateOutput,
   type CommandContext,
   type TaskLease,
@@ -128,6 +133,31 @@ export class Worker {
     }, this.#heartbeatMs);
     beat.unref();
     try {
+      const discovery =
+        task.context.context_version === 'discovery-context/1' &&
+        isDiscoveryKind(task.kind) &&
+        lease.discovery
+          ? {
+              kind: task.kind,
+              context: task.context,
+              ...lease.discovery,
+            }
+          : null;
+      const input = discovery
+        ? discoveryRoleInput(
+            discovery.kind,
+            discovery.context,
+            discovery.packet,
+            discovery.inputs,
+          )
+        : task.context.context_version === 'skeptic-context/1' &&
+            (task.kind === 'critique' || task.kind === 'synthesis')
+          ? roleInput(task.kind, task.context, lease.critiques)
+          : null;
+      if (!input)
+        throw new Error(
+          `task ${task.id} has a context this worker cannot render`,
+        );
       const result = await this.broker.call(
         this.#ctx,
         lease.workspaceId,
@@ -135,18 +165,18 @@ export class Worker {
         {
           envelope_id: lease.envelopeId,
           action_type:
-            task.kind === 'critique' ? 'model.generate' : 'model.summarize',
+            task.kind === 'synthesis' ? 'model.summarize' : 'model.generate',
           task_id: task.id,
           logical_operation_id: task.logical_operation_id,
           pricing_snapshot_id: lease.pricingSnapshotId,
           data_class: lease.dataClass,
-          input: roleInput(task.kind, task.context, lease.critiques),
+          input,
           max_output_tokens: lease.limits.max_output_tokens,
           output_format: 'json',
           tool: null,
           max_attempts: lease.limits.max_attempts,
           timeout_ms: lease.limits.call_timeout_ms,
-          justification: `Workflow ${lease.workflowId}: ${task.kind} ${task.ordinal}${task.repair ? ` repair ${task.repair}` : ''} (R05 skeptic).`,
+          justification: `Workflow ${lease.workflowId}: ${task.kind} ${task.ordinal}${task.round ? ` round ${task.round}` : ''}${task.repair ? ` repair ${task.repair}` : ''} (${ROLE_NAMES[task.kind]}).`,
         },
       );
       if (this.frozen) return;
@@ -155,7 +185,13 @@ export class Worker {
         this.#ctx,
         task.id,
         lease.token,
-        outcomeOf(task.kind, result),
+        outcomeOf(
+          task.kind,
+          result,
+          discovery
+            ? { packet: discovery.packet, context: discovery.context }
+            : undefined,
+        ),
       );
     } catch (e) {
       if (e instanceof ContractError && e.code === 'LEASE_LOST') {
@@ -172,14 +208,24 @@ export class Worker {
   }
 }
 
+const ROLE_NAMES: Record<TaskKind, string> = {
+  critique: 'R05 skeptic',
+  synthesis: 'R05 skeptic',
+  locate: 'R02 locator',
+  propose: 'R04 designer',
+  revise: 'R04 designer revision',
+  skeptic: 'R05 skeptic',
+};
+
 /** Maps a broker result to a task outcome. Unknown never becomes a retry. */
 export function outcomeOf(
-  kind: 'critique' | 'synthesis',
+  kind: TaskKind,
   r: BrokerCallResult,
+  discovery?: Parameters<typeof validateOutput>[2],
 ): TaskOutcome {
   switch (r.status) {
     case 'succeeded': {
-      const output = validateOutput(kind, r.output?.json);
+      const output = validateOutput(kind, r.output?.json, discovery);
       return output
         ? { state: 'succeeded', reason: 'succeeded', output }
         : { state: 'failed', reason: 'invalid_output' };

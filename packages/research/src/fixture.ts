@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { SOURCE_POLICY_VERSION, type SourcePolicy } from '@creator/contracts';
-import { isBlockedAddress } from '@creator/domain';
+import { DISCOVERY_PAGES, isBlockedAddress } from '@creator/domain';
 import type { HopOutcome, HopRequest, SourceAdapter } from './adapters.js';
 
 // Deterministic fixture corpus: synthetic pages on reserved `.fixture.test` hosts, written to
@@ -193,6 +193,19 @@ export const FIXTURE_CORPUS: Record<string, FixtureResponse[]> = {
   'https://health.fixture.test/flaky': [
     { status: 503, content_type: 'text/html', body: '<p>Try later.</p>' },
   ],
+  // T07 discovery scenarios (packages/domain/src/discovery-scenarios.ts).
+  ...Object.fromEntries(
+    DISCOVERY_PAGES.map((page) => [
+      page.url,
+      [
+        {
+          status: 200,
+          content_type: 'text/html; charset=utf-8',
+          body: html(page.title, '', 'Fixture source', page.paragraphs),
+        },
+      ],
+    ]),
+  ),
 };
 /** Fixture DNS: public-range addresses that are never contacted, and one inward answer. */
 export const FIXTURE_DNS: Record<string, string> = {
@@ -203,6 +216,8 @@ export const FIXTURE_DNS: Record<string, string> = {
   'journal.fixture.test': '93.184.215.14',
   'forum.fixture.test': '93.184.215.15',
   'licensed.fixture.test': '93.184.215.16',
+  'community.fixture.test': '93.184.215.17',
+  'reviews.fixture.test': '93.184.215.18',
   'intranet.fixture.test': '10.0.0.8',
   'attacker.fixture.test': '93.184.215.99',
 };
@@ -218,6 +233,8 @@ export const FIXTURE_SOURCE_POLICY: SourcePolicy = {
     { host: 'blog.fixture.test', retention: 'excerpts' },
     { host: 'journal.fixture.test', retention: 'excerpts' },
     { host: 'forum.fixture.test', retention: 'excerpts' },
+    { host: 'community.fixture.test', retention: 'excerpts' },
+    { host: 'reviews.fixture.test', retention: 'excerpts' },
     // Approved by name, but it resolves to a private address: the DNS check still refuses it.
     { host: 'intranet.fixture.test', retention: 'excerpts' },
   ],

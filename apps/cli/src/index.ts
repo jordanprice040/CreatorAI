@@ -30,9 +30,12 @@ import {
   SourceBrokerStatusSchema,
   SourceDetailSchema,
   SourceSummarySchema,
+  EvidencePacketSchema,
+  type WorkflowDetail,
   z,
   parse,
 } from '@creator/contracts';
+import { DISCOVERY_SCENARIOS } from '@creator/domain';
 
 const USAGE = `Usage:
   pnpm cli health
@@ -83,6 +86,10 @@ const USAGE = `Usage:
   pnpm cli claim-evidence <workspace> <claim-id> [max-age-days]
   pnpm cli support-retract <workspace> <support-id> <reason>
   pnpm cli seed-research
+  pnpm cli discovery-start <workspace> <run-id> <request-json>
+  pnpm cli discovery <workspace> <workflow-id> [--wait]
+  pnpm cli discovery-packet <workspace> <workflow-id>
+  pnpm cli seed-discovery
 
 Workflows run on the API server's worker (or \`pnpm worker\`), not in this command: exiting the
 CLI or closing the web page does not stop or cancel them.
@@ -561,6 +568,43 @@ export async function runCli(
       case 'seed-research':
         data = await seedResearch(call);
         break;
+      case 'discovery-start':
+        data = await call(
+          WorkflowDetailSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/discoveries`,
+          json(rest[2], 'Discovery request'),
+        );
+        break;
+      case 'discovery': {
+        const path = `${ws(rest[0])}/workflows/${encodeURIComponent(rest[1] ?? '')}`;
+        let detail = await call(WorkflowDetailSchema, path);
+        const until = Date.now() + 120_000;
+        while (
+          rest.includes('--wait') &&
+          !detail.workflow.finished_at &&
+          !['waiting_human', 'paused_operator', 'reconciling'].includes(
+            detail.workflow.state,
+          ) &&
+          Date.now() < until
+        ) {
+          await new Promise((r) => setTimeout(r, 1000));
+          detail = await call(WorkflowDetailSchema, path);
+        }
+        data = discoverySummary(detail);
+        break;
+      }
+      case 'discovery-packet':
+        data = await call(
+          z.strictObject({
+            packet: EvidencePacketSchema,
+            packet_hash: z.string(),
+          }),
+          `${ws(rest[0])}/workflows/${encodeURIComponent(rest[1] ?? '')}/packet`,
+        );
+        break;
+      case 'seed-discovery':
+        data = await seedDiscovery(call);
+        break;
       default:
         throw new Error(USAGE);
     }
@@ -828,4 +872,224 @@ async function seedResearch(call: Call) {
       [vacancies.id]: await evidence(vacancies.id),
     },
   };
+}
+
+/** The parts of a discovery run a person reads first; the full detail stays in `workflow`. */
+function discoverySummary(detail: WorkflowDetail) {
+  const r = detail.workflow.result;
+  const d = r?.discovery;
+  return {
+    workflow: detail.workflow.id,
+    state: detail.workflow.state,
+    reason: detail.workflow.reason,
+    fixture: detail.workflow.fixture,
+    outcome: r?.outcome ?? null,
+    explanation: r?.explanation ?? null,
+    discovery: d
+      ? {
+          outcome: d.outcome,
+          sufficiency: d.sufficiency.verdict,
+          gaps: d.sufficiency.reasons,
+          cross_field: d.locator?.mechanism_support ?? null,
+          independence: d.independence.verified,
+          proposals: d.proposals.map((p) => ({
+            proposal: `${p.proposal} ${p.perspective}`,
+            disposition: p.disposition,
+            title: p.title,
+            recommendation: p.recommendation,
+            skeptic: p.verdict,
+            revisions: p.revisions,
+            reasons: p.reasons,
+            dissent: p.dissent,
+          })),
+          excluded: d.excluded,
+          catalog_records: d.catalog_records,
+        }
+      : null,
+    usage: detail.usage,
+  };
+}
+
+/**
+ * Builds a labeled fixture workspace that runs the three T07 scenarios through the API: a
+ * software-suitable case with cross-field reasoning and a known duplicate, an existing-tool
+ * case, and insufficient evidence. Requires the API worker (on by default).
+ */
+async function seedDiscovery(call: Call) {
+  const ws = await call(WorkspaceSchema, 'workspaces', {
+    name: 'Fixture discovery demonstration',
+    record_mode: 'fixture',
+  });
+  const base = `workspaces/${ws.id}`;
+  const pricing = await call(
+    PricingSnapshotSchema,
+    `${base}/pricing`,
+    JSON.parse(
+      readFileSync(
+        new URL(
+          '../../../config/pricing/fixture-model-v1.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    ) as unknown,
+  );
+  const envelope = await call(EnvelopeSchema, `${base}/budgets`, {
+    parent_id: null,
+    kind: 'global',
+    run_id: null,
+    name: 'Fixture discovery budget',
+    cap_nano_usd: '100000000000',
+    starts_at: null,
+    ends_at: null,
+    max_in_flight: 8,
+  });
+  const expires = new Date(Date.now() + 86_400_000).toISOString();
+  const started: { scenario: string; workflow: string }[] = [];
+  for (const s of DISCOVERY_SCENARIOS) {
+    const run = await call(StoredEntitySchema, `${base}/entities`, {
+      kind: 'run',
+      title: `Fixture discovery: ${s.title}`,
+      body: {
+        state: 'queued',
+        experiment_condition: 'human_in_loop',
+        discovery_method: 'structured',
+        config_hash: null,
+      },
+    });
+    await call(RunControlSchema, `${base}/runs`, {
+      run: { id: run.id, version: 1 },
+      autonomy_mode: 'human_in_loop',
+      stage_gates: null,
+      initial_grants: [],
+    });
+    for (const [action_types, data_classes, max] of [
+      [['source.fetch'], ['public'], null],
+      [['model.generate', 'model.summarize'], ['synthetic'], '2000000000'],
+    ] as const)
+      await call(GrantSchema, `${base}/grants`, {
+        run_id: run.id,
+        action_types,
+        target_kind: null,
+        max_amount_nano_usd: max,
+        allow_irreversible: false,
+        allow_external_effects: false,
+        data_classes,
+        expires_at: expires,
+        rationale: 'Fixture discovery demonstration run.',
+      });
+    const sourceOf: Record<string, { id: string; version: number }> = {};
+    for (const url of s.fetch) {
+      const r = await call(
+        RetrievalSchema,
+        `${base}/runs/${run.id}/source-fetches`,
+        {
+          url,
+          task_id: null,
+          logical_operation_id: randomUUID(),
+          justification: `Evidence for ${s.title} (fixture).`,
+        },
+      );
+      if (!r.source_id || !r.source_version)
+        throw new Error(
+          `Fixture fetch of ${url} recorded no source (${r.state}).`,
+        );
+      sourceOf[url] = { id: r.source_id, version: r.source_version };
+    }
+    const evidence = [];
+    for (const c of s.claims) {
+      const claim = await call(StoredEntitySchema, `${base}/entities`, {
+        kind: 'claim',
+        title: c.statement.slice(0, 120),
+        body: {
+          statement: c.statement,
+          basis: 'observation',
+          uncertainty: 'Synthetic fixture claim.',
+        },
+      });
+      for (const e of c.support) {
+        const src = sourceOf[e.url]!;
+        if (e.evidence === 'inaccessible_source') {
+          await call(ClaimSupportSchema, `${base}/claims/${claim.id}/support`, {
+            evidence: 'inaccessible_source',
+            claim_version: 1,
+            source_id: src.id,
+            source_version: src.version,
+            rationale: 'The page could not be read (fixture).',
+          });
+          continue;
+        }
+        const detail = await call(
+          SourceDetailSchema,
+          `${base}/sources/${src.id}`,
+        );
+        const passage = detail.passages.find((x) =>
+          x.excerpt?.includes(e.needle),
+        );
+        if (!passage)
+          throw new Error(`Fixture passage "${e.needle}" not found.`);
+        await call(ClaimSupportSchema, `${base}/claims/${claim.id}/support`, {
+          evidence: 'passage',
+          claim_version: 1,
+          passage_id: passage.id,
+          stance: e.stance,
+          support_type: e.support_type,
+          quote: e.quote,
+          rationale: 'Assessed against the passage text (fixture).',
+        });
+      }
+      evidence.push({ claim_id: claim.id, bears_on: c.bears_on });
+    }
+    for (const k of s.catalog)
+      await call(StoredEntitySchema, `${base}/entities`, {
+        kind: k.kind,
+        title: k.title,
+        body: { summary: k.summary, uncertainty: 'Synthetic catalog entry.' },
+      });
+    const brief = await call(StoredEntitySchema, `${base}/entities`, {
+      kind: 'search_brief',
+      title: s.title,
+      body: s.brief,
+    });
+    const detail = await call(
+      WorkflowDetailSchema,
+      `${base}/runs/${run.id}/discoveries`,
+      {
+        brief: { id: brief.id, version: 1 },
+        evidence,
+        perspectives: s.perspectives,
+        excluded: s.excluded,
+        max_revisions: 1,
+        max_age_days: 180,
+        envelope_id: envelope.id,
+        pricing_snapshot_id: pricing.id,
+        data_class: 'synthetic',
+        limits: {
+          max_children: 5,
+          max_concurrency: 2,
+          max_depth: 1,
+          max_attempts: 1,
+          max_repairs: 1,
+          max_calls: 24,
+          max_output_tokens: 4000,
+          call_timeout_ms: 10_000,
+          max_wall_seconds: 900,
+        },
+      },
+    );
+    started.push({ scenario: s.key, workflow: detail.workflow.id });
+  }
+  // The API's worker runs them; this only waits to report what happened.
+  const results = [];
+  for (const { scenario, workflow } of started) {
+    const path = `${base}/workflows/${workflow}`;
+    let detail = await call(WorkflowDetailSchema, path);
+    const until = Date.now() + 90_000;
+    while (!detail.workflow.finished_at && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 500));
+      detail = await call(WorkflowDetailSchema, path);
+    }
+    results.push({ scenario, ...discoverySummary(detail) });
+  }
+  return { workspace: ws, results };
 }
