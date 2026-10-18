@@ -16,6 +16,8 @@ import {
   HealthSchema,
   FixtureResponseSchema,
   FixtureRequestSchema,
+  WorkflowDetailSchema,
+  WorkflowSchema,
   WorkspaceSchema,
   StoredEntitySchema,
   StoredLinkSchema,
@@ -61,6 +63,13 @@ const USAGE = `Usage:
   pnpm cli reservations <workspace> [envelope-id]
   pnpm cli model-call <workspace> <run-id> <request-json>
   pnpm cli reconcile <workspace> <reservation-id> <reconcile-json>
+  pnpm cli workflow-start <workspace> <run-id> <request-json>
+  pnpm cli workflows <workspace> [run-id]
+  pnpm cli workflow <workspace> <workflow-id> [--wait]
+  pnpm cli workflow-pause|workflow-resume|workflow-cancel <workspace> <workflow-id> <expected-version> <reason>
+
+Workflows run on the API server's worker (or \`pnpm worker\`), not in this command: exiting the
+CLI or closing the web page does not stop or cancel them.
 
 Sign-in state is kept in CREATOR_SESSION_FILE (default .creator/cli-session.json).`;
 interface Saved {
@@ -432,6 +441,50 @@ export async function runCli(
           ReservationSchema,
           `${ws(rest[0])}/reservations/${encodeURIComponent(rest[1] ?? '')}/reconcile`,
           json(rest[2], 'Reconciliation'),
+        );
+        break;
+      case 'workflow-start':
+        data = await call(
+          WorkflowDetailSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/workflows`,
+          json(rest[2], 'Workflow request'),
+        );
+        break;
+      case 'workflows':
+        data = await call(
+          z.array(WorkflowSchema),
+          `${ws(rest[0])}/workflows${rest[1] ? `?run=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'workflow': {
+        const path = `${ws(rest[0])}/workflows/${encodeURIComponent(rest[1] ?? '')}`;
+        let detail = await call(WorkflowDetailSchema, path);
+        // --wait polls the durable state; it observes the worker, it does not drive it.
+        const until = Date.now() + 120_000;
+        while (
+          rest.includes('--wait') &&
+          !detail.workflow.finished_at &&
+          !['waiting_human', 'paused_operator', 'reconciling'].includes(
+            detail.workflow.state,
+          ) &&
+          Date.now() < until
+        ) {
+          await new Promise((r) => setTimeout(r, 1000));
+          detail = await call(WorkflowDetailSchema, path);
+        }
+        data = detail;
+        break;
+      }
+      case 'workflow-pause':
+      case 'workflow-resume':
+      case 'workflow-cancel':
+        data = await call(
+          WorkflowDetailSchema,
+          `${ws(rest[0])}/workflows/${encodeURIComponent(rest[1] ?? '')}/${command.slice(9)}`,
+          {
+            expected_version: version(rest[2]),
+            reason: rest.slice(3).join(' '),
+          },
         );
         break;
       default:

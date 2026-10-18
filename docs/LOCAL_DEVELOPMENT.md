@@ -1,4 +1,4 @@
-# Local development — T03
+# Local development — T05
 
 Creator Agent has a local API, CLI and React page. The task demonstration still uses the **deterministic fixture provider** and is not saved. Since T02, records (sources, claims, problems, ideas, alternatives, assessments, products, specifications, runs, tasks, decisions, grants, artifacts), typed many-to-many links and an audit history persist in **PostgreSQL** when `CREATOR_DATABASE_URL` is set. Without it the app still starts, reports `persistent: false`, and record routes return `503 STORAGE_UNAVAILABLE`. Nothing here researches problems, invokes AI, builds generated products, or runs studies.
 
@@ -105,6 +105,28 @@ The run also needs a grant covering the action with an amount cap at least the e
 
 **Live calls.** A real workspace is denied (`live_provider_not_configured`) unless the API runs with `CREATOR_LIVE_PROVIDER=openai` and `OPENAI_API_KEY` (optional `CREATOR_OPENAI_MODEL`, default `gpt-6-astra`). The key stays in the API process. It is not permission to spend: the call still needs documented pricing, a covering grant and a funded envelope. No live call has been made or verified.
 
+## Durable workflow runs (T05)
+
+A workflow is one finite run of one bounded role (R05 skeptic) for a registered run. The coordinator is deterministic code, not a model: it critiques a pinned record version from each perspective (as child tasks, at most `max_concurrency` at a time), then combines the results in a synthesis task once every critique has finished. It always picks a permitted next step or stops; there is no open-ended debate. All state is in PostgreSQL (migration 4), so it survives restarts.
+
+- **Where it runs.** The API process runs a worker whenever a database is configured. `CREATOR_WORKER=off` turns that off; `pnpm worker` runs the same loop as a separate process (several may run). The web page and CLI only read and steer durable state: closing the page or exiting the CLI does not stop a workflow. Only Cancel does.
+- **Checkpoints and leases.** Each task has its own logical operation id. A worker leases a task with a fresh fencing token and renews it while the call runs. If the worker dies, the lease expires and another worker takes the task; the old worker's commit is refused (`LEASE_LOST`). Replaying the logical operation through the broker never calls the provider twice.
+- **Waiting for people.** If admission asks for a decision, the task waits (`waiting_human`) and the workflow shows it. Answering the decision (web Human decisions panel or `pnpm cli answer`) wakes the task through the outbox; approval re-sends the same call, anything else stops the workflow. Autonomous runs never ask: they stop as `needs_human`.
+- **Unknown outcomes.** A timeout or lost answer puts the task in `reconciling`; it is never retried automatically. A late provider answer completes it; owner reconciliation without an answer ends it as failed. A malformed answer (known and charged) gets at most `max_repairs` new calls, within `max_calls`.
+- **Pause and cancel.** Pause stops new dispatch; work already sent finishes. Cancel also stops delegation, cancels queued work, closes pending questions, and aborts calls in flight, whose exposure stays held as `unknown` until reconciled. Cancelling the run (T03) cancels its workflow too. Human-only runs cannot start a model role.
+
+```powershell
+pnpm cli workflow-start <workspace> <run-id> '{"role":"r05_skeptic","subject":{"id":"<idea-id>","version":1},"constraints":["Synthetic data only."],"perspectives":["evidence","existing tools"],"envelope_id":"…","pricing_snapshot_id":"…","data_class":"synthetic","limits":{"max_children":4,"max_concurrency":2,"max_depth":1,"max_attempts":1,"max_repairs":1,"max_calls":10,"max_output_tokens":600,"call_timeout_ms":60000,"max_wall_seconds":1800}}'
+pnpm cli workflows <workspace> [run-id]
+pnpm cli workflow <workspace> <workflow-id> --wait
+pnpm cli workflow-pause <workspace> <workflow-id> <expected-version> <reason>
+pnpm cli workflow-resume <workspace> <workflow-id> <expected-version> <reason>
+pnpm cli workflow-cancel <workspace> <workflow-id> <expected-version> <reason>
+pnpm worker
+```
+
+The run needs a covering grant (or a person approves each call), an active budget and a pricing snapshot, exactly as for T04 calls. The web page has a Workflow runs panel: start a skeptic review on an idea or problem record, watch each step, its deliveries and usage, and pause, resume or cancel. In a fixture workspace the deterministic adapter answers, so critiques are placeholders.
+
 ## Checks
 
 ```powershell
@@ -144,23 +166,26 @@ Environment variables are read explicitly; no `.env` loader is installed.
 | `CREATOR_LIVE_PROVIDER`     | `none` (default) or `openai`; live adapter only with `OPENAI_API_KEY`                          |
 | `OPENAI_API_KEY`            | API process only; never logged, stored or returned                                             |
 | `CREATOR_OPENAI_MODEL`      | Live model id; default `gpt-6-astra`                                                           |
+| `CREATOR_WORKER`            | `on` (default) runs the workflow worker inside the API; `off` leaves it to `pnpm worker`       |
+| `CREATOR_WORKER_POLL_MS`    | Worker poll interval; default `1000`                                                           |
 | `CREATOR_TEST_DATABASE_URL` | Tests only; loopback server where the role may create databases                                |
 
 For example, set `$env:CREATOR_API_PORT = '4311'` and `$env:CREATOR_WEB_PORT = '5174'` before `pnpm dev`. Set `$env:CREATOR_API_URL = 'http://127.0.0.1:4311'` in the CLI terminal. Invalid settings fail startup. `CREATOR_PROVIDER`/`CREATOR_LIVE_ENABLED` still describe the stateless T01 fixture route. Metered live calls go only through the broker under the T04 conditions above; provider status is recorded in `config/provider-availability.json`.
 
 ## Actual paths and boundaries
 
-| Path                      | Responsibility                                                                                                                    |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/contracts/src/` | Strict Zod schemas, inferred types, schema 1.0 and stable error codes                                                             |
-| `packages/domain/src/`    | Pure admission prerequisites, delegation containment, version/evidence-bound transitions, result checks and deterministic fixture |
-| `packages/db/src/`        | PostgreSQL migrations, schema gate, record/link repository, audit hash chain, outbox relay and history projection                 |
-| `packages/broker/src/`    | Model/tool broker, deterministic fixture adapter and OpenAI Responses adapter                                                     |
-| `apps/api/src/`           | Node HTTP routes, configuration, size/Host/origin checks and errors                                                               |
-| `apps/cli/src/`           | HTTP client and response validation                                                                                               |
-| `apps/web/src/`           | React form, actual API health, explicit synthetic outcomes, accessible error/empty states                                         |
-| `tests/src/`              | Contract, domain, real HTTP and compiled CLI checks                                                                               |
-| `scripts/`                | Local combined startup and built-page proxy smoke                                                                                 |
+| Path                         | Responsibility                                                                                                                    |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/contracts/src/`    | Strict Zod schemas, inferred types, schema 1.0 and stable error codes                                                             |
+| `packages/domain/src/`       | Pure admission prerequisites, delegation containment, version/evidence-bound transitions, result checks and deterministic fixture |
+| `packages/db/src/`           | PostgreSQL migrations, schema gate, record/link repository, audit hash chain, outbox relay and history projection                 |
+| `packages/broker/src/`       | Model/tool broker, deterministic fixture adapter and OpenAI Responses adapter                                                     |
+| `packages/orchestrator/src/` | Workflow worker loop (leases, heartbeats, broker calls, fenced commits) and the standalone `pnpm worker` entry                    |
+| `apps/api/src/`              | Node HTTP routes, configuration, size/Host/origin checks and errors                                                               |
+| `apps/cli/src/`              | HTTP client and response validation                                                                                               |
+| `apps/web/src/`              | React form, actual API health, explicit synthetic outcomes, accessible error/empty states                                         |
+| `tests/src/`                 | Contract, domain, real HTTP and compiled CLI checks                                                                               |
+| `scripts/`                   | Local combined startup and built-page proxy smoke                                                                                 |
 
 GET `/api/health` reports fixture provider status plus `persistent` and `storage` (`postgresql`, `not_configured`, `unavailable`).
 

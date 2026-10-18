@@ -8,6 +8,7 @@
     "@creator/contracts": "workspace:*",
     "@creator/db": "workspace:*",
     "@creator/domain": "workspace:*",
+    "@creator/orchestrator": "workspace:*",
     "pg": "8.23.1"
   },
   "devDependencies": {

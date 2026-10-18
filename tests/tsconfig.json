@@ -19,6 +19,9 @@
       "path": "../packages/broker"
     },
     {
+      "path": "../packages/orchestrator"
+    },
+    {
       "path": "../apps/api"
     }
   ]

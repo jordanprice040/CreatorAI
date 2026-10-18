@@ -17,6 +17,9 @@
     },
     {
       "path": "../../packages/broker"
+    },
+    {
+      "path": "../../packages/orchestrator"
     }
   ]
 }

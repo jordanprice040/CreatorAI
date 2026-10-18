@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T05 durable bounded orchestration and recovery (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t05-t1b785` from `main` at f51530f (T04 merged as PR #5). Jordan chose PostgreSQL over a Temporal server for workflows (ADR-0008).
+
+What works: with PostgreSQL configured, start a skeptic review of an idea or problem record for a registered run (web Workflow runs panel or `pnpm cli workflow-start`). The API's in-process worker (or `pnpm worker`) runs critique tasks per perspective and a synthesis through the T04 broker, checkpointing each step. Decisions pause it until answered; pause, resume and cancel are owner controls; it continues after restarts. See docs/LOCAL_DEVELOPMENT.md "Durable workflow runs (T05)".
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (37 pass, 35 skipped without DB), `pnpm test:db` (72/72, four full runs), workflow suites 5 more times, `pnpm smoke`, headless Chromium check of the panel. Evidence: tracking/evidence/t05/.
+
+Not done / limits: fixture provider only (no live call); one role with a fixed plan, depth 1; Windows untested; CI still runs only `pnpm check`. ADR-0008 records the design and what was left out.
+
+**Next eligible prompt: T06 — Source ingestion, claim support, and research boundaries.** Requires a new request.
+
 ## Latest — T04 budgets and a metered model/tool broker (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t04-budgets-broker-px0108`, stacked on the T03 branch (`claude/t03-decisions-autonomy-5gpinz`, draft PR #4, not yet merged). Rebase onto `main` once #4 merges. Opened as a stacked draft PR.
@@ -10,7 +22,7 @@ Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (33 pass, 
 
 Not done / limits: no live call (no key, no spend grant); Windows untested; CI still runs only `pnpm check`. ADR-0007 records the design.
 
-**Next eligible prompt: T05 — Durable bounded orchestration and recovery**, after T03 and T04 merge. Requires a new request.
+T04 merged as PR #5; T05 followed (above).
 
 ## Latest — T03 human decisions, autonomy modes and humility (October 18, 2026)
 

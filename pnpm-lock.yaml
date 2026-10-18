@@ -35,6 +35,9 @@ importers:
       '@creator/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@creator/orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
       openid-client:
         specifier: 6.8.8
         version: 6.8.8
@@ -117,6 +120,28 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/orchestrator:
+    dependencies:
+      '@creator/broker':
+        specifier: workspace:*
+        version: link:../broker
+      '@creator/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@creator/db':
+        specifier: workspace:*
+        version: link:../db
+      '@creator/domain':
+        specifier: workspace:*
+        version: link:../domain
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
+    devDependencies:
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
+
   tests:
     dependencies:
       '@creator/api':
@@ -134,6 +159,9 @@ importers:
       '@creator/domain':
         specifier: workspace:*
         version: link:../packages/domain
+      '@creator/orchestrator':
+        specifier: workspace:*
+        version: link:../packages/orchestrator
       pg:
         specifier: 8.23.1
         version: 8.23.1

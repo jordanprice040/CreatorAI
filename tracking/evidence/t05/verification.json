@@ -1,0 +1,26 @@
+{
+  "milestone": "T05",
+  "date": "2026-10-18",
+  "base": "main at f51530f (T04 merged as PR #5)",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15"
+  },
+  "checks": [
+    { "command": "pnpm check", "result": "pass", "tests": 72, "passed": 37, "skipped": 35, "log": "check-without-db.log" },
+    { "command": "pnpm test:db", "result": "pass", "tests": 72, "passed": 72, "log": "test-db.log", "note": "also passed in 3 earlier full runs" },
+    { "command": "node --test workflow + workflow-api suites, 5 repeated runs", "result": "pass", "tests": 7 },
+    { "command": "pnpm smoke", "result": "pass", "log": "smoke.log" },
+    { "command": "Playwright (headless Chromium 1.56) against pnpm dev with PostgreSQL: dev-login link, Workflow runs panel, start a 3-perspective fixture review, result shown", "result": "pass", "screenshots": ["browser-workflows.png"] }
+  ],
+  "acceptance_gate": {
+    "survives_restart": "workflow.test.js (new pool/store/worker continues; completed step not repeated) and workflow-api.test.js (standalone worker process SIGKILLed, API process restarted, workflow completes with one attempt per task)",
+    "duplicate_delivery": "workflow.test.js: task leased twice after lease expiry; broker replay does not re-send; decision.answered outbox event delivered twice wakes the task once",
+    "waiting_for_decision": "workflow.test.js: human-in-the-loop run without a grant waits on two authorization decisions, resumes after approve_once",
+    "stale_workers_cannot_commit": "workflow.test.js: partitioned worker's commit refused with LEASE_LOST; its provider result is picked up from the broker record instead",
+    "cancellation": "workflow.test.js: cancel during an in-flight call stops further delegation (1 of 3 critiques created), aborts the call and keeps its exposure as unknown"
+  },
+  "not_verified": ["Windows PostgreSQL", "Node 24 with DB suites", "CI with database", "live provider calls", "Temporal (not used; ADR-0008)"]
+}
