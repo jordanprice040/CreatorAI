@@ -417,6 +417,187 @@ create trigger action_admissions_append_only before update or delete on action_a
   for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 3,
+    name: 'budgets_pricing_reservations_usage',
+    sql: `
+-- Dated pricing, immutable once recorded. Fixture pricing lives only in fixture workspaces.
+create table pricing_snapshots (
+  id uuid primary key,
+  workspace_id uuid not null,
+  fixture boolean not null,
+  provider text not null check (provider in ('fixture', 'openai')),
+  model_id text not null,
+  basis text not null check (basis in ('fixture', 'documented')),
+  body jsonb not null,
+  snapshot_hash char(64) not null,
+  created_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  foreign key (workspace_id, fixture) references workspaces (id, fixture),
+  unique (workspace_id, id),
+  check ((basis = 'fixture') = fixture),
+  check ((provider = 'fixture') = fixture)
+);
+create trigger pricing_snapshots_append_only before update or delete on pricing_snapshots
+  for each row execute function creator_reject_change();
+
+-- Permission-to-spend envelopes. Child authority is carved out of the parent (allocated),
+-- so a child's spending is never counted twice. The check is the last line of defence
+-- behind the row lock taken for every reservation.
+create table budget_envelopes (
+  id uuid primary key,
+  workspace_id uuid not null,
+  fixture boolean not null,
+  version integer not null default 1 check (version >= 1),
+  parent_id uuid,
+  kind text not null check (kind in ('global', 'period', 'run', 'task')),
+  run_id uuid,
+  name text not null check (length(name) between 1 and 200),
+  status text not null check (status in ('active', 'closed', 'overrun')),
+  cap_nano numeric(30, 0) not null check (cap_nano >= 0),
+  allocated_nano numeric(30, 0) not null default 0 check (allocated_nano >= 0),
+  reserved_nano numeric(30, 0) not null default 0 check (reserved_nano >= 0),
+  unknown_nano numeric(30, 0) not null default 0 check (unknown_nano >= 0),
+  incurred_nano numeric(30, 0) not null default 0 check (incurred_nano >= 0),
+  max_in_flight integer not null check (max_in_flight between 1 and 32),
+  starts_at timestamptz,
+  ends_at timestamptz,
+  created_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,
+  foreign key (workspace_id, fixture) references workspaces (id, fixture),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  unique (workspace_id, id),
+  foreign key (workspace_id, parent_id) references budget_envelopes (workspace_id, id),
+  check ((kind = 'global') = (parent_id is null)),
+  check ((kind in ('run', 'task')) = (run_id is not null)),
+  check (kind <> 'period' or (starts_at is not null and ends_at > starts_at)),
+  check ((starts_at is null) = (ends_at is null)),
+  check ((status = 'closed') = (closed_at is not null)),
+  check (status <> 'closed' or (reserved_nano = 0 and unknown_nano = 0 and allocated_nano = 0)),
+  check (status = 'overrun'
+    or allocated_nano + reserved_nano + unknown_nano + incurred_nano <= cap_nano)
+);
+-- Identity, cap and parentage are fixed; only balances, status and version move.
+create function creator_envelope_fixed() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.fixture, new.parent_id, new.kind, new.run_id,
+      new.cap_nano, new.max_in_flight, new.starts_at, new.ends_at, new.created_by,
+      new.created_at)
+     is distinct from
+     (old.id, old.workspace_id, old.fixture, old.parent_id, old.kind, old.run_id,
+      old.cap_nano, old.max_in_flight, old.starts_at, old.ends_at, old.created_by,
+      old.created_at) or old.status = 'closed' then
+    raise exception 'budget envelope identity and cap are immutable' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger budget_envelopes_fixed before update on budget_envelopes
+  for each row execute function creator_envelope_fixed();
+create trigger budget_envelopes_no_delete before delete on budget_envelopes
+  for each row execute function creator_reject_change();
+
+-- One row per broker attempt (and per denied evaluation). reserved_nano is the estimate held;
+-- incurred_nano is set only from authoritative usage.
+create table budget_reservations (
+  id uuid primary key,
+  workspace_id uuid not null,
+  fixture boolean not null,
+  envelope_id uuid not null,
+  run_id uuid not null,
+  task_id uuid,
+  logical_operation_id uuid not null,
+  attempt integer not null check (attempt between 1 and 3),
+  request_hash char(64) not null,
+  action_type text not null check (action_type in ('model.generate', 'model.summarize',
+    'model.embed', 'tool.search_public')),
+  provider text not null check (provider in ('fixture', 'openai')),
+  model_id text not null,
+  pricing_snapshot_id uuid references pricing_snapshots (id),
+  admission_id uuid references action_admissions (id),
+  decision_id uuid references decision_requests (id),
+  status text not null check (status in ('denied', 'in_flight', 'settled', 'released', 'unknown')),
+  reason_code text not null,
+  explanation text not null,
+  reserved_nano numeric(30, 0) not null check (reserved_nano >= 0),
+  exposure jsonb,
+  incurred_nano numeric(30, 0) check (incurred_nano >= 0),
+  provider_response_id text,
+  result jsonb,
+  deadline_at timestamptz,
+  created_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  finished_at timestamptz,
+  foreign key (workspace_id, envelope_id) references budget_envelopes (workspace_id, id),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  check ((status = 'settled') = (incurred_nano is not null)),
+  check (status <> 'denied' or reserved_nano = 0),
+  check ((status = 'in_flight') = (finished_at is null))
+);
+-- A dispatched attempt exists once per logical operation; denials may be re-evaluated.
+create unique index budget_reservations_attempt on budget_reservations
+  (workspace_id, logical_operation_id, attempt) where status <> 'denied';
+create index budget_reservations_envelope on budget_reservations (envelope_id, status);
+create index budget_reservations_run on budget_reservations (workspace_id, run_id, created_at);
+create function creator_reservation_transition() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.envelope_id, new.run_id, new.logical_operation_id,
+      new.attempt, new.request_hash, new.action_type, new.reserved_nano, new.created_at)
+     is distinct from
+     (old.id, old.workspace_id, old.envelope_id, old.run_id, old.logical_operation_id,
+      old.attempt, old.request_hash, old.action_type, old.reserved_nano, old.created_at)
+     or not ((old.status = 'in_flight' and new.status in ('settled', 'released', 'unknown'))
+          or (old.status = 'unknown' and new.status in ('settled', 'released'))) then
+    raise exception 'invalid reservation transition % -> %', old.status, new.status
+      using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger budget_reservations_transition before update on budget_reservations
+  for each row execute function creator_reservation_transition();
+create trigger budget_reservations_no_delete before delete on budget_reservations
+  for each row execute function creator_reject_change();
+
+-- Financial reality: at most one authoritative charge per attempt, so a late or repeated
+-- result cannot charge twice.
+create table usage_records (
+  id uuid primary key,
+  workspace_id uuid not null,
+  reservation_id uuid not null unique references budget_reservations (id),
+  source text not null check (source in ('provider_response', 'late_provider_response',
+    'owner_reconciliation', 'fixture')),
+  provider_response_id text,
+  usage jsonb not null,
+  amount_nano numeric(30, 0) not null check (amount_nano >= 0),
+  pricing_snapshot_id uuid references pricing_snapshots (id),
+  evidence text,
+  actor_id uuid not null references actors (id),
+  created_at timestamptz not null default now()
+);
+create trigger usage_records_append_only before update or delete on usage_records
+  for each row execute function creator_reject_change();
+
+-- Every balance movement, so envelope balances can be re-derived and audited.
+create table budget_journal (
+  sequence bigint generated always as identity primary key,
+  workspace_id uuid not null,
+  envelope_id uuid not null references budget_envelopes (id),
+  reservation_id uuid references budget_reservations (id),
+  counterpart_envelope_id uuid references budget_envelopes (id),
+  entry text not null check (entry in ('fund', 'allocate', 'return', 'reserve', 'settle',
+    'release', 'hold_unknown', 'resolve_unknown', 'close')),
+  d_allocated numeric(30, 0) not null default 0,
+  d_reserved numeric(30, 0) not null default 0,
+  d_unknown numeric(30, 0) not null default 0,
+  d_incurred numeric(30, 0) not null default 0,
+  actor_id uuid not null references actors (id),
+  event_id uuid not null references audit_events (id),
+  created_at timestamptz not null default now()
+);
+create trigger budget_journal_append_only before update or delete on budget_journal
+  for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

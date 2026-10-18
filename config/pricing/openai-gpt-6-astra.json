@@ -1,0 +1,24 @@
+{
+  "provider": "openai",
+  "model_id": "gpt-6-astra",
+  "basis": "documented",
+  "source_url": "https://developers.openai.com/api/docs/models/gpt-6-astra",
+  "retrieved_at": "2026-10-18T05:45:00.000Z",
+  "unit": "nano_usd_per_token",
+  "rates": {
+    "input": "10000",
+    "cached_input": "1000",
+    "cache_write": "12500",
+    "output": "50000"
+  },
+  "long_context": {
+    "above_input_tokens": 272000,
+    "input_multiplier": { "numerator": 2, "denominator": 1 },
+    "output_multiplier": { "numerator": 3, "denominator": 2 }
+  },
+  "tool_call_rates": {},
+  "context_window_tokens": 1050000,
+  "max_output_tokens": 128000,
+  "supported_actions": ["model.generate", "model.summarize"],
+  "notes": "Standard tier text tokens as published on the official model page ($10 input, $1 cached input, $12.50 cache writes, $50 output per 1M tokens; above 272K input tokens the whole request is 2x input/cache and 1.5x output). Batch, Flex, Fast mode and hosted tools are not used by the broker and are not priced here. Documented price only: account access and billed price are unverified."
+}

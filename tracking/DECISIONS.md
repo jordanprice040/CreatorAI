@@ -1,5 +1,16 @@
 # Decision log
 
+## ADR-0007 — T04 budget envelopes, reservations and the model broker
+
+- Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T04. Decision-maker: coding agent; owner review pending on the pull request. Stacked on ADR-0006 (T03), not yet merged.
+- Accounting: permission-to-spend envelopes with carve-out allocation (a child's cap moves into the parent's `allocated`, and closing returns only the unspent remainder) rather than reserving on every ancestor. Reason: one row lock per reservation, no double counting, and conservation is a single inequality the database can check. Rollups are computed for reporting. Financial reality is a separate append-only `usage_records` table, one row per attempt.
+- Exposure: reserve the maximum, not an estimate. Input tokens are bounded by UTF-8 bytes (byte-level BPE emits at least one byte per token) plus a fixed framing allowance, priced at the highest input rate; output at `max_output_tokens`; the documented long-context surcharge applies when the bound could cross its threshold. Text input only.
+- Outcomes: provider refusals that are documented as unprocessed (429, 401/403, other 4xx) release the reservation; anything that may have been processed (timeout, 5xx, network loss, cancellation in flight, malformed or unpriced usage) holds the full reservation as `unknown` until a late answer settles it or the owner reconciles it. In-flight attempts past deadline + late window become `unknown` on restart. A settled attempt cannot be charged again.
+- Order: run state, pricing/exposure, envelope checks, then T03 admission with the bound amount, then reservation, in one transaction (OversightStore admission refactored into `admitIn` for this). A failed budget check therefore never consumes an approve-once grant.
+- Provider: the owner's reference model `gpt-6-astra` is documented in OpenAI's official model catalog with Standard pricing $10 / $1 cached / $12.50 cache write / $50 output per 1M tokens (long context above 272K input: 2x input, 1.5x output). Adapter uses `fetch` against POST /v1/responses instead of the `openai` SDK to avoid a dependency for one endpoint; revisit when streaming, tools or embeddings are needed. Live dispatch requires explicit `CREATOR_LIVE_PROVIDER=openai` plus a key; a key is not authorization.
+- Alternatives considered: hierarchical reservation on each ancestor (more locks, harder reports); estimate-based reservation (can overspend); treating 5xx as unbilled (unknown is not zero).
+- Rollback: migration 3 is additive; removing `packages/broker`, `budget-store.ts` and the routes restores T03 behaviour.
+
 ## ADR-0006 — T03 owner sessions, decision requests, grants and run modes
 
 - Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T03. Decision-maker: coding agent; owner review pending on the pull request.

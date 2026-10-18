@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@creator/api": "workspace:*",
+    "@creator/broker": "workspace:*",
     "@creator/contracts": "workspace:*",
     "@creator/db": "workspace:*",
     "@creator/domain": "workspace:*",

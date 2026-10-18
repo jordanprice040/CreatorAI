@@ -1,0 +1,25 @@
+{
+  "provider": "fixture",
+  "model_id": "fixture-model-v1",
+  "basis": "fixture",
+  "source_url": null,
+  "retrieved_at": "2026-10-18T05:45:00.000Z",
+  "unit": "nano_usd_per_token",
+  "rates": {
+    "input": "10000",
+    "cached_input": "1000",
+    "cache_write": "12500",
+    "output": "50000"
+  },
+  "long_context": null,
+  "tool_call_rates": { "search_public": "5000000" },
+  "context_window_tokens": 200000,
+  "max_output_tokens": 8000,
+  "supported_actions": [
+    "model.generate",
+    "model.summarize",
+    "model.embed",
+    "tool.search_public"
+  ],
+  "notes": "Simulated units for the deterministic fixture adapter. Not money and not a real provider price."
+}

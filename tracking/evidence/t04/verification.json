@@ -1,0 +1,25 @@
+{
+  "milestone": "T04",
+  "date": "2026-10-18",
+  "base": "claude/t03-decisions-autonomy-5gpinz at 7193e71 (draft PR #4, unmerged)",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15"
+  },
+  "checks": [
+    { "command": "pnpm check", "result": "pass", "tests": 61, "passed": 33, "skipped": 28, "log": "check-without-db.log" },
+    { "command": "pnpm test:db", "result": "pass", "tests": 61, "passed": 61, "log": "test-db.log" },
+    { "command": "node --test broker + budget-api suites, 5 repeated runs", "result": "pass" },
+    { "command": "pnpm smoke", "result": "pass" },
+    { "command": "Playwright MCP (headless Chromium) against pnpm dev: sign-in link, Budgets panel, fixture call", "result": "pass", "screenshots": ["browser-budgets.png"] }
+  ],
+  "provider_sources": [
+    "https://developers.openai.com/api/docs/models/gpt-6-astra",
+    "https://developers.openai.com/api/docs/guides/prompt-caching",
+    "https://developers.openai.com/api/docs/guides/reasoning",
+    "https://developers.openai.com/api/reference/typescript/resources/responses/methods/create"
+  ],
+  "not_verified": ["live OpenAI call or account access", "billed price versus documented price", "Windows PostgreSQL", "Node 24 with DB suites", "CI with database"]
+}

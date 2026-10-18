@@ -3,6 +3,11 @@ import { dirname } from 'node:path';
 import {
   ContractError,
   AdmissionSchema,
+  BrokerCallResultSchema,
+  BrokerStatusSchema,
+  EnvelopeSchema,
+  PricingSnapshotSchema,
+  ReservationSchema,
   DecisionSchema,
   GrantSchema,
   HumilityVerdictSchema,
@@ -46,6 +51,16 @@ const USAGE = `Usage:
   pnpm cli grant-create <workspace> <grant-json>
   pnpm cli grant-revoke <workspace> <grant-id> <expected-version> <reason>
   pnpm cli humility-gate <workspace> <review-id>
+  pnpm cli broker-status
+  pnpm cli pricing <workspace>
+  pnpm cli pricing-add <workspace> <pricing-file.json>
+  pnpm cli budgets <workspace>
+  pnpm cli budget <workspace> <envelope-id>
+  pnpm cli budget-create <workspace> <envelope-json>
+  pnpm cli budget-close <workspace> <envelope-id> <expected-version> <reason>
+  pnpm cli reservations <workspace> [envelope-id]
+  pnpm cli model-call <workspace> <run-id> <request-json>
+  pnpm cli reconcile <workspace> <reservation-id> <reconcile-json>
 
 Sign-in state is kept in CREATOR_SESSION_FILE (default .creator/cli-session.json).`;
 interface Saved {
@@ -107,6 +122,7 @@ export async function runCli(
       schema: z.ZodType<T>,
       path: string,
       body?: unknown,
+      timeoutMs = 5000,
     ): Promise<T> {
       const auth: Record<string, string> = saved
         ? { Cookie: `creator_session=${saved.token}` }
@@ -123,7 +139,7 @@ export async function runCli(
               },
               body: JSON.stringify(body),
             }),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       lastResponse = response;
       const value: unknown = await response.json();
@@ -348,6 +364,74 @@ export async function runCli(
         data = await call(
           HumilityVerdictSchema,
           `${ws(rest[0])}/entities/${encodeURIComponent(rest[1] ?? '')}/humility-gate`,
+        );
+        break;
+      case 'broker-status':
+        data = await call(BrokerStatusSchema, 'broker/status');
+        break;
+      case 'pricing':
+        data = await call(
+          z.array(PricingSnapshotSchema),
+          `${ws(rest[0])}/pricing`,
+        );
+        break;
+      case 'pricing-add':
+        data = await call(
+          PricingSnapshotSchema,
+          `${ws(rest[0])}/pricing`,
+          json(readFileSync(rest[1] ?? '', 'utf8'), 'Pricing file'),
+        );
+        break;
+      case 'budgets':
+        data = await call(z.array(EnvelopeSchema), `${ws(rest[0])}/budgets`);
+        break;
+      case 'budget':
+        data = await call(
+          EnvelopeSchema,
+          `${ws(rest[0])}/budgets/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'budget-create':
+        data = await call(
+          EnvelopeSchema,
+          `${ws(rest[0])}/budgets`,
+          json(rest[1], 'Envelope'),
+        );
+        break;
+      case 'budget-close':
+        data = await call(
+          EnvelopeSchema,
+          `${ws(rest[0])}/budgets/${encodeURIComponent(rest[1] ?? '')}/close`,
+          {
+            expected_version: version(rest[2]),
+            reason: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'reservations':
+        data = await call(
+          z.array(ReservationSchema),
+          `${ws(rest[0])}/reservations${rest[1] ? `?envelope=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'model-call': {
+        const request = json(rest[2], 'Request') as { timeout_ms?: unknown };
+        const wait =
+          typeof request.timeout_ms === 'number' ? request.timeout_ms : 0;
+        data = await call(
+          BrokerCallResultSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/model-calls`,
+          request,
+          // Up to three attempts plus retry waits; the server bounds each attempt.
+          Math.min(wait * 3 + 10_000, 1_900_000),
+        );
+        break;
+      }
+      case 'reconcile':
+        data = await call(
+          ReservationSchema,
+          `${ws(rest[0])}/reservations/${encodeURIComponent(rest[1] ?? '')}/reconcile`,
+          json(rest[2], 'Reconciliation'),
         );
         break;
       default:
