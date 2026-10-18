@@ -1,5 +1,9 @@
 # Session handoff
 
+## CI workflow — October 18, 2026
+
+Added `.github/workflows/ci.yml`: on every push and pull request, GitHub Actions installs with `pnpm install --frozen-lockfile` and runs `pnpm check` on Node 22 (version from `.node-version`, pnpm from `packageManager`). Locally on Node 22.22.0 the same two commands passed (20 tests, Prettier clean). The first Actions result is recorded on the PR that adds the workflow. Product status unchanged; next eligible prompt is still T02.
+
 ## Latest development-tool setup — October 18, 2026
 
 Owner requested Emil Kowalski, Playwright MCP, Firecrawl MCP, Impeccable, Ponytail and selected Matt Pocock skills. Installed 27 project-local skills at pinned commits with original contents and licenses preserved. Added `.codex/config.toml` for `creator_playwright` and `creator_firecrawl`; existing global configuration remains unchanged. Impeccable Windows engine 0.1.15 was checked against its published SHA256 and its probe passed. No plugin hooks or automatic updaters installed.
