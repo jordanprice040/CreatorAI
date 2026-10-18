@@ -1,0 +1,26 @@
+{
+  "milestone": "T06",
+  "date": "2026-10-18",
+  "base": "main at da976c7 (T05 merged as PR #6)",
+  "environment": {
+    "os": "Linux cloud container",
+    "node": "v22.22.0",
+    "pnpm": "11.25.0",
+    "postgresql": "16.15"
+  },
+  "checks": [
+    { "command": "pnpm check", "result": "pass", "tests": 91, "passed": 45, "skipped": 46, "log": "check-without-db.log" },
+    { "command": "pnpm test:db", "result": "pass", "tests": 91, "passed": 91, "log": "test-db.log", "note": "three consecutive full runs passed; an earlier run failed only because storage.test still expected schema version 4, fixed to 5" },
+    { "command": "pnpm smoke", "result": "pass", "log": "smoke.log" },
+    { "command": "Playwright (headless Chromium 1.56) against pnpm dev with PostgreSQL after pnpm cli seed-research: Sources and evidence panel lists 8 sources, opens a contested claim, a fetch of https://169.254.169.254/latest/meta-data/ is shown as blocked (private address), no page errors", "result": "pass", "screenshots": ["browser-evidence.png"] }
+  ],
+  "acceptance_gate": {
+    "supporting_and_non_supporting_passages": "research-store.test.js: supports with a verbatim quote, does_not_support without; fabricated quote refused with EVIDENCE_MISMATCH (also over HTTP in research-api.test.js)",
+    "conflicting_sources": "research-store.test.js and research-api.test.js: wire story, repost (canonical link) and copy (same text) form one origin cluster of 3; independent survey contradicts; claim status contested with independent_origins 1",
+    "changed_versions": "research-store.test.js: corrected report becomes source v2; support bound to v1 is 'changed' and no longer counted; unchanged re-fetch writes no new version",
+    "inaccessible_pages": "research-store.test.js: 403 recorded inaccessible with no passages; 410 on re-fetch marks the source removed; claim labelled inaccessible/needs_recheck, never supported",
+    "private_address_redirect": "research-store.test.js: 302 to 169.254.169.254, 301 to an approved host resolving to 10.0.0.8, and 302 to http are blocked before the target is contacted (adapter call log); research.test.js: HTTP adapter refuses DNS answers in private ranges against a loopback server",
+    "malicious_instructions": "research-store.test.js: forum page with injected instructions is stored and labelled instruction_like; grants, decisions, policy hash and fetch count are unchanged and no further fetch occurs"
+  },
+  "not_verified": ["live fetch of a real site", "live search adapter (none exists)", "Windows PostgreSQL", "CI with database", "non-UTF-8 pages beyond TextDecoder labels"]
+}

@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   ContractError,
   AdmissionSchema,
@@ -23,6 +24,12 @@ import {
   StoredLinkSchema,
   EntityDetailSchema,
   HistoryEntrySchema,
+  ClaimEvidenceSchema,
+  ClaimSupportSchema,
+  RetrievalSchema,
+  SourceBrokerStatusSchema,
+  SourceDetailSchema,
+  SourceSummarySchema,
   z,
   parse,
 } from '@creator/contracts';
@@ -67,6 +74,15 @@ const USAGE = `Usage:
   pnpm cli workflows <workspace> [run-id]
   pnpm cli workflow <workspace> <workflow-id> [--wait]
   pnpm cli workflow-pause|workflow-resume|workflow-cancel <workspace> <workflow-id> <expected-version> <reason>
+  pnpm cli source-status
+  pnpm cli source-fetch <workspace> <run-id> <url> [justification]
+  pnpm cli sources <workspace>
+  pnpm cli source <workspace> <source-id>
+  pnpm cli retrievals <workspace> [run-id]
+  pnpm cli claim-support <workspace> <claim-id> <support-json>
+  pnpm cli claim-evidence <workspace> <claim-id> [max-age-days]
+  pnpm cli support-retract <workspace> <support-id> <reason>
+  pnpm cli seed-research
 
 Workflows run on the API server's worker (or \`pnpm worker\`), not in this command: exiting the
 CLI or closing the web page does not stop or cancel them.
@@ -487,6 +503,64 @@ export async function runCli(
           },
         );
         break;
+      case 'source-status':
+        data = await call(SourceBrokerStatusSchema, 'sources/status');
+        break;
+      case 'source-fetch':
+        data = await call(
+          RetrievalSchema,
+          `${ws(rest[0])}/runs/${encodeURIComponent(rest[1] ?? '')}/source-fetches`,
+          {
+            url: rest[2],
+            task_id: null,
+            logical_operation_id: randomUUID(),
+            justification: rest.slice(3).join(' ') || 'Requested from the CLI.',
+          },
+          // The server bounds each fetch by its policy time limit (15 s live).
+          30_000,
+        );
+        break;
+      case 'sources':
+        data = await call(
+          z.array(SourceSummarySchema),
+          `${ws(rest[0])}/sources`,
+        );
+        break;
+      case 'source':
+        data = await call(
+          SourceDetailSchema,
+          `${ws(rest[0])}/sources/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'retrievals':
+        data = await call(
+          z.array(RetrievalSchema),
+          `${ws(rest[0])}/retrievals${rest[1] ? `?run=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'claim-support':
+        data = await call(
+          ClaimSupportSchema,
+          `${ws(rest[0])}/claims/${encodeURIComponent(rest[1] ?? '')}/support`,
+          json(rest[2], 'Support'),
+        );
+        break;
+      case 'claim-evidence':
+        data = await call(
+          ClaimEvidenceSchema,
+          `${ws(rest[0])}/claims/${encodeURIComponent(rest[1] ?? '')}/evidence${rest[2] ? `?max_age_days=${encodeURIComponent(rest[2])}` : ''}`,
+        );
+        break;
+      case 'support-retract':
+        data = await call(
+          ClaimSupportSchema,
+          `${ws(rest[0])}/claim-support/${encodeURIComponent(rest[1] ?? '')}/retract`,
+          { reason: rest.slice(2).join(' ') },
+        );
+        break;
+      case 'seed-research':
+        data = await seedResearch(call);
+        break;
       default:
         throw new Error(USAGE);
     }
@@ -600,5 +674,158 @@ async function seedLineage(call: Call) {
     product_from_two_ideas: combined.id,
     idea_with_two_descendants: ideaA.id,
     artifact: artifact.id,
+  };
+}
+
+const FIXTURE = {
+  report: 'https://health.fixture.test/reports/clinic-access-2025',
+  wire: 'https://wire.fixture.test/stories/clinic-waits',
+  repost: 'https://news.fixture.test/2026/03/clinic-waits',
+  copy: 'https://blog.fixture.test/posts/clinic-waits-copy',
+  survey: 'https://journal.fixture.test/articles/wait-time-survey',
+  paywalled: 'https://journal.fixture.test/articles/paywalled-study',
+  staffing: 'https://health.fixture.test/reports/staffing-brief',
+  metadataRedirect: 'https://health.fixture.test/go/latest-report',
+  forum: 'https://forum.fixture.test/threads/clinic-tips',
+};
+/**
+ * Builds a labeled fixture workspace that walks through T06: fetches from the synthetic corpus
+ * (reposts, a conflicting survey, a correction, a paywall, a removal, an inward redirect and a
+ * page with injected instructions), two claims with passage-level evidence, and their status.
+ */
+async function seedResearch(call: Call) {
+  const ws = await call(WorkspaceSchema, 'workspaces', {
+    name: 'Fixture research demonstration',
+    record_mode: 'fixture',
+  });
+  const base = `workspaces/${ws.id}`;
+  const run = await call(StoredEntitySchema, `${base}/entities`, {
+    kind: 'run',
+    title: 'Fixture research run',
+    body: {
+      state: 'queued',
+      experiment_condition: 'human_in_loop',
+      discovery_method: 'structured',
+      config_hash: null,
+    },
+  });
+  await call(RunControlSchema, `${base}/runs`, {
+    run: { id: run.id, version: 1 },
+    autonomy_mode: 'human_in_loop',
+    stage_gates: null,
+    initial_grants: [],
+  });
+  await call(GrantSchema, `${base}/grants`, {
+    run_id: run.id,
+    action_types: ['source.fetch'],
+    target_kind: null,
+    max_amount_nano_usd: null,
+    allow_irreversible: false,
+    allow_external_effects: false,
+    data_classes: ['public'],
+    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    rationale: 'Fetch the fixture corpus for this demonstration run.',
+  });
+  const fetch = (url: string) =>
+    call(RetrievalSchema, `${base}/runs/${run.id}/source-fetches`, {
+      url,
+      task_id: null,
+      logical_operation_id: randomUUID(),
+      justification: 'Fixture research demonstration.',
+    });
+  const retrievals: Record<string, string> = {};
+  const got: Record<string, z.infer<typeof RetrievalSchema>> = {};
+  for (const [name, url] of Object.entries(FIXTURE)) {
+    got[name] = await fetch(url);
+    retrievals[name] = `${got[name].state} (${got[name].reason_code})`;
+  }
+  const passage = async (sourceId: string | null, needle: string) => {
+    const detail = await call(
+      SourceDetailSchema,
+      `${base}/sources/${sourceId}`,
+    );
+    const p = detail.passages.find((x) => x.excerpt?.includes(needle));
+    if (!p) throw new Error(`Fixture passage "${needle}" not found.`);
+    return p.id;
+  };
+  const claim = (statement: string) =>
+    call(StoredEntitySchema, `${base}/entities`, {
+      kind: 'claim',
+      title: statement.slice(0, 120),
+      body: {
+        statement,
+        basis: 'observation',
+        uncertainty: 'Synthetic fixture claim.',
+      },
+    });
+  const support = (claimId: string, body: Record<string, unknown>) =>
+    call(ClaimSupportSchema, `${base}/claims/${claimId}/support`, {
+      claim_version: 1,
+      rationale: 'Assessed against the passage text (fixture).',
+      ...body,
+    });
+  const waits = await claim(
+    'Rural first-appointment waits rose between 2022 and 2025.',
+  );
+  for (const name of ['wire', 'repost', 'copy'])
+    await support(waits.id, {
+      evidence: 'passage',
+      passage_id: await passage(got[name]!.source_id, '41 days'),
+      stance: 'supports',
+      support_type: 'source_assertion',
+      quote: 'was 41 days in 2025, up from 29 days in 2022',
+    });
+  await support(waits.id, {
+    evidence: 'passage',
+    passage_id: await passage(got.report!.source_id, '41 days'),
+    stance: 'supports',
+    support_type: 'observation',
+    quote: 'was 41 days, up from 29 days in 2022',
+  });
+  await support(waits.id, {
+    evidence: 'passage',
+    passage_id: await passage(got.survey!.source_id, 'fell slightly'),
+    stance: 'contradicts',
+    support_type: 'observation',
+    quote: 'fell slightly, from a mean of 35 days in 2022 to 33 days in 2025',
+  });
+  const triage = await claim(
+    'A randomized study found shorter waits after triage changes.',
+  );
+  await support(triage.id, {
+    evidence: 'inaccessible_source',
+    source_id: got.paywalled!.source_id,
+    source_version: got.paywalled!.source_version,
+  });
+  const vacancies = await claim(
+    'Rural clinics had many vacant nursing posts in 2025.',
+  );
+  await support(vacancies.id, {
+    evidence: 'passage',
+    passage_id: await passage(got.staffing!.source_id, '18 percent'),
+    stance: 'supports',
+    support_type: 'observation',
+    quote: '18 percent of nursing posts vacant in 2025',
+  });
+  // Second fetches: the report is corrected (new version) and the brief is removed.
+  const corrected = await fetch(FIXTURE.report);
+  const removed = await fetch(FIXTURE.staffing);
+  const evidence = async (id: string) => {
+    const e = await call(ClaimEvidenceSchema, `${base}/claims/${id}/evidence`);
+    return { status: e.status, labels: e.labels };
+  };
+  return {
+    workspace: ws,
+    run: run.id,
+    retrievals,
+    refetch: {
+      report: `${corrected.reason_code} → source v${corrected.source_version}`,
+      staffing: `${removed.state} → source v${removed.source_version}`,
+    },
+    claims: {
+      [waits.id]: await evidence(waits.id),
+      [triage.id]: await evidence(triage.id),
+      [vacancies.id]: await evidence(vacancies.id),
+    },
   };
 }

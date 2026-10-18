@@ -13,6 +13,7 @@ import {
 } from './primitives.js';
 import { LinkRelationSchema } from './records.js';
 import { AssumptionBodySchema, HumilityBodySchema } from './oversight.js';
+import { RetentionSchema } from './research.js';
 
 // Persistent record bodies (T02). Bodies hold references and hashes; source content and
 // large artifacts stay outside the database and workflow history.
@@ -48,6 +49,21 @@ const SourceBody = z
     independent_origin: short,
     observation: text.max(2000),
     uncertainty,
+    // T06: present only on versions the source broker wrote from a real retrieval. The
+    // generic record API refuses to set it, so a manual source cannot pose as retrieved.
+    retrieval: z
+      .strictObject({
+        retrieval_id: id,
+        final_url: z.url().max(2000),
+        access: z.enum(['public', 'restricted', 'gone']),
+        extraction: z.enum(['extracted', 'none']),
+        retention: RetentionSchema,
+        text_hash: hash.nullable(),
+        canonical_url: z.url().max(2000).nullable(),
+        origin_cluster: id,
+        policy_hash: hash,
+      })
+      .optional(),
   })
   .superRefine((s, ctx) => {
     if (s.retrieval_status === 'available' && !s.content_hash)

@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T06 source ingestion, claim support and research boundaries (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t06-sources-claims-ogwzbb` from `main` at da976c7 (T05 merged as PR #6). Opened as a draft PR.
+
+What works: with PostgreSQL configured, `pnpm cli seed-research` builds a fixture workspace that fetches the synthetic corpus through the source broker and records three claims with support; the web Sources and evidence panel and `pnpm cli source-fetch / sources / source / claim-support / claim-evidence` show and extend it. Fetches are `source.fetch` actions admitted against the run's grants; URLs, redirects and DNS answers are checked against the source policy. See docs/LOCAL_DEVELOPMENT.md "Sources and claim evidence (T06)" and ADR-0009.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (45 pass, 46 skipped without DB), `pnpm test:db` (91/91, three full runs), `pnpm smoke`, headless Chromium check of the panel (contested claim, blocked metadata-address fetch). Evidence: tracking/evidence/t06/.
+
+Not done / limits: fixture corpus only; the HTTP adapter is tested against loopback servers, not real sites; no live search adapter (search stays the T04 fixture `tool.search_public` path); the T05 skeptic role does not fetch sources yet; instruction detection is a label, not a security boundary; origin clusters are fixed when a source is first recorded; adding support has no web form (CLI/API only); Windows untested.
+
+**Next eligible prompt: T07 — Locator and competing response generation.** Requires a new request.
+
 ## Latest — T05 durable bounded orchestration and recovery (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/t05-t1b785` from `main` at f51530f (T04 merged as PR #5). Jordan chose PostgreSQL over a Temporal server for workflows (ADR-0008).
@@ -10,7 +22,7 @@ Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (37 pass, 
 
 Not done / limits: fixture provider only (no live call); one role with a fixed plan, depth 1; Windows untested; CI still runs only `pnpm check`. ADR-0008 records the design and what was left out.
 
-**Next eligible prompt: T06 — Source ingestion, claim support, and research boundaries.** Requires a new request.
+T05 merged as PR #6; T06 followed (above).
 
 ## Latest — T04 budgets and a metered model/tool broker (October 18, 2026)
 

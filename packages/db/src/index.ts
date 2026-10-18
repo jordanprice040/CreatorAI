@@ -5,3 +5,4 @@ export * from './store.js';
 export * from './oversight-store.js';
 export * from './budget-store.js';
 export * from './workflow-store.js';
+export * from './research-store.js';

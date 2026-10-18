@@ -734,6 +734,212 @@ create trigger workflow_tasks_no_delete before delete on workflow_tasks
   for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 5,
+    name: 'sources_passages_claim_support',
+    sql: `
+-- T06 research. A source's identity in a workspace is its final URL; its versions are entity
+-- versions written by the source broker. Origin clusters are fixed when the source is first
+-- recorded, so reposts of one original count once as corroboration.
+create table research_sources (
+  source_id uuid primary key,
+  workspace_id uuid not null,
+  fixture boolean not null,
+  kind text not null default 'source' check (kind = 'source'),
+  url_key text not null check (length(url_key) between 1 and 2000),
+  canonical_key text check (length(canonical_key) <= 2000),
+  fingerprint char(64),
+  origin_cluster uuid not null,
+  cluster_reason text not null check (length(cluster_reason) between 1 and 500),
+  created_at timestamptz not null default now(),
+  unique (workspace_id, url_key),
+  unique (workspace_id, source_id),
+  foreign key (workspace_id, fixture) references workspaces (id, fixture),
+  foreign key (workspace_id, source_id, kind) references entities (workspace_id, id, kind)
+);
+create index research_sources_fingerprint on research_sources (workspace_id, fingerprint);
+create index research_sources_canonical on research_sources (workspace_id, canonical_key);
+create trigger research_sources_fixed before update or delete on research_sources
+  for each row execute function creator_reject_change();
+
+-- One row per fetch attempt, including refusals; raw bytes are never stored.
+create table source_retrievals (
+  id uuid primary key,
+  workspace_id uuid not null,
+  fixture boolean not null,
+  run_id uuid not null,
+  task_id uuid,
+  logical_operation_id uuid not null,
+  request_hash char(64) not null,
+  adapter text not null check (adapter in ('fixture', 'http', 'none')),
+  policy_hash char(64) not null,
+  requested_url text not null check (length(requested_url) between 1 and 2000),
+  url_key text not null check (length(url_key) between 1 and 2000),
+  final_url text check (length(final_url) <= 2000),
+  redirects jsonb not null default '[]',
+  state text not null check (state in ('in_flight', 'fetched', 'blocked', 'inaccessible',
+    'removed', 'failed', 'too_large', 'unsupported_type', 'denied', 'needs_human')),
+  reason_code text not null check (length(reason_code) between 1 and 200),
+  explanation text not null check (length(explanation) <= 1200),
+  http_status integer,
+  content_type text check (length(content_type) <= 200),
+  bytes bigint check (bytes >= 0),
+  content_hash char(64),
+  text_hash char(64),
+  source_id uuid,
+  source_version integer,
+  changed boolean,
+  instruction_like boolean not null default false,
+  admission_id uuid references action_admissions (id),
+  decision_id uuid references decision_requests (id),
+  actor_id uuid not null references actors (id),
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  unique (workspace_id, logical_operation_id),
+  foreign key (workspace_id, fixture) references workspaces (id, fixture),
+  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+  foreign key (source_id, source_version) references entity_versions (entity_id, version),
+  check ((state = 'in_flight') = (finished_at is null)),
+  check (state <> 'fetched' or (content_hash is not null and source_id is not null)),
+  check ((source_id is null) = (source_version is null))
+);
+create index source_retrievals_run on source_retrievals (workspace_id, run_id, started_at);
+create index source_retrievals_source on source_retrievals (source_id, finished_at);
+create index source_retrievals_url on source_retrievals (workspace_id, url_key);
+create index source_retrievals_open on source_retrievals (started_at) where state = 'in_flight';
+-- An attempt finishes once; identity and request never change.
+create function creator_retrieval_finish() returns trigger language plpgsql as $$
+begin
+  if old.state <> 'in_flight'
+     or (new.id, new.workspace_id, new.fixture, new.run_id, new.task_id,
+         new.logical_operation_id, new.request_hash, new.adapter, new.policy_hash,
+         new.requested_url, new.url_key, new.admission_id, new.actor_id, new.started_at)
+       is distinct from
+        (old.id, old.workspace_id, old.fixture, old.run_id, old.task_id,
+         old.logical_operation_id, old.request_hash, old.adapter, old.policy_hash,
+         old.requested_url, old.url_key, old.admission_id, old.actor_id, old.started_at) then
+    raise exception 'a finished retrieval is immutable' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger source_retrievals_finish before update on source_retrievals
+  for each row execute function creator_retrieval_finish();
+create trigger source_retrievals_no_delete before delete on source_retrievals
+  for each row execute function creator_reject_change();
+
+-- Passages of one exact source version. Offsets index that version's extracted text (hash
+-- kept); the excerpt is bounded by policy and may be absent (hash-only retention, redaction).
+create table source_passages (
+  id uuid primary key,
+  workspace_id uuid not null,
+  source_id uuid not null,
+  source_version integer not null,
+  ordinal integer not null check (ordinal >= 0),
+  paragraph integer not null check (paragraph >= 0),
+  char_start integer not null check (char_start >= 0),
+  char_end integer not null check (char_end > char_start),
+  text_hash char(64) not null,
+  excerpt text check (length(excerpt) <= 2000),
+  excerpt_truncated boolean not null,
+  passage_hash char(64) not null,
+  instruction_like boolean not null,
+  retrieval_id uuid not null references source_retrievals (id),
+  created_at timestamptz not null default now(),
+  unique (source_id, source_version, ordinal),
+  unique (workspace_id, id),
+  foreign key (workspace_id, source_id) references research_sources (workspace_id, source_id),
+  foreign key (source_id, source_version) references entity_versions (entity_id, version)
+);
+create function creator_passage_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.source_id, new.source_version, new.ordinal,
+      new.paragraph, new.char_start, new.char_end, new.text_hash, new.excerpt_truncated,
+      new.passage_hash, new.instruction_like, new.retrieval_id, new.created_at)
+     is distinct from
+      (old.id, old.workspace_id, old.source_id, old.source_version, old.ordinal,
+      old.paragraph, old.char_start, old.char_end, old.text_hash, old.excerpt_truncated,
+      old.passage_hash, old.instruction_like, old.retrieval_id, old.created_at)
+     or new.excerpt is not null and new.excerpt is distinct from old.excerpt then
+    raise exception 'passages only lose their excerpt (redaction)' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger source_passages_change before update on source_passages
+  for each row execute function creator_passage_change();
+create trigger source_passages_no_delete before delete on source_passages
+  for each row execute function creator_reject_change();
+
+-- Claim-to-passage support at exact claim and source versions. Rows are retracted, never
+-- edited; a redacted source takes its quoted text with it.
+create table claim_support (
+  id uuid primary key,
+  workspace_id uuid not null,
+  claim_id uuid not null,
+  claim_kind text not null default 'claim' check (claim_kind = 'claim'),
+  claim_version integer not null,
+  source_id uuid not null,
+  source_version integer not null,
+  passage_id uuid,
+  stance text not null check (stance in ('supports', 'contradicts', 'does_not_support',
+    'inaccessible')),
+  support_type text check (support_type in ('source_assertion', 'quotation',
+    'observation', 'inference')),
+  quote text check (length(quote) <= 1000),
+  rationale text not null check (length(rationale) between 1 and 1200),
+  link_id uuid references entity_links (id),
+  asserted_by uuid not null references actors (id),
+  created_at timestamptz not null default now(),
+  retracted_at timestamptz,
+  retracted_by uuid references actors (id),
+  retraction_reason text check (length(retraction_reason) <= 500),
+  foreign key (workspace_id, claim_id, claim_kind) references entities (workspace_id, id, kind),
+  foreign key (claim_id, claim_version) references entity_versions (entity_id, version),
+  foreign key (workspace_id, source_id) references research_sources (workspace_id, source_id),
+  foreign key (source_id, source_version) references entity_versions (entity_id, version),
+  foreign key (workspace_id, passage_id) references source_passages (workspace_id, id),
+  check ((stance = 'inaccessible') = (passage_id is null)),
+  check ((stance = 'inaccessible') = (support_type is null)),
+  check ((stance in ('supports', 'contradicts')) = (link_id is not null)),
+  check ((retracted_at is null) = (retraction_reason is null)),
+  check ((retracted_at is null) = (retracted_by is null))
+);
+create unique index claim_support_active on claim_support
+  (claim_id, claim_version, coalesce(passage_id, source_id)) where retracted_at is null;
+create index claim_support_claim on claim_support (workspace_id, claim_id);
+create function creator_claim_support_change() returns trigger language plpgsql as $$
+begin
+  if (new.id, new.workspace_id, new.claim_id, new.claim_version, new.source_id,
+      new.source_version, new.passage_id, new.stance, new.support_type, new.rationale,
+      new.link_id, new.asserted_by, new.created_at)
+     is distinct from
+      (old.id, old.workspace_id, old.claim_id, old.claim_version, old.source_id,
+      old.source_version, old.passage_id, old.stance, old.support_type, old.rationale,
+      old.link_id, old.asserted_by, old.created_at)
+     or (new.quote is not null and new.quote is distinct from old.quote)
+     or (old.retracted_at is not null
+         and (new.retracted_at, new.retracted_by, new.retraction_reason)
+           is distinct from (old.retracted_at, old.retracted_by, old.retraction_reason)) then
+    raise exception 'claim support is retracted, never edited' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger claim_support_change before update on claim_support
+  for each row execute function creator_claim_support_change();
+create trigger claim_support_no_delete before delete on claim_support
+  for each row execute function creator_reject_change();
+
+create function creator_redact_source_text() returns trigger language plpgsql as $$
+begin
+  if new.kind = 'source' and new.status = 'redacted' and old.status <> 'redacted' then
+    update source_passages set excerpt = null where source_id = new.id and excerpt is not null;
+    update claim_support set quote = null where source_id = new.id and quote is not null;
+  end if;
+  return new;
+end $$;
+create trigger entities_redact_source_text after update on entities
+  for each row execute function creator_redact_source_text();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

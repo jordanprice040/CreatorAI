@@ -48,6 +48,7 @@ export const ActionTypeSchema = z.enum([
   'model.summarize',
   'model.embed',
   'tool.search_public',
+  'source.fetch',
   'spec.freeze',
   'product.commit_build',
   'release.publish',

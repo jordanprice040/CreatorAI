@@ -440,3 +440,28 @@ a.primary.link {
 button.text[aria-current='true'] {
   font-weight: 700;
 }
+.ev-supported,
+.src-available {
+  color: #2f5b45;
+}
+.ev-contested,
+.ev-needs_recheck,
+.ev-inferred,
+.ev-inaccessible,
+.src-inaccessible,
+.ret-needs_human,
+.ret-failed {
+  color: #8a5a0f;
+}
+.ev-contradicted,
+.ev-insufficient,
+.src-removed,
+.ret-blocked,
+.ret-denied {
+  color: #9b2c2c;
+}
+.links blockquote {
+  margin: 4px 0 8px 12px;
+  font-size: 13px;
+  color: #4a524a;
+}
