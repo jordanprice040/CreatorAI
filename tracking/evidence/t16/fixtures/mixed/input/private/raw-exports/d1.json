@@ -1,0 +1,104 @@
+{
+  "schema_version": "study-export/1",
+  "synthetic": true,
+  "empirical_results": false,
+  "attempts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "autonomous",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 300,
+        "known_simulated_spend_nano_usd": "4000000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 3,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_in_loop",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 10,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 5,
+        "intervention_wait_seconds": 30,
+        "wall_seconds": 900,
+        "known_simulated_spend_nano_usd": "3000000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 3,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_only",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 40,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 2400,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    }
+  ],
+  "raw_events": [
+    {
+      "attempt_id": "00000000-0000-4000-8000-000000000002",
+      "kind": "interventions",
+      "payload": {
+        "type": "clarification",
+        "gate": "fixed",
+        "prevented_problem": "yes",
+        "human_active_minutes": 5,
+        "wait_seconds": 30
+      }
+    },
+    {
+      "attempt_id": "00000000-0000-4000-8000-000000000003",
+      "kind": "deviations",
+      "payload": {
+        "reason": "Fixture: a search page showed an AI summary.",
+        "impact": "Fixture deviation; recorded, not excluded."
+      }
+    }
+  ],
+  "export_hash": "2e5237eb84b30ba55fc81b8e3d772a80f71ed13cb62f7ddaf692cedcf06b4570"
+}

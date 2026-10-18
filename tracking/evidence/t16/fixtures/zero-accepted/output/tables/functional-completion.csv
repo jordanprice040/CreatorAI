@@ -1,0 +1,4 @@
+data_label,slot_id,task_key,arm,slot_state,cases,passed,held_out_cases,held_out_passed,pass_share,backends,accepted
+"VERIFICATION FIXTURE: synthetic data, not empirical",0f0aaa0b41df8efd9e635f9490d73cf26f2faf26ed1c3ea1fcc013995fcdc2cd,i1,A,failed,0,0,0,0,,,false
+"VERIFICATION FIXTURE: synthetic data, not empirical",4377a58d8246aa6f97f794cc1053c1b4bd8d591e40ed26fa5f0fc668b58657d5,i1,B,submitted,2,1,1,0,0.5,labelled-fixture,false
+"VERIFICATION FIXTURE: synthetic data, not empirical",87bd50ad9590a97d4ab4edb525e01ab251e671387bff4c32c2bcc575a20d0139,i1,C,failed,0,0,0,0,,,false

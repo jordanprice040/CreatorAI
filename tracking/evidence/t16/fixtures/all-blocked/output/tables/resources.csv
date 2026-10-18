@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,attempts,calls,provider_retries,known_spend_nano_usd,known_spend_usd,unknown_exposure_usd,in_flight_exposure_usd,billing,accepted,cost_per_accepted_usd,cost_per_accepted_note
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,A,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,B,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,C,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,A,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,B,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,C,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-open,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-structured,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).

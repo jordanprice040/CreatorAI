@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,ran_without_only_infrastructure_failure,submitted,completion
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,A,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,B,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,C,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,A,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,B,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,C,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-open,0,0,0/0
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-structured,0,0,0/0

@@ -1,0 +1,1291 @@
+{
+  "schema_version": "analysis/1",
+  "analysis_version": "analysis/1",
+  "data_kind": "synthetic_verification_fixture",
+  "empirical": false,
+  "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "fixture": {
+    "schema_version": "analysis-fixture/1",
+    "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+    "scenario": "mixed",
+    "covers": [
+      "missing ratings (blank items, one partial reviewer row)",
+      "failed and blocked runs kept in assigned denominators",
+      "retry after an infrastructure failure; both attempts counted for resources",
+      "unknown billing (lower-bound cost)",
+      "repeated observations: discovery repeats and one participant across human arms",
+      "interventions and a recorded deviation"
+    ]
+  },
+  "plan": {
+    "version": "analysis-plan/1",
+    "status": "Implementation default, not an owner decision; adopt or replace it in the protocol freeze.",
+    "unit": "Task. Arms are paired within a task; a run is one observation however many ideas it contains.",
+    "primary_attempt": "The last attempt in each slot gives the outcome (a permitted retry replaces an infrastructure failure); every attempt counts for resources.",
+    "quality": "Per reviewer: mean of the five rubric dimensions when all five are present. Per slot: mean over reviewers with complete ratings. Missing ratings are never imputed.",
+    "implementation": "Share of executed frozen cases (held-out included) passed by the last attempt; accepted when submitted and every case passed.",
+    "discovery": "Per theme: mean over repeats for each method, then open-ended minus structured. Repeats are not independent observations.",
+    "uncertainty": {
+      "rule": "Range, median and sign counts over tasks always; a percentile bootstrap over tasks only when there are at least bootstrap_min_tasks pairs.",
+      "bootstrap_min_tasks": 10,
+      "resamples": 2000,
+      "interval": 0.95
+    },
+    "agreement": "Quadratic-weighted kappa per dimension for exactly two reviewers, plus every disagreement of two points or more.",
+    "cost": "Cost per accepted outcome counts every attempt (failures and retries). Undefined when nothing was accepted; a lower bound when billing is unknown or in flight.",
+    "exploratory": "Per-protocol completion (ran slots only) is exploratory and reported apart from the assigned-condition tables."
+  },
+  "options": {
+    "decision_min_mean_rating": 3,
+    "basis": "Fixture value for verification; not an owner decision."
+  },
+  "inputs": {
+    "package_hash": "bd936ccb37077f4ebcc2e0f485666ca2f93d8ab43be3fcaaa7f87baa27079d70",
+    "schedule_hash": "56aadc714ed6c70f5ac9ceb51f6d798ca0f88a1675405c3826f15aa9a9497401",
+    "freeze": {
+      "origin": "rehearsal",
+      "freeze_hash": "017b7ee3b48365eed57652f69574e18f3e17fa3884f7bcbb854e7fdafa1a3766"
+    },
+    "mode": "rehearsal",
+    "files": [
+      {
+        "path": "FIXTURE.json",
+        "sha256": "d025836606b1f6af218630efdb42d69a5b7cf312c7eb9f88171ce6703b124e21"
+      },
+      {
+        "path": "analysis-options.json",
+        "sha256": "541368469369b8e6136937b07ed5a035b882442ad06378a39593e8eb0b39ae6c"
+      },
+      {
+        "path": "evaluation-package.json",
+        "sha256": "5c8ce1b114f20ede15d3f502bca449f01f0768723e8f0f0fce9293bd3df15f85"
+      },
+      {
+        "path": "private/assignment-key.json",
+        "sha256": "89b522af498c24643a9dae42b718ae0c9fbbbb5357e496cbf1616ce7b7e709ff"
+      },
+      {
+        "path": "private/raw-exports/d1.json",
+        "sha256": "abc8e510f56995a8dc9a7ca2fefe3ac5915c2f0c34a09c869a16e0052797768c"
+      },
+      {
+        "path": "private/raw-exports/d2.json",
+        "sha256": "6897dd05ec708fcc0c97a122211f648af832ff866f6efaaa9fbcd69b9c9a36f8"
+      },
+      {
+        "path": "private/raw-exports/i1.json",
+        "sha256": "bdccd0c9e21d4018f29a983a89e20a144e5fe4cedae920064bfced3030819f0c"
+      },
+      {
+        "path": "private/raw-exports/t1.json",
+        "sha256": "20060c0c0b44fd9bbce620cdd24dde06b5ce95c6023787f38d2279ba08c55e7a"
+      },
+      {
+        "path": "reviewers/reviewer-1/ratings.csv",
+        "sha256": "ee146953c4e337ef17c172499d20183e363b950f2c329bcf55436a5f2cd426c3"
+      },
+      {
+        "path": "reviewers/reviewer-2/ratings.csv",
+        "sha256": "4628497b97fd8ac3ff1073cc708d79e3e73e8638924d14cf4fa7f4f030971438"
+      }
+    ]
+  },
+  "totals": {
+    "assigned_slots": 13,
+    "attempts": 13,
+    "unscheduled_attempts": 0,
+    "known_spend_usd": "0.025000000",
+    "known_spend_unscheduled_usd": "0.000000000",
+    "unknown_exposure_usd": "0.002500000",
+    "in_flight_exposure_usd": "0.000000000",
+    "accepted": {
+      "implementation": 1,
+      "decision": 7
+    },
+    "distinct_human_participants": 1,
+    "reviewers": 2
+  },
+  "prespecified": {
+    "completion": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "assigned": 2,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 2,
+        "submitted": 1,
+        "failed": 1,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 2,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "1/2",
+        "completion_share": 0.5
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "assigned": 2,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 2,
+        "submitted": 2,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 3,
+        "retries": 1,
+        "infrastructure_failures": 1,
+        "completion": "2/2",
+        "completion_share": 1
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "assigned": 2,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 2,
+        "submitted": 2,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 2,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "2/2",
+        "completion_share": 1
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "assigned": 1,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 1,
+        "submitted": 1,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 1,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "1/1",
+        "completion_share": 1
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "assigned": 1,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 1,
+        "submitted": 1,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 1,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "1/1",
+        "completion_share": 1
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "assigned": 2,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 2,
+        "submitted": 2,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 2,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "2/2",
+        "completion_share": 1
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "assigned": 2,
+        "blocked": 0,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 2,
+        "submitted": 1,
+        "failed": 1,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 2,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "1/2",
+        "completion_share": 0.5
+      }
+    ],
+    "decision_quality": [
+      {
+        "slot_id": "f14a0f6b0f55117877ff8b6dcbc86ee2d9f0d2d7a1b764778589482aa0ec840a",
+        "attempt_id": "00000000-0000-4000-8000-000000000001",
+        "task_key": "d1",
+        "arm": "A",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 3.5,
+        "dimension_means": {
+          "usefulness": 3.5,
+          "feasibility": 3.5,
+          "evidence_support": 3.5,
+          "differentiation": 3.5,
+          "appropriateness": 3.5
+        }
+      },
+      {
+        "slot_id": "30af55f6e72f31fc8fe0ecbe531cae9a34158a22a14be27fae5f483b2aa3a41b",
+        "attempt_id": "00000000-0000-4000-8000-000000000002",
+        "task_key": "d1",
+        "arm": "B",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 4.5,
+        "dimension_means": {
+          "usefulness": 4.5,
+          "feasibility": 4.5,
+          "evidence_support": 4.5,
+          "differentiation": 4.5,
+          "appropriateness": 4.5
+        }
+      },
+      {
+        "slot_id": "fdb69e509003b22fe514b1db6f4071746455b51ddf09025673cbd20d81e4f126",
+        "attempt_id": "00000000-0000-4000-8000-000000000003",
+        "task_key": "d1",
+        "arm": "C",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 2.5,
+        "dimension_means": {
+          "usefulness": 2.5,
+          "feasibility": 2.5,
+          "evidence_support": 2.5,
+          "differentiation": 2.5,
+          "appropriateness": 2.5
+        }
+      },
+      {
+        "slot_id": "377ccb8c12b412b9ddbdb9e350a82fcab1ae1586781632f4adab3d82277d38ca",
+        "attempt_id": "00000000-0000-4000-8000-000000000004",
+        "task_key": "d2",
+        "arm": "A",
+        "repeat": 1,
+        "slot_state": "failed",
+        "reviewer_status": {
+          "reviewer-1": "blank",
+          "reviewer-2": "blank"
+        },
+        "complete_reviewers": 0,
+        "quality": null,
+        "dimension_means": {
+          "usefulness": null,
+          "feasibility": null,
+          "evidence_support": null,
+          "differentiation": null,
+          "appropriateness": null
+        }
+      },
+      {
+        "slot_id": "b5901f680480e06ea23bcce9dff8e4c58422c5b1b913b10eb328ce086efefd80",
+        "attempt_id": "00000000-0000-4000-8000-000000000006",
+        "task_key": "d2",
+        "arm": "B",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 3.7,
+        "dimension_means": {
+          "usefulness": 3.5,
+          "feasibility": 4,
+          "evidence_support": 3.5,
+          "differentiation": 4,
+          "appropriateness": 3.5
+        }
+      },
+      {
+        "slot_id": "4f7f32a22e30824f4fdc04b9b162dd19be0d018852b9edf5002175b854c4cc60",
+        "attempt_id": "00000000-0000-4000-8000-000000000007",
+        "task_key": "d2",
+        "arm": "C",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "partial"
+        },
+        "complete_reviewers": 1,
+        "quality": 3,
+        "dimension_means": {
+          "usefulness": 3.5,
+          "feasibility": 3.5,
+          "evidence_support": 3,
+          "differentiation": 3.5,
+          "appropriateness": 3.5
+        }
+      },
+      {
+        "slot_id": "685b02e43c9061539b6733b66adfa8f8c915d118ff31cfbb03efa47b264d1911",
+        "attempt_id": "00000000-0000-4000-8000-00000000000b",
+        "task_key": "t1",
+        "arm": "D-open",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 4,
+        "dimension_means": {
+          "usefulness": 4,
+          "feasibility": 4,
+          "evidence_support": 4,
+          "differentiation": 4,
+          "appropriateness": 4
+        }
+      },
+      {
+        "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+        "attempt_id": "00000000-0000-4000-8000-00000000000d",
+        "task_key": "t1",
+        "arm": "D-open",
+        "repeat": 2,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 3,
+        "dimension_means": {
+          "usefulness": 3,
+          "feasibility": 3,
+          "evidence_support": 3,
+          "differentiation": 3,
+          "appropriateness": 3
+        }
+      },
+      {
+        "slot_id": "396921964830e826528e82f68f32743df81c9a4abec46228db864bf7484a9342",
+        "attempt_id": "00000000-0000-4000-8000-00000000000a",
+        "task_key": "t1",
+        "arm": "D-structured",
+        "repeat": 1,
+        "slot_state": "submitted",
+        "reviewer_status": {
+          "reviewer-1": "complete",
+          "reviewer-2": "complete"
+        },
+        "complete_reviewers": 2,
+        "quality": 3,
+        "dimension_means": {
+          "usefulness": 3,
+          "feasibility": 3,
+          "evidence_support": 3,
+          "differentiation": 3,
+          "appropriateness": 3
+        }
+      },
+      {
+        "slot_id": "e20f086c92431a351966c7ce560611870a28d2fe448635abfcaa1b987d1815de",
+        "attempt_id": "00000000-0000-4000-8000-00000000000c",
+        "task_key": "t1",
+        "arm": "D-structured",
+        "repeat": 2,
+        "slot_state": "failed",
+        "reviewer_status": {
+          "reviewer-1": "blank",
+          "reviewer-2": "blank"
+        },
+        "complete_reviewers": 0,
+        "quality": null,
+        "dimension_means": {
+          "usefulness": null,
+          "feasibility": null,
+          "evidence_support": null,
+          "differentiation": null,
+          "appropriateness": null
+        }
+      }
+    ],
+    "functional_completion": [
+      {
+        "slot_id": "470395d0f588aae6e85e1beb1589f316bde93400b0b61d011db15b414377221e",
+        "task_key": "i1",
+        "arm": "A",
+        "slot_state": "blocked",
+        "cases": 0,
+        "passed": 0,
+        "held_out_cases": 0,
+        "held_out_passed": 0,
+        "pass_share": null,
+        "backends": [],
+        "accepted": false
+      },
+      {
+        "slot_id": "e1ba5d9b664fcec839721e9d791d75d56dfe71ba03a2ce8b957639ec1f06119f",
+        "task_key": "i1",
+        "arm": "B",
+        "slot_state": "submitted",
+        "cases": 3,
+        "passed": 3,
+        "held_out_cases": 1,
+        "held_out_passed": 1,
+        "pass_share": 1,
+        "backends": [
+          "labelled-fixture"
+        ],
+        "accepted": true
+      },
+      {
+        "slot_id": "2b97649954da992b34e4b601956224abd4081dfde74c93b155a28e715f252207",
+        "task_key": "i1",
+        "arm": "C",
+        "slot_state": "submitted",
+        "cases": 3,
+        "passed": 2,
+        "held_out_cases": 1,
+        "held_out_passed": 0,
+        "pass_share": 0.6667,
+        "backends": [
+          "labelled-fixture"
+        ],
+        "accepted": false
+      }
+    ],
+    "paired_comparisons": [
+      {
+        "stratum": "decision",
+        "outcome": "mean reviewer quality (1-5)",
+        "contrast": "B - A",
+        "tasks": 2,
+        "n_pairs": 1,
+        "min": 1,
+        "median": 1,
+        "max": 1,
+        "positive": 1,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 1 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "d1",
+            "x": 4.5,
+            "y": 3.5,
+            "difference": 1,
+            "excluded": null
+          },
+          {
+            "task_key": "d2",
+            "x": 3.7,
+            "y": null,
+            "difference": null,
+            "excluded": "A failed, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "decision",
+        "outcome": "mean reviewer quality (1-5)",
+        "contrast": "C - A",
+        "tasks": 2,
+        "n_pairs": 1,
+        "min": -1,
+        "median": -1,
+        "max": -1,
+        "positive": 0,
+        "zero": 0,
+        "negative": 1,
+        "interval": null,
+        "interval_note": "Not computed: 1 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "d1",
+            "x": 2.5,
+            "y": 3.5,
+            "difference": -1,
+            "excluded": null
+          },
+          {
+            "task_key": "d2",
+            "x": 3,
+            "y": null,
+            "difference": null,
+            "excluded": "A failed, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "decision",
+        "outcome": "mean reviewer quality (1-5)",
+        "contrast": "C - B",
+        "tasks": 2,
+        "n_pairs": 2,
+        "min": -2,
+        "median": -1.35,
+        "max": -0.7,
+        "positive": 0,
+        "zero": 0,
+        "negative": 2,
+        "interval": null,
+        "interval_note": "Not computed: 2 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "d1",
+            "x": 2.5,
+            "y": 4.5,
+            "difference": -2,
+            "excluded": null
+          },
+          {
+            "task_key": "d2",
+            "x": 3,
+            "y": 3.7,
+            "difference": -0.7,
+            "excluded": null
+          }
+        ]
+      },
+      {
+        "stratum": "implementation",
+        "outcome": "share of frozen cases passed",
+        "contrast": "B - A",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "i1",
+            "x": 1,
+            "y": null,
+            "difference": null,
+            "excluded": "A blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "implementation",
+        "outcome": "share of frozen cases passed",
+        "contrast": "C - A",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "i1",
+            "x": 0.6667,
+            "y": null,
+            "difference": null,
+            "excluded": "A blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "implementation",
+        "outcome": "share of frozen cases passed",
+        "contrast": "C - B",
+        "tasks": 1,
+        "n_pairs": 1,
+        "min": -0.3333,
+        "median": -0.3333,
+        "max": -0.3333,
+        "positive": 0,
+        "zero": 0,
+        "negative": 1,
+        "interval": null,
+        "interval_note": "Not computed: 1 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "i1",
+            "x": 0.6667,
+            "y": 1,
+            "difference": -0.3333,
+            "excluded": null
+          }
+        ]
+      }
+    ],
+    "discovery_comparison": {
+      "contrast": "D-open - D-structured (theme means over repeats)",
+      "themes": 1,
+      "n_pairs": 1,
+      "min": 0.5,
+      "median": 0.5,
+      "max": 0.5,
+      "positive": 1,
+      "zero": 0,
+      "negative": 0,
+      "interval": null,
+      "interval_note": "Not computed: 1 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+      "rows": [
+        {
+          "task_key": "t1",
+          "structured_mean": 3,
+          "structured_repeats_rated": "1/2",
+          "open_mean": 3.5,
+          "open_repeats_rated": "2/2",
+          "difference_open_minus_structured": 0.5
+        }
+      ]
+    },
+    "resources": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "attempts": 2,
+        "calls": 6,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "6000000",
+        "known_spend_usd": "0.006000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 1,
+        "cost_per_accepted_usd": "0.006000000",
+        "cost_per_accepted_note": "Known spend over accepted outcomes (floor to 1 nano-USD)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "attempts": 3,
+        "calls": 6,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "6500000",
+        "known_spend_usd": "0.006500000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 2,
+        "cost_per_accepted_usd": "0.003250000",
+        "cost_per_accepted_note": "Known spend over accepted outcomes (floor to 1 nano-USD)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "attempts": 2,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 1,
+        "cost_per_accepted_usd": "0.000000000",
+        "cost_per_accepted_note": "Known spend over accepted outcomes (floor to 1 nano-USD)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 0,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: zero accepted outcomes. Total known spend stays visible."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "attempts": 1,
+        "calls": 3,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "6000000",
+        "known_spend_usd": "0.006000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 1,
+        "cost_per_accepted_usd": "0.006000000",
+        "cost_per_accepted_note": "Known spend over accepted outcomes (floor to 1 nano-USD)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "attempts": 1,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 0,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: zero accepted outcomes. Total known spend stays visible."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "attempts": 2,
+        "calls": 6,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "4000000",
+        "known_spend_usd": "0.004000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 2,
+        "cost_per_accepted_usd": "0.002000000",
+        "cost_per_accepted_note": "Known spend over accepted outcomes (floor to 1 nano-USD)."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "attempts": 2,
+        "calls": 6,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "2500000",
+        "known_spend_usd": "0.002500000",
+        "unknown_exposure_usd": "0.002500000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "incomplete: unknown or in-flight",
+        "accepted": 1,
+        "cost_per_accepted_usd": "0.002500000",
+        "cost_per_accepted_note": "Lower bound: some billing is unknown or still in flight."
+      }
+    ],
+    "human_effort_and_latency": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": 250,
+        "wall_seconds_min": 200,
+        "wall_seconds_max": 300,
+        "wall_seconds_n": 2,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "human_active_minutes": 22,
+        "intervention_active_minutes": 8,
+        "human_wait_seconds": 90,
+        "human_time_missing": 0,
+        "wall_seconds_median": 950,
+        "wall_seconds_min": 900,
+        "wall_seconds_max": 1000,
+        "wall_seconds_n": 2,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "human_active_minutes": 90,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": 2700,
+        "wall_seconds_min": 2400,
+        "wall_seconds_max": 3000,
+        "wall_seconds_n": 2,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "human_active_minutes": 15,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": 1800,
+        "wall_seconds_min": 1800,
+        "wall_seconds_max": 1800,
+        "wall_seconds_n": 1,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "human_active_minutes": 80,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": 4800,
+        "wall_seconds_min": 4800,
+        "wall_seconds_max": 4800,
+        "wall_seconds_n": 1,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": 525,
+        "wall_seconds_min": 500,
+        "wall_seconds_max": 550,
+        "wall_seconds_n": 2,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": 425,
+        "wall_seconds_min": 400,
+        "wall_seconds_max": 450,
+        "wall_seconds_n": 2,
+        "wall_seconds_missing": 0,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      }
+    ],
+    "interventions": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "interventions": 2,
+        "clarification": 1,
+        "judgment": 1,
+        "authorization": 0,
+        "feedback": 0,
+        "fixed_gate": 1,
+        "dynamic_gate": 1,
+        "prevented_problem_yes": 1,
+        "prevented_problem_no": 0,
+        "prevented_problem_unknown": 1,
+        "active_minutes": 8
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "interventions": 0,
+        "clarification": 0,
+        "judgment": 0,
+        "authorization": 0,
+        "feedback": 0,
+        "fixed_gate": 0,
+        "dynamic_gate": 0,
+        "prevented_problem_yes": 0,
+        "prevented_problem_no": 0,
+        "prevented_problem_unknown": 0,
+        "active_minutes": 0
+      }
+    ],
+    "evidence_validity": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "audited_attempts": 2,
+        "sources": 2,
+        "verified": 0,
+        "unverified": 2,
+        "attempts_with_unverified": 2
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "audited_attempts": 3,
+        "sources": 4,
+        "verified": 1,
+        "unverified": 3,
+        "attempts_with_unverified": 3
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "audited_attempts": 1,
+        "sources": 1,
+        "verified": 0,
+        "unverified": 1,
+        "attempts_with_unverified": 1
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "audited_attempts": 2,
+        "sources": 2,
+        "verified": 0,
+        "unverified": 2,
+        "attempts_with_unverified": 2
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "audited_attempts": 2,
+        "sources": 2,
+        "verified": 0,
+        "unverified": 2,
+        "attempts_with_unverified": 2
+      }
+    ],
+    "reviewer_agreement": {
+      "reviewers": 2,
+      "dimensions": [
+        {
+          "dimension": "usefulness",
+          "items_rated_by_both": 8,
+          "weighted_kappa": 0.3077,
+          "kappa_note": "Quadratic weights, 1-5 scale."
+        },
+        {
+          "dimension": "feasibility",
+          "items_rated_by_both": 8,
+          "weighted_kappa": 0.3469,
+          "kappa_note": "Quadratic weights, 1-5 scale."
+        },
+        {
+          "dimension": "evidence_support",
+          "items_rated_by_both": 7,
+          "weighted_kappa": 0.3333,
+          "kappa_note": "Quadratic weights, 1-5 scale."
+        },
+        {
+          "dimension": "differentiation",
+          "items_rated_by_both": 8,
+          "weighted_kappa": 0.3469,
+          "kappa_note": "Quadratic weights, 1-5 scale."
+        },
+        {
+          "dimension": "appropriateness",
+          "items_rated_by_both": 8,
+          "weighted_kappa": 0.3077,
+          "kappa_note": "Quadratic weights, 1-5 scale."
+        }
+      ],
+      "disagreements": [
+        {
+          "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+          "task_key": "t1",
+          "arm": "D-open",
+          "dimension": "usefulness",
+          "reviewer-1": 2,
+          "reviewer-2": 4
+        },
+        {
+          "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+          "task_key": "t1",
+          "arm": "D-open",
+          "dimension": "feasibility",
+          "reviewer-1": 2,
+          "reviewer-2": 4
+        },
+        {
+          "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+          "task_key": "t1",
+          "arm": "D-open",
+          "dimension": "evidence_support",
+          "reviewer-1": 2,
+          "reviewer-2": 4
+        },
+        {
+          "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+          "task_key": "t1",
+          "arm": "D-open",
+          "dimension": "differentiation",
+          "reviewer-1": 2,
+          "reviewer-2": 4
+        },
+        {
+          "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+          "task_key": "t1",
+          "arm": "D-open",
+          "dimension": "appropriateness",
+          "reviewer-1": 2,
+          "reviewer-2": 4
+        }
+      ]
+    }
+  },
+  "exploratory": {
+    "per_protocol_completion": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "ran_without_only_infrastructure_failure": 2,
+        "submitted": 1,
+        "completion": "1/2"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "ran_without_only_infrastructure_failure": 2,
+        "submitted": 2,
+        "completion": "2/2"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "ran_without_only_infrastructure_failure": 2,
+        "submitted": 2,
+        "completion": "2/2"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "ran_without_only_infrastructure_failure": 1,
+        "submitted": 1,
+        "completion": "1/1"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "ran_without_only_infrastructure_failure": 1,
+        "submitted": 1,
+        "completion": "1/1"
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "ran_without_only_infrastructure_failure": 2,
+        "submitted": 2,
+        "completion": "2/2"
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "ran_without_only_infrastructure_failure": 2,
+        "submitted": 1,
+        "completion": "1/2"
+      }
+    ]
+  },
+  "not_measured": {
+    "potential_benefit": "not measured by the current study contracts",
+    "observed_user_impact": "not measured by the current study contracts"
+  },
+  "deviations": [
+    {
+      "source": "recorded deviation",
+      "slot_id": "fdb69e509003b22fe514b1db6f4071746455b51ddf09025673cbd20d81e4f126",
+      "task_key": "d1",
+      "arm": "C",
+      "reason": "Fixture: a search page showed an AI summary.",
+      "impact": "Fixture deviation; recorded, not excluded."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "470395d0f588aae6e85e1beb1589f316bde93400b0b61d011db15b414377221e",
+      "task_key": "i1",
+      "arm": "A",
+      "reason": "Fixture: no frozen build task bound for the AI builder.",
+      "impact": "No outcome; kept in the assigned denominator."
+    }
+  ],
+  "gaps": [
+    "Not empirical (synthetic_verification_fixture): no table here is a study finding.",
+    "3 reviewed item(s) lack complete ratings from every reviewer; no rating is imputed.",
+    "Some billing is unknown or in flight: spend totals are lower bounds.",
+    "1 slot(s) blocked; they stay in the assigned denominators.",
+    "Potential benefit and observed user impact are not measured by the current study contracts; they are reported as not measured, never inferred from quality ratings.",
+    "Intervention necessity (necessary, missed, unnecessary) needs owner coding that the current contracts do not record; only the recorded intervention fields are summarised."
+  ],
+  "limitations": [
+    "1 distinct human participant: human-arm results describe one person's repeated work, not human work in general, and repeated observations from that person are not independent.",
+    "3 autonomy task(s) and 1 discovery theme(s): no power calculation and no general comparative claim.",
+    "One provider model serves every AI role, so its errors may be correlated across arms.",
+    "Ideas inside one run are rated together as one item and are not counted as separate observations."
+  ],
+  "reconciliation": [
+    {
+      "id": "slots.match_schedule",
+      "status": "pass",
+      "detail": "13 flow rows for 13 scheduled slots, each once."
+    },
+    {
+      "id": "slots.groups_partition",
+      "status": "pass",
+      "detail": "Every slot is counted in exactly one comparison/stratum/arm group."
+    },
+    {
+      "id": "attempts.unique",
+      "status": "pass",
+      "detail": "13 attempts in the flow, none in two slots."
+    },
+    {
+      "id": "attempts.in_one_export",
+      "status": "pass",
+      "detail": "Every flow attempt appears in exactly one raw export, once."
+    },
+    {
+      "id": "attempts.measurements_match_export",
+      "status": "pass",
+      "detail": "Flow measurements equal the raw export for every attempt (spend, exposure, calls)."
+    },
+    {
+      "id": "spend.totals_reconcile",
+      "status": "pass",
+      "detail": "Group sum 0.025000000 = flow sum 0.025000000; plus unscheduled 0.000000000 = export sum 0.025000000 USD."
+    },
+    {
+      "id": "ratings.codes_valid",
+      "status": "pass",
+      "detail": "20 rating rows from 2 reviewer(s), each code known, mapped to a slot's last attempt and rated once per reviewer."
+    },
+    {
+      "id": "functional.bound_to_flow",
+      "status": "pass",
+      "detail": "6 functional checks each bind an attempt of their slot."
+    },
+    {
+      "id": "export.kind_consistent",
+      "status": "pass",
+      "detail": "4 export(s), 4 synthetic; data kind synthetic_verification_fixture."
+    },
+    {
+      "id": "privacy.no_participant_metadata",
+      "status": "pass",
+      "detail": "None of 4 private participant or key values appears in the output."
+    }
+  ],
+  "analysis_hash": "0f2ae193a3681301415cfbb54f96ed02925fdda10171591ee41cab9f640ec90b"
+}

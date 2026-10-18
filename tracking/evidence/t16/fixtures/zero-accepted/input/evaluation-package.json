@@ -1,0 +1,367 @@
+{
+  "schema_version": "evaluation-package/1",
+  "mode": "rehearsal",
+  "empirical_results": false,
+  "evidence_kind": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "freeze": {
+    "origin": "rehearsal",
+    "freeze_hash": "380b84e985a2b89e5efd636c4a1ed58d621d25c50159d990b48999e365767625"
+  },
+  "schedule": {
+    "schema_version": "evaluation-schedule/1",
+    "freeze_origin": "rehearsal",
+    "freeze_hash": "380b84e985a2b89e5efd636c4a1ed58d621d25c50159d990b48999e365767625",
+    "tasks": [
+      {
+        "key": "d1",
+        "role": "autonomy",
+        "stratum": "decision",
+        "packet_hash": "1dfde046a48cb49b67b67fe1666870814007e9b31a3672d05274fa83ae526cd9"
+      },
+      {
+        "key": "i1",
+        "role": "autonomy",
+        "stratum": "implementation",
+        "packet_hash": "8c52884254bc7cd07b6ec1fc78d13043ec5f23bc4c9ce29a3c2279fd27e8c0cf"
+      }
+    ],
+    "slots": [
+      {
+        "slot_id": "7ba099bd81857306223c8a78aa0da4e7cedb4346d51e6ca7d8fd04b4f1941457",
+        "sequence": 1
+      },
+      {
+        "slot_id": "24878948f8c5d96b6d0c6a8dd7dc22c93b5f6c33dac5df8d46aeabffd62cd02f",
+        "sequence": 2
+      },
+      {
+        "slot_id": "01ae2fb7a50f6b328093c93bff8c390097998c857436e1c9ebfb5a5a1e0f14cf",
+        "sequence": 3
+      },
+      {
+        "slot_id": "0f0aaa0b41df8efd9e635f9490d73cf26f2faf26ed1c3ea1fcc013995fcdc2cd",
+        "sequence": 4
+      },
+      {
+        "slot_id": "4377a58d8246aa6f97f794cc1053c1b4bd8d591e40ed26fa5f0fc668b58657d5",
+        "sequence": 5
+      },
+      {
+        "slot_id": "87bd50ad9590a97d4ab4edb525e01ab251e671387bff4c32c2bcc575a20d0139",
+        "sequence": 6
+      }
+    ],
+    "schedule_hash": "93972a7b170b52395d68dcc8012afb32bb616c99e50493cad44ffa338337f2c8"
+  },
+  "flow": [
+    {
+      "slot_id": "7ba099bd81857306223c8a78aa0da4e7cedb4346d51e6ca7d8fd04b4f1941457",
+      "sequence": 1,
+      "task_key": "d1",
+      "arm": "A",
+      "condition": "autonomous",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "needs_human",
+      "reasons": [],
+      "outcome": "needs_human",
+      "attempts": [
+        {
+          "attempt_id": "00000000-0000-4000-8000-000000000001",
+          "state": "needs_human",
+          "retry_of": null,
+          "human_source": "none",
+          "classification": {
+            "class": "substantive",
+            "reason": "Task outcome: needs_human."
+          },
+          "measurements": {
+            "active_ai_seconds": 0,
+            "active_ai_source": "fixture_has_no_ai_inference",
+            "simulated_provider_request_seconds": 0,
+            "human_active_minutes": 0,
+            "human_wait_seconds": 0,
+            "intervention_active_minutes": 0,
+            "intervention_wait_seconds": 0,
+            "wall_seconds": 600,
+            "known_simulated_spend_nano_usd": "3000000",
+            "unknown_simulated_exposure_nano_usd": "0",
+            "in_flight_simulated_exposure_nano_usd": "0",
+            "calls": 3,
+            "retries": 0,
+            "denials": 0,
+            "failures": 0
+          }
+        }
+      ]
+    },
+    {
+      "slot_id": "24878948f8c5d96b6d0c6a8dd7dc22c93b5f6c33dac5df8d46aeabffd62cd02f",
+      "sequence": 2,
+      "task_key": "d1",
+      "arm": "B",
+      "condition": "human_in_loop",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "budget_exhausted",
+      "reasons": [],
+      "outcome": "budget_exhausted",
+      "attempts": [
+        {
+          "attempt_id": "00000000-0000-4000-8000-000000000002",
+          "state": "budget_exhausted",
+          "retry_of": null,
+          "human_source": "participant",
+          "classification": {
+            "class": "substantive",
+            "reason": "Task outcome: budget_exhausted."
+          },
+          "measurements": {
+            "active_ai_seconds": 0,
+            "active_ai_source": "fixture_has_no_ai_inference",
+            "simulated_provider_request_seconds": 0,
+            "human_active_minutes": 30,
+            "human_wait_seconds": 0,
+            "intervention_active_minutes": 0,
+            "intervention_wait_seconds": 0,
+            "wall_seconds": 600,
+            "known_simulated_spend_nano_usd": "7000000",
+            "unknown_simulated_exposure_nano_usd": "0",
+            "in_flight_simulated_exposure_nano_usd": "0",
+            "calls": 3,
+            "retries": 0,
+            "denials": 0,
+            "failures": 0
+          }
+        }
+      ]
+    },
+    {
+      "slot_id": "01ae2fb7a50f6b328093c93bff8c390097998c857436e1c9ebfb5a5a1e0f14cf",
+      "sequence": 3,
+      "task_key": "d1",
+      "arm": "C",
+      "condition": "human_only",
+      "discovery_method": "human_defined",
+      "repeat": 1,
+      "state": "cancelled",
+      "reasons": [],
+      "outcome": "cancelled",
+      "attempts": [
+        {
+          "attempt_id": "00000000-0000-4000-8000-000000000003",
+          "state": "cancelled",
+          "retry_of": null,
+          "human_source": "participant",
+          "classification": {
+            "class": "substantive",
+            "reason": "Task outcome: cancelled."
+          },
+          "measurements": {
+            "active_ai_seconds": 0,
+            "active_ai_source": "fixture_has_no_ai_inference",
+            "simulated_provider_request_seconds": 0,
+            "human_active_minutes": 20,
+            "human_wait_seconds": 0,
+            "intervention_active_minutes": 0,
+            "intervention_wait_seconds": 0,
+            "wall_seconds": 600,
+            "known_simulated_spend_nano_usd": "0",
+            "unknown_simulated_exposure_nano_usd": "0",
+            "in_flight_simulated_exposure_nano_usd": "0",
+            "calls": 0,
+            "retries": 0,
+            "denials": 0,
+            "failures": 0
+          }
+        }
+      ]
+    },
+    {
+      "slot_id": "0f0aaa0b41df8efd9e635f9490d73cf26f2faf26ed1c3ea1fcc013995fcdc2cd",
+      "sequence": 4,
+      "task_key": "i1",
+      "arm": "A",
+      "condition": "autonomous",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "failed",
+      "reasons": [],
+      "outcome": "failed",
+      "attempts": [
+        {
+          "attempt_id": "00000000-0000-4000-8000-000000000004",
+          "state": "failed",
+          "retry_of": null,
+          "human_source": "none",
+          "classification": {
+            "class": "substantive",
+            "reason": "Task outcome: failed."
+          },
+          "measurements": {
+            "active_ai_seconds": 0,
+            "active_ai_source": "fixture_has_no_ai_inference",
+            "simulated_provider_request_seconds": 0,
+            "human_active_minutes": 0,
+            "human_wait_seconds": 0,
+            "intervention_active_minutes": 0,
+            "intervention_wait_seconds": 0,
+            "wall_seconds": 600,
+            "known_simulated_spend_nano_usd": "5000000",
+            "unknown_simulated_exposure_nano_usd": "0",
+            "in_flight_simulated_exposure_nano_usd": "0",
+            "calls": 3,
+            "retries": 0,
+            "denials": 0,
+            "failures": 0
+          }
+        }
+      ]
+    },
+    {
+      "slot_id": "4377a58d8246aa6f97f794cc1053c1b4bd8d591e40ed26fa5f0fc668b58657d5",
+      "sequence": 5,
+      "task_key": "i1",
+      "arm": "B",
+      "condition": "human_in_loop",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "submitted",
+      "reasons": [],
+      "outcome": "submitted",
+      "attempts": [
+        {
+          "attempt_id": "00000000-0000-4000-8000-000000000005",
+          "state": "submitted",
+          "retry_of": null,
+          "human_source": "participant",
+          "classification": {
+            "class": "substantive",
+            "reason": "Task outcome: submitted."
+          },
+          "measurements": {
+            "active_ai_seconds": 0,
+            "active_ai_source": "fixture_has_no_ai_inference",
+            "simulated_provider_request_seconds": 0,
+            "human_active_minutes": 30,
+            "human_wait_seconds": 0,
+            "intervention_active_minutes": 0,
+            "intervention_wait_seconds": 0,
+            "wall_seconds": 600,
+            "known_simulated_spend_nano_usd": "4000000",
+            "unknown_simulated_exposure_nano_usd": "0",
+            "in_flight_simulated_exposure_nano_usd": "0",
+            "calls": 3,
+            "retries": 0,
+            "denials": 0,
+            "failures": 0
+          }
+        }
+      ]
+    },
+    {
+      "slot_id": "87bd50ad9590a97d4ab4edb525e01ab251e671387bff4c32c2bcc575a20d0139",
+      "sequence": 6,
+      "task_key": "i1",
+      "arm": "C",
+      "condition": "human_only",
+      "discovery_method": "human_defined",
+      "repeat": 1,
+      "state": "failed",
+      "reasons": [],
+      "outcome": "failed",
+      "attempts": [
+        {
+          "attempt_id": "00000000-0000-4000-8000-000000000006",
+          "state": "failed",
+          "retry_of": null,
+          "human_source": "participant",
+          "classification": {
+            "class": "substantive",
+            "reason": "Task outcome: failed."
+          },
+          "measurements": {
+            "active_ai_seconds": 0,
+            "active_ai_source": "fixture_has_no_ai_inference",
+            "simulated_provider_request_seconds": 0,
+            "human_active_minutes": 90,
+            "human_wait_seconds": 0,
+            "intervention_active_minutes": 0,
+            "intervention_wait_seconds": 0,
+            "wall_seconds": 600,
+            "known_simulated_spend_nano_usd": "0",
+            "unknown_simulated_exposure_nano_usd": "0",
+            "in_flight_simulated_exposure_nano_usd": "0",
+            "calls": 0,
+            "retries": 0,
+            "denials": 0,
+            "failures": 0
+          }
+        }
+      ]
+    }
+  ],
+  "source_support_audits": [
+    {
+      "slot_id": "7ba099bd81857306223c8a78aa0da4e7cedb4346d51e6ca7d8fd04b4f1941457",
+      "attempt_id": "00000000-0000-4000-8000-000000000001",
+      "sources": [
+        {
+          "locator": "fixture://analysis/d1/1",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "slot_id": "24878948f8c5d96b6d0c6a8dd7dc22c93b5f6c33dac5df8d46aeabffd62cd02f",
+      "attempt_id": "00000000-0000-4000-8000-000000000002",
+      "sources": [
+        {
+          "locator": "fixture://analysis/d1/1",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "slot_id": "0f0aaa0b41df8efd9e635f9490d73cf26f2faf26ed1c3ea1fcc013995fcdc2cd",
+      "attempt_id": "00000000-0000-4000-8000-000000000004",
+      "sources": [
+        {
+          "locator": "fixture://analysis/i1/1",
+          "verified": false
+        }
+      ]
+    },
+    {
+      "slot_id": "4377a58d8246aa6f97f794cc1053c1b4bd8d591e40ed26fa5f0fc668b58657d5",
+      "attempt_id": "00000000-0000-4000-8000-000000000005",
+      "sources": [
+        {
+          "locator": "fixture://analysis/i1/1",
+          "verified": false
+        }
+      ]
+    }
+  ],
+  "functional_checks": [
+    {
+      "slot_id": "4377a58d8246aa6f97f794cc1053c1b4bd8d591e40ed26fa5f0fc668b58657d5",
+      "attempt_id": "00000000-0000-4000-8000-000000000005",
+      "check_key": "case-1",
+      "held_out": false,
+      "passed": true,
+      "backend": "labelled-fixture",
+      "executor": "fixture-qa/1"
+    },
+    {
+      "slot_id": "4377a58d8246aa6f97f794cc1053c1b4bd8d591e40ed26fa5f0fc668b58657d5",
+      "attempt_id": "00000000-0000-4000-8000-000000000005",
+      "check_key": "case-2",
+      "held_out": true,
+      "passed": false,
+      "backend": "labelled-fixture",
+      "executor": "fixture-qa/1"
+    }
+  ],
+  "package_hash": "64b06e68c5bde1e0e4bf202f060188f20151fff61ae856220344b0fe4c757e8d"
+}

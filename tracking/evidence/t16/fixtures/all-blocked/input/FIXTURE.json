@@ -1,0 +1,9 @@
+{
+  "schema_version": "analysis-fixture/1",
+  "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "scenario": "all-blocked",
+  "covers": [
+    "final-mode package shape with an adopted-looking freeze, overridden by the fixture marker",
+    "every slot blocked: no attempts, no ratings, no exports"
+  ]
+}

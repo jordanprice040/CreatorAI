@@ -1,5 +1,20 @@
 # Session handoff
 
+## Latest - T16 analysis pipeline, empirical analysis blocked (October 18, 2026)
+
+Claude Code on claude/t16-analysis-95avhe from main 479dba4 (ADR-0023, no migration). T16 is
+partial: the pipeline exists, nothing empirical was analyzed. Key code:
+packages/domain/src/analysis.ts (`analyze`, `ANALYSIS_PLAN`, `parseRatings`,
+`summarizeDifferences`, `weightedKappa`), analysis-report.ts (`renderAnalysis`: CSV, Markdown,
+SVG), analysis-fixtures.ts (`mixed`, `zero-accepted`, `all-blocked`), and
+packages/orchestrator/src/analysis-files.ts + analyze-main.ts (`pnpm analyze <dir> <out>`,
+`pnpm analyze fixtures <out>`). Tests: tests/src/analysis.test.ts (hand-computed fixture
+values, tampering, privacy, and a PostgreSQL test that analyzes a real T15 rehearsal package).
+Inputs for real results and open items: docs/ANALYSIS.md. `ANALYSIS_PLAN` is an implementation
+default to adopt or replace in the freeze; the decision acceptance rule (analysis-options.json)
+and intervention-necessity coding have no owner decision yet. Next: the T15 freeze and final
+runs, then reviewers' ratings, then `pnpm analyze` on the final folder.
+
 ## Latest - T15 prerequisites: final records, budget ledger, study builds (October 18, 2026)
 
 Claude Code on claude/t15-hdrwqz (ADR-0022, migration 11). T15 stays partial: no freeze, no
