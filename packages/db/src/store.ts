@@ -45,7 +45,7 @@ export interface CommandContext {
 export type Role = 'owner' | 'editor' | 'viewer';
 export type Row = Record<string, unknown>;
 
-const AUDIT_CHAIN_LOCK = 4_310_001;
+export const AUDIT_CHAIN_LOCK = 4_310_001;
 const HISTORY_CONSUMER = 'history_projection';
 export const iso = (v: unknown) =>
   v instanceof Date ? v.toISOString() : String(v);

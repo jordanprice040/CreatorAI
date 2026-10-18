@@ -1,0 +1,2 @@
+# Keep pnpm format:check reproducible on Windows and Linux.
+* text=auto eol=lf

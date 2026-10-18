@@ -1,3 +1,45 @@
+# Local development - T10 update
+
+The sections below retain the historical setup notes. T10 adds a **synthetic-only study runner** through the API, CLI and Studies view. It is not an activated participant study. PostgreSQL 18 on native Windows is now exercised in an isolated loopback cluster; the earlier PostgreSQL 16 Linux evidence remains separate.
+
+## Studies (T10)
+
+Use a fixture workspace, sign in, and choose **Studies**. Create a synthetic three-arm study, inspect the frozen participant context, enter ordinary document/code/artifact text, run a conventional text check and submit or stop. The assisted arm has an intervention form. An autonomous `needs_human` stop can have a separately linked assisted continuation; the original outcome remains terminal. The optional open-ended baseline belongs to the separate discovery comparison.
+
+```powershell
+pnpm cli study-seed <workspace>
+pnpm cli studies <workspace>
+pnpm cli study <workspace> <study-id>
+pnpm cli study-context <workspace> <attempt-id>
+pnpm cli study-execute <workspace> <attempt-id>
+pnpm cli study-create <workspace> <manifest.json>
+pnpm cli study-assign <workspace> <study-id> <assignment.json>
+pnpm cli study-write <workspace> <attempt-id> artifacts <entry.json>
+pnpm cli study-write <workspace> <attempt-id> tests <test.json>
+pnpm cli study-write <workspace> <attempt-id> interventions <intervention.json>
+pnpm cli study-write <workspace> <attempt-id> deviations <deviation.json>
+pnpm cli study-write <workspace> <attempt-id> finish <outcome.json>
+pnpm cli study-export <workspace> <study-id> <new-output.json>
+```
+
+`study-create` consumes the strict `study/1` contract in `packages/contracts/src/study.ts`. The example is `SYNTHETIC_STUDY` in `packages/domain/src/study.ts`. Every manifest, packet, configuration, prompt, rubric, intervention policy and resource policy is hashed. Creating a revised study creates a new immutable study; it never overwrites a prior protocol. Assignments carry `comparison` (`autonomy` or `discovery`), condition, method, order, seed through the study, participant code, prior familiarity and the exact manifest hash. `synthetic` must be true, and real workspaces are refused.
+
+An artifact entry is `{"kind":"document","name":"My response","content":"Verbatim text"}`. A conventional test is `{"artifact_id":"...","artifact_hash":"...","check":"contains","expected":"checklist"}`; `equals` and `json_valid` also work. These are executed string/JSON checks bound to the immutable entry. Arbitrary code execution and AI implementation-stratum execution await T11's isolated worker. No uploaded code runs on the studio host.
+
+For `study-execute`, the application constructs the model input. Structured execution uses the existing T07 workflow/worker and its pinned role prompt. Open-ended execution uses one neutral prompt and the existing metered broker, without the structured brief, rubric or skeptic. Both share the frozen packet, model/pricing versions, candidate/resource caps and tool envelope. Only the pinned fixture provider and empty tool list are enabled. Initial text snapshots are unverified evidence: the structured runner deliberately stops for insufficient support instead of inventing source verification. Human-only execution is refused and logged. Synthetic grants and envelopes cannot fund a real provider.
+
+Study records are outside general catalog search. Each attempt gets an isolated fixture workspace; participants receive only their assigned context and entries via the study endpoints, without catalog membership. The local UI runs as the coordinator/owner and the seed deliberately uses one synthetic operator, so it is not evidence of independent participants or an activated multi-user recruitment flow.
+
+Private grader material uses separate authorization: `POST workspaces/<ws>/studies/<id>/graders` with `actor_id`, then `GET`/`POST .../grader-material` for that grader. A participant cannot be made a grader for the same study, nor a grader assigned as a participant. Workspace ownership alone never reveals hidden material. Exports include grader hashes; content is included only when the exporter also has grader authority, otherwise explicitly withheld. Grader-authorized reads provide the protected sidecar. No hidden tests or labels enter participant/model contexts.
+
+The export is a repeatable-read snapshot with a hash verifiable after JSON serialization. It includes all assigned attempts (including unfinished, failed and assisted continuations), raw study events, decisions, artifact/test records, workflow results/task manifests, redacted context hashes, usage, reservations, audit events and deviations. Metrics distinguish fixture request duration, wall time, reported human activity/wait, intervention effort, simulated charges and held exposure. Active AI inference is zero in fixture mode; unreported human timing remains unknown. Do not add intervention minutes to reported total effort without checking what the total includes. No synthetic amount is real spend and a submission is not a verified-success rating.
+
+To repeat the CLI/API acceptance check against a disposable fixture API, set `CREATOR_API_URL` and its `CREATOR_DEV_LOGIN_CODE`, build, then run `node scripts/verify-study.mjs`. It creates synthetic records and writes `.verification/t10-cli/` plus `tracking/evidence/t10/cli-acceptance.json`. Keep the session file private. `pnpm test:db` still requires `CREATOR_TEST_DATABASE_URL`; it refuses to substitute skipped database tests for a passing gate.
+
+Protocol adoption, institutional review, recruitment, final counts and independent ratings remain T14-T16 work. No live AI or paid service was activated. Migration 9 and ADR-0013 describe the boundaries. The LF checkout policy in `.gitattributes` prevents Windows CRLF conversion from making Prettier reject otherwise identical files.
+
+---
+
 # Local development — T06
 
 Creator Agent has a local API, CLI and React page. The task demonstration still uses the **deterministic fixture provider** and is not saved. Since T02, records (sources, claims, problems, ideas, alternatives, assessments, products, specifications, runs, tasks, decisions, grants, artifacts), typed many-to-many links and an audit history persist in **PostgreSQL** when `CREATOR_DATABASE_URL` is set. Without it the app still starts, reports `persistent: false`, and record routes return `503 STORAGE_UNAVAILABLE`. Nothing here researches problems, invokes AI, builds generated products, or runs studies.

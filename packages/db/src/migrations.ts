@@ -1060,6 +1060,54 @@ create index decision_requests_search on decision_requests using gin ((
   jsonb_to_tsvector('english'::regconfig, request, '["string"]')));
 `,
   },
+  {
+    version: 9,
+    name: 'isolated_synthetic_studies',
+    sql: `
+create table studies (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ manifest jsonb not null, manifest_hash char(64) not null,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp()
+);
+create trigger studies_immutable before update or delete on studies for each row execute function creator_reject_change();
+create table study_attempts (
+ id uuid primary key, study_id uuid not null references studies(id),
+ workspace_id uuid not null references workspaces(id), run_id uuid not null,
+ assignment jsonb not null, context jsonb not null, context_hash char(64) not null,
+ ordinal integer not null, created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id,run_id) references run_controls(workspace_id,run_id),
+ unique(study_id,ordinal)
+);
+create trigger study_attempts_immutable before update or delete on study_attempts for each row execute function creator_reject_change();
+create table study_events (
+ sequence bigint generated always as identity primary key,
+ id uuid not null unique, study_id uuid not null references studies(id),
+ attempt_id uuid references study_attempts(id), actor_id uuid not null references actors(id),
+ kind text not null, payload jsonb not null, content_hash char(64) not null,
+ created_at timestamptz not null default clock_timestamp()
+);
+create index study_events_attempt on study_events(attempt_id,sequence);
+create unique index study_one_finish on study_events(attempt_id) where kind = 'finished';
+create trigger study_events_immutable before update or delete on study_events for each row execute function creator_reject_change();
+create table study_execution_requests (
+ attempt_id uuid primary key references study_attempts(id), kind text not null,
+ request jsonb not null, request_hash char(64) not null, input_bindings jsonb not null,
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger study_execution_requests_immutable before update or delete on study_execution_requests for each row execute function creator_reject_change();
+-- Never indexed or exposed by catalog/history: private grader content has its own ACL.
+create table study_graders (
+ study_id uuid not null references studies(id), actor_id uuid not null references actors(id),
+ primary key(study_id,actor_id)
+);
+create table study_grader_material (
+ id uuid primary key, study_id uuid not null references studies(id),
+ actor_id uuid not null references actors(id), payload jsonb not null, content_hash char(64) not null,
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger study_grader_material_immutable before update or delete on study_grader_material for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

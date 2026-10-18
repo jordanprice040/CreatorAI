@@ -265,6 +265,46 @@ function discoveryTaskContext(
 export class WorkflowStore extends BudgetStore {
   // ---- Start and read ----------------------------------------------------------------
 
+  /** Audit a blocked study/human-only workflow before throwing, so rollback cannot erase it. */
+  protected async studyWorkflowGate(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    requestHash: string | null,
+  ) {
+    const reason = await this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const run = await this.lockRun(c, ws, runId);
+      const study = await c.query(
+        `select a.id,e.request_hash from study_attempts a left join study_execution_requests e on e.attempt_id=a.id where a.workspace_id=$1 and a.run_id=$2`,
+        [ws, runId],
+      );
+      const blocked =
+        run.autonomy_mode === 'human_only'
+          ? 'HUMAN_ONLY_DENIED'
+          : study.rowCount &&
+              (!requestHash || study.rows[0].request_hash !== requestHash)
+            ? 'SCOPE_EXCEEDED'
+            : null;
+      if (blocked)
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'study.workflow_denied',
+          subjectKind: 'run',
+          subjectId: runId,
+          subjectVersion: null,
+          contentHash: null,
+          payload: { reason: blocked },
+        });
+      return blocked;
+    });
+    if (reason)
+      throw fail(
+        reason,
+        'This workflow is outside the assigned study context.',
+      );
+  }
+
   async startWorkflow(
     ctx: CommandContext,
     ws: string,
@@ -275,6 +315,7 @@ export class WorkflowStore extends BudgetStore {
     ws = uuid(ws);
     runId = uuid(runId);
     const req = parse(StartWorkflowRequestSchema, raw);
+    await this.studyWorkflowGate(ctx, ws, runId, null);
     const id = await this.idempotent(
       ws,
       ctx,
@@ -376,6 +417,27 @@ export class WorkflowStore extends BudgetStore {
         'HUMAN_ONLY_DENIED',
         'A human-only run cannot start a model role.',
       );
+    const assigned = await c.query(
+      'select a.id,a.created_at,s.manifest from study_attempts a join studies s on s.id=a.study_id where a.workspace_id=$1 and a.run_id=$2',
+      [ws, runId],
+    );
+    if (assigned.rows[0]) {
+      const a = assigned.rows[0];
+      const finished = await c.query(
+        "select 1 from study_events where attempt_id=$1 and kind='finished'",
+        [a.id],
+      );
+      if (
+        finished.rowCount ||
+        Date.now() >
+          new Date(a.created_at).getTime() +
+            a.manifest.packet.time_cap_seconds * 1000
+      )
+        throw fail(
+          'INVALID_TRANSITION',
+          'The study assignment is terminal or expired.',
+        );
+    }
     const live = await c.query(
       'select 1 from workflows where workspace_id = $1 and run_id = $2 and finished_at is null',
       [ws, runId],
@@ -831,6 +893,55 @@ export class WorkflowStore extends BudgetStore {
         : { state: plan.state, reason: plan.reason },
       relatedIds: [wf.run_id],
     });
+    if (result) {
+      const linked = await c.query(
+        'select * from study_attempts where workspace_id=$1 and run_id=$2',
+        [ws, wf.run_id],
+      );
+      const a = linked.rows[0];
+      if (a) {
+        const study = await c.query(
+          'select manifest from studies where id=$1',
+          [a.study_id],
+        );
+        const expired =
+          Date.now() >
+          new Date(a.created_at).getTime() +
+            study.rows[0].manifest.packet.time_cap_seconds * 1000;
+        const payload = {
+          status: expired
+            ? 'failed'
+            : result.outcome === 'needs_human'
+              ? 'needs_human'
+              : plan.terminal?.state === 'succeeded' &&
+                  result.outcome !== 'insufficient_evidence'
+                ? 'submitted'
+                : 'failed',
+          summary: result.explanation,
+          workflow_id: workflowId,
+          outcome: expired ? 'deadline_exceeded' : result.outcome,
+          wall_seconds: (Date.now() - new Date(a.created_at).getTime()) / 1000,
+          human_active_minutes:
+            a.assignment.condition === 'autonomous' ? 0 : null,
+          human_wait_seconds:
+            a.assignment.condition === 'autonomous' ? 0 : null,
+          measurement_source: 'fixture_workflow',
+          condition: a.assignment.condition,
+          primary: a.assignment.continuation_of === null,
+        };
+        await c.query(
+          "insert into study_events(id,study_id,attempt_id,actor_id,kind,payload,content_hash) values($1,$2,$3,$4,'finished',$5,$6) on conflict do nothing",
+          [
+            randomUUID(),
+            a.study_id,
+            a.id,
+            ctx.actorId,
+            payload,
+            canonicalHash(payload),
+          ],
+        );
+      }
+    }
     return true;
   }
 
