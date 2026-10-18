@@ -348,3 +348,10 @@ T02 adds `pg` 8.23.1 (node-postgres; runtime) and `@types/pg` 8.23.1. Consulted 
 No provider SDK was added. No CI run, hosted deployment or real research capability is implied by local checks.
 
 T06 adds `htmlparser2` 12.0.0 (published 2026-03-20 per the npm registry; runtime, in `packages/research`) for streaming HTML tokenizing without a DOM or script execution. Node's built-in `net.BlockList`, `dns.lookup` and `https.request` (connecting to the checked IP with the original host as TLS server name) provide the address checks.
+
+## Isolated local products (T11)
+
+See [the execution guide](ISOLATED_EXECUTION.md) for the reviewed WSL2 worker,
+owner CLI commands, scoped patches, conflict preservation, leases and recovery.
+This is conventional local execution of the reviewed Python template; model-driven
+building and independent review/QA remain T12.

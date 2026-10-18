@@ -206,11 +206,24 @@ test('concurrent reservations cannot overspend an envelope', async (t) => {
   const runId = await s.run();
   // Room for exactly three maximum exposures.
   const env = await s.envelope(EXPOSURE * 3n + EXPOSURE / 2n);
+  let decided = 0;
   const calls = Array.from({ length: 8 }, () =>
-    s.broker.call(owner, s.ws.id, runId, s.request(env.id)),
+    s.broker.call(owner, s.ws.id, runId, s.request(env.id)).then((result) => {
+      decided += 1;
+      return result;
+    }),
   );
   // Let every reservation decide before any call finishes.
-  await sleep(300);
+  // A fixed sleep can release the gate while a queued admission is still waiting
+  // on a database lock, legitimately allowing it to spend newly released funds.
+  t.after(open);
+  const deadline = Date.now() + 4500;
+  while (decided < 5 && Date.now() < deadline) await sleep(20);
+  assert.equal(
+    decided,
+    5,
+    'all five over-cap admissions finish before settlement',
+  );
   const during = await s.balanced(env.id);
   assert.equal(during.reserved, String(EXPOSURE * 3n));
   assert.equal(during.in_flight, 3);
@@ -245,10 +258,22 @@ test('in-flight limit bounds concurrency independently of money', async (t) => {
   if (!s) return;
   const runId = await s.run();
   const env = await s.envelope(EXPOSURE * 100n, { max_in_flight: 2 });
+  let decided = 0;
   const calls = Array.from({ length: 4 }, () =>
-    s.broker.call(owner, s.ws.id, runId, s.request(env.id)),
+    s.broker.call(owner, s.ws.id, runId, s.request(env.id)).then((result) => {
+      decided += 1;
+      return result;
+    }),
   );
-  await sleep(300);
+  t.after(open);
+  const deadline = Date.now() + 4500;
+  while (decided < 2 && Date.now() < deadline) await sleep(20);
+  assert.equal(
+    decided,
+    2,
+    'both concurrent over-limit admissions finish before settlement',
+  );
+  assert.equal((await s.balanced(env.id)).in_flight, 2);
   open();
   const results = await Promise.all(calls);
   assert.equal(adapter.calls, 2);

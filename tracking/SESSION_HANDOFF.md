@@ -1,5 +1,23 @@
 # Session handoff
 
+## Latest - T11 isolated execution and local product Git (October 18, 2026)
+
+T11's reviewed-template gate is verified on `codex/t11-isolated-execution`, based on `5f9bb1bf71673b4c5aa27f418cbb2c842948266b` (T10 merged PR #12, confirmed before updating main). Exact staged source bytes are bound by [T11 verification](evidence/t11/verification.json) and its source manifest. Owner review/merge remains pending.
+
+What works: `pnpm cli product-init/task/patch/build/integrate/status/cancel/reconcile` consumes actual authenticated current frozen T08 specs; creates separate product repositories and task branches/worktrees; enforces owner, exact base/head/preimage/spec/task hashes, portable file scopes and unlinked canonical paths; refuses stale/dirty work; and preserves real merge conflicts in separate review worktrees. Immutable local product/task/operation/execution records contain changed files, commits, hashes, bounded logs and observed environment. These files are distinct from the PostgreSQL audit/catalog and are not yet searchable there.
+
+Real execution uses the existing Ubuntu WSL2 VM, Bubblewrap 0.11.1, systemd 259/cgroup v2 and Python 3.14.4. Only the reviewed Python stdlib template recipe is admitted. It has a cleared environment, non-root user, dropped capabilities/no new privileges, separate namespaces, read-only runtime/input/recipe/root/proc/dev, no personal/Windows/Git/D-Bus/daemon/credential mounts, no network, and bounded resources. Half one CPU, 256 MiB memory/no swap, 32 tasks, 20 s, work/tmp 16/1 MiB, file 8 MiB, input 100 files/512 KiB and logs 64 KiB. Missing isolation is blocked, never a host or fixture fallback.
+
+Checks executed: frozen install; `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` **140/140** on PostgreSQL 18.6; `pnpm check` **63 pass / 77 explicitly skipped** without DB/WSL; smoke; compiled authenticated CLI/API acceptance with freeze/admission and stale/auth denials. Real checks include secret/path/link/network denial, read-only mounts, privilege denial, actual disk/memory/process/output/runtime limits, detached-child cancellation, supervisor SIGKILL + expired lease reconciliation, cleanup, conflict preservation, and no silent redispatch. Final logs and synthetic CLI evidence are under tracking/evidence/t11/.
+
+Review repairs: harden root/proc/dev mounts, verify committed blob bytes and manifest identity, bind recipe before dispatch, fence uncertain worker outcomes, serialize workers, require absent supervisor/expired lease/observed stopped unit for recovery. A transient Windows heartbeat-file write error is recorded separately; the bridge's actual expiry determines lease loss. Two older broker tests had timing assumptions that allowed admissions to settle after a fixed sleep; they now wait for all denied admissions before releasing their unchanged budget/concurrency gates. See self-review.md; no independent certification claimed.
+
+Limits: owner CLI and a fixed offline conventional template only; no AI builder, independent QA, artifact download, persistent preview or human-study implementation integration. Recipe success is not a product acceptance verdict. Existing WSL2 VM, not a newly dedicated appliance; no syscall allowlist; privileged host users/manual simultaneous tampering are outside this local boundary. Local compute is bounded but not monetarily metered. Runtime integration is T12, artifact/preview T13, broader hostile-workload audit T17. Git-side interrupted operations require inspection; never reset/clean user work to resolve them.
+
+Disposable acceptance used API 4315, PostgreSQL port 55432 and database creator_t11_acceptance; session files are ignored. Check process state before reusing those ports. The fixture API and PostgreSQL cluster are stopped after verification; the existing WSL distribution is not shut down because that could affect unrelated processes. Product repos remain in ignored .creator/products as inspectable synthetic fixtures. Unit cleanup was observed and temporary job inputs disposed for successful/failed/cancelled/lost executions.
+
+**Next eligible prompt: T12 - Bounded builder, independent review, and QA**, after owner review/merge and a new request. T12 is not started.
+
 ## Latest - T10 study runner and human-only workflow (October 18, 2026)
 
 T10's synthetic acceptance gate is verified on `codex/t10-study-runner`, based on `a9edf68f6fe3492a7dace8d0fbd5fd9de41989bb` (T09 merged PR #10, confirmed via GitHub before the local fast-forward). Source and verification hashes are in [T10 verification](evidence/t10/verification.json). Historical notes below remain historical.
