@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { request } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -341,6 +342,32 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     'previews start the exported package, never the worktree',
   );
   assert.equal((await run(p1.body.preview.id, cookie, origin)).status, 403);
+  // A multibyte character split across request chunks reaches the program intact.
+  const body = Buffer.from(JSON.stringify({ args: [], stdin: 'café ✓' }));
+  const cut = body.indexOf(Buffer.from('é')) + 1;
+  const split = await new Promise<number>((done, failed) => {
+    const r = request(
+      `${previewOrigin}/preview/${p1.body.preview.id}/run`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': body.length,
+          Cookie: cookie,
+          Origin: previewOrigin,
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on('end', () => done(res.statusCode ?? 0));
+      },
+    );
+    r.on('error', failed);
+    r.write(body.subarray(0, cut));
+    setTimeout(() => r.end(body.subarray(cut)), 50);
+  });
+  assert.equal(split, 200);
+  assert.deepEqual(double.runs.at(-1)!.input, { args: [], stdin: 'café ✓' });
 
   // Resource lease: two live previews per workspace.
   const p2 = await startPreview();

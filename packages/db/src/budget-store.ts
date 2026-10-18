@@ -231,6 +231,57 @@ export class BudgetStore extends OversightStore {
       ],
     );
   }
+  /**
+   * Free authority after counting overruns: when a provider charged a child more than its cap,
+   * the excess also counts against every ancestor, so siblings and new carve-outs cannot spend
+   * a parent past its own cap. Returns the envelope's own headroom and the tightest ancestor's.
+   */
+  private async headroom(c: PoolClient, ws: string, id: string) {
+    const { rows } = await c.query(
+      `select id, parent_id, cap_nano, allocated_nano, reserved_nano, unknown_nano, incurred_nano
+       from budget_envelopes where workspace_id = $1`,
+      [ws],
+    );
+    const byId = new Map(rows.map((r: Row) => [String(r.id), r as Row]));
+    const children = new Map<string, Row[]>();
+    for (const r of rows as Row[])
+      if (r.parent_id)
+        children.set(String(r.parent_id), [
+          ...(children.get(String(r.parent_id)) ?? []),
+          r,
+        ]);
+    const big = (v: unknown) => BigInt(n(v));
+    const free = new Map<string, bigint>();
+    const effective = (r: Row): bigint => {
+      const key = String(r.id);
+      const known = free.get(key);
+      if (known !== undefined) return known;
+      let value =
+        big(r.cap_nano) -
+        big(r.allocated_nano) -
+        big(r.reserved_nano) -
+        big(r.unknown_nano) -
+        big(r.incurred_nano);
+      for (const child of children.get(key) ?? []) {
+        const childFree = effective(child);
+        if (childFree < 0n) value += childFree;
+      }
+      free.set(key, value);
+      return value;
+    };
+    const self = byId.get(id);
+    if (!self) throw fail('NOT_FOUND', 'Budget envelope not found.');
+    let ancestor: bigint | null = null;
+    for (
+      let p = self.parent_id ? byId.get(String(self.parent_id)) : undefined;
+      p;
+      p = p.parent_id ? byId.get(String(p.parent_id)) : undefined
+    ) {
+      const v = effective(p);
+      if (ancestor === null || v < ancestor) ancestor = v;
+    }
+    return { own: effective(self), ancestor };
+  }
   private async lockEnvelope(c: PoolClient, ws: string, id: string) {
     const { rows } = await c.query(
       'select * from budget_envelopes where workspace_id = $1 and id = $2 for update',
@@ -397,15 +448,13 @@ export class BudgetStore extends OversightStore {
               'INVALID_CONTRACT',
               'A period envelope belongs under a global one.',
             );
-          const available = BigInt(
-            availableOf({
-              cap: n(parent.cap_nano),
-              allocated: n(parent.allocated_nano),
-              reserved: n(parent.reserved_nano),
-              unknown: n(parent.unknown_nano),
-              incurred: n(parent.incurred_nano),
-            }),
-          );
+          const head = await this.headroom(c, ws, String(parent.id));
+          if (head.ancestor !== null && head.ancestor < 0n)
+            throw fail(
+              'BUDGET_EXCEEDED',
+              'Spending under an ancestor envelope has passed its cap after an overrun.',
+            );
+          const available = head.own < 0n ? 0n : head.own;
           if (cap > available)
             throw fail(
               'BUDGET_EXCEEDED',
@@ -977,7 +1026,14 @@ export class BudgetStore extends OversightStore {
         }),
       );
       const amount = BigInt(exposure.amount);
-      if (amount > available)
+      const head = await this.headroom(c, ws, envelopeId);
+      if (head.ancestor !== null && head.ancestor < 0n)
+        return deny(
+          'ancestor_overrun',
+          'Spending under a parent envelope has passed its cap after an overrun; reconcile or fund it first.',
+          extra,
+        );
+      if (amount > available || amount > head.own)
         return deny(
           'budget_exceeded',
           `Maximum exposure ${amount} exceeds the ${available} available in the envelope.`,

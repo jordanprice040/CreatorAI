@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest - T17 boundary checks and requirements audit (October 18, 2026)
+
+Claude Code built T17 on claude/project-thread-k4si82 from main e46b2cf, in parallel with
+T14 (ADR-0020; no migration). Report: tracking/evidence/t17/REQUIREMENTS_EVIDENCE.md. New:
+`pnpm backup create|restore|verify` (packages/db/src/backup.ts, docs/BACKUP_AND_RESTORE.md)
+with tests/src/restore.test.ts restoring the catalog and an artifact into a new database and
+product store. Fixed audit items 4 (overrun now counts against ancestors, `ancestor_overrun`
+in budget-store.ts), 5 (health derives live labels) and 7 (preview stdin decoded once); item
+6 recorded in ADR-0020; item 7's export note was not a defect (each study attempt has its own
+workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate not re-run
+for this branch. Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
+
 ## Latest - audit fixes (October 18, 2026)
 
 Codebase audit of T00-T13 found three items Jordan asked to fix (ADR-0018): spec-frozen

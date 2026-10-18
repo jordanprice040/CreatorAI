@@ -1,0 +1,30 @@
+{
+  "milestone": "T17",
+  "date": "2026-10-18",
+  "branch": "claude/project-thread-k4si82",
+  "base": "e46b2cf",
+  "platform": "Linux cloud container, Node 22, PostgreSQL 16.15 (client and server)",
+  "checks": [
+    { "command": "pnpm test:db (before changes)", "tests": 158, "pass": 148, "fail": 0, "skipped": 10, "skip_reason": "real WSL2 worker gate is opt-in" },
+    { "command": "pnpm test:db (after changes)", "tests": 161, "pass": 151, "fail": 0, "skipped": 10, "skip_reason": "real WSL2 worker gate is opt-in" },
+    { "command": "pnpm typecheck", "result": "pass" },
+    { "command": "pnpm format:check", "result": "pass" },
+    { "command": "reproduce audit item 4 on base code (broker.test.ts overrun test)", "result": "fails as expected: sibling call 'succeeded' instead of 'ancestor_overrun'" },
+    { "command": "reproduce audit item 7 on base code (artifact-api.test.ts split UTF-8 stdin)", "result": "fails as expected: stdin corrupted" },
+    { "command": "pnpm backup create/restore/verify by hand on a migrated empty database", "result": "pass; restore into non-empty database refused; wrong password not printed" }
+  ],
+  "new_tests": [
+    "restore.test.ts: a backup restores the catalog and artifact references into a new database and product store, and refuses tampering",
+    "broker.test.ts: concurrent parent calls and child carve-outs cannot both take the last budget (S07)",
+    "api.test.ts: health reports configured live adapters instead of always claiming fixture mode"
+  ],
+  "extended_tests": [
+    "broker.test.ts: child envelopes conserve authority; rollups do not double count; overrun blocks (now also ancestors)",
+    "artifact-api.test.ts: split multibyte preview stdin"
+  ],
+  "not_run": [
+    "CREATOR_TEST_ISOLATION=wsl2 pnpm test:db on Jordan's Windows machine",
+    "pnpm backup on Windows"
+  ],
+  "artifact_mode": "labelled test double (executes nothing; not isolation evidence)"
+}
