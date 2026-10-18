@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
 import {
   AssignStudySchema,
@@ -13,6 +14,9 @@ import {
   id,
   hash,
   ContractError,
+  SpecBodySchema,
+  type SpecBody,
+  type StudyImplementation,
   type StudyInput,
   type StudyAssignment,
   type StudyAttempt,
@@ -26,8 +30,15 @@ import {
   freezeProtocol,
   PROPOSED_PROTOCOL,
   type OwnerDecision,
+  type FrozenProtocol,
+  type EvaluationConfig,
   SYNTHETIC_STUDY,
   STUDY_FIXTURE_PRICING,
+  evaluationConfig,
+  finalRecordBlockers,
+  frozenCases,
+  implementationTaskContext,
+  taskHashes,
 } from '@creator/domain';
 import { CatalogStore } from './catalog-store.js';
 import {
@@ -40,8 +51,20 @@ import {
   type Row,
 } from './store.js';
 
+/** config/evaluation.json from the repository root (or an explicit path). */
+export function readEvaluationConfig(
+  path: string | URL = new URL(
+    '../../../config/evaluation.json',
+    import.meta.url,
+  ),
+): EvaluationConfig {
+  return evaluationConfig(JSON.parse(readFileSync(path, 'utf8')));
+}
+
 export class StudyStore extends CatalogStore {
-  private async study(c: PoolClient, ws: string, studyId: string) {
+  /** The reviewed evaluation configuration; record and budget gates read it, never callers. */
+  evaluation: EvaluationConfig = readEvaluationConfig();
+  protected async study(c: PoolClient, ws: string, studyId: string) {
     const r = await c.query(
       'select * from studies where workspace_id=$1 and id=$2',
       [uuid(ws), uuid(studyId)],
@@ -50,11 +73,12 @@ export class StudyStore extends CatalogStore {
     return r.rows[0] as Row;
   }
   private summary(r: Row): StudySummary {
+    const m = r.manifest as StudyInput & { status: StudySummary['status'] };
     return {
       id: String(r.id),
-      title: (r.manifest as StudyInput).title,
-      synthetic: true,
-      status: 'draft_not_frozen',
+      title: m.title,
+      synthetic: m.synthetic,
+      status: m.status,
       manifest_hash: String(r.manifest_hash),
       created_at: iso(r.created_at),
     };
@@ -63,6 +87,7 @@ export class StudyStore extends CatalogStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     const frozen = studyManifest(raw);
+    const input = frozen.manifest as StudyInput;
     return this.idempotent(
       ws,
       ctx,
@@ -73,11 +98,37 @@ export class StudyStore extends CatalogStore {
           'select fixture from workspaces where id=$1',
           [ws],
         );
-        if (!mode.rows[0]?.fixture)
+        const fixture = Boolean(mode.rows[0]?.fixture);
+        if (input.synthetic && !fixture)
           throw fail(
             'INVALID_CONTRACT',
-            'T10 studies require a synthetic fixture workspace. Recruitment is not enabled.',
+            'Synthetic studies require a fixture workspace. Recruitment is not enabled.',
           );
+        if (!input.synthetic) {
+          // A final record exists only when every owner answer it depends on is in the freeze.
+          const blockers = finalRecordBlockers(
+            input,
+            { workspace_fixture: fixture, freeze: await this.freezeIn(c, ws) },
+            this.evaluation,
+          );
+          if (blockers.length)
+            throw new ContractError(
+              'INVALID_TRANSITION',
+              'Final study record refused; these conditions are unmet.',
+              blockers,
+            );
+        }
+        if (
+          input.governance &&
+          input.governance.budget.ledger_cap_nano_usd !==
+            this.evaluation.budget.t15_total_cap_nano_usd
+        )
+          throw fail(
+            'INVALID_CONFIG',
+            `A governed study uses the owner's $${this.evaluation.budget.t15_total_cap_usd} T15 ledger cap.`,
+          );
+        if (input.packet.implementation)
+          await this.frozenImplementation(c, ws, input.packet.implementation);
         const studyId = randomUUID();
         const r = await c.query(
           'insert into studies(id,workspace_id,manifest,manifest_hash,created_by) values($1,$2,$3,$4,$5) returning *',
@@ -90,7 +141,7 @@ export class StudyStore extends CatalogStore {
           subjectId: studyId,
           subjectVersion: 1,
           contentHash: frozen.manifest_hash,
-          payload: { synthetic: true },
+          payload: { synthetic: input.synthetic },
         });
         return this.summary(r.rows[0] as Row);
       },
@@ -107,7 +158,187 @@ export class StudyStore extends CatalogStore {
       ).rows.map((r) => this.summary(r as Row));
     });
   }
-  private async event(
+  /**
+   * Re-reads an implementation task from the owner's stored records: exact spec version and
+   * hash, its freeze and task hash, and a current humility review of that exact version.
+   */
+  protected async frozenImplementation(
+    c: PoolClient,
+    ws: string,
+    impl: StudyImplementation,
+  ) {
+    const version = async (entityId: string, v: number, kind: string) => {
+      const r = await c.query(
+        `select v.title, v.body, v.content_hash, e.version as current, e.status from entity_versions v
+           join entities e on e.id = v.entity_id
+          where v.workspace_id=$1 and v.entity_id=$2 and v.version=$3 and e.kind=$4`,
+        [ws, uuid(entityId), v, kind],
+      );
+      return r.rows[0] as Row | undefined;
+    };
+    const spec = await version(
+      impl.spec_id,
+      impl.spec_version,
+      'specification',
+    );
+    if (!spec || spec.content_hash !== impl.spec_hash)
+      throw fail(
+        'EVIDENCE_MISMATCH',
+        'The study must bind an exact stored specification version and hash.',
+      );
+    const body: SpecBody = parse(SpecBodySchema, spec.body);
+    const f = await c.query(
+      'select * from spec_freezes where workspace_id=$1 and id=$2',
+      [ws, uuid(impl.freeze_id)],
+    );
+    const freeze = f.rows[0] as Row | undefined;
+    if (
+      !freeze ||
+      String(freeze.spec_id) !== impl.spec_id.toLowerCase() ||
+      Number(freeze.spec_version) !== impl.spec_version ||
+      freeze.content_hash !== impl.spec_hash ||
+      (freeze.task_hashes as Record<string, string>)[impl.task_key] !==
+        impl.task_hash ||
+      taskHashes(body)[impl.task_key] !== impl.task_hash
+    )
+      throw fail(
+        'EVIDENCE_MISMATCH',
+        'The study task must equal a task hash in that exact spec freeze.',
+      );
+    const task = body.tasks.find((t) => t.key === impl.task_key)!;
+    const cases = frozenCases(body, task.acceptance);
+    if (
+      task.role !== 'builder' ||
+      task.depends_on.length ||
+      !task.file_scope.length ||
+      !cases.some((x) => x.held_out) ||
+      !cases.some((x) => !x.held_out)
+    )
+      throw fail(
+        'INVALID_CONFIG',
+        'A study build task must be an independent builder task with visible and held-out frozen cases.',
+      );
+    const review = await version(
+      impl.humility_review.id,
+      impl.humility_review.version,
+      'humility_review',
+    );
+    const subject = (
+      review?.body as { subject?: { id: string; version: number } }
+    )?.subject;
+    if (
+      !review ||
+      Number(review.current) !== impl.humility_review.version ||
+      review.status !== 'active' ||
+      subject?.id.toLowerCase() !== impl.spec_id.toLowerCase() ||
+      subject.version !== impl.spec_version
+    )
+      throw fail(
+        'EVIDENCE_MISMATCH',
+        'The study needs the current humility review of that exact spec version.',
+      );
+    return {
+      title: String(spec.title),
+      body,
+      review: {
+        title: String(review.title),
+        body: review.body as Record<string, unknown>,
+        content_hash: String(review.content_hash),
+      },
+    };
+  }
+  /**
+   * Holds an attempt's whole frozen cap against its study ledger before any model work. Open
+   * attempts count at their cap; finished ones at settled cost plus any in-flight or unknown
+   * reservation. Synthetic ledgers are per workspace; final records share one T15 ledger.
+   * Returns the refusal (to be recorded and thrown after commit) or null.
+   */
+  protected async holdBudget(
+    c: PoolClient,
+    ctx: CommandContext,
+    ownerWs: string,
+    a: StudyAttempt,
+    input: StudyInput,
+  ) {
+    if (!input.governance) return null;
+    const ledger = input.synthetic ? `synthetic:${ownerWs}` : 't15-final';
+    const total = BigInt(this.evaluation.budget.t15_total_cap_nano_usd);
+    const cap = BigInt(input.config.max_cost_nano_usd);
+    await c.query('select pg_advisory_xact_lock(hashtext($1))', [
+      `study-ledger:${ledger}`,
+    ]);
+    const held = await c.query(
+      'select 1 from study_budget_holds where attempt_id=$1',
+      [a.id],
+    );
+    if (held.rowCount) return null;
+    const holds = await c.query(
+      `select h.attempt_id, h.cap_nano, t.workspace_id, t.run_id,
+              exists(select 1 from study_events e where e.attempt_id=h.attempt_id and e.kind='finished') as finished
+         from study_budget_holds h join study_attempts t on t.id=h.attempt_id
+        where h.ledger=$1`,
+      [ledger],
+    );
+    let exposure = 0n;
+    for (const h of holds.rows) {
+      if (!h.finished) {
+        exposure += BigInt(String(h.cap_nano));
+        continue;
+      }
+      const r = await c.query(
+        `select coalesce(sum(case when status='settled' then incurred_nano
+                                  when status in ('in_flight','unknown') then reserved_nano
+                                  else 0 end),0)::text as n
+           from budget_reservations where workspace_id=$1 and run_id=$2`,
+        [h.workspace_id, h.run_id],
+      );
+      exposure += BigInt(String(r.rows[0]!.n));
+    }
+    const detail = {
+      ledger,
+      ledger_cap_nano_usd: total.toString(),
+      attempt_cap_nano_usd: cap.toString(),
+      exposure_before_nano_usd: exposure.toString(),
+    };
+    if (exposure + cap > total) {
+      await this.event(c, ctx, a.study_id, a.id, 'budget_refused', detail);
+      return detail;
+    }
+    await c.query(
+      'insert into study_budget_holds(attempt_id,ledger,cap_nano,ledger_cap_nano) values($1,$2,$3,$4)',
+      [a.id, ledger, cap.toString(), total.toString()],
+    );
+    await this.event(c, ctx, a.study_id, a.id, 'budget_held', detail);
+    return null;
+  }
+  protected async freezeIn(
+    c: PoolClient,
+    ws: string,
+  ): Promise<FrozenProtocol | null> {
+    const r = await c.query(
+      "select payload from audit_events where workspace_id=$1 and action='study.protocol_frozen' order by sequence desc limit 1",
+      [ws],
+    );
+    const p = r.rows[0]?.payload as
+      | {
+          freeze_hash: string;
+          proposal_hash: string;
+          decisions: OwnerDecision[];
+        }
+      | undefined;
+    if (!p) return null;
+    return {
+      origin: 'adopted',
+      freeze_hash: p.freeze_hash,
+      manifest: {
+        schema_version: 'protocol-freeze/1',
+        proposal_hash: p.proposal_hash,
+        proposal: PROPOSED_PROTOCOL,
+        decisions: p.decisions,
+      },
+    };
+  }
+  protected async event(
     c: PoolClient,
     ctx: CommandContext,
     studyId: string,
@@ -123,9 +354,10 @@ export class StudyStore extends CatalogStore {
       [eventId, studyId, attemptId, ctx.actorId, kind, payload, contentHash],
     );
     // Audit stores hashes, never participant text or hidden grader content.
-    const s = await c.query('select workspace_id from studies where id=$1', [
-      studyId,
-    ]);
+    const s = await c.query(
+      "select workspace_id, (manifest->>'synthetic')::boolean as synthetic from studies where id=$1",
+      [studyId],
+    );
     await this.append(c, ctx, {
       workspaceId: String(s.rows[0]!.workspace_id),
       action: `study.${kind}`,
@@ -133,7 +365,11 @@ export class StudyStore extends CatalogStore {
       subjectId: studyId,
       subjectVersion: null,
       contentHash,
-      payload: { event_id: eventId, attempt_id: attemptId, synthetic: true },
+      payload: {
+        event_id: eventId,
+        attempt_id: attemptId,
+        synthetic: Boolean(s.rows[0]!.synthetic),
+      },
     });
     return { id: eventId, content_hash: contentHash };
   }
@@ -213,7 +449,17 @@ export class StudyStore extends CatalogStore {
             );
         }
         const input = s.manifest as StudyInput;
-        const context = studyContext(input, req);
+        const impl = input.packet.implementation;
+        const frozenTask = impl
+          ? await this.frozenImplementation(c, ws, impl)
+          : null;
+        const context = studyContext(
+          input,
+          req,
+          impl && frozenTask
+            ? implementationTaskContext(frozenTask.body, impl.task_key)
+            : undefined,
+        );
         const attemptId = randomUUID(),
           attemptWs = randomUUID();
         const count = await c.query(
@@ -221,9 +467,16 @@ export class StudyStore extends CatalogStore {
           [studyId],
         );
         const ordinal = Number(count.rows[0]!.n) + 1;
+        // Final records get a real-mode workspace, which no fixture adapter will serve.
         await c.query(
-          "insert into workspaces(id,name,record_mode,fixture,created_by) values($1,$2,'fixture',true,$3)",
-          [attemptWs, `Synthetic study attempt ${ordinal}`, ctx.actorId],
+          'insert into workspaces(id,name,record_mode,fixture,created_by) values($1,$2,$3,$4,$5)',
+          [
+            attemptWs,
+            `${input.synthetic ? 'Synthetic study' : 'Study'} attempt ${ordinal}`,
+            input.synthetic ? 'fixture' : 'real',
+            input.synthetic,
+            ctx.actorId,
+          ],
         );
         await c.query(
           "insert into workspace_members(workspace_id,actor_id,role) values($1,$2,'owner')",
@@ -247,11 +500,14 @@ export class StudyStore extends CatalogStore {
             ? 'autonomous_within_scope'
             : req.condition;
         const initial = [];
-        if (req.condition !== 'human_only') {
+        // Final records get no model grant: live dispatch does not exist yet (LIVE_DISABLED).
+        if (req.condition !== 'human_only' && input.synthetic) {
           const g = await this.insertGrant(c, ctx, attemptWs, {
             scope: 'standing',
             run_id: null,
-            action_types: ['model.generate'],
+            action_types: impl
+              ? ['model.generate', 'product.commit_build']
+              : ['model.generate'],
             target_kind: null,
             target: null,
             spec_hash: null,
@@ -295,24 +551,95 @@ export class StudyStore extends CatalogStore {
             ordinal,
           ],
         );
+        let pinned = null;
+        if (impl && frozenTask) {
+          // Same kind, title and body, so the copy carries the owner's exact content hash.
+          const copy = await this.insertEntity(
+            c,
+            ctx,
+            attemptWs,
+            'specification',
+            frozenTask.title,
+            frozenTask.body as unknown as Record<string, unknown>,
+          );
+          if (copy.content_hash !== impl.spec_hash)
+            throw fail(
+              'EVIDENCE_MISMATCH',
+              'The pinned specification copy changed its hash.',
+            );
+          const review = await this.insertEntity(
+            c,
+            ctx,
+            attemptWs,
+            'humility_review',
+            frozenTask.review.title,
+            {
+              ...frozenTask.review.body,
+              subject: { id: copy.id, version: copy.version },
+            },
+          );
+          const source = {
+            workspace_id: ws,
+            spec: {
+              id: impl.spec_id.toLowerCase(),
+              version: impl.spec_version,
+              content_hash: impl.spec_hash,
+            },
+            freeze_id: impl.freeze_id.toLowerCase(),
+            task_key: impl.task_key,
+            task_hash: impl.task_hash,
+            humility_review: {
+              id: impl.humility_review.id.toLowerCase(),
+              version: impl.humility_review.version,
+              content_hash: frozenTask.review.content_hash,
+            },
+          };
+          await c.query(
+            'insert into study_attempt_pins(attempt_id,spec_id,spec_version,spec_hash,review_id,review_version,source) values($1,$2,$3,$4,$5,$6,$7)',
+            [
+              attemptId,
+              copy.id,
+              copy.version,
+              copy.content_hash,
+              review.id,
+              review.version,
+              source,
+            ],
+          );
+          pinned = {
+            spec: {
+              id: copy.id,
+              version: copy.version,
+              content_hash: copy.content_hash,
+            },
+            humility_review: {
+              id: review.id,
+              version: review.version,
+              content_hash: review.content_hash,
+            },
+            source,
+          };
+        }
         await this.event(c, ctx, studyId, attemptId, 'assigned', {
           condition: req.condition,
           discovery_method: req.discovery_method,
           primary: req.continuation_of === null,
           order: ordinal,
           context_hash: canonicalHash(context),
+          ...(pinned ? { pinned } : {}),
         });
         return this.attemptIn(c, attemptId);
       },
     );
   }
-  private async attemptIn(
+  protected async attemptIn(
     c: PoolClient,
     attemptId: string,
   ): Promise<StudyAttempt> {
-    const r = await c.query('select * from study_attempts where id=$1', [
-      uuid(attemptId),
-    ]);
+    const r = await c.query(
+      "select a.*, (s.manifest->>'synthetic')::boolean as synthetic from study_attempts a join studies s on s.id=a.study_id where a.id=$1",
+      [uuid(attemptId)],
+    );
     const a = r.rows[0] as Row | undefined;
     if (!a) throw fail('NOT_FOUND', 'Attempt not found.');
     const req = a.assignment as StudyAssignment;
@@ -325,7 +652,7 @@ export class StudyStore extends CatalogStore {
       study_id: String(a.study_id),
       workspace_id: String(a.workspace_id),
       run_id: String(a.run_id),
-      synthetic: true,
+      synthetic: Boolean(a.synthetic),
       ...req,
       order: Number(a.ordinal),
       primary: req.continuation_of === null,
@@ -335,7 +662,7 @@ export class StudyStore extends CatalogStore {
       finished_at: end.rows[0] ? iso(end.rows[0].created_at) : null,
     };
   }
-  private async accessAttempt(
+  protected async accessAttempt(
     c: PoolClient,
     ctx: CommandContext,
     ws: string,
@@ -348,7 +675,7 @@ export class StudyStore extends CatalogStore {
       await this.requireOwner(c, ws, ctx.actorId);
     return a;
   }
-  private async lockAttemptForWrite(
+  protected async lockAttemptForWrite(
     c: PoolClient,
     ctx: CommandContext,
     ws: string,
@@ -396,7 +723,11 @@ export class StudyStore extends CatalogStore {
         'select context from study_attempts where id=$1',
         [attemptId],
       );
-      return { synthetic: true, attempt: a, context: r.rows[0]!.context };
+      return {
+        synthetic: a.synthetic,
+        attempt: a,
+        context: r.rows[0]!.context,
+      };
     });
   }
   async attemptEntries(ctx: CommandContext, ws: string, attemptId: string) {
@@ -629,6 +960,7 @@ export class StudyStore extends CatalogStore {
       await c.query('set transaction isolation level repeatable read');
       await this.requireOwner(c, uuid(ws), normalize(ctx).actorId);
       const s = await this.study(c, ws, studyId);
+      const synthetic = (s.manifest as StudyInput).synthetic;
       const rows = await c.query(
         'select * from study_attempts where study_id=$1 order by ordinal',
         [studyId],
@@ -691,7 +1023,9 @@ export class StudyStore extends CatalogStore {
           execution: execution.rows,
           measurements: {
             active_ai_seconds: 0,
-            active_ai_source: 'fixture_has_no_ai_inference',
+            active_ai_source: synthetic
+              ? 'fixture_has_no_ai_inference'
+              : 'not_measured_no_live_dispatch',
             simulated_provider_request_seconds: rs
               .filter((r) => r.status !== 'denied' && r.finished_at)
               .reduce(
@@ -778,7 +1112,7 @@ export class StudyStore extends CatalogStore {
         : null;
       const body = {
         schema_version: 'study-export/1',
-        synthetic: true,
+        synthetic,
         empirical_results: false,
         study: this.summary(s),
         manifest: s.manifest,
@@ -791,9 +1125,11 @@ export class StudyStore extends CatalogStore {
             ? 'withheld_requires_grader_authority'
             : 'included',
         limitations: [
-          'Synthetic only; no participants recruited.',
+          synthetic
+            ? 'Synthetic only; no participants recruited.'
+            : 'Final record; no analysis has been run on it.',
           'Human timing is reported, not observed.',
-          'Text checks are executed; arbitrary code execution awaits T11.',
+          'Text checks run in the studio; code runs only in the isolated product worker.',
         ],
       };
       const normalized = JSON.parse(JSON.stringify(body)) as typeof body;
@@ -853,10 +1189,15 @@ export class StudyStore extends CatalogStore {
         throw fail('INVALID_TRANSITION', 'Attempt is terminal.');
       const s = await this.study(c, ws, a.study_id);
       const input = s.manifest as StudyInput;
+      if (!input.synthetic)
+        throw fail(
+          'LIVE_DISABLED',
+          'Final AI attempts need live dispatch, which is disabled (config/evaluation.json). Fixture output never substitutes.',
+        );
       if (input.packet.stratum === 'implementation')
         throw fail(
           'INVALID_CONFIG',
-          'AI implementation execution requires the isolated T11 worker; this runner never executes code on the studio host.',
+          'AI implementation attempts run through the isolated builder (study-attempts/<id>/build); this runner never executes code.',
         );
       if (
         Date.now() >
@@ -876,13 +1217,15 @@ export class StudyStore extends CatalogStore {
           'INVALID_CONFIG',
           'This fixture runner has no tools; freeze an empty tool list.',
         );
-      return { a, input };
+      const refused = await this.holdBudget(c, ctx, ws, a, input);
+      return { a, input, refused };
     });
     if (!data)
       throw fail(
         'HUMAN_ONLY_DENIED',
         'Human-only work has no model execution path.',
       );
+    if (data.refused) throw budgetRefusal(data.refused);
     const { a, input } = data;
     const key = (suffix: string) => ({
       ...ctx,
@@ -1137,28 +1480,7 @@ export class StudyStore extends CatalogStore {
     ws = uuid(ws);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
-      const r = await c.query(
-        "select payload from audit_events where workspace_id=$1 and action='study.protocol_frozen' order by sequence desc limit 1",
-        [ws],
-      );
-      const p = r.rows[0]?.payload as
-        | {
-            freeze_hash: string;
-            proposal_hash: string;
-            decisions: OwnerDecision[];
-          }
-        | undefined;
-      if (!p) return null;
-      return {
-        origin: 'adopted' as const,
-        freeze_hash: p.freeze_hash,
-        manifest: {
-          schema_version: 'protocol-freeze/1' as const,
-          proposal_hash: p.proposal_hash,
-          proposal: PROPOSED_PROTOCOL,
-          decisions: p.decisions,
-        },
-      };
+      return this.freezeIn(c, ws);
     });
   }
   /** Binds a final evaluation schedule to the owner's audit log before anything runs. */
@@ -1187,4 +1509,21 @@ export class StudyStore extends CatalogStore {
       });
     });
   }
+}
+
+export function budgetRefusal(d: {
+  ledger: string;
+  ledger_cap_nano_usd: string;
+  attempt_cap_nano_usd: string;
+  exposure_before_nano_usd: string;
+}) {
+  return new ContractError(
+    'BUDGET_EXCEEDED',
+    "This attempt's frozen cap does not fit in what remains of the study ledger; nothing was dispatched.",
+    [
+      `ledger ${d.ledger} cap ${d.ledger_cap_nano_usd} nano-USD`,
+      `held or spent ${d.exposure_before_nano_usd}`,
+      `attempt cap ${d.attempt_cap_nano_usd}`,
+    ],
+  );
 }

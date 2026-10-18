@@ -1,15 +1,15 @@
 # Item 03
 
-Code: 1b4966ec2a
+Code: aaedcd16a8
 
 ## Task
 
-Fictional volunteers miss last-minute shift changes.
+A fictional garden club double-books its shared plots.
 
 ## Asked for
 
-Propose up to three responses with evidence and uncertainty.
+Recommend a response, alternatives considered and a validation plan.
 
 ## Submission
 
-No submitted output.
+Rehearsal text, no participant: keep a dated paper log and review it weekly.

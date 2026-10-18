@@ -229,10 +229,12 @@ export interface EvaluationAuthority {
   mode: 'final' | 'rehearsal';
   /** Live AI needs live dispatch enabled and a verified model id (RD6). */
   live_ai: { enabled: boolean; verified_model_id: string | null };
-  /** Final runs need non-synthetic study records; today study records are synthetic-only. */
+  /** Final runs need the non-synthetic study record path (gated in the study store). */
   final_study_records: boolean;
-  /** The study path refuses AI implementation work outside the isolated T11 worker. */
+  /** AI implementation slots need studies bound to a frozen build task and the builder link. */
   ai_implementation: boolean;
+  /** Unmet final conditions from config/evaluation.json; each blocks every final slot. */
+  governance?: string[];
 }
 export type Admission =
   | {
@@ -255,7 +257,7 @@ export function admitSlot(
     !authority.ai_implementation
   )
     reasons.push(
-      'AI implementation runs need the isolated T11/T12 worker; the study path does not dispatch them.',
+      'AI implementation runs need a study bound to a frozen build task (spec, freeze, held-out cases) for the isolated builder; these tasks have none.',
     );
   if (
     usesAi &&
@@ -269,6 +271,8 @@ export function admitSlot(
     reasons.push(
       'No final study record path: study records are synthetic-only, so no run can be recorded as real participant or final AI work. Simulated work tests plumbing only.',
     );
+  if (authority.mode === 'final')
+    for (const g of authority.governance ?? []) reasons.push(g);
   if (reasons.length) return { admitted: false, state: 'blocked', reasons };
   return {
     admitted: true,

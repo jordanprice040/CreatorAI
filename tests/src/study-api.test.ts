@@ -36,13 +36,19 @@ test('study HTTP paths enforce schema errors, human-only execution denial and gr
     ...SYNTHETIC_STUDY,
     synthetic: false,
   });
-  assert.equal(invalid.status, 400);
-  assert.equal(
-    z
-      .object({ error: z.object({ code: z.string() }) })
-      .parse(await invalid.json()).error.code,
-    'INVALID_CONTRACT',
+  // A final (non-synthetic) record is refused by the record gate, which lists every unmet condition.
+  assert.equal(invalid.status, 409);
+  const refusal = z
+    .object({
+      error: z.object({ code: z.string(), details: z.array(z.string()) }),
+    })
+    .parse(await invalid.json()).error;
+  assert.equal(refusal.code, 'INVALID_TRANSITION');
+  assert.ok(
+    refusal.details.some((d) => /real \(non-fixture\) workspace/.test(d)),
   );
+  assert.ok(refusal.details.some((d) => /No adopted protocol freeze/.test(d)));
+  assert.ok(refusal.details.some((d) => /Governance .* is missing/.test(d)));
   const seeded = await post(`${root}/studies/seed`, {});
   assert.equal(seeded.status, 201);
   const seed = z

@@ -1,0 +1,15 @@
+tests/src/study-build.test.ts, October 18, 2026, cloud Linux. Synthetic labelled records only.
+ok 1 - T15 config keeps the owner model preference and $20 cap and leaves every study decision unresolved
+ok 2 - synthetic implementation attempts: A/B build in isolated per-attempt products with exact hashes; C is refused the builder and its code is checked server-side; budget holds, cancellation and mismatches refuse
+ok 3 - final (non-synthetic) records are refused until every owner answer is in an adopted freeze, and never run AI while live dispatch is disabled
+ok 4 - compiled study-build CLI runs a synthetic A attempt in the reviewed WSL2 worker and records isolation evidence # SKIP Study builds in real isolation require the opt-in WSL2 gate
+# tests 4
+# pass 3
+# fail 0
+# skipped 1
+
+Full cloud suite (pnpm test:db, PostgreSQL 16, test double; WSL2 tests skip):
+# tests 178
+# pass 167
+# fail 0
+# skipped 11

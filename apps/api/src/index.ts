@@ -7,6 +7,7 @@ import pg from 'pg';
 import {
   BrokerStatusSchema,
   ContractError,
+  z,
   contractSchemas,
   HealthSchema,
   SourceBrokerStatusSchema,
@@ -47,6 +48,9 @@ import {
   ArtifactSupervisor,
   ExecutionSupervisor,
   ProductSupervisor,
+  checkStudyCode,
+  digest,
+  readStudyBuild,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
@@ -138,7 +142,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|download|compare|feedback|previews|stop|decide|revision))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -272,6 +276,18 @@ export function createApi(
     return a && typeof a === 'object' ? `http://127.0.0.1:${a.port}` : null;
   };
 
+  // Local product-store failures are evidence problems, not server faults.
+  const evidence = async <T>(work: () => Promise<T>): Promise<T> => {
+    try {
+      return await work();
+    } catch (e) {
+      if (e instanceof ContractError) throw e;
+      throw new ContractError(
+        'EVIDENCE_MISMATCH',
+        String((e as Error).message),
+      );
+    }
+  };
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match = RECORD_ROUTE.exec(url.pathname);
     if (!match) return false;
@@ -416,6 +432,103 @@ export function createApi(
         );
         await store.recordBaselineOutcome(ctx, ws, item, result);
         return send(200, result, true);
+      }
+      // T15 implementation stratum: A/B build in the isolated builder, C submits code.
+      if (action === 'build' && method === 'POST')
+        return send(201, await store.prepareStudyBuild(ctx, ws, item), true);
+      if (action === 'build' && method === 'GET')
+        return send(200, await store.studyBuildState(ctx, ws, item), false);
+      if (action === 'binding' && method === 'GET')
+        return send(200, await store.studyTaskBinding(ctx, ws, item), false);
+      if (action === 'build-record' && method === 'POST') {
+        const body = parse(
+          z.strictObject({ product_id: idSchema, build_id: idSchema }),
+          await readJson(req),
+        );
+        const state = await store.studyBuildState(ctx, ws, item);
+        // The server re-reads the local product store; a caller's summary is never trusted.
+        const rec = await evidence(async () => {
+          artifacts.products.assertBinding(
+            await artifacts.products.product(body.product_id),
+            state.binding,
+          );
+          const r = await readStudyBuild(
+            artifacts.products,
+            body.product_id,
+            body.build_id,
+          );
+          if (
+            canonicalHash(r.plan) !== canonicalHash(state.plan) ||
+            r.outcome.spec_hash !== state.binding.spec_hash ||
+            r.task.key !== state.implementation.task_key ||
+            r.task.spec_task_hash !== state.implementation.task_hash
+          )
+            throw new Error(
+              "The build was not run with this attempt's prepared plan and pinned task.",
+            );
+          return r;
+        });
+        return send(
+          201,
+          await store.recordStudyBuild(ctx, ws, item, {
+            product_id: body.product_id,
+            build_id: body.build_id,
+            task_id: rec.task.id,
+            task_key: rec.task.key,
+            task_hash: rec.task.spec_task_hash,
+            plan_hash: digest(JSON.stringify(rec.plan)),
+            spec_hash: rec.outcome.spec_hash,
+            commit: rec.outcome.commit,
+            state: rec.outcome.state,
+            reason: rec.outcome.reason,
+            calls: rec.outcome.calls,
+            repairs: rec.outcome.repairs,
+            fixture: rec.outcome.fixture,
+            review: rec.review,
+            checks: rec.checks,
+            files: rec.files,
+          }),
+          true,
+        );
+      }
+      if (action === 'code-check' && method === 'POST') {
+        const body = parse(
+          z.strictObject({
+            product_id: idSchema,
+            task_id: idSchema,
+            commit: z.string().regex(/^[a-f0-9]{40}$/),
+          }),
+          await readJson(req),
+        );
+        const t = await store.studyCodeCases(ctx, ws, item);
+        const checked = await evidence(async () => {
+          const task = await artifacts.products.task(
+            body.product_id,
+            body.task_id,
+          );
+          if (
+            task.key !== t.impl.task_key ||
+            task.spec_task_hash !== t.impl.task_hash
+          )
+            throw new Error('The submitted task is not the pinned study task.');
+          return checkStudyCode(
+            artifacts.products,
+            artifacts.executor,
+            t.binding,
+            t.cases,
+            body.product_id,
+            body.task_id,
+            body.commit,
+          );
+        });
+        return send(
+          201,
+          await store.recordStudyCodeCheck(ctx, ws, item, {
+            ...body,
+            ...checked,
+          }),
+          true,
+        );
       }
       if (action === 'context' && method === 'GET')
         return send(200, await store.participantContext(ctx, ws, item), false);

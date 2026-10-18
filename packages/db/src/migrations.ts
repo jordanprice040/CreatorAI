@@ -1158,6 +1158,36 @@ create table artifact_feedback (
 create index artifact_feedback_artifact on artifact_feedback(artifact_id, created_at);
 `,
   },
+  {
+    version: 11,
+    name: 'study_builds_and_budget_holds',
+    sql: `
+-- T15: an implementation-stratum attempt pins a copy of the owner's frozen spec and humility
+-- review in its own workspace, so the builder, admission and grants never reach another arm.
+create table study_attempt_pins (
+ attempt_id uuid primary key references study_attempts(id),
+ spec_id uuid not null, spec_version integer not null, spec_hash char(64) not null,
+ review_id uuid not null, review_version integer not null,
+ source jsonb not null, created_at timestamptz not null default clock_timestamp(),
+ foreign key (spec_id, spec_version) references entity_versions(entity_id, version),
+ foreign key (review_id, review_version) references entity_versions(entity_id, version)
+);
+create trigger study_attempt_pins_immutable before update or delete on study_attempt_pins
+ for each row execute function creator_reject_change();
+-- Maximum exposure held against a ledger before any model work for an attempt. Exposure of a
+-- finished attempt is recomputed from its reservations; unknown cost counts as reserved.
+create table study_budget_holds (
+ attempt_id uuid primary key references study_attempts(id), ledger text not null,
+ cap_nano numeric(30,0) not null check (cap_nano >= 0),
+ ledger_cap_nano numeric(30,0) not null check (ledger_cap_nano >= 0),
+ created_at timestamptz not null default clock_timestamp()
+);
+create index study_budget_holds_ledger on study_budget_holds(ledger, created_at);
+create trigger study_budget_holds_immutable before update or delete on study_budget_holds
+ for each row execute function creator_reject_change();
+create unique index study_one_build on study_events(attempt_id) where kind = 'build';
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

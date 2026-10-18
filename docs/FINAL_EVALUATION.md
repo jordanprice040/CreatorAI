@@ -1,8 +1,9 @@
 # T15 final evaluation and blinded rating package
 
-October 18, 2026. Status: **machinery built and rehearsed; final evaluation not run.** The
-protocol is not frozen (RD1-RD10 in docs/PILOT_AND_PROTOCOL.md are unanswered), so no final
-run exists. Nothing here is an empirical result.
+October 18, 2026. Status: **machinery, study-record gate and builder link built and rehearsed;
+final evaluation not run.** The protocol is not frozen (RD1-RD10 in
+docs/PILOT_AND_PROTOCOL.md are unanswered), so no final run exists. Nothing here is an
+empirical result.
 
 ## What exists
 
@@ -40,19 +41,48 @@ scripted cancellation, 1 deferral, 4 blocked (AI implementation slots, below). T
 open-ended output contains "Fixture", which the scan flags; a live model's output would need
 the same owner review. Evidence: tracking/evidence/t15.
 
+## Study records, the builder link and the T15 budget
+
+`config/evaluation.json` keeps the owner's choices and the open items in one reviewed file:
+model preference `gpt-6-astra` (verified id: none), live dispatch off, the **$20.00 total T15
+cap** (`20000000000` nano-USD, no spend authorized), and participants (RD3), reviewers (RD4),
+human-subjects review (RD5) and final-task selection (RD8) marked `unresolved`. The file
+cannot decide anything; the gates below accept only answers recorded in the adopted freeze.
+
+| Path                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Final record gate    | A study with `synthetic: false` is created only in a real workspace, bound to the hash of the adopted freeze, with governance items whose choices equal the owner's freeze answers, the preserved `gpt-6-astra` preference with a verified id equal to the config and the study model, and the $20 ledger cap. Otherwise it is refused with every unmet condition listed. Final attempts get real-mode workspaces and no model grant; AI execution refuses with `LIVE_DISABLED`. Human-only work records normally. |
+| Budget ledger        | Every governed study holds an attempt's whole frozen cap before any model work. Open attempts count at their cap; finished ones at settled cost plus in-flight or unknown reservations. Final records share one `t15-final` ledger capped at $20; synthetic ones use a per-workspace ledger. Refusals are durable `budget_refused` events.                                                                                                                                                                         |
+| Implementation tasks | A study binds a frozen build task by spec id, version and hash, freeze id, task hash and the current humility review; all are re-read from the owner's records. Each attempt gets a pinned copy of the spec (same content hash) and review in its own workspace.                                                                                                                                                                                                                                                   |
+| AI arms (A, B)       | `POST study-attempts/<id>/build` prepares the build plan from the frozen cases; `pnpm cli study-build <ws> <attempt>` runs the T12 builder in a fresh per-attempt product through the attempt's own admission, grant and broker; the server re-reads the local build record and writes build, code-artifact (file hashes), per-case test and finish events. Held-out cases appear only as key and pass/fail. A build after cancellation is kept as evidence, never submitted.                                      |
+| Human-only arm (C)   | No builder or model path (`HUMAN_ONLY_DENIED`, recorded). `pnpm cli study-code <ws> <attempt> <files.json>` commits the participant's files to a per-attempt product and the server runs every frozen case, held-out included, in the product worker.                                                                                                                                                                                                                                                              |
+
+Every case result names its execution backend. Only cases run in the reviewed WSL2 worker
+count as isolation evidence; the labelled test double never does.
+
 ## Why the final evaluation cannot run yet
 
 `pnpm evaluate final` refuses without an adopted freeze and lists RD1-RD10. With a freeze it
-records the schedule and every slot is `blocked`, for these reasons:
+records the schedule and every slot is `blocked`, with the open items from
+config/evaluation.json as reasons:
 
 1. **Protocol freeze** (RD1-RD10). RD5 needs a committee/IRB ruling.
-2. **Final study records.** Study records are synthetic-only (`synthetic: true`), so no run
-   can be recorded as real participant or final AI work. Building them depends on RD3
-   (participants), RD5 (human-subjects), RD6 (model and cap) and RD9 (verified sources), so
-   it waits for those answers.
-3. **Live AI** (RD6). Live dispatch is disabled and no model id is verified
-   (config/provider-availability.json).
-4. **AI implementation runs.** The study path refuses AI implementation work outside the
-   isolated T11/T12 worker. Connecting the builder to studies is needed before the
-   implementation stratum's A and B arms can run.
-5. **Reviewers** (RD4) are unnamed; packets are labelled reviewer-1 and reviewer-2.
+2. **Participants (RD3), reviewers (RD4), human-subjects review (RD5) and final tasks (RD8)**
+   are unresolved. Final records are refused until the freeze answers them.
+3. **Model (RD6).** No verified API model id for `gpt-6-astra`, and live dispatch is
+   disabled. No spend is authorized against the $20 cap.
+4. **Final build tasks.** Each final implementation task must be frozen as a spec with
+   held-out cases and bound to its study before its A and B slots can run.
+5. **Source snapshots (RD9)** still decide whether structured runs can verify packet sources.
+
+## Commands for the new paths (PowerShell)
+
+```powershell
+$env:CREATOR_DATABASE_URL = "postgres://..."
+pnpm db:migrate
+pnpm cli study-build <workspace-id> <attempt-id>
+pnpm cli study-code <workspace-id> <attempt-id> .\files.json
+```
+
+`files.json` is `{"files":[{"path":"src/main.py","content":"..."}]}`. Both commands use the
+local product store (`.creator/products`) and, for real cases, the WSL2 worker.

@@ -1,5 +1,20 @@
 # Session handoff
 
+## Latest - T15 prerequisites: final records, budget ledger, study builds (October 18, 2026)
+
+Claude Code on claude/t15-hdrwqz (ADR-0022, migration 11). T15 stays partial: no freeze, no
+final run, no live call. Key code: config/evaluation.json and
+packages/domain/src/evaluation-config.ts (`finalRecordBlockers`, `evaluationReadiness`);
+study-store.ts (gate in `createStudy`, pins in `assignStudy`, `holdBudget`, `freezeIn`);
+packages/db/src/study-build-store.ts (`prepareStudyBuild`, `studyBuildState`,
+`recordStudyBuild`, `recordStudyCodeCheck`); packages/executor/src/study-build.ts
+(`studyBuildPorts`, `runStudyBuild`, `readStudyBuild`, `checkStudyCode`); broker build guard
+in budget-store.ts; API `study-attempts/<id>/build|build-record|binding|code-check`; CLI
+`study-build`, `study-code`. Tests: tests/src/study-build.test.ts (the WSL2 variant is opt-in
+and not yet run on Jordan's machine). `store.evaluation` is a test seam for the gate; the file
+is the only real source. Next: Jordan's RD answers and freeze, verified model id, final build
+tasks; then run the WSL2 gate.
+
 ## Latest - T15 final evaluation machinery (October 18, 2026)
 
 Claude Code on claude/t15-hdrwqz from main 3f3544a (ADR-0021, no migration). The protocol is

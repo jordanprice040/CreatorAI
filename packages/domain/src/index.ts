@@ -15,3 +15,4 @@ export * from './study.js';
 export * from './build-fixture.js';
 export * from './pilot.js';
 export * from './evaluation.js';
+export * from './evaluation-config.js';
