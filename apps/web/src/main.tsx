@@ -7,6 +7,7 @@ import {
   type FixtureResponse,
 } from '@creator/contracts';
 import { Records } from './records.js';
+import { Oversight, SignIn, useSession } from './oversight.js';
 import './style.css';
 
 const choices = [
@@ -41,6 +42,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<FixtureResponse | null>(null);
   const [error, setError] = useState('');
+  const auth = useSession(persistent);
   async function checkHealth() {
     setHealth('Checking connection…');
     try {
@@ -93,7 +95,7 @@ function App() {
         <a className="brand" href="/">
           CA<span>Creator Agent</span>
         </a>
-        <span className="local">LOCAL STUDIO · T02</span>
+        <span className="local">LOCAL STUDIO · T03</span>
       </header>
       <main>
         <div className="eyebrow">THE STARTING POINT</div>
@@ -219,10 +221,16 @@ function App() {
             )}
           </section>
         </div>
-        <Records persistent={persistent} />
+        {persistent && !auth.session && (
+          <SignIn mode={auth.mode} error={auth.error} signIn={auth.signIn} />
+        )}
+        {auth.session && (
+          <Oversight session={auth.session} signOut={auth.signOut} />
+        )}
+        {(!persistent || auth.session) && <Records persistent={persistent} />}
         <footer>
           <span>Schema 1.0 · Local control</span>
-          <span>Live providers and authentication are later milestones.</span>
+          <span>Live providers are a later milestone.</span>
         </footer>
       </main>
     </div>

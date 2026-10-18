@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T03 human decisions, autonomy modes and humility (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/t03-decisions-autonomy-5gpinz` from `main` at 2a2d028 (T02 merged as PR #3). Opened as a draft PR.
+
+What works: with PostgreSQL configured, the API requires an owner session (printed login link/code in local development, or OIDC). Register a run with a mode, create standing grants, submit actions for admission, and answer the resulting decisions in the web Human decisions panel or the CLI (`pnpm cli login`, `admit`, `decisions`, `decision`, `answer`, `grants`, `run-cancel`, `humility-gate`). See docs/LOCAL_DEVELOPMENT.md.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` (29 pass, 18 skipped without DB), `pnpm test:db` (47/47), `pnpm smoke`, headless Chromium check. Evidence: tracking/evidence/t03/.
+
+Not done / limits: no orchestrator calls admission yet (T05); no budget check (T04); real IdP and Windows untested; CI still runs only `pnpm check`. ADR-0006 records the design.
+
+**Next eligible prompt: T04 — Budgets and a metered model/tool broker.** Requires a new request.
+
 ## Latest — T02 persistence, provenance and durable audit (October 18, 2026)
 
 Done in a Claude Code cloud session on branch `claude/project-thread-lzo59n` of github.com/jordanprice040/CreatorAI (rebased onto `main` at e704196). Pushed with Jordan's go-ahead and opened as a draft PR for review.

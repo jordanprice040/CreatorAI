@@ -26,3 +26,4 @@ export const contractSchemas = {
   link: EntityLinkSchema,
   assignment: ExperimentAssignmentSchema,
 } as const;
+export * from './oversight.js';

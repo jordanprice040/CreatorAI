@@ -1,7 +1,14 @@
 import { createServer } from 'vite';
 import { createApi } from '../apps/api/dist/index.js';
 
-const { server: api, config, ready, close } = createApi(process.env);
+const {
+  server: api,
+  config,
+  ready,
+  close,
+  authMode,
+  loginCode,
+} = createApi(process.env);
 let web;
 try {
   await new Promise((resolve, reject) => {
@@ -25,6 +32,13 @@ try {
     : 'no persistence (CREATOR_DATABASE_URL unset)';
   console.log(
     `Fixture provider only, no real AI; ${records}. Restart after backend edits. Ctrl+C stops both servers.`,
+  );
+  console.log(
+    authMode === 'oidc'
+      ? 'Sign-in: OIDC (open the web page and choose Sign in).'
+      : loginCode
+        ? `Sign-in (local development, this run only): http://${config.host}:${config.web_port}/#login=${loginCode}\n  or: pnpm cli login ${loginCode}`
+        : 'Sign-in: development code from CREATOR_DEV_LOGIN_CODE.',
   );
 } catch (error) {
   console.error(error.message);

@@ -1,0 +1,672 @@
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  AuthStatusSchema,
+  DecisionSchema,
+  GrantSchema,
+  RunControlSchema,
+  SessionInfoSchema,
+  WorkspaceSchema,
+  parse,
+  z,
+  type Decision,
+  type Grant,
+  type RunControl,
+  type SessionInfo,
+  type Workspace,
+} from '@creator/contracts';
+
+class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+async function api<T>(
+  schema: z.ZodType<T>,
+  path: string,
+  init: { body?: unknown; csrf?: string } = {},
+): Promise<T> {
+  const response = await fetch(`/api/${path}`, {
+    ...(init.body === undefined
+      ? {}
+      : {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(init.csrf ? { 'X-CSRF-Token': init.csrf } : {}),
+          },
+          body: JSON.stringify(init.body),
+        }),
+    signal: AbortSignal.timeout(5000),
+  });
+  const body: unknown = await response.json();
+  if (!response.ok) {
+    const e =
+      body && typeof body === 'object' && 'error' in body
+        ? (body.error as { code?: string; message?: string })
+        : {};
+    throw new ApiError(
+      e.code ?? 'ERROR',
+      e.message ?? `API error ${response.status}`,
+    );
+  }
+  return parse(schema, body);
+}
+const message = (e: unknown) =>
+  e instanceof Error ? e.message : 'The request failed.';
+const when = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+const words = (s: string) => s.replaceAll('_', ' ').replaceAll('.', ' · ');
+const short = (h: string | null | undefined) =>
+  h ? `${h.slice(0, 12)}…` : '—';
+
+/** Signs in with the local development code (or OIDC) and keeps the session's CSRF token. */
+export function useSession(persistent: boolean) {
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [mode, setMode] = useState<'dev_local' | 'oidc' | null>(null);
+  const [error, setError] = useState('');
+  async function load() {
+    try {
+      setMode(
+        parse(AuthStatusSchema, await (await fetch('/api/auth/status')).json())
+          .mode,
+      );
+      setSession(await api(SessionInfoSchema, 'auth/session'));
+    } catch (e) {
+      setSession(null);
+      if (!(e instanceof ApiError && e.code === 'UNAUTHENTICATED'))
+        setError(message(e));
+    }
+  }
+  async function signIn(code: string) {
+    setError('');
+    try {
+      setSession(
+        await api(SessionInfoSchema, 'auth/dev-login', { body: { code } }),
+      );
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+  async function signOut() {
+    if (!session) return;
+    await api(z.unknown(), 'auth/logout', {
+      body: {},
+      csrf: session.csrf_token,
+    }).catch(() => undefined);
+    setSession(null);
+  }
+  useEffect(() => {
+    if (!persistent) return;
+    // A login link carries the code in the fragment, which never reaches a server log.
+    function fromLink(): boolean {
+      const code = /^#login=([A-Za-z0-9_-]{32,200})$/.exec(
+        window.location.hash,
+      )?.[1];
+      if (!code) return false;
+      history.replaceState(null, '', window.location.pathname);
+      void signIn(code);
+      return true;
+    }
+    if (!fromLink()) void load();
+    window.addEventListener('hashchange', fromLink);
+    return () => window.removeEventListener('hashchange', fromLink);
+  }, [persistent]);
+  return { session, mode, error, signIn, signOut };
+}
+
+export function SignIn({
+  mode,
+  error,
+  signIn,
+}: {
+  mode: 'dev_local' | 'oidc' | null;
+  error: string;
+  signIn: (code: string) => Promise<void>;
+}) {
+  const [code, setCode] = useState('');
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void signIn(code.trim());
+  }
+  return (
+    <section className="panel records" aria-labelledby="signin-title">
+      <div className="eyebrow">03 / OWNER SIGN-IN</div>
+      <h2 id="signin-title">Sign in to review decisions and records</h2>
+      {mode === 'oidc' ? (
+        <a className="primary link" href="/api/auth/oidc/login">
+          Sign in with your identity provider <span aria-hidden="true">↗</span>
+        </a>
+      ) : (
+        <form onSubmit={submit}>
+          <p className="small">
+            Local development sign-in. The API prints a one-run login link and
+            code when it starts. This mode is refused in hosted deployments.
+          </p>
+          <label htmlFor="code">Login code</label>
+          <input
+            id="code"
+            autoComplete="off"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <button
+            className="primary"
+            disabled={code.trim().length < 32}
+            type="submit"
+          >
+            Sign in <span aria-hidden="true">→</span>
+          </button>
+        </form>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function Coverage({ d }: { d: Decision }) {
+  const b = d.binding;
+  if (!b)
+    return (
+      <p className="small">
+        This question authorizes no action; answering it records your input
+        only.
+      </p>
+    );
+  return (
+    <dl className="coverage">
+      <div>
+        <dt>Action</dt>
+        <dd>{words(b.action_type)}</dd>
+      </div>
+      <div>
+        <dt>Target</dt>
+        <dd>
+          {b.target
+            ? `${b.target.kind} ${b.target.id.slice(0, 8)} · v${b.target.version}`
+            : 'none'}
+        </dd>
+      </div>
+      <div>
+        <dt>Content hash</dt>
+        <dd>
+          <code>{short(b.target?.content_hash)}</code>
+        </dd>
+      </div>
+      <div>
+        <dt>Spec hash</dt>
+        <dd>
+          <code>{short(b.spec_hash)}</code>
+        </dd>
+      </div>
+      <div>
+        <dt>Amount</dt>
+        <dd>
+          {b.amount_nano_usd === null
+            ? 'no spend'
+            : `${b.amount_nano_usd} nano-USD`}
+        </dd>
+      </div>
+      <div>
+        <dt>Data</dt>
+        <dd>{b.data_class}</dd>
+      </div>
+      <div>
+        <dt>Request expires</dt>
+        <dd>{when(d.expires_at)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function DecisionCard({
+  d,
+  csrf,
+  workspace,
+  onDone,
+}: {
+  d: Decision;
+  csrf: string;
+  workspace: string;
+  onDone: () => void;
+}) {
+  const opened = useRef(Date.now());
+  const [rationale, setRationale] = useState('');
+  const [standing, setStanding] = useState(false);
+  const [days, setDays] = useState(7);
+  const [interruption, setInterruption] = useState<
+    '' | 'useful' | 'unnecessary'
+  >('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const pending = d.status === 'pending';
+  async function answer(choice: string, option: string | null = null) {
+    setBusy(true);
+    setError('');
+    try {
+      await api(
+        DecisionSchema,
+        `workspaces/${workspace}/decisions/${d.id}/answer`,
+        {
+          csrf,
+          body: {
+            choice,
+            option_id: option,
+            rationale: rationale.trim(),
+            coverage_hash: d.coverage.coverage_hash,
+            standing_expires_at:
+              choice === 'approve_standing'
+                ? new Date(Date.now() + days * 86_400_000).toISOString()
+                : null,
+            time_spent_ms: Date.now() - opened.current,
+            interruption: interruption || null,
+          },
+        },
+      );
+      onDone();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const disabled = busy || !rationale.trim() || !d.coverage.current;
+  return (
+    <article className="decision">
+      <div className="decision-head">
+        <span className={`badge kind-${d.kind}`}>{d.kind.toUpperCase()}</span>
+        <span className="small">
+          {words(d.reason)} · {d.status}
+          {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
+        </span>
+      </div>
+      <h3 className="question">Decision needed: {d.question}</h3>
+      <dl>
+        <div>
+          <dt>Evidence</dt>
+          <dd>
+            {d.evidence_refs.length
+              ? d.evidence_refs
+                  .map((r) => `${r.id.slice(0, 8)} v${r.version}`)
+                  .join(', ')
+              : 'none cited'}
+          </dd>
+        </div>
+        <div>
+          <dt>Uncertainty</dt>
+          <dd>{d.uncertainty}</dd>
+        </div>
+        <div>
+          <dt>If wrong</dt>
+          <dd>{d.consequence_if_wrong}</dd>
+        </div>
+        <div>
+          <dt>Blocks</dt>
+          <dd>{d.blocked_work.join('; ') || '—'}</dd>
+        </div>
+        <div>
+          <dt>Can continue</dt>
+          <dd>{d.unblocked_work.join('; ') || '—'}</dd>
+        </div>
+        {d.recommendation && (
+          <div>
+            <dt>Recommendation</dt>
+            <dd>
+              {d.recommendation}: {d.recommendation_reason}
+            </dd>
+          </div>
+        )}
+      </dl>
+      <h3>What this decision covers</h3>
+      <Coverage d={d} />
+      {!d.coverage.current && pending && (
+        <p className="error" role="alert">
+          The target changed after this request. It cannot be approved; a new
+          request is needed.
+        </p>
+      )}
+      {d.response && (
+        <p className="small">
+          Answered {when(d.response.responded_at)}:{' '}
+          <strong>{words(d.response.choice)}</strong>
+          {d.response.option_id ? ` (${d.response.option_id})` : ''} ·{' '}
+          {d.response.rationale}
+        </p>
+      )}
+      {pending && (
+        <>
+          <label htmlFor={`why-${d.id}`}>Your reason (required, brief)</label>
+          <textarea
+            id={`why-${d.id}`}
+            rows={2}
+            maxLength={1200}
+            value={rationale}
+            onChange={(e) => setRationale(e.target.value)}
+          />
+          <label htmlFor={`int-${d.id}`}>Was this question worth asking?</label>
+          <select
+            id={`int-${d.id}`}
+            value={interruption}
+            onChange={(e) =>
+              setInterruption(e.target.value as typeof interruption)
+            }
+          >
+            <option value="">No answer</option>
+            <option value="useful">Yes, useful</option>
+            <option value="unnecessary">No, an unnecessary interruption</option>
+          </select>
+          <div className="actions">
+            {d.kind === 'authorization' ? (
+              <>
+                <button
+                  className="secondary strong"
+                  disabled={disabled}
+                  onClick={() => void answer('approve_once')}
+                >
+                  Approve this action once
+                </button>
+                {d.coverage.standing && (
+                  <button
+                    className="secondary"
+                    disabled={busy || !d.coverage.current}
+                    onClick={() => setStanding((v) => !v)}
+                  >
+                    Approve as a standing policy…
+                  </button>
+                )}
+                <button
+                  className="secondary"
+                  disabled={disabled}
+                  onClick={() => void answer('reject')}
+                >
+                  Reject
+                </button>
+              </>
+            ) : (
+              d.options.map((o) => (
+                <button
+                  key={o.id}
+                  className="secondary"
+                  title={o.consequence}
+                  disabled={disabled}
+                  onClick={() => void answer('choose_option', o.id)}
+                >
+                  {o.label}
+                </button>
+              ))
+            )}
+            <button
+              className="secondary"
+              disabled={disabled}
+              onClick={() => void answer('request_evidence')}
+            >
+              Request evidence
+            </button>
+            {(d.kind === 'authorization' ||
+              !d.options.some((o) => o.id === 'defer')) && (
+              <button
+                className="secondary"
+                disabled={disabled}
+                onClick={() => void answer('defer')}
+              >
+                Defer
+              </button>
+            )}
+          </div>
+          {standing && d.coverage.standing && (
+            <aside
+              className="notice policy"
+              aria-label="Standing policy preview"
+            >
+              <strong>This changes policy, not just this action.</strong>
+              <span>
+                It lets every future{' '}
+                {words(d.coverage.standing.action_types.join(', '))} on{' '}
+                {d.coverage.standing.target_kind ?? 'any target'} with{' '}
+                {d.coverage.standing.data_classes.join(', ')} data in this run
+                proceed without asking, until the expiry below. You can revoke
+                it at any time.
+              </span>
+              <label htmlFor={`days-${d.id}`}>
+                Expires after (days, up to 90)
+              </label>
+              <input
+                id={`days-${d.id}`}
+                type="number"
+                min={1}
+                max={90}
+                value={days}
+                onChange={(e) =>
+                  setDays(
+                    Math.min(90, Math.max(1, Number(e.target.value) || 1)),
+                  )
+                }
+              />
+              <button
+                className="secondary strong"
+                disabled={disabled}
+                onClick={() => void answer('approve_standing')}
+              >
+                Create standing policy for {days} days
+              </button>
+            </aside>
+          )}
+        </>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </article>
+  );
+}
+
+/** Pending human decisions, standing policies and runs under oversight. */
+export function Oversight({
+  session,
+  signOut,
+}: {
+  session: SessionInfo;
+  signOut: () => Promise<void>;
+}) {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspace, setWorkspace] = useState('');
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [grants, setGrants] = useState<Grant[]>([]);
+  const [runs, setRuns] = useState<RunControl[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  const [error, setError] = useState('');
+  async function loadWorkspaces() {
+    try {
+      const list = await api(z.array(WorkspaceSchema), 'workspaces');
+      setWorkspaces(list);
+      setWorkspace((c) =>
+        list.some((w) => w.id === c) ? c : (list[0]?.id ?? ''),
+      );
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+  async function load() {
+    if (!workspace) return;
+    setError('');
+    try {
+      setDecisions(
+        await api(
+          z.array(DecisionSchema),
+          `workspaces/${workspace}/decisions${showAll ? '' : '?status=pending'}`,
+        ),
+      );
+      setGrants(
+        await api(z.array(GrantSchema), `workspaces/${workspace}/grants`),
+      );
+      setRuns(
+        await api(z.array(RunControlSchema), `workspaces/${workspace}/runs`),
+      );
+    } catch (e) {
+      setError(message(e));
+    }
+  }
+  useEffect(() => {
+    void loadWorkspaces();
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [workspace, showAll]);
+  async function revoke(g: Grant) {
+    try {
+      await api(GrantSchema, `workspaces/${workspace}/grants/${g.id}/revoke`, {
+        csrf: session.csrf_token,
+        body: {
+          expected_version: g.version,
+          reason: 'Revoked from the web page',
+        },
+      });
+    } catch (e) {
+      setError(message(e));
+    }
+    await load();
+  }
+  async function cancel(r: RunControl) {
+    try {
+      await api(
+        RunControlSchema,
+        `workspaces/${workspace}/runs/${r.run_id}/cancel`,
+        {
+          csrf: session.csrf_token,
+          body: { reason: 'Stopped by the owner from the web page' },
+        },
+      );
+    } catch (e) {
+      setError(message(e));
+    }
+    await load();
+  }
+  const standing = grants.filter(
+    (g) => g.scope === 'standing' && g.status === 'active',
+  );
+  return (
+    <section className="panel records" aria-labelledby="oversight-title">
+      <div className="eyebrow">03 / HUMAN DECISIONS</div>
+      <div className="decision-head">
+        <h2 id="oversight-title">Decisions, policies and runs</h2>
+        <span className="small">
+          Signed in as {session.display_name} (
+          {session.method === 'dev_local' ? 'local development' : 'OIDC'}){' '}
+          <button className="text" onClick={() => void signOut()}>
+            Sign out
+          </button>
+        </span>
+      </div>
+      <p>
+        Only work that needs a person appears here. Covered, reversible routine
+        actions proceed without asking. Approving once permits exactly the
+        action shown; a standing policy changes what future actions may do.
+      </p>
+      <div className="connection">
+        <label htmlFor="ows" className="inline">
+          Workspace
+        </label>
+        <select
+          id="ows"
+          value={workspace}
+          onChange={(e) => setWorkspace(e.target.value)}
+        >
+          {workspaces.length === 0 && (
+            <option value="">No workspaces yet</option>
+          )}
+          {workspaces.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
+            </option>
+          ))}
+        </select>
+        <button className="secondary" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? 'Pending only' : 'Show answered and closed'}
+        </button>
+        <button className="secondary" onClick={() => void load()}>
+          Refresh
+        </button>
+      </div>
+      <div className="records-grid">
+        <div>
+          <h3>{showAll ? 'All decisions' : 'Waiting for you'}</h3>
+          {decisions.length === 0 ? (
+            <p className="small">
+              {showAll ? 'No decisions yet.' : 'Nothing needs you right now.'}
+            </p>
+          ) : (
+            decisions.map((d) => (
+              <DecisionCard
+                key={`${d.id}-${d.version}`}
+                d={d}
+                csrf={session.csrf_token}
+                workspace={workspace}
+                onDone={() => void load()}
+              />
+            ))
+          )}
+        </div>
+        <div>
+          <h3>Runs under oversight</h3>
+          {runs.length === 0 ? (
+            <p className="small">No registered runs.</p>
+          ) : (
+            <ul>
+              {runs.map((r) => (
+                <li key={r.run_id}>
+                  <span className="kind">{words(r.autonomy_mode)}</span>{' '}
+                  {r.run_id.slice(0, 8)} · {r.state}
+                  <small>
+                    {' '}
+                    gates: {r.stage_gates.map(words).join(', ') || 'none'}
+                  </small>{' '}
+                  {r.state === 'active' && (
+                    <button className="text" onClick={() => void cancel(r)}>
+                      Stop run
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <h3>Standing policies</h3>
+          {standing.length === 0 ? (
+            <p className="small">
+              No standing policies. Every uncovered action asks first.
+            </p>
+          ) : (
+            <ul>
+              {standing.map((g) => (
+                <li key={g.id}>
+                  <span className="kind">v{g.version}</span>{' '}
+                  {g.action_types.map(words).join(', ')} ·{' '}
+                  {g.run_id ? `run ${g.run_id.slice(0, 8)}` : 'whole workspace'}{' '}
+                  · until {when(g.expires_at)}{' '}
+                  <button className="text" onClick={() => void revoke(g)}>
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}

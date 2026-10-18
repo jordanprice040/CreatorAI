@@ -1,5 +1,7 @@
 # Implementation status
 
+T03 update, October 18, 2026: owner sign-in (local development code or OIDC with PKCE), CSRF-protected sessions, versioned standing grants, approve-once grants bound to exact target/content/spec versions, durable decision requests (clarification, judgment, authorization, feedback) with expiry, cancellation and idempotent answers, deterministic action admission for supervised, human-in-the-loop, autonomous-within-scope and human-only runs, assumption records and a pre-build humility gate now exist behind the API, CLI and a web Human decisions panel. Verified in a Linux cloud container with PostgreSQL 16.15: 47/47 tests with the database (29 pass, 18 visibly skipped without), smoke and a headless Chromium check. Not run on the owner's Windows machine; OIDC verified only against a local test identity provider. See [T03 evidence](evidence/t03/verification.json) and ADR-0006.
+
 T02 update, October 18, 2026: PostgreSQL persistence, migrations, many-to-many typed links, optimistic versions, workspace scopes, a hash-chained audit log with transactional outbox, an idempotent history projection, corrections and redaction tombstones now exist behind the API, CLI and a read-only web Records panel. Verified in a Linux cloud container against PostgreSQL 16.15 (29/29 tests with the database; 21 pass and 8 visibly skipped without it). Not yet run on the owner's Windows machine. See [T02 evidence](evidence/t02/verification.json) and ADR-0005 in [decisions](DECISIONS.md). The task demonstration remains fixture-only; no AI, research or authentication exists.
 
 Claude Code tooling, October 18, 2026: the same skills (now 30, adding Matt Pocock `grill-me`, `grilling` and `improve-codebase-architecture`) are mirrored to `.claude/skills`, both MCP servers are in `.mcp.json`, and a cloud-only SessionStart hook runs `pnpm install`. Playwright MCP was verified in a Linux cloud container with environment overrides; Firecrawl was not reachable from the cloud network (403) and is untested there. Product status unchanged: T01 complete, T02 next.
@@ -16,8 +18,8 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | --- | --- | --- | --- | --- |
 | T00 | Repository intake and verified starting point | verified | Historical T00 snapshot in evidence/t00; ADR-0001 | Intake complete; T01 subsequently implemented |
 | T01 | Minimal workspace, typed contracts, and lifecycle | verified | Package 0.1.0, schema 1.0; evidence/t01/final-files.sha256; clean install/build/check, 20 passing tests on Node 22 and 24, HTTP smoke and browser checks | Superseded as current status by T02 |
-| T02 | Persistence, provenance, and durable audit | verified (cloud Linux, PostgreSQL 16.15) | Branch claude/project-thread-lzo59n; migration 1; evidence/t02/verification.json; 29/29 tests incl. real process restart, stale/concurrent writes, cross-scope links, duplicate outbox delivery and two-ideas/two-descendants lineage; browser check of Records panel | Owner review; Windows PostgreSQL setup untested; no authentication (T03); next eligible T03 |
-| T03 | Human decisions, autonomy modes, and humility | planned | No application code at T00 | T02 |
+| T02 | Persistence, provenance, and durable audit | verified (cloud Linux, PostgreSQL 16.15), merged PR #3 | Migration 1; evidence/t02/verification.json; 29/29 tests incl. real process restart, stale/concurrent writes, cross-scope links, duplicate outbox delivery and two-ideas/two-descendants lineage; browser check of Records panel | Windows PostgreSQL setup untested; authentication added in T03 |
+| T03 | Human decisions, autonomy modes, and humility | verified (cloud Linux, PostgreSQL 16.15) | Branch claude/t03-decisions-autonomy-5gpinz; migration 2; evidence/t03/verification.json; 47/47 tests incl. changed/expired approvals, cancellation, duplicate and concurrent answers, autonomous needs_human, human-only model denial, routine action without interruption, OIDC PKCE and CSRF | Owner review; Windows and real IdP untested; no budget reservation (T04) or orchestrator caller (T05); next eligible T04 |
 | T04 | Budgets and a metered model/tool broker | planned | No application code at T00 | T03 |
 | T05 | Durable bounded orchestration and recovery | planned | No application code at T00 | T04 |
 | T06 | Source ingestion, claim support, and research boundaries | planned | No application code at T00 | T05 |
@@ -95,3 +97,16 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
 | --- | --- | --- |
 | C32 | partial | Records persist across real API restart; usable control/orchestration remains T05/T17 |
 | C20–C23 | partial | Version-bound links and optimistic versions persist; scheduler and independent review remain T05/T12 |
+
+## T03 acceptance and evidence
+
+- Sessions: `/api/auth/dev-login`, `/api/auth/oidc/login|callback`, `/api/auth/session`, `/api/auth/logout`. Record, decision, grant and run routes resolve the actor from the session; 401 without one, 403 `CSRF_DENIED` without the session's token, 403 for foreign origins. OIDC attempts are single use and admit only `CREATOR_OIDC_OWNER_SUBJECT`.
+- Decisions and grants: migration 2 tables `run_controls`, `grants`/`grant_versions`, `decision_requests`, `action_admissions`, `auth_sessions`, `oidc_logins`, all audited through the T02 hash chain; run controls, grant versions, decisions and admissions reject deletes (and edits where immutable).
+- Acceptance cases executed (tests/src/oversight*.test.ts, auth-api.test.ts): changed target supersedes an open approval and denies stale-version actions; expired requests and grants stop authorizing; cancellation closes pending decisions, revokes run grants and denies later actions; duplicate requests return the open one, identical answers replay, conflicting and concurrent answers have one winner; autonomous runs defer as `needs_human`, cannot request help and ignore later grants; human-only runs are denied model calls despite a grant; a covered routine reversible action proceeds three times with no decision; agents cannot answer or create grants; build commitment needs the humility gate, then an ethics judgment, then an exact approval.
+- Browser: sign-in via login link, pending judgment and authorization cards, standing-policy preview, approve once, answered view, no horizontal overflow at 390 px ([log](evidence/t03/browser-check.log), [screenshot](evidence/t03/browser-decisions.png)).
+- Limitations: admission is called by the owner via API/CLI until T05 adds an orchestrator; no budget exposure check (T04); single owner (no editor/agent sessions); OIDC verified with a local test provider only; Windows untested; schema 1.0 extended additively (new kinds `assumption`, `humility_review`, error codes `UNAUTHENTICATED`, `CSRF_DENIED`).
+
+| Requirement | Current status | T03 evidence / remaining gate |
+| --- | --- | --- |
+| C10–C11 | partial | Humility gate and assumption records enforced at build commitment; discovery-side use remains T07–T08 |
+| C13–C16 | partial | Authenticated owner, versioned grants, mode enforcement and decision requests; study runner remains T10 |

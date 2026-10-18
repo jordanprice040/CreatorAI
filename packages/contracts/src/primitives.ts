@@ -93,6 +93,8 @@ export const EntityKindSchema = z.enum([
   'config',
   'prompt',
   'grant',
+  'assumption',
+  'humility_review',
 ]);
 export const EntityRefSchema = z.strictObject({
   kind: EntityKindSchema,
@@ -133,6 +135,8 @@ export const ErrorCodeSchema = z.enum([
   'DUPLICATE',
   'IDEMPOTENCY_CONFLICT',
   'STORAGE_UNAVAILABLE',
+  'UNAUTHENTICATED',
+  'CSRF_DENIED',
   'INTERNAL_ERROR',
 ]);
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>;

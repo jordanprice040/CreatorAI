@@ -1,4 +1,4 @@
-# Local development — T02
+# Local development — T03
 
 Creator Agent has a local API, CLI and React page. The task demonstration still uses the **deterministic fixture provider** and is not saved. Since T02, records (sources, claims, problems, ideas, alternatives, assessments, products, specifications, runs, tasks, decisions, grants, artifacts), typed many-to-many links and an audit history persist in **PostgreSQL** when `CREATOR_DATABASE_URL` is set. Without it the app still starts, reports `persistent: false`, and record routes return `503 STORAGE_UNAVAILABLE`. Nothing here researches problems, invokes AI, builds generated products, or runs studies.
 
@@ -57,6 +57,30 @@ pnpm cli demo failed "Show a synthetic failed attempt"
 The CLI calls the API; it never substitutes an offline result when the API is unavailable. Failures return a nonzero exit code. Run `pnpm build` before invoking the compiled CLI directly.
 
 Separate terminals are also supported: `pnpm dev:api` and `pnpm dev:web` after a build. Do not start these alongside `pnpm dev` on the same ports.
+
+## Sign-in and human decisions (T03)
+
+Records, decisions, grants and runs need an owner session (PostgreSQL required). Two sign-in modes exist:
+
+- **Local development (default).** The API prints a one-run login link (`http://127.0.0.1:5173/#login=<code>`) and code at startup, or uses `CREATOR_DEV_LOGIN_CODE` (32+ URL-safe characters) if set. Open the link, or run `pnpm cli login <code>`. This mode fails configuration in hosted mode.
+- **OIDC.** Set `CREATOR_OIDC_ISSUER`, `CREATOR_OIDC_CLIENT_ID`, optional `CREATOR_OIDC_CLIENT_SECRET`, `CREATOR_OIDC_REDIRECT_URI` (for the web page: `http://127.0.0.1:5173/api/auth/oidc/callback`) and `CREATOR_OIDC_OWNER_SUBJECT` (the `sub` claim allowed in). Authorization code + PKCE through `openid-client` 6.8.8. Plain-http issuers are accepted only on loopback. Verified only against a local test identity provider, not a real one.
+
+Sessions are opaque tokens in an `HttpOnly; SameSite=Strict` cookie (stored hashed, 12 hours by default, `CREATOR_SESSION_HOURS`); every state-changing request must send the session's `X-CSRF-Token`, and foreign origins are refused. The CLI keeps its session in `.creator/cli-session.json` (git-ignored; override with `CREATOR_SESSION_FILE`).
+
+```powershell
+pnpm cli login <code>
+pnpm cli run-register <workspace> <run-id>@1 supervised     # or human_in_loop, autonomous_within_scope [grant-id@version ...], human_only
+pnpm cli grant-create <workspace> '{"run_id":null,"action_types":["record.revise"],"target_kind":null,"max_amount_nano_usd":null,"allow_irreversible":false,"allow_external_effects":false,"data_classes":["synthetic"],"expires_at":"2026-11-01T00:00:00Z","rationale":"Routine edits"}'
+pnpm cli admit <workspace> <run-id> '<action-json>'           # allow / request_human / deny / defer, recorded
+pnpm cli decisions <workspace> pending
+pnpm cli decision <workspace> <decision-id>                   # shows exactly what it covers and its coverage_hash
+pnpm cli answer <workspace> <decision-id> <coverage-hash> approve_once "Reason"
+pnpm cli answer <workspace> <decision-id> <coverage-hash> choose_option proceed "Reason"
+pnpm cli run-cancel <workspace> <run-id> "Reason"
+pnpm cli humility-gate <workspace> <review-id>
+```
+
+The web page shows the same decisions in a Human decisions panel: the concise request, what an approval covers (action, target version, content/spec hash, amount, expiry), approve once versus a previewed standing policy, option answers for judgment questions, standing policies with Revoke, and runs with Stop.
 
 ## Checks
 

@@ -12,6 +12,7 @@ import {
   DiscoverySchema,
 } from './primitives.js';
 import { LinkRelationSchema } from './records.js';
+import { AssumptionBodySchema, HumilityBodySchema } from './oversight.js';
 
 // Persistent record bodies (T02). Bodies hold references and hashes; source content and
 // large artifacts stay outside the database and workflow history.
@@ -31,6 +32,8 @@ export const StoredKindSchema = z.enum([
   'decision',
   'grant',
   'artifact',
+  'assumption',
+  'humility_review',
 ]);
 export type StoredKind = z.infer<typeof StoredKindSchema>;
 export const RecordModeSchema = z.enum(['fixture', 'real']);
@@ -106,7 +109,8 @@ export const StoredBodySchemas = {
     selected_option: short.nullable(),
     rationale: text.max(2000).nullable(),
   }),
-  // A stored grant is a record only; T03 owns enforcement of authority.
+  // Legacy T02 note kinds. Since T03, decisions and grants that carry authority live in their
+  // own enforced tables; the generic record API refuses to create these kinds.
   grant: z.strictObject({
     action_type: short,
     scope: text.max(2000),
@@ -122,6 +126,8 @@ export const StoredBodySchemas = {
     bytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
     media_type: short,
   }),
+  assumption: AssumptionBodySchema,
+  humility_review: HumilityBodySchema,
 } as const satisfies Record<StoredKind, z.ZodType>;
 export const lifecycleField: Partial<
   Record<StoredKind, { field: string; initial: string }>
@@ -131,6 +137,8 @@ export const lifecycleField: Partial<
   task: { field: 'state', initial: 'queued' },
 };
 export const MAX_BODY_BYTES = 16384;
+/** Kinds whose authority is enforced elsewhere (T03 decision and grant tables). */
+export const UNMANAGED_KINDS: readonly StoredKind[] = ['decision', 'grant'];
 
 export const CreateWorkspaceRequestSchema = z.strictObject({
   name: short,
