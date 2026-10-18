@@ -1,0 +1,193 @@
+$ pnpm typecheck && pnpm test && pnpm format:check
+$ tsc -b && pnpm --filter @creator/web typecheck
+$ tsc --noEmit
+$ pnpm build:code && node --test tests/dist/*.test.js
+$ tsc -b
+TAP version 13
+# Subtest: real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+ok 1 - real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+  ---
+  duration_ms: 104.875083
+  type: 'test'
+  ...
+# Subtest: compiled CLI reaches the HTTP API and fails visibly when unavailable
+ok 2 - compiled CLI reaches the HTTP API and fails visibly when unavailable
+  ---
+  duration_ms: 531.097403
+  type: 'test'
+  ...
+# Subtest: exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+ok 3 - exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+  ---
+  duration_ms: 5.026765
+  type: 'test'
+  ...
+# Subtest: versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+ok 4 - versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+  ---
+  duration_ms: 7.692087
+  type: 'test'
+  ...
+# Subtest: source/claim contracts require version/hash/locator and keep inference and contrary evidence
+ok 5 - source/claim contracts require version/hash/locator and keep inference and contrary evidence
+  ---
+  duration_ms: 8.671544
+  type: 'test'
+  ...
+# Subtest: alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+ok 6 - alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+  ---
+  duration_ms: 2.679877
+  type: 'test'
+  ...
+# Subtest: decision request cannot invent an answer, choose an absent option or answer after expiry
+ok 7 - decision request cannot invent an answer, choose an absent option or answer after expiry
+  ---
+  duration_ms: 3.054429
+  type: 'test'
+  ...
+# Subtest: typed many-to-many links reject cross-workspace and impossible relations
+ok 8 - typed many-to-many links reject cross-workspace and impossible relations
+  ---
+  duration_ms: 1.067187
+  type: 'test'
+  ...
+# Subtest: experiment assignment keeps condition/method separate and excludes generative human-only setup
+ok 9 - experiment assignment keeps condition/method separate and excludes generative human-only setup
+  ---
+  duration_ms: 1.67665
+  type: 'test'
+  ...
+# Subtest: result success cannot replace missing evidence or unknown usage with fixture claims
+ok 10 - result success cannot replace missing evidence or unknown usage with fixture claims
+  ---
+  duration_ms: 13.026342
+  type: 'test'
+  ...
+# Subtest: service configuration rejects hosted/live/invalid ports and binds loopback
+ok 11 - service configuration rejects hosted/live/invalid ports and binds loopback
+  ---
+  duration_ms: 2.746651
+  type: 'test'
+  ...
+# Subtest: deterministic fixture exercises all outcomes without real model or tool effects
+ok 12 - deterministic fixture exercises all outcomes without real model or tool effects
+  ---
+  duration_ms: 53.562344
+  type: 'test'
+  ...
+# Subtest: missing/invalid paid limits fail before dispatch and even complete live config remains denied
+ok 13 - missing/invalid paid limits fail before dispatch and even complete live config remains denied
+  ---
+  duration_ms: 2.068956
+  type: 'test'
+  ...
+# Subtest: human-only configuration cannot reach even the fake provider
+ok 14 - human-only configuration cannot reach even the fake provider
+  ---
+  duration_ms: 0.433342
+  type: 'test'
+  ...
+# Subtest: delegation contains paths, grants, classifications, research condition and depth
+ok 15 - delegation contains paths, grants, classifications, research condition and depth
+  ---
+  duration_ms: 3.180294
+  type: 'test'
+  ...
+# Subtest: sibling allocations conserve exact money and calls rather than checking children separately
+ok 16 - sibling allocations conserve exact money and calls rather than checking children separately
+  ---
+  duration_ms: 1.472326
+  type: 'test'
+  ...
+# Subtest: results bind exact task/config/spec/version and check evidence
+ok 17 - results bind exact task/config/spec/version and check evidence
+  ---
+  duration_ms: 7.459882
+  type: 'test'
+  ...
+# Subtest: product transitions reject skipped stages, stale versions and stale candidate evidence
+ok 18 - product transitions reject skipped stages, stale versions and stale candidate evidence
+  ---
+  duration_ms: 1.339075
+  type: 'test'
+  ...
+# Subtest: ready-to-try needs candidate-bound independent test/review and export evidence
+ok 19 - ready-to-try needs candidate-bound independent test/review and export evidence
+  ---
+  duration_ms: 4.432114
+  type: 'test'
+  ...
+# Subtest: execution cannot resurrect cancellation or silently change research dimensions
+ok 20 - execution cannot resurrect cancellation or silently change research dimensions
+  ---
+  duration_ms: 2.53321
+  type: 'test'
+  ...
+# Subtest: records survive a real API process restart; HTTP enforces versions, scope and idempotency
+ok 21 - records survive a real API process restart; HTTP enforces versions, scope and idempotency # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 1.055718
+  type: 'test'
+  ...
+# Subtest: without a database the records API reports unavailable instead of pretending to persist
+ok 22 - without a database the records API reports unavailable instead of pretending to persist
+  ---
+  duration_ms: 42.521073
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 23 - migrations apply once, refuse edited history, and gate an unmigrated schema # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.816006
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 24 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.374984
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 25 - optimistic versions reject stale and concurrent writes; corrections append instead of editing # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.250363
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 26 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.212985
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 27 - outbox projection is idempotent under duplicate and concurrent delivery # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.302385
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 28 - idempotency keys replay one create and reject a changed request # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.152788
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 29 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.182867
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 8
+# todo 0
+# duration_ms 872.917117
+$ prettier --check apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json
+Checking formatting...
+All matched files use Prettier code style!
+exit 0

@@ -13,11 +13,13 @@
     "build": "pnpm build:code && pnpm --filter @creator/web build",
     "typecheck": "tsc -b && pnpm --filter @creator/web typecheck",
     "test": "pnpm build:code && node --test tests/dist/*.test.js",
+    "test:db": "node scripts/require-test-db.mjs && pnpm test",
     "format": "prettier --write apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json",
     "format:check": "prettier --check apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json",
     "check": "pnpm typecheck && pnpm test && pnpm format:check",
     "dev": "pnpm build:code && node scripts/dev.mjs",
     "dev:api": "pnpm build:code && node apps/api/dist/main.js",
+    "db:migrate": "pnpm build:code && node packages/db/dist/migrate-main.js",
     "dev:web": "pnpm --filter @creator/web dev",
     "cli": "node apps/cli/dist/main.js",
     "smoke": "pnpm build && node scripts/smoke.mjs"

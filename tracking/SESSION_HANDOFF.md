@@ -1,5 +1,17 @@
 # Session handoff
 
+## Latest — T02 persistence, provenance and durable audit (October 18, 2026)
+
+Done in a Claude Code cloud session on branch `claude/project-thread-lzo59n` of github.com/jordanprice040/CreatorAI (rebased onto `main` at e704196). Pushed with Jordan's go-ahead and opened as a draft PR for review.
+
+What works: with `CREATOR_DATABASE_URL` set to a loopback PostgreSQL URL and `pnpm db:migrate` run, the API stores records, versions, typed links and audit history; `pnpm cli seed-lineage` builds a labeled fixture lineage (two ideas → one product, one idea → two products, task → artifact); the web page shows a read-only Records panel. Without a database the app behaves as T01 and record routes return 503.
+
+Checks executed (Linux, Node 22.22.0, PostgreSQL 16.15): `pnpm check` without DB (21 pass, 8 skipped visibly), `pnpm test:db` (29/29), `pnpm smoke`, migration run twice, headless Chromium check. Evidence: tracking/evidence/t02/.
+
+Not done / limits: no authentication; Windows PostgreSQL setup untested (see docs/LOCAL_DEVELOPMENT.md); Node 24 not re-run with the DB suites. The CI workflow runs `pnpm check`, where the PostgreSQL suites skip; it does not yet run `pnpm test:db`. ADR-0005 records the design.
+
+**Next eligible prompt: T03 — Human decisions, autonomy modes, and humility.** Requires a new request.
+
 ## Claude Code tool setup — October 18, 2026
 
 Owner approved making the development tools available to Claude Code. Copied `.agents/skills` to `.claude/skills` (30 skills; added Matt Pocock `grill-me`, `grilling`, `improve-codebase-architecture` to both at commit 49dd158). Added `.mcp.json` with the same Playwright and Firecrawl entries, and `.claude/settings.json` + `.claude/hooks/session-start.sh` (cloud only, `pnpm install`). `claude mcp list` reads both servers (pending per-user approval). Playwright stdio check passed in the cloud container with `PLAYWRIGHT_MCP_EXECUTABLE_PATH=/opt/pw-browsers/chromium` and `PLAYWRIGHT_MCP_SANDBOX=false`; Firecrawl's host is blocked by the cloud network policy, so use the claude.ai Firecrawl connector there. Hook run, a Prettier check and `contracts.test.js` (9 pass) succeeded. Details: [DEVELOPMENT_TOOLS.md](../docs/DEVELOPMENT_TOOLS.md#claude-code), ADR-0004.

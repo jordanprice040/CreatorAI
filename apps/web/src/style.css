@@ -234,7 +234,71 @@ footer {
   font-size: 11px;
   color: #63705f;
 }
+h3 {
+  font-size: 13px;
+  font-weight: 650;
+  margin: 18px 0 8px;
+}
+code {
+  background: #eff1e9;
+  padding: 1px 4px;
+  font-size: 12px;
+}
+.records {
+  margin-top: 20px;
+}
+.records .connection select {
+  max-width: 420px;
+}
+.records-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 28px;
+}
+.records ul,
+.records ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+}
+.records li {
+  padding: 6px 0;
+  border-bottom: 1px solid #e6e9e0;
+  overflow-wrap: anywhere;
+}
+.text {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #234635;
+  text-align: left;
+}
+.text:hover,
+.text.selected {
+  text-decoration: underline;
+}
+.kind,
+.relation {
+  display: inline-block;
+  min-width: 92px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #536657;
+}
+.history span {
+  color: #687168;
+  font-variant-numeric: tabular-nums;
+}
+.retracted {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
 @media (max-width: 760px) {
+  .records-grid {
+    grid-template-columns: 1fr;
+  }
   .workspace {
     grid-template-columns: 1fr;
   }

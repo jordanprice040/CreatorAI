@@ -156,14 +156,42 @@ export const CostSchema = z.discriminatedUnion('status', [
     reason: text,
   }),
 ]);
-const linkPairs: Record<string, readonly string[]> = {
-  supports: ['source:claim', 'claim:problem', 'claim:alternative'],
+export const LinkRelationSchema = z.enum([
+  'supports',
+  'contradicts',
+  'derived_from',
+  'uses',
+  'implements',
+  'verifies',
+  'supersedes',
+  'forks',
+  'reuses',
+  'released_as',
+  'assesses',
+  'part_of',
+  'authorizes',
+]);
+export type LinkRelation = z.infer<typeof LinkRelationSchema>;
+// Additive to schema 1.0 (T02): idea/assessment kinds and their relations; no T01-valid link becomes invalid.
+export const linkPairs: Record<LinkRelation, readonly string[]> = {
+  supports: [
+    'source:claim',
+    'claim:problem',
+    'claim:alternative',
+    'claim:idea',
+  ],
   contradicts: ['source:claim', 'claim:claim'],
   derived_from: [
     'problem:claim',
     'alternative:problem',
     'product:alternative',
     'specification:alternative',
+    'idea:problem',
+    'idea:idea',
+    'alternative:idea',
+    'product:idea',
+    'specification:product',
+    'artifact:task',
   ],
   uses: ['task:source', 'task:specification', 'run:config', 'run:prompt'],
   implements: ['task:specification', 'artifact:specification'],
@@ -172,22 +200,49 @@ const linkPairs: Record<string, readonly string[]> = {
   forks: ['product:product'],
   reuses: ['product:artifact'],
   released_as: ['product:artifact'],
+  assesses: ['assessment:alternative', 'assessment:idea', 'assessment:problem'],
+  part_of: ['task:run', 'run:product'],
+  authorizes: [
+    'grant:run',
+    'grant:task',
+    'decision:alternative',
+    'decision:specification',
+  ],
 };
+/**
+ * Which endpoint is the origin in provenance terms. "A supports B" makes A the origin;
+ * "A derived_from B" makes B the origin. Lineage walks use this, not raw link direction.
+ */
+export const provenanceOrigin: Record<LinkRelation, 'from' | 'to'> = {
+  supports: 'from',
+  contradicts: 'from',
+  verifies: 'from',
+  assesses: 'from',
+  authorizes: 'from',
+  released_as: 'from',
+  derived_from: 'to',
+  uses: 'to',
+  implements: 'to',
+  part_of: 'to',
+  reuses: 'to',
+  forks: 'to',
+  supersedes: 'to',
+};
+/** Endpoint-type rule shared by contract validation and the persistent link repository. */
+export function isAllowedLink(
+  relation: LinkRelation,
+  from: { kind: string; id: string; version: number },
+  to: { kind: string; id: string; version: number },
+): boolean {
+  if (from.id === to.id && from.version === to.version) return false;
+  if (relation === 'supersedes')
+    return from.kind === to.kind && from.version > to.version;
+  return linkPairs[relation].includes(`${from.kind}:${to.kind}`);
+}
 export const EntityLinkSchema = z
   .strictObject({
     ...RecordFields,
-    relation: z.enum([
-      'supports',
-      'contradicts',
-      'derived_from',
-      'uses',
-      'implements',
-      'verifies',
-      'supersedes',
-      'forks',
-      'reuses',
-      'released_as',
-    ]),
+    relation: LinkRelationSchema,
     from: EntityRefSchema,
     to: EntityRefSchema,
     asserted_by: id,
@@ -199,14 +254,7 @@ export const EntityLinkSchema = z
       l.to.workspace_id !== l.workspace_id
     )
       ctx.addIssue({ code: 'custom', message: 'Cross-workspace link denied.' });
-    const pairAllowed =
-      l.relation === 'supersedes'
-        ? l.from.kind === l.to.kind && l.from.version > l.to.version
-        : linkPairs[l.relation]?.includes(`${l.from.kind}:${l.to.kind}`);
-    if (
-      !pairAllowed ||
-      (l.from.id === l.to.id && l.from.version === l.to.version)
-    )
+    if (!isAllowedLink(l.relation, l.from, l.to))
       ctx.addIssue({
         code: 'custom',
         message: 'Invalid relation endpoint types or self-link.',

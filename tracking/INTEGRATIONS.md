@@ -24,7 +24,7 @@ Updated October 17, 2026 (America/New_York), T01. Local API/CLI/web and the dete
 | Local API/CLI/web | Yes, stateless | Yes | Yes | Local HTTP and browser only | Local fixture demo | apps/api, apps/cli, apps/web; health, strict requests, errors and fixture results. No persistent catalog or hosted service. |
 | Model/provider broker | Deterministic fake and admission prerequisites only | Yes | Fake contracts only | Real provider unverified | Fixture only; live disabled | No real SDK, model/API call, budget reservation or grant lookup. Reference GPT-6 Astra identity/access/pricing remain unverified; dated config/provider-availability.json. |
 | Source search/fetch | No | No | No | No | No | No broker; approved sources, retention and network boundaries to implement. |
-| PostgreSQL persistence | No | No | No | Unverified | No | No migrations; psql not on PATH. Service availability not checked. T02. |
+| PostgreSQL persistence | Yes (T02) | Yes (fixture workspaces) | Yes | Local PostgreSQL 16.15 in a Linux cloud container only | Optional; enabled by CREATOR_DATABASE_URL (loopback only) | packages/db, migration 1, evidence/t02. Owner's Windows PostgreSQL install untested; no hosted database. |
 | Durable workflow service | No | No | No | Unverified | No | Temporal planned; CLI not on PATH, no SDK/config or endpoint verified. T05. |
 | Execution isolation | No | No | No | Unverified | No | No worker; Docker not on PATH, VM/container boundary unverified. T11. |
 | Local Git/artifacts/preview | No application adapter | No | No | Git CLI only | No product activation | Git 2.45.1.windows.1, unborn main/origin configured. No generated-product Git, artifacts or preview service. |

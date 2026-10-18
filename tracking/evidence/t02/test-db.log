@@ -1,0 +1,188 @@
+$ node scripts/require-test-db.mjs && pnpm test
+$ pnpm build:code && node --test tests/dist/*.test.js
+$ tsc -b
+TAP version 13
+# Subtest: real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+ok 1 - real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+  ---
+  duration_ms: 109.123546
+  type: 'test'
+  ...
+# Subtest: compiled CLI reaches the HTTP API and fails visibly when unavailable
+ok 2 - compiled CLI reaches the HTTP API and fails visibly when unavailable
+  ---
+  duration_ms: 597.164437
+  type: 'test'
+  ...
+# Subtest: exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+ok 3 - exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+  ---
+  duration_ms: 2.307474
+  type: 'test'
+  ...
+# Subtest: versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+ok 4 - versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+  ---
+  duration_ms: 3.433435
+  type: 'test'
+  ...
+# Subtest: source/claim contracts require version/hash/locator and keep inference and contrary evidence
+ok 5 - source/claim contracts require version/hash/locator and keep inference and contrary evidence
+  ---
+  duration_ms: 3.493213
+  type: 'test'
+  ...
+# Subtest: alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+ok 6 - alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+  ---
+  duration_ms: 4.688132
+  type: 'test'
+  ...
+# Subtest: decision request cannot invent an answer, choose an absent option or answer after expiry
+ok 7 - decision request cannot invent an answer, choose an absent option or answer after expiry
+  ---
+  duration_ms: 2.602346
+  type: 'test'
+  ...
+# Subtest: typed many-to-many links reject cross-workspace and impossible relations
+ok 8 - typed many-to-many links reject cross-workspace and impossible relations
+  ---
+  duration_ms: 0.955054
+  type: 'test'
+  ...
+# Subtest: experiment assignment keeps condition/method separate and excludes generative human-only setup
+ok 9 - experiment assignment keeps condition/method separate and excludes generative human-only setup
+  ---
+  duration_ms: 1.47732
+  type: 'test'
+  ...
+# Subtest: result success cannot replace missing evidence or unknown usage with fixture claims
+ok 10 - result success cannot replace missing evidence or unknown usage with fixture claims
+  ---
+  duration_ms: 7.82948
+  type: 'test'
+  ...
+# Subtest: service configuration rejects hosted/live/invalid ports and binds loopback
+ok 11 - service configuration rejects hosted/live/invalid ports and binds loopback
+  ---
+  duration_ms: 4.881555
+  type: 'test'
+  ...
+# Subtest: deterministic fixture exercises all outcomes without real model or tool effects
+ok 12 - deterministic fixture exercises all outcomes without real model or tool effects
+  ---
+  duration_ms: 46.290153
+  type: 'test'
+  ...
+# Subtest: missing/invalid paid limits fail before dispatch and even complete live config remains denied
+ok 13 - missing/invalid paid limits fail before dispatch and even complete live config remains denied
+  ---
+  duration_ms: 2.041457
+  type: 'test'
+  ...
+# Subtest: human-only configuration cannot reach even the fake provider
+ok 14 - human-only configuration cannot reach even the fake provider
+  ---
+  duration_ms: 0.534081
+  type: 'test'
+  ...
+# Subtest: delegation contains paths, grants, classifications, research condition and depth
+ok 15 - delegation contains paths, grants, classifications, research condition and depth
+  ---
+  duration_ms: 7.062957
+  type: 'test'
+  ...
+# Subtest: sibling allocations conserve exact money and calls rather than checking children separately
+ok 16 - sibling allocations conserve exact money and calls rather than checking children separately
+  ---
+  duration_ms: 1.679831
+  type: 'test'
+  ...
+# Subtest: results bind exact task/config/spec/version and check evidence
+ok 17 - results bind exact task/config/spec/version and check evidence
+  ---
+  duration_ms: 3.263082
+  type: 'test'
+  ...
+# Subtest: product transitions reject skipped stages, stale versions and stale candidate evidence
+ok 18 - product transitions reject skipped stages, stale versions and stale candidate evidence
+  ---
+  duration_ms: 1.713126
+  type: 'test'
+  ...
+# Subtest: ready-to-try needs candidate-bound independent test/review and export evidence
+ok 19 - ready-to-try needs candidate-bound independent test/review and export evidence
+  ---
+  duration_ms: 4.656291
+  type: 'test'
+  ...
+# Subtest: execution cannot resurrect cancellation or silently change research dimensions
+ok 20 - execution cannot resurrect cancellation or silently change research dimensions
+  ---
+  duration_ms: 4.453175
+  type: 'test'
+  ...
+# Subtest: records survive a real API process restart; HTTP enforces versions, scope and idempotency
+ok 21 - records survive a real API process restart; HTTP enforces versions, scope and idempotency
+  ---
+  duration_ms: 1651.759725
+  type: 'test'
+  ...
+# Subtest: without a database the records API reports unavailable instead of pretending to persist
+ok 22 - without a database the records API reports unavailable instead of pretending to persist
+  ---
+  duration_ms: 11.693571
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 23 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 206.802314
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 24 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 229.75202
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 25 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 180.121326
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 26 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 166.264264
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 27 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 248.704578
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 28 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 116.103999
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 29 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 153.761044
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2086.943214
+exit 0
