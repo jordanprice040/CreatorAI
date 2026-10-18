@@ -9,10 +9,10 @@ pass reviewer.blinding: 42 reviewer files: no hidden metadata in filenames, temp
 pass reviewer.key_complete: The private key maps all 19 reviewed items, one code each.
 pass export.repeatable: 8 study exports re-exported to identical hashes.
 States: {"blocked":4,"submitted":8,"failed":12,"cancelled":1,"deferred":1}
-flag reviewers/reviewer-1/items/item-02.md: submission text contains "Fixture"; owner review before sending.
-flag reviewers/reviewer-1/items/item-14.md: submission text contains "Fixture"; owner review before sending.
-flag reviewers/reviewer-1/items/item-17.md: submission text contains "Fixture"; owner review before sending.
-flag reviewers/reviewer-2/items/item-08.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-05.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-10.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-18.md: submission text contains "Fixture"; owner review before sending.
 flag reviewers/reviewer-2/items/item-12.md: submission text contains "Fixture"; owner review before sending.
 flag reviewers/reviewer-2/items/item-16.md: submission text contains "Fixture"; owner review before sending.
-Package 27477baa6bbc795c55930e51284f4923717af48d006bdcd488318a3fb270b3db in <out-dir>; 0 failed check(s). Not empirical results. reviewers/ is shareable only after owner review; private/ never is.
+flag reviewers/reviewer-2/items/item-18.md: submission text contains "Fixture"; owner review before sending.
+Package 514ee27a90947d240a1c04d395984b57ce1c8febf0d1e2f8a7d44703b8e430f2 in /tmp/claude-0/-home-user-CreatorAI/6665c155-ba64-50d7-b2cd-beb403a22547/scratchpad/eval; 0 failed check(s). Not empirical results. reviewers/ is shareable only after owner review; private/ never is.

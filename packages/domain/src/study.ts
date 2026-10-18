@@ -2,11 +2,13 @@ import {
   CreateStudySchema,
   parse,
   ContractError,
+  type SpecBody,
   type StudyInput,
   type StudyAssignment,
 } from '@creator/contracts';
 import { DISCOVERY_PROMPT_HASH, DISCOVERY_ROLE_VERSION } from './discovery.js';
 import { canonicalHash } from './rules.js';
+import { frozenCases } from './selection.js';
 
 // Baseline deliberately does not import the structured discovery prompt or rubric.
 export const STUDY_PROMPTS = {
@@ -49,19 +51,55 @@ export function studyManifest(raw: unknown) {
   const hashes = Object.fromEntries(
     Object.entries(artifacts).map(([k, v]) => [k, canonicalHash(v)]),
   );
+  // Governance and the freeze binding are hashed only when present, so earlier synthetic
+  // manifests keep their exact hashes.
+  if (input.governance) hashes.governance = canonicalHash(input.governance);
+  if (input.evaluation) hashes.evaluation = canonicalHash(input.evaluation);
   const manifest = {
     ...input,
-    status: 'draft_not_frozen' as const,
-    review_and_consent_status: 'unresolved_before_recruitment' as const,
+    status: input.synthetic
+      ? ('draft_not_frozen' as const)
+      : ('final_record' as const),
+    review_and_consent_status: input.synthetic
+      ? ('unresolved_before_recruitment' as const)
+      : ('recorded_in_adopted_freeze' as const),
     hashes,
   };
   return { manifest, manifest_hash: canonicalHash(manifest) };
+}
+
+/**
+ * What a participant (or the builder's owner-side runner) may know about a frozen build task:
+ * the task, its acceptance criteria and visible cases. Held-out cases appear only as a count.
+ */
+export function implementationTaskContext(spec: SpecBody, taskKey: string) {
+  const task = spec.tasks.find((t) => t.key === taskKey);
+  if (!task)
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      'The frozen task is absent from the specification.',
+    );
+  const cases = frozenCases(spec, task.acceptance);
+  return {
+    task,
+    problem: spec.problem_statement,
+    scope: spec.scope,
+    non_goals: spec.non_goals,
+    acceptance: spec.acceptance_checks
+      .filter((a) => task.acceptance.includes(a.key))
+      .map(({ cases: _, ...a }) => a),
+    visible_cases: cases
+      .filter((c) => !c.held_out)
+      .map(({ held_out: _, ...c }) => c),
+    held_out_cases: cases.filter((c) => c.held_out).length,
+  };
 }
 
 /** Allowlist construction: never accept caller-supplied context, other outputs or grader data. */
 export function studyContext(
   input: StudyInput,
   assignment: Pick<StudyAssignment, 'condition' | 'discovery_method'>,
+  implementation?: ReturnType<typeof implementationTaskContext>,
 ) {
   const { structured_brief: _structuredBrief, ...neutralPacket } = input.packet;
   const human = assignment.condition === 'human_only';
@@ -72,7 +110,7 @@ export function studyContext(
     );
   return {
     schema_version: 'study-context/1',
-    synthetic: true,
+    synthetic: input.synthetic,
     packet: {
       ...neutralPacket,
       background: {
@@ -94,6 +132,7 @@ export function studyContext(
     ...(assignment.discovery_method === 'structured'
       ? { rubric: input.rubric }
       : {}),
+    ...(implementation ? { implementation_task: implementation } : {}),
   };
 }
 

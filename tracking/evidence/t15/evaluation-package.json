@@ -391,7 +391,7 @@
       "repeat": 1,
       "state": "blocked",
       "reasons": [
-        "AI implementation runs need the isolated T11/T12 worker; the study path does not dispatch them."
+        "AI implementation runs need a study bound to a frozen build task (spec, freeze, held-out cases) for the isolated builder; these tasks have none."
       ],
       "outcome": null,
       "attempts": []
@@ -409,7 +409,7 @@
       "outcome": "submitted",
       "attempts": [
         {
-          "attempt_id": "e0efa2d9-d70e-413e-b0ea-b27981c8ebd3",
+          "attempt_id": "679e14b8-a5ab-465b-9fd4-e88c044703bc",
           "state": "submitted",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -425,7 +425,7 @@
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.064,
+            "wall_seconds": 0.058,
             "known_simulated_spend_nano_usd": "0",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -447,7 +447,7 @@
       "repeat": 1,
       "state": "blocked",
       "reasons": [
-        "AI implementation runs need the isolated T11/T12 worker; the study path does not dispatch them."
+        "AI implementation runs need a study bound to a frozen build task (spec, freeze, held-out cases) for the isolated builder; these tasks have none."
       ],
       "outcome": null,
       "attempts": []
@@ -465,7 +465,7 @@
       "outcome": "succeeded",
       "attempts": [
         {
-          "attempt_id": "5b80ef4b-dd4f-4197-a3fd-f7a09635f12b",
+          "attempt_id": "180baaf2-a503-4056-8e70-7a4e8cc4462b",
           "state": "submitted",
           "retry_of": null,
           "human_source": "none",
@@ -476,12 +476,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.017,
+            "simulated_provider_request_seconds": 0.029,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.065,
+            "wall_seconds": 0.098,
             "known_simulated_spend_nano_usd": "4090000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -506,7 +506,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "b6121300-a1ff-4791-be8d-db290c6b7369",
+          "attempt_id": "d87d76fb-d209-4de4-a09f-49987730485d",
           "state": "failed",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -517,12 +517,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.021,
+            "simulated_provider_request_seconds": 0.015,
             "human_active_minutes": null,
             "human_wait_seconds": null,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.189,
+            "wall_seconds": 0.146,
             "known_simulated_spend_nano_usd": "25400000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -547,7 +547,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "3d8416ad-3558-4058-8943-8a65132f430d",
+          "attempt_id": "7451fcdc-0ddb-4b14-955c-f76ca4360022",
           "state": "failed",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -558,12 +558,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.016,
+            "simulated_provider_request_seconds": 0.012,
             "human_active_minutes": null,
             "human_wait_seconds": null,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.127,
+            "wall_seconds": 0.118,
             "known_simulated_spend_nano_usd": "25340000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -588,7 +588,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "4d517319-e3b7-4f6e-8763-ced3d083edfd",
+          "attempt_id": "b2003a13-15ee-4620-a5f6-598b7ba21eaa",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -599,12 +599,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.013,
+            "simulated_provider_request_seconds": 0.011,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.11,
+            "wall_seconds": 0.094,
             "known_simulated_spend_nano_usd": "25390000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -629,7 +629,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "9d68410d-6914-44f6-99d0-d4a3e6b61717",
+          "attempt_id": "b442f26b-3a17-45db-99e4-5d21f5e5b207",
           "state": "failed",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -640,12 +640,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.015,
+            "simulated_provider_request_seconds": 0.012,
             "human_active_minutes": null,
             "human_wait_seconds": null,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.136,
+            "wall_seconds": 0.094,
             "known_simulated_spend_nano_usd": "25400000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -670,7 +670,7 @@
       "outcome": "submitted",
       "attempts": [
         {
-          "attempt_id": "8772cbdb-68a4-4b4b-94eb-e392c9107931",
+          "attempt_id": "fe6dcc60-1b0f-4ce2-806c-bcd967d87a50",
           "state": "submitted",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -686,7 +686,7 @@
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.041,
+            "wall_seconds": 0.035,
             "known_simulated_spend_nano_usd": "0",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -711,7 +711,7 @@
       "outcome": "succeeded",
       "attempts": [
         {
-          "attempt_id": "c3098f77-373d-45b8-bb01-66f41770ddc5",
+          "attempt_id": "01621920-66a0-462d-91be-a851971ef28c",
           "state": "submitted",
           "retry_of": null,
           "human_source": "none",
@@ -722,7 +722,7 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.011,
+            "simulated_provider_request_seconds": 0.01,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
@@ -752,7 +752,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "c112c8fd-959f-4583-a4a6-ac6fbe7dfa0b",
+          "attempt_id": "5bca5eab-71b2-4063-98a5-b44698c17a01",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -763,12 +763,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.01,
+            "simulated_provider_request_seconds": 0.012,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.08,
+            "wall_seconds": 0.082,
             "known_simulated_spend_nano_usd": "25150000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -793,7 +793,7 @@
       "outcome": "submitted",
       "attempts": [
         {
-          "attempt_id": "c1665787-b654-411a-803e-3f1ff5c447af",
+          "attempt_id": "f1497a7a-5bfe-4f1f-8301-b35aea38aa74",
           "state": "submitted",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -809,7 +809,7 @@
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.047,
+            "wall_seconds": 0.034,
             "known_simulated_spend_nano_usd": "0",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -834,7 +834,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "4fc07ed9-5550-44c5-91ec-f60860ee7acf",
+          "attempt_id": "886cc86d-3f39-4451-b99f-b0e45eda188e",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -845,12 +845,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.014,
+            "simulated_provider_request_seconds": 0.011,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.091,
+            "wall_seconds": 0.093,
             "known_simulated_spend_nano_usd": "25340000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -875,7 +875,7 @@
       "outcome": "submitted",
       "attempts": [
         {
-          "attempt_id": "d8be8d11-d724-43e3-8896-e78f8016f0a4",
+          "attempt_id": "dc81de04-8067-499a-9552-57dc1e022a49",
           "state": "submitted",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -891,7 +891,7 @@
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.031,
+            "wall_seconds": 0.036,
             "known_simulated_spend_nano_usd": "0",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -916,7 +916,7 @@
       "outcome": "succeeded",
       "attempts": [
         {
-          "attempt_id": "f0e723ba-0e6a-49df-996c-c59405f091c9",
+          "attempt_id": "19a93a95-b16a-4ab4-a91f-f26fe15c29a8",
           "state": "submitted",
           "retry_of": null,
           "human_source": "none",
@@ -927,12 +927,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.014,
+            "simulated_provider_request_seconds": 0.01,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.053,
+            "wall_seconds": 0.036,
             "known_simulated_spend_nano_usd": "4130000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -954,7 +954,7 @@
       "repeat": 1,
       "state": "blocked",
       "reasons": [
-        "AI implementation runs need the isolated T11/T12 worker; the study path does not dispatch them."
+        "AI implementation runs need a study bound to a frozen build task (spec, freeze, held-out cases) for the isolated builder; these tasks have none."
       ],
       "outcome": null,
       "attempts": []
@@ -972,7 +972,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "8d34d30a-b230-41a0-bbe5-59c83a347f72",
+          "attempt_id": "3d21e335-7a6c-4ad9-a426-331915252363",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -983,12 +983,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.01,
+            "simulated_provider_request_seconds": 0.012,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.085,
+            "wall_seconds": 0.08,
             "known_simulated_spend_nano_usd": "25390000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1013,7 +1013,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "5f521eb3-2c7a-488b-a378-7b18de1ff2db",
+          "attempt_id": "bba007da-a2e1-46ff-b1ed-5ca90bc39e7f",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -1024,12 +1024,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.009,
+            "simulated_provider_request_seconds": 0.021,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.082,
+            "wall_seconds": 0.117,
             "known_simulated_spend_nano_usd": "25400000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1054,7 +1054,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "5aadc172-7414-4ddc-ae1b-d6f050f0f626",
+          "attempt_id": "1d38f194-9ef0-4e4d-a085-c0f481ef3332",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -1065,12 +1065,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.008,
+            "simulated_provider_request_seconds": 0.01,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.1,
+            "wall_seconds": 0.098,
             "known_simulated_spend_nano_usd": "25340000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1095,7 +1095,7 @@
       "outcome": "cancelled",
       "attempts": [
         {
-          "attempt_id": "43b3d776-df6b-4456-b688-78ce3ff129f0",
+          "attempt_id": "70c7e72c-2b21-4a11-b6f1-09a60be02035",
           "state": "cancelled",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -1111,7 +1111,7 @@
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.025,
+            "wall_seconds": 0.018,
             "known_simulated_spend_nano_usd": "0",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1136,7 +1136,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "ad253e11-e948-4ec5-8e06-4e34889e8412",
+          "attempt_id": "fae963e6-913c-4d8c-914a-917aa76ec095",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -1147,12 +1147,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.014,
+            "simulated_provider_request_seconds": 0.011,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.099,
+            "wall_seconds": 0.084,
             "known_simulated_spend_nano_usd": "25400000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1177,7 +1177,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "3593b434-3083-4add-b2e4-860a73236942",
+          "attempt_id": "62e08c71-0322-40d8-be54-544f4014d053",
           "state": "failed",
           "retry_of": null,
           "human_source": "none",
@@ -1188,12 +1188,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.013,
+            "simulated_provider_request_seconds": 0.012,
             "human_active_minutes": 0,
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.087,
+            "wall_seconds": 0.092,
             "known_simulated_spend_nano_usd": "25150000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1218,7 +1218,7 @@
       "outcome": "insufficient_evidence",
       "attempts": [
         {
-          "attempt_id": "bcfd86fd-0339-4230-9da6-11bcddfbd555",
+          "attempt_id": "768bc27e-5a9e-4794-8113-241c25d8529b",
           "state": "failed",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -1229,12 +1229,12 @@
           "measurements": {
             "active_ai_seconds": 0,
             "active_ai_source": "fixture_has_no_ai_inference",
-            "simulated_provider_request_seconds": 0.015,
+            "simulated_provider_request_seconds": 0.011,
             "human_active_minutes": null,
             "human_wait_seconds": null,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.108,
+            "wall_seconds": 0.085,
             "known_simulated_spend_nano_usd": "25340000",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1256,7 +1256,7 @@
       "repeat": 1,
       "state": "blocked",
       "reasons": [
-        "AI implementation runs need the isolated T11/T12 worker; the study path does not dispatch them."
+        "AI implementation runs need a study bound to a frozen build task (spec, freeze, held-out cases) for the isolated builder; these tasks have none."
       ],
       "outcome": null,
       "attempts": []
@@ -1274,7 +1274,7 @@
       "outcome": "submitted",
       "attempts": [
         {
-          "attempt_id": "abcfbaaa-fd0f-4626-a99e-aba0c8057367",
+          "attempt_id": "07f579f4-d068-45ec-a326-782a8e6815b2",
           "state": "submitted",
           "retry_of": null,
           "human_source": "scripted_rehearsal",
@@ -1290,7 +1290,7 @@
             "human_wait_seconds": 0,
             "intervention_active_minutes": 0,
             "intervention_wait_seconds": 0,
-            "wall_seconds": 0.038,
+            "wall_seconds": 0.044,
             "known_simulated_spend_nano_usd": "0",
             "unknown_simulated_exposure_nano_usd": "0",
             "in_flight_simulated_exposure_nano_usd": "0",
@@ -1328,7 +1328,7 @@
   "source_support_audits": [
     {
       "slot_id": "2496f1719bb3be88d0e76dfe9d9290eaaf1f933d5e6d2da280b436fccbe901d3",
-      "attempt_id": "5b80ef4b-dd4f-4197-a3fd-f7a09635f12b",
+      "attempt_id": "180baaf2-a503-4056-8e70-7a4e8cc4462b",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-2",
@@ -1340,7 +1340,7 @@
     },
     {
       "slot_id": "ac0d20fd150fb936c60f08c392e436b1077b37e1402e65ba1cab0842e02ca590",
-      "attempt_id": "b6121300-a1ff-4791-be8d-db290c6b7369",
+      "attempt_id": "d87d76fb-d209-4de4-a09f-49987730485d",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-1",
@@ -1352,7 +1352,7 @@
     },
     {
       "slot_id": "89f1f96b320bd69f49450a010cf4e9d5d1886be73d1360ba8ac42380dc0a19b0",
-      "attempt_id": "3d8416ad-3558-4058-8943-8a65132f430d",
+      "attempt_id": "7451fcdc-0ddb-4b14-955c-f76ca4360022",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-2",
@@ -1364,7 +1364,7 @@
     },
     {
       "slot_id": "fac7ec160e3d2801d70403c39f37cc7eff372fa250687b86c41e4818b2fa6c45",
-      "attempt_id": "4d517319-e3b7-4f6e-8763-ced3d083edfd",
+      "attempt_id": "b2003a13-15ee-4620-a5f6-598b7ba21eaa",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-1",
@@ -1376,7 +1376,7 @@
     },
     {
       "slot_id": "e577f95d882882f4b7ad2c9a7090acf6dd1bcaee288a6c473ca02c0215535104",
-      "attempt_id": "9d68410d-6914-44f6-99d0-d4a3e6b61717",
+      "attempt_id": "b442f26b-3a17-45db-99e4-5d21f5e5b207",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-4",
@@ -1388,7 +1388,7 @@
     },
     {
       "slot_id": "cd91e930163e4ebba408bac213f6be270957a23b706dca43a6202881cb9afd75",
-      "attempt_id": "c3098f77-373d-45b8-bb01-66f41770ddc5",
+      "attempt_id": "01621920-66a0-462d-91be-a851971ef28c",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-1",
@@ -1400,7 +1400,7 @@
     },
     {
       "slot_id": "b83cd9373e130d968904f8808d2d09f98bf5642f057a622a013e81ef2fda728f",
-      "attempt_id": "c112c8fd-959f-4583-a4a6-ac6fbe7dfa0b",
+      "attempt_id": "5bca5eab-71b2-4063-98a5-b44698c17a01",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-2",
@@ -1412,7 +1412,7 @@
     },
     {
       "slot_id": "89c54100ad55c7cdf7ad4cd288bd426d494fbfc11a94cad6c303888140844c9c",
-      "attempt_id": "4fc07ed9-5550-44c5-91ec-f60860ee7acf",
+      "attempt_id": "886cc86d-3f39-4451-b99f-b0e45eda188e",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-2",
@@ -1424,7 +1424,7 @@
     },
     {
       "slot_id": "46b7353126b3aa894da7b2e245709a34a73c79e44596e1f6095dce1df761396c",
-      "attempt_id": "f0e723ba-0e6a-49df-996c-c59405f091c9",
+      "attempt_id": "19a93a95-b16a-4ab4-a91f-f26fe15c29a8",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-1",
@@ -1436,7 +1436,7 @@
     },
     {
       "slot_id": "f9eca68dbe686eaadb89b4177ae136a674ab35c2e505c7066ed45a36bbe15970",
-      "attempt_id": "8d34d30a-b230-41a0-bbe5-59c83a347f72",
+      "attempt_id": "3d21e335-7a6c-4ad9-a426-331915252363",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-1",
@@ -1448,7 +1448,7 @@
     },
     {
       "slot_id": "83b4862671914e07d5359a07e8eab576e92f09b53d02d3fdfc207dcf7378cfcc",
-      "attempt_id": "5f521eb3-2c7a-488b-a378-7b18de1ff2db",
+      "attempt_id": "bba007da-a2e1-46ff-b1ed-5ca90bc39e7f",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-1",
@@ -1460,7 +1460,7 @@
     },
     {
       "slot_id": "9963b99f5cd9ce32c8e8fbec0202e2b5002b6a4751ac8e4640be6a763407321a",
-      "attempt_id": "5aadc172-7414-4ddc-ae1b-d6f050f0f626",
+      "attempt_id": "1d38f194-9ef0-4e4d-a085-c0f481ef3332",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-3",
@@ -1472,7 +1472,7 @@
     },
     {
       "slot_id": "ec0a7ba345a05c0c02a356f7679f762ff3bf9aeb7d42e0d21b75e8c9338b4a93",
-      "attempt_id": "ad253e11-e948-4ec5-8e06-4e34889e8412",
+      "attempt_id": "fae963e6-913c-4d8c-914a-917aa76ec095",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-4",
@@ -1484,7 +1484,7 @@
     },
     {
       "slot_id": "27ded4054c82c2818c1fc4813b6defe5da41175bbac551d5ddcb92a7bfd8b796",
-      "attempt_id": "3593b434-3083-4add-b2e4-860a73236942",
+      "attempt_id": "62e08c71-0322-40d8-be54-544f4014d053",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/theme-2",
@@ -1496,7 +1496,7 @@
     },
     {
       "slot_id": "e2e9861fe51f32b810dd99358c60e7c733e6e75a6aa4baf6c74f27db4e6767ef",
-      "attempt_id": "bcfd86fd-0339-4230-9da6-11bcddfbd555",
+      "attempt_id": "768bc27e-5a9e-4794-8113-241c25d8529b",
       "sources": [
         {
           "locator": "fixture://eval-rehearsal/decision-3",
@@ -1510,57 +1510,57 @@
   "functional_checks": [
     {
       "slot_id": "a6177766fecdbcb5ac1a5d0961f24ea1375cc5720f723d8f48eac7c8df5e6c4f",
-      "attempt_id": "e0efa2d9-d70e-413e-b0ea-b27981c8ebd3",
+      "attempt_id": "679e14b8-a5ab-465b-9fd4-e88c044703bc",
       "check": "contains",
       "passed": true,
       "executor": "conventional-text-check/1",
       "expected": "log",
-      "artifact_id": "f218a6e7-d24f-4d23-80ec-491c65dc3a83",
-      "executed_at": "2026-10-18T22:41:26.039Z",
+      "artifact_id": "90cab833-dbee-48d8-bd36-21176bade276",
+      "executed_at": "2026-10-18T23:26:37.402Z",
       "artifact_hash": "1a8241b6f0f29fa80389485e98b3f0e9a54019c66e07ca8d80d808923973af4c"
     },
     {
       "slot_id": "5b49c84d4d8c8a1f70969d31b74d6a1666c6b4e85b57cb6ebd645afc1b4f944d",
-      "attempt_id": "8772cbdb-68a4-4b4b-94eb-e392c9107931",
+      "attempt_id": "fe6dcc60-1b0f-4ce2-806c-bcd967d87a50",
       "check": "contains",
       "passed": true,
       "executor": "conventional-text-check/1",
       "expected": "log",
-      "artifact_id": "95c7cf17-ea23-40c1-80ed-0c9d1854c7bc",
-      "executed_at": "2026-10-18T22:41:26.804Z",
+      "artifact_id": "6b320fc6-1968-4cc5-ba7e-6f59010d4db8",
+      "executed_at": "2026-10-18T23:26:38.065Z",
       "artifact_hash": "1a8241b6f0f29fa80389485e98b3f0e9a54019c66e07ca8d80d808923973af4c"
     },
     {
       "slot_id": "3177eb2c79a50a04b862cee862a4911959771134182de75bf5cf0031e0d64858",
-      "attempt_id": "c1665787-b654-411a-803e-3f1ff5c447af",
+      "attempt_id": "f1497a7a-5bfe-4f1f-8301-b35aea38aa74",
       "check": "contains",
       "passed": true,
       "executor": "conventional-text-check/1",
       "expected": "counts",
-      "artifact_id": "830544db-3c49-456b-869d-ce42404468ac",
-      "executed_at": "2026-10-18T22:41:26.996Z",
+      "artifact_id": "4db40280-20b4-4459-b5ec-39b8aabeced1",
+      "executed_at": "2026-10-18T23:26:38.247Z",
       "artifact_hash": "e7a8fcf7f8f0aeb568a403df673df19bbe7bd7bda2b001c0e768c3caa27217dc"
     },
     {
       "slot_id": "a71be815d487888567c7df4e14fff9e9b5c25b6e5ec23c7d45bd4ed57ce96435",
-      "attempt_id": "d8be8d11-d724-43e3-8896-e78f8016f0a4",
+      "attempt_id": "dc81de04-8067-499a-9552-57dc1e022a49",
       "check": "contains",
       "passed": true,
       "executor": "conventional-text-check/1",
       "expected": "counts",
-      "artifact_id": "df75f96c-8898-4668-a208-2f8c782cc1d2",
-      "executed_at": "2026-10-18T22:41:27.147Z",
+      "artifact_id": "08e51c4f-8054-419f-9734-723bbac07d4a",
+      "executed_at": "2026-10-18T23:26:38.398Z",
       "artifact_hash": "e7a8fcf7f8f0aeb568a403df673df19bbe7bd7bda2b001c0e768c3caa27217dc"
     },
     {
       "slot_id": "92ef51ae7fa820d4e6d57319a3b25d3b475976e75677b9f414d86d3f81eff64c",
-      "attempt_id": "abcfbaaa-fd0f-4626-a99e-aba0c8057367",
+      "attempt_id": "07f579f4-d068-45ec-a326-782a8e6815b2",
       "check": "contains",
       "passed": true,
       "executor": "conventional-text-check/1",
       "expected": "log",
-      "artifact_id": "017eb081-0e92-46fa-980f-0998451de870",
-      "executed_at": "2026-10-18T22:41:27.917Z",
+      "artifact_id": "23182723-c5cb-4556-b8ab-36e37c7f6098",
+      "executed_at": "2026-10-18T23:26:39.142Z",
       "artifact_hash": "1a8241b6f0f29fa80389485e98b3f0e9a54019c66e07ca8d80d808923973af4c"
     }
   ],
@@ -1577,12 +1577,12 @@
     ],
     "items": 19,
     "owner_review_flags": [
-      "reviewers/reviewer-1/items/item-02.md: submission text contains \"Fixture\"; owner review before sending.",
-      "reviewers/reviewer-1/items/item-14.md: submission text contains \"Fixture\"; owner review before sending.",
-      "reviewers/reviewer-1/items/item-17.md: submission text contains \"Fixture\"; owner review before sending.",
-      "reviewers/reviewer-2/items/item-08.md: submission text contains \"Fixture\"; owner review before sending.",
+      "reviewers/reviewer-1/items/item-05.md: submission text contains \"Fixture\"; owner review before sending.",
+      "reviewers/reviewer-1/items/item-10.md: submission text contains \"Fixture\"; owner review before sending.",
+      "reviewers/reviewer-1/items/item-18.md: submission text contains \"Fixture\"; owner review before sending.",
       "reviewers/reviewer-2/items/item-12.md: submission text contains \"Fixture\"; owner review before sending.",
-      "reviewers/reviewer-2/items/item-16.md: submission text contains \"Fixture\"; owner review before sending."
+      "reviewers/reviewer-2/items/item-16.md: submission text contains \"Fixture\"; owner review before sending.",
+      "reviewers/reviewer-2/items/item-18.md: submission text contains \"Fixture\"; owner review before sending."
     ],
     "sent": false,
     "note": "Packets are written to disk only. Nothing is sent to anyone without an explicit instruction."
@@ -1642,37 +1642,37 @@
   "raw_export_hashes": [
     {
       "task_key": "decision-1",
-      "export_hash": "d96139d40b3bff1ec57b42bd9741801d9a602a7565616abc934c3ab06b25bf09"
+      "export_hash": "877dc440b266e4808df3d20f3a9f1b23fb07a499e53cf846081465eab6ec5cc7"
     },
     {
       "task_key": "decision-2",
-      "export_hash": "d589ada327e5e780ddfe23c6a983e7a4b4125799e448991d61e2afa2a93569fa"
+      "export_hash": "af6c29c368d688b61672792ea6435df8ff9c9edfd36d45f05cbfed2d0798c407"
     },
     {
       "task_key": "decision-3",
-      "export_hash": "0da88d0e66c363497cde767134eee9b87f2a9ff290cdccd6e9a82dfa12a77cf0"
+      "export_hash": "5289ee9ef2eaa3550e53d79bc8428863608bbe43dd72b85dd7e7a62669854df5"
     },
     {
       "task_key": "decision-4",
-      "export_hash": "c0a5c9795af281898b89cc6dc3d32f05310f81d41576f9bc7367b357904242cc"
+      "export_hash": "84ed758d0e59903a5ee7a6151fc0617977200d2d787c221fd9c930282bab170b"
     },
     {
       "task_key": "build-1",
-      "export_hash": "fe62f9f041c154bd639956e6ef31cb6ab3a3a0f47d069e4f482737e87d900508"
+      "export_hash": "2c3a6808275812fca03231471cf151f3e2577651222efe2cdce6adce08ec8216"
     },
     {
       "task_key": "build-2",
-      "export_hash": "09bee57890b36bcce51bea2a46e0d953c2ab5dd8609472ef7f1c85de4bf85bbf"
+      "export_hash": "4d6e161c652f0a63f8f37f989afe6c95e43c679adfd238b29cff41268c50cfa8"
     },
     {
       "task_key": "theme-1",
-      "export_hash": "02897c68683b5b5c2b14df85b87a8067e1411a7139b41da68813f4a85e0d24a4"
+      "export_hash": "7420214f566857e4631278d5dbdc8de6d1c78b17d0f67aacbeeb521bd78bd6f1"
     },
     {
       "task_key": "theme-2",
-      "export_hash": "6aa0f6a0ae2bdf1d27f3ef68edc442fa33e06e4ede1f33e1c828cae7ece794c9"
+      "export_hash": "d60c90ebac068d58788d8862102f86351d616d2319b4236f116d2490be1c6ef8"
     }
   ],
   "reproducible_digest": "696e52769af8393e54c200b10555d5c434eaaf6b1772d9a31b6f45d463c69a46",
-  "package_hash": "27477baa6bbc795c55930e51284f4923717af48d006bdcd488318a3fb270b3db"
+  "package_hash": "514ee27a90947d240a1c04d395984b57ce1c8febf0d1e2f8a7d44703b8e430f2"
 }

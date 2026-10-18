@@ -896,10 +896,13 @@ export class BudgetStore extends OversightStore {
             'study_stopped',
             'The study attempt is terminal or past its frozen deadline.',
           );
+        // A build request keeps its envelope and caps in the prepared build plan.
+        const bound =
+          study.kind === 'build' ? study.request?.plan : study.request;
         if (
-          !study.request ||
-          req.envelope_id !== study.request.envelope_id ||
-          req.pricing_snapshot_id !== study.request.pricing_snapshot_id ||
+          !bound ||
+          req.envelope_id !== bound.envelope_id ||
+          req.pricing_snapshot_id !== bound.pricing_snapshot_id ||
           plan.model_id !== frozen.config.model_version ||
           plan.provider !== 'fixture'
         )
@@ -932,11 +935,34 @@ export class BudgetStore extends OversightStore {
               'Structured study calls must come from the bounded workflow worker.',
             );
         }
+        if (study.kind === 'build') {
+          const system = req.input[0]?.text ?? '';
+          if (
+            study.assignment.condition === 'human_only' ||
+            req.action_type !== 'model.generate' ||
+            req.tool !== null ||
+            req.data_class !== bound.data_class ||
+            req.max_output_tokens > bound.max_output_tokens ||
+            !(
+              system.startsWith('builder/1:') ||
+              system.startsWith('independent-reviewer/1:')
+            )
+          )
+            return deny(
+              'study_context_denied',
+              'Build study calls are limited to the builder and reviewer roles under the prepared plan.',
+            );
+        }
         const counts = await c.query(
           "select count(*)::int as n from budget_reservations where workspace_id=$1 and run_id=$2 and status<>'denied'",
           [ws, runId],
         );
-        if (Number(counts.rows[0].n) >= frozen.config.max_calls)
+        if (
+          Number(counts.rows[0].n) >=
+          (study.kind === 'build'
+            ? Math.min(frozen.config.max_calls, bound.max_calls)
+            : frozen.config.max_calls)
+        )
           return deny('study_call_cap', 'Frozen study call cap reached.');
       }
       if (!plan.adapterAvailable)

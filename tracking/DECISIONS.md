@@ -1,5 +1,15 @@
 # Decision log
 
+## ADR-0022 - T15 prerequisites: final-record gate, study budget ledger and builder-backed study attempts
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's request to complete T15's prerequisites without running the study or freezing the protocol; branch claude/t15-hdrwqz on top of ADR-0021. Migration 11. T15 stays partial.
+- Owner choices recorded, not decided here: `config/evaluation.json` keeps the owner's `gpt-6-astra` preference (verified id null, live dispatch off) and Jordan's $20.00 total T15 cap (stated October 18, 2026; no spend authorized). Participants (RD3), reviewers (RD4), human-subjects review (RD5) and final tasks (RD8) are `unresolved`. RD6 must still be answered in the freeze; the gate requires the study cap to equal the $20 config cap.
+- Final records: `synthetic` is now a boolean. `synthetic: false` passes only `finalRecordBlockers` (domain): real workspace, adopted freeze hash, every governance choice equal to the owner's freeze answer, preserved model preference with a verified id equal to the config and study model, $20 ledger cap. Final attempts get real-mode workspaces and no model grant; AI execution and builds refuse with `LIVE_DISABLED`. Rejected: accepting governance values from the request alone (would let a caller choose decisions the owner never answered).
+- Budget: `study_budget_holds` holds each attempt's full frozen cap under an advisory lock before any model work. Open attempts count at cap; finished ones at settled plus in-flight/unknown reservations. Final records share one `t15-final` ledger; synthetic ones are per workspace, so fixture units never consume the real cap.
+- Builder link: studies bind a frozen build task by exact spec, freeze, task hash and current humility review (re-read at creation and assignment). Each attempt pins a same-hash copy of the spec and a review rebound to it (`study_attempt_pins`), so admission, grants and products stay in the attempt's own workspace. A/B arms build with the unchanged T12 BuildSupervisor through `studyBuildPorts`; the broker admits only builder/reviewer calls under the prepared plan's envelope and caps. The API records results only from its own re-read of the local build record (`readStudyBuild`), one build per attempt. C arms have no builder; their code is checked server-side against every frozen case. Held-out cases leave the server only as key and pass/fail.
+- Evidence states: every case result names its backend; only the reviewed WSL2 backend sets `isolation_evidence`. The cloud tests use the labelled test double.
+- Rollback: revert the commit; migration 11 is additive (three objects).
+
 ## ADR-0021 - T15 frozen schedule, deterministic admission, run ledger and blinded packets
 
 - Date: October 18, 2026. Status: implemented by Claude Code on Jordan's T15 request; branch claude/t15-hdrwqz from main 3f3544a. No migration. The protocol is not frozen, so no final run exists.

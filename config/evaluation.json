@@ -1,0 +1,27 @@
+{
+  "schema_version": "evaluation-config/1",
+  "recorded_on": "2026-10-18",
+  "note": "T15 study configuration. Unresolved items stay unresolved until the owner answers them in the adopted protocol freeze; nothing in this file is a study decision. Changing it is a reviewed code change, never a runtime setting.",
+  "model": {
+    "owner_preference": "gpt-6-astra",
+    "preference_source": "Owner-selected reference model (PROJECT_CONTEXT.md), restated for T15 by Jordan on 2026-10-18.",
+    "verified_model_id": null,
+    "live_dispatch_enabled": false,
+    "decision": "RD6-model-and-cap"
+  },
+  "budget": {
+    "t15_total_cap_usd": "20.00",
+    "t15_total_cap_nano_usd": "20000000000",
+    "source": "Owner-selected total for all of T15 (Jordan, 2026-10-18): every model call, retry, review and tool across every final attempt.",
+    "spend_authorized": false
+  },
+  "governance": {
+    "participants": { "status": "unresolved", "decision": "RD3-participants" },
+    "reviewers": { "status": "unresolved", "decision": "RD4-reviewers" },
+    "human_subjects": {
+      "status": "unresolved",
+      "decision": "RD5-human-subjects"
+    },
+    "task_selection": { "status": "unresolved", "decision": "RD8-final-tasks" }
+  }
+}

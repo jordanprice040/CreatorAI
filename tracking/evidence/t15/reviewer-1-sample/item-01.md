@@ -1,10 +1,10 @@
 # Item 01
 
-Code: 6fa673632f
+Code: 84f92b428e
 
 ## Task
 
-A fictional garden club double-books its shared plots.
+A fictional repair cafe cannot tell which repairs held up.
 
 ## Asked for
 
@@ -12,4 +12,4 @@ Recommend a response, alternatives considered and a validation plan.
 
 ## Submission
 
-Rehearsal text, no participant: EVAL_OTHER_ARM_SENTINEL
+No submitted output.

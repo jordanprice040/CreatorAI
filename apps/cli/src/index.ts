@@ -7,6 +7,9 @@ import {
   ExecutionSupervisor,
   BuildSupervisor,
   buildPlanSchema,
+  digest,
+  pathSchema,
+  runStudyBuild,
   type BuildPorts,
   bindingSchema,
   type Binding,
@@ -102,6 +105,8 @@ const USAGE = `Usage:
   pnpm cli study-execute <workspace> <attempt-id>
   pnpm cli study-context <workspace> <attempt-id>
   pnpm cli study-write <workspace> <attempt-id> <artifacts|tests|interventions|finish|deviations|helpers> <entry.json>
+  pnpm cli study-build <workspace> <attempt-id>
+  pnpm cli study-code <workspace> <attempt-id> <files.json>
   pnpm cli protocol-proposal <workspace>
   pnpm cli protocol-freeze <workspace> <decisions.json> [freeze.json]
   pnpm cli health
@@ -738,6 +743,72 @@ export async function runCli(
           JSON.parse(readFileSync(rest[3]!, 'utf8')),
         );
         break;
+      case 'study-build':
+        // AI arms of an implementation task: the T12 builder, in a fresh per-attempt product.
+        data = await runStudyBuild(
+          new BuildSupervisor(local, executor),
+          (path, body, timeoutMs) => call(z.unknown(), path, body, timeoutMs),
+          rest[0]!,
+          rest[1]!,
+          (build_id) => write(JSON.stringify({ build_id, state: 'running' })),
+        );
+        break;
+      case 'study-code': {
+        // Human-only arm: the participant's files are committed to a per-attempt product and
+        // the server runs every frozen case (held-out included) in the product worker.
+        const attemptPath = `${ws(rest[0])}/study-attempts/${encodeURIComponent(rest[1] ?? '')}`;
+        const bound = await call(
+          z.object({
+            task_key: z.string(),
+            binding: bindingSchema,
+          }),
+          `${attemptPath}/binding`,
+        );
+        const submitted = parse(
+          z.strictObject({
+            files: z
+              .array(z.strictObject({ path: pathSchema, content: z.string() }))
+              .min(1)
+              .max(100),
+          }),
+          JSON.parse(readFileSync(rest[2]!, 'utf8')),
+        );
+        const p = await local.create(bound.binding);
+        const task = await local.createTask(
+          p.id,
+          bound.task_key,
+          p.initial_commit,
+          bound.binding,
+        );
+        const tree = local.worktree(p.id, task.id);
+        const before = (path: string) => {
+          try {
+            return digest(readFileSync(`${tree}/${path}`, 'utf8'));
+          } catch {
+            return null;
+          }
+        };
+        const applied = await local.apply(
+          p.id,
+          task.id,
+          {
+            expected_commit: p.initial_commit,
+            changes: submitted.files.map((f) => ({
+              path: f.path,
+              before_hash: before(f.path),
+              content: f.content,
+            })),
+          },
+          bound.binding,
+        );
+        data = await call(
+          z.unknown(),
+          `${attemptPath}/code-check`,
+          { product_id: p.id, task_id: task.id, commit: applied.commit },
+          120000,
+        );
+        break;
+      }
       case 'study-export':
         data = await call(
           z.unknown(),

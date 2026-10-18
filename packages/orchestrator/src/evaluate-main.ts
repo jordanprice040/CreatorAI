@@ -1,9 +1,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import pg from 'pg';
-import { assertSchemaCurrent, databaseUrl, StudyStore } from '@creator/db';
+import {
+  assertSchemaCurrent,
+  databaseUrl,
+  readEvaluationConfig,
+  StudyStore,
+} from '@creator/db';
 import { FixtureAdapter, ModelBroker } from '@creator/broker';
-import type { EvaluationTask } from '@creator/domain';
+import { evaluationReadiness, type EvaluationTask } from '@creator/domain';
 import { planFinalEvaluation, runEvaluationRehearsal } from './evaluation.js';
 
 // `pnpm evaluate rehearsal <out-dir>`: T15 schedule rehearsal on synthetic tasks (fixture only).
@@ -41,22 +46,19 @@ try {
     });
     result = await runEvaluationRehearsal(store, broker, owner);
   } else {
-    const availability = JSON.parse(
-      readFileSync(resolve('config/provider-availability.json'), 'utf8'),
-    ) as {
-      live_dispatch_enabled: boolean;
-      verified_api_model_id: string | null;
-    };
+    const config = readEvaluationConfig();
     const tasks = JSON.parse(
       readFileSync(args[1]!, 'utf8'),
     ) as EvaluationTask[];
     result = await planFinalEvaluation(store, owner, args[0]!, tasks, {
       live_ai: {
-        enabled: availability.live_dispatch_enabled,
-        verified_model_id: availability.verified_api_model_id,
+        enabled: config.model.live_dispatch_enabled,
+        verified_model_id: config.model.verified_model_id,
       },
-      final_study_records: false,
-      ai_implementation: false,
+      // Both paths exist (T15 prerequisites); the store's gates still refuse unmet conditions.
+      final_study_records: true,
+      ai_implementation: true,
+      governance: evaluationReadiness(config),
     });
   }
   const dir = resolve(out);

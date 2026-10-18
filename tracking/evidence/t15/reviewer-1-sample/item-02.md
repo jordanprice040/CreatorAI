@@ -1,10 +1,10 @@
 # Item 02
 
-Code: 6043920654
+Code: d222ecdfce
 
 ## Task
 
-Fictional tenants cannot tell when shared laundry machines are free.
+Fictional volunteers miss last-minute shift changes.
 
 ## Asked for
 
@@ -12,4 +12,4 @@ Propose up to three responses with evidence and uncertainty.
 
 ## Submission
 
-Fixture model.generate over 1138 input bytes.
+No submitted output.
