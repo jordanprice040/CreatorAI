@@ -1,0 +1,138 @@
+{
+  "synthetic": true,
+  "empirical_results": false,
+  "passed": true,
+  "workspace_id": "51d4561d-0dae-44ad-ac1c-f08c49cf4a50",
+  "spec_id": "bbf7dcdf-d0e2-4096-87ad-4490cd4d3ee0",
+  "product": {
+    "format": "local-product/1",
+    "id": "c32d9460-f881-42c9-8133-03b2ce5b08d5",
+    "binding": {
+      "workspace_id": "51d4561d-0dae-44ad-ac1c-f08c49cf4a50",
+      "owner_id": "00000000-0000-4000-8000-000000000001",
+      "spec_id": "bbf7dcdf-d0e2-4096-87ad-4490cd4d3ee0",
+      "spec_version": 2,
+      "spec_hash": "ac6017b377e0c050fa492e04d3f084cb806ecdf686c0e78e224439056c2ee7d8",
+      "freeze_id": "ecb60ffe-6028-499f-b4e0-b84fe7d70893",
+      "tasks": [
+        {
+          "key": "T1",
+          "hash": "8c8d061f0b6fc4bbf0b995bcd59e934535a0cba8871dc772b907ebb30ece7e3f",
+          "file_scope": [
+            "src/import"
+          ]
+        },
+        {
+          "key": "T2",
+          "hash": "23ec07db66173887ca71f64939b4924099ab6d6f7b1dbb96663e101681b101fd",
+          "file_scope": [
+            "src/risk"
+          ]
+        },
+        {
+          "key": "T3",
+          "hash": "215fc2dbff91bcb642495f3e205e4683b5b67cfd440c9b03abe666944c575b0e",
+          "file_scope": [
+            "src/web"
+          ]
+        },
+        {
+          "key": "T4",
+          "hash": "05613180c2f03668a6f44fa5da5f9c2e6f5399e417fabc6d6c865282f5abbc7d",
+          "file_scope": [
+            "tests"
+          ]
+        }
+      ]
+    },
+    "integration_owner": "00000000-0000-4000-8000-000000000001",
+    "template_hash": "58475808dd957b944a75eb76971bf99c0a774850b8920287d0881f9137a754f4",
+    "initial_commit": "0e9478951ea193e0aeccb8a7b9e6b36bd69dc3da",
+    "git_version": "git version 2.45.1.windows.1"
+  },
+  "task": {
+    "id": "d25cdddc-061d-406e-acc9-157b37a44e70",
+    "product_id": "c32d9460-f881-42c9-8133-03b2ce5b08d5",
+    "key": "T1",
+    "base_commit": "0e9478951ea193e0aeccb8a7b9e6b36bd69dc3da",
+    "file_scope": [
+      "src/import"
+    ],
+    "spec_task_hash": "8c8d061f0b6fc4bbf0b995bcd59e934535a0cba8871dc772b907ebb30ece7e3f"
+  },
+  "patch": {
+    "commit": "da455e082f66af1d65fb8366f864b0101eca1624",
+    "changed_files": [
+      "src/import/check.py"
+    ]
+  },
+  "build": {
+    "id": "51cb91a2-63a2-42af-9153-5d29cf6be0ea",
+    "product_id": "c32d9460-f881-42c9-8133-03b2ce5b08d5",
+    "task_id": "d25cdddc-061d-406e-acc9-157b37a44e70",
+    "commit": "da455e082f66af1d65fb8366f864b0101eca1624",
+    "recipe": "python-build/1",
+    "recipe_hash": "378186e5a6471a9ebbfdabf341232ba762da755abf91fc056d553a3307df63f2",
+    "policy_hash": "1cd1c03df7a41cebc319773a35bf9c2244c44d1151ebe2e698b402ebd939e3d7",
+    "input_hash": "958e0be7f7ed231e1f7f63090689646bc0fc02a7faa0453ecfc39e980af3e41d",
+    "state": "succeeded",
+    "started_at": "2026-10-18T10:50:08.936Z",
+    "finished_at": "2026-10-18T10:50:09.391Z",
+    "environment": {
+      "backend": "wsl2-bwrap-systemd",
+      "distribution": "Ubuntu",
+      "supervisor_pid": 33884,
+      "bridge_hash": "455dedc5013442fe24f6363c895f72a5f31674fd78ba4dc1471ae6a45f5b5193",
+      "local_compute_billing": "not_metered_by_studio",
+      "kernel": "6.18.33.2-microsoft-standard-WSL2",
+      "bwrap": "bubblewrap 0.11.1",
+      "systemd": "systemd 259 (259.5-0ubuntu3)",
+      "python": "3.14.4",
+      "policy": {
+        "format": "isolation/1",
+        "backend": "wsl2-bwrap-systemd",
+        "network": "none",
+        "memory_bytes": 268435456,
+        "swap_bytes": 0,
+        "tasks": 32,
+        "cpu_percent": 50,
+        "runtime_seconds": 20,
+        "lease_seconds": 5,
+        "disk_bytes": 16777216,
+        "log_bytes": 65536,
+        "file_bytes": 8388608,
+        "uid": 1000
+      },
+      "os_release": "PRETTY_NAME=\"Ubuntu 26.04 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04 (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+      "binary_hashes": {
+        "/usr/bin/bwrap": "8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b",
+        "/usr/bin/python3": "fa9796cd3a30878e11a2f40372f773d3fcd913fff35e5bee8dd9a036e22e93ab",
+        "/usr/bin/systemd-run": "6cb217524b113f56c7d514b10eb914b365aad787b4b3d3fdf9b8cc7ae675d8a9"
+      },
+      "host_network_namespace": "net:[4026531833]",
+      "recipe_hash": "378186e5a6471a9ebbfdabf341232ba762da755abf91fc056d553a3307df63f2",
+      "unit": "creator-exec-51cb91a2-63a2-42af-9153-5d29cf6be0ea",
+      "effective_limits": "RuntimeMaxUSec=20s\nCPUQuotaPerSecUSec=500ms\nMemoryMax=268435456\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group",
+      "cleanup": "inactive",
+      "heartbeat_write_errors": 0
+    },
+    "log": "{\"template\": \"checklist/1\", \"items\": [\"inspect\", \"build\", \"review\"]}\n",
+    "exit_code": 0,
+    "reason": null
+  },
+  "integration": {
+    "state": "integrated",
+    "commit": "c6ffa38d7d86dd2a906a50a2ea7581497f3595d5",
+    "merge_workspace": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\.creator\\products\\c32d9460-f881-42c9-8133-03b2ce5b08d5\\worktrees\\02efc7c1-f37c-410f-9c68-b849c03a4185"
+  },
+  "checks": [
+    "unfrozen spec denied",
+    "authenticated owner",
+    "exact frozen spec and task hashes",
+    "scoped patch",
+    "real constrained template build",
+    "local integration",
+    "changed spec denied",
+    "unauthenticated status denied"
+  ]
+}

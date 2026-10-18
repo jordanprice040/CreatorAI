@@ -60,6 +60,9 @@ importers:
       '@creator/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@creator/executor':
+        specifier: workspace:*
+        version: link:../../packages/executor
 
   apps/web:
     dependencies:
@@ -126,6 +129,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/executor:
+    dependencies:
+      '@creator/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/orchestrator:
     dependencies:
       '@creator/broker':
@@ -180,6 +189,9 @@ importers:
       '@creator/domain':
         specifier: workspace:*
         version: link:../packages/domain
+      '@creator/executor':
+        specifier: workspace:*
+        version: link:../packages/executor
       '@creator/orchestrator':
         specifier: workspace:*
         version: link:../packages/orchestrator

@@ -2,6 +2,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
+  ProductSupervisor,
+  ExecutionSupervisor,
+  bindingSchema,
+  type Binding,
+} from '@creator/executor';
+import {
   ContractError,
   AdmissionSchema,
   BrokerCallResultSchema,
@@ -36,6 +42,7 @@ import {
   SelectionReportSchema,
   SelectionSchema,
   SpecStatusSchema,
+  SpecBodySchema,
   ActivityPageSchema,
   OverviewSchema,
   ProblemComparisonSchema,
@@ -56,6 +63,14 @@ import {
 } from '@creator/domain';
 
 const USAGE = `Usage:
+  pnpm cli product-init <workspace> <frozen-spec-id>
+  pnpm cli product-task <product-id> <Tn> <expected-integration-commit>
+  pnpm cli product-patch <product-id> <task-id> <changes.json>
+  pnpm cli product-integrate <product-id> <task-id> <expected-integration-commit> <expected-task-commit>
+  pnpm cli product-build <product-id> <task-id> <expected-task-commit>
+  pnpm cli product-status <product-id>
+  pnpm cli product-cancel <product-id> <execution-id>
+  pnpm cli product-reconcile <product-id> <execution-id>
   pnpm cli study-seed <workspace>
   pnpm cli studies <workspace>
   pnpm cli study <workspace> <study-id>
@@ -226,8 +241,135 @@ export async function runCli(
       return `workspaces/${encodeURIComponent(raw)}`;
     };
     const [command = 'health', ...rest] = args;
+    const local = new ProductSupervisor();
+    const executor = new ExecutionSupervisor(
+      local,
+      process.env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
+    );
+    const localOwner = async (workspace: string) => {
+      const [session, workspaces] = await Promise.all([
+        call(SessionInfoSchema, 'auth/session'),
+        call(z.array(WorkspaceSchema), 'workspaces'),
+      ]);
+      if (!workspaces.some((w) => w.id === workspace && w.role === 'owner'))
+        throw new Error('Workspace owner authorization required');
+      return session.actor_id;
+    };
+    const frozenBinding = async (
+      workspace: string,
+      specId: string,
+    ): Promise<Binding> => {
+      const owner = await localOwner(workspace);
+      const [status, detail] = await Promise.all([
+        call(
+          SpecStatusSchema,
+          `${ws(workspace)}/specs/${encodeURIComponent(specId)}`,
+        ),
+        call(
+          EntityDetailSchema,
+          `${ws(workspace)}/entities/${encodeURIComponent(specId)}`,
+        ),
+      ]);
+      const freeze = status.latest_freeze;
+      if (
+        !status.frozen_current ||
+        !freeze ||
+        status.spec.status !== 'active' ||
+        status.problems.length ||
+        status.blockers.length ||
+        detail.entity.version !== status.spec.version ||
+        detail.entity.content_hash !== status.spec.content_hash ||
+        freeze.content_hash !== status.spec.content_hash
+      )
+        throw new Error('A current active frozen specification is required');
+      const spec = parse(SpecBodySchema, detail.entity.body);
+      return parse(bindingSchema, {
+        workspace_id: workspace,
+        owner_id: owner,
+        spec_id: specId,
+        spec_version: status.spec.version,
+        spec_hash: status.spec.content_hash,
+        freeze_id: freeze.id,
+        tasks: spec.tasks
+          .filter((t) => t.file_scope.length)
+          .map((t) => ({
+            key: t.key,
+            hash: freeze.task_hashes[t.key],
+            file_scope: t.file_scope,
+          })),
+      });
+    };
+    const currentBinding = async (productId: string) => {
+      const p = await local.product(productId);
+      const binding = await frozenBinding(
+        p.binding.workspace_id,
+        p.binding.spec_id,
+      );
+      local.assertBinding(p, binding);
+      return binding;
+    };
     let data: unknown;
     switch (command) {
+      case 'product-init':
+        data = await local.create(await frozenBinding(rest[0]!, rest[1]!));
+        break;
+      case 'product-task':
+        data = await local.createTask(
+          rest[0]!,
+          rest[1]!,
+          rest[2]!,
+          await currentBinding(rest[0]!),
+        );
+        break;
+      case 'product-patch':
+        data = await local.apply(
+          rest[0]!,
+          rest[1]!,
+          JSON.parse(readFileSync(rest[2]!, 'utf8')),
+          await currentBinding(rest[0]!),
+        );
+        break;
+      case 'product-integrate':
+        data = await local.integrate(
+          rest[0]!,
+          rest[1]!,
+          rest[2]!,
+          rest[3]!,
+          await currentBinding(rest[0]!),
+        );
+        break;
+      case 'product-build':
+        data = await executor.run(
+          rest[0]!,
+          rest[1]!,
+          rest[2]!,
+          await currentBinding(rest[0]!),
+          (execution_id) =>
+            write(JSON.stringify({ execution_id, state: 'running' })),
+        );
+        break;
+      case 'product-status': {
+        const p = await local.product(rest[0]!);
+        local.assertOwner(p, await localOwner(p.binding.workspace_id));
+        data = {
+          product: p,
+          tasks: await local.tasks(p.id),
+          executions: await executor.executions(p.id),
+        };
+        break;
+      }
+      case 'product-cancel':
+      case 'product-reconcile': {
+        const p = await local.product(rest[0]!);
+        const owner = await localOwner(p.binding.workspace_id);
+        data =
+          command === 'product-cancel'
+            ? await executor
+                .cancel(p.id, rest[1]!, owner)
+                .then(() => ({ cancellation_requested: true }))
+            : await executor.reconcile(p.id, rest[1]!, owner);
+        break;
+      }
       case 'studies':
         data = await call(z.unknown(), `${ws(rest[0])}/studies`);
         break;

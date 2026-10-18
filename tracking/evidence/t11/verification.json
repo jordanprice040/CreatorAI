@@ -1,0 +1,134 @@
+{
+  "milestone": "T11",
+  "verified_at": "2026-10-18T10:52:38.225853+00:00",
+  "date": "2026-10-18",
+  "base_commit": "5f9bb1bf71673b4c5aa27f418cbb2c842948266b",
+  "branch": "codex/t11-isolated-execution",
+  "prerequisite": "T10 merged PR #12, confirmed before clean main fast-forward",
+  "status": "verified_reviewed_local_template_only",
+  "migration": 9,
+  "adr": "ADR-0014",
+  "candidate": {
+    "source_manifest": "source-files.sha256.json",
+    "manifest_sha256": "49a85ebf171bf6bf7509d1f0f415f4c98c1675c86ed365f4abfd38cd42573789",
+    "files": 169,
+    "note": "Exact staged Git blob bytes for code/config/contracts/docs; tracking evidence excluded to avoid cyclic hashing. Final commit is reported with the review branch."
+  },
+  "environment": {
+    "host": "native Windows",
+    "node": "v22.21.0",
+    "pnpm": "11.25.0",
+    "postgresql": "18.6 disposable loopback port 55432",
+    "worker": {
+      "backend": "wsl2-bwrap-systemd",
+      "distribution": "Ubuntu",
+      "supervisor_pid": 33884,
+      "bridge_hash": "455dedc5013442fe24f6363c895f72a5f31674fd78ba4dc1471ae6a45f5b5193",
+      "local_compute_billing": "not_metered_by_studio",
+      "kernel": "6.18.33.2-microsoft-standard-WSL2",
+      "bwrap": "bubblewrap 0.11.1",
+      "systemd": "systemd 259 (259.5-0ubuntu3)",
+      "python": "3.14.4",
+      "policy": {
+        "format": "isolation/1",
+        "backend": "wsl2-bwrap-systemd",
+        "network": "none",
+        "memory_bytes": 268435456,
+        "swap_bytes": 0,
+        "tasks": 32,
+        "cpu_percent": 50,
+        "runtime_seconds": 20,
+        "lease_seconds": 5,
+        "disk_bytes": 16777216,
+        "log_bytes": 65536,
+        "file_bytes": 8388608,
+        "uid": 1000
+      },
+      "os_release": "PRETTY_NAME=\"Ubuntu 26.04 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04 (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+      "binary_hashes": {
+        "/usr/bin/bwrap": "8e19e40e7d5f7a7e8b488c7926feb040eab6ed10c58fa360e266d2f70670e92b",
+        "/usr/bin/python3": "fa9796cd3a30878e11a2f40372f773d3fcd913fff35e5bee8dd9a036e22e93ab",
+        "/usr/bin/systemd-run": "6cb217524b113f56c7d514b10eb914b365aad787b4b3d3fdf9b8cc7ae675d8a9"
+      },
+      "host_network_namespace": "net:[4026531833]",
+      "recipe_hash": "378186e5a6471a9ebbfdabf341232ba762da755abf91fc056d553a3307df63f2",
+      "unit": "creator-exec-51cb91a2-63a2-42af-9153-5d29cf6be0ea",
+      "effective_limits": "RuntimeMaxUSec=20s\nCPUQuotaPerSecUSec=500ms\nMemoryMax=268435456\nMemorySwapMax=0\nTasksMax=32\nKillMode=control-group",
+      "cleanup": "inactive",
+      "heartbeat_write_errors": 0
+    }
+  },
+  "checks": [
+    {
+      "command": "pnpm install --frozen-lockfile",
+      "result": "pass",
+      "note": "One new internal workspace link; no new external package versions"
+    },
+    {
+      "command": "CREATOR_TEST_ISOLATION=wsl2 pnpm test:db",
+      "result": "pass",
+      "tests": 140,
+      "pass": 140,
+      "fail": 0,
+      "skipped": 0,
+      "log": "database-and-isolation.tap"
+    },
+    {
+      "command": "pnpm check",
+      "result": "pass",
+      "tests": 140,
+      "pass": 63,
+      "fail": 0,
+      "skipped": 77,
+      "note": "DB and real WSL checks explicitly skipped here; full gate above executed separately",
+      "log": "check.log"
+    },
+    {
+      "command": "pnpm smoke",
+      "result": "pass",
+      "log": "smoke.log",
+      "note": "HTTP smoke, no browser rendering claim"
+    },
+    {
+      "command": "node scripts/verify-executor.mjs",
+      "result": "pass",
+      "log": "cli-acceptance.log",
+      "results": "cli-acceptance.json",
+      "synthetic": true
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "acceptance": {
+    "real_constrained_build": "pass",
+    "canonical_paths_symlink_junction_hardlink_scope": "pass",
+    "secret_personal_git_bus_daemon_reads": "denied",
+    "metadata_public_loopback_network": "denied; isolated network namespace observed",
+    "root_input_dev_writes": "denied",
+    "non_root_no_new_privileges_capabilities": "pass",
+    "memory_disk_task_output_runtime_limits": "pass; actual exhaustion/timeout plus management-observed controls",
+    "process_tree_cancellation": "pass; detached SIGTERM-ignoring child, stopped unit observed",
+    "lease_crash_reconciliation": "pass; real supervisor SIGKILL, expired lease, no redispatch",
+    "stale_dirty_conflict_work": "preserved; real conflict review worktree retained",
+    "missing_isolation": "blocked; no host/fixture fallback"
+  },
+  "review": {
+    "kind": "self_review",
+    "checklist": "local ponytail-review skill",
+    "report": "self-review.md",
+    "independent_certification": false
+  },
+  "limits": [
+    "Only owner CLI and fixed reviewed offline Python stdlib recipe",
+    "Existing WSL2 VM, not newly dedicated appliance; no seccomp allowlist",
+    "No AI builder, independent product QA, download, persistent preview, study-arm implementation integration or public release",
+    "Local manifests/events are separate from PostgreSQL audit/catalog and not indexed there",
+    "Local compute bounded but not monetarily metered",
+    "Git-side interrupted operations require inspection; no destructive automated repair",
+    "No browser/UI acceptance claim for this CLI-only addition",
+    "No live provider calls, paid dispatch, real participants or empirical results"
+  ],
+  "next_eligible_prompt": "T12 after T11 owner review/merge and a new request"
+}
