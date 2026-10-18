@@ -21,6 +21,7 @@
     "dev:api": "pnpm build:code && node apps/api/dist/main.js",
     "worker": "pnpm build:code && node packages/orchestrator/dist/main.js",
     "pilot": "pnpm build:code && node packages/orchestrator/dist/pilot-main.js",
+    "evaluate": "pnpm build:code && node packages/orchestrator/dist/evaluate-main.js",
     "db:migrate": "pnpm build:code && node packages/db/dist/migrate-main.js",
     "backup": "pnpm build:code && node packages/db/dist/backup-main.js",
     "dev:web": "pnpm --filter @creator/web dev",

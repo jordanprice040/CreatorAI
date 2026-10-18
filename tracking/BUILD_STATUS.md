@@ -1,5 +1,17 @@
 # Implementation status
 
+T15 update, October 18, 2026 (Claude Code, branch claude/t15-hdrwqz from main 3f3544a;
+ADR-0021; no migration): **final evaluation not run, because the protocol is not frozen.** Built the
+final-evaluation machinery: schedule from the adopted freeze and owner tasks, deterministic
+slot admission, a run ledger where every slot is listed (blocked, deferred, missing, or
+attempt states, with RD10 retries kept), and blinded per-reviewer packets with a leak scan, a
+private key and raw exports (`pnpm evaluate rehearsal|final`, docs/FINAL_EVALUATION.md).
+Rehearsal on 8 synthetic tasks (26 slots, fixture AI, scripted labelled humans): 10/10 checks
+pass. `pnpm evaluate final` refuses without a freeze and lists RD1-RD10; with a freeze every
+slot is blocked (synthetic-only study records, no verified live model, AI implementation not
+wired to studies). Cloud `pnpm test:db`: **174 tests, 164 pass, 0 fail, 10 WSL skips**.
+Evidence: tracking/evidence/t15.
+
 T17 update, October 18, 2026 (Claude Code, branch claude/project-thread-k4si82 from main
 e46b2cf; ADR-0020; built in parallel with T14): requirements-to-evidence report for C01–C51,
 S01–S18 and the T17 priority risks in tracking/evidence/t17/REQUIREMENTS_EVIDENCE.md. New
@@ -157,7 +169,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T12 | Bounded builder, independent review, and QA | verified (Windows + WSL2; fixed synthetic roles) | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation | Merged PR #14 at 6fe5bab |
 | T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles) | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request |
 | T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
-| T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
+| T15 | Final evaluation and blinded rating package | partial (cloud Linux, PostgreSQL 16; machinery and rehearsal only, no final run) | Branch claude/t15-hdrwqz from 3f3544a; ADR-0021; evidence/t15; 164 pass / 10 WSL skips; rehearsal 10/10 checks | Protocol freeze (RD1-RD10), then non-synthetic study records, verified live model (RD6), builder-backed AI implementation runs and named reviewers (RD4) |
 | T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
 | T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |

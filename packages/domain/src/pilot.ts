@@ -172,7 +172,9 @@ export interface PilotCheck {
  * failures are task outcomes (a stop for human judgment, insufficient evidence, budget).
  * Both are retained; only the first can justify a predefined infrastructure retry.
  */
-export function classifyAttempt(a: PilotAttempt) {
+export function classifyAttempt(
+  a: Pick<PilotAttempt, 'finish' | 'state' | 'measurements'>,
+) {
   const m = a.measurements;
   if (!a.finish || a.state === 'assigned')
     return {
@@ -204,7 +206,7 @@ export function classifyAttempt(a: PilotAttempt) {
   };
 }
 
-const REVEALING =
+export const REVEALING =
   /autonomous|human_in_loop|human_only|human-only|open_ended|open-ended|structured|condition|fixture_workflow|scripted/i;
 
 function check(
