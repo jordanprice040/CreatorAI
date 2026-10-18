@@ -17,13 +17,14 @@ PostgreSQL 16 (146 pass, 0 fail, 10 WSL-only skips) and a 13-step headless Chrom
 walkthrough through double-harness.mjs and browser-acceptance.mjs. That harness
 uses the labeled test double, which executes nothing.
 
-Still to run on Windows with the reviewed worker: `CREATOR_TEST_ISOLATION=wsl2
-CREATOR_RECORD_T13_EVIDENCE=true pnpm test:db` (artifact-cli.test.ts writes
-tracking/evidence/t13/cli-acceptance.json). It packages and re-runs in the real
-worker, performs the feedback revision end to end, and checks hash mismatch,
-expired preview, revoked access and stale-version refusals. Do not shut down the
-shared WSL VM or echo the .env.docker password. Next eligible milestone after
-review: T14, on a new request.
+Real-worker gate passed on Jordan's Windows machine the same day:
+`CREATOR_TEST_ISOLATION=wsl2 CREATOR_RECORD_T13_EVIDENCE=true pnpm test:db` ran 156
+tests, 155 passed, 0 failed, 1 expected skip (the no-worker test). Evidence is in
+tracking/evidence/t13/cli-acceptance.json and wsl-gate.log. PR #15 merged at
+b035d99. That machine has no global pnpm; the run used the pinned 11.25.0 through a
+terminal-local corepack shim. The Docker test database was started and left
+running; stop it with `docker compose --env-file .env.docker --profile test stop
+db-test`. Next eligible milestone: T14, on a new request.
 
 ## PR publication and Claude Code handoff (October 18, 2026)
 

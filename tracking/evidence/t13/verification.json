@@ -30,16 +30,22 @@
       "backend": "test-double (executes nothing; not isolation evidence)",
       "log": "browser-acceptance.log",
       "result_file": "browser-acceptance.json"
-    }
-  ],
-  "pending": [
+    },
     {
-      "name": "real WSL2 compiled CLI gate tests/src/artifact-cli.test.ts",
-      "how": "CREATOR_TEST_ISOLATION=wsl2 CREATOR_RECORD_T13_EVIDENCE=true pnpm test:db on Windows",
-      "writes": "cli-acceptance.json",
-      "covers": "package re-extract and start in the worker, download hash, preview ticket/run/revoke/expiry, tampered archive, feedback revision, freeze, rebuild from package, reverified comparison, stale feedback revision"
+      "name": "real WSL2 gate: CREATOR_TEST_ISOLATION=wsl2 CREATOR_RECORD_T13_EVIDENCE=true pnpm test:db",
+      "where": "Jordan's Windows machine, WSL2 wsl2-bwrap-systemd worker, Docker test PostgreSQL",
+      "commit": "8975fc8",
+      "result": "pass",
+      "tests": 156,
+      "pass": 155,
+      "fail": 0,
+      "skipped": 1,
+      "skipped_reason": "no-worker test only runs where the reviewed worker is absent",
+      "log": "wsl-gate.log",
+      "result_file": "cli-acceptance.json"
     }
   ],
+  "pending": [],
   "not_claimed": [
     "isolation evidence from this container",
     "live provider or real spend",
@@ -47,5 +53,6 @@
     "native installer",
     "web-app previews",
     "T14"
-  ]
+  ],
+  "merged": "PR #15 at b035d99"
 }
