@@ -1,5 +1,11 @@
 # Decision log
 
+## ADR-0004 — Claude Code access to the development tools
+
+Date: October 18, 2026. Status: accepted at the owner's request in the project thread.
+
+Mirror `.agents/skills` into `.claude/skills` as plain copies (Windows checkouts break Git symlinks) and keep both in step on updates. Add Matt Pocock's `grill-me`, `grilling` (its dependency) and `improve-codebase-architecture` at the already-pinned commit; the architecture skill's default `GLOSSARY.md`/`docs/adr/` paths yield to `tracking/DECISIONS.md` and canonical context. Configure the same two MCP servers in `.mcp.json` without machine-specific paths; per-machine browser differences go in environment variables or a local-scope override, not the shared file. Add a cloud-only SessionStart hook that runs `pnpm install`, synchronously so checks never race dependency install. Plugin lifecycle hooks remain uninstalled. No credentials are stored; Firecrawl account access goes through the claude.ai connector or an environment variable reference.
+
 ## ADR-0003 — Project-local development skills and MCP
 
 Date: October 18, 2026. Status: accepted within the owner's explicit tool-installation request.

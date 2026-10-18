@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "creator_playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@playwright/mcp@0.0.83",
+        "--headless",
+        "--isolated",
+        "--browser",
+        "msedge",
+        "--output-dir",
+        ".verification/playwright-mcp"
+      ]
+    },
+    "creator_firecrawl": {
+      "type": "http",
+      "url": "https://mcp.firecrawl.dev/v2/mcp"
+    }
+  }
+}
