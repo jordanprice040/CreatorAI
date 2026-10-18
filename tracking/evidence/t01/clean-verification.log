@@ -1,0 +1,172 @@
+Clean candidate: C:\Users\jorda\OneDrive\Desktop\creator_agent\.verification\t01-20261018-035503-421
+Scope: all 7 workspace projects
+✓ Lockfile passes supply-chain policies (verified 6m ago)
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +26
+++++++++++++++++++++++++++
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\jorda\AppData\Local\pnpm\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Progress: resolved 26, reused 26, downloaded 0, added 25
+Progress: resolved 26, reused 26, downloaded 0, added 26, done
+
+devDependencies:
++ @types/node 22.19.0
++ prettier 3.9.10
++ typescript 5.9.3
++ vite 8.3.4
+
+Done in 1.9s using pnpm v11.25.0
+$ pnpm build:code && pnpm --filter @creator/web build
+$ tsc -b
+$ tsc --noEmit && vite build
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 114 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB │ gzip:  0.28 kB
+dist/assets/index-CwFgUOdV.css    3.19 kB │ gzip:  1.22 kB
+dist/assets/index-CSVthK8T.js   325.15 kB │ gzip: 99.06 kB
+
+✓ built in 187ms
+$ pnpm typecheck && pnpm test && pnpm format:check
+$ tsc -b && pnpm --filter @creator/web typecheck
+$ tsc --noEmit
+$ pnpm build:code && node --test tests/dist/*.test.js
+$ tsc -b
+TAP version 13
+# Subtest: real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+ok 1 - real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+  ---
+  duration_ms: 110.468
+  type: 'test'
+  ...
+# Subtest: compiled CLI reaches the HTTP API and fails visibly when unavailable
+ok 2 - compiled CLI reaches the HTTP API and fails visibly when unavailable
+  ---
+  duration_ms: 656.6793
+  type: 'test'
+  ...
+# Subtest: exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+ok 3 - exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+  ---
+  duration_ms: 4.2208
+  type: 'test'
+  ...
+# Subtest: versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+ok 4 - versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+  ---
+  duration_ms: 3.9878
+  type: 'test'
+  ...
+# Subtest: source/claim contracts require version/hash/locator and keep inference and contrary evidence
+ok 5 - source/claim contracts require version/hash/locator and keep inference and contrary evidence
+  ---
+  duration_ms: 3.6864
+  type: 'test'
+  ...
+# Subtest: alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+ok 6 - alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+  ---
+  duration_ms: 2.1255
+  type: 'test'
+  ...
+# Subtest: decision request cannot invent an answer, choose an absent option or answer after expiry
+ok 7 - decision request cannot invent an answer, choose an absent option or answer after expiry
+  ---
+  duration_ms: 3.1366
+  type: 'test'
+  ...
+# Subtest: typed many-to-many links reject cross-workspace and impossible relations
+ok 8 - typed many-to-many links reject cross-workspace and impossible relations
+  ---
+  duration_ms: 0.9716
+  type: 'test'
+  ...
+# Subtest: experiment assignment keeps condition/method separate and excludes generative human-only setup
+ok 9 - experiment assignment keeps condition/method separate and excludes generative human-only setup
+  ---
+  duration_ms: 3.0847
+  type: 'test'
+  ...
+# Subtest: result success cannot replace missing evidence or unknown usage with fixture claims
+ok 10 - result success cannot replace missing evidence or unknown usage with fixture claims
+  ---
+  duration_ms: 7.2702
+  type: 'test'
+  ...
+# Subtest: service configuration rejects hosted/live/invalid ports and binds loopback
+ok 11 - service configuration rejects hosted/live/invalid ports and binds loopback
+  ---
+  duration_ms: 2.1117
+  type: 'test'
+  ...
+# Subtest: deterministic fixture exercises all outcomes without real model or tool effects
+ok 12 - deterministic fixture exercises all outcomes without real model or tool effects
+  ---
+  duration_ms: 43.374
+  type: 'test'
+  ...
+# Subtest: missing/invalid paid limits fail before dispatch and even complete live config remains denied
+ok 13 - missing/invalid paid limits fail before dispatch and even complete live config remains denied
+  ---
+  duration_ms: 2.3631
+  type: 'test'
+  ...
+# Subtest: human-only configuration cannot reach even the fake provider
+ok 14 - human-only configuration cannot reach even the fake provider
+  ---
+  duration_ms: 0.4258
+  type: 'test'
+  ...
+# Subtest: delegation contains paths, grants, classifications, research condition and depth
+ok 15 - delegation contains paths, grants, classifications, research condition and depth
+  ---
+  duration_ms: 3.4701
+  type: 'test'
+  ...
+# Subtest: sibling allocations conserve exact money and calls rather than checking children separately
+ok 16 - sibling allocations conserve exact money and calls rather than checking children separately
+  ---
+  duration_ms: 2.2955
+  type: 'test'
+  ...
+# Subtest: results bind exact task/config/spec/version and check evidence
+ok 17 - results bind exact task/config/spec/version and check evidence
+  ---
+  duration_ms: 3.2374
+  type: 'test'
+  ...
+# Subtest: product transitions reject skipped stages, stale versions and stale candidate evidence
+ok 18 - product transitions reject skipped stages, stale versions and stale candidate evidence
+  ---
+  duration_ms: 2.0055
+  type: 'test'
+  ...
+# Subtest: ready-to-try needs candidate-bound independent test/review and export evidence
+ok 19 - ready-to-try needs candidate-bound independent test/review and export evidence
+  ---
+  duration_ms: 1.5027
+  type: 'test'
+  ...
+# Subtest: execution cannot resurrect cancellation or silently change research dimensions
+ok 20 - execution cannot resurrect cancellation or silently change research dimensions
+  ---
+  duration_ms: 1.8794
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1023.5854
+$ prettier --check apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json
+Checking formatting...
+All matched files use Prettier code style!
+PASS: fresh source-only directory, frozen offline-cache install, build, typecheck, tests and formatting.

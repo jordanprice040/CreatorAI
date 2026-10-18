@@ -1,0 +1,18 @@
+{
+  "verified_at_utc": "2026-10-18T03:59:31.5233811Z",
+  "clean_candidate_matching_files": 52,
+  "original_kit_changed_files": [
+    "README.md",
+    "tracking/BUILD_STATUS.md",
+    "tracking/DECISIONS.md",
+    "tracking/INTEGRATIONS.md",
+    "tracking/SESSION_HANDOFF.md"
+  ],
+  "tracking_and_startup_links": "passed",
+  "preserved_instructions": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "agent.md"
+  ],
+  "scope": "Exact final source matches the clean install/build/check candidate; only intended original-kit files changed."
+}

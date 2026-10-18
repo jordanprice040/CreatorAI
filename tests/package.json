@@ -1,0 +1,10 @@
+{
+  "name": "@creator/tests",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@creator/contracts": "workspace:*",
+    "@creator/domain": "workspace:*",
+    "@creator/api": "workspace:*"
+  }
+}

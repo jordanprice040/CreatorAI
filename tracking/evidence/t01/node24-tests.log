@@ -1,0 +1,28 @@
+✔ real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies (201.7913ms)
+✔ compiled CLI reaches the HTTP API and fails visibly when unavailable (640.7437ms)
+✔ exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion (2.1168ms)
+✔ versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths (3.2538ms)
+✔ source/claim contracts require version/hash/locator and keep inference and contrary evidence (3.0018ms)
+✔ alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation (1.52ms)
+✔ decision request cannot invent an answer, choose an absent option or answer after expiry (4.71ms)
+✔ typed many-to-many links reject cross-workspace and impossible relations (0.8382ms)
+✔ experiment assignment keeps condition/method separate and excludes generative human-only setup (1.5716ms)
+✔ result success cannot replace missing evidence or unknown usage with fixture claims (6.8173ms)
+✔ service configuration rejects hosted/live/invalid ports and binds loopback (1.7346ms)
+✔ deterministic fixture exercises all outcomes without real model or tool effects (33.5211ms)
+✔ missing/invalid paid limits fail before dispatch and even complete live config remains denied (2.878ms)
+✔ human-only configuration cannot reach even the fake provider (2.3559ms)
+✔ delegation contains paths, grants, classifications, research condition and depth (4.0319ms)
+✔ sibling allocations conserve exact money and calls rather than checking children separately (1.6283ms)
+✔ results bind exact task/config/spec/version and check evidence (3.1161ms)
+✔ product transitions reject skipped stages, stale versions and stale candidate evidence (1.5987ms)
+✔ ready-to-try needs candidate-bound independent test/review and export evidence (1.687ms)
+✔ execution cannot resurrect cancellation or silently change research dimensions (1.9272ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1127.9473

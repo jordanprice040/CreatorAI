@@ -1,0 +1,38 @@
+{
+  "template_only": true,
+  "schema_version": "1.0",
+  "task_id": "REPLACE_TASK_ID",
+  "run_id": "REPLACE_RUN_ID",
+  "project_id": null,
+  "specification_ref": null,
+  "role": "locator",
+  "experiment_condition": "human_in_loop",
+  "goal": "REPLACE_WITH_BOUNDED_GOAL",
+  "non_goals": [],
+  "input_refs": [],
+  "acceptance_criteria": [],
+  "output_schema_ref": "REPLACE_VALIDATED_SCHEMA",
+  "dependencies": [],
+  "allowed_tools": [],
+  "allowed_data_classifications": [
+    "synthetic"
+  ],
+  "workspace_scope": null,
+  "allowed_paths": [],
+  "grant_ids": [],
+  "policy_version": null,
+  "model_policy_ref": null,
+  "budget_envelope_id": null,
+  "limits": {
+    "max_calls": null,
+    "max_children": 0,
+    "max_depth": 0,
+    "max_output_tokens": null,
+    "max_wall_seconds": null,
+    "max_cost_nano_usd": null,
+    "max_repairs": 2
+  },
+  "logical_operation_id": "REPLACE_STABLE_ID",
+  "lease_ref": null,
+  "validation_note": "Design template, not a valid live assignment. Fill and validate all mandatory scope, evidence, authority and resource fields before dispatch."
+}

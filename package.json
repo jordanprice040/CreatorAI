@@ -1,0 +1,31 @@
+{
+  "name": "creator-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.21.0 <23 || >=24.19.0 <25",
+    "pnpm": "11.25.0"
+  },
+  "scripts": {
+    "build:code": "tsc -b",
+    "build": "pnpm build:code && pnpm --filter @creator/web build",
+    "typecheck": "tsc -b && pnpm --filter @creator/web typecheck",
+    "test": "pnpm build:code && node --test tests/dist/*.test.js",
+    "format": "prettier --write apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json",
+    "format:check": "prettier --check apps packages tests scripts config docs package.json pnpm-workspace.yaml tsconfig.json tsconfig.base.json .prettierrc.json",
+    "check": "pnpm typecheck && pnpm test && pnpm format:check",
+    "dev": "pnpm build:code && node scripts/dev.mjs",
+    "dev:api": "pnpm build:code && node apps/api/dist/main.js",
+    "dev:web": "pnpm --filter @creator/web dev",
+    "cli": "node apps/cli/dist/main.js",
+    "smoke": "pnpm build && node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.0",
+    "typescript": "5.9.3",
+    "prettier": "3.9.10",
+    "vite": "8.3.4"
+  }
+}

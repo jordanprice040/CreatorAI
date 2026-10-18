@@ -1,0 +1,39 @@
+{
+  "template_only": true,
+  "schema_version": "1.0",
+  "deployment_mode": "local",
+  "data_mode": "fixture",
+  "live_external_effects_enabled": false,
+  "experiment_condition": "human_in_loop",
+  "discovery_method": "structured",
+  "model_policy": {
+    "requested_reference": "gpt-6-astra",
+    "verified_api_model_id": null,
+    "routing_mode": "fixed_unverified"
+  },
+  "limits": {
+    "max_concurrent_model_jobs": 3,
+    "max_active_builds": 1,
+    "max_delegation_depth": 2,
+    "max_concept_revisions": 1,
+    "max_repair_cycles": 2,
+    "max_total_calls": null,
+    "max_wall_seconds": null,
+    "max_cost_nano_usd": null
+  },
+  "authority": {
+    "grant_ids": [],
+    "policy_version": null,
+    "public_release": false,
+    "outbound_campaigns": false,
+    "live_payments": false,
+    "reinvestment": false
+  },
+  "privacy": {
+    "external_tracing_enabled": false,
+    "allowed_data_classifications": [
+      "synthetic"
+    ]
+  },
+  "validation_note": "Null caps are intentionally incomplete. Live dispatch must fail until finite caps, verified model/pricing and matching grants are configured. Fixtures never imply a live budget."
+}

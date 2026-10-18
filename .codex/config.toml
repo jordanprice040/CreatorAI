@@ -1,0 +1,14 @@
+# Project development tools. See docs/DEVELOPMENT_TOOLS.md.
+[mcp_servers.creator_playwright]
+command = "cmd"
+args = ["/d", "/c", "npx", "--yes", "@playwright/mcp@0.0.83", "--headless", "--isolated", "--browser", "msedge", "--output-dir", ".verification/playwright-mcp"]
+cwd = 'C:\Users\jorda\OneDrive\Desktop\creator_agent'
+enabled = true
+startup_timeout_sec = 60
+tool_timeout_sec = 60
+
+[mcp_servers.creator_firecrawl]
+url = "https://mcp.firecrawl.dev/v2/mcp"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 60

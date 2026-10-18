@@ -1,0 +1,192 @@
+{
+  "captured_at_utc": "2026-10-18T03:26:25.0293991Z",
+  "description": "Supplied kit before T00 document edits; Git was initialized separately; no source files modified yet.",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "expected_sha256": "d96c10e9ee3c95d7c17d9b88d4733763db71416b29117e22dc25e45ca574ed88",
+      "actual_sha256": "d96c10e9ee3c95d7c17d9b88d4733763db71416b29117e22dc25e45ca574ed88",
+      "matches": true
+    },
+    {
+      "path": "CLAUDE.md",
+      "expected_sha256": "573c10a0a24e81b1a9dbbe58e4d60dfd37304d964435812fd4ff796440d890ef",
+      "actual_sha256": "0d4db4983f221c111eab00b48253e96d1fb0c2bb827c2c8f7e78c3376274d7d6",
+      "matches": false
+    },
+    {
+      "path": "PACKAGE_VALIDATION.md",
+      "expected_sha256": "99d52d1cf4c9958dc951f8a556b2854c01a3fe235e06fdbaddea5b9e2f02b97a",
+      "actual_sha256": "99d52d1cf4c9958dc951f8a556b2854c01a3fe235e06fdbaddea5b9e2f02b97a",
+      "matches": true
+    },
+    {
+      "path": "PROJECT_CONTEXT.md",
+      "expected_sha256": "d1783da53ee5300b2e660188fb11913a2a36e1451d1dd46dbcaaf77e03820bf6",
+      "actual_sha256": "d1783da53ee5300b2e660188fb11913a2a36e1451d1dd46dbcaaf77e03820bf6",
+      "matches": true
+    },
+    {
+      "path": "PROMPT_LIBRARY.md",
+      "expected_sha256": "44e26d3074b3df9beffdd5b114e5af2c4a3cc4404e47be8bb828ac158408399a",
+      "actual_sha256": "44e26d3074b3df9beffdd5b114e5af2c4a3cc4404e47be8bb828ac158408399a",
+      "matches": true
+    },
+    {
+      "path": "README.md",
+      "expected_sha256": "b5468fbbd461947abc6e928bc441a91882d8a74f27115b4e097f0b24419be11b",
+      "actual_sha256": "b5468fbbd461947abc6e928bc441a91882d8a74f27115b4e097f0b24419be11b",
+      "matches": true
+    },
+    {
+      "path": "agent.md",
+      "expected_sha256": "4c1303acf983f44a9b3f238b98f973953614379e398b504f6524fb5a2e8c9bb6",
+      "actual_sha256": "4c1303acf983f44a9b3f238b98f973953614379e398b504f6524fb5a2e8c9bb6",
+      "matches": true
+    },
+    {
+      "path": "agents/ROLE_PROMPTS.md",
+      "expected_sha256": "be862e48708b5c2daefdef8846c1fc05e1ded2807d25897ce5f524a465af38c1",
+      "actual_sha256": "be862e48708b5c2daefdef8846c1fc05e1ded2807d25897ce5f524a465af38c1",
+      "matches": true
+    },
+    {
+      "path": "agents/RUNTIME_CONTRACT.md",
+      "expected_sha256": "cc11e68674f99fde21a77eac1d87167663549d514463bdee9a70b0d357e52cba",
+      "actual_sha256": "cc11e68674f99fde21a77eac1d87167663549d514463bdee9a70b0d357e52cba",
+      "matches": true
+    },
+    {
+      "path": "context/ARCHITECTURE.md",
+      "expected_sha256": "fc8492adcff9a0ff4b045ec9f8a9089dc9bbd86566dba8908a5b2846e82f86ad",
+      "actual_sha256": "fc8492adcff9a0ff4b045ec9f8a9089dc9bbd86566dba8908a5b2846e82f86ad",
+      "matches": true
+    },
+    {
+      "path": "context/DECISIONS_AND_OPEN_QUESTIONS.md",
+      "expected_sha256": "c4acf060d8c366cba7d3ac51ae07715f13884dd0d813b3bb340478f53233bd55",
+      "actual_sha256": "c4acf060d8c366cba7d3ac51ae07715f13884dd0d813b3bb340478f53233bd55",
+      "matches": true
+    },
+    {
+      "path": "context/EVALUATION_PROTOCOL.md",
+      "expected_sha256": "d81d1abcbf697863ff25db4b863ba1e3ab469de19d9c0b7bde1906d7c9b1f225",
+      "actual_sha256": "d81d1abcbf697863ff25db4b863ba1e3ab469de19d9c0b7bde1906d7c9b1f225",
+      "matches": true
+    },
+    {
+      "path": "context/HUMAN_OVERSIGHT.md",
+      "expected_sha256": "50d8eca91152d87d29c8e36d49ba151c4f01edbfb12574c12c38ea9c97209e47",
+      "actual_sha256": "50d8eca91152d87d29c8e36d49ba151c4f01edbfb12574c12c38ea9c97209e47",
+      "matches": true
+    },
+    {
+      "path": "context/REQUIREMENTS.md",
+      "expected_sha256": "46c86465e9e974ddb60664b8f478ece168d9528cfa98be0b11f5c8579d379888",
+      "actual_sha256": "46c86465e9e974ddb60664b8f478ece168d9528cfa98be0b11f5c8579d379888",
+      "matches": true
+    },
+    {
+      "path": "context/ROADMAP.md",
+      "expected_sha256": "91ac45c72c6217a22a3c7bc8e74b9c59b77edb38227cd2134146a85b0a28711e",
+      "actual_sha256": "91ac45c72c6217a22a3c7bc8e74b9c59b77edb38227cd2134146a85b0a28711e",
+      "matches": true
+    },
+    {
+      "path": "context/SCORING_RUBRIC.md",
+      "expected_sha256": "1dc4266eadb95f7d7cde169f0eb30817c2b679c59f179c3eeb7e314c3b484c39",
+      "actual_sha256": "1dc4266eadb95f7d7cde169f0eb30817c2b679c59f179c3eeb7e314c3b484c39",
+      "matches": true
+    },
+    {
+      "path": "context/SOURCES_AND_RECONCILIATION.md",
+      "expected_sha256": "f509de55265f25372fe323641328edfecc1f0b1c920ea71a9293aa33d89dd76f",
+      "actual_sha256": "f509de55265f25372fe323641328edfecc1f0b1c920ea71a9293aa33d89dd76f",
+      "matches": true
+    },
+    {
+      "path": "references/IMPLEMENTATION_GUIDE_2026-09-08.md",
+      "expected_sha256": "2609f9e3a595d9183b65089291d47b5691c50c03d63068640c917c456d443626",
+      "actual_sha256": "2609f9e3a595d9183b65089291d47b5691c50c03d63068640c917c456d443626",
+      "matches": true
+    },
+    {
+      "path": "references/PRODUCT_OVERVIEW_2026-09-08.md",
+      "expected_sha256": "8735eb7f5418ea5fc47f8e3ca131e64f824aa420ac1e7fd363ac476533bacf15",
+      "actual_sha256": "8735eb7f5418ea5fc47f8e3ca131e64f824aa420ac1e7fd363ac476533bacf15",
+      "matches": true
+    },
+    {
+      "path": "references/PROMPT_LIBRARY_2026-09-08.md",
+      "expected_sha256": "6f4c33deb2cf06c997a4cc1bf045a5833dd9bd82c45d5e5ab2d58fea1b22c7a7",
+      "actual_sha256": "6f4c33deb2cf06c997a4cc1bf045a5833dd9bd82c45d5e5ab2d58fea1b22c7a7",
+      "matches": true
+    },
+    {
+      "path": "references/RESEARCH_GUIDE_2026-09-29.md",
+      "expected_sha256": "d05a8ac3b64b8423418e9755b2bf48ea04c17567bd743656c08af36c4546e938",
+      "actual_sha256": "d05a8ac3b64b8423418e9755b2bf48ea04c17567bd743656c08af36c4546e938",
+      "matches": true
+    },
+    {
+      "path": "templates/ACCEPTANCE_SCENARIOS.json",
+      "expected_sha256": "eed6e339b6ff5ff2f297d99fcb699f7ce507b4241519672187d5d1f4184b88f8",
+      "actual_sha256": "eed6e339b6ff5ff2f297d99fcb699f7ce507b4241519672187d5d1f4184b88f8",
+      "matches": true
+    },
+    {
+      "path": "templates/DECISION_REQUEST.example.json",
+      "expected_sha256": "8266ef41b2534d4e1809d59013084c107e226741b6f733ee09407f491191d7ab",
+      "actual_sha256": "8266ef41b2534d4e1809d59013084c107e226741b6f733ee09407f491191d7ab",
+      "matches": true
+    },
+    {
+      "path": "templates/EXPERIMENT_MANIFEST.example.json",
+      "expected_sha256": "28bad0fb370c97de56651e5a57f4517182cc5c779fae85902b737070faf0382b",
+      "actual_sha256": "28bad0fb370c97de56651e5a57f4517182cc5c779fae85902b737070faf0382b",
+      "matches": true
+    },
+    {
+      "path": "templates/IDEA_DOSSIER.md",
+      "expected_sha256": "12e0d588a7ced89dee33c8603499888aa7e3e5bb6933084ee1d535c74260e058",
+      "actual_sha256": "12e0d588a7ced89dee33c8603499888aa7e3e5bb6933084ee1d535c74260e058",
+      "matches": true
+    },
+    {
+      "path": "templates/RUN_CONFIG.example.json",
+      "expected_sha256": "3b49049d030a9045d2b69f6045dcd7a8d326ae594eb41e96ac6136f1640a4d95",
+      "actual_sha256": "3b49049d030a9045d2b69f6045dcd7a8d326ae594eb41e96ac6136f1640a4d95",
+      "matches": true
+    },
+    {
+      "path": "templates/TASK_CONTRACT.example.json",
+      "expected_sha256": "098bdbb431636257158bd946627616e9053fa6f1d8e68488fcd14a419b5014bb",
+      "actual_sha256": "098bdbb431636257158bd946627616e9053fa6f1d8e68488fcd14a419b5014bb",
+      "matches": true
+    },
+    {
+      "path": "tracking/BUILD_STATUS.md",
+      "expected_sha256": "54fa87e944476f44a403b0211681ec9e649c526726f853118134a4373dd8e4b5",
+      "actual_sha256": "54fa87e944476f44a403b0211681ec9e649c526726f853118134a4373dd8e4b5",
+      "matches": true
+    },
+    {
+      "path": "tracking/DECISIONS.md",
+      "expected_sha256": "2ccc291d76401e38ef1849ba1d1b5d288252b444113679addd9d824137ab6368",
+      "actual_sha256": "2ccc291d76401e38ef1849ba1d1b5d288252b444113679addd9d824137ab6368",
+      "matches": true
+    },
+    {
+      "path": "tracking/INTEGRATIONS.md",
+      "expected_sha256": "60450fb9ffb5273965c88a1add06bba4839453753f4e129c09e40ca0c779f2e3",
+      "actual_sha256": "60450fb9ffb5273965c88a1add06bba4839453753f4e129c09e40ca0c779f2e3",
+      "matches": true
+    },
+    {
+      "path": "tracking/SESSION_HANDOFF.md",
+      "expected_sha256": "2e2700547e2243936cb05bef2f531396f20bc5b6485f22ece44d670e4abe943e",
+      "actual_sha256": "2e2700547e2243936cb05bef2f531396f20bc5b6485f22ece44d670e4abe943e",
+      "matches": true
+    }
+  ]
+}

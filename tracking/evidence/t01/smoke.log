@@ -1,0 +1,15 @@
+$ pnpm build && node scripts/smoke.mjs
+$ pnpm build:code && pnpm --filter @creator/web build
+$ tsc -b
+$ tsc --noEmit && vite build
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 114 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB │ gzip:  0.28 kB
+dist/assets/index-CwFgUOdV.css    3.19 kB │ gzip:  1.22 kB
+dist/assets/index-CSVthK8T.js   325.15 kB │ gzip: 99.06 kB
+
+✓ built in 184ms
+PASS: built web page → Vite preview proxy → API health and fixture. This is HTTP smoke verification, not browser rendering.

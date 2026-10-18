@@ -1,0 +1,717 @@
+{
+  "observed_at": "2026-10-18T04:19:23.925727+00:00",
+  "scope": "project",
+  "sources": [
+    {
+      "repository": "https://github.com/emilkowalski/skills",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "paths": [
+        "skills/animate",
+        "skills/animate-expo",
+        "skills/animation-performance",
+        "skills/animation-vocabulary",
+        "skills/apple-design",
+        "skills/ask-sonner",
+        "skills/break-ui",
+        "skills/emil-design-eng",
+        "skills/find-animation-opportunities",
+        "skills/improve-animations",
+        "skills/mobile-native",
+        "skills/pick-ui-library",
+        "skills/prototype",
+        "skills/review-animations",
+        "skills/write-swift"
+      ],
+      "license_directory": "docs/development-tools/licenses/emilkowalski-skills"
+    },
+    {
+      "repository": "https://github.com/DietrichGebert/ponytail",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "paths": [
+        "skills/ponytail",
+        "skills/ponytail-audit",
+        "skills/ponytail-debt",
+        "skills/ponytail-gain",
+        "skills/ponytail-help",
+        "skills/ponytail-review"
+      ],
+      "license_directory": "docs/development-tools/licenses/dietrichgebert-ponytail"
+    },
+    {
+      "repository": "https://github.com/pbakaus/impeccable",
+      "commit": "08d5b470495d242ca0470f4aeae1956c3a074f83",
+      "paths": [
+        "plugin/skills/impeccable"
+      ],
+      "license_directory": "docs/development-tools/licenses/pbakaus-impeccable"
+    },
+    {
+      "repository": "https://github.com/mattpocock/skills",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "paths": [
+        "skills/engineering/tdd",
+        "skills/engineering/diagnosing-bugs",
+        "skills/engineering/codebase-design",
+        "skills/engineering/domain-modeling",
+        "skills/productivity/writing-for-agents"
+      ],
+      "license_directory": "docs/development-tools/licenses/mattpocock-skills"
+    }
+  ],
+  "skills": [
+    {
+      "name": "animate",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/animate",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/animate/RECIPES.md",
+          "sha256": "21ff63d84391db8d96ecdf9170095f55a42c836ccc36fd3269c4772bab031ba2"
+        },
+        {
+          "path": ".agents/skills/animate/SKILL.md",
+          "sha256": "b8ede161270458e6ae2e45e8a1985373515d4c63de5568ddb0f9012d7634356c"
+        }
+      ]
+    },
+    {
+      "name": "animate-expo",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/animate-expo",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/animate-expo/RECIPES.md",
+          "sha256": "1193cb71334da2e2341778dd92bec9ac79d989cb07fd55d661f324ed5871e718"
+        },
+        {
+          "path": ".agents/skills/animate-expo/SKILL.md",
+          "sha256": "9a01a91701e6563c67677dde6b66ab30f066a5341d42c21a90ba51d99679274a"
+        }
+      ]
+    },
+    {
+      "name": "animation-performance",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/animation-performance",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/animation-performance/SKILL.md",
+          "sha256": "ceb9dd3fe912615830f725a0120ccf8d012d15a6218001a5cd6c15d38e39a957"
+        }
+      ]
+    },
+    {
+      "name": "animation-vocabulary",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/animation-vocabulary",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/animation-vocabulary/SKILL.md",
+          "sha256": "40d2b27adfdfeb0570a9f20e7d0255109d9233c50603878bcd0dcd04c923fd94"
+        }
+      ]
+    },
+    {
+      "name": "apple-design",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/apple-design",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/apple-design/SKILL.md",
+          "sha256": "77bb63b7043bb93aca2ff4ab040c249484eef35682bb6ff7163433c31d30adc7"
+        }
+      ]
+    },
+    {
+      "name": "ask-sonner",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/ask-sonner",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/ask-sonner/API.md",
+          "sha256": "4bb06f482c5757529e3d7a672a30fbeed42d24919a63e2571384a9ce1549aa7f"
+        },
+        {
+          "path": ".agents/skills/ask-sonner/SKILL.md",
+          "sha256": "39f3ee185b3aa2cf70a689052ff078953ce7ba5915ed7a9391d232e9d4dcf57f"
+        }
+      ]
+    },
+    {
+      "name": "break-ui",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/break-ui",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/break-ui/CATALOG.md",
+          "sha256": "7358efcc6bb48e35187be1c064cf60022dcb18c72c18fab58b606dfc5f421f15"
+        },
+        {
+          "path": ".agents/skills/break-ui/SKILL.md",
+          "sha256": "e7eec1d70ac56a04255e9c0dbe98084ea3d544cc04aaad34f32c95d6fa9dff5e"
+        }
+      ]
+    },
+    {
+      "name": "emil-design-eng",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/emil-design-eng",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/emil-design-eng/SKILL.md",
+          "sha256": "ffbe68e6007fb42cb8149f089b400a1ca007d59ba23e8948e2be4476f3175939"
+        }
+      ]
+    },
+    {
+      "name": "find-animation-opportunities",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/find-animation-opportunities",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/find-animation-opportunities/SKILL.md",
+          "sha256": "d52a377819b84a71930f0c822cfe2849f40301605a2d5c7eccbfa3b257700df2"
+        }
+      ]
+    },
+    {
+      "name": "improve-animations",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/improve-animations",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/improve-animations/AUDIT.md",
+          "sha256": "551c8473e20e5f4774680bc24d45e1c68e50992582720905c6b077756b7b5a55"
+        },
+        {
+          "path": ".agents/skills/improve-animations/PLAN-TEMPLATE.md",
+          "sha256": "0a08ac8e23fd2082d7ffb86aeed7b789de77328c3cf874b16f1a755f2ef0a6ad"
+        },
+        {
+          "path": ".agents/skills/improve-animations/SKILL.md",
+          "sha256": "73962447464433476343e2c12cd08ab39cc99a9e5f3c118c5fb54ed897574ef6"
+        }
+      ]
+    },
+    {
+      "name": "mobile-native",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/mobile-native",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/mobile-native/SKILL.md",
+          "sha256": "888b7651d66d66dbac4e72b7c554638eb19bd971d686d6cbdf030a5ef3788f55"
+        }
+      ]
+    },
+    {
+      "name": "pick-ui-library",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/pick-ui-library",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/pick-ui-library/SKILL.md",
+          "sha256": "675fdce308683256ed617351a9b74d23457a5fbd0a562d9831b9c764b8c5e682"
+        }
+      ]
+    },
+    {
+      "name": "prototype",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/prototype",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/prototype/PICKER.md",
+          "sha256": "31a55eec94715cc79942e91e172e539e3031dcd5e2e5ee7c1446cf2caee960a6"
+        },
+        {
+          "path": ".agents/skills/prototype/SKILL.md",
+          "sha256": "bba39c955eb1871c5a02733976ceec5d0324198e0812e667604756489c89f7b9"
+        }
+      ]
+    },
+    {
+      "name": "review-animations",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/review-animations",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/review-animations/SKILL.md",
+          "sha256": "6ff590d29e436766135aa3d137be1fac2a867165c7257fc315b189361f1873af"
+        },
+        {
+          "path": ".agents/skills/review-animations/STANDARDS.md",
+          "sha256": "e7d3605034acda54ca13e43aec9e64d65b53de20f75b11b8d694e373012fbe07"
+        }
+      ]
+    },
+    {
+      "name": "write-swift",
+      "repository": "emilkowalski/skills",
+      "source_path": "skills/write-swift",
+      "commit": "2d228630ba1446365f614a108cb8252f1feda202",
+      "files": [
+        {
+          "path": ".agents/skills/write-swift/SKILL.md",
+          "sha256": "16a4b6adb74e338e55e704ce5753ad54d825438b8a63930eeaede9f3c04c9447"
+        }
+      ]
+    },
+    {
+      "name": "ponytail",
+      "repository": "DietrichGebert/ponytail",
+      "source_path": "skills/ponytail",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "files": [
+        {
+          "path": ".agents/skills/ponytail/SKILL.md",
+          "sha256": "9badd22a32e19cb884e46dfa8d3aae82bb81dfa5484105b8b4f0262df823a509"
+        }
+      ]
+    },
+    {
+      "name": "ponytail-audit",
+      "repository": "DietrichGebert/ponytail",
+      "source_path": "skills/ponytail-audit",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "files": [
+        {
+          "path": ".agents/skills/ponytail-audit/SKILL.md",
+          "sha256": "2b3223a02c386d1263e1b08343cb8eb3a53e444cdafb1d79e26c8ec2a8fcad28"
+        }
+      ]
+    },
+    {
+      "name": "ponytail-debt",
+      "repository": "DietrichGebert/ponytail",
+      "source_path": "skills/ponytail-debt",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "files": [
+        {
+          "path": ".agents/skills/ponytail-debt/SKILL.md",
+          "sha256": "b5ec2762f6ba8c4af9ea7173aa6c9f91b88655a25e43f9de0264f6ce8722b25f"
+        }
+      ]
+    },
+    {
+      "name": "ponytail-gain",
+      "repository": "DietrichGebert/ponytail",
+      "source_path": "skills/ponytail-gain",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "files": [
+        {
+          "path": ".agents/skills/ponytail-gain/SKILL.md",
+          "sha256": "231034a896d6762e4b5c8468287083422c56b499119976ec9f76821f7d083090"
+        }
+      ]
+    },
+    {
+      "name": "ponytail-help",
+      "repository": "DietrichGebert/ponytail",
+      "source_path": "skills/ponytail-help",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "files": [
+        {
+          "path": ".agents/skills/ponytail-help/SKILL.md",
+          "sha256": "86ab0ce0af70cbeeeef499d5c884873b393f87f86401dcc45553662ce2c1eff9"
+        }
+      ]
+    },
+    {
+      "name": "ponytail-review",
+      "repository": "DietrichGebert/ponytail",
+      "source_path": "skills/ponytail-review",
+      "commit": "09c434ab73ca43761c5d8b0c5d341926c2fba710",
+      "files": [
+        {
+          "path": ".agents/skills/ponytail-review/SKILL.md",
+          "sha256": "33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e"
+        }
+      ]
+    },
+    {
+      "name": "impeccable",
+      "repository": "pbakaus/impeccable",
+      "source_path": "plugin/skills/impeccable",
+      "commit": "08d5b470495d242ca0470f4aeae1956c3a074f83",
+      "files": [
+        {
+          "path": ".agents/skills/impeccable/reference/adapt.md",
+          "sha256": "5826bb4bca75d7b891bed17ff03bd3b685dff0e4f26d387fa6190d4ba3f065e4"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/adapt.native.md",
+          "sha256": "acbeecbcbf6558d438ed4aec6b85027d72587bf181b8ae12d4dfbe8dce62e9a5"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/android.md",
+          "sha256": "058f81f256134841875fd3183e06b37a023de0c877fd2b9eecd97011640791fe"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/animate.md",
+          "sha256": "94b4ce6299fea93d9f256b2d25705961a76bc5ea940c56db4145686ebc99df1b"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/audit.md",
+          "sha256": "09372647218464fd68dd3eefe66b8a994ce84b5bcb5f644853981e8c574695f5"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/audit.native.md",
+          "sha256": "33a4ac3906140cfd73f65cd35026867e261adf411da0fc6da95770d9b6edeb81"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/bolder.md",
+          "sha256": "bd217b7bc011c2346ce94902071ecd940aa017e8f563539e31c1ad38ce256401"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/clarify.md",
+          "sha256": "6c382f8283756e8a693d832b750f7e4cbff1ca5bdcc3825b2b4ef4da9f21876a"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/colorize.md",
+          "sha256": "d1fbd55074abb2251bdaa03749d34acc42c38e46e47549f18f5848df57d43c42"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/component-review.md",
+          "sha256": "7780461422046ea2d7ae8b62558cbcb2a32a3c8160af8f1cb16f3c434abc00bc"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/craft-floor.md",
+          "sha256": "f204158e35616d8d5f0dad8087ee3f1f91c0fe1337fde6e3cf616a51b496822a"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/craft.md",
+          "sha256": "9205e222bc6565b37fb504ceec93233c2d2a456802b69d16e6b1c44723907c4c"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/critique.md",
+          "sha256": "87839097f6fbc2502569c0449e585bb27a4d50de5013cb2e6cbd83ca7d9fc412"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/degraded/asset-producer.md",
+          "sha256": "37c023b8bbb99221516d3c73f1f1b1be7da3a6dd75c1376799e940b5e6d55223"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/degraded/documenter.md",
+          "sha256": "bcc05ea92faebb5c74037a9d4263a5ce9a56f5ab07c8ab3c59ee704d8cade745"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/degraded/finish-reviewer.md",
+          "sha256": "c33c4cfa7f0ce0bedde80d4fc3b595e747d0e9b43a77f06cacb8e899802f709d"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/degraded/manual-edit-applier.md",
+          "sha256": "5fae7f8a2fc3ddd49ad0a413446dc44daedef5b6b7de5eb935bd2fbfad646d58"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/delight.md",
+          "sha256": "56500b1f9d2fcec8324d7f448d813048b5831a46d3feeb1055bd3eb17ec3660f"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/distill.md",
+          "sha256": "467956ccf03d24796db860f1e2e4aa54a132f4ff905221f75c7a5cb3f96df02b"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/doctor.md",
+          "sha256": "5eb790f0e7af38b9a5ec9c037ad51beac42f6cadb2e5949e9492011c833713dd"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/document.md",
+          "sha256": "a514e830b7f7d962713f50afaf239a10e66292094d9fe6c11a43a245ceb1e42c"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/extract.md",
+          "sha256": "29044a3df6598786b2f9023af89aa6683b9745b7cd9a0c89386da2d0e50e0166"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/generate.md",
+          "sha256": "5fc5387b24e74b4b530c97c486b068ce171cda07c8cccd0354d868d75bbb328e"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/harden.md",
+          "sha256": "035c4b02adc17df27b2b42142368052053bf19675b5e1639dab298dc45e4ebca"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/hooks.md",
+          "sha256": "b7dec0a953e11c851ea548bd34efbac459c341304155bcdfc012932928dd38cd"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/init.md",
+          "sha256": "fd37f029837277e93f26d69ddb6cc74af2ffe7d71f56df9d9c04adec77ae77d7"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/ios.md",
+          "sha256": "40c87038b5f75147a5952a96237acf312a327bf70c1bcd8e0a5f064625ae9668"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/layout.md",
+          "sha256": "1d6d2658482b7e2df0c4d27b1b29c5195f0803b402278b96590598f4d3e57aa7"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/live-setup.md",
+          "sha256": "73058cdbe80f7387a8b063db4e2376d0d7276ddaff6bd5e14d3473aecb640465"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/live.md",
+          "sha256": "ac389f99b122df72a96ea8cdf6df65ce5b280af8af392ef06e4364e9b0ea96cd"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/mode-operate.md",
+          "sha256": "7a52dd7a94ee75f6ae89542c86a1b6e1d306812b16e0d9dbf12d4acad44d148b"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/mode-persuade.md",
+          "sha256": "21e78c8a77badb3f83290cd4577ed3b24bd4dd3b57136d7da75733d4f3ee9ac0"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/mode-read.md",
+          "sha256": "a569989e6a3d6453b4c45e9474e162a15cc54e11732ac6baa7990a6e7cccc0b5"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/new-work.md",
+          "sha256": "46d8c148d52afe0fecd6b699961039c775261846855f29325bec91c9e2d5d8c6"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/onboard.md",
+          "sha256": "eb713f3d6686bac6431dd874f7b02358b4cf08e879e11bf747d75660dedd685a"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/operate.md",
+          "sha256": "a9d2203acd45ca33a13d5c68b02b23ed512425ac15f0e8438318ed124b43729d"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/optimize.md",
+          "sha256": "fb4014a4482231fbbbec71691d94aef854a1ea5380dbd7963074d14a0e579fdb"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/overdrive.md",
+          "sha256": "83c7786c640b0e6ea61e2b2ff0f93193ba1f68e907b32f2bd56f32bb7a60018f"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/polish.md",
+          "sha256": "73893e18e874e14beccd7fca92335d9036f5a5e068fd8815fd7daceadf186a43"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/quieter.md",
+          "sha256": "b0018ae21f320aabfe3ca9d9f8e0c2c5a5bf74c6eb4e572e3d408c38cd19f5ec"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/region-map.md",
+          "sha256": "5c0d1dca9ab72c3ae4a0ea728d6acecf8af980a5b7defa1c7a3924992b62f69a"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/routing.md",
+          "sha256": "dd6c5877467a30cb328789297bb5250b21c1c673d25c570a990043aa07ed01ac"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/shape.md",
+          "sha256": "a55f016c046cb6a27c55bd7f346375aeb506a755c4fbca19a5f92dbd42309c23"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/typeset.md",
+          "sha256": "da98692848aa2e9ea22c681522a082f2226cb5dbfdb704ac38903be1b4cffafd"
+        },
+        {
+          "path": ".agents/skills/impeccable/reference/visualize.md",
+          "sha256": "881bc7155d2207d2f31839efce9805d4bc8e1acacf2572987a5a7f25946caf91"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/command-metadata.json",
+          "sha256": "e8720f3aa41135211cc58cc299a39eeda86c75651f4279cc1ede8db10dcc0584"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/data/font-index-failures.json",
+          "sha256": "835f19a0a3812f3652dd6979a2ce5597f654fd01f26e1b420b92d5f42b997ce4"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/data/font-index.json",
+          "sha256": "47edbdfaf27073c47033d1ac7dfee881be49e2dcbda7671d1157300481dde6da"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/impeccable",
+          "sha256": "39d9600489073e227e4f4d55c451ce4252a6632ed7ae37923efbbcbc91f16d07"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/impeccable.cmd",
+          "sha256": "e0dcc4cd739c8a6ac9e8ce637c216cf8bd4ddae36a8bac458345bdb5a5d7e252"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/live-browser-dom.js",
+          "sha256": "24f09f2597b9b55a1e2c4acd2ae5c95db5c8615cfc20aa07d1a3950538ad5c4a"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/live-browser-ignores.js",
+          "sha256": "c1cb6877ca99a0c1b38ba0c7d59f32702d3022f6821d8045f7133f7c40b6362f"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/live-browser-session.js",
+          "sha256": "42831c3cd874346d8e7f120808d91e6ed3cda5c3eca6eefd76b126659536bc87"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/live-browser.js",
+          "sha256": "8108fbc5607e6a4b471641f25ca2b5d5776751abae99421d1f7c9306e1dd083c"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/modern-screenshot.umd.js",
+          "sha256": "bb36665889124a0b6e15f16045265737449c3bdcf2712cdb08af3cfa01563e2b"
+        },
+        {
+          "path": ".agents/skills/impeccable/scripts/VERSION",
+          "sha256": "e0a25b3b7adde370a854cb1b4866bdc4b565236f0ee65dcdb1b7cd1bc3b6f071"
+        },
+        {
+          "path": ".agents/skills/impeccable/SKILL.md",
+          "sha256": "4bd38528ae7bb3ed11d655fd248669e37d925bf2316e975b7639f2126a9d56f5"
+        }
+      ]
+    },
+    {
+      "name": "tdd",
+      "repository": "mattpocock/skills",
+      "source_path": "skills/engineering/tdd",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "files": [
+        {
+          "path": ".agents/skills/tdd/agents/openai.yaml",
+          "sha256": "ea6f01cf1b8c06a4b0f5b649d74b1b8ce8685e72af1b38d70d877693e092af0b"
+        },
+        {
+          "path": ".agents/skills/tdd/mocking.md",
+          "sha256": "3ceb807fdf4a47d6a93d4d9a891e5ba6d362a6247bd08adc451feebfc17361ef"
+        },
+        {
+          "path": ".agents/skills/tdd/SKILL.md",
+          "sha256": "5505d25bbaa8fc14a79e4d20163936958992a2995b7f1dd1d6197edc9ed722e0"
+        },
+        {
+          "path": ".agents/skills/tdd/tests.md",
+          "sha256": "859f9e592c188fda4fc7277dd180e4ce9c7a2e13f6efe1f6f29eccc9d28c106a"
+        }
+      ]
+    },
+    {
+      "name": "diagnosing-bugs",
+      "repository": "mattpocock/skills",
+      "source_path": "skills/engineering/diagnosing-bugs",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "files": [
+        {
+          "path": ".agents/skills/diagnosing-bugs/agents/openai.yaml",
+          "sha256": "3e430dbe4334a87597488c060cb3dc3786bb00c9182877d6f5ec41f62490e90b"
+        },
+        {
+          "path": ".agents/skills/diagnosing-bugs/scripts/hitl-loop.template.sh",
+          "sha256": "35103539fc36873eea36074769ad454f9379d6fc8b2dc0e26ce987fd3bfe5503"
+        },
+        {
+          "path": ".agents/skills/diagnosing-bugs/SKILL.md",
+          "sha256": "849198df88cdb65fd0d97236604c1fca7ff2f22d2f705f9724a800d0266b118d"
+        }
+      ]
+    },
+    {
+      "name": "codebase-design",
+      "repository": "mattpocock/skills",
+      "source_path": "skills/engineering/codebase-design",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "files": [
+        {
+          "path": ".agents/skills/codebase-design/agents/openai.yaml",
+          "sha256": "edebc9e4fcfe102114012575eaa9600b9b5fd08c311664f389c36e7bc717740f"
+        },
+        {
+          "path": ".agents/skills/codebase-design/DEEPENING.md",
+          "sha256": "f3dd099ce99289bd213914d8ee3e2429b78309c3957ca4583f7659551b1d53c1"
+        },
+        {
+          "path": ".agents/skills/codebase-design/DESIGN-IT-TWICE.md",
+          "sha256": "52b52e75655a27aea59c6966b410bac82448968ad46ef1ebb9f07c274e3ae010"
+        },
+        {
+          "path": ".agents/skills/codebase-design/SKILL.md",
+          "sha256": "2c20617f87ec8af6a434859f381b2f061a69b530444e74eb39e78bb016a6d1e2"
+        }
+      ]
+    },
+    {
+      "name": "domain-modeling",
+      "repository": "mattpocock/skills",
+      "source_path": "skills/engineering/domain-modeling",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "files": [
+        {
+          "path": ".agents/skills/domain-modeling/ADR-FORMAT.md",
+          "sha256": "944c92aa790e8fbdc9199640b170979abb8a34ba8d0fe18c2a01a63bce140ca0"
+        },
+        {
+          "path": ".agents/skills/domain-modeling/agents/openai.yaml",
+          "sha256": "f6bf2aa996c6e6f53fdd0708e18a0d16a56aed8322cca59fedbe3c0d2c75f06b"
+        },
+        {
+          "path": ".agents/skills/domain-modeling/GLOSSARY-FORMAT.md",
+          "sha256": "21dcc40cdec8e151a829b98ab1517c1867bc444e3665134a98c6983411996801"
+        },
+        {
+          "path": ".agents/skills/domain-modeling/SKILL.md",
+          "sha256": "7b925d7b1e341a2eeae33ad68a8a8c0ab889a38ddd22a7598e4c240e5a7556a3"
+        }
+      ]
+    },
+    {
+      "name": "writing-for-agents",
+      "repository": "mattpocock/skills",
+      "source_path": "skills/productivity/writing-for-agents",
+      "commit": "49dd158d1076134a641b33efb035946536778336",
+      "files": [
+        {
+          "path": ".agents/skills/writing-for-agents/agents/openai.yaml",
+          "sha256": "eacb24b2a618cfb81dacb0416f4fdd75ddf3a8060f8ddb99aae1b1e301907e4b"
+        },
+        {
+          "path": ".agents/skills/writing-for-agents/SKILL-MECHANICS.md",
+          "sha256": "c768e6307c7c10728c401c213f2c4ba71c542127eeb7ad2956aabd15a0fa0059"
+        },
+        {
+          "path": ".agents/skills/writing-for-agents/SKILL.md",
+          "sha256": "551adca942227b44192edba88acd4e8db911f0121ce58ad16944ccf6a896a74a"
+        }
+      ]
+    }
+  ],
+  "mcp": {
+    "playwright": {
+      "package": "@playwright/mcp",
+      "version": "0.0.83",
+      "npm_integrity": "sha512-oNcl+Ae2/IAjhfPeP46BfIkSakfmprY+aOtkv5MjrQ4lPav4/yNtPhL0iq8SlIM90oApWgBDUxaNKvktazUKOg==",
+      "repository_commit": "b8b4183e099f136cbec0388a6088d4aa2f6b9685"
+    },
+    "firecrawl": {
+      "url": "https://mcp.firecrawl.dev/v2/mcp",
+      "hosted_version_observed": "3.30.3",
+      "hosted_version_pinned": false,
+      "readme_commit": "26a23f28ec22241cb16e2115f27a6370ce2a00e0"
+    }
+  },
+  "impeccable_engine": {
+    "version": "0.1.15",
+    "platform": "windows-x64",
+    "url": "https://github.com/pbakaus/impeccable/releases/download/engine-v0.1.15/impeccable-windows-x64.exe",
+    "sha256": "981324ea15cc3c107d46b8133b5be77f639dbcd22e671f1eb7d8c69136e9693b",
+    "probe": "impeccable-engine 0.1.15",
+    "git_ignored": true
+  }
+}

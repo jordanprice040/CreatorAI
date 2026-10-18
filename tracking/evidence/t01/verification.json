@@ -1,0 +1,64 @@
+{
+  "recorded_at_utc": "2026-10-18T03:59:00.2120156Z",
+  "milestone": "T01",
+  "status": "verified",
+  "git_head": null,
+  "branch": "main",
+  "package_version": "0.1.0",
+  "schema_version": "1.0",
+  "candidate_manifest": "final-files.sha256",
+  "application_node": "22.21.0",
+  "additional_test_node": "24.19.0",
+  "pnpm": "11.25.0",
+  "checks": [
+    {
+      "source_copy": ".verification/t01-20261018-035503-421",
+      "log": "clean-verification.log",
+      "command": "& ./scripts/verify-clean.ps1",
+      "details": "Fresh source-only directory; frozen offline-cache install, build, typecheck, 20 tests, formatting",
+      "result": "passed"
+    },
+    {
+      "log": "node24-tests.log",
+      "command": "bundled Node 24.19.0 --test tests/dist/*.test.js",
+      "tests": 20,
+      "result": "passed"
+    },
+    {
+      "ports": [
+        4312,
+        5175
+      ],
+      "command": "pnpm smoke",
+      "log": "smoke.log",
+      "result": "passed"
+    },
+    {
+      "artifacts": [
+        "browser-state.txt",
+        "browser-fixture.png"
+      ],
+      "command": "In-app browser interactions",
+      "details": "Connected health; existing tool, process change, failed outcome, whitespace submit disabled; final restarted candidate process-change result",
+      "result": "passed"
+    }
+  ],
+  "verification_scope": "Fixture, structural contracts, deterministic domain rules, actual local HTTP/CLI/browser. Not live AI, research, persistence or study verification.",
+  "live_provider_availability": "unverified",
+  "live_activation": false,
+  "external_spend": "No provider call dispatched",
+  "limitations": [
+    "No database or durable audit",
+    "No authentication/grant authority",
+    "No transactional budgets or workflow service",
+    "No generated-code isolation/review",
+    "No CI run or native/mobile verification",
+    "Browser unavailable-service attempt interrupted by stopped web server; CLI failure behavior verified"
+  ],
+  "resolved_failures": [
+    "Sandbox dependency-cache symlink EPERM and loopback EACCES resolved with approved tool escalation",
+    "Raw HTTP replaced fetch in Host-header test because fetch normalized Host",
+    "Docs added before final formatting check",
+    "Old stopped-server browser tab replaced by fresh tab after restart"
+  ]
+}

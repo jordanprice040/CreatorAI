@@ -1,0 +1,10 @@
+{
+  "recorded_on": "2026-10-17",
+  "reference_preference": "GPT-6 Astra (historical owner preference)",
+  "verified_api_model_id": null,
+  "availability": "unverified",
+  "pricing": null,
+  "live_dispatch_enabled": false,
+  "fixture_provider": "deterministic-fixture-v1",
+  "note": "No real provider SDK, account lookup, key, spend grant or inference call. Fixture is explicitly selected, never a fallback."
+}

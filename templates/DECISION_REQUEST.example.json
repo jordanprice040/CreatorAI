@@ -1,0 +1,47 @@
+{
+  "template_only": true,
+  "schema_version": "1.0",
+  "request_id": "REPLACE_REQUEST_ID",
+  "run_id": "REPLACE_RUN_ID",
+  "task_id": "REPLACE_TASK_ID",
+  "kind": "judgment",
+  "reason_code": "CONSEQUENTIAL_ASSUMPTION",
+  "question": "REPLACE_WITH_SPECIFIC_DECISION",
+  "evidence_refs": [],
+  "assumption": "REPLACE_WITH_MISSING_FACT_OR_VALUE",
+  "consequence_if_wrong": "REPLACE_CONSEQUENCE",
+  "options": [
+    {
+      "id": "a",
+      "label": "REPLACE_OPTION_A",
+      "tradeoff": "REPLACE"
+    },
+    {
+      "id": "b",
+      "label": "REPLACE_OPTION_B",
+      "tradeoff": "REPLACE"
+    },
+    {
+      "id": "defer",
+      "label": "Defer pending evidence",
+      "tradeoff": "Work on this decision remains paused"
+    }
+  ],
+  "recommendation": {
+    "option_id": null,
+    "reason": null
+  },
+  "blocked_task_ids": [],
+  "unblocked_work": [],
+  "binding": {
+    "action_type": null,
+    "target_id": null,
+    "content_hash": null,
+    "spec_version": null,
+    "amount_cap": null,
+    "expires_at": null
+  },
+  "status": "draft",
+  "response": null,
+  "validation_note": "A judgment answer is not an external-action grant. Autonomous study runs return a stop reason rather than invoking a simulated human."
+}

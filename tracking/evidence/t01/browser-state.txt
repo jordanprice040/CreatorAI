@@ -1,0 +1,30 @@
+Browser tab: 2, Title: "Creator Agent · Local studio", URL: "http://127.0.0.1:5173/".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 37-40
+~				22 pop up button (collapsed, settable) Fixture outcome, Value: Change a process, ID: outcome, Secondary Actions: Expand
+~						24 Use an existing tool
+~						25 (selected) Change a process
+~			35 heading Outcome recorded in this view, Value: 2
+~				36 text Outcome recorded in this view
++			42 text SYNTHETIC · FIXTURE
++			43 text Fixture: assign an owner and a recurring review of a shared checklist.
++			44 definition list
++				45 container Product stage
++					46 text Product stage
++				47 text nonsoftware recommended
++				48 container Execution
++					49 text Execution
++				50 text succeeded
++				51 container Research condition
++					52 text Research condition
++				53 text human in loop
++				54 container Discovery method
++					55 text Discovery method
++				56 text structured
++				57 container Provider cost
++					58 text Provider cost
++				59 text 0 nano-USD · fixture only
++			60 text Stage labels are simulated. No sources were retrieved, no product was built, and no study was run. Reloading clears this result.
++			61 button (collapsed) Inspect contract and version bindings, Secondary Actions: Expand
++				62 text Inspect contract and version bindings
+The focused UI element is 0 AXWebArea Creator Agent · Local studio, URL: 127.0.0.1:5173/

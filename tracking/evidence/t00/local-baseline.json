@@ -1,0 +1,185 @@
+{
+  "observed_at_utc": "2026-10-18T03:30:39.4016812Z",
+  "root": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent",
+  "powershell_version": "7.6.6",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "verifier_sha256": "5a906866e37f9a872cc070b9e72dcd75c5380f5bd3ea5f7034b30e7527dd9af2",
+  "branch": "main",
+  "head_exists": false,
+  "remotes": [
+    "origin\thttps://github.com/jordanprice040/CreatorAI.git (fetch)",
+    "origin\thttps://github.com/jordanprice040/CreatorAI.git (push)"
+  ],
+  "tracked_files": [],
+  "status": [
+    "## No commits yet on main",
+    "?? AGENTS.md",
+    "?? CLAUDE.md",
+    "?? PACKAGE_VALIDATION.md",
+    "?? PROJECT_CONTEXT.md",
+    "?? PROMPT_LIBRARY.md",
+    "?? README.md",
+    "?? SHA256SUMS.txt",
+    "?? agent.md",
+    "?? agents/",
+    "?? context/",
+    "?? references/",
+    "?? templates/",
+    "?? tracking/"
+  ],
+  "files_excluding_git": [
+    "tracking\\SESSION_HANDOFF.md",
+    "tracking\\INTEGRATIONS.md",
+    "PROJECT_CONTEXT.md",
+    "PACKAGE_VALIDATION.md",
+    "SHA256SUMS.txt",
+    "README.md",
+    "PROMPT_LIBRARY.md",
+    "agent.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "tracking\\BUILD_STATUS.md",
+    "tracking\\evidence\\t00\\verify-starting-point.ps1",
+    "tracking\\evidence\\t00\\remote-refs.json",
+    "tracking\\evidence\\t00\\local-baseline.json",
+    "tracking\\evidence\\t00\\input-kit-hashes.json",
+    "tracking\\DECISIONS.md",
+    "agents\\RUNTIME_CONTRACT.md",
+    "agents\\ROLE_PROMPTS.md",
+    "context\\EVALUATION_PROTOCOL.md",
+    "context\\DECISIONS_AND_OPEN_QUESTIONS.md",
+    "context\\ARCHITECTURE.md",
+    "context\\REQUIREMENTS.md",
+    "context\\HUMAN_OVERSIGHT.md",
+    "context\\ROADMAP.md",
+    "context\\SCORING_RUBRIC.md",
+    "references\\PRODUCT_OVERVIEW_2026-09-08.md",
+    "references\\IMPLEMENTATION_GUIDE_2026-09-08.md",
+    "references\\PROMPT_LIBRARY_2026-09-08.md",
+    "context\\SOURCES_AND_RECONCILIATION.md",
+    "references\\RESEARCH_GUIDE_2026-09-29.md",
+    "templates\\TASK_CONTRACT.example.json",
+    "templates\\RUN_CONFIG.example.json",
+    "templates\\IDEA_DOSSIER.md",
+    "templates\\EXPERIMENT_MANIFEST.example.json",
+    "templates\\DECISION_REQUEST.example.json",
+    "templates\\ACCEPTANCE_SCENARIOS.json"
+  ],
+  "package_and_lockfiles": [],
+  "application_paths_present": [],
+  "template_json_checks": [
+    {
+      "path": "templates/ACCEPTANCE_SCENARIOS.json",
+      "parses": true
+    },
+    {
+      "path": "templates/DECISION_REQUEST.example.json",
+      "parses": true
+    },
+    {
+      "path": "templates/EXPERIMENT_MANIFEST.example.json",
+      "parses": true
+    },
+    {
+      "path": "templates/RUN_CONFIG.example.json",
+      "parses": true
+    },
+    {
+      "path": "templates/TASK_CONTRACT.example.json",
+      "parses": true
+    }
+  ],
+  "changed_since_supplied_kit_snapshot": [
+    "tracking/BUILD_STATUS.md",
+    "tracking/DECISIONS.md",
+    "tracking/INTEGRATIONS.md",
+    "tracking/SESSION_HANDOFF.md"
+  ],
+  "tools": [
+    {
+      "name": "git",
+      "on_path": true,
+      "path": "C:\\Program Files\\Git\\cmd\\git.exe"
+    },
+    {
+      "name": "node",
+      "on_path": true,
+      "path": "C:\\Program Files\\nodejs\\node.exe"
+    },
+    {
+      "name": "pnpm",
+      "on_path": true,
+      "path": "C:\\Users\\jorda\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback\\pnpm.cmd"
+    },
+    {
+      "name": "npm",
+      "on_path": true,
+      "path": "C:\\Program Files\\nodejs\\npm.ps1"
+    },
+    {
+      "name": "python",
+      "on_path": true,
+      "path": "C:\\Users\\jorda\\AppData\\Local\\Programs\\Python\\Python313\\python.exe"
+    },
+    {
+      "name": "gh",
+      "on_path": true,
+      "path": "C:\\Program Files\\GitHub CLI\\gh.exe"
+    },
+    {
+      "name": "docker",
+      "on_path": false,
+      "path": null
+    },
+    {
+      "name": "psql",
+      "on_path": false,
+      "path": null
+    },
+    {
+      "name": "temporal",
+      "on_path": false,
+      "path": null
+    }
+  ],
+  "versions": {
+    "git": {
+      "output": [
+        "git version 2.45.1.windows.1"
+      ],
+      "exit_code": 0
+    },
+    "node": {
+      "output": [
+        "v22.21.0"
+      ],
+      "exit_code": 0
+    },
+    "pnpm": {
+      "output": [
+        "11.25.0"
+      ],
+      "exit_code": 0
+    },
+    "npm": {
+      "output": [
+        "10.9.4"
+      ],
+      "exit_code": 0
+    },
+    "python": {
+      "output": [
+        "Python 3.13.0"
+      ],
+      "exit_code": 0
+    },
+    "gh": {
+      "output": [
+        "gh version 2.98.0 (2026-08-20)",
+        "https://github.com/cli/cli/releases/tag/v2.98.0"
+      ],
+      "exit_code": 0
+    }
+  },
+  "scope": "Documentation and environment baseline only; JSON parsing is not schema validation. No application, provider, service, browser, or CI tests exist or were run."
+}

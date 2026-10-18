@@ -1,0 +1,20 @@
+{
+  "observed_at": "2026-10-18T04:20:46.004827+00:00",
+  "t01_files_unchanged": 84,
+  "intentional_t01_file_changes": [
+    ".gitignore",
+    ".prettierignore",
+    "AGENTS.md",
+    "tracking/BUILD_STATUS.md",
+    "tracking/DECISIONS.md",
+    "tracking/INTEGRATIONS.md",
+    "tracking/SESSION_HANDOFF.md"
+  ],
+  "application_source_and_lockfile_unchanged": true,
+  "skill_count": 27,
+  "skill_files_hash_checked": 104,
+  "format_check": "passed",
+  "application_tests": "not rerun; application source and dependencies unchanged, historical T01 evidence retained",
+  "mcp_checks": "see mcp-verification.json",
+  "other_repository_modified": false
+}

@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+  - tests
+engineStrict: true
+saveExact: true
+onlyBuiltDependencies:
+  - esbuild
