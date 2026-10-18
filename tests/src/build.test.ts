@@ -124,7 +124,11 @@ async function setup(t: test.TestContext) {
 test('builder rejects missing acceptance coverage, stale task hashes and cancelled runs before calls', async (t) => {
   const s = await setup(t);
   s.plan.cases.pop();
-  await assert.rejects(s.run(), /cover every/);
+  await assert.rejects(s.run(), /cases frozen in the spec/);
+  // A build cannot swap in weaker cases of its own: the frozen ones are bound by the task hash.
+  s.plan.cases = structuredClone(BUILD_FIXTURE_CASES);
+  s.plan.cases[1]!.stdout = 'anything\n';
+  await assert.rejects(s.run(), /cases frozen in the spec/);
   s.plan.cases = structuredClone(BUILD_FIXTURE_CASES);
   s.spec.tasks[0]!.deliverable = 'Changed';
   await assert.rejects(s.run(), /hash mismatch/);
@@ -331,3 +335,29 @@ test(
     );
   },
 );
+
+test('held-out QA cases never reach a role packet, and a task without one is refused', async (t) => {
+  const s = await setup(t);
+  await s.run();
+  assert.ok(s.requests.length >= 1);
+  const held = BUILD_FIXTURE_CASES[1]!;
+  for (const r of s.requests) {
+    const packet = r.input[1]!.text;
+    assert.equal(packet.includes(JSON.stringify(held.stdout)), false);
+    assert.equal(packet.includes(JSON.stringify(held.args)), false);
+    const parsed = JSON.parse(packet) as {
+      cases: { check_key: string }[];
+      held_out_cases: number;
+    };
+    assert.deepEqual(
+      parsed.cases.map((c) => c.check_key),
+      ['A1'],
+    );
+    assert.equal(parsed.held_out_cases, 1);
+  }
+  assert.equal(held.check_key, 'A2');
+  const before = s.requests.length;
+  s.spec.acceptance_checks[1]!.cases![0]!.held_out = false;
+  await assert.rejects(s.run(), /held-out case/);
+  assert.equal(s.requests.length, before);
+});

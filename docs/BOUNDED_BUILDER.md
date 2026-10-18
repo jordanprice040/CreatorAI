@@ -8,8 +8,13 @@ not the whole product or a later merge.
 ## Supported recipe
 
 An independent `builder` task may edit the reviewed Python stdlib CLI template.
-Every assigned acceptance check must be `automated_test` and have an owner-authored
-case with arguments, stdin, exact stdout (including newlines) and exit code 0–125.
+Every assigned acceptance check must be `automated_test` and carry owner-authored
+`cases` in the spec itself (arguments, stdin, exact stdout including newlines, exit
+code 0–125 and `held_out`). The cases are part of the frozen task hash, and the build
+plan's `cases` must equal them exactly, in spec order and without `held_out`, so a build
+cannot choose or weaken its own tests. Each task needs at least one held-out case:
+QA runs it, but its inputs and expected output never enter the builder or reviewer
+packet or repair feedback (which only names the failed check key).
 Each case runs in a clean sandbox. Browser/manual/metric checks and task dependency
 integration stop explicitly; persisted state across invocations is unsupported.
 Do not use this recipe to verify web behavior or persistent applications.
@@ -31,7 +36,7 @@ specification version; supply a current humility review of that specification,
 not an alternative. Answer a concrete admission decision or use an existing
 authorized standing grant. No policy defaults need changing.
 
-Example plan (replace IDs, deadline and cases for the frozen task):
+Example plan (replace IDs and deadline; copy `cases` from the frozen spec):
 
 ```json
 {

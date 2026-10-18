@@ -525,3 +525,26 @@ test('seed retries return the same assignments and agent identities cannot recei
     store.grantGrader(owner, ws.id, first.study.id, { actor_id: agentId }),
   );
 });
+
+test('participant ids match regardless of letter case, so a participant can never become a grader', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, owner, person, ws, study, assign } = s;
+  const a = await assign('human_only', {
+    participant_actor_id: person.actorId.toUpperCase(),
+  });
+  assert.equal(a.participant_actor_id, person.actorId);
+  const context = await store.participantContext(person, ws.id, a.id);
+  assert.equal(context.attempt.id, a.id);
+  await assert.rejects(
+    store.grantGrader(owner, ws.id, study.id, { actor_id: person.actorId }),
+    /Participants cannot read hidden grading material/,
+  );
+  await assert.rejects(
+    store.grantGrader(owner, ws.id, study.id, {
+      actor_id: person.actorId.toUpperCase(),
+    }),
+    /Participants cannot read hidden grading material/,
+  );
+  await assert.rejects(store.graderMaterial(person, ws.id, study.id));
+});

@@ -141,7 +141,13 @@ export class StudyStore extends CatalogStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     studyId = uuid(studyId);
-    const req = parse(AssignStudySchema, raw);
+    const parsed = parse(AssignStudySchema, raw);
+    // Ids are compared as text in assignment JSON; store them in canonical lowercase.
+    const req = {
+      ...parsed,
+      participant_actor_id: parsed.participant_actor_id.toLowerCase(),
+      continuation_of: parsed.continuation_of?.toLowerCase() ?? null,
+    };
     if (req.discovery_method === 'open_ended' && req.comparison !== 'discovery')
       throw fail(
         'INVALID_CONTRACT',
@@ -333,7 +339,7 @@ export class StudyStore extends CatalogStore {
   ) {
     const a = await this.attemptIn(c, attemptId);
     await this.study(c, ws, a.study_id);
-    if (ownerOnly || a.participant_actor_id !== ctx.actorId)
+    if (ownerOnly || a.participant_actor_id.toLowerCase() !== ctx.actorId)
       await this.requireOwner(c, ws, ctx.actorId);
     return a;
   }
@@ -578,7 +584,9 @@ export class StudyStore extends CatalogStore {
     studyId: string,
     raw: unknown,
   ) {
-    const req = parse(z.strictObject({ actor_id: id }), raw);
+    const req = {
+      actor_id: uuid(parse(z.strictObject({ actor_id: id }), raw).actor_id),
+    };
     return this.tx(async (c) => {
       await this.requireOwner(c, uuid(ws), normalize(ctx).actorId);
       await this.study(c, ws, studyId);
@@ -594,7 +602,7 @@ export class StudyStore extends CatalogStore {
           'Grader material is restricted to a separate human reviewer identity.',
         );
       const prior = await c.query(
-        "select 1 from study_attempts where study_id=$1 and assignment->>'participant_actor_id'=$2",
+        "select 1 from study_attempts where study_id=$1 and lower(assignment->>'participant_actor_id')=$2",
         [studyId, req.actor_id],
       );
       if (prior.rowCount)

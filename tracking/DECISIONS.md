@@ -1,5 +1,13 @@
 # Decision log
 
+## ADR-0018 - Audit fixes: frozen and held-out QA cases, case-insensitive study ids, database CI
+
+- Date: October 18, 2026. Status: implemented by Claude Code after Jordan's codebase audit (report: /mnt/project-files/audits/2026-10-18-codebase-audit.md) and his request to fix findings 1-3. Branch claude/project-thread-mccbs5 from main c162376.
+- QA cases: spec acceptance checks gain optional `cases` (args, stdin, stdout, exit_code, held_out). They sit inside the T08 task hash, so a freeze fixes them. T12 requires every assigned automated check to carry cases, the plan's `cases` to equal them exactly (spec order, no held_out), and at least one held-out case per task. Held-out inputs/outputs are removed from builder and reviewer packets and from repair feedback (only the check key and pass/fail remain). Existing specs without cases stay valid but cannot be built. Supersedes the per-build plan cases in ADR-0016. Alternative rejected: keeping plan cases and only recording plan_hash; that detects but does not prevent a weaker case set.
+- Study ids: assignment stores participant and continuation ids in lowercase; grader grants normalize the actor id and compare lower(); attempt access compares lowercase. A mixed-case assignment previously let a participant become a grader and read hidden material.
+- CI: a second job runs `pnpm test:db` against a postgres:16 service with throwaway credentials. WSL2 isolation tests still skip there and remain a manual Windows gate.
+- Rollback: revert the commit. No migration; stored rows are unaffected (existing assignments were already lowercase in all recorded runs).
+
 ## ADR-0017 - T13 immutable manifests, separate preview origin and feedback revisions
 
 - Date: October 18, 2026. Status: implemented within Jordan's explicit T13 request by Claude Code; owner review and the real WSL2 gate pending. Branch claude/t13-8h288j from main 6fe5bab (T12 merged as PR #14). No T14, live provider, real spend or public release.

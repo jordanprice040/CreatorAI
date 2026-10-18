@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { taskHashes } from '@creator/domain';
+import { frozenCases, taskHashes } from '@creator/domain';
 import {
   z,
   SpecBodySchema,
@@ -167,17 +167,27 @@ export class BuildSupervisor {
       const acceptance = spec.acceptance_checks.filter((a) =>
         assigned.acceptance.includes(a.key),
       );
-      const keys = new Set(plan.cases.map((c) => c.check_key));
       if (
         !acceptance.length ||
-        acceptance.some(
-          (a) => a.method !== 'automated_test' || !keys.has(a.key),
-        ) ||
-        plan.cases.some((c) => !assigned.acceptance.includes(c.check_key))
+        acceptance.some((a) => a.method !== 'automated_test' || !a.cases)
       )
         throw new Error(
-          'QA plan must cover every assigned automated acceptance check; browser/manual/metric checks require another recipe',
+          'QA plan must cover every assigned automated acceptance check with cases frozen in the spec; browser/manual/metric checks require another recipe',
         );
+      // The executable cases are part of the frozen task hash; a build cannot choose its own.
+      const frozen = frozenCases(spec, assigned.acceptance);
+      if (
+        JSON.stringify(frozen.map(({ held_out: _, ...c }) => c)) !==
+        JSON.stringify(plan.cases)
+      )
+        throw new Error(
+          'QA plan cases must equal the cases frozen in the spec for this task',
+        );
+      if (!frozen.some((c) => c.held_out))
+        throw new Error(
+          'The frozen task needs at least one held-out case that no role sees',
+        );
+      const heldOut = (index: number) => frozen[index]!.held_out;
       if (
         JSON.stringify(assigned.file_scope) !== JSON.stringify(task.file_scope)
       )
@@ -238,8 +248,10 @@ export class BuildSupervisor {
           acceptance.some((a) => a.flow === f.key),
         ),
         task: assigned,
-        acceptance,
-        cases: plan.cases,
+        // Expected outputs of held-out cases never enter a role packet.
+        acceptance: acceptance.map(({ cases: _, ...a }) => a),
+        cases: plan.cases.filter((_, i) => !heldOut(i)),
+        held_out_cases: plan.cases.filter((_, i) => heldOut(i)).length,
       };
       const files = async () => {
         await safeTree(tree);
@@ -415,7 +427,14 @@ export class BuildSupervisor {
               execution.log === c.stdout &&
               execution.environment.acceptance_hash ===
                 digest(JSON.stringify(c));
-            checks.push({ check: c, execution_id: execution.id, passed: ok });
+            // Repair feedback names a failed held-out case but not its inputs or expected output.
+            checks.push({
+              check: heldOut(index)
+                ? { check_key: c.check_key, held_out: true }
+                : c,
+              execution_id: execution.id,
+              passed: ok,
+            });
             passed &&= ok;
             await jsonWrite(join(dir, `qa-${cycle}-${index}.json`), {
               command: ['/usr/bin/python3', '-I', 'src/main.py', ...c.args],

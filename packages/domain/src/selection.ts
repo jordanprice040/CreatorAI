@@ -763,6 +763,25 @@ export function taskHashes(s: SpecContent): Record<string, string> {
   return out;
 }
 
+/**
+ * The executable QA cases frozen with a spec, in spec order, optionally limited to some checks.
+ * A build plan must carry exactly these; `held_out` stays here and never reaches a role packet.
+ */
+export function frozenCases(s: SpecContent, keys?: readonly string[]) {
+  return s.acceptance_checks
+    .filter((a) => !keys || keys.includes(a.key))
+    .flatMap((a) =>
+      (a.cases ?? []).map((c) => ({
+        check_key: a.key,
+        args: c.args,
+        stdin: c.stdin,
+        stdout: c.stdout,
+        exit_code: c.exit_code,
+        held_out: c.held_out,
+      })),
+    );
+}
+
 /** How the current task graph compares with a frozen one. */
 export function taskImpact(
   s: SpecContent,
