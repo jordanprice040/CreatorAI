@@ -1,0 +1,54 @@
+name: creator-agent-local
+
+x-postgres: &postgres
+  image: postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
+  restart: 'no'
+  cpus: 2
+  mem_limit: 1g
+  pids_limit: 256
+  shm_size: 128mb
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - NET_RAW
+  healthcheck:
+    test: ['CMD-SHELL', 'pg_isready -U creator -d postgres']
+    interval: 2s
+    timeout: 5s
+    retries: 30
+    start_period: 10s
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '2'
+
+services:
+  db:
+    <<: *postgres
+    environment:
+      POSTGRES_USER: creator
+      POSTGRES_DB: creator_dev
+      POSTGRES_PASSWORD: ${CREATOR_DOCKER_PASSWORD:?Set CREATOR_DOCKER_PASSWORD to a private local password}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    ports:
+      - '127.0.0.1:55433:5432'
+    volumes:
+      - dev-postgres:/var/lib/postgresql
+
+  db-test:
+    <<: *postgres
+    profiles: [test]
+    environment:
+      POSTGRES_USER: creator
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${CREATOR_DOCKER_PASSWORD:?Set CREATOR_DOCKER_PASSWORD to a private local password}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    ports:
+      - '127.0.0.1:55434:5432'
+    volumes:
+      - test-postgres:/var/lib/postgresql
+
+volumes:
+  dev-postgres:
+  test-postgres:

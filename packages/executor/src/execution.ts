@@ -19,6 +19,8 @@ import {
   id,
   type Binding,
   type Execution,
+  qaCaseSchema,
+  type QaCase,
 } from './contracts.js';
 import { canonical, jsonWrite, readJson, event, withLock } from './files.js';
 
@@ -97,6 +99,7 @@ export class ExecutionSupervisor {
     commit: string,
     binding: Binding,
     onStarted: (id: string) => void = () => {},
+    qa?: QaCase,
   ): Promise<Execution> {
     // One local generated-code unit at a time. A crash leaves the lock for explicit reconciliation.
     return withLock(this.products.root, async () => {
@@ -108,7 +111,7 @@ export class ExecutionSupervisor {
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       }
-      return this.runOne(productId, taskId, commit, binding, onStarted);
+      return this.runOne(productId, taskId, commit, binding, onStarted, qa);
     });
   }
   private async runOne(
@@ -117,6 +120,7 @@ export class ExecutionSupervisor {
     commit: string,
     binding: Binding,
     onStarted: (id: string) => void,
+    qa?: QaCase,
   ): Promise<Execution> {
     const p = await this.products.product(productId);
     this.products.assertBinding(p, binding);
@@ -137,6 +141,8 @@ export class ExecutionSupervisor {
       throw e;
     }
     const recipeHash = digest(await readFile(RECIPE));
+    if (qa)
+      await jsonWrite(join(job, 'acceptance.json'), checked(qaCaseSchema, qa));
     const record: Execution = {
       id: executionId,
       product_id: productId,
@@ -155,6 +161,9 @@ export class ExecutionSupervisor {
         supervisor_pid: process.pid,
         bridge_hash: digest(await readFile(WORKER)),
         local_compute_billing: 'not_metered_by_studio',
+        acceptance_hash: qa
+          ? digest(JSON.stringify(checked(qaCaseSchema, qa)))
+          : null,
       },
       log: '',
       exit_code: null,

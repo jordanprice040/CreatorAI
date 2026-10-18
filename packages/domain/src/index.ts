@@ -12,3 +12,4 @@ export * from './selection.js';
 export * from './selection-fixture.js';
 
 export * from './study.js';
+export * from './build-fixture.js';

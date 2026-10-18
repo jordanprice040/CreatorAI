@@ -13,6 +13,9 @@ import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 const exec = promisify(execFile);
 
 test('budget API and CLI: pricing, envelopes, a metered fixture call, a refusal and the error view', async (t) => {
+  let closeApi = async () => {};
+  // Node runs after hooks in registration order: close workers before dropping their DB.
+  t.after(() => closeApi());
   const db = await freshDatabase(t);
   if (!db) return;
   const api = createApi({
@@ -21,7 +24,7 @@ test('budget API and CLI: pricing, envelopes, a metered fixture call, a refusal 
   });
   api.server.listen(0, '127.0.0.1');
   await once(api.server, 'listening');
-  t.after(api.close);
+  closeApi = api.close;
   await api.ready();
   const port = (api.server.address() as { port: number }).port;
   const base = `http://127.0.0.1:${port}/api`;

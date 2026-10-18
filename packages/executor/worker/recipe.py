@@ -1,5 +1,6 @@
 """Reviewed recipe. This file itself runs only inside Bubblewrap."""
 import os
+import json
 import pathlib
 import py_compile
 import resource
@@ -17,4 +18,9 @@ for path in pathlib.Path('.').rglob('*.py'):
     py_compile.compile(str(path), doraise=True)
 if not pathlib.Path('src/main.py').is_file():
     raise RuntimeError('Reviewed template requires src/main.py')
-sys.exit(subprocess.call(['/usr/bin/python3', '-I', 'src/main.py'], env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent'}))
+acceptance = pathlib.Path('/acceptance.json')
+case = json.loads(acceptance.read_text()) if acceptance.is_file() else None
+result = subprocess.run(['/usr/bin/python3', '-I', 'src/main.py', *(case['args'] if case else [])],
+                        input=case['stdin'].encode() if case else None,
+                        env={'PATH': '/usr/bin:/bin', 'HOME': '/nonexistent'})
+sys.exit(result.returncode)

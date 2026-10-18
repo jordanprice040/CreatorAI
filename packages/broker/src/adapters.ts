@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { discoveryFixtureAnswer } from '@creator/domain';
+import { discoveryFixtureAnswer, buildFixtureAnswer } from '@creator/domain';
 import type {
   BrokerCallRequest,
   MeteredAction,
@@ -98,7 +98,8 @@ export class FixtureAdapter implements ModelAdapter {
     // given (labelled fixture), so fixture runs exercise the whole discovery pipeline.
     let scripted: string | null = null;
     try {
-      scripted = discoveryFixtureAnswer(req.input);
+      scripted =
+        buildFixtureAnswer(req.input) ?? discoveryFixtureAnswer(req.input);
     } catch {
       scripted = null;
     }

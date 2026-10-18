@@ -475,27 +475,42 @@ test('late results reconcile without duplicate charge; replays never re-dispatch
   );
 });
 
-test('concurrent duplicate deliveries dispatch once', async (t) => {
-  const adapter = new ScriptedAdapter(async () => {
-    await sleep(200);
-    return completed();
-  });
-  const s = await setup(t, adapter);
-  if (!s) return;
-  const runId = await s.run();
-  const env = await s.envelope(EXPOSURE * 10n);
-  const req = s.request(env.id);
-  const results = await Promise.all(
-    Array.from({ length: 4 }, () => s.broker.call(owner, s.ws.id, runId, req)),
-  );
-  assert.equal(adapter.calls, 1);
-  assert.equal(results.filter((r) => !r.replayed).length, 1);
-  assert.ok(
-    results.filter((r) => r.replayed).every((r) => r.status === 'in_flight'),
-  );
-  const e = await s.balanced(env.id);
-  assert.equal(e.incurred, String(ACTUAL));
-});
+test(
+  'concurrent duplicate deliveries dispatch once',
+  { timeout: 20000 },
+  async (t) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    t.after(() => release());
+    const adapter = new ScriptedAdapter(async () => {
+      await held;
+      return completed();
+    });
+    const s = await setup(t, adapter);
+    if (!s) return;
+    const runId = await s.run();
+    const env = await s.envelope(EXPOSURE * 10n);
+    const req = s.request(env.id);
+    let duplicates = 0;
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        s.broker.call(owner, s.ws.id, runId, req).then((result) => {
+          if (result.replayed && ++duplicates === 3) release();
+          return result;
+        }),
+      ),
+    );
+    assert.equal(adapter.calls, 1);
+    assert.equal(results.filter((r) => !r.replayed).length, 1);
+    assert.ok(
+      results.filter((r) => r.replayed).every((r) => r.status === 'in_flight'),
+    );
+    const e = await s.balanced(env.id);
+    assert.equal(e.incurred, String(ACTUAL));
+  },
+);
 
 test('rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation', async (t) => {
   const plan: AdapterOutcome[] = [
