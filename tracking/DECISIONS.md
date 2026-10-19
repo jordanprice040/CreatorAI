@@ -1,5 +1,7 @@
 # Decision log
 
+<<<<<<< HEAD
+
 ## ADR-0036 — X09 bounded portfolio policy and reviewed task knowledge
 
 October 19, 2026. Jordan authorized X09 after X08 and reported Claude's parallel
@@ -91,6 +93,24 @@ verified and authorized adapter; hosting/payment prerequisites remain applicable
 New UI is isolated in `marketing.tsx`; shared changes are one import/case in
 `main.tsx` and one view tuple in `ui.tsx`. No shared CSS or public component prop
 changes. See docs/X08_MARKETING.md and tracking/evidence/x08.
+=======
+
+## ADR-0037 — Dark-default studio theme, semantic tokens and grouped workspace shell
+
+October 19, 2026. Owner handoff (docs/CLAUDE_UX_UI_HANDOFF.md on the owner's machine) authorized a
+UX/UI redesign of `apps/web`, which is also the desktop view. Dark is the default on every load,
+including a light OS theme, superseding the earlier optional-dark-theme default; light is an
+explicit saved choice. A classic `public/theme-boot.js` sets the theme before the stylesheet and
+app run, so first paint is never white. Colours are semantic custom properties; components use
+tokens only. Navigation is grouped (Studio, Evidence, Oversight, Build and study, System) in a
+sidebar that becomes a drawer at 860px; route hashes, view keys and labels are unchanged.
+Rejected: a component or CSS framework (dependency churn and overlap with the parallel X08 work);
+following the OS theme (contradicts the owner's choice). `useRoute` now drops a view's late focus
+request after the user leaves it (fixes being pulled back). No API, gate, session or CSRF change.
+Numbering: if Codex's X08 lands first with ADR-0035, renumber this entry rather than X08's.
+See docs/UX_UI.md.
+
+> > > > > > > origin/main
 
 ## ADR-0034 — X06/X07 audit repairs and conserved processor identity
 
@@ -357,7 +377,6 @@ activation and hosted pairing are outside this local implementation.
 - Review hardening: manual stops share the broker run lock; study events take the audit lock before insertion; no-key-update parent locks avoid foreign-key/audit inversion. Late outputs retain artifacts and charges but fail the original assignment deadline. Grader principals are human-only. Seed commands have distinct repeatable keys. Equal problem/outcome fields and bounded snapshots prevent arm-specific information loss.
 - Rollback: additive migration 9 can remain unused if the study routes are disabled; do not delete study/audit evidence. A future live/participant implementation needs a new authorized configuration, verified adapters, protocol and recruitment decisions. T11 is the next milestone; it is not started here.
 
-
 ## ADR-0012 — T09 studio interface, PostgreSQL text search and address-kept state
 
 - Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T09. Decision-maker: coding agent; owner review pending on the pull request.
@@ -484,34 +503,34 @@ Affected requirements: C22, C26–C35 and C49–C50 guide this architecture; non
 
 All paths are relative to the local root above.
 
-| Actual path | Observed role |
-| --- | --- |
-| `.git/` | Created by T00: unborn main/origin, no commits or tracked files. |
-| `AGENTS.md` | Canonical coding instructions, preserved. |
-| `agent.md`, `CLAUDE.md` | Instruction entry points, preserved; incoming CLAUDE checksum differed from original kit manifest. |
+| Actual path                                            | Observed role                                                                                                                                       |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.git/`                                                | Created by T00: unborn main/origin, no commits or tracked files.                                                                                    |
+| `AGENTS.md`                                            | Canonical coding instructions, preserved.                                                                                                           |
+| `agent.md`, `CLAUDE.md`                                | Instruction entry points, preserved; incoming CLAUDE checksum differed from original kit manifest.                                                  |
 | `PROJECT_CONTEXT.md`, `PROMPT_LIBRARY.md`, `README.md` | v3.0 vision, milestones/shared contract, kit guide; their uninspected-repository statements describe kit creation, superseded by this dated intake. |
-| `context/` | 9 design, policy, requirements and reconciliation documents, not runtime code. |
-| `agents/` | RUNTIME_CONTRACT.md and ROLE_PROMPTS.md; future runtime specifications, no executable agents. |
-| `templates/` | 5 JSON examples/scenarios and IDEA_DOSSIER.md; not executable validators/tests. |
-| `references/` | 4 archived historical Markdown documents, retained as references. |
-| `tracking/` | Four status/decision/integration/handoff documents updated by T00. |
-| `tracking/evidence/t00/` | Added input hashes, remote observation, PowerShell verifier, baseline output and final file hashes. Intake tooling only. |
-| `PACKAGE_VALIDATION.md`, `SHA256SUMS.txt` | Historical kit validation/checksums preserved; not a checksum manifest for the edited working tree. |
+| `context/`                                             | 9 design, policy, requirements and reconciliation documents, not runtime code.                                                                      |
+| `agents/`                                              | RUNTIME_CONTRACT.md and ROLE_PROMPTS.md; future runtime specifications, no executable agents.                                                       |
+| `templates/`                                           | 5 JSON examples/scenarios and IDEA_DOSSIER.md; not executable validators/tests.                                                                     |
+| `references/`                                          | 4 archived historical Markdown documents, retained as references.                                                                                   |
+| `tracking/`                                            | Four status/decision/integration/handoff documents updated by T00.                                                                                  |
+| `tracking/evidence/t00/`                               | Added input hashes, remote observation, PowerShell verifier, baseline output and final file hashes. Intake tooling only.                            |
+| `PACKAGE_VALIDATION.md`, `SHA256SUMS.txt`              | Historical kit validation/checksums preserved; not a checksum manifest for the edited working tree.                                                 |
 
 Absent: apps/, packages/, src/, application tests, dependency manifests/lockfiles, .github/workflows/, container definitions, migrations, provider adapters and application build/start/test commands. Input inventory: 32 files including SHA256SUMS.txt. Reusable assets are specifications, prompts, templates and requirements; no reusable implemented functionality was found. No other personal repository was searched.
 
 ### Planned dependency/path map — not present yet
 
-| Gate | Paths / dependency direction | Prerequisite and behavior |
-| --- | --- | --- |
-| T01 | `packages/contracts` → runtime validation library | Versioned executable schemas, decimal-string exact money and explicit errors. Select/pin library after compatibility review. |
-| T01 | `packages/domain` → contracts | Lifecycle, containment and transition rules; no external effects. |
-| T01 | `apps/api` → contracts/domain; `apps/cli` and `apps/web` → API | Thin health and validated fixture demonstration; React/Vite client. Clients do not own enforcement. Share schemas as needed. |
-| T01 | Root pnpm workspace/scripts | Strict checks, compatible pinned dependencies, lockfile and documented install/build/test/dev commands. Tool presence is not compatibility evidence. |
-| T02 | `packages/db` → contracts/domain + PostgreSQL | Migrations, persistence, audit/outbox; usable service unverified. |
-| T03–T05 | policy/finance/providers and `apps/orchestrator` | Admission precedes provider/Temporal effects; verified SDKs, budgets, caps and grants required. |
-| T11–T13 | `apps/worker`, artifacts/integrations | Isolated generated workspaces, exact Git/artifact evidence; no host-execution fallback. |
-| X05 onward | `apps/desktop` and hosted extensions | Deferred; no empty packages created. |
+| Gate       | Paths / dependency direction                                   | Prerequisite and behavior                                                                                                                            |
+| ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T01        | `packages/contracts` → runtime validation library              | Versioned executable schemas, decimal-string exact money and explicit errors. Select/pin library after compatibility review.                         |
+| T01        | `packages/domain` → contracts                                  | Lifecycle, containment and transition rules; no external effects.                                                                                    |
+| T01        | `apps/api` → contracts/domain; `apps/cli` and `apps/web` → API | Thin health and validated fixture demonstration; React/Vite client. Clients do not own enforcement. Share schemas as needed.                         |
+| T01        | Root pnpm workspace/scripts                                    | Strict checks, compatible pinned dependencies, lockfile and documented install/build/test/dev commands. Tool presence is not compatibility evidence. |
+| T02        | `packages/db` → contracts/domain + PostgreSQL                  | Migrations, persistence, audit/outbox; usable service unverified.                                                                                    |
+| T03–T05    | policy/finance/providers and `apps/orchestrator`               | Admission precedes provider/Temporal effects; verified SDKs, budgets, caps and grants required.                                                      |
+| T11–T13    | `apps/worker`, artifacts/integrations                          | Isolated generated workspaces, exact Git/artifact evidence; no host-execution fallback.                                                              |
+| X05 onward | `apps/desktop` and hosted extensions                           | Deferred; no empty packages created.                                                                                                                 |
 
 Create only paths required by the authorized milestone. Smallest useful T01 slice: CLI/web → local API → runtime-validated fixture contract and deterministic lifecycle result, with health and invalid-input/transition checks. The persistent bounded-role slice in context/ARCHITECTURE.md spans T01–T05; T01 alone does not complete it.
 

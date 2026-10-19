@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActorSummarySchema,
   StoredKindSchema,
@@ -31,6 +31,45 @@ export const VIEWS = [
   ['portfolio', 'Portfolio'],
 ] as const;
 export type View = (typeof VIEWS)[number][0];
+
+/** Navigation groups for the shell. Every view in VIEWS appears in exactly one group. */
+export const VIEW_GROUPS: readonly { label: string; views: readonly View[] }[] =
+  [
+    { label: 'Studio', views: ['overview', 'submit', 'compare', 'portfolio'] },
+    { label: 'Evidence', views: ['catalog', 'evidence', 'scores', 'search'] },
+    { label: 'Oversight', views: ['decisions', 'runs', 'budgets', 'activity'] },
+    { label: 'Build and study', views: ['gallery', 'studies', 'marketing'] },
+    { label: 'System', views: ['desktop', 'operations'] },
+  ];
+export const viewLabel = (view: View) =>
+  VIEWS.find(([k]) => k === view)?.[1] ?? view;
+export const viewGroup = (view: View) =>
+  VIEW_GROUPS.find((g) => g.views.includes(view))?.label ?? '';
+
+const ICONS = {
+  menu: 'M4 7h16M4 12h16M4 17h16',
+  close: 'M6 6l12 12M18 6L6 18',
+  sun: 'M12 4V2m0 20v-2m8-8h2M2 12h2m13.66-5.66l1.41-1.41M4.93 19.07l1.41-1.41m0-11.32L4.93 4.93m14.14 14.14l-1.41-1.41M12 16a4 4 0 100-8 4 4 0 000 8z',
+  moon: 'M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z',
+  alert:
+    'M12 9v4m0 3.5v.01M10.3 3.9L2.4 17.5A2 2 0 004.1 20.5h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
+  info: 'M12 11v6m0-9.5v.01M12 21a9 9 0 100-18 9 9 0 000 18z',
+} as const;
+/** A small stroked icon; decorative, so text beside it carries the meaning. */
+export function Icon({ name }: { name: keyof typeof ICONS }) {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={ICONS[name]} />
+    </svg>
+  );
+}
 
 /**
  * The view that shows an audit subject, or null when no page shows that kind on its own
@@ -77,23 +116,32 @@ export function routeHash(r: Route): string {
 }
 export function useRoute() {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
+  // The latest route, so a late call from a view that is being replaced (a load finishing
+  // after the user navigated away) merges into where the user is, not where they were.
+  const latest = useRef(route);
+  latest.current = route;
   useEffect(() => {
     const on = () => {
-      if (!window.location.hash.startsWith('#login='))
-        setRoute(parseRoute(window.location.hash));
+      if (!window.location.hash.startsWith('#login=')) {
+        latest.current = parseRoute(window.location.hash);
+        setRoute(latest.current);
+      }
     };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
   /** A new view is a history step; changing what is open within a view replaces it. */
-  function go(next: Partial<Route>, replace = false) {
-    const r = { ...route, ...next };
-    if (next.view && next.view !== route.view && next.id === undefined)
-      r.id = '';
-    if (next.view && next.view !== route.view && next.q === undefined) r.q = '';
+  /** `from`: the view asking; a late request from a view the user already left is dropped. */
+  function go(next: Partial<Route>, replace = false, from?: View) {
+    const now = latest.current;
+    if (from && from !== now.view) return;
+    const r = { ...now, ...next };
+    if (next.view && next.view !== now.view && next.id === undefined) r.id = '';
+    if (next.view && next.view !== now.view && next.q === undefined) r.q = '';
     const hash = routeHash(r);
     if (replace) history.replaceState(null, '', hash);
     else history.pushState(null, '', hash);
+    latest.current = r;
     setRoute(r);
   }
   return { route, go };

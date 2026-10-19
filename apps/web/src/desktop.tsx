@@ -23,6 +23,15 @@ function availability(d: DesktopDevice): string {
     : 'unreachable: not reporting';
 }
 
+/** Status tone for the badge; the badge text always states the availability in words. */
+function tone(d: DesktopDevice): 'ok' | 'warn' | 'off' {
+  const a = d.kind === 'worker' ? availability(d) : d.state;
+  if (a === 'online' || a === 'active') return 'ok';
+  if (a === 'revoked' || a === 'pairing expired' || a === 'shutdown')
+    return 'off';
+  return 'warn';
+}
+
 export function DesktopDevices({
   workspace,
   session,
@@ -80,16 +89,31 @@ export function DesktopDevices({
         studio. Execution uses the fixed 20-second, 256 MiB sandbox; local
         compute cost is unmetered, not zero.
       </p>
-      <button onClick={() => data.reload()}>Refresh devices</button>
-      {(error || data.error) && <p role="alert">{error || data.error}</p>}
-      {data.loading && <p role="status">Loading devices…</p>}
+      <button className="secondary" onClick={() => data.reload()}>
+        Refresh devices
+      </button>
+      {(error || data.error) && (
+        <p className="error" role="alert">
+          {error || data.error}
+        </p>
+      )}
+      {data.loading && (
+        <p className="small loading" role="status">
+          Loading devices…
+        </p>
+      )}
       {data.data
         ?.filter(
           (d) => d.workspace_id === null || d.workspace_id === workspace.id,
         )
         .map((d) => (
-          <article key={d.id}>
-            <h3>{d.label}</h3>
+          <article key={d.id} className="decision device">
+            <div className="decision-head">
+              <h3>{d.label}</h3>
+              <span className={`badge dev-${tone(d)}`}>
+                {d.kind === 'worker' ? availability(d) : d.state}
+              </span>
+            </div>
             <p>
               {d.kind} · {d.state}
               {d.kind === 'worker' && ` · ${availability(d)}`} · expires{' '}
@@ -103,22 +127,25 @@ export function DesktopDevices({
               {d.lease_expires_at ? when(d.lease_expires_at) : 'None'}
             </p>
             {d.state !== 'revoked' && (
-              <div>
+              <div className="actions">
                 {d.kind === 'worker' && (
                   <>
                     <button
+                      className="secondary"
                       disabled={busy === d.id || d.state === 'paused'}
                       onClick={() => void control(d, 'paused')}
                     >
                       Pause
                     </button>
                     <button
+                      className="secondary"
                       disabled={busy === d.id || d.state === 'active'}
                       onClick={() => void control(d, 'active')}
                     >
                       Resume
                     </button>
                     <button
+                      className="secondary"
                       disabled={busy === d.id || d.state === 'shutdown'}
                       onClick={() => void control(d, 'shutdown')}
                     >
@@ -127,6 +154,7 @@ export function DesktopDevices({
                   </>
                 )}
                 <button
+                  className="secondary"
                   disabled={busy === d.id}
                   onClick={() => void control(d, 'revoked')}
                 >
@@ -147,7 +175,9 @@ export function DesktopDevices({
       {!data.loading &&
         data.data?.filter(
           (d) => d.workspace_id === null || d.workspace_id === workspace.id,
-        ).length === 0 && <p>No paired devices.</p>}
+        ).length === 0 && (
+          <p className="small empty-note">No paired devices.</p>
+        )}
     </section>
   );
 }
@@ -230,7 +260,7 @@ function PairedJobs({
         globally and 20 per hour. Job results are worker reports; they do not
         independently verify or promote a product.
       </p>
-      <form onSubmit={(e) => void queue(e)}>
+      <form className="job-form" onSubmit={(e) => void queue(e)}>
         <label htmlFor={`artifact-${device.id}`}>Exact artifact</label>
         <select
           id={`artifact-${device.id}`}
@@ -262,6 +292,7 @@ function PairedJobs({
           onChange={(e) => setInput(e.target.value)}
         />
         <button
+          className="secondary strong"
           disabled={
             busy || !session || !artifactId || device.state !== 'active'
           }
@@ -270,6 +301,7 @@ function PairedJobs({
         </button>
         <button
           type="button"
+          className="secondary"
           disabled={busy}
           onClick={() => {
             setRequestId(crypto.randomUUID());
@@ -280,15 +312,25 @@ function PairedJobs({
           New execution request
         </button>
       </form>
-      <button disabled={busy} onClick={() => history.reload()}>
+      <button
+        className="secondary"
+        disabled={busy}
+        onClick={() => history.reload()}
+      >
         Refresh jobs
       </button>
       {(error || history.error || artifacts.error) && (
-        <p role="alert">{error || history.error || artifacts.error}</p>
+        <p className="error" role="alert">
+          {error || history.error || artifacts.error}
+        </p>
       )}
-      {history.loading && <p role="status">Loading job history…</p>}
+      {history.loading && (
+        <p className="small loading" role="status">
+          Loading job history…
+        </p>
+      )}
       {history.data?.map((job) => (
-        <article key={job.id}>
+        <article key={job.id} className="decision">
           <h5>{job.id}</h5>
           <p>
             {job.state} · exact manifest {job.manifest_sha256.slice(0, 12)} ·{' '}
@@ -300,6 +342,7 @@ function PairedJobs({
           </p>
           {['queued', 'leased', 'running'].includes(job.state) && (
             <button
+              className="secondary"
               disabled={busy || job.cancel_requested}
               onClick={() => void control(job.id, 'cancel')}
             >
@@ -313,6 +356,7 @@ function PairedJobs({
                 before reconciling local execution evidence.
               </p>
               <button
+                className="secondary"
                 disabled={busy}
                 onClick={() => void control(job.id, 'reconcile')}
               >

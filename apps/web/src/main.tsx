@@ -25,7 +25,16 @@ import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
 import { Marketing } from './marketing.js';
 import { Portfolio } from './portfolio.js';
-import { VIEWS, useActors, useRoute, type View } from './ui.js';
+import {
+  Icon,
+  VIEW_GROUPS,
+  useActors,
+  useRoute,
+  viewGroup,
+  viewLabel,
+  type View,
+} from './ui.js';
+import { useTheme } from './theme.js';
 import './style.css';
 import { Studies } from './study.js';
 
@@ -83,8 +92,8 @@ function FixtureDemo() {
   return (
     <div className="workspace">
       <section className="panel">
-        <div className="eyebrow">STATELESS FIXTURE</div>
         <h2>Try a bounded task</h2>
+        <span className="badge">Stateless fixture</span>
         <p>
           Choose the simulated disposition. This tests the local application
           path, not the quality of a recommendation. Nothing is saved.
@@ -127,7 +136,6 @@ function FixtureDemo() {
         )}
       </section>
       <section className="panel result" aria-live="polite">
-        <div className="eyebrow">INSPECTABLE RESULT</div>
         <h2>
           {result
             ? 'Outcome recorded in this view'
@@ -249,6 +257,11 @@ function NewWorkspace({
 
 function App() {
   const [health, setHealth] = useState('Checking connection…');
+  const [tone, setTone] = useState<'checking' | 'ok' | 'warn' | 'down'>(
+    'checking',
+  );
+  const [menuOpen, setMenuOpen] = useState(false);
+  const theme = useTheme();
   const [persistent, setPersistent] = useState<boolean | null>(null);
   const auth = useSession(persistent === true);
   const { route, go } = useRoute();
@@ -256,6 +269,7 @@ function App() {
   const [wsError, setWsError] = useState('');
   async function checkHealth() {
     setHealth('Checking connection…');
+    setTone('checking');
     try {
       const data = parse(
         HealthSchema,
@@ -264,6 +278,7 @@ function App() {
         ),
       );
       setPersistent(data.persistent);
+      setTone(data.persistent ? 'ok' : 'warn');
       setHealth(
         `Connected · fixture provider only · ${
           data.persistent
@@ -275,6 +290,7 @@ function App() {
       );
     } catch {
       setPersistent(false);
+      setTone('down');
       setHealth('API unavailable · start the local API and retry');
     }
   }
@@ -299,7 +315,7 @@ function App() {
   }, [auth.session]);
   const workspace = workspaces?.find((w) => w.id === route.ws) ?? null;
   const names = useActors(workspace?.id ?? '');
-  const focus = (id: string) => go({ id }, true);
+  const focus = (id: string) => go({ id }, true, route.view);
   const open = (view: View, id = '', q = '') => go({ view, id, q });
 
   function body() {
@@ -327,6 +343,10 @@ function App() {
             Create a fixture workspace to explore with synthetic data, or run{' '}
             <code>pnpm cli seed-selection</code> for a filled-in demonstration.
           </p>
+          <NewWorkspace
+            csrf={auth.session.csrf_token}
+            created={(w) => void loadWorkspaces(w.id)}
+          />
         </section>
       );
     const s = auth.session;
@@ -439,101 +459,194 @@ function App() {
     }
   }
   const signedIn = persistent && auth.session;
+  const inStudio = Boolean(signedIn && workspace);
+  const label = viewLabel(route.view);
+  useEffect(() => {
+    document.title = inStudio
+      ? `${label} · Creator Agent`
+      : 'Creator Agent · Local studio';
+  }, [inStudio, label]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [menuOpen]);
+  const themeButton = (
+    <button
+      className="ghost icon-button"
+      onClick={theme.toggle}
+      aria-label={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+      title={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+    >
+      <Icon name={theme.theme === 'dark' ? 'sun' : 'moon'} />
+    </button>
+  );
   return (
-    <div className="shell">
-      <a className="skip" href="#content">
+    <div className={inStudio ? 'shell' : 'shell single'}>
+      <a
+        className="skip"
+        href="#content"
+        onClick={(e) => {
+          // The hash holds the route, so focus the content instead of navigating.
+          e.preventDefault();
+          document.getElementById('content')?.focus();
+        }}
+      >
         Skip to content
       </a>
-      <header>
-        <a className="brand" href="#/overview">
-          CA<span>Creator Agent</span>
-        </a>
-        <span className="local">LOCAL STUDIO · T13</span>
-      </header>
-      <div className="topbar">
-        <span role="status" className="small">
-          {health}
-        </span>
-        {signedIn && (
-          <span className="small">
-            Signed in as {auth.session!.display_name} (
-            {auth.session!.method === 'dev_local'
-              ? 'local development'
-              : 'OIDC'}
-            ){' '}
-            <button className="text" onClick={() => void auth.signOut()}>
-              Sign out
-            </button>
-          </span>
-        )}
-        {!persistent && (
-          <button className="secondary" onClick={() => void checkHealth()}>
-            Check connection
-          </button>
-        )}
-      </div>
-      {signedIn && workspaces && (
-        <div className="wsbar">
-          <label htmlFor="ws" className="inline">
-            Workspace
-          </label>
-          <select
-            id="ws"
-            value={workspace?.id ?? ''}
-            onChange={(e) => go({ ws: e.target.value, id: '' })}
-          >
-            {workspaces.length === 0 && (
-              <option value="">No workspaces yet</option>
-            )}
-            {workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-                {w.role !== 'owner' ? ` · ${w.role}` : ''}
-              </option>
-            ))}
-          </select>
-          <NewWorkspace
-            csrf={auth.session!.csrf_token}
-            created={(w) => void loadWorkspaces(w.id)}
-          />
-        </div>
-      )}
-      {workspace?.record_mode === 'fixture' && signedIn && (
-        <p className="mode-banner" role="note">
-          <strong>FIXTURE MODE</strong> Synthetic records and a deterministic
-          model adapter. Amounts are simulated units, not money. Nothing here is
-          real research or a real recommendation.
-        </p>
-      )}
-      <div className={signedIn && workspace ? 'frame' : 'frame single'}>
-        {signedIn && workspace && (
-          <nav aria-label="Views">
-            <ul>
-              {VIEWS.map(([key, label]) => (
-                <li key={key}>
-                  <a
-                    href={`#/${key}?ws=${workspace.id}`}
-                    aria-current={route.view === key ? 'page' : undefined}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      open(key);
-                    }}
-                  >
-                    {label}
-                  </a>
-                </li>
+      {inStudio && workspace && (
+        <aside
+          id="sidebar"
+          className="sidebar"
+          data-open={menuOpen ? 'true' : undefined}
+        >
+          <a className="brand" href={`#/overview?ws=${workspace.id}`}>
+            <span className="mark" aria-hidden="true">
+              CA
+            </span>
+            Creator Agent
+          </a>
+          <div className="wsbar">
+            <label htmlFor="ws">Workspace</label>
+            <select
+              id="ws"
+              value={workspace.id}
+              onChange={(e) => {
+                setMenuOpen(false);
+                go({ ws: e.target.value, id: '' });
+              }}
+            >
+              {workspaces!.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
+                  {w.role !== 'owner' ? ` · ${w.role}` : ''}
+                </option>
               ))}
-            </ul>
+            </select>
+            <NewWorkspace
+              csrf={auth.session!.csrf_token}
+              created={(w) => void loadWorkspaces(w.id)}
+            />
+          </div>
+          <nav aria-label="Views">
+            {VIEW_GROUPS.map((g) => (
+              <div className="nav-group" key={g.label}>
+                <h2 id={`nav-${g.label}`}>{g.label}</h2>
+                <ul aria-labelledby={`nav-${g.label}`}>
+                  {g.views.map((key) => (
+                    <li key={key}>
+                      <a
+                        href={`#/${key}?ws=${workspace.id}`}
+                        aria-current={route.view === key ? 'page' : undefined}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setMenuOpen(false);
+                          open(key);
+                        }}
+                      >
+                        {viewLabel(key)}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </nav>
+          <div className="sidebar-foot">
+            <span>Schema 1.0 · Local control</span>
+            <span>
+              Live calls need a provider, pricing, a grant and a budget.
+            </span>
+          </div>
+        </aside>
+      )}
+      {inStudio && menuOpen && (
+        <div
+          className="scrim"
+          aria-hidden="true"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+      <div className="column">
+        <header className="topbar">
+          {inStudio ? (
+            <>
+              <button
+                className="ghost icon-button menu-button"
+                aria-expanded={menuOpen}
+                aria-controls="sidebar"
+                aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <Icon name={menuOpen ? 'close' : 'menu'} />
+              </button>
+              <p className="crumbs">
+                <span>{viewGroup(route.view)}</span>
+                <span aria-hidden="true">/</span>
+                <strong>{label}</strong>
+              </p>
+              <h1 className="sr-only">Creator Agent: {label}</h1>
+            </>
+          ) : (
+            <>
+              <span className="brand">
+                <span className="mark" aria-hidden="true">
+                  CA
+                </span>
+                Creator Agent
+              </span>
+              <h1 className="sr-only">Creator Agent local studio</h1>
+            </>
+          )}
+          <div className="topbar-end">
+            <span role="status" className={`conn conn-${tone}`}>
+              <span className="dot" aria-hidden="true" />
+              {health}
+            </span>
+            {!persistent && persistent !== null && (
+              <button className="secondary" onClick={() => void checkHealth()}>
+                Check connection
+              </button>
+            )}
+            {signedIn && (
+              <span className="who">
+                {auth.session!.display_name} ·{' '}
+                {auth.session!.method === 'dev_local'
+                  ? 'local development'
+                  : 'OIDC'}{' '}
+                <button className="text" onClick={() => void auth.signOut()}>
+                  Sign out
+                </button>
+              </span>
+            )}
+            {themeButton}
+          </div>
+        </header>
+        {workspace?.record_mode === 'fixture' && signedIn && (
+          <p className="mode-banner" role="note">
+            <Icon name="info" />
+            <span>
+              <strong>Fixture mode.</strong> Synthetic records and a
+              deterministic model adapter. Amounts are simulated units, not
+              money. Nothing here is real research or a real recommendation.
+            </span>
+          </p>
         )}
         <main id="content" tabIndex={-1}>
           {body()}
         </main>
+        {!inStudio && (
+          <footer className="foot">
+            <span>Schema 1.0 · Local control</span>
+            <span>
+              Live calls need a provider, pricing, a grant and a budget.
+            </span>
+          </footer>
+        )}
       </div>
-      <footer>
-        <span>Schema 1.0 · Local control</span>
-        <span>Live calls need a provider, pricing, a grant and a budget.</span>
-      </footer>
     </div>
   );
 }

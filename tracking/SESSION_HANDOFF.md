@@ -1,5 +1,7 @@
 # Session handoff
 
+<<<<<<< HEAD
+
 ## X09 local portfolio acceptance (October 19, 2026)
 
 Branch `codex/x09-portfolio`, parent local X08 commit `64596ef`, in managed
@@ -75,6 +77,27 @@ public unsubscribe endpoint, hosted landing page or validated demand. Missing
 native/WSL checks do not block this local test-delivery gate and were not counted
 as passes. No paid call, real outreach, release, activation, commit or push.
 Next eligible: X09 on owner request; do not advance automatically.
+=======
+
+## UX/UI redesign (October 19, 2026)
+
+Branch `claude/ux-ui-handoff-mfarlr` from main `0dfc6e6`; see docs/UX_UI.md and ADR-0037. The
+handoff file itself lives only in the owner's local checkout and was read, not committed.
+
+Touched shared web files: `index.html` (theme attribute, boot script), new `public/theme-boot.js`
+and `src/theme.ts`, `src/main.tsx` (shell), `src/ui.tsx` (new exports `VIEW_GROUPS`, `viewLabel`,
+`viewGroup`, `Icon`; `useRoute().go` gained an optional third `from` view argument), `src/style.css`
+(rewritten on tokens; class names kept), `src/desktop.tsx`, `src/operations.tsx`, `src/study.tsx`.
+Unchanged: view keys and labels, route hashes, component props, API calls and validation.
+
+For Codex (X08): add new views to `VIEWS` and one `VIEW_GROUPS` group, and build them from the
+classes listed in docs/UX_UI.md. If X08 also took ADR-0035, renumber this redesign's entry.
+
+To rerun the browser evidence: start `tracking/evidence/ux-ui/harness.mjs` on an empty migrated
+database, then `browser-acceptance.mjs` and `screens.mjs` (commands in docs/UX_UI.md).
+Not done: native Tauri check on Windows. Next eligible: X08 (Codex) or the owner's review of this PR.
+
+> > > > > > > origin/main
 
 ## X06/X07 audited and repaired (October 19, 2026)
 
@@ -121,6 +144,7 @@ Migration 18, ADR-0032, docs/HOSTED_OPERATION.md. Status: implemented and checke
 locally; **no hosted environment exists and nothing was deployed or activated.**
 
 What now works (checked):
+
 - Explicit hosted mode (test/staging/live) with refusals for unsafe configs: non-https
   or path origins, preview host sharing or nesting the studio host, no build commit,
   relative product root, missing metrics token, dev login, remote DB without
@@ -823,7 +847,6 @@ Limits: synthetic fixtures only; no real participants, independent ratings, live
 The disposable demo used API 4314, web 5176, and .verification/t10-pg on loopback port 55432. Do not assume those processes are still running in a later chat. Session/database files are ignored. The saved synthetic-study-export.json contains labeled synthetic data, with no session credentials. A source manifest binds the candidate independently of tracking documentation.
 
 **Next eligible prompt: T11 - Isolated execution and local product Git**, after owner review/merge and a new request. T11 is not started. Protocol adoption remains T14; empirical collection and analysis remain T15-T16.
-
 
 ## Latest — T09 usable catalog, decisions, search and run monitor (October 18, 2026)
 

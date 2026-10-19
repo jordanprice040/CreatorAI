@@ -1,0 +1,149 @@
+{
+  "at": "2026-10-19T23:01:32.599Z",
+  "base": "http://127.0.0.1:5173",
+  "seed": {
+    "ws": "<fixture workspace>",
+    "backend": "test-double"
+  },
+  "passed": 22,
+  "failed": 0,
+  "problems": [],
+  "steps": [
+    {
+      "name": "fresh load with a light OS theme paints dark before the app runs",
+      "ok": true,
+      "detail": {
+        "theme": "dark",
+        "bg": "rgb(20, 19, 18)",
+        "root": 0
+      }
+    },
+    {
+      "name": "signed-out page offers the sign-in form in the dark theme",
+      "ok": true
+    },
+    {
+      "name": "first Tab reaches a visible skip link; Enter moves focus to main",
+      "ok": true,
+      "detail": {
+        "text": "Skip to content",
+        "left": 12,
+        "outline": "solid"
+      }
+    },
+    {
+      "name": "sign in through the form; session and fixture mode are shown",
+      "ok": true
+    },
+    {
+      "name": "every view opens from the grouped navigation with aria-current and title",
+      "ok": true,
+      "detail": {
+        "views": 15,
+        "groups": [
+          "Studio",
+          "Evidence",
+          "Oversight",
+          "Build and study",
+          "System"
+        ]
+      }
+    },
+    {
+      "name": "a slow Runs load finishing after leaving for Budgets does not navigate back",
+      "ok": true
+    },
+    {
+      "name": "catalog record deep link reopens the same record after reload",
+      "ok": true,
+      "detail": {
+        "hash": "#/catalog?ws=<ws>&id=de5a2ce3-0b82-4395-9a89-d394288f7dbd",
+        "title": "Fixture discovery: Unused first-appointment slots at rural clinics"
+      }
+    },
+    {
+      "name": "evidence source opens with passage locators and retrieval status",
+      "ok": true
+    },
+    {
+      "name": "revoking a standing policy removes it from the list",
+      "ok": true,
+      "detail": {
+        "before": 6,
+        "after": 5
+      }
+    },
+    {
+      "name": "budget view shows charged, reserved, unknown and simulated units",
+      "ok": true
+    },
+    {
+      "name": "gallery keeps integrity and not-isolation-evidence labels",
+      "ok": true
+    },
+    {
+      "name": "an unreachable worker shows its actual state on Desktop and Operations",
+      "ok": true
+    },
+    {
+      "name": "a failing request shows an error with Try again, and retry recovers",
+      "ok": true
+    },
+    {
+      "name": "theme toggle saves light, survives reload, and returns to dark",
+      "ok": true
+    },
+    {
+      "name": "text tokens meet 4.5:1 on every surface in both themes",
+      "ok": true,
+      "detail": {
+        "dark": {
+          "min": 4.69,
+          "button": 9.01,
+          "low": []
+        },
+        "light": {
+          "min": 4.61,
+          "button": 7.75,
+          "low": []
+        }
+      }
+    },
+    {
+      "name": "focused controls draw a visible focus outline",
+      "ok": true,
+      "detail": {
+        "tag": "A",
+        "style": "solid",
+        "width": "2px"
+      }
+    },
+    {
+      "name": "a long workspace name and long ids cause no page-wide horizontal scroll",
+      "ok": true
+    },
+    {
+      "name": "phone: menu opens the navigation, Escape or the backdrop closes it, a link navigates and closes",
+      "ok": true
+    },
+    {
+      "name": "phone: no view scrolls the whole page sideways",
+      "ok": true
+    },
+    {
+      "name": "phone: the same oversight controls are present (Stop run, Revoke, Refresh)",
+      "ok": true
+    },
+    {
+      "name": "reduced motion: transitions collapse to near zero",
+      "ok": true,
+      "detail": {
+        "transitionDuration": "1e-05s"
+      }
+    },
+    {
+      "name": "API unavailable shows the down state and a Check connection button",
+      "ok": true
+    }
+  ]
+}
