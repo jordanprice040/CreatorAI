@@ -21,6 +21,18 @@
 - Recorded in docs/PILOT_AND_PROTOCOL.md. Remaining protocol gates still apply;
   this documentation update did not freeze the protocol or activate live calls.
 
+## ADR-0027 - X04 scoped GitHub management: verified owner, intent journal, exact-head merges (fixture-verified)
+
+- Date: October 19, 2026. Status: implemented by Claude Code on Jordan's request to start extra milestone X04 if it neither depends on nor conflicts with X03 (it does neither: prerequisites T13 and policy/broker coverage). Branch claude/x04-gm7n32 from main d2c8ef1. Migration 15 and this ADR number leave 14 and ADR-0026 to X03, built in parallel; whichever merges second renumbers if needed. X04 stays partial: no live GitHub call, credential or repository exists.
+- Auth checked against docs.github.com on October 19, 2026 (REST API version 2026-03-10): per-endpoint permissions in docs/GITHUB.md. Two credential kinds, each a reference to an API-process environment variable: a GitHub App installation (recommended; tokens minted per call for one repository and that endpoint's permissions, one-hour expiry) and a fine-grained token with an owner-recorded expiry. Fine-grained tokens cannot call the Checks API, so their merge gate sees commit statuses only and refuses merges whose required checks are check runs. Rejected: classic tokens (all repositories), and any fallback to another credential or to an environment-chosen API host.
+- A connection names the owner by immutable id and type; it activates only when the credential's account matches. Repositories are tracked by immutable GitHub id and owner id (names follow renames); another owner or public visibility quarantines a repository permanently. Existing repositories are outside scope unless listed by id; a listed repository that is public is quarantined, not used.
+- Four action types (github.repo_create, github.write, github.workflow_change, github.merge), all external effects, admitted per operation with the operation's intent hash as spec_hash, so an approve-once covers exactly that change. Workflow-file pushes are their own action type. Rejected: entity records per operation (would need an entities kind change likely to collide with X03).
+- Every mutation is journalled before the call (dispatched), settled once (succeeded, failed, unknown), and unknown outcomes are reconciled by reading GitHub, never by repeating the call; the same intent and any repository creation are refused while unknown. A database trigger enforces the state machine.
+- Merges need the live head to equal the reviewed head, an approving review of that head by someone who did not push it, and every connection-required check succeeding on that head; the merge call carries the sha so GitHub refuses a moved head. No required checks means no merges.
+- Webhooks are verified (X-Hub-Signature-256, constant-time), recorded, deduplicated by delivery id and only ever remove access. Live use needs CREATOR_GITHUB=live plus grants; fixture and live connections are confined to fixture and real workspaces.
+- Store placement: GitHubStore sits between ArtifactStore and RoutingStore so the top of the store chain (which X03 extends) is unchanged.
+- Rollback: revert the commit and drop the migration-15 tables; no existing table changes. The four new action types only appear in grants that name them.
+
 ## ADR-0025 - X02 context packs, result cache, compaction and batches (fixture-verified)
 
 - Date: October 19, 2026. Status: implemented by Claude Code on Jordan's request to start extra milestone X02; branch claude/x02-b3wzes from main c738369. Migration 13. X02 stays partial: every capability for a real model is `documented`, so only fixture workspaces exercise caching, batches and provider features.

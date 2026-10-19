@@ -1,5 +1,12 @@
 # Integration readiness
 
+X04, October 19, 2026: no live call and no credential. GitHub REST (API version
+2026-03-10) and Git-over-HTTPS adapters exist for a GitHub App installation or a
+fine-grained token named by environment variable; they are checked only against
+loopback contract tests and a local bare repository. Live use needs CREATOR_GITHUB=live
+on the API process, a verified connection in a real workspace and grants. Endpoint
+permissions were checked on docs.github.com. See ADR-0027 and docs/GITHUB.md.
+
 X03, October 19, 2026: no new external integration and no live call. Semantic search
 calls embedding models only through the broker (`model.embed`), and
 config/search/semantic-models.json lists none for real workspaces, so they refuse it until
@@ -90,7 +97,7 @@ Updated October 17, 2026 (America/New_York), T01. Local API/CLI/web and the dete
 | Durable workflow service | Yes (T05): PostgreSQL-backed coordinator, leases and fencing in `packages/db` + `packages/orchestrator`; no Temporal (ADR-0008) | Yes (fixture workspaces) | Restart, duplicate delivery, stale worker, decision wait and cancellation against PostgreSQL 16.15 | Local PostgreSQL in a Linux cloud container only | In-process worker in the API when a database is configured (`CREATOR_WORKER=off` disables); optional `pnpm worker` | No external workflow service. Owner's Windows PostgreSQL untested. |
 | Execution isolation | No | No | No | Unverified | No | No worker; Docker not on PATH, VM/container boundary unverified. T11. |
 | Local Git/artifacts/preview | No application adapter | No | No | Git CLI only | No product activation | Git 2.45.1.windows.1, unborn main/origin configured. No generated-product Git, artifacts or preview service. |
-| Remote GitHub | No application adapter | No | No | Read-only refs only | No product activation | Supplied jordanprice040/CreatorAI URL: exit 0, zero advertised refs at 2026-10-18T03:26:37Z. Visibility, account/scopes, API permissions and CI unknown. No push/PR/release. |
+| Remote GitHub | Yes (X04): REST + Git adapters, fixture GitHub | Yes (fixture workspaces) | Loopback REST contracts (fine-grained token, app installation tokens), local bare-repo push | No credential configured | Off unless CREATOR_GITHUB=live plus a verified connection and grants | No live call or repository; studio repositories are private, prefixed and tracked by id. Releases, settings, secrets not implemented. |
 | Windows desktop/paired worker | No | No | No | No | No | Native tooling/build/pairing/device verification deferred to X05. |
 | Hosted control/monitoring | No | No | No | No | No | No deployment, external tracing or notifications configured. X06. |
 | Payments/reinvestment | No | No | No | No | No | No verified accounts/economic events. Test mode first; live authority separate. X07. |

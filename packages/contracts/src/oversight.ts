@@ -58,6 +58,11 @@ export const ActionTypeSchema = z.enum([
   'grant.create',
   'policy.change',
   'budget.increase',
+  // X04: GitHub mutations, each admitted with the operation's intent hash as spec_hash.
+  'github.repo_create',
+  'github.write',
+  'github.workflow_change',
+  'github.merge',
 ]);
 export type ActionType = z.infer<typeof ActionTypeSchema>;
 export const DataClassSchema = z.enum([
