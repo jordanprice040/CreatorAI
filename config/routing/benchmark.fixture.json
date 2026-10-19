@@ -1,0 +1,210 @@
+{
+  "format": "route-benchmark/1",
+  "name": "fixture-summarization-v1",
+  "fixture": true,
+  "task_class": "summarization",
+  "data_class": "synthetic",
+  "cases": [
+    {
+      "case_id": "sum-01",
+      "split": "development",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 1: summarize a community garden's volunteer rota in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-02",
+      "split": "development",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 2: summarize a bakery's weekend opening hours in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-03",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 3: summarize a library's late-return policy in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-04",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 4: summarize a cycling club's route safety notes in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-05",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 5: summarize a clinic's appointment reminder wording in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-06",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 6: summarize a school's lost-property process in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-07",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 7: summarize a museum's accessibility guidance in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-08",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 8: summarize a food bank's donation drop-off rules in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-09",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 9: summarize a choir's rehearsal attendance notes in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    },
+    {
+      "case_id": "sum-10",
+      "split": "held_out",
+      "input": [
+        {
+          "role": "system",
+          "text": "route-benchmark/1: Summarize the synthetic note as JSON with keys fixture and summary."
+        },
+        {
+          "role": "user",
+          "text": "Synthetic note 10: summarize a gym's equipment booking rules in one sentence."
+        }
+      ],
+      "output_format": "json",
+      "max_output_tokens": 200,
+      "check": {
+        "kind": "json_keys",
+        "keys": ["fixture", "summary"]
+      }
+    }
+  ],
+  "provenance": "Synthetic fixture benchmark written for X01 on 2026-10-19 to exercise the promotion gate. It measures nothing about real models; expected checks were written before any result."
+}

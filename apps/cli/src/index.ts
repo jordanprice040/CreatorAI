@@ -60,6 +60,13 @@ import {
   OverviewSchema,
   ProblemComparisonSchema,
   SearchResultSchema,
+  ModelRegistrySchema,
+  RoutePolicySchema,
+  RouteBenchmarkSchema,
+  PromotionSchema,
+  RouteDecisionSchema,
+  RouteOutcomeSchema,
+  ModelRefSchema,
   type SelectionReport,
   type SpecStatus,
   type WorkflowDetail,
@@ -73,6 +80,7 @@ import {
   fixtureHumilityReview,
   fixtureScorecards,
   fixtureSpecRevision,
+  registryRequestFromConfig,
 } from '@creator/domain';
 
 const USAGE = `Usage:
@@ -141,6 +149,21 @@ const USAGE = `Usage:
   pnpm cli broker-status
   pnpm cli pricing <workspace>
   pnpm cli pricing-add <workspace> <pricing-file.json>
+  pnpm cli route-registry-add <workspace> <config/routing/model-registry*.json>
+  pnpm cli route-registries <workspace>
+  pnpm cli route-policy-set <workspace> <policy-json|file.json> [project-id]
+  pnpm cli route-policies <workspace>
+  pnpm cli route-benchmark-add <workspace> <benchmark-manifest.json>
+  pnpm cli route-promotion-create <workspace> <request-json|file.json>
+  pnpm cli route-promotions <workspace>
+  pnpm cli route-promotion <workspace> <promotion-id>
+  pnpm cli route-benchmark-run <workspace> <promotion-id> <run-id> <envelope-id> [timeout-ms]
+  pnpm cli route-advance|route-rollback <workspace> <promotion-id> <expected-version> <reason>
+  pnpm cli route-decide <workspace> <route-request-json|file.json>
+  pnpm cli route-decisions <workspace> [run-id]
+  pnpm cli route-call <workspace> <decision-id> <broker-request-json|file.json> [--shadow]
+  pnpm cli route-outcome <workspace> <decision-id> <outcome-json|file.json>
+  pnpm cli route-escalate <workspace> <decision-id> [new-operation-id]
   pnpm cli budgets <workspace>
   pnpm cli budget <workspace> <envelope-id>
   pnpm cli budget-create <workspace> <envelope-json>
@@ -202,6 +225,12 @@ function json(raw: string | undefined, label: string): unknown {
   } catch {
     throw new Error(`${label} must be JSON.`);
   }
+}
+/** JSON given inline, or read from a .json file (easier to quote in PowerShell). */
+function jsonArg(raw: string | undefined, label: string): unknown {
+  return raw?.endsWith('.json')
+    ? json(readFileSync(raw, 'utf8'), label)
+    : json(raw, label);
 }
 function ref(raw: string | undefined) {
   const [id, version] = (raw ?? '').split('@');
@@ -1095,6 +1124,124 @@ export async function runCli(
         break;
       case 'broker-status':
         data = await call(BrokerStatusSchema, 'broker/status');
+        break;
+      case 'route-registry-add':
+        data = await call(
+          ModelRegistrySchema,
+          `${ws(rest[0])}/route-registries`,
+          registryRequestFromConfig(jsonArg(rest[1], 'Registry config'), (f) =>
+            json(readFileSync(f, 'utf8'), f),
+          ),
+        );
+        break;
+      case 'route-registries':
+        data = await call(
+          z.array(ModelRegistrySchema),
+          `${ws(rest[0])}/route-registries`,
+        );
+        break;
+      case 'route-policy-set':
+        data = await call(RoutePolicySchema, `${ws(rest[0])}/route-policies`, {
+          scope: rest[2]
+            ? { kind: 'project', project_id: rest[2] }
+            : { kind: 'workspace' },
+          body: jsonArg(rest[1], 'Policy'),
+        });
+        break;
+      case 'route-policies':
+        data = await call(
+          z.array(RoutePolicySchema),
+          `${ws(rest[0])}/route-policies`,
+        );
+        break;
+      case 'route-benchmark-add':
+        data = await call(
+          RouteBenchmarkSchema,
+          `${ws(rest[0])}/route-benchmarks`,
+          jsonArg(rest[1], 'Benchmark manifest'),
+        );
+        break;
+      case 'route-promotion-create':
+        data = await call(
+          PromotionSchema,
+          `${ws(rest[0])}/route-promotions`,
+          jsonArg(rest[1], 'Promotion request'),
+        );
+        break;
+      case 'route-promotions':
+        data = await call(
+          z.array(PromotionSchema),
+          `${ws(rest[0])}/route-promotions`,
+        );
+        break;
+      case 'route-promotion':
+        data = await call(
+          PromotionSchema,
+          `${ws(rest[0])}/route-promotions/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'route-benchmark-run': {
+        const timeout = Number(rest[4] ?? 60000);
+        data = await call(
+          PromotionSchema,
+          `${ws(rest[0])}/route-promotions/${encodeURIComponent(rest[1] ?? '')}/benchmark`,
+          { run_id: rest[2], envelope_id: rest[3], timeout_ms: timeout },
+          // Every case for both arms, each bounded by the timeout.
+          1_900_000,
+        );
+        break;
+      }
+      case 'route-advance':
+      case 'route-rollback':
+        data = await call(
+          PromotionSchema,
+          `${ws(rest[0])}/route-promotions/${encodeURIComponent(rest[1] ?? '')}/${command === 'route-advance' ? 'advance' : 'rollback'}`,
+          {
+            expected_version: version(rest[2]),
+            reason: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'route-decide':
+        data = await call(
+          RouteDecisionSchema,
+          `${ws(rest[0])}/route-decisions`,
+          jsonArg(rest[1], 'Route request'),
+        );
+        break;
+      case 'route-decisions':
+        data = await call(
+          z.array(RouteDecisionSchema),
+          `${ws(rest[0])}/route-decisions${rest[1] ? `?run=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'route-call':
+        data = await call(
+          BrokerCallResultSchema.extend({
+            served: z.boolean(),
+            model: ModelRefSchema,
+          }),
+          `${ws(rest[0])}/route-decisions/${encodeURIComponent(rest[1] ?? '')}/call${rest.includes('--shadow') ? '?variant=shadow' : ''}`,
+          jsonArg(rest[2], 'Broker request'),
+          1_900_000,
+        );
+        break;
+      case 'route-outcome':
+        data = await call(
+          z.strictObject({
+            outcome: RouteOutcomeSchema,
+            promotion: PromotionSchema.nullable(),
+          }),
+          `${ws(rest[0])}/route-decisions/${encodeURIComponent(rest[1] ?? '')}/outcomes`,
+          jsonArg(rest[2], 'Outcome'),
+        );
+        break;
+      case 'route-escalate':
+        data = await call(
+          RouteDecisionSchema,
+          `${ws(rest[0])}/route-decisions/${encodeURIComponent(rest[1] ?? '')}/escalate`,
+          { logical_operation_id: rest[2] ?? randomUUID() },
+        );
         break;
       case 'pricing':
         data = await call(

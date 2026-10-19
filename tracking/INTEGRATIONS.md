@@ -1,5 +1,12 @@
 # Integration readiness
 
+X01, October 19, 2026: no new external integration and no live call. The model
+registry records gpt-6-astra as `documented` (account access unverified), so a real
+workspace refuses to route to it until an accessible API id is verified and recorded
+as a new registry version. Two further fixture models (fixture-economy-v1,
+fixture-bargain-v1) exist only for the deterministic adapter; their rates are
+simulated units. See ADR-0024 and docs/MODEL_ROUTING.md.
+
 T13, October 18, 2026: no new external integration. A local preview origin
 (CREATOR_PREVIEW_PORT, default 127.0.0.1:4320) serves studio-authored pages that
 start the exact verified package in the existing T11 WSL2 worker. Downloads and

@@ -5,7 +5,9 @@ import {
   parse,
   type BrokerCallRequest,
   type BrokerCallResult,
+  type ModelRef,
   type Reservation,
+  type RouteDecision,
 } from '@creator/contracts';
 import { canonicalHash, usageCost } from '@creator/domain';
 import {
@@ -23,6 +25,15 @@ export interface BrokerOptions {
   retryCapMs?: number;
   /** How long a timed-out request may still report a late result. */
   lateWindowMs?: number;
+  /** X01: where routed calls read their recorded route decision. */
+  decisions?: RouteDecisionSource;
+}
+export interface RouteDecisionSource {
+  getRouteDecision(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<RouteDecision>;
 }
 type Status = BrokerCallResult['status'];
 
@@ -37,11 +48,14 @@ export class ModelBroker {
   readonly #late = new Set<Promise<void>>();
   readonly #retryCap: number;
   readonly #lateWindow: number;
+  readonly #decisions: RouteDecisionSource | null;
   constructor(
     private readonly store: BudgetStore,
     private readonly adapters: {
       fixture: ModelAdapter;
       live: ModelAdapter | null;
+      /** X01: further adapters a route decision may name, fixture or live. */
+      routes?: ModelAdapter[];
     },
     options: BrokerOptions = {},
   ) {
@@ -51,6 +65,103 @@ export class ModelBroker {
       throw new Error('The live slot must hold a live adapter.');
     this.#retryCap = options.retryCapMs ?? 2000;
     this.#lateWindow = options.lateWindowMs ?? LATE_RESULT_WINDOW_MS;
+    this.#decisions = options.decisions ?? null;
+  }
+
+  /**
+   * The adapter for a named model: fixture adapters only in fixture workspaces and live ones
+   * only in real workspaces. Null is recorded as a denial, never replaced.
+   */
+  #adapterFor(fixture: boolean, model: ModelRef): ModelAdapter | null {
+    const all = [
+      this.adapters.fixture,
+      ...(this.adapters.live ? [this.adapters.live] : []),
+      ...(this.adapters.routes ?? []),
+    ];
+    return (
+      all.find(
+        (a) =>
+          a.live === !fixture &&
+          a.provider === model.provider &&
+          a.model_id === model.model_id,
+      ) ?? null
+    );
+  }
+
+  /**
+   * X01: dispatches a call under a recorded route decision. The request must be the one the
+   * decision admitted (operation, pricing, action, data class, size); the routed model's
+   * adapter serves it, and grants and budgets are enforced exactly as for any call.
+   * `shadow` runs the decision's shadow candidate under its own operation id; its output is
+   * evaluation evidence and is never the served result.
+   */
+  async callRouted(
+    ctx: CommandContext,
+    ws: string,
+    decisionId: string,
+    variant: 'primary' | 'shadow',
+    raw: unknown,
+  ): Promise<BrokerCallResult & { served: boolean; model: ModelRef }> {
+    if (!this.#decisions)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'This broker has no route decision source.',
+      );
+    const d = await this.#decisions.getRouteDecision(ctx, ws, decisionId);
+    const target =
+      variant === 'primary'
+        ? d.status === 'routed' && d.model && d.pricing_snapshot_id
+          ? {
+              model: d.model,
+              pricing: d.pricing_snapshot_id,
+              op: d.request.logical_operation_id,
+            }
+          : null
+        : d.shadow
+          ? {
+              model: d.shadow.model,
+              pricing: d.shadow.pricing_snapshot_id,
+              op: d.shadow.logical_operation_id,
+            }
+          : null;
+    if (!target)
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        variant === 'primary'
+          ? `Route decision was refused (${d.reason_code}); nothing can be dispatched under it.`
+          : 'This route decision has no shadow candidate.',
+      );
+    const req = parse(BrokerCallRequestSchema, raw);
+    const r = d.request;
+    if (
+      req.logical_operation_id.toLowerCase() !== target.op ||
+      req.pricing_snapshot_id.toLowerCase() !== target.pricing ||
+      req.action_type !== r.action_type ||
+      req.data_class !== r.data_class ||
+      (req.task_id?.toLowerCase() ?? null) !== r.task_id ||
+      req.max_output_tokens > r.max_output_tokens ||
+      (req.tool ? [req.tool] : []).join() !== r.tools.join()
+    )
+      throw new ContractError(
+        'SCOPE_EXCEEDED',
+        'The call does not match the request this route decision admitted.',
+      );
+    const result = await this.callModel(ctx, ws, r.run_id, target.model, req);
+    return { ...result, served: variant === 'primary', model: target.model };
+  }
+
+  /** Calls a named model (routed calls and benchmark runs); every other check is unchanged. */
+  callModel(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    model: ModelRef,
+    raw: unknown,
+  ): Promise<BrokerCallResult> {
+    return this.#call(ctx, ws, runId, raw, (fixture) => ({
+      adapter: this.#adapterFor(fixture, model),
+      model,
+    }));
   }
 
   /** Requests termination of this run's in-flight calls. Their exposure stays held. */
@@ -65,11 +176,34 @@ export class ModelBroker {
     while (this.#late.size) await Promise.allSettled([...this.#late]);
   }
 
-  async call(
+  call(
     ctx: CommandContext,
     ws: string,
     runId: string,
     raw: unknown,
+  ): Promise<BrokerCallResult> {
+    // Never a fallback: a real workspace without a live adapter is denied, not faked.
+    return this.#call(ctx, ws, runId, raw, (fixture) => {
+      const adapter = fixture ? this.adapters.fixture : this.adapters.live;
+      return {
+        adapter,
+        model: {
+          provider: adapter?.provider ?? 'openai',
+          model_id: adapter?.model_id ?? 'not_configured',
+        },
+      };
+    });
+  }
+
+  async #call(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    raw: unknown,
+    pick: (fixture: boolean) => {
+      adapter: ModelAdapter | null;
+      model: ModelRef;
+    },
   ): Promise<BrokerCallResult> {
     const req = parse(BrokerCallRequestSchema, raw);
     runId = runId.toLowerCase();
@@ -100,15 +234,14 @@ export class ModelBroker {
     const earlier = await replay();
     if (earlier) return earlier;
     const fixture = await this.store.isFixtureWorkspace(ctx, ws);
-    // Never a fallback: a real workspace without a live adapter is denied, not faked.
-    const adapter = fixture ? this.adapters.fixture : this.adapters.live;
+    const { adapter, model } = pick(fixture);
     const attempts: Reservation[] = [];
     for (let attempt = 1; attempt <= req.max_attempts; attempt += 1) {
       let prep;
       try {
         prep = await this.store.prepareAttempt(ctx, ws, runId, req, {
-          provider: adapter?.provider ?? 'openai',
-          model_id: adapter?.model_id ?? 'not_configured',
+          provider: model.provider,
+          model_id: model.model_id,
           adapterAvailable: adapter !== null,
           requestHash,
           attempt,

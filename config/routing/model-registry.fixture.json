@@ -1,0 +1,66 @@
+{
+  "format": "model-registry-config/1",
+  "registry_version": "fixture-registry/2026-10-19.1",
+  "recorded_on": "2026-10-19",
+  "fixture": true,
+  "reference_model": { "provider": "fixture", "model_id": "fixture-model-v1" },
+  "models": [
+    {
+      "provider": "fixture",
+      "model_id": "fixture-model-v1",
+      "pricing_file": "config/pricing/fixture-model-v1.json",
+      "availability": {
+        "state": "fixture",
+        "verified_api_model_id": null,
+        "verified_at": null,
+        "evidence": "Deterministic local adapter; stands in for the reference model in fixture workspaces."
+      },
+      "task_classes": [
+        "research_synthesis",
+        "candidate_generation",
+        "scoring",
+        "specification",
+        "code_build",
+        "independent_review",
+        "summarization",
+        "embedding"
+      ],
+      "tools": ["search_public"],
+      "data_classes": ["synthetic"],
+      "latency": { "p95_ms": 50, "basis": "fixture" },
+      "notes": "Fixture reference baseline."
+    },
+    {
+      "provider": "fixture",
+      "model_id": "fixture-economy-v1",
+      "pricing_file": "config/pricing/fixture-economy-v1.json",
+      "availability": {
+        "state": "fixture",
+        "verified_api_model_id": null,
+        "verified_at": null,
+        "evidence": "Deterministic local adapter with simulated lower rates."
+      },
+      "task_classes": ["summarization", "scoring", "research_synthesis"],
+      "tools": [],
+      "data_classes": ["synthetic"],
+      "latency": { "p95_ms": 40, "basis": "fixture" },
+      "notes": "Cheaper fixture model; reliable in the fixture adapter."
+    },
+    {
+      "provider": "fixture",
+      "model_id": "fixture-bargain-v1",
+      "pricing_file": "config/pricing/fixture-bargain-v1.json",
+      "availability": {
+        "state": "fixture",
+        "verified_api_model_id": null,
+        "verified_at": null,
+        "evidence": "Deterministic local adapter with simulated lowest rates and deliberate failures."
+      },
+      "task_classes": ["summarization", "scoring", "research_synthesis"],
+      "tools": [],
+      "data_classes": ["synthetic"],
+      "latency": { "p95_ms": 30, "basis": "fixture" },
+      "notes": "Cheap but unreliable fixture model, used to show the promotion gate refusing it."
+    }
+  ]
+}

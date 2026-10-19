@@ -1,5 +1,39 @@
 # Implementation status
 
+## X01 — model registry and qualified routing (October 19, 2026)
+
+Branch claude/x01-qfktko from main 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md.
+Partial: implemented and verified in fixture workspaces only. The prerequisite
+"measured task outcomes" does not exist (T15 not run), so no real model is qualified
+beyond the reference baseline and no quality or savings claim is made.
+
+What works: versioned registry (config/routing) with pricing hashes; fixed/auto/economy
+route policies per workspace or project; immutable route decisions naming policy,
+registry and pricing versions and every candidate's reason; hard-constraint refusal
+(availability, action, task class, tools, data class, context, latency); held-out
+benchmark scored by the store from broker reservations; shadow, capped deterministic
+canary, owner advancement that cannot override a failing gate; automatic rollback on
+canary/post-promotion outcomes below the floor and owner rollback; objective-only
+escalation to the baseline; cost per accepted result including failed, review, repair
+and tool operations; broker callRouted/callModel; API routes and `route-*` CLI commands.
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check with CREATOR_TEST_DATABASE_URL:
+typecheck passed; 198 tests, 187 pass, 0 fail, 11 skips (real WSL2 gates, opt-in);
+format check then flagged only docs/MODEL_ROUTING.md, which was reformatted and
+re-checked clean (tracking/evidence/x01/check.log, format-recheck.log). New tests:
+routing-domain (8), routing (2 DB acceptance), routing-api (1 API + CLI).
+Acceptance gate on fixtures: decisions carry policy/model/price versions; privacy-
+incompatible, unsupported, unverified and unqualified fixed routes are refused and
+recorded; the cheap-but-unreliable fixture model (4/8 held-out) is rejected though
+cheaper; promotion of the reliable fixture model, automatic and manual rollback back
+to the baseline all verified. No live call, no spend, no WSL2 run needed.
+
+Limits: gpt-6-astra stays `documented`, so real workspaces cannot route until an
+accessible id is verified; routing is opt-in per call and not yet used by workflow,
+study or builder paths; no web UI; fixture models and benchmark are synthetic.
+Next eligible: X02 on request (prerequisite X01 now implemented), or remaining T15/T16
+work once the protocol is frozen.
+
 ## PR publication validation (October 18, 2026)
 
 Owner requested a PR for all pending work. Branch: codex/t18-t19-thesis-archive.
@@ -299,7 +333,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
-| X01 | Model registry and qualified automatic routing | deferred | No application code at T00 | T10 and measured task outcomes |
+| X01 | Model registry and qualified automatic routing | partial (cloud Linux, PostgreSQL 16; fixture-verified routing machinery) | Branch claude/x01-qfktko from 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md; evidence/x01; 198 tests / 187 pass / 11 WSL skips | Measured task outcomes (T15) to qualify real models; verified gpt-6-astra id; routing used by workflow/study/builder paths; web UI |
 | X02 | Context selection, caching, compaction, and batches | deferred | No application code at T00 | X01 |
 | X03 | Comprehensive search, lineage, and audit questions | deferred | No application code at T00 | T09 and T13 |
 | X04 | Scoped GitHub management | deferred | No application code at T00 | T13 and policy/broker coverage |

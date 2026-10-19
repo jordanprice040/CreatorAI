@@ -26,7 +26,7 @@ import {
 } from '@creator/domain';
 import { resolve } from 'node:path';
 import {
-  ArtifactStore,
+  RoutingStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -34,6 +34,7 @@ import {
 } from '@creator/db';
 import {
   FixtureAdapter,
+  fixtureRouteAdapters,
   ModelBroker,
   liveAdapterFromEnv,
 } from '@creator/broker';
@@ -54,6 +55,7 @@ import {
 } from '@creator/executor';
 import { createAuth } from './auth.js';
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
+import { routingRoutes } from './routing.js';
 
 const MAX_BODY = 65536;
 function respond(res: ServerResponse, status: number, value: unknown) {
@@ -142,7 +144,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -170,7 +172,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new ArtifactStore(pool) : null;
+  const store = pool ? new RoutingStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -187,7 +189,11 @@ export function createApi(
       );
     })();
   const broker = store
-    ? new ModelBroker(store, { fixture: new FixtureAdapter(), live })
+    ? new ModelBroker(
+        store,
+        { fixture: new FixtureAdapter(), live, routes: fixtureRouteAdapters() },
+        { decisions: store },
+      )
     : null;
   // Pages reach the app only through this broker, under the owner-approved source policy.
   const sources = store
@@ -335,6 +341,24 @@ export function createApi(
         method,
         url,
         res,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection?.startsWith('route-') &&
+      (await routingRoutes({
+        store,
+        broker: broker!,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        url,
         body: () => readJson(req),
         send,
       }))
