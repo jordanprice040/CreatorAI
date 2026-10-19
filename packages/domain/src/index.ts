@@ -19,3 +19,4 @@ export * from './evaluation-config.js';
 export * from './analysis.js';
 export * from './analysis-fixtures.js';
 export * from './analysis-report.js';
+export * from './routing.js';

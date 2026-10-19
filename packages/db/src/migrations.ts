@@ -1188,6 +1188,114 @@ create trigger study_budget_holds_immutable before update or delete on study_bud
 create unique index study_one_build on study_events(attempt_id) where kind = 'build';
 `,
   },
+  {
+    version: 12,
+    name: 'model_routing',
+    sql: `
+-- X01: versioned model registry, route policies, held-out benchmarks, promotions and the
+-- decisions/outcomes that bind each routed call to its policy, registry and price versions.
+create table route_registries (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ registry_version text not null, registry_hash char(64) not null, body jsonb not null,
+ pricing_snapshot_ids jsonb not null, created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, registry_version)
+);
+create trigger route_registries_immutable before update or delete on route_registries
+ for each row execute function creator_reject_change();
+create table route_policies (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ scope_key text not null, scope jsonb not null, version integer not null check (version >= 1),
+ policy_hash char(64) not null, body jsonb not null, created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ unique (workspace_id, scope_key, version)
+);
+create trigger route_policies_immutable before update or delete on route_policies
+ for each row execute function creator_reject_change();
+create table route_benchmarks (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ manifest_hash char(64) not null, manifest jsonb not null, created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, manifest_hash)
+);
+create trigger route_benchmarks_immutable before update or delete on route_benchmarks
+ for each row execute function creator_reject_change();
+create table route_promotions (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ version integer not null default 1, registry_id uuid not null references route_registries(id),
+ task_class text not null, candidate jsonb not null, candidate_key text not null, baseline jsonb not null,
+ benchmark_id uuid not null references route_benchmarks(id), manifest_hash char(64) not null,
+ criteria jsonb not null, criteria_hash char(64) not null,
+ state text not null check (state in ('candidate','shadow','canary','promoted','rejected','rolled_back')),
+ canary_decisions integer not null default 0 check (canary_decisions >= 0),
+ evaluations jsonb not null default '[]', reason text not null default '', rationale text not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture)
+);
+create unique index route_promotions_active on route_promotions(workspace_id, task_class, candidate_key)
+ where state in ('candidate','shadow','canary','promoted');
+-- Terminal promotions never change again; criteria, candidate and benchmark never change.
+create function creator_route_promotion_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.state in ('rejected','rolled_back')
+     or (new.criteria_hash, new.candidate_key, new.benchmark_id, new.manifest_hash, new.registry_id)
+        is distinct from (old.criteria_hash, old.candidate_key, old.benchmark_id, old.manifest_hash, old.registry_id) then
+    raise exception 'route promotion change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger route_promotions_guard before update or delete on route_promotions
+ for each row execute function creator_route_promotion_guard();
+create table route_benchmark_results (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ promotion_id uuid not null references route_promotions(id), benchmark_id uuid not null references route_benchmarks(id),
+ manifest_hash char(64) not null, provider text not null, model_id text not null, case_id text not null,
+ split text not null check (split in ('development','held_out')), signal text not null, passed boolean not null,
+ logical_operation_id uuid not null, cost jsonb not null,
+ created_at timestamptz not null default clock_timestamp(),
+ unique (promotion_id, provider, model_id, case_id)
+);
+create trigger route_benchmark_results_immutable before update or delete on route_benchmark_results
+ for each row execute function creator_reject_change();
+create table route_decisions (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ run_id uuid not null, logical_operation_id uuid not null, request_hash char(64) not null,
+ status text not null check (status in ('routed','refused')), reason_code text not null, explanation text not null,
+ request jsonb not null, policy_id uuid references route_policies(id), policy_version integer, policy_hash char(64),
+ registry_id uuid not null references route_registries(id), registry_version text not null, registry_hash char(64) not null,
+ provider text, model_id text, pricing_snapshot_id uuid references pricing_snapshots(id), pricing_hash char(64),
+ role text, promotion_id uuid references route_promotions(id), criteria_hash char(64), shadow jsonb,
+ escalated_from uuid references route_decisions(id), candidates jsonb not null,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, logical_operation_id),
+ check ((status = 'routed') = (model_id is not null and pricing_snapshot_id is not null))
+);
+create unique index route_decisions_one_escalation on route_decisions(escalated_from) where escalated_from is not null;
+create index route_decisions_run on route_decisions(workspace_id, run_id, created_at);
+create trigger route_decisions_immutable before update or delete on route_decisions
+ for each row execute function creator_reject_change();
+create table route_outcomes (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ decision_id uuid not null references route_decisions(id),
+ variant text not null check (variant in ('primary','shadow')),
+ provider text not null, model_id text not null, promotion_id uuid references route_promotions(id),
+ signal text not null, accepted boolean not null, related_operation_ids jsonb not null, cost jsonb not null,
+ note text, created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ unique (decision_id, variant),
+ check (accepted = (signal = 'accepted'))
+);
+create index route_outcomes_promotion on route_outcomes(promotion_id, created_at);
+create trigger route_outcomes_immutable before update or delete on route_outcomes
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

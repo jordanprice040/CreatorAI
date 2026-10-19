@@ -60,9 +60,16 @@ const digest = (s: string) => createHash('sha256').update(s).digest();
  */
 export class FixtureAdapter implements ModelAdapter {
   readonly provider = 'fixture' as const;
-  readonly model_id = FIXTURE_MODEL_ID;
   readonly live = false;
   calls = 0;
+  /**
+   * `failEvery` makes a simulated model deliberately unreliable (X01): about one in that
+   * many inputs, chosen by input hash, gets output that fails validation.
+   */
+  constructor(
+    readonly model_id: string = FIXTURE_MODEL_ID,
+    private readonly behaviour: { failEvery?: number } = {},
+  ) {}
   call(req: AdapterRequest, signal: AbortSignal): Promise<AdapterOutcome> {
     this.calls += 1;
     if (signal.aborted) return Promise.reject(new Error('aborted'));
@@ -70,6 +77,16 @@ export class FixtureAdapter implements ModelAdapter {
     const bytes = Buffer.byteLength(joined, 'utf8');
     const h = digest(joined);
     const input = Math.ceil(bytes / 4) + 8 * req.input.length;
+    const every = this.behaviour.failEvery;
+    if (every && req.action.startsWith('model.') && h[0]! % every === 0)
+      return Promise.resolve({
+        kind: 'completed',
+        response_id: `fixture-unreliable-${h.toString('hex').slice(0, 12)}`,
+        text: 'Simulated unreliable fixture output: not the requested format',
+        vector: null,
+        usage: usage(input, Math.min(req.max_output_tokens, 12), {}),
+        incomplete_reason: null,
+      });
     if (req.action === 'tool.search_public')
       return Promise.resolve({
         kind: 'completed',
@@ -133,6 +150,14 @@ export class FixtureAdapter implements ModelAdapter {
       incomplete_reason: null,
     });
   }
+}
+/** The fixture models named in config/routing/model-registry.fixture.json. */
+export function fixtureRouteAdapters(): FixtureAdapter[] {
+  return [
+    new FixtureAdapter(),
+    new FixtureAdapter('fixture-economy-v1'),
+    new FixtureAdapter('fixture-bargain-v1', { failEvery: 2 }),
+  ];
 }
 export const usage = (
   input: number,

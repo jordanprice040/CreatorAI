@@ -10,6 +10,17 @@
 - Recorded in docs/PILOT_AND_PROTOCOL.md. Remaining protocol gates still apply;
   this documentation update did not freeze the protocol or activate live calls.
 
+## ADR-0024 - X01 model registry, route policies and held-out promotion gate (fixture-verified)
+
+- Date: October 19, 2026. Status: implemented by Claude Code on Jordan's request to start extra milestone X01; branch claude/x01-qfktko from main 8c09748. Migration 12. X01 stays partial: its prerequisite "measured task outcomes" does not exist yet, so every qualification is fixture evidence.
+- The registry is a versioned config file (config/routing/model-registry*.json) registered per workspace; each entry stores the canonical hash of its pricing file, so a decision's pricing hash proves which price it used. Real registries hold only `documented`/`verified` models and fixture registries only fixture models. Only `verified` (accessible API id plus evidence) routes in a real workspace; gpt-6-astra is `documented`, so real routing is refused until verification is recorded as a new registry version. Rejected: probing the provider for availability at decision time (a live call nobody authorized).
+- Policies: fixed (never substituted), auto (best held-out accepted rate, then cost), economy (lowest cost per accepted result at or above a floor, otherwise the reference baseline), each versioned per workspace or project. The owner's reference model is always the baseline and the only model qualified without a promotion.
+- Promotion is the only path to qualification: criteria are fixed and hashed at creation; the store scores held-out benchmark cases from the broker's own reservations (callers cannot submit results); then shadow (never served), a deterministic capped canary (at most 1/4), and owner advancement that cannot override a failing gate. Canary or post-promotion outcomes below the floor roll back automatically; owners can roll back any active promotion. Rejected: model self-confidence or self-reported success as a gate (the outcome contract has no confidence field).
+- Cost per accepted result includes failed attempts, review, repair and tool operations named on the outcome (same run only), divided by accepted results; unknown exposure is reported separately. Savings are `measured` only in a real workspace with fully known costs; fixture evidence is `not_claimed_fixture`.
+- Escalation requires a recorded objective failure, happens once per decision, and goes to the reference baseline; if the baseline failed it is refused for a person to decide.
+- Routing is opt-in per call (decide, then call under the decision). Existing workflow, study and builder paths keep their frozen models, so T15 study configuration is unaffected.
+- Rollback: revert the commit and drop the migration-12 tables; no existing table changes.
+
 ## ADR-0023 - T16 analysis pipeline over T15 exports, verified on synthetic fixtures only
 
 - Date: October 18, 2026. Status: implemented by Claude Code on Jordan's request to build T16 with empirical data collection deferred; branch claude/t16-analysis-95avhe from main 479dba4. No migration. Empirical T16 stays blocked.

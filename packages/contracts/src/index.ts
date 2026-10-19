@@ -36,3 +36,4 @@ export * from './catalog.js';
 
 export * from './study.js';
 export * from './artifacts.js';
+export * from './routing.js';

@@ -1,0 +1,33 @@
+{
+  "format": "model-registry-config/1",
+  "registry_version": "registry/2026-10-19.1",
+  "recorded_on": "2026-10-19",
+  "fixture": false,
+  "reference_model": { "provider": "openai", "model_id": "gpt-6-astra" },
+  "models": [
+    {
+      "provider": "openai",
+      "model_id": "gpt-6-astra",
+      "pricing_file": "config/pricing/openai-gpt-6-astra.json",
+      "availability": {
+        "state": "documented",
+        "verified_api_model_id": null,
+        "verified_at": null,
+        "evidence": "Owner's preferred reference model (GPT-6 Astra). Published on the provider's model page (config/provider-availability.json); account access is unverified because no key or live call has been authorized."
+      },
+      "task_classes": [
+        "research_synthesis",
+        "candidate_generation",
+        "scoring",
+        "specification",
+        "code_build",
+        "independent_review",
+        "summarization"
+      ],
+      "tools": [],
+      "data_classes": ["synthetic", "public"],
+      "latency": { "p95_ms": null, "basis": "unknown" },
+      "notes": "Reference baseline. private_approved data is not allowed until the owner approves this provider for it. Unroutable in a real workspace until an accessible API id is verified."
+    }
+  ]
+}
