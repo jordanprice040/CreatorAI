@@ -299,6 +299,67 @@ async function server(
   };
 }
 
+test('HTTP adapter deadline covers stalled DNS and ignores late resolution or rejection', async () => {
+  for (const lateFailure of [false, true]) {
+    let resolveDns!: (value: { address: string; family: number }[]) => void;
+    let rejectDns!: (reason: Error) => void;
+    let connections = 0;
+    const adapter = new HttpFetchAdapter({
+      resolve: () =>
+        new Promise((resolve, reject) => {
+          resolveDns = resolve;
+          rejectDns = reject;
+        }),
+      connectOverride: () => {
+        connections++;
+        throw new Error('Must not connect after abort');
+      },
+    });
+    const controller = new AbortController();
+    const pending = adapter.fetchHop({
+      url: new URL('https://approved.test/'),
+      signal: controller.signal,
+      maxBytes: 4096,
+      prior: 0,
+    });
+    controller.abort();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        pending,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('DNS abort did not settle')),
+            500,
+          );
+        }),
+      ]);
+      assert.equal(result.kind === 'error' && result.reason_code, 'timeout');
+    } finally {
+      clearTimeout(timer);
+      if (lateFailure) rejectDns(new Error('Late DNS failure'));
+      else resolveDns([{ address: '93.184.215.10', family: 4 }]);
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(connections, 0);
+  }
+  let lookups = 0;
+  const adapter = new HttpFetchAdapter({
+    resolve: async () => {
+      lookups++;
+      return [];
+    },
+  });
+  const result = await adapter.fetchHop({
+    url: new URL('https://approved.test/'),
+    signal: AbortSignal.abort(),
+    maxBytes: 4096,
+    prior: 0,
+  });
+  assert.equal(result.kind === 'error' && result.reason_code, 'timeout');
+  assert.equal(lookups, 0);
+});
+
 test('HTTP adapter checks DNS answers, pins the address and sends no credentials', async (t) => {
   const srv = await server((_h, path) =>
     path === '/big'

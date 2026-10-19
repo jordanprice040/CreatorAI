@@ -1,6 +1,6 @@
 # Project development tools
 
-Installed October 18, 2026 at the owner's request. These tools support the coding agent working on Creator Agent. They do not activate Creator Agent's model broker, source ingestion, generated-code execution, or research conditions. T01 remains complete and T02 remains the next eligible milestone.
+Installed October 18, 2026 at the owner's request. These tools support the coding agent working on Creator Agent. They do not activate Creator Agent's model broker, source ingestion, generated-code execution, or research conditions. Current application status and next eligible work are recorded in [build status](../tracking/BUILD_STATUS.md); installation evidence below retains its original scope.
 
 ## Installed skills
 

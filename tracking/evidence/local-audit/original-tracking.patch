@@ -1,0 +1,615 @@
+diff --git a/tracking/BUILD_STATUS.md b/tracking/BUILD_STATUS.md
+index 262810c..b202d1b 100644
+--- a/tracking/BUILD_STATUS.md
++++ b/tracking/BUILD_STATUS.md
+@@ -1,5 +1,16 @@
+ # Implementation status
+ 
++## UX/UI handoff prepared (October 19, 2026)
++
++Owner approved dark mode by default and a clean Codex/Claude Code-inspired layout.
++docs/CLAUDE_UX_UI_HANDOFF.md assigns Claude the existing shared web/desktop UI and
++Codex the parallel X08 workstream, with separate checkouts and clear overlap rules.
++Audit PR #32 is merged (GitHub checked this turn). This local checkout remains on
++X05 with pre-existing edits; historical entries below do not describe current main.
++This turn created the prompt and recorded the owner preference; no UI or X08
++implementation was started or verified here. Next: give Claude the handoff and
++begin the separately assigned X08 work from current main in its own checkout.
++
+ ## X05 local Windows acceptance passed (October 19, 2026)
+ 
+ Final release native menus and rendered shared UI passed local acceptance.
+@@ -346,6 +357,69 @@ study or builder paths; no web UI; fixture models and benchmark are synthetic.
+ Next eligible: X02 on request (prerequisite X01 now implemented), or remaining T15/T16
+ work once the protocol is frozen.
+ 
++## U03 — audit findings 3–5 repaired (October 18, 2026)
++
++Current README, local setup and integration readiness now describe the persistent
++studio and its actual limits. Earlier text remains in labelled README_IMPLEMENTATION_KIT.md,
++docs/LOCAL_DEVELOPMENT_HISTORY.md and tracking/INTEGRATIONS_HISTORY.md. Development
++tool notes now point to current build status rather than an obsolete next milestone.
++API maintenance records per-job last success/failure and safe bounded error codes,
++reports degraded health, deduplicates repeated console errors and coalesces overlapping
++jobs. Startup, relay and request outbox paths use the same diagnostics; store
++idempotence, admission, budgets and durable records remain authoritative. Diagnostic
++state resets on restart; no external monitoring or durable incident history implied.
++Health contract includes maintenance; web connection check reports observed degradation
++and configured live adapters accurately. Refresh/health query is required for updates.
++Actor-name loading ignores prior-workspace successes/failures after effect cleanup.
++Focused regressions cover error redaction/log bounds, overlap/recovery/independent
++job failures and reversed actor response order/unmount using actual hooks with
++controlled state/effects (not a browser render). HTTP test checks maintenance health.
++Executed pnpm check: 191 tests, 98 pass, 0 fail, 93 explicit DB/real-isolation skips;
++TypeScript and formatting passed. Local ignored log: .verification/u03-findings-3-5-check.log.
++37 local documentation links resolve; git diff --check passed. Initial focused build
++caught snapshot typing errors; corrected before the successful complete check.
++No fresh DB/WSL, interactive browser check or live adapter activation. Existing
++uncommitted audit and findings 1–2 repairs preserved. All five findings repaired;
++no full-product or research completion claim. Next eligible: owner-selected remaining
++T14 prerequisites/research acceptance item; no automatic X milestone.
++
++## U03 — audit findings 1–2 repaired (October 18, 2026)
++
++Source adapter now observes abort during DNS resolution, removes the abort
++listener after settlement and refuses already-aborted requests or connections
++after abort. System DNS work itself cannot be cancelled and may finish later;
++late results/failures cannot resume the fetch. No policy or billing changes.
++Browser logout now retains local sign-in after network/server failure, displays
++an accessible retry message and clears local session only on confirmed success.
++Focused regressions pass: stalled DNS/late resolution/late rejection/pre-abort;
++actual browser session hook with simulated network/503 failures then successful
++retry and the session CSRF header. Hook test uses controlled state slots, not a
++browser render. pnpm check passed: 189 tests, 96 pass, 0 fail, 93 explicit DB/real
++isolation skips, plus TypeScript and format checks. Log (local/ignored):
++.verification/u03-audit-repairs-check.log. git diff --check passed.
++No fresh database/WSL or interactive browser gate; no live services activated.
++Prior audit/report edits preserved. Findings 3–5 remain open. Next eligible:
++owner-selected U03 repair of remaining audit items or remaining T14 prerequisites.
++No automatic milestone or extension started.
++
++## Code audit and current product guide (October 18, 2026)
++
++Owner requested a code audit and a rundown of completion, working features, usage
++and remaining work. Reviewed candidate 015fe0586f0225c46de43239283968670579b5f2.
++Report: docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md. No application code changed.
++Five findings: DNS resolution escapes fetch timeout (reproduced with injected
++stalled resolver), swallowed logout failures, obsolete setup/status documentation,
++silent maintenance errors and stale actor-label responses after workspace changes.
++Unrestricted pnpm check passed: 94 pass, 0 fail, 93 explicit DB/isolation skips;
++typecheck and format check passed. Local log: .verification/audit-check.log.
++Initial sandbox run had 7 failures (network/filesystem restrictions); focused
++unrestricted API rerun passed all 3 tests before the full check passed.
++No fresh DB/WSL gate, browser audit, paid call, provider activation or study run.
++Implemented machinery is distinguished from missing final empirical data and
++committee acceptance. Next eligible: U03 for concrete audit defects or owner-selected
++remaining T14 prerequisites; no automatic X milestone. Report formatting checked
++separately after the suite. Existing integrations and grants unchanged.
++
+ ## PR publication validation (October 18, 2026)
+ 
+ Owner requested a PR for all pending work. Branch: codex/t18-t19-thesis-archive.
+@@ -569,11 +643,11 @@ catalog indexing, participant implementation execution, previews and delivery
+ remain unavailable. No live provider, real spend, public release or study
+ activation. T11 and T12 were later merged (PRs #13 and #14) and T13 is done.
+ 
+-| Requirement | T12 verified scope | Remaining limitation |
+-| --- | --- | --- |
+-| C21, C29 | Finite broker calls, bounded context/output/deadline, typed scoped tools, two repairs, cancellation and preserved partial commits | One independent builder task; crash intents require inspection, no automatic continuation |
+-| C23 | Fresh review plus real normal/error assertions bound to exact commit/spec/task/plan | Fixed synthetic roles; stdout/exit CLI recipe only, no browser/persistence verification |
+-| C27, C34 | Immutable prompt/context/command/output traces and broker reservation IDs | Local build records are not yet searchable in the catalog |
++| Requirement | T12 verified scope                                                                                                                | Remaining limitation                                                                      |
++| ----------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
++| C21, C29    | Finite broker calls, bounded context/output/deadline, typed scoped tools, two repairs, cancellation and preserved partial commits | One independent builder task; crash intents require inspection, no automatic continuation |
++| C23         | Fresh review plus real normal/error assertions bound to exact commit/spec/task/plan                                               | Fixed synthetic roles; stdout/exit CLI recipe only, no browser/persistence verification   |
++| C27, C34    | Immutable prompt/context/command/output traces and broker reservation IDs                                                         | Local build records are not yet searchable in the catalog                                 |
+ 
+ Docker follow-up, October 18, 2026: CLI/daemon connection verified (Docker Desktop
+ 4.95.0, Engine 29.8.2, Compose 5.6.0, desktop-linux). Optional digest-pinned
+@@ -591,11 +665,10 @@ T11 update, October 18, 2026: verified local owner CLI and reviewed Python templ
+ 
+ T10 update, October 18, 2026: verified synthetic study runner on native Windows, Node 22.21.0 and PostgreSQL 18.6. Migration 9 and ADR-0013 add immutable protocol/task/config manifests and hashes, seeded order and condition assignments, isolated attempt workspaces, human-only verbatim document/code/artifact entry with conventional bound text checks, separate human grader authorization, intervention/deviation records, structured T07 execution and a versioned open-ended broker baseline, condition-stable outcomes and excluded assisted continuations, metrics and a repeatable hashed export. Database gate: 130/130; non-database check: 59 pass, 71 explicitly skipped; smoke, compiled CLI/API and headless Edge acceptance passed. No live model, real spend, recruitment or empirical results. Unverified snapshots stop structured execution; arbitrary code and AI implementation execution wait for T11. See [T10 evidence](evidence/t10/verification.json), [review](evidence/t10/review.md) and the [local guide](../docs/LOCAL_DEVELOPMENT.md).
+ 
+-| Requirement | T10 status | Evidence and remaining gate |
+-| --- | --- | --- |
+-| C15 | partial, synthetic workflow verified | Three-arm matched packet/hash, seed/order/familiarity, separate discovery comparison, condition-stable failures, intervention metrics and available-record export; actual participant work, adopted design and independent outcomes remain T14-T16 |
+-| C16 | verified for implemented fixture/broker/workflow paths | Every model/broker action, seven study helper paths and both workflow starts refused for human-only work, zero adapter calls; hidden grader and cross-participant contexts denied; external human tool use is not empirically verified |
+-
++| Requirement | T10 status                                             | Evidence and remaining gate                                                                                                                                                                                                                        |
++| ----------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| C15         | partial, synthetic workflow verified                   | Three-arm matched packet/hash, seed/order/familiarity, separate discovery comparison, condition-stable failures, intervention metrics and available-record export; actual participant work, adopted design and independent outcomes remain T14-T16 |
++| C16         | verified for implemented fixture/broker/workflow paths | Every model/broker action, seven study helper paths and both workflow starts refused for human-only work, zero adapter calls; hidden grader and cross-participant contexts denied; external human tool use is not empirically verified             |
+ 
+ T09 update, October 18, 2026: the web page is now a usable studio over the existing API (migration 8, ADR-0012). One workspace picker and a view list replace the stacked panels; the address (`#/view?ws=&id=&q=`) keeps the view, workspace, selected record and query across refresh. Views: Monitor (waiting decisions, workflows in progress with Pause/Resume/Cancel, recently finished, catalog counts, product stages, charged/in-flight/unknown spend and refused calls, latest activity; refreshes itself while work runs), Submit a theme (versioned search brief, claims with what each bears on, response types with exclusion reasons, a new or existing run with an optional revocable 24-hour model permission, then the T07 discovery run), Catalog, Compare and decide (the problem, its brief and claims with passages, freshness and counted status, run assumptions, alternatives side by side with suitability and opportunity scores, gates, humility review, discovery disposition and dissent, then a selection form whose blocked choices are disabled and which handles the supervised approval round), Evidence, Decisions (who asked and when, who answered), Runs, Budgets (now with a Fund a budget form), Scores and specs, Search, Activity and a reserved Gallery that says no preview or download exists. New server routes: `search` (full text over record text, source passages, decision questions and activity summaries via PostgreSQL text search with highlighted snippets; exact UUID or 8+ hex prefix; kind and status filters), `activity` (actor names, action filter, paging), `actors`, `overview`, `problems/{id}/comparison`, and `lineage?depth=1..8`. Membership is checked before any snippet or count; redacted text and redacted sources' passages are not searchable. Fixture workspaces carry a FIXTURE MODE banner. Verified in a Linux cloud container with PostgreSQL 16.15: 122/122 tests with the database (58 pass, 64 visibly skipped without), smoke, and a 12-step headless Chromium acceptance run from a freshly seeded database (submit → evidence → compare → decide with approval → search and activity, budget denial, permission revocation, reserved gallery, keyboard skip link, no overflow at 390 px). C35 is partial (fixture-verified); C26 search is partial; C31 snippet access is partial. See [T09 evidence](evidence/t09/verification.json).
+ 
+@@ -623,38 +696,38 @@ Updated October 17, 2026 (America/New_York). T00 and T01 verified. A minimal Typ
+ 
+ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or deferred. Each verified entry needs exact code/spec version, checks actually executed, and evidence. Identify external/live/native gates separately.
+ 
+-| ID | Milestone | Status | Code/version and evidence | Remaining work |
+-| --- | --- | --- | --- | --- |
+-| T00 | Repository intake and verified starting point | verified | Historical T00 snapshot in evidence/t00; ADR-0001 | Intake complete; T01 subsequently implemented |
+-| T01 | Minimal workspace, typed contracts, and lifecycle | verified | Package 0.1.0, schema 1.0; evidence/t01/final-files.sha256; clean install/build/check, 20 passing tests on Node 22 and 24, HTTP smoke and browser checks | Superseded as current status by T02 |
+-| T02 | Persistence, provenance, and durable audit | verified (cloud Linux, PostgreSQL 16.15), merged PR #3 | Migration 1; evidence/t02/verification.json; 29/29 tests incl. real process restart, stale/concurrent writes, cross-scope links, duplicate outbox delivery and two-ideas/two-descendants lineage; browser check of Records panel | Windows PostgreSQL setup untested; authentication added in T03 |
+-| T03 | Human decisions, autonomy modes, and humility | verified (cloud Linux, PostgreSQL 16.15) | Branch claude/t03-decisions-autonomy-5gpinz; migration 2; evidence/t03/verification.json; 47/47 tests incl. changed/expired approvals, cancellation, duplicate and concurrent answers, autonomous needs_human, human-only model denial, routine action without interruption, OIDC PKCE and CSRF | Merged (PR #4); Windows and real IdP untested |
+-| T04 | Budgets and a metered model/tool broker | verified (cloud Linux, PostgreSQL 16.15; fixture and contract only) | Branch claude/t04-budgets-broker-px0108 stacked on T03; migration 3; evidence/t04/verification.json; 61/61 tests incl. 8 concurrent calls against a 3-call envelope, denied calls with zero adapter calls, late result settled once, duplicate deliveries dispatching once, rate-limit retry, cancellation, lost worker, overrun | Merged (PR #5); live call needs a key, a spend grant and an owner request; Windows untested |
+-| T05 | Durable bounded orchestration and recovery | verified (cloud Linux, PostgreSQL 16.15; fixture only) | Branch claude/t05-t1b785 from main at f51530f; migration 4; ADR-0008 (PostgreSQL instead of Temporal); evidence/t05/verification.json; 72/72 tests incl. restart with killed worker and API processes, duplicate task delivery and duplicate outbox wake-up, waiting on two decisions, stale-worker commit refused, cancellation with held exposure, autonomous needs_human, bounded repair, pause/resume | Merged (PR #6); Windows untested; CI still runs only `pnpm check` |
+-| T06 | Source ingestion, claim support, and research boundaries | verified (cloud Linux, PostgreSQL 16.15; fixture and loopback contract only) | Branch claude/t06-sources-claims-ogwzbb from main at da976c7; migration 5; ADR-0009; evidence/t06/verification.json; 91/91 tests incl. supporting and non-supporting passages, fabricated quotes refused, repost cluster vs independent contrary source, changed version invalidating support, 403 and 410 pages, redirects to 169.254.169.254 / an intranet address / http, injected instructions with no grant/decision/policy/fetch change, byte/time/type/hash-only limits, approve-once per URL, no fixture fallback, concurrent fetch, sweep of lost fetches, redaction | Owner review; no live search adapter; live fetch unverified against real sites; T05 workflow roles do not call the broker yet; Windows untested; merged as PR #7 |
+-| T07 | Locator and competing response generation | verified (cloud Linux, PostgreSQL 16.15; fixture model only) | Branch claude/t07-locator-responses-nyj7cq from main at 5a07713; migration 6; ADR-0010; evidence/t07/verification.json; 104/104 tests incl. cross-field locator, a known duplicate, software not recommended when an existing tool fits, a software-suitable candidate after one revision, insufficient evidence stopping after the locator, proposal independence from provider inputs, repairs of out-of-packet refs and names-only mechanisms, revision cap 0 with dissent, changed claim versions | Owner review; no live model run; locator does not search; duplicate detection is word overlap; starting a discovery run has no web form (API/CLI); Windows untested; next eligible T08 |
+-| T08 | Versioned scoring, selection, and frozen specifications | verified (cloud Linux, PostgreSQL 16.15; fixture reviewers only) | Branch claude/t08-aq72aq from main at df04354; migration 7; ADR-0011; evidence/t08/verification.json; 117/117 tests incl. exact scores, unknowns kept as bounds, ties and reviewer disagreement, sensitivity, override with original ranking retained, gates that no score clears, no build-ready non-code response, a gate closing after selection stops the freeze, spec revision invalidating changed tasks and the earlier approval, cycles and ownership conflicts, replaced selections, autonomous runs with and without a grant | Owner review; no model assessor role; selecting does not move a product stage; selecting and freezing have no web form (API/CLI); Windows untested; next eligible T09 |
+-| T09 | Usable catalog, decisions, search, and run monitor | verified (cloud Linux, PostgreSQL 16.15; fixture workspace in headless Chromium) | Branch claude/t09-catalog-monitor-ml1t89 from main at bba9e9a; migration 8; ADR-0012; evidence/t09/verification.json; 122/122 tests incl. search permissions before snippets and counts, redaction, id and prefix search, activity paging and validation, comparison assumptions; 12-step browser acceptance run with screenshots | Owner review; fixture model and reviewers only; search is lexical (no semantic search, X03); lineage traversal bounded at 8 hops with no graph view; no product stages exist yet so stage and task views show empty states; Windows and real screen readers untested; next eligible T10 |
+-| T10 | Study runner and human-only workflow | verified (Windows, PostgreSQL 18.6; synthetic only) | Branch codex/t10-study-runner from a9edf68 (T09 merged PR #10); migration 9; ADR-0013; evidence/t10/verification.json; 130/130 DB tests, check, smoke, CLI/API export and headless Edge acceptance | Merged PR #12 at 5f9bb1b; no empirical study or live AI; study-arm implementation integration remains separate from the T11 owner CLI |
+-| T11 | Isolated execution and local product Git | verified (Windows + WSL2; reviewed synthetic template) | Branch codex/t11-isolated-execution from 5f9bb1b; ADR-0014; evidence/t11/verification.json and source manifest; 140/140 DB + real isolation, check, smoke, CLI/API admission | Owner review/merge; fixed offline Python recipe; no model builder/independent QA, catalog indexing, dedicated appliance or persistent preview; T12 next on request |
+-| T12 | Bounded builder, independent review, and QA | verified (Windows + WSL2; fixed synthetic roles) | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation | Merged PR #14 at 6fe5bab |
+-| T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles) | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request |
+-| T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
+-| T15 | Final evaluation and blinded rating package | partial (cloud Linux, PostgreSQL 16; machinery, rehearsal, final-record gate, budget ledger and study builds; no final run) | Branch claude/t15-hdrwqz from 3f3544a; ADR-0021, ADR-0022; migration 11; evidence/t15; 167 pass / 11 WSL skips; rehearsal 10/10 checks | Protocol freeze (RD1-RD10) with participants, reviewers, IRB and final tasks answered; verified live model id and spend authorization (RD6); final build tasks frozen with held-out cases; WSL2 gate for study builds |
+-| T16 | Reproducible analysis and limits | partial (pipeline only; empirical blocked) | Branch claude/t16-analysis-95avhe; ADR-0023; `pnpm analyze`; docs/ANALYSIS.md; evidence/t16 (3 synthetic fixtures, real rehearsal package, 187 tests / 176 pass / 11 WSL skips) | Real T15 final runs under an adopted freeze, reviewer ratings (RD4), a decision acceptance rule, owner coding of intervention necessity |
+-| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
+-| T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
+-| T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
+-| X01 | Model registry and qualified automatic routing | partial (cloud Linux, PostgreSQL 16; fixture-verified routing machinery) | Branch claude/x01-qfktko from 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md; evidence/x01; 198 tests / 187 pass / 11 WSL skips | Measured task outcomes (T15) to qualify real models; verified gpt-6-astra id; routing used by workflow/study/builder paths; web UI |
+-| X02 | Context selection, caching, compaction, and batches | partial (cloud Linux, PostgreSQL 16; fixture-verified) | Branch claude/x02-b3wzes from c738369; migration 13; ADR-0025; docs/CONTEXT_AND_CACHING.md; evidence/x02; 212 tests / 201 pass / 11 WSL skips | Live verification of gpt-6-astra prompt caching and batch (owner-authorized call); provider compaction adapter; packs/cache used by workflow, study and builder paths; web UI |
+-| X03 | Comprehensive search, lineage, and audit questions | partial (cloud Linux, PostgreSQL 16; fixture-verified) | Branch claude/x03-s7po1x from d2c8ef1; migration 14; ADR-0026; docs/SEARCH_AND_AUDIT.md; evidence/x03; 219 tests / 208 pass / 11 WSL skips | Verified real embedding model (owner decision, accessible id, pricing, data-class approval); live model compile check; web UI for questions, saved queries and lineage graphs; per-record access control if ever needed |
+-| X04 | Scoped GitHub management | partial (cloud Linux, PostgreSQL 16; fixture GitHub and loopback contracts) | Branch claude/x04-gm7n32 from d2c8ef1; migration 15; ADR-0027; docs/GITHUB.md; evidence/x04; 221 tests / 210 pass / 11 WSL skips | Owner-created GitHub App or fine-grained token, CREATOR_GITHUB=live, grants and a live verification; webhook forwarder; releases and settings; web UI |
+-| X05 | Windows desktop and paired local workers | deferred | No application code at T00 | T13 |
+-| X06 | Hosted operation and observability | deferred | No application code at T00 | T17; X05 only for hosted-to-local pairing |
+-| X07 | Payments, entitlements, revenue and reinvestment | deferred | No application code at T00 | T17 and required integration infrastructure |
+-| X08 | Evidence-backed marketing and measured feedback | deferred | No application code at T00 | T13; X06/X07 only where distribution/payment requires them |
+-| X09 | Portfolio scheduling, maintenance, and reusable knowledge | deferred | No application code at T00 | T13; X01/X07/X08 for their enabled features |
+-| X10 | Full-product acceptance and bounded owner pilot | deferred | No application code at T00 | Applicable X01–X09 gates |
++| ID  | Milestone                                                  | Status                                                                                                                      | Code/version and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Remaining work                                                                                                                                                                                                                                                                          |
++| --- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| T00 | Repository intake and verified starting point              | verified                                                                                                                    | Historical T00 snapshot in evidence/t00; ADR-0001                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Intake complete; T01 subsequently implemented                                                                                                                                                                                                                                           |
++| T01 | Minimal workspace, typed contracts, and lifecycle          | verified                                                                                                                    | Package 0.1.0, schema 1.0; evidence/t01/final-files.sha256; clean install/build/check, 20 passing tests on Node 22 and 24, HTTP smoke and browser checks                                                                                                                                                                                                                                                                                                                                                                                                                      | Superseded as current status by T02                                                                                                                                                                                                                                                     |
++| T02 | Persistence, provenance, and durable audit                 | verified (cloud Linux, PostgreSQL 16.15), merged PR #3                                                                      | Migration 1; evidence/t02/verification.json; 29/29 tests incl. real process restart, stale/concurrent writes, cross-scope links, duplicate outbox delivery and two-ideas/two-descendants lineage; browser check of Records panel                                                                                                                                                                                                                                                                                                                                              | Windows PostgreSQL setup untested; authentication added in T03                                                                                                                                                                                                                          |
++| T03 | Human decisions, autonomy modes, and humility              | verified (cloud Linux, PostgreSQL 16.15)                                                                                    | Branch claude/t03-decisions-autonomy-5gpinz; migration 2; evidence/t03/verification.json; 47/47 tests incl. changed/expired approvals, cancellation, duplicate and concurrent answers, autonomous needs_human, human-only model denial, routine action without interruption, OIDC PKCE and CSRF                                                                                                                                                                                                                                                                               | Merged (PR #4); Windows and real IdP untested                                                                                                                                                                                                                                           |
++| T04 | Budgets and a metered model/tool broker                    | verified (cloud Linux, PostgreSQL 16.15; fixture and contract only)                                                         | Branch claude/t04-budgets-broker-px0108 stacked on T03; migration 3; evidence/t04/verification.json; 61/61 tests incl. 8 concurrent calls against a 3-call envelope, denied calls with zero adapter calls, late result settled once, duplicate deliveries dispatching once, rate-limit retry, cancellation, lost worker, overrun                                                                                                                                                                                                                                              | Merged (PR #5); live call needs a key, a spend grant and an owner request; Windows untested                                                                                                                                                                                             |
++| T05 | Durable bounded orchestration and recovery                 | verified (cloud Linux, PostgreSQL 16.15; fixture only)                                                                      | Branch claude/t05-t1b785 from main at f51530f; migration 4; ADR-0008 (PostgreSQL instead of Temporal); evidence/t05/verification.json; 72/72 tests incl. restart with killed worker and API processes, duplicate task delivery and duplicate outbox wake-up, waiting on two decisions, stale-worker commit refused, cancellation with held exposure, autonomous needs_human, bounded repair, pause/resume                                                                                                                                                                     | Merged (PR #6); Windows untested; CI still runs only `pnpm check`                                                                                                                                                                                                                       |
++| T06 | Source ingestion, claim support, and research boundaries   | verified (cloud Linux, PostgreSQL 16.15; fixture and loopback contract only)                                                | Branch claude/t06-sources-claims-ogwzbb from main at da976c7; migration 5; ADR-0009; evidence/t06/verification.json; 91/91 tests incl. supporting and non-supporting passages, fabricated quotes refused, repost cluster vs independent contrary source, changed version invalidating support, 403 and 410 pages, redirects to 169.254.169.254 / an intranet address / http, injected instructions with no grant/decision/policy/fetch change, byte/time/type/hash-only limits, approve-once per URL, no fixture fallback, concurrent fetch, sweep of lost fetches, redaction | Owner review; no live search adapter; live fetch unverified against real sites; T05 workflow roles do not call the broker yet; Windows untested; merged as PR #7                                                                                                                        |
++| T07 | Locator and competing response generation                  | verified (cloud Linux, PostgreSQL 16.15; fixture model only)                                                                | Branch claude/t07-locator-responses-nyj7cq from main at 5a07713; migration 6; ADR-0010; evidence/t07/verification.json; 104/104 tests incl. cross-field locator, a known duplicate, software not recommended when an existing tool fits, a software-suitable candidate after one revision, insufficient evidence stopping after the locator, proposal independence from provider inputs, repairs of out-of-packet refs and names-only mechanisms, revision cap 0 with dissent, changed claim versions                                                                         | Owner review; no live model run; locator does not search; duplicate detection is word overlap; starting a discovery run has no web form (API/CLI); Windows untested; next eligible T08                                                                                                  |
++| T08 | Versioned scoring, selection, and frozen specifications    | verified (cloud Linux, PostgreSQL 16.15; fixture reviewers only)                                                            | Branch claude/t08-aq72aq from main at df04354; migration 7; ADR-0011; evidence/t08/verification.json; 117/117 tests incl. exact scores, unknowns kept as bounds, ties and reviewer disagreement, sensitivity, override with original ranking retained, gates that no score clears, no build-ready non-code response, a gate closing after selection stops the freeze, spec revision invalidating changed tasks and the earlier approval, cycles and ownership conflicts, replaced selections, autonomous runs with and without a grant                                        | Owner review; no model assessor role; selecting does not move a product stage; selecting and freezing have no web form (API/CLI); Windows untested; next eligible T09                                                                                                                   |
++| T09 | Usable catalog, decisions, search, and run monitor         | verified (cloud Linux, PostgreSQL 16.15; fixture workspace in headless Chromium)                                            | Branch claude/t09-catalog-monitor-ml1t89 from main at bba9e9a; migration 8; ADR-0012; evidence/t09/verification.json; 122/122 tests incl. search permissions before snippets and counts, redaction, id and prefix search, activity paging and validation, comparison assumptions; 12-step browser acceptance run with screenshots                                                                                                                                                                                                                                             | Owner review; fixture model and reviewers only; search is lexical (no semantic search, X03); lineage traversal bounded at 8 hops with no graph view; no product stages exist yet so stage and task views show empty states; Windows and real screen readers untested; next eligible T10 |
++| T10 | Study runner and human-only workflow                       | verified (Windows, PostgreSQL 18.6; synthetic only)                                                                         | Branch codex/t10-study-runner from a9edf68 (T09 merged PR #10); migration 9; ADR-0013; evidence/t10/verification.json; 130/130 DB tests, check, smoke, CLI/API export and headless Edge acceptance                                                                                                                                                                                                                                                                                                                                                                            | Merged PR #12 at 5f9bb1b; no empirical study or live AI; study-arm implementation integration remains separate from the T11 owner CLI                                                                                                                                                   |
++| T11 | Isolated execution and local product Git                   | verified (Windows + WSL2; reviewed synthetic template)                                                                      | Branch codex/t11-isolated-execution from 5f9bb1b; ADR-0014; evidence/t11/verification.json and source manifest; 140/140 DB + real isolation, check, smoke, CLI/API admission                                                                                                                                                                                                                                                                                                                                                                                                  | Owner review/merge; fixed offline Python recipe; no model builder/independent QA, catalog indexing, dedicated appliance or persistent preview; T12 next on request                                                                                                                      |
++| T12 | Bounded builder, independent review, and QA                | verified (Windows + WSL2; fixed synthetic roles)                                                                            | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Merged PR #14 at 6fe5bab                                                                                                                                                                                                                                                                |
++| T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles)                                                                          | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough                                                                                                                                                                                                                                                                                                                                                                                            | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request                                                                                                                                                  |
++| T14 | Pilot, rubric calibration, and protocol freeze             | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted)                                | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run                                                                                                                                                                             |
++| T15 | Final evaluation and blinded rating package                | partial (cloud Linux, PostgreSQL 16; machinery, rehearsal, final-record gate, budget ledger and study builds; no final run) | Branch claude/t15-hdrwqz from 3f3544a; ADR-0021, ADR-0022; migration 11; evidence/t15; 167 pass / 11 WSL skips; rehearsal 10/10 checks                                                                                                                                                                                                                                                                                                                                                                                                                                        | Protocol freeze (RD1-RD10) with participants, reviewers, IRB and final tasks answered; verified live model id and spend authorization (RD6); final build tasks frozen with held-out cases; WSL2 gate for study builds                                                                   |
++| T16 | Reproducible analysis and limits                           | partial (pipeline only; empirical blocked)                                                                                  | Branch claude/t16-analysis-95avhe; ADR-0023; `pnpm analyze`; docs/ANALYSIS.md; evidence/t16 (3 synthetic fixtures, real rehearsal package, 187 tests / 176 pass / 11 WSL skips)                                                                                                                                                                                                                                                                                                                                                                                               | Real T15 final runs under an adopted freeze, reviewer ratings (RD4), a decision acceptance rule, owner coding of intervention necessity                                                                                                                                                 |
++| T17 | Failure recovery, boundary checks, and requirements audit  | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip)                              | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures                                                                                                                                                                                                                                                                                                | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run                                                                                                                                  |
++| T18 | Thesis, committee review, and defense preparation          | planned                                                                                                                     | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T16 and T17, or documented missing-data limits                                                                                                                                                                                                                                          |
++| T19 | Final thesis acceptance and reproducibility archive        | planned                                                                                                                     | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T18                                                                                                                                                                                                                                                                                     |
++| X01 | Model registry and qualified automatic routing             | partial (cloud Linux, PostgreSQL 16; fixture-verified routing machinery)                                                    | Branch claude/x01-qfktko from 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md; evidence/x01; 198 tests / 187 pass / 11 WSL skips                                                                                                                                                                                                                                                                                                                                                                                                                                       | Measured task outcomes (T15) to qualify real models; verified gpt-6-astra id; routing used by workflow/study/builder paths; web UI                                                                                                                                                      |
++| X02 | Context selection, caching, compaction, and batches        | partial (cloud Linux, PostgreSQL 16; fixture-verified)                                                                      | Branch claude/x02-b3wzes from c738369; migration 13; ADR-0025; docs/CONTEXT_AND_CACHING.md; evidence/x02; 212 tests / 201 pass / 11 WSL skips                                                                                                                                                                                                                                                                                                                                                                                                                                 | Live verification of gpt-6-astra prompt caching and batch (owner-authorized call); provider compaction adapter; packs/cache used by workflow, study and builder paths; web UI                                                                                                           |
++| X03 | Comprehensive search, lineage, and audit questions         | partial (cloud Linux, PostgreSQL 16; fixture-verified)                                                                      | Branch claude/x03-s7po1x from d2c8ef1; migration 14; ADR-0026; docs/SEARCH_AND_AUDIT.md; evidence/x03; 219 tests / 208 pass / 11 WSL skips                                                                                                                                                                                                                                                                                                                                                                                                                                    | Verified real embedding model (owner decision, accessible id, pricing, data-class approval); live model compile check; web UI for questions, saved queries and lineage graphs; per-record access control if ever needed                                                                 |
++| X04 | Scoped GitHub management                                   | partial (cloud Linux, PostgreSQL 16; fixture GitHub and loopback contracts)                                                 | Branch claude/x04-gm7n32 from d2c8ef1; migration 15; ADR-0027; docs/GITHUB.md; evidence/x04; 221 tests / 210 pass / 11 WSL skips                                                                                                                                                                                                                                                                                                                                                                                                                                              | Owner-created GitHub App or fine-grained token, CREATOR_GITHUB=live, grants and a live verification; webhook forwarder; releases and settings; web UI                                                                                                                                   |
++| X05 | Windows desktop and paired local workers                   | deferred                                                                                                                    | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T13                                                                                                                                                                                                                                                                                     |
++| X06 | Hosted operation and observability                         | deferred                                                                                                                    | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T17; X05 only for hosted-to-local pairing                                                                                                                                                                                                                                               |
++| X07 | Payments, entitlements, revenue and reinvestment           | deferred                                                                                                                    | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T17 and required integration infrastructure                                                                                                                                                                                                                                             |
++| X08 | Evidence-backed marketing and measured feedback            | deferred                                                                                                                    | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T13; X06/X07 only where distribution/payment requires them                                                                                                                                                                                                                              |
++| X09 | Portfolio scheduling, maintenance, and reusable knowledge  | deferred                                                                                                                    | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | T13; X01/X07/X08 for their enabled features                                                                                                                                                                                                                                             |
++| X10 | Full-product acceptance and bounded owner pilot            | deferred                                                                                                                    | No application code at T00                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Applicable X01–X09 gates                                                                                                                                                                                                                                                                |
+ 
+ Requirement-level evidence: the T17 audit lists every C01–C51 status with evidence in [evidence/t17/REQUIREMENTS_EVIDENCE.md](evidence/t17/REQUIREMENTS_EVIDENCE.md). No requirement is pre-marked complete.
+ 
+@@ -680,15 +753,15 @@ T00 acceptance covered inventory, path/dependency ADR, baseline evidence and nex
+ - Built-web preview → API proxy health and fixture POST passed: [smoke log](evidence/t01/smoke.log). Browser verified visible health, existing-tool/process-change/failure outcomes and whitespace-input disablement; final process-change result captured in [state](evidence/t01/browser-state.txt) and [screenshot](evidence/t01/browser-fixture.png).
+ - Honest limitations: no persistence/audit outbox, authentication/grant store, atomic budget broker, workflow engine, worker isolation, genuine evidence verification, independent review service or study execution. Pure rules consume trusted state/evidence; accepting a schema does not authenticate an actor or prove a claim. No CI/remote deployment verification was performed.
+ 
+-| Requirement | Current status | T01 evidence / remaining gate |
+-| --- | --- | --- |
+-| C10–C11 | partial | Non-code outcomes and assumption/disconfirmation contracts; real humility/discovery gates remain T03/T07–T08 |
+-| C13–C16 | partial | Separate mode/condition schemas, scope checks and human-only provider denial; authenticated grants/study runner remain T03/T10 |
+-| C20–C23 | partial | Version/spec/result binding, delegation validation, lifecycle evidence requirements; no task scheduler, persistence or independent reviewer yet |
+-| C28–C29 | partial | Exact-money/sibling allocation checks, finite limits and terminal cancellation transitions; atomic reservation/cancellation execution remain T04–T05 |
+-| C32 | partial | Usable local API/CLI/web fixture; persistent usable control remains T02/T05/T17 |
+-| C35 | partial | Thin real health/fixture UI with empty/error states; full catalog/controls remain T09 |
+-| C49 | partial | Visible fixture labels and separate implementation/contract/live status; real adapters remain unverified |
++| Requirement | Current status | T01 evidence / remaining gate                                                                                                                        |
++| ----------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
++| C10–C11     | partial        | Non-code outcomes and assumption/disconfirmation contracts; real humility/discovery gates remain T03/T07–T08                                         |
++| C13–C16     | partial        | Separate mode/condition schemas, scope checks and human-only provider denial; authenticated grants/study runner remain T03/T10                       |
++| C20–C23     | partial        | Version/spec/result binding, delegation validation, lifecycle evidence requirements; no task scheduler, persistence or independent reviewer yet      |
++| C28–C29     | partial        | Exact-money/sibling allocation checks, finite limits and terminal cancellation transitions; atomic reservation/cancellation execution remain T04–T05 |
++| C32         | partial        | Usable local API/CLI/web fixture; persistent usable control remains T02/T05/T17                                                                      |
++| C35         | partial        | Thin real health/fixture UI with empty/error states; full catalog/controls remain T09                                                                |
++| C49         | partial        | Visible fixture labels and separate implementation/contract/live status; real adapters remain unverified                                             |
+ 
+ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or product completion is inferred from the T01 gate. Next: T02 only after a new request. (T02 since completed; see below.)
+ 
+@@ -702,10 +775,10 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
+ - Checks executed: see [verification.json](evidence/t02/verification.json), [with-database log](evidence/t02/test-db.log), [without-database log](evidence/t02/check-without-db.log), [browser screenshot](evidence/t02/browser-records.png).
+ - Limitations: no authentication (API acts as one configured local owner; repository role checks are real but the actor is asserted); global advisory lock serializes writes for the hash chain (fine locally, revisit for hosted use); hash chain is tamper-evident only against parties who do not also rewrite later hashes (the table owner can); content hashes of redacted records remain and could be guessed for very short bodies; no search beyond lineage/history; Windows PostgreSQL path untested; schema 1.0 extended additively (ADR-0005).
+ 
+-| Requirement | Current status | T02 evidence / remaining gate |
+-| --- | --- | --- |
+-| C32 | partial | Records persist across real API restart; usable control/orchestration remains T05/T17 |
+-| C20–C23 | partial | Version-bound links and optimistic versions persist; scheduler and independent review remain T05/T12 |
++| Requirement | Current status | T02 evidence / remaining gate                                                                        |
++| ----------- | -------------- | ---------------------------------------------------------------------------------------------------- |
++| C32         | partial        | Records persist across real API restart; usable control/orchestration remains T05/T17                |
++| C20–C23     | partial        | Version-bound links and optimistic versions persist; scheduler and independent review remain T05/T12 |
+ 
+ ## T03 acceptance and evidence
+ 
+@@ -715,10 +788,10 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
+ - Browser: sign-in via login link, pending judgment and authorization cards, standing-policy preview, approve once, answered view, no horizontal overflow at 390 px ([log](evidence/t03/browser-check.log), [screenshot](evidence/t03/browser-decisions.png)).
+ - Limitations: admission is called by the owner via API/CLI until T05 adds an orchestrator; no budget exposure check (T04); single owner (no editor/agent sessions); OIDC verified with a local test provider only; Windows untested; schema 1.0 extended additively (new kinds `assumption`, `humility_review`, error codes `UNAUTHENTICATED`, `CSRF_DENIED`).
+ 
+-| Requirement | Current status | T03 evidence / remaining gate |
+-| --- | --- | --- |
+-| C10–C11 | partial | Humility gate and assumption records enforced at build commitment; discovery-side use remains T07–T08 |
+-| C13–C16 | partial | Authenticated owner, versioned grants, mode enforcement and decision requests; study runner remains T10 |
++| Requirement | Current status | T03 evidence / remaining gate                                                                           |
++| ----------- | -------------- | ------------------------------------------------------------------------------------------------------- |
++| C10–C11     | partial        | Humility gate and assumption records enforced at build commitment; discovery-side use remains T07–T08   |
++| C13–C16     | partial        | Authenticated owner, versioned grants, mode enforcement and decision requests; study runner remains T10 |
+ 
+ ## T04 acceptance and evidence
+ 
+@@ -729,11 +802,11 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
+ - Live: no call. `gpt-6-astra` id, pricing and Responses usage semantics were read from OpenAI's official pages on 2026-10-18; no key exists in this environment and no spend grant was requested. The adapter is contract-tested against a loopback server.
+ - Limitations: retries under an approve-once grant need a fresh approval (the grant is single-use); only text input is bounded (no images/files); OpenAI embeddings and tool calls are not implemented (refused before dispatch); compute/sandbox costs belong to T11; reconciliation of unknown outcomes is manual; the broker is called by the owner via API/CLI/web until T05 adds an orchestrator.
+ 
+-| Requirement | Current status | T04 evidence / remaining gate |
+-| --- | --- | --- |
+-| C27 | partial | Reservation, settlement and denial events with amounts and reason codes in the audit chain and history; X03 adds per-run and per-subject cost questions with supporting reservation and usage ids (fixture-verified) |
+-| C28 | partial (fixture/contract verified) | Atomic reservations, carve-out conservation, unknown ≠ zero, journal re-derivation; live billing reconciliation unverified |
+-| C34 | partial | Token bounds and accounting per call; task-specific context selection remains T05 |
++| Requirement | Current status                      | T04 evidence / remaining gate                                                                                                                                                                                        |
++| ----------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| C27         | partial                             | Reservation, settlement and denial events with amounts and reason codes in the audit chain and history; X03 adds per-run and per-subject cost questions with supporting reservation and usage ids (fixture-verified) |
++| C28         | partial (fixture/contract verified) | Atomic reservations, carve-out conservation, unknown ≠ zero, journal re-derivation; live billing reconciliation unverified                                                                                           |
++| C34         | partial                             | Token bounds and accounting per call; task-specific context selection remains T05                                                                                                                                    |
+ 
+ ## T09 acceptance and evidence
+ 
+@@ -744,11 +817,11 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
+ - Database tests (`tests/src/catalog.test.ts`): non-members get NOT_FOUND for search, activity, overview, actors and comparison; viewers can search; another workspace's records are never counted; redaction removes text from search; a redacted source drops its passages; actor names, paging, action filter and validation; overview counts and a cancelled run; comparison includes run-level assumptions.
+ - Limitations: lexical search only; snippets come from PostgreSQL `ts_headline`; lineage depth is capped at 8 and shown as a list; product stages, tasks and artifacts are empty until T11–T13; Windows, real assistive technology and contrast measurement tools were not run (colours were chosen against WCAG AA by hand, not measured).
+ 
+-| Requirement | Current status | T09 evidence / remaining gate |
+-| --- | --- | --- |
+-| C26 | partial | Full-text, exact-id and filtered search with bounded lineage; X03 adds code-version, model and cost search, source-to-product questions, lineage graphs and verified exports (fixture-verified; semantic search refused in real workspaces until an embedding model is verified) |
+-| C31 | partial | Membership checked before snippets and aggregates (search, coverage, questions, semantic candidates, lineage, exports); redacted text unsearchable and tombstoned; lineage exports flag redactions since export; member removal verified (fixture) |
+-| C35 | partial (fixture-verified) | Browser paths over real state with keyboard, empty/error and permission cases; product, task and gallery views wait for T11–T13 |
++| Requirement | Current status             | T09 evidence / remaining gate                                                                                                                                                                                                                                                    |
++| ----------- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| C26         | partial                    | Full-text, exact-id and filtered search with bounded lineage; X03 adds code-version, model and cost search, source-to-product questions, lineage graphs and verified exports (fixture-verified; semantic search refused in real workspaces until an embedding model is verified) |
++| C31         | partial                    | Membership checked before snippets and aggregates (search, coverage, questions, semantic candidates, lineage, exports); redacted text unsearchable and tombstoned; lineage exports flag redactions since export; member removal verified (fixture)                               |
++| C35         | partial (fixture-verified) | Browser paths over real state with keyboard, empty/error and permission cases; product, task and gallery views wait for T11–T13                                                                                                                                                  |
+ 
+ ## T11 acceptance and evidence
+ 
+diff --git a/tracking/DECISIONS.md b/tracking/DECISIONS.md
+index b6cd1e1..df87c10 100644
+--- a/tracking/DECISIONS.md
++++ b/tracking/DECISIONS.md
+@@ -1,5 +1,15 @@
+ # Decision log
+ 
++## Owner decision — dark-default UX/UI and parallel X08 ownership (October 19, 2026)
++
++Jordan confirmed dark mode as the default, with a clean layout inspired by the
++calm dark workspace feel of Codex and Claude Code. This supersedes the earlier
++optional dark-theme default. Claude owns the existing app's UX/UI redesign;
++Codex owns the separate X08 workstream and initially its new campaign screens.
++Use separate branches/checkouts, stable contracts and append-only scoped tracking
++updates. The executable Claude brief is docs/CLAUDE_UX_UI_HANDOFF.md. Writing the
++brief is not implementation evidence for either workstream or integration activation.
++
+ ## ADR-0031 - verified editor exports and explicit Windows activation
+ 
+ October 19, 2026: the native editor action initially launched no visible document,
+@@ -219,7 +229,6 @@ activation and hosted pairing are outside this local implementation.
+ - Review hardening: manual stops share the broker run lock; study events take the audit lock before insertion; no-key-update parent locks avoid foreign-key/audit inversion. Late outputs retain artifacts and charges but fail the original assignment deadline. Grader principals are human-only. Seed commands have distinct repeatable keys. Equal problem/outcome fields and bounded snapshots prevent arm-specific information loss.
+ - Rollback: additive migration 9 can remain unused if the study routes are disabled; do not delete study/audit evidence. A future live/participant implementation needs a new authorized configuration, verified adapters, protocol and recruitment decisions. T11 is the next milestone; it is not started here.
+ 
+-
+ ## ADR-0012 — T09 studio interface, PostgreSQL text search and address-kept state
+ 
+ - Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T09. Decision-maker: coding agent; owner review pending on the pull request.
+@@ -346,34 +355,34 @@ Affected requirements: C22, C26–C35 and C49–C50 guide this architecture; non
+ 
+ All paths are relative to the local root above.
+ 
+-| Actual path | Observed role |
+-| --- | --- |
+-| `.git/` | Created by T00: unborn main/origin, no commits or tracked files. |
+-| `AGENTS.md` | Canonical coding instructions, preserved. |
+-| `agent.md`, `CLAUDE.md` | Instruction entry points, preserved; incoming CLAUDE checksum differed from original kit manifest. |
++| Actual path                                            | Observed role                                                                                                                                       |
++| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
++| `.git/`                                                | Created by T00: unborn main/origin, no commits or tracked files.                                                                                    |
++| `AGENTS.md`                                            | Canonical coding instructions, preserved.                                                                                                           |
++| `agent.md`, `CLAUDE.md`                                | Instruction entry points, preserved; incoming CLAUDE checksum differed from original kit manifest.                                                  |
+ | `PROJECT_CONTEXT.md`, `PROMPT_LIBRARY.md`, `README.md` | v3.0 vision, milestones/shared contract, kit guide; their uninspected-repository statements describe kit creation, superseded by this dated intake. |
+-| `context/` | 9 design, policy, requirements and reconciliation documents, not runtime code. |
+-| `agents/` | RUNTIME_CONTRACT.md and ROLE_PROMPTS.md; future runtime specifications, no executable agents. |
+-| `templates/` | 5 JSON examples/scenarios and IDEA_DOSSIER.md; not executable validators/tests. |
+-| `references/` | 4 archived historical Markdown documents, retained as references. |
+-| `tracking/` | Four status/decision/integration/handoff documents updated by T00. |
+-| `tracking/evidence/t00/` | Added input hashes, remote observation, PowerShell verifier, baseline output and final file hashes. Intake tooling only. |
+-| `PACKAGE_VALIDATION.md`, `SHA256SUMS.txt` | Historical kit validation/checksums preserved; not a checksum manifest for the edited working tree. |
++| `context/`                                             | 9 design, policy, requirements and reconciliation documents, not runtime code.                                                                      |
++| `agents/`                                              | RUNTIME_CONTRACT.md and ROLE_PROMPTS.md; future runtime specifications, no executable agents.                                                       |
++| `templates/`                                           | 5 JSON examples/scenarios and IDEA_DOSSIER.md; not executable validators/tests.                                                                     |
++| `references/`                                          | 4 archived historical Markdown documents, retained as references.                                                                                   |
++| `tracking/`                                            | Four status/decision/integration/handoff documents updated by T00.                                                                                  |
++| `tracking/evidence/t00/`                               | Added input hashes, remote observation, PowerShell verifier, baseline output and final file hashes. Intake tooling only.                            |
++| `PACKAGE_VALIDATION.md`, `SHA256SUMS.txt`              | Historical kit validation/checksums preserved; not a checksum manifest for the edited working tree.                                                 |
+ 
+ Absent: apps/, packages/, src/, application tests, dependency manifests/lockfiles, .github/workflows/, container definitions, migrations, provider adapters and application build/start/test commands. Input inventory: 32 files including SHA256SUMS.txt. Reusable assets are specifications, prompts, templates and requirements; no reusable implemented functionality was found. No other personal repository was searched.
+ 
+ ### Planned dependency/path map — not present yet
+ 
+-| Gate | Paths / dependency direction | Prerequisite and behavior |
+-| --- | --- | --- |
+-| T01 | `packages/contracts` → runtime validation library | Versioned executable schemas, decimal-string exact money and explicit errors. Select/pin library after compatibility review. |
+-| T01 | `packages/domain` → contracts | Lifecycle, containment and transition rules; no external effects. |
+-| T01 | `apps/api` → contracts/domain; `apps/cli` and `apps/web` → API | Thin health and validated fixture demonstration; React/Vite client. Clients do not own enforcement. Share schemas as needed. |
+-| T01 | Root pnpm workspace/scripts | Strict checks, compatible pinned dependencies, lockfile and documented install/build/test/dev commands. Tool presence is not compatibility evidence. |
+-| T02 | `packages/db` → contracts/domain + PostgreSQL | Migrations, persistence, audit/outbox; usable service unverified. |
+-| T03–T05 | policy/finance/providers and `apps/orchestrator` | Admission precedes provider/Temporal effects; verified SDKs, budgets, caps and grants required. |
+-| T11–T13 | `apps/worker`, artifacts/integrations | Isolated generated workspaces, exact Git/artifact evidence; no host-execution fallback. |
+-| X05 onward | `apps/desktop` and hosted extensions | Deferred; no empty packages created. |
++| Gate       | Paths / dependency direction                                   | Prerequisite and behavior                                                                                                                            |
++| ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
++| T01        | `packages/contracts` → runtime validation library              | Versioned executable schemas, decimal-string exact money and explicit errors. Select/pin library after compatibility review.                         |
++| T01        | `packages/domain` → contracts                                  | Lifecycle, containment and transition rules; no external effects.                                                                                    |
++| T01        | `apps/api` → contracts/domain; `apps/cli` and `apps/web` → API | Thin health and validated fixture demonstration; React/Vite client. Clients do not own enforcement. Share schemas as needed.                         |
++| T01        | Root pnpm workspace/scripts                                    | Strict checks, compatible pinned dependencies, lockfile and documented install/build/test/dev commands. Tool presence is not compatibility evidence. |
++| T02        | `packages/db` → contracts/domain + PostgreSQL                  | Migrations, persistence, audit/outbox; usable service unverified.                                                                                    |
++| T03–T05    | policy/finance/providers and `apps/orchestrator`               | Admission precedes provider/Temporal effects; verified SDKs, budgets, caps and grants required.                                                      |
++| T11–T13    | `apps/worker`, artifacts/integrations                          | Isolated generated workspaces, exact Git/artifact evidence; no host-execution fallback.                                                              |
++| X05 onward | `apps/desktop` and hosted extensions                           | Deferred; no empty packages created.                                                                                                                 |
+ 
+ Create only paths required by the authorized milestone. Smallest useful T01 slice: CLI/web → local API → runtime-validated fixture contract and deterministic lifecycle result, with health and invalid-input/transition checks. The persistent bounded-role slice in context/ARCHITECTURE.md spans T01–T05; T01 alone does not complete it.
+ 
+diff --git a/tracking/INTEGRATIONS.md b/tracking/INTEGRATIONS.md
+index 37f3ac2..cdfdb77 100644
+--- a/tracking/INTEGRATIONS.md
++++ b/tracking/INTEGRATIONS.md
+@@ -40,7 +40,6 @@ integration activated. See apps/desktop/README.md and tracking/evidence/x05. X01
+ source is now integrated from origin/main ddf7bcf; their recorded fixture/live
+ boundaries remain unchanged. Existing local audit repairs preserved.
+ 
+-
+ X04, October 19, 2026: no live call and no credential. GitHub REST (API version
+ 2026-03-10) and Git-over-HTTPS adapters exist for a GitHub App installation or a
+ fine-grained token named by environment variable; they are checked only against
+@@ -80,31 +79,41 @@ start the exact verified package in the existing T11 WSL2 worker. Downloads and
+ previews are owner-only and local; public publication, hosting and native
+ installers are not implemented or activated. See ADR-0017 and
+ docs/ARTIFACTS_AND_PREVIEW.md.
+-
+-T12, October 18, 2026: the authenticated owner CLI now connects current frozen
+-T08 tasks to existing model-call admission/reservations, scoped T11 Git patches,
+-fresh reviewer context and real WSL2 QA. Fixed synthetic Python checklist roles
+-exercise normal/error cases; no live model was activated. Exact task/commit/spec,
+-prompts, owner acceptance plan, broker traces and execution records persist locally.
+-Browser/persistence recipes, dependent-task integration, searchable build records,
+-participant implementation execution and public delivery remain unavailable.
+-See docs/BOUNDED_BUILDER.md, ADR-0016 and tracking/evidence/t12. Test files now run
+-serially to bound real-worker resource contention; internal concurrency gates remain.
+-
+-Docker follow-up, October 18, 2026: local Docker CLI/daemon and Compose verified
+-(Desktop 4.95.0 / Engine 29.8.2 / Compose 5.6.0). Optional official PostgreSQL 18.6
+-image pinned by digest in compose.yaml; independent localhost dev/test services,
+-private ignored password file, no host-directory or daemon-socket mounts.
+-Migrations, persistence, host TCP authentication and all 140 DB/WSL tests passed.
+-Dev remains running, test stopped. Application use requires explicit terminal URL
+-configuration; existing PostgreSQL data is unchanged. No callable Docker MCP tool
+-was exposed in this chat, so the Codex connection-selector state is not separately
+-certified. No generated-product Docker worker activated; T11 WSL remains in use.
+-See docs/DOCKER.md, ADR-0015 and evidence/docker.
+-
+-T15, October 18, 2026: no new integration activated. Study builds reuse the T12 builder, the T11 WSL2 worker and the fixture broker; `config/evaluation.json` records the owner's `gpt-6-astra` preference (unverified, live dispatch off) and the $20 T15 cap with no spend authorized. See ADR-0022.
+-
+-T11, October 18, 2026: reviewed local execution now uses the existing Ubuntu WSL2 VM, Bubblewrap 0.11.1, systemd 259/cgroup v2 and Python 3.14.4. The authenticated owner CLI binds current frozen T08 specs to separate Git repositories and a fixed offline template recipe. Real isolation/resource/cancellation/recovery gates were exercised; no Docker socket, personal mount, live provider, paid service or remote worker activated. Other hosts are blocked without a reviewed backend; ordinary CI skips real WSL execution explicitly. See ADR-0014, docs/ISOLATED_EXECUTION.md and evidence/t11.
++Current summary, October 18, 2026. Implementation, fixture/contract checks,
++live verification and activation are separate. Original milestone records are in
++[integration history](INTEGRATIONS_HISTORY.md). See [build status](BUILD_STATUS.md)
++for exact evidence and latest candidate.
++
++| Integration                           | Implemented and recorded verification                                                                    | Current boundary                                                                           |
++| ------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
++| Local API/CLI/web                     | Persistent studio, authenticated routes, CLI and fixtures                                                | Local single-owner deployment                                                              |
++| PostgreSQL                            | Catalog, audit/outbox, budgets, workflows and studies; Linux 16.15, Windows 18 and Docker 18.6 checks    | Loopback CREATOR_DATABASE_URL required; no hosted database                                 |
++| Authentication                        | Local sessions/CSRF; OIDC/PKCE against test identity provider                                            | Real IdP unverified; dev login refused for hosted mode                                     |
++| Model broker                          | Fixture/OpenAI adapters; admission, reservation, settlement, reconciliation                              | No live paid call verified; configuration grants no spending authority                     |
++| Source ingestion                      | Fixture/HTTP fetch, host/redirect/DNS checks, extraction, claim support                                  | No live source-search adapter or real-site fetch verified; explicit policy/grants required |
++| Workflows                             | PostgreSQL leases, fencing, restart, bounded roles, cancellation                                         | API worker by default with DB; optional pnpm worker; no Temporal                           |
++| Maintenance diagnostics               | Safe job errors, success/failure times, degraded health, bounded logs                                    | Process-local state; not external monitoring or durable incident history                   |
++| Execution isolation                   | Reviewed Ubuntu WSL2/Bubblewrap/systemd worker, recorded real resource/isolation checks                  | Fixed offline recipes; fresh WSL gate requires opt-in                                      |
++| Local Git/build/artifacts/preview     | Product repositories, exact-candidate QA, immutable archives, private worker preview, feedback revisions | Bounded Python CLI recipe; no native installer, arbitrary web recipe or public release     |
++| Studies/evaluation/analysis           | Rehearsals, grader protection, schedule/export/analysis machinery                                        | Final study, independent ratings and empirical analysis incomplete                         |
++| Docker                                | Optional PostgreSQL services, CLI/daemon/Compose and DB checks                                           | Database backend only; inspect current service state                                       |
++| Remote GitHub                         | Development repository publication recorded in build status                                              | Creator Agent runtime GitHub adapter deferred X04                                          |
++| Desktop/paired devices                | Not implemented                                                                                          | X05                                                                                        |
++| Hosted deployment/external monitoring | Not implemented                                                                                          | X06                                                                                        |
++| Payments/reinvestment                 | Not implemented/activated                                                                                | X07                                                                                        |
++| Campaign delivery                     | Not implemented/activated                                                                                | X08                                                                                        |
++
++The owner model preference and total $20 T15 budget are recorded in
++config/evaluation.json; verified model ID is null and live study dispatch/spend
++activation remains off. No documentation update activates an account or service.
++
++Coding-agent skills/MCP servers are separate from runtime adapters. Setup, pinned
++versions and original verification: [development tools](../docs/DEVELOPMENT_TOOLS.md).
++Their installation does not establish runtime source search, inference, isolation
++or deployment. Historical statements below the old snapshot's date are not
++current status.
++
++## X05 first-slice integration boundary — October 19, 2026
+ 
+ T10, October 18, 2026: synthetic study execution reuses the fixture broker and T07 workflow worker. No new external integration, paid route, credentials, recruitment or real participant data. Native Windows PostgreSQL 18 was exercised in a disposable loopback-only cluster on port 55432. Human-only entries and conventional text checks require no model. Grader material remains under separate authorization; see ADR-0013 and evidence/t10.
+ 
+@@ -112,13 +121,13 @@ T10, October 18, 2026: synthetic study execution reuses the fixture broker and T
+ 
+ These are tools for the coding agent in this checkout, separate from the product integration table below. Setup details: [development tool guide](../docs/DEVELOPMENT_TOOLS.md).
+ 
+-| Tool | Installed / configured | Executed verification | Remaining limit |
+-| --- | --- | --- | --- |
+-| Emil Kowalski / Ponytail / Matt Pocock skills | 15 / 6 / 5 project skills, pinned Git commits | 104 upstream files across all 27 skills including Impeccable matched Git blob hashes; unique names/frontmatter present | Workflow usefulness is not benchmarked; next-turn discovery |
+-| Impeccable | Skill 4.6.0 and local Windows x64 engine 0.1.15 | Published SHA256 matched; engine-probe passed | Design commands, hooks and live overlay not activated/tested |
+-| Playwright MCP | Project stdio entry; npm package 0.0.83; isolated headless Edge | Codex configuration read; initialize, 25-tool discovery, blank navigation and close passed | Chat MCP restart may be needed; no personal session or generated-product sandbox |
+-| Firecrawl MCP | Official keyless hosted project entry | Codex configuration read; initialize and three-tool discovery, server 3.30.3 | Search/scrape/parse untested; rate-limited; full account/paid capabilities unverified |
+-| REA skill (`reverse-engineer-anything`) | Skill instructions from morluto/rea at c12d9ed, in `.agents/skills` and `.claude/skills` (added 2026-10-18) | 7 files copied unchanged, hashes in manifest, both copies identical | REA MCP server not registered; `rea-agents` setup, Hopper/Ghidra/IDA not installed; no REA analysis run |
++| Tool                                          | Installed / configured                                                                                      | Executed verification                                                                                                  | Remaining limit                                                                                         |
++| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
++| Emil Kowalski / Ponytail / Matt Pocock skills | 15 / 6 / 5 project skills, pinned Git commits                                                               | 104 upstream files across all 27 skills including Impeccable matched Git blob hashes; unique names/frontmatter present | Workflow usefulness is not benchmarked; next-turn discovery                                             |
++| Impeccable                                    | Skill 4.6.0 and local Windows x64 engine 0.1.15                                                             | Published SHA256 matched; engine-probe passed                                                                          | Design commands, hooks and live overlay not activated/tested                                            |
++| Playwright MCP                                | Project stdio entry; npm package 0.0.83; isolated headless Edge                                             | Codex configuration read; initialize, 25-tool discovery, blank navigation and close passed                             | Chat MCP restart may be needed; no personal session or generated-product sandbox                        |
++| Firecrawl MCP                                 | Official keyless hosted project entry                                                                       | Codex configuration read; initialize and three-tool discovery, server 3.30.3                                           | Search/scrape/parse untested; rate-limited; full account/paid capabilities unverified                   |
++| REA skill (`reverse-engineer-anything`)       | Skill instructions from morluto/rea at c12d9ed, in `.agents/skills` and `.claude/skills` (added 2026-10-18) | 7 files copied unchanged, hashes in manifest, both copies identical                                                    | REA MCP server not registered; `rea-agents` setup, Hopper/Ghidra/IDA not installed; no REA analysis run |
+ 
+ Evidence: [manifest](evidence/development-tools/install-manifest.json), [MCP check](evidence/development-tools/mcp-verification.json). No credentials stored or copied. Existing Firecrawl app connector was observed in this session's available tools; it is distinct from this project MCP entry and its account status was not tested. Product source-search/fetch remains unimplemented.
+ 
+@@ -128,22 +137,30 @@ Claude Code (October 18, 2026): `.claude/skills` mirrors all 31 skills (30 at fi
+ 
+ Updated October 17, 2026 (America/New_York), T01. Local API/CLI/web and the deterministic fixture provider are implemented and tested. No external application adapter is active. See [T01 evidence](evidence/t01/verification.json), [historical remote observation](evidence/t00/remote-refs.json), and [ADRs](DECISIONS.md).
+ 
+-| Integration | Implemented | Fixture tested | Contract tested | Live verified | Activated | Evidence / remaining setup |
+-| --- | --- | --- | --- | --- | --- | --- |
+-| Local API/CLI/web | Yes, stateless | Yes | Yes | Local HTTP and browser only | Local fixture demo | apps/api, apps/cli, apps/web; health, strict requests, errors and fixture results. No persistent catalog or hosted service. |
+-| Model/provider broker | Yes (T04): `ModelBroker`, fixture adapter, OpenAI Responses adapter | Yes | OpenAI adapter against a loopback server (usage normalization, 429/401/5xx/malformed mapping, key not serialized) | No live call | Fixture workspaces only; live needs `CREATOR_LIVE_PROVIDER=openai` + `OPENAI_API_KEY`, documented pricing, a covering grant and a funded envelope | `gpt-6-astra` and its pricing documented on developers.openai.com (retrieved 2026-10-18); account access unverified. config/provider-availability.json, config/pricing/. |
+-| Source search/fetch | Fetch: yes (T06) `SourceBroker`, fixture adapter, HTTP adapter. Search: no live adapter (T04 fixture `tool.search_public` only) | Yes (synthetic `.fixture.test` corpus) | HTTP adapter against loopback servers (DNS answer check, pinned address, no credentials/cookies, byte limit); policy and redirects against PostgreSQL 16.15 | No real site fetched | Fixture workspaces only; live needs `CREATOR_SOURCE_FETCH=live` + `CREATOR_SOURCE_HOSTS` and a covering `source.fetch` grant | packages/research, migration 5, ADR-0009, evidence/t06. Approved host list, robots/terms review and a live search provider still to choose. |
+-| PostgreSQL persistence | Yes (T02) | Yes (fixture workspaces) | Yes | Local PostgreSQL 16.15 in a Linux cloud container only | Optional; enabled by CREATOR_DATABASE_URL (loopback only) | packages/db, migration 1, evidence/t02. Owner's Windows PostgreSQL install untested; no hosted database. |
+-| Owner authentication (OIDC) | Yes (T03), openid-client 6.8.8 | Local development login | PKCE flow against a local test identity provider | No real IdP | Optional via CREATOR_OIDC_* | Development login refused in hosted mode; no IdP account configured. |
+-| Durable workflow service | Yes (T05): PostgreSQL-backed coordinator, leases and fencing in `packages/db` + `packages/orchestrator`; no Temporal (ADR-0008) | Yes (fixture workspaces) | Restart, duplicate delivery, stale worker, decision wait and cancellation against PostgreSQL 16.15 | Local PostgreSQL in a Linux cloud container only | In-process worker in the API when a database is configured (`CREATOR_WORKER=off` disables); optional `pnpm worker` | No external workflow service. Owner's Windows PostgreSQL untested. |
+-| Execution isolation | No | No | No | Unverified | No | No worker; Docker not on PATH, VM/container boundary unverified. T11. |
+-| Local Git/artifacts/preview | No application adapter | No | No | Git CLI only | No product activation | Git 2.45.1.windows.1, unborn main/origin configured. No generated-product Git, artifacts or preview service. |
+-| Remote GitHub | Yes (X04): REST + Git adapters, fixture GitHub | Yes (fixture workspaces) | Loopback REST contracts (fine-grained token, app installation tokens), local bare-repo push | No credential configured | Off unless CREATOR_GITHUB=live plus a verified connection and grants | No live call or repository; studio repositories are private, prefixed and tracked by id. Releases, settings, secrets not implemented. |
+-| Windows desktop/paired worker | No | No | No | No | No | Native tooling/build/pairing/device verification deferred to X05. |
+-| Hosted control/monitoring | No | No | No | No | No | No deployment, external tracing or notifications configured. X06. |
+-| Payments/reinvestment | No | No | No | No | No | No verified accounts/economic events. Test mode first; live authority separate. X07. |
+-| Campaign delivery | No | No | No | No | No | No connector or content/audience grant. X08. |
++| Integration                   | Implemented                                                                                                                     | Fixture tested                         | Contract tested                                                                                                                                             | Live verified                                          | Activated                                                                                                                                         | Evidence / remaining setup                                                                                                                                               |
++| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
++| Local API/CLI/web             | Yes, stateless                                                                                                                  | Yes                                    | Yes                                                                                                                                                         | Local HTTP and browser only                            | Local fixture demo                                                                                                                                | apps/api, apps/cli, apps/web; health, strict requests, errors and fixture results. No persistent catalog or hosted service.                                              |
++| Model/provider broker         | Yes (T04): `ModelBroker`, fixture adapter, OpenAI Responses adapter                                                             | Yes                                    | OpenAI adapter against a loopback server (usage normalization, 429/401/5xx/malformed mapping, key not serialized)                                           | No live call                                           | Fixture workspaces only; live needs `CREATOR_LIVE_PROVIDER=openai` + `OPENAI_API_KEY`, documented pricing, a covering grant and a funded envelope | `gpt-6-astra` and its pricing documented on developers.openai.com (retrieved 2026-10-18); account access unverified. config/provider-availability.json, config/pricing/. |
++| Source search/fetch           | Fetch: yes (T06) `SourceBroker`, fixture adapter, HTTP adapter. Search: no live adapter (T04 fixture `tool.search_public` only) | Yes (synthetic `.fixture.test` corpus) | HTTP adapter against loopback servers (DNS answer check, pinned address, no credentials/cookies, byte limit); policy and redirects against PostgreSQL 16.15 | No real site fetched                                   | Fixture workspaces only; live needs `CREATOR_SOURCE_FETCH=live` + `CREATOR_SOURCE_HOSTS` and a covering `source.fetch` grant                      | packages/research, migration 5, ADR-0009, evidence/t06. Approved host list, robots/terms review and a live search provider still to choose.                              |
++| PostgreSQL persistence        | Yes (T02)                                                                                                                       | Yes (fixture workspaces)               | Yes                                                                                                                                                         | Local PostgreSQL 16.15 in a Linux cloud container only | Optional; enabled by CREATOR_DATABASE_URL (loopback only)                                                                                         | packages/db, migration 1, evidence/t02. Owner's Windows PostgreSQL install untested; no hosted database.                                                                 |
++| Owner authentication (OIDC)   | Yes (T03), openid-client 6.8.8                                                                                                  | Local development login                | PKCE flow against a local test identity provider                                                                                                            | No real IdP                                            | Optional via CREATOR_OIDC_*                                                                                                                       | Development login refused in hosted mode; no IdP account configured.                                                                                                     |
++| Durable workflow service      | Yes (T05): PostgreSQL-backed coordinator, leases and fencing in `packages/db` + `packages/orchestrator`; no Temporal (ADR-0008) | Yes (fixture workspaces)               | Restart, duplicate delivery, stale worker, decision wait and cancellation against PostgreSQL 16.15                                                          | Local PostgreSQL in a Linux cloud container only       | In-process worker in the API when a database is configured (`CREATOR_WORKER=off` disables); optional `pnpm worker`                                | No external workflow service. Owner's Windows PostgreSQL untested.                                                                                                       |
++| Execution isolation           | No                                                                                                                              | No                                     | No                                                                                                                                                          | Unverified                                             | No                                                                                                                                                | No worker; Docker not on PATH, VM/container boundary unverified. T11.                                                                                                    |
++| Local Git/artifacts/preview   | No application adapter                                                                                                          | No                                     | No                                                                                                                                                          | Git CLI only                                           | No product activation                                                                                                                             | Git 2.45.1.windows.1, unborn main/origin configured. No generated-product Git, artifacts or preview service.                                                             |
++| Remote GitHub                 | Yes (X04): REST + Git adapters, fixture GitHub                                                                                  | Yes (fixture workspaces)               | Loopback REST contracts (fine-grained token, app installation tokens), local bare-repo push                                                                 | No credential configured                               | Off unless CREATOR_GITHUB=live plus a verified connection and grants                                                                              | No live call or repository; studio repositories are private, prefixed and tracked by id. Releases, settings, secrets not implemented.                                    |
++| Windows desktop/paired worker | No                                                                                                                              | No                                     | No                                                                                                                                                          | No                                                     | No                                                                                                                                                | Native tooling/build/pairing/device verification deferred to X05.                                                                                                        |
++| Hosted control/monitoring     | No                                                                                                                              | No                                     | No                                                                                                                                                          | No                                                     | No                                                                                                                                                | No deployment, external tracing or notifications configured. X06.                                                                                                        |
++| Payments/reinvestment         | No                                                                                                                              | No                                     | No                                                                                                                                                          | No                                                     | No                                                                                                                                                | No verified accounts/economic events. Test mode first; live authority separate. X07.                                                                                     |
++| Campaign delivery             | No                                                                                                                              | No                                     | No                                                                                                                                                          | No                                                     | No                                                                                                                                                | No connector or content/audience grant. X08.                                                                                                                             |
+ 
+ Local tooling: Node v22.21.0 application baseline, bundled Node v24.19.0 additionally tested; pnpm 11.25.0 uses that bundled runtime. Strict manifests and lockfile now pin dependencies; a fresh frozen install/build/check passed. npm/Python/gh observations remain in T00 evidence. gh availability is not authentication verification. No secrets/private account configuration were read. Services, real model access, pricing and grants remain unresolved at their later gates.
+ 
+ Record verification date, observed target/account identity, versions, and evidence without storing credentials. A missing key blocks a live check; complete unrelated implementation first.
++apps/desktop contains a Tauri 2 shell source using existing loopback shared UI/API,
++and a working Node archive import/inspect CLI using T13 contracts. Native IPC and
++bundling are disabled. Rust/Cargo absent: shell compilation/startup, Cargo.lock,
++MSVC/WebView2, installer/update are unverified. Three Windows cache tests passed
++(including junction rejection and real CLI inspection); no native acceptance claim.
++No account/service activation, paired worker, native launch or new credentials.
++System-browser handoff, durable pairing and worker leases await a coordinated
++API/database pass after concurrent X03/X04 work. See apps/desktop/README.md.
+diff --git a/tracking/SESSION_HANDOFF.md b/tracking/SESSION_HANDOFF.md
+index 564d2d3..f862578 100644
+--- a/tracking/SESSION_HANDOFF.md
++++ b/tracking/SESSION_HANDOFF.md
+@@ -1,5 +1,17 @@
+ # Session handoff
+ 
++## Claude UX/UI assignment prepared (October 19, 2026)
++
++See docs/CLAUDE_UX_UI_HANDOFF.md for the complete copyable implementation prompt.
++Jordan confirmed dark-default styling and a clean layout with the dark-workspace
++feel of Codex and Claude Code. Claude owns redesign of existing shared UI; Codex
++owns parallel X08 and initially any new campaign screens. Separate checkouts,
++stable contracts and scoped tracking entries preserve both workstreams.
++PR #32 is merged; fetch current main for both assignments. This original X05
++checkout retains unrelated dirty work and stale historical status. Only prompt
++preparation/owner-decision recording occurred this turn; neither implementation
++workstream was started here. No message was sent to Claude automatically.
++
+ ## X05 local Windows acceptance passed (October 19, 2026)
+ 
+ Final release native menus and rendered shared UI passed local acceptance.
+@@ -346,6 +358,69 @@ study or builder paths; no web UI; fixture models and benchmark are synthetic.
+ Next eligible: X02 on request (prerequisite X01 now implemented), or remaining T15/T16
+ work once the protocol is frozen.
+ 
++## U03 — audit findings 3–5 repaired (October 18, 2026)
++
++Current README, local setup and integration readiness now describe the persistent
++studio and its actual limits. Earlier text remains in labelled README_IMPLEMENTATION_KIT.md,
++docs/LOCAL_DEVELOPMENT_HISTORY.md and tracking/INTEGRATIONS_HISTORY.md. Development
++tool notes now point to current build status rather than an obsolete next milestone.
++API maintenance records per-job last success/failure and safe bounded error codes,
++reports degraded health, deduplicates repeated console errors and coalesces overlapping
++jobs. Startup, relay and request outbox paths use the same diagnostics; store
++idempotence, admission, budgets and durable records remain authoritative. Diagnostic
++state resets on restart; no external monitoring or durable incident history implied.
++Health contract includes maintenance; web connection check reports observed degradation
++and configured live adapters accurately. Refresh/health query is required for updates.
++Actor-name loading ignores prior-workspace successes/failures after effect cleanup.
++Focused regressions cover error redaction/log bounds, overlap/recovery/independent
++job failures and reversed actor response order/unmount using actual hooks with
++controlled state/effects (not a browser render). HTTP test checks maintenance health.
++Executed pnpm check: 191 tests, 98 pass, 0 fail, 93 explicit DB/real-isolation skips;
++TypeScript and formatting passed. Local ignored log: .verification/u03-findings-3-5-check.log.
++37 local documentation links resolve; git diff --check passed. Initial focused build
++caught snapshot typing errors; corrected before the successful complete check.
++No fresh DB/WSL, interactive browser check or live adapter activation. Existing
++uncommitted audit and findings 1–2 repairs preserved. All five findings repaired;
++no full-product or research completion claim. Next eligible: owner-selected remaining
++T14 prerequisites/research acceptance item; no automatic X milestone.
++
++## U03 — audit findings 1–2 repaired (October 18, 2026)
++
++Source adapter now observes abort during DNS resolution, removes the abort
++listener after settlement and refuses already-aborted requests or connections
++after abort. System DNS work itself cannot be cancelled and may finish later;
++late results/failures cannot resume the fetch. No policy or billing changes.
++Browser logout now retains local sign-in after network/server failure, displays
++an accessible retry message and clears local session only on confirmed success.
++Focused regressions pass: stalled DNS/late resolution/late rejection/pre-abort;
++actual browser session hook with simulated network/503 failures then successful
++retry and the session CSRF header. Hook test uses controlled state slots, not a
++browser render. pnpm check passed: 189 tests, 96 pass, 0 fail, 93 explicit DB/real
++isolation skips, plus TypeScript and format checks. Log (local/ignored):
++.verification/u03-audit-repairs-check.log. git diff --check passed.
++No fresh database/WSL or interactive browser gate; no live services activated.
++Prior audit/report edits preserved. Findings 3–5 remain open. Next eligible:
++owner-selected U03 repair of remaining audit items or remaining T14 prerequisites.
++No automatic milestone or extension started.
++
++## Code audit and current product guide (October 18, 2026)
++
++Owner requested a code audit and a rundown of completion, working features, usage
++and remaining work. Reviewed candidate 015fe0586f0225c46de43239283968670579b5f2.
++Report: docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md. No application code changed.
++Five findings: DNS resolution escapes fetch timeout (reproduced with injected
++stalled resolver), swallowed logout failures, obsolete setup/status documentation,
++silent maintenance errors and stale actor-label responses after workspace changes.
++Unrestricted pnpm check passed: 94 pass, 0 fail, 93 explicit DB/isolation skips;
++typecheck and format check passed. Local log: .verification/audit-check.log.
++Initial sandbox run had 7 failures (network/filesystem restrictions); focused
++unrestricted API rerun passed all 3 tests before the full check passed.
++No fresh DB/WSL gate, browser audit, paid call, provider activation or study run.
++Implemented machinery is distinguished from missing final empirical data and
++committee acceptance. Next eligible: U03 for concrete audit defects or owner-selected
++remaining T14 prerequisites; no automatic X milestone. Report formatting checked
++separately after the suite. Existing integrations and grants unchanged.
++
+ ## PR publication validation (October 18, 2026)
+ 
+ Owner requested a PR for all pending work. Branch: codex/t18-t19-thesis-archive.
+@@ -671,7 +746,6 @@ The disposable demo used API 4314, web 5176, and .verification/t10-pg on loopbac
+ 
+ **Next eligible prompt: T11 - Isolated execution and local product Git**, after owner review/merge and a new request. T11 is not started. Protocol adoption remains T14; empirical collection and analysis remain T15-T16.
+ 
+-
+ ## Latest — T09 usable catalog, decisions, search and run monitor (October 18, 2026)
+ 
+ Done in a Claude Code cloud session on branch `claude/t09-catalog-monitor-ml1t89` from `main` at bba9e9a (T08 merged as PR #9).
