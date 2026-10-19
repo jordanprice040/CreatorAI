@@ -1,0 +1,17 @@
+TAP version 13
+# {"mode":"interactive_fixture_only","workspace_id":"1aef6646-7d68-429a-877e-bc06fe21ef91","artifact_id":"3d024b00-64b0-4113-8a2a-a32a09dc53db","manifest_sha256":"d7131e582d9d74858974528d07b79665349029a8abbecf41d2e84b293f57affb","finish_file":"C:\\\\Users\\\\jorda\\\\OneDrive\\\\Desktop\\\\creator_agent\\\\.verification\\\\t13-cli\\\\case-ZA15yu\\\\finish-interactive","fixture_login_code":"test-login-code-0123456789abcdefghij"}
+# Subtest: compiled owner flow: package, re-extract and start, download, private preview, feedback revision and reverified comparison in the real worker
+ok 1 - compiled owner flow: package, re-extract and start, download, private preview, feedback revision and reverified comparison in the real worker # SKIP Interactive fixture only; normal T13/native automated assertions were not run
+  ---
+  duration_ms: 923860.8566
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 924372.1773

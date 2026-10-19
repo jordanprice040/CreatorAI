@@ -25,6 +25,7 @@ export const VIEWS = [
   ['activity', 'Activity'],
   ['studies', 'Studies'],
   ['gallery', 'Gallery'],
+  ['desktop', 'Desktop and workers'],
 ] as const;
 export type View = (typeof VIEWS)[number][0];
 

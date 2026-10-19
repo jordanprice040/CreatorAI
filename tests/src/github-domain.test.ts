@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage } from 'node:http';
 import { createHmac, generateKeyPairSync, verify } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GITHUB_API_VERSION } from '@creator/contracts';
@@ -342,7 +343,10 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
       env: {
         PATH: process.env.PATH,
         GIT_CONFIG_NOSYSTEM: '1',
-        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+        ...(process.env.SystemRoot
+          ? { SystemRoot: process.env.SystemRoot }
+          : {}),
         GIT_AUTHOR_NAME: 'b',
         GIT_AUTHOR_EMAIL: 'b@invalid',
         GIT_COMMITTER_NAME: 'b',
@@ -351,10 +355,10 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
     })
       .toString()
       .trim();
-  execFileSync('mkdir', ['-p', join(root, 'remote', 'acct')]);
+  mkdirSync(join(root, 'remote', 'acct'), { recursive: true });
   git(join(root, 'remote', 'acct'), 'init', '-q', '--bare', 'ca-app.git');
   const src = join(root, 'src');
-  execFileSync('mkdir', [src]);
+  mkdirSync(src);
   git(src, 'init', '-q', '-b', 'main');
   writeFileSync(join(src, 'a.txt'), '1');
   git(src, 'add', '-A');
@@ -366,7 +370,7 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
   // A Git base other than github.com exists only for this contract test (a local bare repo).
   const a = new LiveGitHub({
     credential: { kind: 'fine_grained_pat', token: 'pat-never-in-argv' },
-    gitBase: `file://${join(root, 'remote')}`,
+    gitBase: pathToFileURL(join(root, 'remote')).href,
   });
   const r = { github_id: 1, full_name: 'acct/ca-app' };
   assert.equal((await a.push(r, 'creator/x', two, src, false)).status, 200);

@@ -1,0 +1,5 @@
+   Compiling creator-desktop v0.1.0 (C:\Users\jorda\OneDrive\Desktop\creator_agent\apps\desktop\src-tauri)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\jorda\OneDrive\Desktop\creator_agent\apps\desktop\src-tauri\target\debug\incremental\creator_desktop-3bln59xt9b7kf\s-hncqlg6sda-0hkc9ir-working`
+
+warning: `creator-desktop` (bin "creator-desktop") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.68s

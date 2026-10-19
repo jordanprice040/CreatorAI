@@ -1,0 +1,8 @@
+apps/desktop/README.md 95ms (unchanged)
+apps/desktop/INTERACTIVE_ACCEPTANCE.md 13ms
+tests/src/artifact-cli.test.ts 159ms
+tracking/BUILD_STATUS.md 199ms
+tracking/SESSION_HANDOFF.md 121ms
+tracking/DECISIONS.md 186ms (unchanged)
+tracking/INTEGRATIONS.md 30ms (unchanged)
+tracking/evidence/x05/native-ui-acceptance.json 13ms (unchanged)

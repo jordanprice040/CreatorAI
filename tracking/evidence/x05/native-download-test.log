@@ -1,0 +1,24 @@
+TAP version 13
+# Native source download verified on Windows; fixture artifact, no isolation or browser-approval claim.
+# Subtest: owner inspects, downloads, previews, gives feedback and compares a revision; hash, expiry, revocation and stale-version refusals hold
+    # Subtest: actual Windows native authenticated download preserves manifest and archive bytes
+    ok 1 - actual Windows native authenticated download preserves manifest and archive bytes
+      ---
+      duration_ms: 1620.1401
+      type: 'test'
+      ...
+    1..1
+ok 1 - owner inspects, downloads, previews, gives feedback and compares a revision; hash, expiry, revocation and stale-version refusals hold
+  ---
+  duration_ms: 20887.243
+  type: 'test'
+  ...
+1..1
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21401.0719

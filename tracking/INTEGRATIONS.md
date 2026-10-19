@@ -1,5 +1,46 @@
 # Integration readiness
 
+X05 local Windows acceptance passed October 19, 2026: final release native
+sign-in/browser-handler launch, shared authenticated Gallery, verified source,
+visible Notepad editor copy, real paired WSL job and visible worker controls.
+Owner approval used the explicit local fixture HTTP seam; no personal login or
+live OIDC acceptance claimed. Editor uses a rehashed Downloads copy and fixed
+packaged Notepad activation; original cache preserved. Explicit shutdown exited
+the CLI 0. Evidence: tracking/evidence/x05/native-ui-acceptance.json. Local manual
+installer lifecycle passed separately; final unsigned installer rebuilt. Signing,
+automatic updater, hosted connections, other hosts and production activation
+remain disabled/unverified. Entries below describe earlier candidates.
+
+X05 continuation: actual paired active-process revocation and killed-worker/owner
+API reconciliation passed on real WSL; no automatic retry. Tauri CLI 2.12.3 pinned,
+NSIS local-client bundle prepared. Separate unsigned debug identity verified native
+startup after install, upgrade and manual rollback; downgrade refused, fixture
+uninstalled. Existing WebView2 and separately started studio services required.
+No signed automatic updater, public distribution, OIDC activation or background
+service installation. Interactive native UI/editor and other-host acceptance remain.
+
+X05 continuation, October 19, 2026: migration 17 adds bounded owner jobs; explicitly
+paired artifact.run CLI workers execute exact locally available artifacts using
+reviewed WSL2/bubblewrap/systemd isolation. Native-to-worker launch and separate
+window/worker shutdown verified. Browser handoff verified with isolated Edge
+fixture approval and ordinary/Secure cookies. No live OIDC/default-browser-handler
+acceptance. Worker reports remain observations, never independent QA. No installer,
+update service, hosted connection or external account activated. Earlier
+presence-only readiness below describes the prior candidate.
+
+X05, October 19, 2026: Rust/Cargo/MSVC/WebView2 verified on Windows. Tauri shell
+compiles/starts; native source download verified with disposable fixture session
+and T13 test-double artifact, preserving exact manifest/archive hashes. Native
+browser sign-in/menu implementation exists; interactive browser approval, editor,
+OIDC/secure-cookie and real-worker launch gates remain. Migration 16 implements
+single-use/session-bound pairing and separate revocable desktop sessions/workers;
+shared UI and outbound client control presence-only scoped/fenced leases. No paired
+job dispatch, arbitrary native IPC, installer/updater, background service or hosted
+integration activated. See apps/desktop/README.md and tracking/evidence/x05. X01–X04
+source is now integrated from origin/main ddf7bcf; their recorded fixture/live
+boundaries remain unchanged. Existing local audit repairs preserved.
+
+
 X04, October 19, 2026: no live call and no credential. GitHub REST (API version
 2026-03-10) and Git-over-HTTPS adapters exist for a GitHub App installation or a
 fine-grained token named by environment variable; they are checked only against

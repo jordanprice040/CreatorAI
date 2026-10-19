@@ -1,0 +1,35 @@
+TAP version 13
+# Subtest: paired real-process revocation and killed-worker reconciliation never redispatch
+    # Subtest: revoke
+    ok 1 - revoke
+      ---
+      duration_ms: 30388.253
+      type: 'test'
+      ...
+    # Subtest: crash
+    ok 2 - crash
+      ---
+      duration_ms: 26384.6077
+      type: 'test'
+      ...
+# PostgreSQL idle client error: terminating connection due to administrator command
+# PostgreSQL idle client error: terminating connection due to administrator command
+# PostgreSQL idle client error: terminating connection due to administrator command
+# PostgreSQL idle client error: terminating connection due to administrator command
+# Maintenance outbox failed (3D000); retrying.
+# worker tick failed: database "creator_test_2628796a482d" does not exist
+    1..2
+ok 1 - paired real-process revocation and killed-worker reconciliation never redispatch
+  ---
+  duration_ms: 77736.9356
+  type: 'test'
+  ...
+1..1
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 78238.0482

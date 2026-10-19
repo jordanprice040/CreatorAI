@@ -85,7 +85,7 @@ export class ArtifactStore extends StudyBuildStore {
       };
     });
   }
-  private async artifact(c: PoolClient, ws: string, artifactId: string) {
+  protected async artifact(c: PoolClient, ws: string, artifactId: string) {
     const [a] = await this.summaries(c, ws, 'a.id = $2', [uuid(artifactId)]);
     if (!a) throw fail('NOT_FOUND', 'Artifact not found.');
     return a;

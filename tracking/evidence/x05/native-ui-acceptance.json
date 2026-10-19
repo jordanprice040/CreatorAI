@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-19",
+  "state": "local_windows_acceptance_passed",
+  "fixture_provider": true,
+  "real_execution": "wsl2-bwrap-systemd",
+  "approval": "explicit disposable owner HTTP seam; no personal authentication automation",
+  "editor": {
+    "observed": true,
+    "method": "Native Notepad screenshot",
+    "artifact": "ec15d6bb-7c6b-493a-85eb-f595e17ac4f7",
+    "workspace": "91344076-357a-4327-b426-a8e0194086c3",
+    "note": "Screenshot shows selected new manifest and matching IDs. Notepad accessibility document text is stale from older tab; not used as passing evidence."
+  },
+  "native_queue": [
+    "\t\t\t\t\t\t\t\t\t\t\t\t\t88 link Desktop and workers Value: http://127.0.0.1:5173/#/desktop?ws=91344076-357a-4327-b426-a8e0194086c3\n\t\t2 title bar (settable, string) Value: Creator Agent — job 5c1b397f-fc07-4f95-8463-d7a9275089c2; inspect Desktop and workers"
+  ],
+  "shared_job": "native-final-shared-job.json",
+  "ui_job": [
+    "Window: \"Creator Agent — job 5c1b397f-fc07-4f95-8463-d7a9275089c2; inspect Desktop and workers\", App: creator-desktop.exe.\n\t0 window Creator Agent — job 5c1b397f-fc07-4f95-8463-d7a9275089c2; inspect Desktop and workers Secondary Actions: Raise\n\t\t\t\t\t\t\t\t\t\t52 button Sign out\n\t\t\t\t\t\t\t\t\t\t55 button New workspace\n\t\t\t\t\t\t\t\t\t\t\t289 button Refresh devices\n\t\t\t\t\t\t\t\t\t\t\t\t296 text active\n\t\t\t\t\t\t\t\t\t\t\t\t307 button Revoke desktop session\n\t\t\t\t\t\t\t\t\t\t\t\t312 text active\n\t\t\t\t\t\t\t\t\t\t\t\t323 button Pause\n\t\t\t\t\t\t\t\t\t\t\t\t324 button (disabled) Resume\n\t\t\t\t\t\t\t\t\t\t\t\t325 button Shutdown worker\n\t\t\t\t\t\t\t\t\t\t\t\t326 button Revoke worker\n\t\t\t\t\t\t\t\t\t\t\t\t330 combo box (settable, string) Exact artifact Value: Select an artifact ID: artifact-92eb3b0b-5225-4481-9677-feb7c831e823\n\t\t\t\t\t\t\t\t\t\t\t\t332 edit (settable, string) Run input JSON (args and stdin) Value: {\"args\":[],\"stdin\":\"\"} ID: input-92eb3b0b-5225-4481-9677-feb7c831e823\n\t\t\t\t\t\t\t\t\t\t\t\t333 button (disabled) Queue one execution\n\t\t\t\t\t\t\t\t\t\t\t\t334 button New execution request\n\t\t\t\t\t\t\t\t\t\t\t\t335 button Refresh jobs\n\t\t\t\t\t\t\t\t\t\t\t\t\t337 heading 5c1b397f-fc07-4f95-8463-d7a9275089c2\n\t\t\t\t\t\t\t\t\t\t\t\t\t338 text completed\n\t\t\t\t\t\t\t\t\t\t\t\t\t345 text Worker reported\n\t\t\t\t\t\t\t\t\t\t\t\t\t346 text succeeded\n\t\t2 title bar (settable, string) Value: Creator Agent — job 5c1b397f-fc07-4f95-8463-d7a9275089c2; inspect Desktop and workers\n\t\t\t5 button Minimize\n\t\t\t6 button Maximize\n\t\t\t7 button Close\ndesktop_login · active · expires Oct 19, 2026, 8:16 PM\nworker · active · expires Nov 18, 2026, 7:14 AM\n5c1b397f-fc07-4f95-8463-d7a9275089c2\ncompleted · exact manifest 5d7bfed5f1da · Oct 19, 2026, 8:17 AM\nWorker reported succeeded; exit 0"
+  ],
+  "pause": [
+    "\t\t\t\t\t\t\t\t\t\t\t\t296 text active\n\t\t\t\t\t\t\t\t\t\t\t\t312 text paused\n\t\t\t\t\t\t\t\t\t\t\t\t323 button (disabled) Pause\n\t\t\t\t\t\t\t\t\t\t\t\t324 button Resume"
+  ],
+  "resume": [
+    "\t\t\t\t\t\t\t\t\t\t\t\t296 text active\n\t\t\t\t\t\t\t\t\t\t\t\t312 text active\n\t\t\t\t\t\t\t\t\t\t\t\t323 button Pause\n\t\t\t\t\t\t\t\t\t\t\t\t324 button (disabled) Resume\n\t\t\t\t\t\t\t\t\t\t\t\t325 button Shutdown worker\nPauseResumeShutdown workerRevoke worker"
+  ],
+  "shutdown": [
+    "\t\t\t\t\t\t\t\t\t\t\t\t296 text active\n\t\t\t\t\t\t\t\t\t\t\t\t312 text shutdown\n\t\t\t\t\t\t\t\t\t\t\t\t323 button Pause\n\t\t\t\t\t\t\t\t\t\t\t\t324 button Resume\n\t\t\t\t\t\t\t\t\t\t\t\t325 button (disabled) Shutdown worker"
+  ],
+  "worker_exit_code": 0,
+  "window_close": "Earlier actual native close left separately started worker polling; final editor changes do not affect worker lifecycle.",
+  "limitations": [
+    "Live OIDC not verified",
+    "Unsigned release; automatic updater disabled",
+    "Installer lifecycle used separate debug identity; final release installer built, not installed",
+    "Only observed Windows x64 host",
+    "Notepad accessibility document text stale; actual screenshot used",
+    "Interactive fixture hold ends with skip; not counted as an automated test pass"
+  ]
+}

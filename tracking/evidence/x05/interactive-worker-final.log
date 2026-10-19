@@ -1,0 +1,6 @@
+Compare code 54413696. Approve in your signed-in system browser:
+http://127.0.0.1:5173/api/desktop/approve?id=e6508006-be1b-4125-8058-b5d10e068c30
+Paired device bce18088-42a4-4c5d-abfa-8102a4171928. Only owner-submitted exact-artifact jobs can run in reviewed WSL isolation. Closing the desktop window does not stop this process. Ctrl+C stops it.
+Worker state: active
+Executing paired job 9fbc0eb2-017e-4535-809d-e9cf72b37fc1 once.
+fetch failed

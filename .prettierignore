@@ -1,6 +1,8 @@
 **/dist/**
 **/node_modules/**
 **/*.tsbuildinfo
+apps/desktop/src-tauri/target/**
+apps/desktop/src-tauri/gen/**
 docs/development-tools/licenses/
 
 

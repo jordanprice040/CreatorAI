@@ -342,6 +342,20 @@ export class ArtifactSupervisor {
     return { manifest, manifest_sha256: sha };
   }
   /** Exact package bytes, refused unless both the manifest and the archive still match. */
+  async exportManifest(
+    productId: string,
+    artifactId: string,
+    expected: string,
+  ): Promise<Buffer> {
+    await this.manifest(productId, artifactId, expected);
+    const path = join(this.dir(productId, artifactId), 'manifest.json');
+    await canonical(path);
+    const bytes = await readFile(path);
+    if (digest(bytes) !== expected)
+      throw mismatch('Manifest changed during export.');
+    return bytes;
+  }
+
   async open(
     productId: string,
     artifactId: string,
@@ -378,7 +392,7 @@ export class ArtifactSupervisor {
     expectedManifest: string,
     owner: string,
     input: RunInput | QaCase,
-    onStarted: (executionId: string) => void = () => {},
+    onStarted: (executionId: string) => void | Promise<void> = () => {},
   ): Promise<Execution> {
     const { manifest, files } = await this.open(
       productId,

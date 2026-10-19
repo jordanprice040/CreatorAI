@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-19T12:21:22.5203881Z",
+  "installed": false,
+  "state": "final_release_built_native_ui_observed",
+  "automatic_updater_enabled": false,
+  "artifacts": [
+    {
+      "signature_status": "NotSigned",
+      "bytes": 10023936,
+      "path": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\apps\\desktop\\src-tauri\\target\\release\\creator-desktop.exe",
+      "sha256": "3C222104E7936EC42057711C612B2FDFE3BE84E4CCA4407053DF78563538AF1D"
+    },
+    {
+      "signature_status": "NotSigned",
+      "bytes": 2358595,
+      "path": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\apps\\desktop\\src-tauri\\target\\release\\bundle\\nsis\\Creator Agent_0.1.0_x64-setup.exe",
+      "sha256": "F0F7F6F6B4600317BFE2350F77180E851F4AFD8E5339458016E582D59A64FCDC"
+    }
+  ]
+}

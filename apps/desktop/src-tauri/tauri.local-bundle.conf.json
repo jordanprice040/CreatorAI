@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "allowDowngrades": false,
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
