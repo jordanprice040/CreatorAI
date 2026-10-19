@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import {
+  auditPlanFixtureAnswer,
   buildFixtureAnswer,
+  fixtureEmbedding,
   contextFixtureAnswer,
   discoveryFixtureAnswer,
 } from '@creator/domain';
@@ -85,6 +87,8 @@ export class FixtureAdapter implements ModelAdapter {
       failEvery?: number;
       promptCache?: boolean;
       lossy?: boolean;
+      /** X03: embeddings are hashed character trigrams (fixtureEmbedding), not hash bytes. */
+      semantic?: boolean;
     } = {},
   ) {}
   /** Splits simulated input tokens into uncached, cached and cache-write parts. */
@@ -147,7 +151,9 @@ export class FixtureAdapter implements ModelAdapter {
         kind: 'completed',
         response_id: `fixture-embed-${h.toString('hex').slice(0, 12)}`,
         text: '',
-        vector: [...h.subarray(0, 8)].map((b) => b / 255),
+        vector: this.behaviour.semantic
+          ? fixtureEmbedding(joined)
+          : [...h.subarray(0, 8)].map((b) => b / 255),
         usage: usage(input, 0, {}),
         incomplete_reason: null,
       });
@@ -159,6 +165,7 @@ export class FixtureAdapter implements ModelAdapter {
         contextFixtureAnswer(req.input, {
           lossy: this.behaviour.lossy === true,
         }) ??
+        auditPlanFixtureAnswer(req.input) ??
         buildFixtureAnswer(req.input) ??
         discoveryFixtureAnswer(req.input);
     } catch {
@@ -214,6 +221,11 @@ export function fixtureContextAdapters(): FixtureAdapter[] {
     new FixtureAdapter(FIXTURE_CONTEXT_MODEL_ID, { promptCache: true }),
     new FixtureAdapter(FIXTURE_LOSSY_MODEL_ID, { lossy: true }),
   ];
+}
+/** X03: the fixture embedding model semantic search uses in fixture workspaces. */
+export const FIXTURE_EMBED_MODEL_ID = 'fixture-embed-v1';
+export function fixtureSearchAdapters(): FixtureAdapter[] {
+  return [new FixtureAdapter(FIXTURE_EMBED_MODEL_ID, { semantic: true })];
 }
 export const usage = (
   input: number,

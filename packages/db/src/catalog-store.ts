@@ -1,5 +1,6 @@
 import type { PoolClient } from 'pg';
 import {
+  z,
   SearchQuerySchema,
   StoredKindSchema,
   parse,
@@ -8,12 +9,16 @@ import {
   type ClaimEvidence,
   type Overview,
   type ProblemComparison,
+  type SearchCoverageSchema,
   type SearchHit,
+  type SearchQuery,
   type SearchResult,
   type SearchType,
   type Snippet,
   type StoredEntity,
 } from '@creator/contracts';
+import { localTimestamp } from '@creator/domain';
+import { createHash } from 'node:crypto';
 import { SelectionStore } from './selection-store.js';
 import {
   fail,
@@ -35,14 +40,14 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PREFIX_RE = /^[0-9a-f]{8}[0-9a-f-]{0,27}$/i;
 // The same expressions as the migration 8 indexes, so the planner can use them.
-const ENTITY_DOC = `(to_tsvector('english'::regconfig, e.title)
+export const ENTITY_DOC = `(to_tsvector('english'::regconfig, e.title)
   || jsonb_to_tsvector('english'::regconfig, coalesce(e.body, '{}'::jsonb), '["string"]'))`;
 // Snippet text skips ids and hashes, which are noise to a reader; id search is separate.
-const ENTITY_TEXT = `(e.title || ' · ' || coalesce((select string_agg(v #>> '{}', ' · ')
+export const ENTITY_TEXT = `(e.title || ' · ' || coalesce((select string_agg(v #>> '{}', ' · ')
   from jsonb_path_query(coalesce(e.body, '{}'::jsonb), 'strict $.**') v
   where jsonb_typeof(v) = 'string' and (v #>> '{}') !~ '^[0-9a-f-]{32,}$'), ''))`;
-const PASSAGE_DOC = `to_tsvector('english'::regconfig, coalesce(p.excerpt, ''))`;
-const DECISION_DOC = `jsonb_to_tsvector('english'::regconfig, d.request, '["string"]')`;
+export const PASSAGE_DOC = `to_tsvector('english'::regconfig, coalesce(p.excerpt, ''))`;
+export const DECISION_DOC = `jsonb_to_tsvector('english'::regconfig, d.request, '["string"]')`;
 const HISTORY_DOC = `to_tsvector('english'::regconfig, h.summary)`;
 
 /** Splits a ts_headline result into plain and matched segments. */
@@ -63,6 +68,13 @@ export function segments(headline: string | null | undefined): Snippet {
   }
   push();
   return out.slice(0, 40);
+}
+type SearchCoverage = z.infer<typeof SearchCoverageSchema>;
+const money = (v: unknown) => BigInt(String(v)).toString();
+/** A stable UUID-shaped id for something without its own row (a model). */
+export function nameId(name: string): string {
+  const h = createHash('sha256').update(name).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 const like = (q: string) => `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
 const ACTIVITY_ACTION_RE = /^[a-z_]+(\.[a-z_]*)?$/;
@@ -95,22 +107,122 @@ export class CatalogStore extends SelectionStore {
           ? 'id'
           : 'text';
     return this.tx(async (c) => {
+      // Membership first: a non-member gets no hit, count, coverage or freshness figure.
       await this.role(c, ws, ctx.actorId, false);
-      const fixture = Boolean(
-        (await c.query('select fixture from workspaces where id = $1', [ws]))
-          .rows[0]?.fixture,
-      );
+      await c.query('set transaction read only');
+      const head = (
+        await c.query(
+          `select w.fixture, now() as as_of,
+                  (select count(*) from outbox o join audit_events a on a.id = o.event_id
+                    where a.workspace_id = $1 and o.delivered_at is null) as pending
+             from workspaces w where w.id = $1`,
+          [ws],
+        )
+      ).rows[0] as Row;
       const hits: SearchHit[] = [];
       const counts: SearchResult['counts'] = {};
+      const coverage: SearchResult['coverage'] = {};
       let truncated = false;
       for (const type of query.types) {
         const { rows, total } = await this.searchType(c, ws, type, mode, query);
         counts[type] = total;
         if (total > rows.length) truncated = true;
         hits.push(...rows);
+        coverage[type] = await this.searchCoverage(c, ws, type);
       }
-      return { query, mode, fixture, hits, counts, truncated };
+      return {
+        query,
+        mode,
+        fixture: Boolean(head.fixture),
+        hits,
+        counts,
+        truncated,
+        coverage,
+        freshness: {
+          as_of: iso(head.as_of),
+          activity_pending: Number(head.pending ?? 0),
+        },
+      };
     });
+  }
+
+  /** What one type could match in this workspace, and what it can never show. */
+  private async searchCoverage(
+    c: PoolClient,
+    ws: string,
+    type: SearchType,
+  ): Promise<SearchCoverage> {
+    const one = async (sql: string) =>
+      (await c.query(sql, [ws])).rows[0] as Row;
+    const cov = (
+      searchable: unknown,
+      latest: unknown,
+      excluded: Partial<SearchCoverage['excluded']> = {},
+    ): SearchCoverage => ({
+      searchable: Number(searchable ?? 0),
+      excluded: { redacted: 0, no_text: 0, unsupported_media: 0, ...excluded },
+      latest_change_at:
+        latest === null || latest === undefined ? null : iso(latest),
+    });
+    if (type === 'record') {
+      const r = await one(
+        `select count(*) filter (where status <> 'redacted') as s,
+                count(*) filter (where status = 'redacted') as r, max(updated_at) as l
+           from entities where workspace_id = $1`,
+      );
+      return cov(r.s, r.l, { redacted: Number(r.r) });
+    }
+    if (type === 'passage') {
+      const r = await one(
+        `select count(*) filter (where p.excerpt is not null and e.status <> 'redacted') as s,
+                count(*) filter (where e.status = 'redacted') as r,
+                count(*) filter (where p.excerpt is null and e.status <> 'redacted') as n,
+                max(p.created_at) as l,
+                (select count(*) from source_retrievals where workspace_id = $1
+                   and state in ('unsupported_type', 'too_large')) as u
+           from source_passages p
+           join entities e on e.workspace_id = p.workspace_id and e.id = p.source_id
+          where p.workspace_id = $1`,
+      );
+      return cov(r.s, r.l, {
+        redacted: Number(r.r),
+        no_text: Number(r.n),
+        unsupported_media: Number(r.u),
+      });
+    }
+    if (type === 'decision') {
+      const r = await one(
+        'select count(*) as s, max(created_at) as l from decision_requests where workspace_id = $1',
+      );
+      return cov(r.s, r.l);
+    }
+    if (type === 'activity') {
+      const r = await one(
+        'select count(*) as s, max(occurred_at) as l from history_projection where workspace_id = $1',
+      );
+      return cov(r.s, r.l);
+    }
+    if (type === 'code_version') {
+      const r = await one(
+        `select count(*) as s, count(*) filter (where e.status = 'redacted') as r,
+                max(am.created_at) as l
+           from artifact_manifests am
+           join entities e on e.workspace_id = am.workspace_id and e.id = am.entity_id
+          where am.workspace_id = $1`,
+      );
+      return cov(r.s, r.l, { redacted: Number(r.r) });
+    }
+    if (type === 'model') {
+      const r = await one(
+        `select count(distinct (provider, model_id)) as s, max(created_at) as l
+           from budget_reservations where workspace_id = $1`,
+      );
+      return cov(r.s, r.l);
+    }
+    const r = await one(
+      'select count(*) as s, max(created_at) as l from budget_reservations where workspace_id = $1',
+    );
+    return cov(r.s, r.l);
   }
 
   private async searchType(
@@ -118,65 +230,90 @@ export class CatalogStore extends SelectionStore {
     ws: string,
     type: SearchType,
     mode: 'browse' | 'id' | 'text',
-    query: {
-      q: string;
-      kind: string | null;
-      status: string | null;
-      limit: number;
-    },
+    query: SearchQuery,
   ): Promise<{ rows: SearchHit[]; total: number }> {
+    // Every value is a bound parameter; the SQL below is fixed text chosen by type and mode.
+    const args: unknown[] = [ws];
+    const p = (v: unknown) => {
+      args.push(v);
+      return `$${args.length}`;
+    };
+    // Parameters are added on first use, so no unused (untyped) parameter is ever sent.
+    const once = (v: () => unknown) => {
+      let ref: string | null = null;
+      return () => (ref ??= p(v()));
+    };
     const full = mode === 'id' && UUID_RE.test(query.q);
-    const idParam = mode === 'id' ? query.q.toLowerCase() : null;
     // Id mode: exact id, or an id prefix of 8+ characters (as the interface abbreviates ids).
-    const idMatch = (col: string, n: number) =>
-      full ? `${col} = $${n}::uuid` : `${col}::text like $${n} || '%'`;
+    const idRef = once(() => query.q.toLowerCase());
+    const idMatch = (col: string) =>
+      full
+        ? `${col} = ${idRef()}::uuid`
+        : `${col}::text like ${idRef()} || '%'`;
     const match: SearchHit['match'] =
       mode === 'id' ? (full ? 'id' : 'id_prefix') : 'text';
     const total = (rows: Row[]) => Number(rows[0]?.total ?? 0);
-    const tq = `websearch_to_tsquery('english', $2)`;
-    const lim = query.limit;
+    const tqRef = once(() => query.q);
+    const tq = () => `websearch_to_tsquery('english', ${tqRef()})`;
+    const likeRef = once(() => like(query.q));
+    const optsRef = once(() => HEADLINE);
+    const tzRef = once(() => query.tz);
+    const within = (col: string) =>
+      [
+        query.from
+          ? `${col} >= (${p(query.from)}::date)::timestamp at time zone ${tzRef()}`
+          : null,
+        query.to
+          ? `${col} < ((${p(query.to)}::date + 1)::timestamp at time zone ${tzRef()})`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' and ') || 'true';
+    const lim = () => p(query.limit);
+    const local = (v: unknown) => localTimestamp(iso(v), query.tz);
+    const base = {
+      type,
+      match,
+      amounts: null,
+    } as const;
     if (type === 'record') {
-      const filters = `($3::text is null or e.kind = $3) and ($4::text is null or e.status = $4)`;
+      const kind = p(query.kind);
+      const status = p(query.status);
       const where =
         mode === 'browse'
-          ? '$2::text is not null'
+          ? 'true'
           : mode === 'id'
-            ? idMatch('e.id', 2)
-            : `(${ENTITY_DOC} @@ ${tq} or e.title ilike $6)`;
+            ? idMatch('e.id')
+            : `(${ENTITY_DOC} @@ ${tq()} or e.title ilike ${likeRef()})`;
       const headline =
         mode === 'text'
-          ? `ts_headline('english', ${ENTITY_TEXT}, ${tq}, $7)`
+          ? `ts_headline('english', ${ENTITY_TEXT}, ${tq()}, ${optsRef()})`
           : `left(${ENTITY_TEXT}, 240)`;
       const order =
         mode === 'text'
-          ? `ts_rank(${ENTITY_DOC}, ${tq}) desc, e.updated_at desc`
+          ? `ts_rank(${ENTITY_DOC}, ${tq()}) desc, e.updated_at desc`
           : 'e.updated_at desc';
       const { rows } = await c.query(
         `select e.*, ${headline} as headline, count(*) over () as total
            from entities e
-          where e.workspace_id = $1 and ${filters} and ${where}
-          order by ${order} limit $5`,
-        [
-          ws,
-          idParam ?? query.q,
-          query.kind,
-          query.status,
-          lim,
-          ...(mode === 'text' ? [like(query.q), HEADLINE] : []),
-        ],
+          where e.workspace_id = $1 and (${kind}::text is null or e.kind = ${kind})
+            and (${status}::text is null or e.status = ${status}) and ${where}
+            and ${within('e.updated_at')}
+          order by ${order} limit ${lim()}`,
+        args,
       );
       return {
         total: total(rows),
         rows: rows.map((r: Row) => ({
-          type,
+          ...base,
           id: String(r.id),
-          match,
           kind: String(r.kind),
           title: String(r.title),
           status: String(r.status),
           version: Number(r.version),
           snippet: segments(r.headline as string | null),
           occurred_at: iso(r.updated_at),
+          occurred_local: local(r.updated_at),
           subject: { id: String(r.id), kind: String(r.kind) },
         })),
       };
@@ -185,10 +322,10 @@ export class CatalogStore extends SelectionStore {
       // Passages need a query; a browse lists none. Redacted sources have no excerpt left.
       if (mode === 'browse') return { rows: [], total: 0 };
       const where =
-        mode === 'id' ? idMatch('p.id', 2) : `${PASSAGE_DOC} @@ ${tq}`;
+        mode === 'id' ? idMatch('p.id') : `${PASSAGE_DOC} @@ ${tq()}`;
       const headline =
         mode === 'text'
-          ? `ts_headline('english', p.excerpt, ${tq}, $4)`
+          ? `ts_headline('english', p.excerpt, ${tq()}, ${optsRef()})`
           : 'left(p.excerpt, 240)';
       const { rows } = await c.query(
         `select p.id, p.source_id, p.source_version, p.ordinal, p.created_at, e.title,
@@ -197,16 +334,15 @@ export class CatalogStore extends SelectionStore {
            from source_passages p
            join entities e on e.workspace_id = p.workspace_id and e.id = p.source_id
           where p.workspace_id = $1 and p.excerpt is not null and e.status <> 'redacted'
-            and ${where}
-          order by p.created_at desc, p.ordinal limit $3`,
-        [ws, idParam ?? query.q, lim, ...(mode === 'text' ? [HEADLINE] : [])],
+            and ${where} and ${within('p.created_at')}
+          order by p.created_at desc, p.ordinal limit ${lim()}`,
+        args,
       );
       return {
         total: total(rows),
         rows: rows.map((r: Row) => ({
-          type,
+          ...base,
           id: String(r.id),
-          match,
           kind: 'passage',
           title: `${String(r.title)} · passage ${Number(r.ordinal) + 1}`,
           status:
@@ -216,6 +352,7 @@ export class CatalogStore extends SelectionStore {
           version: Number(r.source_version),
           snippet: segments(r.headline as string | null),
           occurred_at: iso(r.created_at),
+          occurred_local: local(r.created_at),
           subject: { id: String(r.source_id), kind: 'source' },
         })),
       };
@@ -223,80 +360,210 @@ export class CatalogStore extends SelectionStore {
     if (type === 'decision') {
       const where =
         mode === 'browse'
-          ? '$2::text is not null'
+          ? 'true'
           : mode === 'id'
-            ? idMatch('d.id', 2)
-            : `(${DECISION_DOC} @@ ${tq} or d.request->>'question' ilike $4)`;
+            ? idMatch('d.id')
+            : `(${DECISION_DOC} @@ ${tq()} or d.request->>'question' ilike ${likeRef()})`;
       const text = `(d.request->>'question') || ' · ' || coalesce(d.request->>'uncertainty', '')`;
       const headline =
         mode === 'text'
-          ? `ts_headline('english', ${text}, ${tq}, $5)`
+          ? `ts_headline('english', ${text}, ${tq()}, ${optsRef()})`
           : `left(${text}, 240)`;
       const { rows } = await c.query(
         `select d.id, d.kind, d.status, d.version, d.run_id, d.created_at,
                 d.request->>'question' as question, ${headline} as headline,
                 count(*) over () as total
            from decision_requests d
-          where d.workspace_id = $1 and ${where}
-          order by d.created_at desc limit $3`,
-        [
-          ws,
-          idParam ?? query.q,
-          lim,
-          ...(mode === 'text' ? [like(query.q), HEADLINE] : []),
-        ],
+          where d.workspace_id = $1 and ${where} and ${within('d.created_at')}
+          order by d.created_at desc limit ${lim()}`,
+        args,
       );
       return {
         total: total(rows),
         rows: rows.map((r: Row) => ({
-          type,
+          ...base,
           id: String(r.id),
-          match,
           kind: `${String(r.kind)} decision`,
           title: String(r.question).slice(0, 500),
           status: String(r.status),
           version: Number(r.version),
           snippet: segments(r.headline as string | null),
           occurred_at: iso(r.created_at),
+          occurred_local: local(r.created_at),
           subject: { id: String(r.run_id), kind: 'run' },
+        })),
+      };
+    }
+    if (type === 'code_version') {
+      // Artifact commits and manifests. A redacted artifact keeps its commit and hashes
+      // (identity, like any tombstone) but its manifest text is no longer searchable.
+      const where =
+        mode === 'browse'
+          ? 'true'
+          : mode === 'id'
+            ? `(${idMatch('am.id')} or ${idMatch('am.entity_id')}
+                or am.commit like ${idRef()} || '%' or am.manifest_sha256 like ${idRef()} || '%')`
+            : `e.status <> 'redacted' and (jsonb_to_tsvector('english'::regconfig, am.manifest, '["string"]') @@ ${tq()}
+                or e.title ilike ${likeRef()})`;
+      const text = `e.title || ' · commit ' || am.commit || ' · ' || am.state`;
+      const headline =
+        mode === 'text'
+          ? `ts_headline('english', ${text}, ${tq()}, ${optsRef()})`
+          : text;
+      const { rows } = await c.query(
+        `select am.id, am.entity_id, am.commit, am.state, am.spec_version, am.created_at,
+                e.title, ${headline} as headline, count(*) over () as total
+           from artifact_manifests am
+           join entities e on e.workspace_id = am.workspace_id and e.id = am.entity_id
+          where am.workspace_id = $1 and ${where} and ${within('am.created_at')}
+          order by am.created_at desc limit ${lim()}`,
+        args,
+      );
+      return {
+        total: total(rows),
+        rows: rows.map((r: Row) => ({
+          ...base,
+          id: String(r.id),
+          kind: 'code_version',
+          title: `${String(r.title)} @ ${String(r.commit).slice(0, 12)}`.slice(
+            0,
+            500,
+          ),
+          status: String(r.state),
+          version: Number(r.spec_version),
+          snippet: segments(r.headline as string | null),
+          occurred_at: iso(r.created_at),
+          occurred_local: local(r.created_at),
+          subject: { id: String(r.entity_id), kind: 'artifact' },
+        })),
+      };
+    }
+    if (type === 'model') {
+      // Models this workspace actually called (or was denied), with exact totals per model.
+      if (mode === 'id') return { rows: [], total: 0 };
+      const where =
+        mode === 'browse'
+          ? 'true'
+          : `(m.model_id ilike ${likeRef()} or m.provider ilike ${likeRef()})`;
+      const { rows } = await c.query(
+        `with m as (
+           select provider, model_id, count(*) filter (where status <> 'denied') as calls,
+                  count(*) filter (where status = 'denied') as denied,
+                  coalesce(sum(reserved_nano) filter (where status = 'in_flight'), 0) as reserved,
+                  coalesce(sum(incurred_nano) filter (where status = 'settled'), 0) as incurred,
+                  coalesce(sum(reserved_nano) filter (where status = 'unknown'), 0) as unknown,
+                  bool_and(fixture) as fixture, max(created_at) as last_at
+             from budget_reservations
+            where workspace_id = $1 and ${within('created_at')}
+            group by provider, model_id)
+         select m.*, count(*) over () as total from m where ${where}
+          order by m.last_at desc limit ${lim()}`,
+        args,
+      );
+      return {
+        total: total(rows),
+        rows: rows.map((r: Row) => ({
+          ...base,
+          id: nameId(`model:${String(r.provider)}/${String(r.model_id)}`),
+          kind: 'model',
+          title: `${String(r.provider)}/${String(r.model_id)}`.slice(0, 500),
+          status: `${String(r.calls)} calls`,
+          version: null,
+          snippet: [
+            {
+              text: `${String(r.calls)} calls, ${String(r.denied)} denied; last used ${iso(r.last_at)}`,
+              match: false,
+            },
+          ],
+          occurred_at: iso(r.last_at),
+          occurred_local: local(r.last_at),
+          subject: null,
+          amounts: {
+            reserved: money(r.reserved),
+            incurred: money(r.incurred),
+            unknown: money(r.unknown),
+            fixture: Boolean(r.fixture),
+          },
+        })),
+      };
+    }
+    if (type === 'cost') {
+      const where =
+        mode === 'browse'
+          ? 'true'
+          : mode === 'id'
+            ? `(${idMatch('r.id')} or ${idMatch('r.logical_operation_id')} or ${idMatch('r.run_id')})`
+            : `(r.action_type ilike ${likeRef()} or r.model_id ilike ${likeRef()} or r.reason_code ilike ${likeRef()}
+                or r.status ilike ${likeRef()} or to_tsvector('english'::regconfig, r.explanation) @@ ${tq()})`;
+      const headline =
+        mode === 'text'
+          ? `ts_headline('english', r.explanation, ${tq()}, ${optsRef()})`
+          : 'left(r.explanation, 240)';
+      const { rows } = await c.query(
+        `select r.id, r.run_id, r.action_type, r.provider, r.model_id, r.attempt, r.status,
+                r.reserved_nano, r.incurred_nano, r.fixture, r.created_at,
+                ${headline} as headline, count(*) over () as total
+           from budget_reservations r
+          where r.workspace_id = $1 and ${where} and ${within('r.created_at')}
+          order by r.created_at desc, r.id limit ${lim()}`,
+        args,
+      );
+      return {
+        total: total(rows),
+        rows: rows.map((r: Row) => ({
+          ...base,
+          id: String(r.id),
+          kind: String(r.action_type),
+          title:
+            `${String(r.action_type)} · ${String(r.provider)}/${String(r.model_id)} · attempt ${String(r.attempt)}`.slice(
+              0,
+              500,
+            ),
+          status: String(r.status),
+          version: null,
+          snippet: segments(r.headline as string | null),
+          occurred_at: iso(r.created_at),
+          occurred_local: local(r.created_at),
+          subject: { id: String(r.run_id), kind: 'run' },
+          amounts: {
+            reserved: r.status === 'in_flight' ? money(r.reserved_nano) : '0',
+            incurred: r.incurred_nano === null ? '0' : money(r.incurred_nano),
+            unknown: r.status === 'unknown' ? money(r.reserved_nano) : '0',
+            fixture: Boolean(r.fixture),
+          },
         })),
       };
     }
     // Activity: the audit history's safe summaries (kinds, versions, relations; no titles).
     const where =
       mode === 'browse'
-        ? '$2::text is not null'
+        ? 'true'
         : mode === 'id'
-          ? `(${idMatch('h.event_id', 2)} or ${idMatch('h.subject_id', 2)})`
-          : `(${HISTORY_DOC} @@ ${tq} or h.summary ilike $4 or h.action ilike $4)`;
+          ? `(${idMatch('h.event_id')} or ${idMatch('h.subject_id')})`
+          : `(${HISTORY_DOC} @@ ${tq()} or h.summary ilike ${likeRef()} or h.action ilike ${likeRef()})`;
     const headline =
       mode === 'text'
-        ? `ts_headline('english', h.summary, ${tq}, $5)`
+        ? `ts_headline('english', h.summary, ${tq()}, ${optsRef()})`
         : 'h.summary';
     const { rows } = await c.query(
       `select h.*, ${headline} as headline, count(*) over () as total
          from history_projection h
-        where h.workspace_id = $1 and ${where}
-        order by h.sequence desc limit $3`,
-      [
-        ws,
-        idParam ?? query.q,
-        lim,
-        ...(mode === 'text' ? [like(query.q), HEADLINE] : []),
-      ],
+        where h.workspace_id = $1 and ${where} and ${within('h.occurred_at')}
+        order by h.sequence desc limit ${lim()}`,
+      args,
     );
     return {
       total: total(rows),
       rows: rows.map((r: Row) => ({
-        type,
+        ...base,
         id: String(r.event_id),
-        match,
         kind: String(r.action),
         title: String(r.summary).slice(0, 500),
         status: String(r.subject_kind),
         version: r.subject_version === null ? null : Number(r.subject_version),
         snippet: segments(r.headline as string | null),
         occurred_at: iso(r.occurred_at),
+        occurred_local: local(r.occurred_at),
         subject: { id: String(r.subject_id), kind: String(r.subject_kind) },
       })),
     };

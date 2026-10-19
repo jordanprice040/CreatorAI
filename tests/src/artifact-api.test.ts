@@ -253,6 +253,16 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   );
   assert.equal(lineage.status, 200);
   assert.ok(JSON.stringify(lineage.body).includes(specId));
+  // X03: the verified build's commit is a searchable code version (by commit prefix).
+  const code = await http(
+    `workspaces/${ws}/search?q=${a1.commit.slice(0, 10)}&types=code_version`,
+  );
+  assert.equal(code.status, 200, JSON.stringify(code.body));
+  assert.equal(code.body.hits.length, 1);
+  assert.equal(code.body.hits[0].id, a1.id);
+  assert.equal(code.body.hits[0].match, 'id_prefix');
+  assert.equal(code.body.hits[0].subject.id, a1.entity_id);
+  assert.equal(code.body.coverage.code_version.searchable, 1);
 
   // Download: owner session, current manifest hash, and exact bytes.
   const dl = await http(

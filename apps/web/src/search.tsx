@@ -22,6 +22,9 @@ const TYPE_LABEL: Record<SearchType, string> = {
   passage: 'Source passages',
   decision: 'Decisions',
   activity: 'Activity',
+  code_version: 'Code versions',
+  model: 'Models',
+  cost: 'Costs',
 };
 
 /** Where a hit opens: the view that owns its subject, if any page shows that kind. */
@@ -69,10 +72,10 @@ export function Search({
     <section className="panel" aria-labelledby="search-title">
       <h2 id="search-title">Search</h2>
       <p>
-        Words search record text, source passages, decision questions and the
-        activity history. A full id, or its first 8 characters as shown across
-        the page, finds that exact item. Redacted text is gone and cannot be
-        found.
+        Words search record text, source passages, decision questions, the
+        activity history, artifact commits, models used and cost records. A full
+        id, or its first 8 characters as shown across the page, finds that exact
+        item. Redacted text is gone and cannot be found.
       </p>
       <form className="searchbar" role="search" onSubmit={submit}>
         <label htmlFor="q" className="inline">
@@ -155,6 +158,11 @@ export function Search({
                   .join(' · ')}
                 {r.truncated ? ' · showing the first 20 of each' : ''}
                 {r.fixture ? ' · fixture workspace' : ''}
+                {Object.values(r.coverage).some(
+                  (c) => c.excluded.redacted || c.excluded.unsupported_media,
+                )
+                  ? ` · not searchable: ${Object.values(r.coverage).reduce((n, c) => n + c.excluded.redacted, 0)} redacted, ${r.coverage.passage?.excluded.unsupported_media ?? 0} unreadable media`
+                  : ''}
               </p>
               {r.hits.length === 0 && <Empty>No matches.</Empty>}
               {SEARCH_TYPES.filter((t) => r.hits.some((h) => h.type === t)).map(
@@ -186,6 +194,9 @@ export function Search({
                                 {when(h.occurred_at)}
                                 {h.match !== 'text'
                                   ? ` · matched ${words(h.match)}`
+                                  : ''}
+                                {h.amounts
+                                  ? ` · incurred ${h.amounts.incurred} nano-USD${h.amounts.unknown !== '0' ? `, ${h.amounts.unknown} unknown` : ''}${h.amounts.fixture ? ' (simulated)' : ''}`
                                   : ''}
                               </small>
                               <div>

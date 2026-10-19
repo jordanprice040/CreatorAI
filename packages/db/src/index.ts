@@ -16,3 +16,4 @@ export * from './artifact-store.js';
 export * from './backup.js';
 export * from './routing-store.js';
 export * from './context-store.js';
+export * from './search-store.js';
