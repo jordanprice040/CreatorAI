@@ -1,5 +1,24 @@
 # Session handoff
 
+## PR publication validation (October 18, 2026)
+
+Owner requested a PR for all pending work. Branch: codex/t18-t19-thesis-archive.
+Integrated origin/main at 3e9026f while retaining the T15/T16 and T18/T19 tracking
+records. Includes the RD6 owner update, thesis packet, reproducibility archive,
+optional acceptance recorder, lease-aware recovery test and existing T17 log.
+Generated T18 fixture private assignment keys/raw exports remain local and ignored;
+credentials, ignored verification directories and product stores are excluded.
+Evidence paths preserve original bytes through Git; archive checksum and all twelve
+T18 copied-source hashes verified against committed blobs.
+
+Executed on integrated candidate: pnpm check passed (94 pass, 0 fail, 93 skips because
+database/real-isolation gates are not configured in this invocation), including
+typecheck and format check. Log: tracking/evidence/t19/pr-publication-check.log.
+No DB/WSL rerun in the publication step; prior T19 full-run failure and focused
+repair checks remain explicitly recorded. No empirical study, protocol adoption,
+committee acceptance or application activation is implied. PR publication is now
+authorized; the earlier no-push entries describe their historical milestone runs.
+
 ## T19 — reproducibility archive and conditional acceptance (October 18, 2026)
 
 Prepared docs/thesis/T19_ACCEPTANCE.md and tracking/evidence/t19/WALKTHROUGH.md.
