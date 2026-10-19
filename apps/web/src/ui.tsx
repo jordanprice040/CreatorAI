@@ -28,6 +28,7 @@ export const VIEWS = [
   ['desktop', 'Desktop and workers'],
   ['operations', 'Operations'],
   ['marketing', 'Campaigns'],
+  ['portfolio', 'Portfolio'],
 ] as const;
 export type View = (typeof VIEWS)[number][0];
 

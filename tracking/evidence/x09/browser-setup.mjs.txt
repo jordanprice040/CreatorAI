@@ -1,0 +1,22 @@
+import { createRequire } from 'node:module';
+import { writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { createApi, DEFAULT_OWNER_ACTOR_ID } from '../apps/api/dist/index.js';
+import { migrate } from '../packages/db/dist/index.js';
+import { portfolioFixture } from '../tests/dist/portfolio-harness.js';
+const require=createRequire(new URL('../packages/db/package.json',import.meta.url));const pg=require('pg');
+const admin=new pg.Pool({connectionString:'postgresql://postgres@127.0.0.1:55442/postgres'});
+const name='creator_x09_browser_'+Date.now();await admin.query('create database '+name);
+const url='postgresql://postgres@127.0.0.1:55442/'+name;const pool=new pg.Pool({connectionString:url});await migrate(pool);
+const env={...process.env,CREATOR_DATABASE_URL:url,CREATOR_WORKER:'off',CREATOR_PORTFOLIO_SCHEDULER:'off',CREATOR_API_PORT:'4319',CREATOR_WEB_PORT:'5189',CREATOR_PREVIEW_PORT:'4329',CREATOR_DEV_LOGIN_CODE:'test-login-code-0123456789abcdefghij',CREATOR_PRODUCTS_ROOT:process.cwd()+'/.verification/x09-products'};
+const api=createApi(env);await api.ready();const ctx={actorId:DEFAULT_OWNER_ACTOR_ID};
+const f=await portfolioFixture(api.store,pool,ctx);const r=await f.run('maintenance');
+const schedule=await api.store.createPortfolioSchedule(ctx,f.ws,{label:'Synthetic source refresh',run_id:r.id,lane:'maintenance',interval_seconds:3600,first_due_at:f.due(),operation:{kind:'source_refresh',source_id:f.source.id,source_version:1,source_hash:f.source.content_hash}});
+const candidate=await api.store.proposeKnowledge(ctx,f.ws,{key:'evidence-review',kind:'skill',title:'Synthetic evidence review guidance',guidance:['Keep observations separate from inference.'],permitted_lanes:['maintenance'],data_class:'synthetic',permitted_use:'task_review_guidance',provenance:[{entity_id:f.problem.id,version:1,content_hash:f.problem.content_hash,locator:'body.statement'}],limitations:'Structural fixture evidence only; no measured quality result.'});
+api.server.listen(4319,'127.0.0.1');await once(api.server,'listening');
+const vite=spawn(process.execPath,['../../node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5189'],{cwd:'apps/web',env,windowsHide:true,stdio:['ignore','pipe','pipe']});vite.stdout.pipe(process.stdout);vite.stderr.pipe(process.stderr);
+await writeFile('tracking/evidence/x09/browser-fixture.json',JSON.stringify({workspace_id:f.ws,schedule_id:schedule.id,knowledge_id:candidate.id,label:'Local synthetic fixture; no live source or model call.'},null,2));
+console.log('X09 browser fixture ready: '+f.ws);
+async function stop(){vite.kill();await api.close();await pool.end();await admin.query('drop database '+name+' with (force)');await admin.end();process.exit(0);}
+process.stdin.setEncoding('utf8');process.stdin.on('data',d=>{if(d.includes('stop'))void stop();});process.on('SIGINT',()=>void stop());process.on('SIGTERM',()=>void stop());

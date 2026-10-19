@@ -1,5 +1,15 @@
 # Integration readiness
 
+X09 (October 19, 2026): portfolio schedules run through existing source, artifact
+and workflow adapters, with shared admission/budget gates. Optional API polling
+(`CREATOR_PORTFOLIO_SCHEDULER=on`) is implemented but defaults off and was not
+activated. Verified manual passes use synthetic sources and fixture models;
+there is no new live adapter, credential, paid call or external mutation.
+Knowledge components/lessons/prompts/skills are reviewed bounded task guidance,
+not installed executable plugins or policy changes. Structural regressions do
+not establish empirical quality gains. Product health means archive integrity,
+not runtime uptime. See docs/X09_PORTFOLIO.md, ADR-0036 and evidence/x09.
+
 X08 (October 19, 2026): implemented local fixture sink, authenticated API/CLI and
 Campaigns screen. No real outreach adapter, mailing-list import, paid ads,
 credentials, public landing-page deployment or payment integration was activated.

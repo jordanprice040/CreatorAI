@@ -1,5 +1,53 @@
 # Implementation status
 
+## X09 — portfolio scheduling and reviewed knowledge (October 19, 2026)
+
+Implemented on `codex/x09-portfolio`, layered on local X08 commit `64596ef`.
+Managed checkout remains `C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`.
+X08 was hash-checked before committing; nothing was pushed. Original X05 dirty
+checkout and Claude's parallel UI/UX work preserved. X09 changes are uncommitted.
+
+Works through owner API, compiled CLI and the new Portfolio screen: separate
+maintenance/improvement/exploration lanes; real maintenance budget allocation
+checks; normal/conserve/maintenance_only/paused modes; review/feedback backlog,
+capacity, reserve and health gates in shared admission/workflow/broker paths;
+deduplicated interval jobs that coalesce missed periods; source refresh, private
+archive health and bounded review workflows; cancellation and receipt-based
+reconciliation without resend. Owner health deferral retains failure evidence.
+
+Versioned components/lessons/prompts/skills retain provenance, permitted use and
+executed structural regression evidence. Human review binds the exact hash;
+activation/rollback uses expected-head concurrency. Reviewed guidance actually
+enriches bounded workflow/task constraints without changing authority. Revocation
+or stale provenance blocks new queued dispatch. Study attempts, human-only paths
+and held-out material remain separate. Migration 22; ADR-0036;
+docs/X09_PORTFOLIO.md.
+
+Executed on Windows, Node 22.21.0 and dedicated disposable PostgreSQL 18.6:
+
+- Focused X09 acceptance: **7 pass, 0 fail, 0 skip**, including actual HTTP/CSRF/
+  compiled CLI, source broker, concurrent scheduling, low-fund/lane protection,
+  backlog/health/modes, restart reconciliation, knowledge review/rollback/revoke.
+  Initial fixture/schema/grant failures are retained and repaired, not bypassed.
+- Final broader PostgreSQL suite: **270 tests, 256 pass, 0 fail, 14 explicit
+  skips** (`full-tests.log`). Native/WSL opt-in and inverse-backend cases remain
+  skipped; actual PostgreSQL backup/restore ran with installed client tools.
+- Final TypeScript/web typecheck, production build, repository format check and
+  diff whitespace passed. Vite retains its nonfatal >500 kB bundle warning.
+- Actual isolated Edge: source scheduling pass, knowledge regression/review/
+  activation, pause/resume, schedule cancellation and knowledge revocation.
+  Desktop/narrow screenshots and accessibility snapshots retained; viewport and
+  document widths both 390px in the observed narrow layout, with no alerts.
+
+Limits: optional background polling implemented but off/unactivated; no live
+model/source call, paid dispatch, public release, account change or real customer
+validation. Health is archive integrity, not runtime uptime. Reusable skills are
+bounded task guidance, not executable plugins; regression evidence is structural,
+not measured quality gains. Budget identity rotation needs a new workspace in
+this version. No existing studio database migrated. Next eligible prompt:
+**X10 — Full-product acceptance and bounded owner pilot**, on request; inherited
+hosted/live/operational gaps still apply and no pilot was started.
+
 ## X08 — campaign review and measured fixture feedback (October 19, 2026)
 
 Implemented on `codex/x08-marketing` in the managed checkout

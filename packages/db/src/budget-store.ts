@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { portfolioEnvelopeGate } from './portfolio-gates.js';
 import type { Pool, PoolClient } from 'pg';
 import {
   BUDGET_POLICY_VERSION,
@@ -837,6 +838,17 @@ export class BudgetStore extends OversightStore {
           },
         }),
       });
+      const portfolioBudgetReason = await portfolioEnvelopeGate(
+        c,
+        ws,
+        runId,
+        envelopeId,
+      );
+      if (portfolioBudgetReason)
+        return deny(
+          portfolioBudgetReason,
+          'The budget is outside the portfolio lane allocation.',
+        );
       const admissionRequest = (amount: string | null) => ({
         action_type: req.action_type,
         task_id: req.task_id,

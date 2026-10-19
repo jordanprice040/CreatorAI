@@ -1,5 +1,55 @@
 # Decision log
 
+## ADR-0036 — X09 bounded portfolio policy and reviewed task knowledge
+
+October 19, 2026. Jordan authorized X09 after X08 and reported Claude's parallel
+UI/UX work. X08 was hash-checked and preserved as local commit `64596ef`; X09 is
+on `codex/x09-portfolio` in the same managed checkout. No push or changes to the
+original dirty X05 checkout. Claude's shared styling remains separate.
+
+Keep PostgreSQL scheduling beside the existing durable workflows and brokers;
+do not introduce another scheduler service, paid adapter or credential path.
+Migration 22 stores versioned owner policy, immutable run lanes and schedules,
+deduplicated job intents, health and knowledge provenance. Source refresh uses
+the existing source policy/admission; reviews create existing bounded workflows;
+health rehashes exact artifact bytes and claims archive integrity only.
+
+Reserve real maintenance authority in an existing period child of the configured
+global envelope. Existing journal/ancestor accounting remains authoritative.
+Improvement and exploration retain separate run allocations; non-maintenance
+calls cannot spend the maintenance subtree. A depleted/expired reserve, due or
+unfinished maintenance, unresolved health, review backlog, capacity and explicit
+normal/conserve/maintenance_only/paused modes constrain shared dispatch. Study
+attempts retain their frozen conditions and do not inherit portfolio changes.
+
+Coalesce outage intervals into one current job; never enumerate missed slots.
+Use a workspace cooldown, per-pass cap, one open job per schedule and stable
+effect/idempotency IDs. Unknown outcomes occupy capacity and require read-only
+reconciliation, not redispatch. Missing durable effect receipts fence delayed
+dispatchers. Cancellation marks the schedule and cancels its dedicated run;
+already-dispatched observations remain recorded. Optional API polling is off by
+default and was not activated. Policy budget identities are fixed in this version;
+budget rotation into different identities requires a new workspace.
+
+Use bounded task guidance and artifact/source locators for reusable components,
+lessons, prompts and skills. This is not an executable skill installer or a
+system-policy loader. Proposals cannot change permissions, credentials, finance
+or evaluation holdouts. Require executed structural renderer regressions bound
+to the exact content hash, then human review and explicit activation. Regression
+evidence records what was checked, not empirical output-quality gains. Rollback
+selects a still-reviewed version using expected-head concurrency. Revocation and
+stale provenance fence future workflow dispatch without changing immutable task
+history. Workflow knowledge bindings retain exact candidate versions/hashes.
+
+Owner feedback uses existing Gallery records; portfolio backlog counts those
+unresolved submissions and pending decisions. An explicit hash/identity-bound
+owner health deferral preserves the failed report as `owner_deferred`, never as
+a successful check. No profit threshold or fixed production quota is introduced.
+
+See docs/X09_PORTFOLIO.md and tracking/evidence/x09. The new Portfolio screen
+requires only an import/view case in main.tsx and a view tuple in ui.tsx;
+shared CSS and existing component props remain unchanged for Claude integration.
+
 ## ADR-0035 — X08 immutable campaigns and local fixture delivery
 
 October 19, 2026. Jordan authorized X08 and stated that Claude is working on

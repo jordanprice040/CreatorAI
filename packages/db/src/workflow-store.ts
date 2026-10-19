@@ -321,6 +321,7 @@ export class WorkflowStore extends BudgetStore {
       ctx,
       { op: 'workflow.start', runId, req },
       async (c) => {
+        await portfolioEffectFence(c, ws, runId, ctx.idempotencyKey);
         const s = await this.subjectVersion(c, ws, req.subject);
         const subject = {
           id: req.subject.id.toLowerCase(),
@@ -330,9 +331,16 @@ export class WorkflowStore extends BudgetStore {
           title: String(s.title).slice(0, 500),
           excerpt: JSON.stringify(s.body ?? null).slice(0, 4000),
         };
+        const knowledge = await activeKnowledgeConstraints(
+          c,
+          ws,
+          runId,
+          req.knowledge_keys ?? [],
+          req.data_class,
+        );
         const context = {
           subject,
-          constraints: req.constraints,
+          constraints: [...req.constraints, ...knowledge],
           perspectives: req.perspectives,
         };
         const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
@@ -347,6 +355,12 @@ export class WorkflowStore extends BudgetStore {
           dataClass: req.data_class,
           audit: { perspectives: req.perspectives.length },
         });
+        await bindWorkflowKnowledge(
+          c,
+          ws,
+          workflowId,
+          req.knowledge_keys ?? [],
+        );
         await this.insertTask(c, ctx, ws, workflowId, {
           kind: 'synthesis',
           ordinal: 0,
@@ -1275,6 +1289,15 @@ export class WorkflowStore extends BudgetStore {
       for (const raw of wfs) {
         if (leases.length >= max) break;
         const wf = toWorkflow(raw as Row);
+        if (
+          await portfolioActionGate(
+            c,
+            wf.workspace_id,
+            wf.run_id,
+            'model.generate',
+          )
+        )
+          continue;
         const { rows: busy } = await c.query<{ n: string }>(
           `select count(*) as n from workflow_tasks where workflow_id = $1 and state = 'leased'`,
           [wf.id],
@@ -1657,3 +1680,11 @@ function usageOf(reservations: Reservation[]) {
     in_flight: inFlight,
   };
 }
+import {
+  portfolioActionGate,
+  portfolioEffectFence,
+} from './portfolio-gates.js';
+import {
+  activeKnowledgeConstraints,
+  bindWorkflowKnowledge,
+} from './knowledge-context.js';

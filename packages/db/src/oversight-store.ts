@@ -1,4 +1,8 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import {
+  portfolioActionGate,
+  portfolioEffectFence,
+} from './portfolio-gates.js';
 import type { PoolClient } from 'pg';
 import {
   ContractError,
@@ -1190,6 +1194,7 @@ export class OversightStore extends Store {
       await this.expireDue(c, ctx, ws);
       const run = await this.lockRun(c, ws, runId);
       const { binding, stale } = await this.bind(c, ws, runId, req);
+      await portfolioEffectFence(c, ws, runId, ctx.idempotencyKey);
       const hash = bindingHash(binding);
       const grants = (
         await c.query(
@@ -1243,7 +1248,7 @@ export class OversightStore extends Store {
           [ws, runId, hash],
         )
       ).rows.map((r) => r.reason);
-      const verdict = stale
+      let verdict = stale
         ? {
             verdict: 'deny' as const,
             outcome: 'denied' as const,
@@ -1269,6 +1274,20 @@ export class OversightStore extends Store {
             resolvedReasons: resolved,
             now: Date.now(),
           });
+      const portfolioReason =
+        run.state === 'active'
+          ? await portfolioActionGate(c, ws, runId, req.action_type)
+          : null;
+      if (portfolioReason)
+        verdict = {
+          ...verdict,
+          verdict: 'deny',
+          outcome: 'denied',
+          reason_code: portfolioReason,
+          explanation: 'Portfolio admission refused: ' + portfolioReason,
+          covered_by: null,
+          decision_kind: null,
+        };
       let outcome = { ...verdict };
       let decisionId: string | null = null;
       let coveredBy = verdict.covered_by;

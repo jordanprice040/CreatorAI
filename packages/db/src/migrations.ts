@@ -2083,6 +2083,85 @@ create trigger marketing_content_immutable before update or delete on marketing_
  for each row execute function creator_marketing_content_guard();
 `,
   },
+  {
+    version: 22,
+    name: 'portfolio_scheduling_and_reviewed_knowledge',
+    sql: `
+create table portfolio_policies (
+ workspace_id uuid primary key references workspaces(id), version integer not null check(version>0),
+ body jsonb not null, next_tick_at timestamptz not null default clock_timestamp(),
+ created_by uuid not null references actors(id), updated_at timestamptz not null default clock_timestamp()
+);
+create table portfolio_run_lanes (
+ workspace_id uuid not null, run_id uuid not null, lane text not null check(lane in ('maintenance','improvement','exploration')),
+ rationale text not null, created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ primary key(workspace_id,run_id),foreign key(workspace_id,run_id) references run_controls(workspace_id,run_id)
+);
+create trigger portfolio_lanes_immutable before update or delete on portfolio_run_lanes for each row execute function creator_reject_change();
+create table portfolio_schedules (
+ id uuid primary key,workspace_id uuid not null,run_id uuid not null,
+ lane text not null check(lane in ('maintenance','improvement','exploration')),
+ body jsonb not null,body_hash char(64) not null,next_due_at timestamptz not null,
+ cancelled boolean not null default false,created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),unique(workspace_id,id),unique(workspace_id,run_id),
+ foreign key(workspace_id,run_id) references portfolio_run_lanes(workspace_id,run_id)
+);
+create table portfolio_jobs (
+ id uuid primary key,workspace_id uuid not null,schedule_id uuid not null,run_id uuid not null,
+ lane text not null,slot_at timestamptz not null,body_hash char(64) not null,
+ state text not null check(state in ('dispatching','unknown','succeeded','failed','cancelled')),
+ result jsonb,created_at timestamptz not null default clock_timestamp(),finished_at timestamptz,
+ foreign key(workspace_id,schedule_id) references portfolio_schedules(workspace_id,id),
+ unique(schedule_id,slot_at),unique(workspace_id,id)
+);
+create unique index portfolio_one_open_job on portfolio_jobs(schedule_id) where state in ('dispatching','unknown');
+create index portfolio_jobs_state on portfolio_jobs(workspace_id,state);
+create table portfolio_health (
+ workspace_id uuid not null references workspaces(id),artifact_id uuid not null references artifact_manifests(id),
+ job_id uuid not null references portfolio_jobs(id),state text not null,report jsonb not null,
+ observed_at timestamptz not null default clock_timestamp(),primary key(workspace_id,artifact_id)
+);
+create table reusable_knowledge (
+ id uuid primary key,workspace_id uuid not null references workspaces(id),key text not null,version integer not null,
+ body jsonb not null,body_hash char(64) not null,status text not null check(status in ('proposed','reviewed','revoked')),
+ created_by uuid not null references actors(id),created_at timestamptz not null default clock_timestamp(),
+ unique(workspace_id,key,version),unique(workspace_id,id)
+);
+create table knowledge_regressions (
+ id uuid primary key,workspace_id uuid not null,candidate_id uuid not null,body_hash char(64) not null,
+ verifier_version text not null,checks jsonb not null,passed boolean not null,
+ created_by uuid not null references actors(id),created_at timestamptz not null default clock_timestamp(),
+ foreign key(workspace_id,candidate_id) references reusable_knowledge(workspace_id,id)
+);
+create trigger knowledge_regressions_immutable before update or delete on knowledge_regressions for each row execute function creator_reject_change();
+create table knowledge_heads (
+ workspace_id uuid not null references workspaces(id),key text not null,candidate_id uuid not null,
+ primary key(workspace_id,key),foreign key(workspace_id,candidate_id) references reusable_knowledge(workspace_id,id)
+);
+create table workflow_knowledge (
+ workspace_id uuid not null,workflow_id uuid not null references workflows(id),candidate_id uuid not null,
+ body_hash char(64) not null,primary key(workflow_id,candidate_id),
+ foreign key(workspace_id,candidate_id) references reusable_knowledge(workspace_id,id)
+);
+create trigger workflow_knowledge_immutable before update or delete on workflow_knowledge for each row execute function creator_reject_change();
+create function creator_portfolio_schedule_guard() returns trigger language plpgsql as $$
+begin
+ if tg_op='DELETE' or (new.id,new.workspace_id,new.run_id,new.lane,new.body,new.body_hash,new.created_by,new.created_at)
+ is distinct from (old.id,old.workspace_id,old.run_id,old.lane,old.body,old.body_hash,old.created_by,old.created_at)
+ or (old.cancelled and not new.cancelled) then raise exception 'immutable schedule' using errcode='23514';end if;
+ return new;
+end $$;
+create trigger portfolio_schedule_guard before update or delete on portfolio_schedules for each row execute function creator_portfolio_schedule_guard();
+create function creator_knowledge_guard() returns trigger language plpgsql as $$
+begin
+ if tg_op='DELETE' or (new.id,new.workspace_id,new.key,new.version,new.body,new.body_hash,new.created_by,new.created_at)
+ is distinct from (old.id,old.workspace_id,old.key,old.version,old.body,old.body_hash,old.created_by,old.created_at)
+ or not ((old.status='proposed' and new.status in ('reviewed','revoked')) or (old.status='reviewed' and new.status='revoked'))
+ then raise exception 'immutable knowledge candidate' using errcode='23514';end if;return new;
+end $$;
+create trigger knowledge_guard before update or delete on reusable_knowledge for each row execute function creator_knowledge_guard();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

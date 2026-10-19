@@ -1,5 +1,47 @@
 # Session handoff
 
+## X09 local portfolio acceptance (October 19, 2026)
+
+Branch `codex/x09-portfolio`, parent local X08 commit `64596ef`, in managed
+checkout `C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`. Directory
+name intentionally unchanged. X08's recorded hashes were checked before the local
+commit. No push; X09 is uncommitted. Original X05 dirty work and Claude's separate
+UI/UX work preserved.
+
+Read docs/X09_PORTFOLIO.md and ADR-0036. Migration 22 introduces portfolio
+policy/lanes/schedules/jobs/health and reviewed versioned knowledge. Shared
+admission, broker allocation checks and workflow leasing enforce reserve,
+maintenance, backlog and conservation constraints. Stable intents coalesce missed
+intervals and fence uncertain dispatchers. Source refresh uses the original source
+broker; health uses exact package rehashing; scheduled review uses existing durable
+workflows. Cancellation also cancels the schedule's dedicated run.
+
+Knowledge is bounded task data with current provenance and permitted use. Propose,
+execute structural regression, review the exact hash, activate and roll back.
+Workflow/task bindings retain exact versions. Revocation or stale provenance
+blocks queued dispatch; no policy, credential, finance or held-out mutation.
+Source/skill truth and output-quality improvements are not inferred from the
+structural regression.
+
+Seven focused X09 checks passed without skips, including HTTP/CLI and negative
+gates. Final full suite: 270 tests, 256 pass, 0 fail, 14 explicit native/WSL/inverse
+backend skips; actual backup/restore passed. See evidence/x09/full-tests.log. Final typecheck,
+build, format and whitespace checks passed. Actual isolated Edge verified the
+new screen's scheduling, review/activation, pause/resume, cancellation and revoke
+flows; 390px viewport has 390px document width. Browser evidence is retained.
+
+Claude integration: add `portfolio.tsx`, merge its import/view case into redesigned
+`main.tsx` and the `portfolio` view tuple into `ui.tsx`; preserve the earlier X08
+wiring too. No shared CSS or existing public component prop changes. Scoped
+tracking entries must be preserved alongside Claude's updates.
+
+Optional polling defaults off (`CREATOR_PORTFOLIO_SCHEDULER=off`). Only manual
+fixture passes were executed; no new live model/source integration, spending,
+public deployment, outreach, account activation or pilot. Health is archive
+integrity only; skills are passive reviewed guidance. Fixed policy budget IDs
+require a new workspace for rotation. Existing studio databases were not migrated.
+Next eligible: X10 on request, with inherited live/hosted readiness gaps explicit.
+
 ## X08 implemented and test-delivery acceptance verified (October 19, 2026)
 
 Worktree: `C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`, branch
