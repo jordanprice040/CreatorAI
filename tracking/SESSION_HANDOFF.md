@@ -1,10 +1,23 @@
 # Session handoff
 
+## X10 readiness, benchmark and pilot gate (October 19, 2026)
+
+Branch `claude/x10-1y6bd6` (Claude Code) from main `a68e9f9`. Read docs/X10_ACCEPTANCE.md
+and ADR-0038. Next free numbers: migration 23, ADR-0039.
+
+Keep `config/readiness.json` current: when a milestone or owner action changes a state,
+update the row and its evidence, then run `pnpm readiness` (exit 3 = honestly not ready,
+2 = register inconsistent). The owner pilot starts only after Jordan fills
+`config/owner-pilot.json` and `pnpm readiness pilot-check` passes; set `status: completed`
+with evidence afterwards. Benchmark: `pnpm bench <dir>` with CREATOR_BENCH_DATABASE_URL
+(creates and drops its own database). Release package: `node scripts/release-archive.mjs`.
+The leftover conflict markers in tracking files on main were removed in this branch.
+
+
 ## Local audit fixes published for review — 2026-10-19
 
 Preserves the original checkout while publishing its DNS cancellation, sign-out, stale actor request, and maintenance-health fixes with regression tests. Documentation cleanup and historical local tracking patches are retained. This PR is stacked on X08/X09; X10 is not started. Validation: typecheck, production build, formatting, and 15 focused regression tests passed. PostgreSQL/live activation was not rerun for this audit branch.
 
-<<<<<<< HEAD
 
 ## X09 local portfolio acceptance (October 19, 2026)
 
@@ -81,7 +94,6 @@ public unsubscribe endpoint, hosted landing page or validated demand. Missing
 native/WSL checks do not block this local test-delivery gate and were not counted
 as passes. No paid call, real outreach, release, activation, commit or push.
 Next eligible: X09 on owner request; do not advance automatically.
-=======
 
 ## UX/UI redesign (October 19, 2026)
 
@@ -101,7 +113,6 @@ To rerun the browser evidence: start `tracking/evidence/ux-ui/harness.mjs` on an
 database, then `browser-acceptance.mjs` and `screens.mjs` (commands in docs/UX_UI.md).
 Not done: native Tauri check on Windows. Next eligible: X08 (Codex) or the owner's review of this PR.
 
-> > > > > > > origin/main
 
 ## X06/X07 audited and repaired (October 19, 2026)
 

@@ -1,0 +1,1052 @@
+{
+  "schema": "readiness/1",
+  "as_of": "2026-10-19",
+  "states_mean": {
+    "implemented": "code for the capability exists on main",
+    "fixture": "exercised end to end with fixture adapters on real PostgreSQL",
+    "contract": "adapter checked against a loopback or contract double of the real service",
+    "live": "exercised against the real external service, real data or real people",
+    "activated": "switched on for real use by the owner",
+    "native": "exercised on the owner's Windows/WSL2 machine"
+  },
+  "requirements": [
+    {
+      "id": "C01",
+      "title": "Discovery-to-product workflow",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "verified"
+      },
+      "required": ["implemented", "fixture", "live", "native"],
+      "evidence": [
+        "tracking/evidence/t13",
+        "tracking/evidence/t19",
+        "docs/ARTIFACTS_AND_PREVIEW.md"
+      ],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+    },
+    {
+      "id": "C02",
+      "title": "Directed locator",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t07"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C03",
+      "title": "Cross-field ideation",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t07"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C04",
+      "title": "Urgency and software influence",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t08"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C05",
+      "title": "Source provenance and claim support",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "contract", "live"],
+      "evidence": ["tracking/evidence/t06"],
+      "blocked_on": "No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+    },
+    {
+      "id": "C06",
+      "title": "Corroboration and counterevidence",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t06", "tracking/evidence/t07"],
+      "blocked_on": "No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+    },
+    {
+      "id": "C07",
+      "title": "Competing concepts and critique",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t07"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C08",
+      "title": "Deduplication and existing alternatives",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t07"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+    },
+    {
+      "id": "C09",
+      "title": "Versioned rubric and override",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t08"],
+      "blocked_on": null
+    },
+    {
+      "id": "C10",
+      "title": "Non-code and hybrid options",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t03", "tracking/evidence/t08"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C11",
+      "title": "Assumptions and reconsideration",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/t03", "tracking/evidence/t07"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C12",
+      "title": "Human clarification and approval",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t03"],
+      "blocked_on": null
+    },
+    {
+      "id": "C13",
+      "title": "Configurable bounded autonomy",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t03"],
+      "blocked_on": null
+    },
+    {
+      "id": "C14",
+      "title": "Version-bound approvals and dissent",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t03"],
+      "blocked_on": null
+    },
+    {
+      "id": "C15",
+      "title": "Autonomous / assisted / human-only comparison",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": [
+        "tracking/evidence/t10",
+        "tracking/evidence/t14",
+        "tracking/evidence/t15",
+        "tracking/evidence/t16"
+      ],
+      "blocked_on": "Comparative study not run: protocol freeze waits on Jordan's research decisions RD1-RD10 (RD5 needs a committee/IRB ruling)."
+    },
+    {
+      "id": "C16",
+      "title": "No hidden AI in human-only condition",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t10"],
+      "blocked_on": null
+    },
+    {
+      "id": "C17",
+      "title": "Structured vs open-ended comparison",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": [
+        "tracking/evidence/t10",
+        "tracking/evidence/t14",
+        "tracking/evidence/t15",
+        "tracking/evidence/t16"
+      ],
+      "blocked_on": "Comparative study not run: protocol freeze waits on Jordan's research decisions RD1-RD10 (RD5 needs a committee/IRB ruling)."
+    },
+    {
+      "id": "C18",
+      "title": "Reproducible protocol and blinded ratings",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": [
+        "tracking/evidence/t10",
+        "tracking/evidence/t14",
+        "tracking/evidence/t15",
+        "tracking/evidence/t16"
+      ],
+      "blocked_on": "Comparative study not run: protocol freeze waits on Jordan's research decisions RD1-RD10 (RD5 needs a committee/IRB ruling)."
+    },
+    {
+      "id": "C19",
+      "title": "Intervention quality and human effort",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": [
+        "tracking/evidence/t10",
+        "tracking/evidence/t14",
+        "tracking/evidence/t15",
+        "tracking/evidence/t16"
+      ],
+      "blocked_on": "Comparative study not run: protocol freeze waits on Jordan's research decisions RD1-RD10 (RD5 needs a committee/IRB ruling)."
+    },
+    {
+      "id": "C20",
+      "title": "Requirements, specs and task DAGs",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t08"],
+      "blocked_on": null
+    },
+    {
+      "id": "C21",
+      "title": "Bounded specialist delegation",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t05", "tracking/evidence/t12"],
+      "blocked_on": null
+    },
+    {
+      "id": "C22",
+      "title": "Persistent run state and recovery",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t05", "tracking/evidence/t17"],
+      "blocked_on": null
+    },
+    {
+      "id": "C23",
+      "title": "Independent review and executed QA",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "verified"
+      },
+      "required": ["implemented", "fixture", "live", "native"],
+      "evidence": ["tracking/evidence/t12"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. Builder and reviewer roles have only run as fixed synthetic roles."
+    },
+    {
+      "id": "C24",
+      "title": "Tested artifacts and downloads",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "verified"
+      },
+      "required": ["implemented", "fixture", "native"],
+      "evidence": ["tracking/evidence/t13"],
+      "blocked_on": null
+    },
+    {
+      "id": "C25",
+      "title": "Feedback revision",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "verified"
+      },
+      "required": ["implemented", "fixture", "native"],
+      "evidence": ["tracking/evidence/t13", "tracking/evidence/t19"],
+      "blocked_on": null
+    },
+    {
+      "id": "C26",
+      "title": "Searchable provenance",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t09", "tracking/evidence/x03"],
+      "blocked_on": null
+    },
+    {
+      "id": "C27",
+      "title": "Observable audit with costs",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t02", "tracking/evidence/t04"],
+      "blocked_on": null
+    },
+    {
+      "id": "C28",
+      "title": "Exact budgets and reservations",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t04"],
+      "blocked_on": null
+    },
+    {
+      "id": "C29",
+      "title": "Cancellation and partial results",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": [
+        "tracking/evidence/t05",
+        "tracking/evidence/t12",
+        "tracking/evidence/t17"
+      ],
+      "blocked_on": null
+    },
+    {
+      "id": "C30",
+      "title": "Restricted generated-code execution",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "verified"
+      },
+      "required": ["implemented", "fixture", "native"],
+      "evidence": ["tracking/evidence/t11", "tracking/evidence/t17"],
+      "blocked_on": null
+    },
+    {
+      "id": "C31",
+      "title": "Privacy, credentials and injection boundaries",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t06", "tracking/evidence/t17"],
+      "blocked_on": null
+    },
+    {
+      "id": "C32",
+      "title": "Local-first control mode",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t01", "tracking/evidence/t17"],
+      "blocked_on": null
+    },
+    {
+      "id": "C33",
+      "title": "Local Git for generated products",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "verified"
+      },
+      "required": ["implemented", "fixture", "native"],
+      "evidence": ["tracking/evidence/t11"],
+      "blocked_on": null
+    },
+    {
+      "id": "C34",
+      "title": "Context and token accounting",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "contract"],
+      "evidence": ["tracking/evidence/t04", "tracking/evidence/t05"],
+      "blocked_on": null
+    },
+    {
+      "id": "C35",
+      "title": "Web catalog, decisions and run controls",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t09", "tracking/evidence/ux-ui"],
+      "blocked_on": null
+    },
+    {
+      "id": "C36",
+      "title": "Thesis, demo, defense and archive",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": [
+        "docs/thesis",
+        "tracking/evidence/t18",
+        "tracking/evidence/t19"
+      ],
+      "blocked_on": "Packet prepared under the missing-data allowance; committee acceptance, dates and empirical results are not recorded. Comparative study not run: protocol freeze waits on Jordan's research decisions RD1-RD10 (RD5 needs a committee/IRB ruling)."
+    },
+    {
+      "id": "C37",
+      "title": "Model routing with quality floor",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["docs/MODEL_ROUTING.md", "tracking/evidence/x01"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "C38",
+      "title": "Caching, compaction and batches",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "contract", "live"],
+      "evidence": ["docs/CONTEXT_AND_CACHING.md", "tracking/evidence/x02"],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. Caching, batch and compaction stay documented for gpt-6-astra."
+    },
+    {
+      "id": "C39",
+      "title": "Semantic search and audit questions",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["docs/SEARCH_AND_AUDIT.md", "tracking/evidence/x03"],
+      "blocked_on": "Real workspaces refuse semantic search until Jordan verifies an embedding model. Rule-compiled audit questions work locally."
+    },
+    {
+      "id": "C40",
+      "title": "GitHub management",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "contract", "live"],
+      "evidence": ["docs/GITHUB.md", "tracking/evidence/x04"],
+      "blocked_on": "No GitHub credential configured for the studio; live use needs CREATOR_GITHUB=live, a verified connection and grants."
+    },
+    {
+      "id": "C41",
+      "title": "Windows desktop app",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_verified",
+        "native": "verified"
+      },
+      "required": ["implemented", "native"],
+      "evidence": ["apps/desktop/README.md", "tracking/evidence/x05"],
+      "blocked_on": null
+    },
+    {
+      "id": "C42",
+      "title": "Paired worker and offline state",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_verified",
+        "native": "not_verified"
+      },
+      "required": ["implemented", "fixture", "native"],
+      "evidence": ["tracking/evidence/x05"],
+      "blocked_on": "Real pairing, revocation and stale-lease handling passed on Windows; a read-only offline cache was not separately verified."
+    },
+    {
+      "id": "C43",
+      "title": "Hosted control and recovery",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": [
+        "docs/HOSTED_OPERATION.md",
+        "tracking/evidence/x06-x07-audit"
+      ],
+      "blocked_on": "Nothing deployed: hosting, certificate, managed database, sign-in provider and alert channel are Jordan's choice."
+    },
+    {
+      "id": "C44",
+      "title": "Payments and reconciled revenue",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "deferred",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "contract", "live"],
+      "evidence": [
+        "docs/PAYMENTS.md",
+        "tracking/evidence/x07",
+        "tracking/evidence/x06-x07-audit"
+      ],
+      "blocked_on": "No processor account or call; processor choice and live activation are separate owner decisions."
+    },
+    {
+      "id": "C45",
+      "title": "Reinvestment from eligible earnings",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "deferred",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["docs/PAYMENTS.md", "tracking/evidence/x07"],
+      "blocked_on": "Reinvestment is off until Jordan sets a policy; no real earnings exist."
+    },
+    {
+      "id": "C46",
+      "title": "Marketing and authorized campaigns",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "unsupported",
+        "activated": "deferred",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["docs/X08_MARKETING.md", "tracking/evidence/x08"],
+      "blocked_on": "Local fixture sink only: no outbound adapter, paid ads, real audience or public unsubscribe flow."
+    },
+    {
+      "id": "C47",
+      "title": "Scheduling and conservation modes",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["docs/X09_PORTFOLIO.md", "tracking/evidence/x09"],
+      "blocked_on": null
+    },
+    {
+      "id": "C48",
+      "title": "Reviewed reusable knowledge",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["docs/X09_PORTFOLIO.md", "tracking/evidence/x09"],
+      "blocked_on": null
+    },
+    {
+      "id": "C49",
+      "title": "Real-vs-fixture status",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["config/readiness.json", "tracking/INTEGRATIONS.md"],
+      "blocked_on": null
+    },
+    {
+      "id": "C50",
+      "title": "Owner control without repeated prompts",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["tracking/evidence/t03", "tracking/evidence/x08"],
+      "blocked_on": null
+    },
+    {
+      "id": "C51",
+      "title": "Declared-scale performance",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": ["docs/X10_ACCEPTANCE.md", "tracking/evidence/x10/bench"],
+      "blocked_on": null
+    }
+  ],
+  "integrations": [
+    {
+      "id": "openai-models",
+      "title": "OpenAI Responses, embeddings and batch adapters",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": [
+        "tracking/INTEGRATIONS.md",
+        "config/provider-availability.json"
+      ],
+      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+    },
+    {
+      "id": "source-fetch",
+      "title": "HTTP source fetch",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": ["tracking/evidence/t06"],
+      "blocked_on": "No real site fetched; needs CREATOR_SOURCE_FETCH=live, an approved host list and grants."
+    },
+    {
+      "id": "source-search",
+      "title": "Live web search provider",
+      "states": {
+        "implemented": "unsupported",
+        "fixture": "not_applicable",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "live"],
+      "evidence": ["tracking/INTEGRATIONS.md"],
+      "blocked_on": "No live search adapter exists; Jordan has not chosen a provider."
+    },
+    {
+      "id": "postgresql",
+      "title": "PostgreSQL persistence",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "verified",
+        "activated": "verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture", "live"],
+      "evidence": ["tracking/evidence/docker", "tracking/evidence/x09"],
+      "blocked_on": null
+    },
+    {
+      "id": "backup-restore",
+      "title": "pg_dump backup and restore",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "fixture"],
+      "evidence": [
+        "docs/BACKUP_AND_RESTORE.md",
+        "tracking/evidence/t17",
+        "tracking/evidence/x10"
+      ],
+      "blocked_on": null
+    },
+    {
+      "id": "oidc-sign-in",
+      "title": "OIDC owner sign-in",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": ["tracking/evidence/t03"],
+      "blocked_on": "Only the local development login and a local test identity provider have been used."
+    },
+    {
+      "id": "wsl2-isolation",
+      "title": "WSL2 isolated execution worker",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "verified"
+      },
+      "required": ["implemented", "native"],
+      "evidence": ["tracking/evidence/t11", "tracking/evidence/t17"],
+      "blocked_on": null
+    },
+    {
+      "id": "windows-desktop",
+      "title": "Windows desktop app and paired worker",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_verified",
+        "native": "verified"
+      },
+      "required": ["implemented", "native"],
+      "evidence": ["tracking/evidence/x05"],
+      "blocked_on": null
+    },
+    {
+      "id": "desktop-signing-updates",
+      "title": "Signed installer and automatic updates",
+      "states": {
+        "implemented": "unsupported",
+        "fixture": "not_applicable",
+        "contract": "not_applicable",
+        "live": "not_applicable",
+        "activated": "not_applicable",
+        "native": "not_verified"
+      },
+      "required": ["implemented"],
+      "evidence": ["tracking/evidence/x05"],
+      "blocked_on": "Installer is unsigned and there is no automatic updater."
+    },
+    {
+      "id": "github",
+      "title": "GitHub REST and Git-over-HTTPS",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": ["docs/GITHUB.md"],
+      "blocked_on": "No studio GitHub credential configured; no live call made."
+    },
+    {
+      "id": "hosted-operation",
+      "title": "Hosted deployment",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "live"],
+      "evidence": ["docs/HOSTED_OPERATION.md"],
+      "blocked_on": "Not deployed; container images never built."
+    },
+    {
+      "id": "alert-delivery",
+      "title": "External alert delivery",
+      "states": {
+        "implemented": "unsupported",
+        "fixture": "not_applicable",
+        "contract": "not_applicable",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented"],
+      "evidence": ["docs/HOSTED_OPERATION.md"],
+      "blocked_on": "No alert adapter; alert channel fixed to none."
+    },
+    {
+      "id": "stripe-payments",
+      "title": "Stripe processor",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "not_verified",
+        "activated": "deferred",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": ["docs/PAYMENTS.md"],
+      "blocked_on": "No Stripe test or live call; live mode is not built and activation is Jordan's decision."
+    },
+    {
+      "id": "campaign-delivery",
+      "title": "Outbound campaign delivery",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "not_applicable",
+        "live": "unsupported",
+        "activated": "deferred",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "live"],
+      "evidence": ["docs/X08_MARKETING.md"],
+      "blocked_on": "Local fixture sink only; no real outbound adapter."
+    },
+    {
+      "id": "paid-ads",
+      "title": "Paid advertising",
+      "states": {
+        "implemented": "unsupported",
+        "fixture": "not_applicable",
+        "contract": "not_applicable",
+        "live": "unsupported",
+        "activated": "not_applicable",
+        "native": "not_applicable"
+      },
+      "required": ["implemented"],
+      "evidence": ["docs/X08_MARKETING.md"],
+      "blocked_on": "Disabled by design: no supported adapter with enforceable caps."
+    }
+  ]
+}

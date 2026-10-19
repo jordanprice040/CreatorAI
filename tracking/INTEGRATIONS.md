@@ -1,5 +1,9 @@
 # Integration readiness
 
+X10 (October 19, 2026): no new integration and no live call. Integration states now live in
+`config/readiness.json` and are checked by `pnpm readiness`; the generated report is
+tracking/evidence/x10/READINESS.md. None of the 15 integrations gained a state in X10.
+
 X09 (October 19, 2026): portfolio schedules run through existing source, artifact
 and workflow adapters, with shared admission/budget gates. Optional API polling
 (`CREATOR_PORTFOLIO_SCHEDULER=on`) is implemented but defaults off and was not

@@ -28,7 +28,10 @@
     "ops": "pnpm build:code && node packages/db/dist/ops-main.js",
     "dev:web": "pnpm --filter @creator/web dev",
     "cli": "node apps/cli/dist/main.js",
-    "smoke": "pnpm build && node scripts/smoke.mjs"
+    "smoke": "pnpm build && node scripts/smoke.mjs",
+    "readiness": "pnpm build:code && node packages/orchestrator/dist/readiness-main.js",
+    "bench": "pnpm build:code && node tests/dist/x10-bench-main.js",
+    "release-archive": "node scripts/release-archive.mjs"
   },
   "devDependencies": {
     "@types/node": "22.19.0",

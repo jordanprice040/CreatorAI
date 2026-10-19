@@ -1012,25 +1012,32 @@ export class SearchStore extends ContextStore {
     direction: 'upstream' | 'downstream',
     maxDepth: number,
   ): Promise<WalkEdge[]> {
-    const [near, far] =
-      direction === 'upstream'
-        ? ['descendant_id', 'origin_id']
-        : ['origin_id', 'descendant_id'];
-    const { rows } = await c.query(
-      `with recursive edges as (
-         select id, relation, from_version, to_version,
-           case when relation = any($4::text[]) then to_id else from_id end as origin_id,
-           case when relation = any($4::text[]) then from_id else to_id end as descendant_id
-         from entity_links where workspace_id = $1 and retracted_at is null
-       ), walk (link_id, next_id, depth, path) as (
-         select e.id, e.${far}, 1, array[e.id] from edges e where e.${near} = $2
+    // Each hop is two indexed lookups (entity_links_from / entity_links_to) for the links whose
+    // near end is the current node; X10 measured the earlier whole-workspace edge CTE growing
+    // with every link in the workspace.
+    const [a, b] =
+      direction === 'downstream' ? ['to_id', 'from_id'] : ['from_id', 'to_id'];
+    const step = (node: string) => `(
+         select id as link_id, ${b} as far from entity_links
+          where workspace_id = $1 and retracted_at is null and ${a} = ${node}
+            and relation = any($4::text[])
          union all
-         select e.id, e.${far}, w.depth + 1, w.path || e.id
-         from walk w join edges e on e.${near} = w.next_id
-         where w.depth < $3 and not e.id = any(w.path)
+         select id, ${a} from entity_links
+          where workspace_id = $1 and retracted_at is null and ${b} = ${node}
+            and not relation = any($4::text[]))`;
+    const { rows } = await c.query(
+      `with recursive walk (link_id, next_id, depth, path) as (
+         select s.link_id, s.far, 1, array[s.link_id] from ${step('$2::uuid')} s
+         union all
+         select s.link_id, s.far, w.depth + 1, w.path || s.link_id
+         from walk w cross join lateral ${step('w.next_id')} s
+         where w.depth < $3 and not s.link_id = any(w.path)
        )
-       select distinct on (e.id) e.*, w.depth
-       from walk w join edges e on e.id = w.link_id
+       select distinct on (e.id) e.id, e.relation, e.from_version, e.to_version,
+              case when e.relation = any($4::text[]) then e.to_id else e.from_id end as origin_id,
+              case when e.relation = any($4::text[]) then e.from_id else e.to_id end as descendant_id,
+              w.depth
+       from walk w join entity_links e on e.id = w.link_id
        order by e.id, w.depth`,
       [ws, root, maxDepth, ORIGIN_IS_TO],
     );
