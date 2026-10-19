@@ -1,0 +1,6 @@
+{
+  "version": "2026-10-19",
+  "fixture": [{ "provider": "fixture", "model_id": "fixture-embed-v1" }],
+  "real": [],
+  "notes": "Embedding models semantic search may call, per workspace mode. No real embedding model is verified for this studio: real workspaces refuse semantic search until an owner verifies one (accessible id, current pricing snapshot, data-class approval) and lists it here."
+}

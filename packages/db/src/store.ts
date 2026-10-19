@@ -201,6 +201,12 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return `Created ${String(p.record_mode)} workspace`;
     case 'member.added':
       return `Added ${String(p.role)} member`;
+    case 'member.removed':
+      return `Removed ${String(p.role)} member (${String(p.reason)})`;
+    case 'query.saved':
+      return `Saved ${String(p.kind)} query`;
+    case 'query.archived':
+      return `Archived ${String(p.kind)} query`;
     case 'entity.created':
       return `Created ${kind} v${String(version)}`;
     case 'entity.revised':
@@ -538,6 +544,58 @@ export class Store {
         contentHash: null,
         payload: { role },
       });
+    });
+  }
+
+  /**
+   * X03: revokes an actor's access to a workspace. Every read checks membership first, so
+   * the removed actor's searches, saved queries, questions and exports stop at NOT_FOUND.
+   * The last owner cannot be removed.
+   */
+  async removeMember(
+    ctx: CommandContext,
+    ws: string,
+    actorId: string,
+    reason: string,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    actorId = uuid(actorId, 'INVALID_CONTRACT');
+    const why = reason.trim();
+    if (!why || why.length > 200)
+      throw fail(
+        'INVALID_CONTRACT',
+        'A reason of 1-200 characters is required.',
+      );
+    return this.tx(async (c) => {
+      if ((await this.role(c, ws, ctx.actorId, true)) !== 'owner')
+        throw fail('ACCESS_DENIED', 'Only owners can change membership.');
+      await c.query(
+        'select 1 from workspace_members where workspace_id = $1 for update',
+        [ws],
+      );
+      const { rows } = await c.query<{ role: Role }>(
+        'delete from workspace_members where workspace_id = $1 and actor_id = $2 returning role',
+        [ws, actorId],
+      );
+      const role = rows[0]?.role;
+      if (!role) throw fail('NOT_FOUND', 'Member not found.');
+      const owners = await c.query(
+        `select count(*) as n from workspace_members where workspace_id = $1 and role = 'owner'`,
+        [ws],
+      );
+      if (Number(owners.rows[0]?.n ?? 0) === 0)
+        throw fail('INVALID_TRANSITION', 'The last owner cannot be removed.');
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'member.removed',
+        subjectKind: 'actor',
+        subjectId: actorId,
+        subjectVersion: null,
+        contentHash: null,
+        payload: { role, reason: why },
+      });
+      return { actor_id: actorId, role, removed: true as const };
     });
   }
 

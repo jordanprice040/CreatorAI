@@ -1,0 +1,20 @@
+{
+  "provider": "fixture",
+  "model_id": "fixture-embed-v1",
+  "basis": "fixture",
+  "source_url": null,
+  "retrieved_at": "2026-10-19T12:00:00.000Z",
+  "unit": "nano_usd_per_token",
+  "rates": {
+    "input": "20",
+    "cached_input": "20",
+    "cache_write": "20",
+    "output": "0"
+  },
+  "long_context": null,
+  "tool_call_rates": {},
+  "context_window_tokens": 8192,
+  "max_output_tokens": 1,
+  "supported_actions": ["model.embed"],
+  "notes": "Simulated X03 fixture embedding model (hashed character trigrams, 64 dimensions). Not money and not a real provider price."
+}
