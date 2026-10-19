@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,human_active_minutes,intervention_active_minutes,human_wait_seconds,human_time_missing,wall_seconds_median,wall_seconds_min,wall_seconds_max,wall_seconds_n,wall_seconds_missing,source
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,A,0,0,0,0,250,200,300,2,0,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,B,22,8,90,0,950,900,1000,2,0,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,C,90,0,0,0,2700,2400,3000,2,0,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,A,0,0,0,0,,,,0,1,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,B,15,0,0,0,1800,1800,1800,1,0,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,C,80,0,0,0,4800,4800,4800,1,0,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-open,0,0,0,0,525,500,550,2,0,Human minutes are participant-reported; wall time is server-observed.
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-structured,0,0,0,0,425,400,450,2,0,Human minutes are participant-reported; wall time is server-observed.

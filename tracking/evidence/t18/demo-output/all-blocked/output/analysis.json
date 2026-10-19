@@ -1,0 +1,965 @@
+{
+  "schema_version": "analysis/1",
+  "analysis_version": "analysis/1",
+  "data_kind": "synthetic_verification_fixture",
+  "empirical": false,
+  "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "fixture": {
+    "schema_version": "analysis-fixture/1",
+    "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+    "scenario": "all-blocked",
+    "covers": [
+      "final-mode package shape with an adopted-looking freeze, overridden by the fixture marker",
+      "every slot blocked: no attempts, no ratings, no exports"
+    ]
+  },
+  "plan": {
+    "version": "analysis-plan/1",
+    "status": "Implementation default, not an owner decision; adopt or replace it in the protocol freeze.",
+    "unit": "Task. Arms are paired within a task; a run is one observation however many ideas it contains.",
+    "primary_attempt": "The last attempt in each slot gives the outcome (a permitted retry replaces an infrastructure failure); every attempt counts for resources.",
+    "quality": "Per reviewer: mean of the five rubric dimensions when all five are present. Per slot: mean over reviewers with complete ratings. Missing ratings are never imputed.",
+    "implementation": "Share of executed frozen cases (held-out included) passed by the last attempt; accepted when submitted and every case passed.",
+    "discovery": "Per theme: mean over repeats for each method, then open-ended minus structured. Repeats are not independent observations.",
+    "uncertainty": {
+      "rule": "Range, median and sign counts over tasks always; a percentile bootstrap over tasks only when there are at least bootstrap_min_tasks pairs.",
+      "bootstrap_min_tasks": 10,
+      "resamples": 2000,
+      "interval": 0.95
+    },
+    "agreement": "Quadratic-weighted kappa per dimension for exactly two reviewers, plus every disagreement of two points or more.",
+    "cost": "Cost per accepted outcome counts every attempt (failures and retries). Undefined when nothing was accepted; a lower bound when billing is unknown or in flight.",
+    "exploratory": "Per-protocol completion (ran slots only) is exploratory and reported apart from the assigned-condition tables."
+  },
+  "options": {
+    "decision_min_mean_rating": null,
+    "basis": "No acceptance rule supplied; decision acceptance is undefined."
+  },
+  "inputs": {
+    "package_hash": "316c4fdb9c513b8604776e54b0a6d3511a6590621fcc67d11dd942c864e4cce1",
+    "schedule_hash": "e9be2ef4e303e4ebab2089b5d0903ca3e063534e01f8a61bb84504dbccd553fa",
+    "freeze": {
+      "origin": "adopted",
+      "freeze_hash": "118a25fe6645907ea56d29d994c9c524d5c5f59dd4edf5c7bcd3e63c9534e4d7"
+    },
+    "mode": "final",
+    "files": [
+      {
+        "path": "FIXTURE.json",
+        "sha256": "a1000b3138940112fb46e0003285212a7df6b614ac40f7885c07d2729718baa4"
+      },
+      {
+        "path": "evaluation-package.json",
+        "sha256": "06c217d137c33d0d96286532e04aa406494e639c6ba5275376dd537c49a60e15"
+      },
+      {
+        "path": "private/assignment-key.json",
+        "sha256": "d4eb20ec98dc0eececda591f52d23feff8ac9c4f2e4c4fc557f4bc94a0db0303"
+      }
+    ]
+  },
+  "totals": {
+    "assigned_slots": 10,
+    "attempts": 0,
+    "unscheduled_attempts": 0,
+    "known_spend_usd": "0.000000000",
+    "known_spend_unscheduled_usd": "0.000000000",
+    "unknown_exposure_usd": "0.000000000",
+    "in_flight_exposure_usd": "0.000000000",
+    "accepted": {
+      "implementation": 0,
+      "decision": null
+    },
+    "distinct_human_participants": 0,
+    "reviewers": 0
+  },
+  "prespecified": {
+    "completion": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "assigned": 1,
+        "blocked": 1,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/1",
+        "completion_share": 0
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "assigned": 2,
+        "blocked": 2,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/2",
+        "completion_share": 0
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "assigned": 2,
+        "blocked": 2,
+        "deferred": 0,
+        "missing": 0,
+        "ran": 0,
+        "submitted": 0,
+        "failed": 0,
+        "cancelled": 0,
+        "needs_human": 0,
+        "budget_exhausted": 0,
+        "attempts": 0,
+        "retries": 0,
+        "infrastructure_failures": 0,
+        "completion": "0/2",
+        "completion_share": 0
+      }
+    ],
+    "decision_quality": [],
+    "functional_completion": [
+      {
+        "slot_id": "4e30469f25100df27435b3abaacbbb14e98064f3cacedfaf86b170bbb4bd95e4",
+        "task_key": "i1",
+        "arm": "A",
+        "slot_state": "blocked",
+        "cases": 0,
+        "passed": 0,
+        "held_out_cases": 0,
+        "held_out_passed": 0,
+        "pass_share": null,
+        "backends": [],
+        "accepted": false
+      },
+      {
+        "slot_id": "6392828cde872d3d3a572b208a96c17aac416888463352ac088e0e66f8d3d23a",
+        "task_key": "i1",
+        "arm": "B",
+        "slot_state": "blocked",
+        "cases": 0,
+        "passed": 0,
+        "held_out_cases": 0,
+        "held_out_passed": 0,
+        "pass_share": null,
+        "backends": [],
+        "accepted": false
+      },
+      {
+        "slot_id": "ba3058f2bca7a774893c81fc4d33781ddeec7463b325c5b0b98345bfc7c6c688",
+        "task_key": "i1",
+        "arm": "C",
+        "slot_state": "blocked",
+        "cases": 0,
+        "passed": 0,
+        "held_out_cases": 0,
+        "held_out_passed": 0,
+        "pass_share": null,
+        "backends": [],
+        "accepted": false
+      }
+    ],
+    "paired_comparisons": [
+      {
+        "stratum": "decision",
+        "outcome": "mean reviewer quality (1-5)",
+        "contrast": "B - A",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "d1",
+            "x": null,
+            "y": null,
+            "difference": null,
+            "excluded": "B blocked, no value; A blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "decision",
+        "outcome": "mean reviewer quality (1-5)",
+        "contrast": "C - A",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "d1",
+            "x": null,
+            "y": null,
+            "difference": null,
+            "excluded": "C blocked, no value; A blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "decision",
+        "outcome": "mean reviewer quality (1-5)",
+        "contrast": "C - B",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "d1",
+            "x": null,
+            "y": null,
+            "difference": null,
+            "excluded": "C blocked, no value; B blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "implementation",
+        "outcome": "share of frozen cases passed",
+        "contrast": "B - A",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "i1",
+            "x": null,
+            "y": null,
+            "difference": null,
+            "excluded": "B blocked, no value; A blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "implementation",
+        "outcome": "share of frozen cases passed",
+        "contrast": "C - A",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "i1",
+            "x": null,
+            "y": null,
+            "difference": null,
+            "excluded": "C blocked, no value; A blocked, no value"
+          }
+        ]
+      },
+      {
+        "stratum": "implementation",
+        "outcome": "share of frozen cases passed",
+        "contrast": "C - B",
+        "tasks": 1,
+        "n_pairs": 0,
+        "min": null,
+        "median": null,
+        "max": null,
+        "positive": 0,
+        "zero": 0,
+        "negative": 0,
+        "interval": null,
+        "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+        "rows": [
+          {
+            "task_key": "i1",
+            "x": null,
+            "y": null,
+            "difference": null,
+            "excluded": "C blocked, no value; B blocked, no value"
+          }
+        ]
+      }
+    ],
+    "discovery_comparison": {
+      "contrast": "D-open - D-structured (theme means over repeats)",
+      "themes": 1,
+      "n_pairs": 0,
+      "min": null,
+      "median": null,
+      "max": null,
+      "positive": 0,
+      "zero": 0,
+      "negative": 0,
+      "interval": null,
+      "interval_note": "Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval.",
+      "rows": [
+        {
+          "task_key": "t1",
+          "structured_mean": null,
+          "structured_repeats_rated": "0/2",
+          "open_mean": null,
+          "open_repeats_rated": "0/2",
+          "difference_open_minus_structured": null
+        }
+      ]
+    },
+    "resources": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": null,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: no acceptance rule for this stratum (analysis-options.json)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": null,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: no acceptance rule for this stratum (analysis-options.json)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": null,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: no acceptance rule for this stratum (analysis-options.json)."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 0,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: zero accepted outcomes. Total known spend stays visible."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 0,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: zero accepted outcomes. Total known spend stays visible."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": 0,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: zero accepted outcomes. Total known spend stays visible."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": null,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: no acceptance rule for this stratum (analysis-options.json)."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "attempts": 0,
+        "calls": 0,
+        "provider_retries": 0,
+        "known_spend_nano_usd": "0",
+        "known_spend_usd": "0.000000000",
+        "unknown_exposure_usd": "0.000000000",
+        "in_flight_exposure_usd": "0.000000000",
+        "billing": "complete",
+        "accepted": null,
+        "cost_per_accepted_usd": null,
+        "cost_per_accepted_note": "Undefined: no acceptance rule for this stratum (analysis-options.json)."
+      }
+    ],
+    "human_effort_and_latency": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 1,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 2,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "human_active_minutes": 0,
+        "intervention_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "human_time_missing": 0,
+        "wall_seconds_median": null,
+        "wall_seconds_min": null,
+        "wall_seconds_max": null,
+        "wall_seconds_n": 0,
+        "wall_seconds_missing": 2,
+        "source": "Human minutes are participant-reported; wall time is server-observed."
+      }
+    ],
+    "interventions": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "interventions": 0,
+        "clarification": 0,
+        "judgment": 0,
+        "authorization": 0,
+        "feedback": 0,
+        "fixed_gate": 0,
+        "dynamic_gate": 0,
+        "prevented_problem_yes": 0,
+        "prevented_problem_no": 0,
+        "prevented_problem_unknown": 0,
+        "active_minutes": 0
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "interventions": 0,
+        "clarification": 0,
+        "judgment": 0,
+        "authorization": 0,
+        "feedback": 0,
+        "fixed_gate": 0,
+        "dynamic_gate": 0,
+        "prevented_problem_yes": 0,
+        "prevented_problem_no": 0,
+        "prevented_problem_unknown": 0,
+        "active_minutes": 0
+      }
+    ],
+    "evidence_validity": [],
+    "reviewer_agreement": {
+      "reviewers": 0,
+      "dimensions": [],
+      "disagreements": [],
+      "note": "Agreement needs exactly two reviewers' ratings; 0 supplied."
+    }
+  },
+  "exploratory": {
+    "per_protocol_completion": [
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "A",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "B",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "decision",
+        "arm": "C",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "A",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "B",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "autonomy",
+        "stratum": "implementation",
+        "arm": "C",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-open",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      },
+      {
+        "comparison": "discovery",
+        "stratum": "decision",
+        "arm": "D-structured",
+        "ran_without_only_infrastructure_failure": 0,
+        "submitted": 0,
+        "completion": "0/0"
+      }
+    ]
+  },
+  "not_measured": {
+    "potential_benefit": "not measured by the current study contracts",
+    "observed_user_impact": "not measured by the current study contracts"
+  },
+  "deviations": [
+    {
+      "source": "slot blocked",
+      "slot_id": "ae0571632f75ff782127880958a7a406355f37e7ba2a0054fc0530e1d9a51549",
+      "task_key": "d1",
+      "arm": "A",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "688865aa6b65542e7ba072eefe2c481542c412181dc15ed0c44130c4a7b8b1ad",
+      "task_key": "d1",
+      "arm": "B",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "54a05bb96df0bc730666f4101488585a1677cf45d77b08d04c90f24ef287b8cc",
+      "task_key": "d1",
+      "arm": "C",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "4e30469f25100df27435b3abaacbbb14e98064f3cacedfaf86b170bbb4bd95e4",
+      "task_key": "i1",
+      "arm": "A",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "6392828cde872d3d3a572b208a96c17aac416888463352ac088e0e66f8d3d23a",
+      "task_key": "i1",
+      "arm": "B",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "ba3058f2bca7a774893c81fc4d33781ddeec7463b325c5b0b98345bfc7c6c688",
+      "task_key": "i1",
+      "arm": "C",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "d0de04a15403163e8c71143f45aa7eede7aa4129edae4bb883ec10209e3f2369",
+      "task_key": "t1",
+      "arm": "D-structured",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "b631d9a437eb214daf95af632066e481c4cf614111bedc65276c31fb60d743a9",
+      "task_key": "t1",
+      "arm": "D-open",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "20bfa3b4b050b8679e2b6133dc2ca8b4a9cf8ef1bd3902409dc470b8c514b1ad",
+      "task_key": "t1",
+      "arm": "D-structured",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    },
+    {
+      "source": "slot blocked",
+      "slot_id": "5c3e08c9dc39161737b7eba39941762a71804aa24e2137928c9fd4dea2159888",
+      "task_key": "t1",
+      "arm": "D-open",
+      "reason": "Fixture: no adopted protocol freeze (RD1-RD10). Fixture: no verified model id and live dispatch disabled (RD6).",
+      "impact": "No outcome; kept in the assigned denominator."
+    }
+  ],
+  "gaps": [
+    "Not empirical (synthetic_verification_fixture): no table here is a study finding.",
+    "No reviewer ratings supplied: decision quality is missing for every slot.",
+    "No decision acceptance rule: cost per accepted decision outcome is undefined.",
+    "10 slot(s) blocked; they stay in the assigned denominators.",
+    "Potential benefit and observed user impact are not measured by the current study contracts; they are reported as not measured, never inferred from quality ratings.",
+    "Intervention necessity (necessary, missed, unnecessary) needs owner coding that the current contracts do not record; only the recorded intervention fields are summarised."
+  ],
+  "limitations": [
+    "0 distinct human participant: human-arm results describe one person's repeated work, not human work in general, and repeated observations from that person are not independent.",
+    "2 autonomy task(s) and 1 discovery theme(s): no power calculation and no general comparative claim.",
+    "One provider model serves every AI role, so its errors may be correlated across arms.",
+    "Ideas inside one run are rated together as one item and are not counted as separate observations."
+  ],
+  "reconciliation": [
+    {
+      "id": "slots.match_schedule",
+      "status": "pass",
+      "detail": "10 flow rows for 10 scheduled slots, each once."
+    },
+    {
+      "id": "slots.groups_partition",
+      "status": "pass",
+      "detail": "Every slot is counted in exactly one comparison/stratum/arm group."
+    },
+    {
+      "id": "attempts.unique",
+      "status": "pass",
+      "detail": "0 attempts in the flow, none in two slots."
+    },
+    {
+      "id": "attempts.in_one_export",
+      "status": "pass",
+      "detail": "Every flow attempt appears in exactly one raw export, once."
+    },
+    {
+      "id": "attempts.measurements_match_export",
+      "status": "pass",
+      "detail": "Flow measurements equal the raw export for every attempt (spend, exposure, calls)."
+    },
+    {
+      "id": "spend.totals_reconcile",
+      "status": "pass",
+      "detail": "Group sum 0.000000000 = flow sum 0.000000000; plus unscheduled 0.000000000 = export sum 0.000000000 USD."
+    },
+    {
+      "id": "ratings.codes_valid",
+      "status": "pass",
+      "detail": "0 rating rows from 0 reviewer(s), each code known, mapped to a slot's last attempt and rated once per reviewer."
+    },
+    {
+      "id": "functional.bound_to_flow",
+      "status": "pass",
+      "detail": "0 functional checks each bind an attempt of their slot."
+    },
+    {
+      "id": "export.kind_consistent",
+      "status": "pass",
+      "detail": "0 export(s), 0 synthetic; data kind synthetic_verification_fixture."
+    },
+    {
+      "id": "privacy.no_participant_metadata",
+      "status": "pass",
+      "detail": "None of 1 private participant or key values appears in the output."
+    }
+  ],
+  "analysis_hash": "9e8dec07b1ff063a09b6935ffb06b9c63ed05be9161b2259dad294a2cb1b8fbc"
+}

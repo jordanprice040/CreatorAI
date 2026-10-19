@@ -1,5 +1,15 @@
 # Decision log
 
+## Owner research decision - RD6 model preference and T15 budget
+
+- Date: October 18, 2026. Jordan selected GPT-6 Astra and a $20 USD total live
+  budget for T15. Includes child work, retries, tools and reviews; not per run.
+- Actual accessible API identifier, pricing and budget enforcement must be
+  verified/configured before dispatch. No model availability is asserted and no
+  alternative model is authorized by this choice.
+- Recorded in docs/PILOT_AND_PROTOCOL.md. Remaining protocol gates still apply;
+  this documentation update did not freeze the protocol or activate live calls.
+
 ## ADR-0020 - T17 local backup/restore, overrun propagation and boundary audit
 
 - Date: October 18, 2026. Status: implemented by Claude Code for T17 (branch claude/project-thread-k4si82 from main e46b2cf). Follows ADR-0019 (T14, built in parallel). No migration.
@@ -288,3 +298,26 @@ Use one entry per decision:
 - Supersedes / superseded by:
 
 Proposed defaults are documented in context/DECISIONS_AND_OPEN_QUESTIONS.md. Do not silently convert them into accepted owner decisions.
+
+## T18 drafting boundary — October 18, 2026
+
+Owner explicitly authorized T18 using documented missing-data allowance, with no
+sending. Draft from upstream 3e9026f and actual verification artifacts; keep T15
+final evaluation/T16 empirical analysis incomplete, comparative protocol proposed
+and unfrozen, empirical results unavailable and all research questions unanswered.
+Preserve local edits and prior RD6 preference/cap without enabling dispatch.
+Committee checklist records missing decisions and unconfirmed dates. This is a
+scope record for drafting, not a research freeze, academic approval or stack ADR.
+
+## T19 acceptance boundary and reproducibility overlays — October 18, 2026
+
+User authorized T19 after the T18 missing-data packet. Preserve source 3e9026f
+without merging over local changes; archive fixed-commit bytes plus explicit local
+doc/script/test overlays. Tests may optionally preserve synthetic product packages
+and same-workspace provenance/search/cost evidence. No runtime policy is changed.
+The restart integration wait now accounts for observed killed-worker lease expiry
+before its bounded completion window; runtime leases and no-duplicate assertions
+are unchanged. Retain the original 185-pass/1-fail/1-skip full log and focused
+checks rather than claiming a green whole-suite rerun. Committee acceptance,
+participant evaluation, protocol freeze and academic schedule remain unresolved.
+No live activation, release or sending follows from creating a local archive.

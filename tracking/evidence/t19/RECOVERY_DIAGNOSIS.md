@@ -1,0 +1,9 @@
+# Recovery-check timing diagnosis
+
+The initial clean `pnpm test:db` run at 3e9026f produced 187 tests: 185 passed, one failed and one expected skip. Test 180, `a workflow started over HTTP survives killed worker and API processes`, observed `running` instead of `succeeded`. The original log remains in test-db-wsl.log. Its assertions were not removed or relabelled as passing.
+
+The exact original test passed when run alone (recovery-original-focused.log). Inspection identified a test deadline inconsistency: Worker defaults to a 30,000 ms lease in packages/orchestrator/src/worker.ts; WorkflowStore.sweepLeases deliberately requeues only after persisted expiry; the process-restart test previously polled roughly 20 seconds after restart. A worker killed with an outstanding lease can therefore still be legitimately running when that test stops polling. The failed run did not capture its exact lease snapshot, so this is a supported explanation of the flake, not a reconstructed event trace proving its precise cause.
+
+The test-only repair derives a bounded deadline from the observed post-kill task lease expirations plus a 20-second completion window. It retains checkpoint, terminal success, exact broker attempt count, restart, compiled CLI and late-cancel assertions. No lease duration, runtime behavior, retry policy, admission gate or acceptance criterion changed. The repaired focused integration passed (recovery-repaired.log); a long-lease branch was not separately instrumented in that passing run. The 187-test suite was not repeated after these test-only changes.
+
+Separate optional acceptance recording in artifact-cli.test.ts adds same-workspace lineage/search/cost assertions and saves already verified original/revised package bytes. That extended real-worker test passed once, with zero skips (product-demo.log). The fixed upstream source remains identifiable; both test overlays are labelled and hashed in the release manifest.

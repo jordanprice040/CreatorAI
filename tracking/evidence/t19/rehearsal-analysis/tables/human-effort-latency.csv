@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,human_active_minutes,intervention_active_minutes,human_wait_seconds,human_time_missing,wall_seconds_median,wall_seconds_min,wall_seconds_max,wall_seconds_n,wall_seconds_missing,source
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,A,0,0,0,0,0.7575,0.547,0.887,4,0,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,B,0,0,0,4,0.66,0.65,0.738,4,0,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,C,0,0,0,0,0.436,0.245,0.73,4,0,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,A,0,0,0,0,,,,0,2,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,B,0,0,0,0,,,,0,2,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,C,0,0,0,0,0.5805,0.241,0.92,2,0,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-open,0,0,0,0,0.283,0.27,0.349,3,1,Human minutes are participant-reported; wall time is server-observed.
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-structured,0,0,0,0,0.996,0.537,2.886,4,0,Human minutes are participant-reported; wall time is server-observed.

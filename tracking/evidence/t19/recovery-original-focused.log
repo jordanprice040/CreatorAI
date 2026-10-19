@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: a workflow started over HTTP survives killed worker and API processes
+ok 1 - a workflow started over HTTP survives killed worker and API processes
+  ---
+  duration_ms: 7633.1441
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8144.2793

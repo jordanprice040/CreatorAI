@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="340" viewBox="0 0 640 340" font-family="sans-serif" font-size="12">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<rect x="0" y="0" width="640" height="26" fill="#fde68a"/>
+<text x="8" y="17" font-weight="bold" fill="#7c2d12">NOT EMPIRICAL: rehearsal or synthetic study records.</text>
+<text x="8" y="48" font-size="14" fill="#111827">Decision quality by task and arm</text>
+<g transform="translate(0,64)">
+<line x1="80" y1="0" x2="80" y2="236" stroke="#e5e7eb"/><text x="80" y="250" text-anchor="middle">1</text>
+<line x1="180" y1="0" x2="180" y2="236" stroke="#e5e7eb"/><text x="180" y="250" text-anchor="middle">2</text>
+<line x1="280" y1="0" x2="280" y2="236" stroke="#e5e7eb"/><text x="280" y="250" text-anchor="middle">3</text>
+<line x1="380" y1="0" x2="380" y2="236" stroke="#e5e7eb"/><text x="380" y="250" text-anchor="middle">4</text>
+<line x1="480" y1="0" x2="480" y2="236" stroke="#e5e7eb"/><text x="480" y="250" text-anchor="middle">5</text>
+<text x="8" y="22">decision-1</text>
+<text x="8" y="58">decision-2</text>
+<text x="8" y="94">decision-3</text>
+<text x="8" y="130">decision-4</text>
+<text x="8" y="166">theme-1</text>
+<text x="8" y="202">theme-2</text>
+<circle cx="500" cy="10" r="5" fill="#2563eb"/><text x="510" y="14">A</text>
+<circle cx="500" cy="26" r="5" fill="#059669"/><text x="510" y="30">B</text>
+<circle cx="500" cy="42" r="5" fill="#d97706"/><text x="510" y="46">C</text>
+<circle cx="500" cy="58" r="5" fill="#7c3aed"/><text x="510" y="62">D-structured</text>
+<circle cx="500" cy="74" r="5" fill="#db2777"/><text x="510" y="78">D-open</text>
+<text x="80" y="268" fill="#374151">Mean reviewer quality (1-5). Not rated: decision-1 A, decision-1 B, decision-1 C, decision-2 A, decision-2 B, decision-2 C, decision-3 A, decision-3 B, decision-3 C, decision-4 A, decision-4 B, decision-4 C, theme-1 D-open, theme-1 D-open r2, theme-1 D-structured, theme-1 D-structured r2, theme-2 D-open, theme-2 D-structured, theme-2 D-structured r2.</text>
+
+</g>
+</svg>

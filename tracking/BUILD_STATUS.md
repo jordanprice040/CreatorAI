@@ -1,5 +1,80 @@
 # Implementation status
 
+## T19 — reproducibility archive and conditional acceptance (October 18, 2026)
+
+Prepared docs/thesis/T19_ACCEPTANCE.md and tracking/evidence/t19/WALKTHROUGH.md.
+Source is fixed upstream 3e9026f with separately hashed documentation/scripts and
+two test-only overlays; local HEAD 38b3e46 and prior owner edits are preserved.
+No source merge, commit, push, public release, contact, paid call or recruitment.
+
+Fresh cached install succeeded. Full PostgreSQL 18.6 + real WSL suite: 187 tests,
+185 pass, 1 fail, 1 expected no-worker skip. The process-restart recovery test
+observed running at its polling deadline. Original focused test passed; inspection
+found its 20-second wait shorter than a possible 30-second killed-worker lease.
+Test-only lease-aware deadline repair passed the focused integration; all success
+and exact-call assertions remain. Full suite was not repeated after test-only
+changes. Failed log and diagnosis are retained, not relabelled as green.
+Latest study-build WSL gate passed. Typecheck and built web/proxy/API smoke passed.
+
+The optional artifact acceptance recorder passed with the real worker, preserving
+original/revised generated package bytes, manifests, same-workspace lineage/search
+and incurred-budget inspection. The fixture CLI explicitly replaces the discovered
+clinic spec with the reviewed checklist template; no arbitrary synthesis or clinic
+validation claim. Fresh A/B/C + discovery rehearsal: 26 slots, 10 evaluation and
+12 analysis checks pass; no independent ratings and data remains not_empirical.
+Private keys/raw exports stay in ignored verification directories.
+
+Archive tooling: scripts/t19-archive.mjs verifies upstream Git blob identities,
+per-file SHA256, exclusions, extraction and tamper refusal. scripts/t19-rehearsal.mjs
+recreates synthetic study/analysis on its own disposable database. Final archive
+readback and extracted install/build smoke are recorded externally in
+tracking/evidence/t19/release-validation.json after construction. Distribution
+files are creator-agent-t19.tar and its .sha256 sidecar in that evidence directory.
+
+T19 packages the engineering thesis under the retained missing-data limits; it does
+not establish academic acceptance. T15 final participant evaluation and T16
+empirical analysis remain incomplete; comparative protocol proposed/unfrozen,
+RQ1–RQ3 unanswered, academic dates/committee decisions unconfirmed. Next eligible
+work is an owner-selected remaining committee/research acceptance item; no automatic
+X milestone. Existing DB services left as found; test harnesses close their temporary
+processes/databases. See verification.json for exact checks and limitations.
+
+## T18 — review packet under documented missing-data allowance (October 18, 2026)
+
+Prepared docs/thesis/README.md, THESIS_DRAFT.md, EVIDENCE.md,
+COMMITTEE_REVIEW.md and DEMONSTRATION.md. Reviewable engineering draft with
+architecture, methods, executed software results, unavailable empirical tables,
+limitations, RQ1–RQ3 unanswered, concrete decisions/revisions and fixture backup.
+No committee response, approved academic schedule or final empirical result claimed.
+
+Fetched origin/main 3e9026f (T15/T16 merged) and inspected/built an archive at
+.verification/t18-source. Local HEAD remains 38b3e46; existing edits preserved,
+no merge/commit/push. T15 final evaluation and T16 empirical analysis remain partial;
+only their machinery and fixture checks are implemented. T18 uses its explicit
+missing-data route, not a retrospective protocol adoption.
+
+Executed on Node 22.21.0: pinned pnpm 11.25.0 cached install (required sandbox
+escalation for package-store access), TypeScript build, analysis tests 8 pass,
+0 fail, 1 DB skip; three synthetic analysis scenarios, 12 checks pass each.
+Logs, rerun outputs, source copies and hashes: tracking/evidence/t18.
+Initial sandbox install and a later sandbox Corepack version probe failed on
+store/network access; the escalated cached install and subsequent build succeeded.
+No database, live model, paid call, participant evaluation, full product demo,
+recruitment, sending or publication in T18. Historical WSL checks are not a latest
+study-build gate. No source runtime or study policy changed.
+
+Next eligible prompt: T19 on a new request, retaining missing-data limits; final
+academic acceptance and empirical completion cannot be claimed. Empirical path:
+record RD decisions/IRB determination and dates, adopt protocol/analysis rules,
+verify model/pricing/runtime allowance and latest study worker, execute final runs,
+obtain independent ratings, then analyze. Full clean reproducibility is T19 work.
+
+October 18, 2026 owner research decision: RD6 now records GPT-6 Astra and a
+$20 USD total T15 live budget in docs/PILOT_AND_PROTOCOL.md. API identifier/access,
+pricing and enforced runtime configuration remain unverified. Documentation-only
+update; no live calls, adopted freeze or evaluation run. Next eligible: resolve
+remaining T14 decisions and verification prerequisites before freezing, then T15.
+
 T17 update, October 18, 2026 (Claude Code, branch claude/project-thread-k4si82 from main
 e46b2cf; ADR-0020; built in parallel with T14): requirements-to-evidence report for C01–C51,
 S01–S18 and the T17 priority risks in tracking/evidence/t17/REQUIREMENTS_EVIDENCE.md. New
@@ -279,3 +354,5 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
 | --- | --- | --- |
 | C30 | partial (real reviewed-template boundary verified) | Namespace, mount, network, resource, lease, tree-cancellation and cleanup gates passed; broader-hostile-workload audit T17 |
 | C33 | verified local owner path | Separate repo/task/review worktrees, frozen task-to-commit lineage and preserved conflicts; catalog/runtime integration remains T12–T13 |
+
+

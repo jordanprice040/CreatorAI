@@ -1,0 +1,61 @@
+
+mixed: VERIFICATION FIXTURE: synthetic data, not empirical
+pass slots.match_schedule: 13 flow rows for 13 scheduled slots, each once.
+pass slots.groups_partition: Every slot is counted in exactly one comparison/stratum/arm group.
+pass attempts.unique: 13 attempts in the flow, none in two slots.
+pass attempts.in_one_export: Every flow attempt appears in exactly one raw export, once.
+pass attempts.measurements_match_export: Flow measurements equal the raw export for every attempt (spend, exposure, calls).
+pass spend.totals_reconcile: Group sum 0.025000000 = flow sum 0.025000000; plus unscheduled 0.000000000 = export sum 0.025000000 USD.
+pass ratings.codes_valid: 20 rating rows from 2 reviewer(s), each code known, mapped to a slot's last attempt and rated once per reviewer.
+pass functional.bound_to_flow: 6 functional checks each bind an attempt of their slot.
+pass export.kind_consistent: 4 export(s), 4 synthetic; data kind synthetic_verification_fixture.
+pass privacy.no_participant_metadata: None of 4 private participant or key values appears in the output.
+pass reproducible.rerun_identical: Two analyses from the same files hash to 0f2ae193a368 and 0f2ae193a368.
+pass claims.no_comparative_wording: No inferential or superiority wording in any table, figure or report.
+gap  Not empirical (synthetic_verification_fixture): no table here is a study finding.
+gap  3 reviewed item(s) lack complete ratings from every reviewer; no rating is imputed.
+gap  Some billing is unknown or in flight: spend totals are lower bounds.
+gap  1 slot(s) blocked; they stay in the assigned denominators.
+gap  Potential benefit and observed user impact are not measured by the current study contracts; they are reported as not measured, never inferred from quality ratings.
+gap  Intervention necessity (necessary, missed, unnecessary) needs owner coding that the current contracts do not record; only the recorded intervention fields are summarised.
+Analysis 0f2ae193a3681301415cfbb54f96ed02925fdda10171591ee41cab9f640ec90b (synthetic_verification_fixture) written to C:\Users\jorda\OneDrive\Desktop\creator_agent\tracking\evidence\t18\demo-output\mixed\output.
+
+zero-accepted: VERIFICATION FIXTURE: synthetic data, not empirical
+pass slots.match_schedule: 6 flow rows for 6 scheduled slots, each once.
+pass slots.groups_partition: Every slot is counted in exactly one comparison/stratum/arm group.
+pass attempts.unique: 6 attempts in the flow, none in two slots.
+pass attempts.in_one_export: Every flow attempt appears in exactly one raw export, once.
+pass attempts.measurements_match_export: Flow measurements equal the raw export for every attempt (spend, exposure, calls).
+pass spend.totals_reconcile: Group sum 0.019000000 = flow sum 0.019000000; plus unscheduled 0.000000000 = export sum 0.019000000 USD.
+pass ratings.codes_valid: 6 rating rows from 2 reviewer(s), each code known, mapped to a slot's last attempt and rated once per reviewer.
+pass functional.bound_to_flow: 2 functional checks each bind an attempt of their slot.
+pass export.kind_consistent: 2 export(s), 2 synthetic; data kind synthetic_verification_fixture.
+pass privacy.no_participant_metadata: None of 4 private participant or key values appears in the output.
+pass reproducible.rerun_identical: Two analyses from the same files hash to 5413c3a7587a and 5413c3a7587a.
+pass claims.no_comparative_wording: No inferential or superiority wording in any table, figure or report.
+gap  Not empirical (synthetic_verification_fixture): no table here is a study finding.
+gap  2 reviewed item(s) lack complete ratings from every reviewer; no rating is imputed.
+gap  Potential benefit and observed user impact are not measured by the current study contracts; they are reported as not measured, never inferred from quality ratings.
+gap  Intervention necessity (necessary, missed, unnecessary) needs owner coding that the current contracts do not record; only the recorded intervention fields are summarised.
+Analysis 5413c3a7587a4202d92510838f2cdb4ec86863c4280a54d39504e839eb4f297e (synthetic_verification_fixture) written to C:\Users\jorda\OneDrive\Desktop\creator_agent\tracking\evidence\t18\demo-output\zero-accepted\output.
+
+all-blocked: VERIFICATION FIXTURE: synthetic data, not empirical
+pass slots.match_schedule: 10 flow rows for 10 scheduled slots, each once.
+pass slots.groups_partition: Every slot is counted in exactly one comparison/stratum/arm group.
+pass attempts.unique: 0 attempts in the flow, none in two slots.
+pass attempts.in_one_export: Every flow attempt appears in exactly one raw export, once.
+pass attempts.measurements_match_export: Flow measurements equal the raw export for every attempt (spend, exposure, calls).
+pass spend.totals_reconcile: Group sum 0.000000000 = flow sum 0.000000000; plus unscheduled 0.000000000 = export sum 0.000000000 USD.
+pass ratings.codes_valid: 0 rating rows from 0 reviewer(s), each code known, mapped to a slot's last attempt and rated once per reviewer.
+pass functional.bound_to_flow: 0 functional checks each bind an attempt of their slot.
+pass export.kind_consistent: 0 export(s), 0 synthetic; data kind synthetic_verification_fixture.
+pass privacy.no_participant_metadata: None of 1 private participant or key values appears in the output.
+pass reproducible.rerun_identical: Two analyses from the same files hash to 9e8dec07b1ff and 9e8dec07b1ff.
+pass claims.no_comparative_wording: No inferential or superiority wording in any table, figure or report.
+gap  Not empirical (synthetic_verification_fixture): no table here is a study finding.
+gap  No reviewer ratings supplied: decision quality is missing for every slot.
+gap  No decision acceptance rule: cost per accepted decision outcome is undefined.
+gap  10 slot(s) blocked; they stay in the assigned denominators.
+gap  Potential benefit and observed user impact are not measured by the current study contracts; they are reported as not measured, never inferred from quality ratings.
+gap  Intervention necessity (necessary, missed, unnecessary) needs owner coding that the current contracts do not record; only the recorded intervention fields are summarised.
+Analysis 9e8dec07b1ff063a09b6935ffb06b9c63ed05be9161b2259dad294a2cb1b8fbc (synthetic_verification_fixture) written to C:\Users\jorda\OneDrive\Desktop\creator_agent\tracking\evidence\t18\demo-output\all-blocked\output.

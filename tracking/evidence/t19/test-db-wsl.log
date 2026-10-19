@@ -1,0 +1,1161 @@
+$ node scripts/require-test-db.mjs && pnpm test
+$ pnpm build:code && node --test --test-concurrency=1 tests/dist/*.test.js
+$ tsc -b
+TAP version 13
+# Subtest: mixed fixture: hand-computed quality, pairs, retries, unknown billing and denominators
+ok 1 - mixed fixture: hand-computed quality, pairs, retries, unknown billing and denominators
+  ---
+  duration_ms: 33.4868
+  type: 'test'
+  ...
+# Subtest: zero accepted outcomes leave cost per accepted outcome undefined and total spend visible
+ok 2 - zero accepted outcomes leave cost per accepted outcome undefined and total spend visible
+  ---
+  duration_ms: 5.6671
+  type: 'test'
+  ...
+# Subtest: an all-blocked final-shaped package yields explicit gaps, and only real final records are empirical
+ok 3 - an all-blocked final-shaped package yields explicit gaps, and only real final records are empirical
+  ---
+  duration_ms: 19.6801
+  type: 'test'
+  ...
+# Subtest: totals reconcile without join multiplication and flow measurements must match the exports
+ok 4 - totals reconcile without join multiplication and flow measurements must match the exports
+  ---
+  duration_ms: 13.3528
+  type: 'test'
+  ...
+# Subtest: ratings: blanks are missing, anything else must be 1-5 and each code rated once
+ok 5 - ratings: blanks are missing, anything else must be 1-5 and each code rated once
+  ---
+  duration_ms: 7.2904
+  type: 'test'
+  ...
+# Subtest: private participant metadata never reaches the output
+ok 6 - private participant metadata never reaches the output
+  ---
+  duration_ms: 4.9531
+  type: 'test'
+  ...
+# Subtest: kappa and the bootstrap give hand-checked values and refuse small samples
+ok 7 - kappa and the bootstrap give hand-checked values and refuse small samples
+  ---
+  duration_ms: 13.0188
+  type: 'test'
+  ...
+# Subtest: the pipeline reproduces from files and every standalone output carries the fixture label
+ok 8 - the pipeline reproduces from files and every standalone output carries the fixture label
+  ---
+  duration_ms: 152.9654
+  type: 'test'
+  ...
+# Subtest: the analysis reads a real T15 rehearsal package, key and raw exports unchanged
+ok 9 - the analysis reads a real T15 rehearsal package, key and raw exports unchanged
+  ---
+  duration_ms: 11922.3261
+  type: 'test'
+  ...
+# Subtest: real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+ok 10 - real HTTP health/fixture/validation paths enforce shape, scope and bounded bodies
+  ---
+  duration_ms: 121.2709
+  type: 'test'
+  ...
+# Subtest: compiled CLI reaches the HTTP API and fails visibly when unavailable
+ok 11 - compiled CLI reaches the HTTP API and fails visibly when unavailable
+  ---
+  duration_ms: 1379.8181
+  type: 'test'
+  ...
+# Subtest: health reports configured live adapters instead of always claiming fixture mode
+ok 12 - health reports configured live adapters instead of always claiming fixture mode
+  ---
+  duration_ms: 13.4759
+  type: 'test'
+  ...
+# Subtest: owner inspects, downloads, previews, gives feedback and compares a revision; hash, expiry, revocation and stale-version refusals hold
+ok 13 - owner inspects, downloads, previews, gives feedback and compares a revision; hash, expiry, revocation and stale-version refusals hold
+  ---
+  duration_ms: 34569.1661
+  type: 'test'
+  ...
+# Subtest: compiled owner flow: package, re-extract and start, download, private preview, feedback revision and reverified comparison in the real worker
+ok 14 - compiled owner flow: package, re-extract and start, download, private preview, feedback revision and reverified comparison in the real worker
+  ---
+  duration_ms: 67477.6636
+  type: 'test'
+  ...
+# Subtest: source archives are deterministic and the reader refuses anything it did not write
+ok 15 - source archives are deterministic and the reader refuses anything it did not write
+  ---
+  duration_ms: 7.5134
+  type: 'test'
+  ...
+# Subtest: a verified candidate packages to a manifest bound to its commit, spec, task, QA and package checks
+ok 16 - a verified candidate packages to a manifest bound to its commit, spec, task, QA and package checks
+  ---
+  duration_ms: 5333.8647
+  type: 'test'
+  ...
+# Subtest: a package whose re-extracted run differs is kept but not offered as a runnable demo
+ok 17 - a package whose re-extracted run differs is kept but not offered as a runnable demo
+  ---
+  duration_ms: 6535.7441
+  type: 'test'
+  ...
+# Subtest: without the reviewed worker the exported package is blocked, never run on this host
+ok 18 - without the reviewed worker the exported package is blocked, never run on this host # SKIP Host has the reviewed backend
+  ---
+  duration_ms: 6499.8715
+  type: 'test'
+  ...
+# Subtest: only verified candidates package; changed commits invalidate packaging; revisions start from package bytes
+ok 19 - only verified candidates package; changed commits invalidate packaging; revisions start from package bytes
+  ---
+  duration_ms: 8659.1891
+  type: 'test'
+  ...
+# PostgreSQL idle client error: terminating connection due to administrator command
+# Subtest: owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and the decision API
+ok 20 - owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and the decision API
+  ---
+  duration_ms: 1206.6565
+  type: 'test'
+  ...
+# PostgreSQL idle client error: terminating connection due to administrator command
+# Subtest: OIDC sign-in with authorization code + PKCE admits only the configured owner, once per attempt
+ok 21 - OIDC sign-in with authorization code + PKCE admits only the configured owner, once per attempt
+  ---
+  duration_ms: 905.4556
+  type: 'test'
+  ...
+# Subtest: concurrent reservations cannot overspend an envelope
+ok 22 - concurrent reservations cannot overspend an envelope
+  ---
+  duration_ms: 1591.8488
+  type: 'test'
+  ...
+# Subtest: concurrent parent calls and child carve-outs cannot both take the last budget (S07)
+ok 23 - concurrent parent calls and child carve-outs cannot both take the last budget (S07)
+  ---
+  duration_ms: 1899.0535
+  type: 'test'
+  ...
+# Subtest: in-flight limit bounds concurrency independently of money
+ok 24 - in-flight limit bounds concurrency independently of money
+  ---
+  duration_ms: 1996.8026
+  type: 'test'
+  ...
+# Subtest: a denied call never reaches the provider
+ok 25 - a denied call never reaches the provider
+  ---
+  duration_ms: 2852.7119
+  type: 'test'
+  ...
+# Subtest: late results reconcile without duplicate charge; replays never re-dispatch
+ok 26 - late results reconcile without duplicate charge; replays never re-dispatch
+  ---
+  duration_ms: 1945.3709
+  type: 'test'
+  ...
+# Subtest: concurrent duplicate deliveries dispatch once
+ok 27 - concurrent duplicate deliveries dispatch once
+  ---
+  duration_ms: 1289.5914
+  type: 'test'
+  ...
+# Subtest: rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation
+ok 28 - rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation
+  ---
+  duration_ms: 1278.3542
+  type: 'test'
+  ...
+# Subtest: cancellation stops new calls and keeps in-flight exposure held
+ok 29 - cancellation stops new calls and keeps in-flight exposure held
+  ---
+  duration_ms: 941.2158
+  type: 'test'
+  ...
+# Subtest: a lost worker leaves exposure unknown, not released
+ok 30 - a lost worker leaves exposure unknown, not released
+  ---
+  duration_ms: 1033.4777
+  type: 'test'
+  ...
+# Subtest: child envelopes conserve authority; rollups do not double count; overrun blocks
+ok 31 - child envelopes conserve authority; rollups do not double count; overrun blocks
+  ---
+  duration_ms: 1194.3334
+  type: 'test'
+  ...
+# Subtest: budget API and CLI: pricing, envelopes, a metered fixture call, a refusal and the error view
+ok 32 - budget API and CLI: pricing, envelopes, a metered fixture call, a refusal and the error view
+  ---
+  duration_ms: 3917.0644
+  type: 'test'
+  ...
+# Subtest: maximum exposure bounds input by UTF-8 bytes at the highest input rate
+ok 33 - maximum exposure bounds input by UTF-8 bytes at the highest input rate
+  ---
+  duration_ms: 3.0385
+  type: 'test'
+  ...
+# Subtest: usage is priced in disjoint categories; reasoning is not charged twice
+ok 34 - usage is priced in disjoint categories; reasoning is not charged twice
+  ---
+  duration_ms: 1.6965
+  type: 'test'
+  ...
+# Subtest: pricing snapshots must say where documented prices came from
+ok 35 - pricing snapshots must say where documented prices came from
+  ---
+  duration_ms: 1.8155
+  type: 'test'
+  ...
+# Subtest: OpenAI adapter speaks the Responses API and maps outcomes without leaking the key
+ok 36 - OpenAI adapter speaks the Responses API and maps outcomes without leaking the key
+  ---
+  duration_ms: 90.9518
+  type: 'test'
+  ...
+# Subtest: compiled builder CLI binds authenticated frozen spec, admission, metered roles and real QA; zero-budget and human-only runs fail
+ok 37 - compiled builder CLI binds authenticated frozen spec, admission, metered roles and real QA; zero-budget and human-only runs fail
+  ---
+  duration_ms: 64496.2596
+  type: 'test'
+  ...
+# Subtest: builder rejects missing acceptance coverage, stale task hashes and cancelled runs before calls
+ok 38 - builder rejects missing acceptance coverage, stale task hashes and cancelled runs before calls
+  ---
+  duration_ms: 1164.4003
+  type: 'test'
+  ...
+# Subtest: unsupported builder success claims never become verification or execute code
+ok 39 - unsupported builder success claims never become verification or execute code
+  ---
+  duration_ms: 1520.7204
+  type: 'test'
+  ...
+# Subtest: admission refusal and expired deadlines dispatch no models
+ok 40 - admission refusal and expired deadlines dispatch no models
+  ---
+  duration_ms: 2019.0104
+  type: 'test'
+  ...
+# Subtest: concurrent builds are refused; cancellation after a role result preserves its trace without applying it
+ok 41 - concurrent builds are refused; cancellation after a role result preserves its trace without applying it
+  ---
+  duration_ms: 2413.1149
+  type: 'test'
+  ...
+# Subtest: scoped tools reject builder policy edits and retain the original code
+ok 42 - scoped tools reject builder policy edits and retain the original code
+  ---
+  duration_ms: 1983.6744
+  type: 'test'
+  ...
+# Subtest: fresh review excludes builder claims; a mismatched reviewed commit fails before QA
+ok 43 - fresh review excludes builder claims; a mismatched reviewed commit fails before QA
+  ---
+  duration_ms: 2700.0263
+  type: 'test'
+  ...
+# Subtest: real bounded builder verifies normal and error flows; changed commits and frozen specs invalidate evidence
+ok 44 - real bounded builder verifies normal and error flows; changed commits and frozen specs invalidate evidence
+  ---
+  duration_ms: 12085.2458
+  type: 'test'
+  ...
+# Subtest: real QA rejects broken behavior even when both roles claim success; bounded repairs preserve commits
+ok 45 - real QA rejects broken behavior even when both roles claim success; bounded repairs preserve commits
+  ---
+  duration_ms: 17044.4583
+  type: 'test'
+  ...
+# Subtest: held-out QA cases never reach a role packet, and a task without one is refused
+ok 46 - held-out QA cases never reach a role packet, and a task without one is refused
+  ---
+  duration_ms: 8503.2478
+  type: 'test'
+  ...
+# Subtest: segments split highlight markers without losing text
+ok 47 - segments split highlight markers without losing text
+  ---
+  duration_ms: 3.3411
+  type: 'test'
+  ...
+# Subtest: search finds records, passages, decisions and activity by text and by id
+ok 48 - search finds records, passages, decisions and activity by text and by id
+  ---
+  duration_ms: 9753.6827
+  type: 'test'
+  ...
+# Subtest: search checks membership before snippets and counts, and redaction leaves nothing to find
+ok 49 - search checks membership before snippets and counts, and redaction leaves nothing to find
+  ---
+  duration_ms: 5045.7672
+  type: 'test'
+  ...
+# Subtest: activity names the actor, filters by action and pages; overview counts one workspace
+ok 50 - activity names the actor, filters by action and pages; overview counts one workspace
+  ---
+  duration_ms: 5255.0467
+  type: 'test'
+  ...
+# Subtest: comparison gathers a problem, its alternatives and claim evidence
+ok 51 - comparison gathers a problem, its alternatives and claim evidence
+  ---
+  duration_ms: 3993.7771
+  type: 'test'
+  ...
+# Subtest: exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+ok 52 - exact-money JSON preserves integers above Number.MAX_SAFE_INTEGER and rejects coercion
+  ---
+  duration_ms: 3.9023
+  type: 'test'
+  ...
+# Subtest: versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+ok 53 - versioned task/config schemas reject placeholders, missing caps, unknown fields and malformed paths
+  ---
+  duration_ms: 6.7556
+  type: 'test'
+  ...
+# Subtest: source/claim contracts require version/hash/locator and keep inference and contrary evidence
+ok 54 - source/claim contracts require version/hash/locator and keep inference and contrary evidence
+  ---
+  duration_ms: 6.0883
+  type: 'test'
+  ...
+# Subtest: alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+ok 55 - alternatives and assumptions preserve non-code outcomes, tradeoffs and disconfirmation
+  ---
+  duration_ms: 3.3521
+  type: 'test'
+  ...
+# Subtest: decision request cannot invent an answer, choose an absent option or answer after expiry
+ok 56 - decision request cannot invent an answer, choose an absent option or answer after expiry
+  ---
+  duration_ms: 5.5872
+  type: 'test'
+  ...
+# Subtest: typed many-to-many links reject cross-workspace and impossible relations
+ok 57 - typed many-to-many links reject cross-workspace and impossible relations
+  ---
+  duration_ms: 1.9538
+  type: 'test'
+  ...
+# Subtest: experiment assignment keeps condition/method separate and excludes generative human-only setup
+ok 58 - experiment assignment keeps condition/method separate and excludes generative human-only setup
+  ---
+  duration_ms: 2.9019
+  type: 'test'
+  ...
+# Subtest: result success cannot replace missing evidence or unknown usage with fixture claims
+ok 59 - result success cannot replace missing evidence or unknown usage with fixture claims
+  ---
+  duration_ms: 14.1024
+  type: 'test'
+  ...
+# Subtest: service configuration rejects hosted/live/invalid ports and binds loopback
+ok 60 - service configuration rejects hosted/live/invalid ports and binds loopback
+  ---
+  duration_ms: 3.9421
+  type: 'test'
+  ...
+# Subtest: search briefs: Grand Challenge seeds must be narrowed and the two fields must differ
+ok 61 - search briefs: Grand Challenge seeds must be narrowed and the two fields must differ
+  ---
+  duration_ms: 5.7177
+  type: 'test'
+  ...
+# Subtest: start requests name every response type and include a non-software option
+ok 62 - start requests name every response type and include a non-software option
+  ---
+  duration_ms: 4.5451
+  type: 'test'
+  ...
+# Subtest: sufficiency depends on current problem evidence; other gaps are named
+ok 63 - sufficiency depends on current problem evidence; other gaps are named
+  ---
+  duration_ms: 0.9346
+  type: 'test'
+  ...
+# Subtest: duplicates are found by deterministic word overlap with the catalog
+ok 64 - duplicates are found by deterministic word overlap with the catalog
+  ---
+  duration_ms: 1.1506
+  type: 'test'
+  ...
+# Subtest: answers are checked against the packet, the brief fields and the task
+ok 65 - answers are checked against the packet, the brief fields and the task
+  ---
+  duration_ms: 8.5492
+  type: 'test'
+  ...
+# Subtest: the coordinator runs locator, independent proposals, skeptic and bounded revision in order
+ok 66 - the coordinator runs locator, independent proposals, skeptic and bounded revision in order
+  ---
+  duration_ms: 1.9011
+  type: 'test'
+  ...
+# Subtest: independence problems are reported when a first proposal could read another answer
+ok 67 - independence problems are reported when a first proposal could read another answer
+  ---
+  duration_ms: 1.7884
+  type: 'test'
+  ...
+# Subtest: software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+ok 68 - software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+  ---
+  duration_ms: 4228.9266
+  type: 'test'
+  ...
+# Subtest: justified existing-tool choice: software is not recommended when an existing tool covers the need
+ok 69 - justified existing-tool choice: software is not recommended when an existing tool covers the need
+  ---
+  duration_ms: 2307.258
+  type: 'test'
+  ...
+# Subtest: insufficient evidence stops after the locator and proposes nothing
+ok 70 - insufficient evidence stops after the locator and proposes nothing
+  ---
+  duration_ms: 1164.4061
+  type: 'test'
+  ...
+# Subtest: answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+ok 71 - answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+  ---
+  duration_ms: 3930.2339
+  type: 'test'
+  ...
+# Subtest: the revision limit is enforced and unresolved objections are kept as dissent
+ok 72 - the revision limit is enforced and unresolved objections are kept as dissent
+  ---
+  duration_ms: 3313.623
+  type: 'test'
+  ...
+# Subtest: start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+ok 73 - start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+  ---
+  duration_ms: 1269.5895
+  type: 'test'
+  ...
+# Subtest: deterministic fixture exercises all outcomes without real model or tool effects
+ok 74 - deterministic fixture exercises all outcomes without real model or tool effects
+  ---
+  duration_ms: 53.6542
+  type: 'test'
+  ...
+# Subtest: missing/invalid paid limits fail before dispatch and even complete live config remains denied
+ok 75 - missing/invalid paid limits fail before dispatch and even complete live config remains denied
+  ---
+  duration_ms: 2.875
+  type: 'test'
+  ...
+# Subtest: human-only configuration cannot reach even the fake provider
+ok 76 - human-only configuration cannot reach even the fake provider
+  ---
+  duration_ms: 0.5591
+  type: 'test'
+  ...
+# Subtest: delegation contains paths, grants, classifications, research condition and depth
+ok 77 - delegation contains paths, grants, classifications, research condition and depth
+  ---
+  duration_ms: 3.9396
+  type: 'test'
+  ...
+# Subtest: sibling allocations conserve exact money and calls rather than checking children separately
+ok 78 - sibling allocations conserve exact money and calls rather than checking children separately
+  ---
+  duration_ms: 2.3423
+  type: 'test'
+  ...
+# Subtest: results bind exact task/config/spec/version and check evidence
+ok 79 - results bind exact task/config/spec/version and check evidence
+  ---
+  duration_ms: 3.6456
+  type: 'test'
+  ...
+# Subtest: product transitions reject skipped stages, stale versions and stale candidate evidence
+ok 80 - product transitions reject skipped stages, stale versions and stale candidate evidence
+  ---
+  duration_ms: 5.8116
+  type: 'test'
+  ...
+# Subtest: ready-to-try needs candidate-bound independent test/review and export evidence
+ok 81 - ready-to-try needs candidate-bound independent test/review and export evidence
+  ---
+  duration_ms: 2.5477
+  type: 'test'
+  ...
+# Subtest: execution cannot resurrect cancellation or silently change research dimensions
+ok 82 - execution cannot resurrect cancellation or silently change research dimensions
+  ---
+  duration_ms: 1.896
+  type: 'test'
+  ...
+# Subtest: the schedule binds the exact freeze and frozen counts and refuses anything else
+ok 83 - the schedule binds the exact freeze and frozen counts and refuses anything else
+  ---
+  duration_ms: 26.5231
+  type: 'test'
+  ...
+# Subtest: admission is deterministic and final runs never fall back to fixtures or simulated people
+ok 84 - admission is deterministic and final runs never fall back to fixtures or simulated people
+  ---
+  duration_ms: 5.3115
+  type: 'test'
+  ...
+# Subtest: one retry is allowed only for an infrastructure failure before any output
+ok 85 - one retry is allowed only for an infrastructure failure before any output
+  ---
+  duration_ms: 0.9552
+  type: 'test'
+  ...
+# Subtest: the flow table keeps every slot and cannot hide a run behind a block
+ok 86 - the flow table keeps every slot and cannot hide a run behind a block
+  ---
+  duration_ms: 4.5572
+  type: 'test'
+  ...
+# Subtest: reviewer packets are identically formatted, reordered per reviewer and scanned for leaks
+ok 87 - reviewer packets are identically formatted, reordered per reviewer and scanned for leaks
+  ---
+  duration_ms: 7.7871
+  type: 'test'
+  ...
+# Subtest: rehearsal executes the frozen schedule shape and final mode refuses without an adopted freeze
+ok 88 - rehearsal executes the frozen schedule shape and final mode refuses without an adopted freeze
+  ---
+  duration_ms: 24285.899
+  type: 'test'
+  ...
+# Subtest: local products use separate repositories, exact bases, scoped CAS patches and preserve dirty user work
+ok 89 - local products use separate repositories, exact bases, scoped CAS patches and preserve dirty user work
+  ---
+  duration_ms: 3726.2067
+  type: 'test'
+  ...
+# Subtest: symlink, junction and hardlink inputs are refused before Git reads product files
+ok 90 - symlink, junction and hardlink inputs are refused before Git reads product files
+  ---
+  duration_ms: 2414.0815
+  type: 'test'
+  ...
+# Subtest: one integration owner, stale heads and real merge conflicts preserve every checkout
+ok 91 - one integration owner, stale heads and real merge conflicts preserve every checkout
+  ---
+  duration_ms: 8125.5976
+  type: 'test'
+  ...
+# Subtest: an unresolved dispatch blocks another worker instead of silently retrying
+ok 92 - an unresolved dispatch blocks another worker instead of silently retrying
+  ---
+  duration_ms: 1578.8681
+  type: 'test'
+  ...
+# Subtest: real WSL worker builds the reviewed template with observed cgroup limits and disposes the workspace
+ok 93 - real WSL worker builds the reviewed template with observed cgroup limits and disposes the workspace
+  ---
+  duration_ms: 7730.3013
+  type: 'test'
+  ...
+# Subtest: real WSL worker denies secret reads, metadata/public/loopback network and privilege escalation
+ok 94 - real WSL worker denies secret reads, metadata/public/loopback network and privilege escalation
+  ---
+  duration_ms: 3362.5999
+  type: 'test'
+  ...
+# Subtest: real cancellation kills a detached child process tree and repeated cancel is idempotent
+ok 95 - real cancellation kills a detached child process tree and repeated cancel is idempotent
+  ---
+  duration_ms: 6240.933
+  type: 'test'
+  ...
+# Subtest: real worker enforces disk, memory, process and output bounds
+ok 96 - real worker enforces disk, memory, process and output bounds
+  ---
+  duration_ms: 42680.0453
+  type: 'test'
+  ...
+# Subtest: real killed supervisor loses its lease; explicit reconciliation stops the unit without redispatch
+ok 97 - real killed supervisor loses its lease; explicit reconciliation stops the unit without redispatch
+  ---
+  duration_ms: 11095.9216
+  type: 'test'
+  ...
+# Subtest: a missing real isolation backend blocks execution without a host fallback
+ok 98 - a missing real isolation backend blocks execution without a host fallback
+  ---
+  duration_ms: 1345.6175
+  type: 'test'
+  ...
+# Subtest: the coordinator delegates within concurrency and waits on dependencies
+ok 99 - the coordinator delegates within concurrency and waits on dependencies
+  ---
+  duration_ms: 4.02
+  type: 'test'
+  ...
+# Subtest: repairs are bounded by max_repairs and the call ceiling; unknown is never retried
+ok 100 - repairs are bounded by max_repairs and the call ceiling; unknown is never retried
+  ---
+  duration_ms: 0.8794
+  type: 'test'
+  ...
+# Subtest: stops cancel open work but wait for leased work; the step limit terminates
+ok 101 - stops cancel open work but wait for leased work; the step limit terminates
+  ---
+  duration_ms: 0.388
+  type: 'test'
+  ...
+# Subtest: limits and role input are bounded; subject text is passed as data
+ok 102 - limits and role input are bounded; subject text is passed as data
+  ---
+  duration_ms: 9.3327
+  type: 'test'
+  ...
+# Subtest: covered routine reversible actions proceed repeatedly without creating a decision
+ok 103 - covered routine reversible actions proceed repeatedly without creating a decision
+  ---
+  duration_ms: 1072.6149
+  type: 'test'
+  ...
+# Subtest: approve-once covers one exact action; a changed target or an expiry needs a new decision
+ok 104 - approve-once covers one exact action; a changed target or an expiry needs a new decision
+  ---
+  duration_ms: 3945.8794
+  type: 'test'
+  ...
+# Subtest: duplicate answers are idempotent, conflicting second answers are refused, concurrency has one winner
+ok 105 - duplicate answers are idempotent, conflicting second answers are refused, concurrency has one winner
+  ---
+  duration_ms: 1582.1207
+  type: 'test'
+  ...
+# Subtest: cancellation closes pending decisions, revokes run grants and overrides an approval
+ok 106 - cancellation closes pending decisions, revokes run grants and overrides an approval
+  ---
+  duration_ms: 1375.6102
+  type: 'test'
+  ...
+# Subtest: autonomous runs end as needs_human, cannot ask for help, and ignore grants added after start
+ok 107 - autonomous runs end as needs_human, cannot ask for help, and ignore grants added after start
+  ---
+  duration_ms: 1354.5613
+  type: 'test'
+  ...
+# Subtest: human-only runs are denied model calls even with a grant, and the denial is recorded
+ok 108 - human-only runs are denied model calls even with a grant, and the denial is recorded
+  ---
+  duration_ms: 1178.8967
+  type: 'test'
+  ...
+# Subtest: build commitment passes the humility gate, then a judgment on ethics, then an exact approval
+ok 109 - build commitment passes the humility gate, then a judgment on ethics, then an exact approval
+  ---
+  duration_ms: 1848.5761
+  type: 'test'
+  ...
+# Subtest: standing approval from a decision creates a run-scoped, expiring policy grant
+ok 110 - standing approval from a decision creates a run-scoped, expiring policy grant
+  ---
+  duration_ms: 1300.251
+  type: 'test'
+  ...
+# Subtest: a routine reversible action covered by a standing grant proceeds with no human input
+ok 111 - a routine reversible action covered by a standing grant proceeds with no human input
+  ---
+  duration_ms: 3.7714
+  type: 'test'
+  ...
+# Subtest: expired, revoked, changed-target and over-cap grants do not authorize
+ok 112 - expired, revoked, changed-target and over-cap grants do not authorize
+  ---
+  duration_ms: 1.6369
+  type: 'test'
+  ...
+# Subtest: human-only runs cannot call models, even for summaries and even with a grant
+ok 113 - human-only runs cannot call models, even for summaries and even with a grant
+  ---
+  duration_ms: 0.7681
+  type: 'test'
+  ...
+# Subtest: autonomous runs defer as needs_human and use only their initial grant packet
+ok 114 - autonomous runs defer as needs_human and use only their initial grant packet
+  ---
+  duration_ms: 0.8884
+  type: 'test'
+  ...
+# Subtest: stage gates need an approval of the exact action; flags only add reasons; owner-only actions never pass
+ok 115 - stage gates need an approval of the exact action; flags only add reasons; owner-only actions never pass
+  ---
+  duration_ms: 1.3119
+  type: 'test'
+  ...
+# Subtest: the humility gate blocks non-build dispositions and escalates unresolved ethics as judgment
+ok 116 - the humility gate blocks non-build dispositions and escalates unresolved ethics as judgment
+  ---
+  duration_ms: 16.5548
+  type: 'test'
+  ...
+# Subtest: answers: only owners who are people, only while current, and only the right kind of answer
+ok 117 - answers: only owners who are people, only while current, and only the right kind of answer
+  ---
+  duration_ms: 1.7631
+  type: 'test'
+  ...
+# Subtest: development login fails validation in hosted mode; hosted deployment stays unavailable
+ok 118 - development login fails validation in hosted mode; hosted deployment stays unavailable
+  ---
+  duration_ms: 12.5161
+  type: 'test'
+  ...
+# Subtest: freeze stays blocked until every research decision is answered against the exact proposal
+ok 119 - freeze stays blocked until every research decision is answered against the exact proposal
+  ---
+  duration_ms: 6.0401
+  type: 'test'
+  ...
+# Subtest: instrumentation checks catch leaks, unblinded packets, hidden model use and impossible timing
+ok 120 - instrumentation checks catch leaks, unblinded packets, hidden model use and impossible timing
+  ---
+  duration_ms: 3.8603
+  type: 'test'
+  ...
+# Subtest: failures are classified as instrumentation or substantive and both are kept
+ok 121 - failures are classified as instrumentation or substantive and both are kept
+  ---
+  duration_ms: 0.5626
+  type: 'test'
+  ...
+# Subtest: reviewer packet order and codes depend on the seed, never on condition
+ok 122 - reviewer packet order and codes depend on the seed, never on condition
+  ---
+  duration_ms: 1.7662
+  type: 'test'
+  ...
+# Subtest: design estimate is an exact upper bound from caps and documented rates
+ok 123 - design estimate is an exact upper bound from caps and documented rates
+  ---
+  duration_ms: 0.6531
+  type: 'test'
+  ...
+# Subtest: pilot rehearsal runs every arm through the real study path and freezes only with owner answers
+ok 124 - pilot rehearsal runs every arm through the real study path and freezes only with owner answers
+  ---
+  duration_ms: 10700.1625
+  type: 'test'
+  ...
+# Subtest: records survive a real API process restart; HTTP enforces versions, scope and idempotency
+ok 125 - records survive a real API process restart; HTTP enforces versions, scope and idempotency
+  ---
+  duration_ms: 7650.9462
+  type: 'test'
+  ...
+# Subtest: without a database the records API reports unavailable instead of pretending to persist
+ok 126 - without a database the records API reports unavailable instead of pretending to persist
+  ---
+  duration_ms: 23.4
+  type: 'test'
+  ...
+# PostgreSQL idle client error: terminating connection due to administrator command
+# PostgreSQL idle client error: terminating connection due to administrator command
+# Subtest: the research demonstration runs over HTTP and the CLI against PostgreSQL
+ok 127 - the research demonstration runs over HTTP and the CLI against PostgreSQL
+  ---
+  duration_ms: 4523.084
+  type: 'test'
+  ...
+# Subtest: supporting and non-supporting passages; fabricated quotes are refused
+ok 128 - supporting and non-supporting passages; fabricated quotes are refused
+  ---
+  duration_ms: 913.2893
+  type: 'test'
+  ...
+# Subtest: reposts form one origin; an independent source contests the claim
+ok 129 - reposts form one origin; an independent source contests the claim
+  ---
+  duration_ms: 1346.6192
+  type: 'test'
+  ...
+# Subtest: a changed source version invalidates earlier support until re-assessed
+ok 130 - a changed source version invalidates earlier support until re-assessed
+  ---
+  duration_ms: 1118.3014
+  type: 'test'
+  ...
+# Subtest: inaccessible and removed sources are labeled, never filled in
+ok 131 - inaccessible and removed sources are labeled, never filled in
+  ---
+  duration_ms: 1040.1938
+  type: 'test'
+  ...
+# Subtest: redirects and URLs that reach inward are blocked before any contact
+ok 132 - redirects and URLs that reach inward are blocked before any contact
+  ---
+  duration_ms: 978.567
+  type: 'test'
+  ...
+# Subtest: retrieved instructions change nothing: no grants, decisions, policy or extra fetches
+ok 133 - retrieved instructions change nothing: no grants, decisions, policy or extra fetches
+  ---
+  duration_ms: 802.5705
+  type: 'test'
+  ...
+# Subtest: byte, time, type and retention limits; failures keep no content
+ok 134 - byte, time, type and retention limits; failures keep no content
+  ---
+  duration_ms: 1388.1367
+  type: 'test'
+  ...
+# Subtest: admission, idempotency, run limits and no fixture fallback in real workspaces
+ok 135 - admission, idempotency, run limits and no fixture fallback in real workspaces
+  ---
+  duration_ms: 2575.162
+  type: 'test'
+  ...
+# Subtest: concurrent fetches of one URL record one source; a lost attempt is closed on sweep
+ok 136 - concurrent fetches of one URL record one source; a lost attempt is closed on sweep
+  ---
+  duration_ms: 739.411
+  type: 'test'
+  ...
+# Subtest: only the broker records retrievals, and redaction removes kept text
+ok 137 - only the broker records retrievals, and redaction removes kept text
+  ---
+  duration_ms: 686.1732
+  type: 'test'
+  ...
+# Subtest: URL policy refuses inward, credentialed and unapproved targets before contact
+ok 138 - URL policy refuses inward, credentialed and unapproved targets before contact
+  ---
+  duration_ms: 9.1644
+  type: 'test'
+  ...
+# Subtest: address blocklist covers private, metadata, mapped and NAT64 forms
+ok 139 - address blocklist covers private, metadata, mapped and NAT64 forms
+  ---
+  duration_ms: 0.5899
+  type: 'test'
+  ...
+# Subtest: extraction keeps locators exact, skips scripts and finds reposts
+ok 140 - extraction keeps locators exact, skips scripts and finds reposts
+  ---
+  duration_ms: 12.1832
+  type: 'test'
+  ...
+# Subtest: quotes must occur verbatim in the stored excerpt
+ok 141 - quotes must occur verbatim in the stored excerpt
+  ---
+  duration_ms: 0.2147
+  type: 'test'
+  ...
+# Subtest: claim evidence counts origins once and names gaps instead of filling them
+ok 142 - claim evidence counts origins once and names gaps instead of filling them
+  ---
+  duration_ms: 1.3161
+  type: 'test'
+  ...
+# Subtest: evidence packets carry retrieved text as data with no authority
+ok 143 - evidence packets carry retrieved text as data with no authority
+  ---
+  duration_ms: 0.3701
+  type: 'test'
+  ...
+# Subtest: live configuration requires an explicit opt-in and approved hosts
+ok 144 - live configuration requires an explicit opt-in and approved hosts
+  ---
+  duration_ms: 5.7463
+  type: 'test'
+  ...
+# Subtest: HTTP adapter checks DNS answers, pins the address and sends no credentials
+ok 145 - HTTP adapter checks DNS answers, pins the address and sends no credentials
+  ---
+  duration_ms: 143.7186
+  type: 'test'
+  ...
+# Subtest: a backup restores the catalog and artifact references into a new database and product store, and refuses tampering
+ok 146 - a backup restores the catalog and artifact references into a new database and product store, and refuses tampering
+  ---
+  duration_ms: 26155.9921
+  type: 'test'
+  ...
+# Subtest: score formula is exact, displayed once, and never renormalizes around unknowns
+ok 147 - score formula is exact, displayed once, and never renormalizes around unknowns
+  ---
+  duration_ms: 3.5255
+  type: 'test'
+  ...
+# Subtest: sensitivity reports a top change when one weight decides the order
+ok 148 - sensitivity reports a top change when one weight decides the order
+  ---
+  duration_ms: 29.0535
+  type: 'test'
+  ...
+# Subtest: stale scorecards are listed but not counted; an advanced peer is not an override
+ok 149 - stale scorecards are listed but not counted; an advanced peer is not an override
+  ---
+  duration_ms: 9.4687
+  type: 'test'
+  ...
+# Subtest: task graph checks: cycles, unknown references, coverage and parallel ownership
+ok 150 - task graph checks: cycles, unknown references, coverage and parallel ownership
+  ---
+  duration_ms: 1.8629
+  type: 'test'
+  ...
+# Subtest: task hashes follow content and dependencies, not array order
+ok 151 - task hashes follow content and dependencies, not array order
+  ---
+  duration_ms: 4.8148
+  type: 'test'
+  ...
+# Subtest: score arithmetic and unknowns are reproducible; incomplete stays labeled; ties and disagreement show
+ok 152 - score arithmetic and unknowns are reproducible; incomplete stays labeled; ties and disagreement show
+  ---
+  duration_ms: 6159.6154
+  type: 'test'
+  ...
+# Subtest: human overrides retain original scores and ranks, with reason, actor and time
+ok 153 - human overrides retain original scores and ranks, with reason, actor and time
+  ---
+  duration_ms: 5001.4391
+  type: 'test'
+  ...
+# Subtest: a high score cannot bypass an unresolved gate, and non-code responses never become build-ready
+ok 154 - a high score cannot bypass an unresolved gate, and non-code responses never become build-ready
+  ---
+  duration_ms: 4108.4432
+  type: 'test'
+  ...
+# Subtest: a gate raised after selection stops the freeze; an incomplete or unreviewed build is blocked
+ok 155 - a gate raised after selection stops the freeze; an incomplete or unreviewed build is blocked
+  ---
+  duration_ms: 3861.308
+  type: 'test'
+  ...
+# Subtest: spec changes invalidate affected task and approval versions; frozen tasks keep their hashes
+ok 156 - spec changes invalidate affected task and approval versions; frozen tasks keep their hashes
+  ---
+  duration_ms: 5396.5808
+  type: 'test'
+  ...
+# Subtest: invalid task graphs cannot be frozen; specs and scorecards bypass no checks
+ok 157 - invalid task graphs cannot be frozen; specs and scorecards bypass no checks
+  ---
+  duration_ms: 4400.8908
+  type: 'test'
+  ...
+# Subtest: a later selection replaces an earlier one; the replaced selection cannot seed a spec
+ok 158 - a later selection replaces an earlier one; the replaced selection cannot seed a spec
+  ---
+  duration_ms: 4407.511
+  type: 'test'
+  ...
+# Subtest: selection follows run policy: preauthorized autonomous selection, otherwise deferred
+ok 159 - selection follows run policy: preauthorized autonomous selection, otherwise deferred
+  ---
+  duration_ms: 3764.462
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 160 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 404.5342
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 161 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 920.944
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 162 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 617.3663
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 163 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 488.889
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 164 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 553.4618
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 165 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 440.4094
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 166 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 553.377
+  type: 'test'
+  ...
+# PostgreSQL idle client error: terminating connection due to administrator command
+# Subtest: study HTTP paths enforce schema errors, human-only execution denial and grader separation
+ok 167 - study HTTP paths enforce schema errors, human-only execution denial and grader separation
+  ---
+  duration_ms: 1159.6029
+  type: 'test'
+  ...
+# Subtest: T15 config keeps the owner model preference and $20 cap and leaves every study decision unresolved
+ok 168 - T15 config keeps the owner model preference and $20 cap and leaves every study decision unresolved
+  ---
+  duration_ms: 8.4409
+  type: 'test'
+  ...
+# Subtest: synthetic implementation attempts: A/B build in isolated per-attempt products with exact hashes; C is refused the builder and its code is checked server-side; budget holds, cancellation and mismatches refuse
+ok 169 - synthetic implementation attempts: A/B build in isolated per-attempt products with exact hashes; C is refused the builder and its code is checked server-side; budget holds, cancellation and mismatches refuse
+  ---
+  duration_ms: 44255.344
+  type: 'test'
+  ...
+# Subtest: final (non-synthetic) records are refused until every owner answer is in an adopted freeze, and never run AI while live dispatch is disabled
+ok 170 - final (non-synthetic) records are refused until every owner answer is in an adopted freeze, and never run AI while live dispatch is disabled
+  ---
+  duration_ms: 20735.9282
+  type: 'test'
+  ...
+# Subtest: compiled study-build CLI runs a synthetic A attempt in the reviewed WSL2 worker and records isolation evidence
+ok 171 - compiled study-build CLI runs a synthetic A attempt in the reviewed WSL2 worker and records isolation evidence
+  ---
+  duration_ms: 28217.0976
+  type: 'test'
+  ...
+# Subtest: manifest changes bind packet/config; baseline context excludes rubric and structured prompt
+ok 172 - manifest changes bind packet/config; baseline context excludes rubric and structured prompt
+  ---
+  duration_ms: 14.4872
+  type: 'test'
+  ...
+# Subtest: study participant and grader isolation, frozen records, terminal failures and complete repeatable export
+ok 173 - study participant and grader isolation, frozen records, terminal failures and complete repeatable export
+  ---
+  duration_ms: 1345.3157
+  type: 'test'
+  ...
+# Subtest: human-only denies every broker action and helper with zero adapter calls and durable denial evidence
+ok 174 - human-only denies every broker action and helper with zero adapter calls and durable denial evidence
+  ---
+  duration_ms: 1971.2803
+  type: 'test'
+  ...
+# Subtest: real structured worker and open-ended broker paths stay inside frozen study contexts
+ok 175 - real structured worker and open-ended broker paths stay inside frozen study contexts
+  ---
+  duration_ms: 3190.849
+  type: 'test'
+  ...
+# Subtest: concurrent finish preserves one outcome; changed structured inputs and cross-participant reads are refused
+ok 176 - concurrent finish preserves one outcome; changed structured inputs and cross-participant reads are refused
+  ---
+  duration_ms: 1639.2279
+  type: 'test'
+  ...
+# Subtest: late outputs retain charges and artifacts without completing an expired assignment; stopped attempts deny further dispatch
+ok 177 - late outputs retain charges and artifacts without completing an expired assignment; stopped attempts deny further dispatch
+  ---
+  duration_ms: 1968.8454
+  type: 'test'
+  ...
+# Subtest: seed retries return the same assignments and agent identities cannot receive grader material
+ok 178 - seed retries return the same assignments and agent identities cannot receive grader material
+  ---
+  duration_ms: 613.4294
+  type: 'test'
+  ...
+# Subtest: participant ids match regardless of letter case, so a participant can never become a grader
+ok 179 - participant ids match regardless of letter case, so a participant can never become a grader
+  ---
+  duration_ms: 488.4139
+  type: 'test'
+  ...
+# Subtest: a workflow started over HTTP survives killed worker and API processes
+not ok 180 - a workflow started over HTTP survives killed worker and API processes
+  ---
+  duration_ms: 33912.8651
+  type: 'test'
+  location: 'C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\.verification\\t19-clean\\tests\\dist\\workflow-api.test.js:52:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'running'
+    - 'succeeded'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'succeeded'
+  actual: 'running'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/.verification/t19-clean/tests/dist/workflow-api.test.js:179:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: a workflow runs to a structured result and continues after a restart
+ok 181 - a workflow runs to a structured result and continues after a restart
+  ---
+  duration_ms: 5341.6339
+  type: 'test'
+  ...
+# Subtest: heartbeats keep a live lease past its first expiry, and refuse a stale token
+ok 182 - heartbeats keep a live lease past its first expiry, and refuse a stale token
+  ---
+  duration_ms: 3480.3587
+  type: 'test'
+  ...
+# Subtest: a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice
+ok 183 - a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice
+  ---
+  duration_ms: 3610.799
+  type: 'test'
+  ...
+# Subtest: a workflow waits for a decision, survives duplicate wake-ups, then completes
+ok 184 - a workflow waits for a decision, survives duplicate wake-ups, then completes
+  ---
+  duration_ms: 2448.3177
+  type: 'test'
+  ...
+# Subtest: cancellation stops delegation and keeps in-flight exposure held
+ok 185 - cancellation stops delegation and keeps in-flight exposure held
+  ---
+  duration_ms: 1064.1748
+  type: 'test'
+  ...
+# Subtest: autonomous runs stop as needs-human; human-only and unbounded workflows never start
+ok 186 - autonomous runs stop as needs-human; human-only and unbounded workflows never start
+  ---
+  duration_ms: 978.9014
+  type: 'test'
+  ...
+# Subtest: a malformed answer is repaired within limits; pause holds dispatch until resume
+ok 187 - a malformed answer is repaired within limits; pause holds dispatch until resume
+  ---
+  duration_ms: 1493.5474
+  type: 'test'
+  ...
+1..187
+# tests 187
+# suites 0
+# pass 185
+# fail 1
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 733355.6911
+[ELIFECYCLE] Test failed. See above for more details.
+[ELIFECYCLE] Command failed with exit code 1.

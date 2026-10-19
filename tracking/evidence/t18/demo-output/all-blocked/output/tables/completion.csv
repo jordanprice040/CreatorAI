@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,assigned,blocked,deferred,missing,ran,submitted,failed,cancelled,needs_human,budget_exhausted,attempts,retries,infrastructure_failures,completion,completion_share
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,A,1,1,0,0,0,0,0,0,0,0,0,0,0,0/1,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,B,1,1,0,0,0,0,0,0,0,0,0,0,0,0/1,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,C,1,1,0,0,0,0,0,0,0,0,0,0,0,0/1,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,A,1,1,0,0,0,0,0,0,0,0,0,0,0,0/1,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,B,1,1,0,0,0,0,0,0,0,0,0,0,0,0/1,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,C,1,1,0,0,0,0,0,0,0,0,0,0,0,0/1,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-open,2,2,0,0,0,0,0,0,0,0,0,0,0,0/2,0
+"VERIFICATION FIXTURE: synthetic data, not empirical",discovery,decision,D-structured,2,2,0,0,0,0,0,0,0,0,0,0,0,0/2,0

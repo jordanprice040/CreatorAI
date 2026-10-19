@@ -1,0 +1,5 @@
+data_label,comparison,stratum,arm,audited_attempts,sources,verified,unverified,attempts_with_unverified
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,A,4,4,0,4,4
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,B,4,4,0,4,4
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-open,3,3,0,3,3
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-structured,4,4,0,4,4

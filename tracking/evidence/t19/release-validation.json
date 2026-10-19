@@ -1,0 +1,40 @@
+{
+  "schema": "t19-release-validation/1",
+  "date": "2026-10-18",
+  "archive": "creator-agent-t19.tar",
+  "archive_sha256": "37d8543d5a99a0c67b35d90a39464a125e2a6a1f5e3a20c6675e7a43402c56ae",
+  "archive_bytes": 3692544,
+  "source_commit": "3e9026f12d85d5eb6fd933e217176fae30be61c3",
+  "manifest_sha256": "ec674bade097c7de09564eb998f20e3985722b4304ad609a59a308d4aac57946",
+  "included_files": 347,
+  "source_identity": "Selected upstream source bytes checked against Git blob IDs before packaging; local overlays identified per file",
+  "checks": [
+    "All 347 staged/readback file hashes verified; no extra files or forbidden paths",
+    "Deliberate changed-byte readback rejected; restored bytes reverified",
+    "Known local database credential absent from all payload files",
+    "No private assignment key, reviewer key, raw export, .env or session file in archive paths",
+    "Original and revised product tar hashes equal their bound artifact manifests",
+    "Final archive copy equals external SHA256 sidecar",
+    "Fresh final-archive extraction: pinned cached install succeeded",
+    "Extracted full TypeScript/web build and web/proxy/API smoke passed on loopback 14313/15176",
+    "All thesis packet relative links resolve"
+  ],
+  "logs": [
+    "archive-build.log",
+    "archive-install.log",
+    "archive-smoke.log"
+  ],
+  "privacy": "Only synthetic/public study evidence; keys/raw exports omitted. Source fixtures can regenerate synthetic private material locally.",
+  "limits": [
+    "Initial whole-suite run retains 185 pass / 1 recovery timing fail / 1 expected skip",
+    "Original recovery check passed alone; test-only lease-aware repair passed focused integration",
+    "Extended real-worker artifact acceptance passed; full suite not repeated after test-only overlays",
+    "No fresh browser interaction test or human defense rehearsal",
+    "No live inference, participant evaluation, independent human ratings, protocol adoption or committee acceptance",
+    "Cached install is not a cache-empty network bootstrap",
+    "Non-blocking Vite bundle-size warning remains"
+  ],
+  "delivery": "Local archive only; nothing sent or published",
+  "academic_dates": "unconfirmed",
+  "next_eligible": "Owner-selected outstanding committee/research acceptance item; no automatic X milestone"
+}

@@ -1,0 +1,88 @@
+{
+  "milestone": "T19",
+  "date": "2026-10-18",
+  "source_commit": "3e9026f12d85d5eb6fd933e217176fae30be61c3",
+  "working_head": "38b3e46",
+  "source_strategy": "Fresh archive extraction; no merge over working checkout; documentation/scripts and two test overlays separately identified",
+  "environment": {
+    "node": "22.21.0",
+    "pnpm": "11.25.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "database": "Existing digest-pinned PostgreSQL 18.6 disposable Docker test service on loopback 55434",
+    "executor": "Reviewed Ubuntu WSL2, wsl2-bwrap-systemd"
+  },
+  "checks": [
+    {
+      "command": "corepack pnpm install --frozen-lockfile --offline",
+      "result": "pass; fresh directory, 50 cached packages, no downloads reported",
+      "limit": "Reused package cache and existing Corepack installation"
+    },
+    {
+      "command": "corepack pnpm test:db with CREATOR_TEST_ISOLATION=wsl2",
+      "tests": 187,
+      "pass": 185,
+      "fail": 1,
+      "skip": 1,
+      "skip_reason": "No-worker-only case skipped because real worker is available",
+      "failure": "Workflow restart polling deadline; original failure retained",
+      "log": "test-db-wsl.log"
+    },
+    {
+      "command": "Original workflow-api focused test",
+      "pass": 1,
+      "fail": 0,
+      "log": "recovery-original-focused.log"
+    },
+    {
+      "command": "Repaired lease-aware workflow-api focused test",
+      "pass": 1,
+      "fail": 0,
+      "log": "recovery-repaired.log",
+      "limit": "Full suite not repeated after test-only overlays; exact failure lease snapshot unavailable"
+    },
+    {
+      "command": "Extended artifact-cli real-worker acceptance with evidence recorder",
+      "pass": 1,
+      "fail": 0,
+      "skip": 0,
+      "log": "product-demo.log",
+      "artifacts": "product-demo/original.tar, revision.tar, acceptance.json"
+    },
+    {
+      "command": "corepack pnpm typecheck",
+      "result": "pass",
+      "log": "typecheck.log"
+    },
+    {
+      "command": "corepack pnpm smoke",
+      "result": "pass",
+      "log": "smoke.log",
+      "limit": "Built page/proxy/API HTTP; no new browser walkthrough"
+    },
+    {
+      "command": "scripts/t19-rehearsal.mjs",
+      "result": "pass; 26 synthetic slots, 10 evaluation checks and 12 analysis checks",
+      "data_kind": "not_empirical",
+      "analysis_hash": "dc2be5fe0aa4cb413daaf2504bcb1048e2eae4756686c18b3ce0cffafd462714",
+      "log": "rehearsal.log"
+    }
+  ],
+  "archive_validation": "External release-validation.json records final archive readback, tamper refusal and extracted install/build smoke after construction",
+  "setup_issues": [
+    "Sandbox WSL access denied; approved escalation succeeded",
+    "Sandbox Corepack registry lookup failed; approved cached setup/build invocation succeeded"
+  ],
+  "not_performed": [
+    "Live inference or paid tools",
+    "Participant evaluation or independent human ratings",
+    "Protocol adoption",
+    "Committee acceptance, recruitment or sending",
+    "Full human defense rehearsal",
+    "Full suite rerun after test-only changes"
+  ],
+  "empirical_results": "unavailable",
+  "study_status": "proposed and unfrozen",
+  "academic_dates": "unconfirmed",
+  "services": "Existing development and test database services left as found; temporary test databases and API processes closed by harnesses"
+}

@@ -1,0 +1,7 @@
+data_label,stratum,outcome,contrast,tasks,n_pairs,min,median,max,positive,zero,negative,interval,interval_note
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,mean reviewer quality (1-5),B - A,1,0,,,,0,0,0,,"Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval."
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,mean reviewer quality (1-5),C - A,1,0,,,,0,0,0,,"Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval."
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,mean reviewer quality (1-5),C - B,1,0,,,,0,0,0,,"Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval."
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,share of frozen cases passed,B - A,1,0,,,,0,0,0,,"Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval."
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,share of frozen cases passed,C - A,1,0,,,,0,0,0,,"Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval."
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,share of frozen cases passed,C - B,1,0,,,,0,0,0,,"Not computed: 0 task pair(s), below the plan minimum of 10. Report the range, not an interval."

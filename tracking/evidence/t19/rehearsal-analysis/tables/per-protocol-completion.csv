@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,ran_without_only_infrastructure_failure,submitted,completion
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,A,4,0,0/4
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,B,4,0,0/4
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,C,4,3,3/4
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,A,0,0,0/0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,B,0,0,0/0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,C,2,2,2/2
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-open,3,3,3/3
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-structured,4,0,0/4

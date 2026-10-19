@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,attempts,calls,provider_retries,known_spend_nano_usd,known_spend_usd,unknown_exposure_usd,in_flight_exposure_usd,billing,accepted,cost_per_accepted_usd,cost_per_accepted_note
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,A,4,4,0,101480000,0.101480000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,B,4,4,0,101480000,0.101480000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,C,4,0,0,0,0.000000000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,A,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,B,0,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,C,2,0,0,0,0.000000000,0.000000000,0.000000000,complete,2,0.000000000,Known spend over accepted outcomes (floor to 1 nano-USD).
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-open,3,3,0,12350000,0.012350000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-structured,4,4,0,101080000,0.101080000,0.000000000,0.000000000,complete,,,Undefined: no acceptance rule for this stratum (analysis-options.json).

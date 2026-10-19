@@ -12,3 +12,6 @@ dist/
 .claude/skills/impeccable/scripts/bin/
 .claude/settings.local.json
 .creator/
+
+# Generated fixture assignment keys and raw exports are local-only.
+/tracking/evidence/t18/demo-output/*/input/private/
