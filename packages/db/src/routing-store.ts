@@ -38,7 +38,7 @@ import {
   sameModel,
   sumCosts,
 } from '@creator/domain';
-import { ArtifactStore } from './artifact-store.js';
+import { GitHubStore } from './github-store.js';
 import {
   fail,
   iso,
@@ -158,7 +158,7 @@ const ACTIVE = ['shadow', 'canary', 'promoted'];
  * benchmarks and promotions; members ask for decisions and record objective outcomes. Every
  * decision row names the policy, registry and pricing versions it used, and is immutable.
  */
-export class RoutingStore extends ArtifactStore {
+export class RoutingStore extends GitHubStore {
   private async fixtureOf(c: PoolClient, ws: string) {
     const { rows } = await c.query<{ fixture: boolean }>(
       'select fixture from workspaces where id = $1',

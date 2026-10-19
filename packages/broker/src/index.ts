@@ -5,3 +5,5 @@ export * from './env.js';
 export * from './routing.js';
 export * from './batch.js';
 export * from './context.js';
+export * from './github.js';
+export * from './github-service.js';

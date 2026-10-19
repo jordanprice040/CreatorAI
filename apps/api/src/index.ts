@@ -43,6 +43,7 @@ import {
   liveBatchAdapterFromEnv,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
+import { GitHubService } from '@creator/broker';
 import {
   FIXTURE_SOURCE_POLICY,
   FixtureSourceAdapter,
@@ -58,6 +59,12 @@ import {
   readStudyBuild,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
+import {
+  GITHUB_ROUTE,
+  GITHUB_WEBHOOK_ROUTE,
+  githubRoutes,
+  readRaw,
+} from './github.js';
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
 import { routingRoutes } from './routing.js';
 import { contextRoutes } from './context.js';
@@ -99,6 +106,8 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 export const DEFAULT_OWNER_ACTOR_ID = '00000000-0000-4000-8000-000000000001';
 /** System actor that records crash recovery of lost broker attempts. */
 export const BROKER_ACTOR_ID = '00000000-0000-4000-8000-000000000002';
+/** System actor that records verified GitHub webhook deliveries (X04). */
+export const GITHUB_WEBHOOK_ACTOR_ID = '00000000-0000-4000-8000-000000000004';
 /** An in-flight fetch older than this lost its process; sweeps close it as interrupted. */
 const RETRIEVAL_STALE_MS = 120_000;
 const CONNECTION_FAILURES = new Set([
@@ -213,6 +222,25 @@ export function createApi(
           ...(liveBatch ? [liveBatch] : []),
         ])
       : null;
+  // X04: GitHub operations; live calls need CREATOR_GITHUB=live plus a connection's grant.
+  const github = store
+    ? new GitHubService(store, {
+        env,
+        pushSource: async (productId, ws) => {
+          const product = await artifacts.products
+            .product(productId)
+            .catch(() => {
+              throw new ContractError('NOT_FOUND', 'Product not found.');
+            });
+          if (product.binding.workspace_id !== ws.toLowerCase())
+            throw new ContractError(
+              'SCOPE_EXCEEDED',
+              'That product belongs to another workspace.',
+            );
+          return artifacts.products.repo(productId);
+        },
+      })
+    : null;
   // Pages reach the app only through this broker, under the owner-approved source policy.
   const sources = store
     ? new SourceBroker(
@@ -260,6 +288,11 @@ export function createApi(
       id: ORCHESTRATOR_ACTOR_ID,
       kind: 'agent',
       display_name: 'Workflow worker',
+    });
+    await store.ensureActor({
+      id: GITHUB_WEBHOOK_ACTOR_ID,
+      kind: 'system',
+      display_name: 'GitHub webhook receiver',
     });
     storage = 'postgresql';
     await store.sweepStale(brokerActor);
@@ -313,7 +346,8 @@ export function createApi(
     }
   };
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
-    const match = RECORD_ROUTE.exec(url.pathname);
+    const match =
+      RECORD_ROUTE.exec(url.pathname) ?? GITHUB_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -359,6 +393,23 @@ export function createApi(
         method,
         url,
         res,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection?.startsWith('github-') &&
+      (await githubRoutes({
+        store,
+        service: github!,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
         body: () => readJson(req),
         send,
       }))
@@ -1148,6 +1199,22 @@ export function createApi(
                   'Database unavailable.',
                 ));
         });
+      const hook = GITHUB_WEBHOOK_ROUTE.exec(url.pathname);
+      if (hook && req.method === 'POST' && store && github) {
+        // No session or CSRF: the HMAC signature over the raw body is the authentication.
+        await ensureReady();
+        const out = await github.receiveWebhook(
+          { actorId: GITHUB_WEBHOOK_ACTOR_ID },
+          hook[1]!,
+          {
+            event: header(req, 'x-github-event'),
+            delivery: header(req, 'x-github-delivery'),
+            signature: header(req, 'x-hub-signature-256'),
+          },
+          await readRaw(req),
+        );
+        return respond(res, out.status, out.body);
+      }
       if (
         await authn.route(
           req,

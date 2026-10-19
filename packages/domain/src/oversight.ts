@@ -61,6 +61,13 @@ export const ACTION_REGISTRY: Record<ActionType, ActionSpec> = {
   'grant.create': spec({ owner_only: true }),
   'policy.change': spec({ owner_only: true }),
   'budget.increase': spec({ owner_only: true }),
+  // X04. A created repository is never deleted by the studio, so creation is irreversible.
+  'github.repo_create': spec({ external_effect: true, reversible: false }),
+  // Branches, pushes (no force), issues and pull requests on a managed private repository.
+  'github.write': spec({ external_effect: true }),
+  // Changes under .github/workflows or .github/actions: separately granted, never via github.write.
+  'github.workflow_change': spec({ external_effect: true, reversible: false }),
+  'github.merge': spec({ external_effect: true, reversible: false }),
 };
 /** Stage gates each mode asks at unless the run registers its own list. */
 export const DEFAULT_STAGE_GATES: Record<AutonomyMode, readonly ActionType[]> =

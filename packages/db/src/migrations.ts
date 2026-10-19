@@ -1442,6 +1442,134 @@ create trigger context_evaluations_guard before update or delete on context_eval
  for each row execute function creator_context_evaluation_guard();
 `,
   },
+  {
+    // 14 is left for X03, built in parallel; migrations apply by version, so a gap is fine.
+    version: 15,
+    name: 'github_scoped_management',
+    sql: `
+-- X04: scoped GitHub management. A connection names one verified owner and one credential
+-- reference (an environment variable name, never a secret). Operations are journalled as
+-- intents before any call; an unknown outcome stays unknown until reconciled.
+create table github_connections (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ version integer not null check (version >= 1),
+ status text not null check (status in ('unverified','active','credential_rejected',
+   'access_revoked','revoked')),
+ body jsonb not null, body_hash char(64) not null, verification jsonb, status_reason text,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture)
+);
+-- Only status and verification change; a revoked connection never comes back.
+create function creator_github_connection_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.status = 'revoked'
+     or (new.id, new.workspace_id, new.fixture, new.body, new.body_hash, new.created_by, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.fixture, old.body, old.body_hash,
+          old.created_by, old.created_at) then
+    raise exception 'github connection change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger github_connections_guard before update or delete on github_connections
+ for each row execute function creator_github_connection_guard();
+create table github_repositories (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ connection_id uuid not null references github_connections(id),
+ github_id bigint not null check (github_id > 0), owner_id bigint not null,
+ full_name text not null, default_branch text not null,
+ origin text not null check (origin in ('created','included')),
+ status text not null check (status in ('active','access_lost','quarantined')),
+ status_reason text, created_operation_id uuid,
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ unique (connection_id, github_id)
+);
+-- The immutable GitHub id and owner are the identity; the name may change with a rename.
+create function creator_github_repository_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or (new.id, new.workspace_id, new.connection_id, new.github_id, new.owner_id,
+       new.origin, new.created_operation_id, new.created_at)
+     is distinct from (old.id, old.workspace_id, old.connection_id, old.github_id, old.owner_id,
+       old.origin, old.created_operation_id, old.created_at) then
+    raise exception 'github repository change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger github_repositories_guard before update or delete on github_repositories
+ for each row execute function creator_github_repository_guard();
+create table github_operations (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ connection_id uuid not null references github_connections(id), run_id uuid not null,
+ kind text not null check (kind in ('repo_create','branch_create','push','issue_create',
+   'pr_open','pr_merge')),
+ action_type text, repository_id uuid references github_repositories(id),
+ params jsonb not null, intent_hash char(64) not null, idempotency_key text,
+ admission_id uuid references action_admissions(id),
+ state text not null check (state in ('refused','dispatched','succeeded','failed','unknown',
+   'reconciled_succeeded','reconciled_absent')),
+ reason_code text not null, explanation text not null, gate jsonb, result jsonb,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ check ((state = 'refused') or admission_id is not null)
+);
+create index github_operations_connection on github_operations(connection_id, created_at);
+create index github_operations_intent on github_operations(connection_id, intent_hash);
+create unique index github_operations_key on github_operations(workspace_id, idempotency_key)
+ where idempotency_key is not null;
+-- dispatched -> succeeded | failed | unknown; unknown -> reconciled_*; nothing else moves.
+create function creator_github_operation_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE'
+     or (new.id, new.workspace_id, new.connection_id, new.run_id, new.kind, new.action_type,
+         new.repository_id, new.params, new.intent_hash, new.idempotency_key, new.admission_id,
+         new.gate, new.created_by, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.connection_id, old.run_id, old.kind,
+         old.action_type, old.repository_id, old.params, old.intent_hash, old.idempotency_key,
+         old.admission_id, old.gate, old.created_by, old.created_at)
+     or not ((old.state = 'dispatched' and new.state in ('succeeded','failed','unknown'))
+       or (old.state = 'unknown' and new.state in ('reconciled_succeeded','reconciled_absent'))) then
+    raise exception 'github operation change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger github_operations_guard before update or delete on github_operations
+ for each row execute function creator_github_operation_guard();
+create table github_pull_requests (
+ repository_id uuid not null references github_repositories(id), number bigint not null,
+ workspace_id uuid not null references workspaces(id), head_branch text not null,
+ base_branch text not null, state text not null check (state in ('open','closed','merged')),
+ opened_operation_id uuid not null references github_operations(id),
+ updated_at timestamptz not null default clock_timestamp(),
+ primary key (repository_id, number)
+);
+create table github_reviews (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ repository_id uuid not null references github_repositories(id), pr_number bigint not null,
+ head_sha char(40) not null, verdict text not null check (verdict in ('approve','request_changes')),
+ note text not null, reviewer_id uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create index github_reviews_head on github_reviews(repository_id, pr_number, head_sha, created_at);
+create trigger github_reviews_immutable before update or delete on github_reviews
+ for each row execute function creator_reject_change();
+create table github_webhook_deliveries (
+ id uuid primary key, connection_id uuid not null references github_connections(id),
+ delivery_id text not null, event text not null, action text, payload_hash char(64) not null,
+ status text not null check (status in ('accepted','rejected_signature')),
+ effects jsonb not null, received_at timestamptz not null default clock_timestamp()
+);
+-- A redelivered event is recognised by GitHub's delivery id and applied once.
+create unique index github_webhook_once on github_webhook_deliveries(connection_id, delivery_id)
+ where status = 'accepted';
+create trigger github_webhook_deliveries_immutable before update or delete on github_webhook_deliveries
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

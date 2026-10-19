@@ -1,5 +1,47 @@
 # Implementation status
 
+## X04 — scoped GitHub management (October 19, 2026)
+
+Branch claude/x04-gm7n32 from main d2c8ef1; migration 15 (14 left for X03, built in
+parallel); ADR-0027; docs/GITHUB.md. Partial: implemented and verified against a
+deterministic fixture GitHub and loopback contract tests only. No live GitHub call, no
+credential configured, no repository created on github.com.
+
+What works: connections naming one owner by immutable id, one credential reference
+(GitHub App installation or fine-grained token, by environment variable name only), limits
+and required checks; owner verification before anything else runs; managed repositories
+by immutable id (renames followed; another owner or public visibility quarantines);
+existing repositories only when listed by id; an operation journal (intent before call,
+settled once, unknown until reconciled by reading GitHub); four admitted action types
+(github.repo_create, github.write, github.workflow_change, github.merge) with the intent
+hash as spec_hash; prefix, repository-count, hourly-change and open-PR limits; pushes of
+exact local commits without force from the same workspace's product only; exact-head
+merges (live head = reviewed head, independent approving review, every required check
+succeeding on that head, sha sent to GitHub); verified, deduplicated webhooks that only
+remove access; live off unless CREATOR_GITHUB=live. REST adapter on API version
+2026-03-10 with per-call installation tokens scoped to one repository and the
+endpoint's permissions. API routes, a webhook endpoint and `github-*` CLI commands.
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check with CREATOR_TEST_DATABASE_URL:
+typecheck passed; 221 tests, 210 pass, 0 fail, 11 skips (real WSL2 gates, opt-in); format
+check then flagged only docs/GITHUB.md (written during the run), which was reformatted
+and re-checked clean (tracking/evidence/x04/check.log, format-recheck.log). New tests:
+github (4 DB acceptance), github-domain (4: rules, two REST contracts, Git push
+contract), github-api (1 API + CLI); storage test updated for migration 15.
+Acceptance gate on fixtures: wrong owner stays unverified and sends nothing; stale base,
+stale head (before and during merge, 409), missing/pending/failed checks, missing or
+self-review all refused; unknown creation, push and merge reconciled from GitHub with no
+retry while unknown; GitHub 401, owner revoke, recorded token expiry, lost repository
+scope and a publicized repository all stop calls; live off and missing grants send
+nothing in a real workspace. The stale-head check was confirmed to fail when its rule is
+disabled. No WSL2 run needed.
+
+Limits: no live verification (needs an owner-created GitHub App or fine-grained token,
+CREATOR_GITHUB=live and grants); the API binds to loopback, so live webhooks need a
+local forwarder; no releases, repository settings, secrets or branch protection; issue
+and PR reconciliation match by title or head branch; no web UI. Next eligible: X05 on
+request, or remaining T15/T16 work once the protocol is frozen.
+
 ## Audit 2026-10-19 (T14–X02) fixes (October 19, 2026)
 
 Branch claude/audit-x02-iois7j from main 6ffb0e6; no migration, no ADR. Report:
@@ -396,7 +438,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | X01 | Model registry and qualified automatic routing | partial (cloud Linux, PostgreSQL 16; fixture-verified routing machinery) | Branch claude/x01-qfktko from 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md; evidence/x01; 198 tests / 187 pass / 11 WSL skips | Measured task outcomes (T15) to qualify real models; verified gpt-6-astra id; routing used by workflow/study/builder paths; web UI |
 | X02 | Context selection, caching, compaction, and batches | partial (cloud Linux, PostgreSQL 16; fixture-verified) | Branch claude/x02-b3wzes from c738369; migration 13; ADR-0025; docs/CONTEXT_AND_CACHING.md; evidence/x02; 212 tests / 201 pass / 11 WSL skips | Live verification of gpt-6-astra prompt caching and batch (owner-authorized call); provider compaction adapter; packs/cache used by workflow, study and builder paths; web UI |
 | X03 | Comprehensive search, lineage, and audit questions | deferred | No application code at T00 | T09 and T13 |
-| X04 | Scoped GitHub management | deferred | No application code at T00 | T13 and policy/broker coverage |
+| X04 | Scoped GitHub management | partial (cloud Linux, PostgreSQL 16; fixture GitHub and loopback contracts) | Branch claude/x04-gm7n32 from d2c8ef1; migration 15; ADR-0027; docs/GITHUB.md; evidence/x04; 221 tests / 210 pass / 11 WSL skips | Owner-created GitHub App or fine-grained token, CREATOR_GITHUB=live, grants and a live verification; webhook forwarder; releases and settings; web UI |
 | X05 | Windows desktop and paired local workers | deferred | No application code at T00 | T13 |
 | X06 | Hosted operation and observability | deferred | No application code at T00 | T17; X05 only for hosted-to-local pairing |
 | X07 | Payments, entitlements, revenue and reinvestment | deferred | No application code at T00 | T17 and required integration infrastructure |

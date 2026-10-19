@@ -13,6 +13,7 @@ export * from './catalog-store.js';
 export * from './study-store.js';
 export * from './study-build-store.js';
 export * from './artifact-store.js';
+export * from './github-store.js';
 export * from './backup.js';
 export * from './routing-store.js';
 export * from './context-store.js';

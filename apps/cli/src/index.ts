@@ -95,6 +95,13 @@ import {
   capabilitiesRequestFromConfig,
 } from '@creator/domain';
 import { batchesOf, readCorpus } from './context-index.js';
+import {
+  GitHubConnectionSchema,
+  GitHubDeliverySchema,
+  GitHubOperationSchema,
+  GitHubRepositorySchema,
+  GitHubReviewSchema,
+} from '@creator/contracts';
 
 const USAGE = `Usage:
   pnpm cli product-init <workspace> <frozen-spec-id> [--from <artifact-id>]
@@ -162,6 +169,16 @@ const USAGE = `Usage:
   pnpm cli broker-status
   pnpm cli pricing <workspace>
   pnpm cli pricing-add <workspace> <pricing-file.json>
+  pnpm cli github-connect <workspace> <connection-json|file.json>
+  pnpm cli github-connections <workspace>
+  pnpm cli github-verify <workspace> <connection-id>
+  pnpm cli github-revoke <workspace> <connection-id> <expected-version> <reason>
+  pnpm cli github-deliveries <workspace> <connection-id>
+  pnpm cli github-repos <workspace>
+  pnpm cli github-op <workspace> <operation-json|file.json>
+  pnpm cli github-ops <workspace>
+  pnpm cli github-reconcile <workspace> <operation-id>
+  pnpm cli github-review <workspace> <review-json|file.json>
   pnpm cli route-registry-add <workspace> <config/routing/model-registry*.json>
   pnpm cli route-registries <workspace>
   pnpm cli route-policy-set <workspace> <policy-json|file.json> [project-id]
@@ -1156,6 +1173,78 @@ export async function runCli(
         break;
       case 'broker-status':
         data = await call(BrokerStatusSchema, 'broker/status');
+        break;
+      case 'github-connect':
+        data = await call(
+          GitHubConnectionSchema,
+          `${ws(rest[0])}/github-connections`,
+          jsonArg(rest[1], 'Connection'),
+        );
+        break;
+      case 'github-connections':
+        data = await call(
+          z.array(GitHubConnectionSchema),
+          `${ws(rest[0])}/github-connections`,
+        );
+        break;
+      case 'github-verify':
+        data = await call(
+          z.strictObject({
+            connection: GitHubConnectionSchema,
+            repositories: z.array(GitHubRepositorySchema),
+          }),
+          `${ws(rest[0])}/github-connections/${encodeURIComponent(rest[1] ?? '')}/verify`,
+          {},
+        );
+        break;
+      case 'github-revoke':
+        data = await call(
+          GitHubConnectionSchema,
+          `${ws(rest[0])}/github-connections/${encodeURIComponent(rest[1] ?? '')}/revoke`,
+          {
+            expected_version: version(rest[2]),
+            reason: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'github-deliveries':
+        data = await call(
+          z.array(GitHubDeliverySchema),
+          `${ws(rest[0])}/github-connections/${encodeURIComponent(rest[1] ?? '')}/deliveries`,
+        );
+        break;
+      case 'github-repos':
+        data = await call(
+          z.array(GitHubRepositorySchema),
+          `${ws(rest[0])}/github-repositories`,
+        );
+        break;
+      case 'github-op':
+        data = await call(
+          GitHubOperationSchema,
+          `${ws(rest[0])}/github-operations`,
+          jsonArg(rest[1], 'Operation'),
+        );
+        break;
+      case 'github-ops':
+        data = await call(
+          z.array(GitHubOperationSchema),
+          `${ws(rest[0])}/github-operations`,
+        );
+        break;
+      case 'github-reconcile':
+        data = await call(
+          GitHubOperationSchema,
+          `${ws(rest[0])}/github-operations/${encodeURIComponent(rest[1] ?? '')}/reconcile`,
+          {},
+        );
+        break;
+      case 'github-review':
+        data = await call(
+          GitHubReviewSchema,
+          `${ws(rest[0])}/github-reviews`,
+          jsonArg(rest[1], 'Review'),
+        );
         break;
       case 'route-registry-add':
         data = await call(
