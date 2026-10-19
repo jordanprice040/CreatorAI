@@ -1,0 +1,50 @@
+{
+  "candidate": {
+    "base": "0dfc6e6 (main, PR #32 merged)",
+    "branch": "claude/ux-ui-handoff-mfarlr",
+    "source_sha256": {
+      "apps/web/index.html": "1ba98aafc9b8793bd6b316e126d2c6aa32fd765ccd4c66ff001a430899bc1fdf",
+      "apps/web/public/theme-boot.js": "1931e4c664a59acf93a89754a57d40714d8bbc880c6b5ce62be4cf5e8043c98d",
+      "apps/web/src/main.tsx": "cf85bab5ef2c8272749c045ca46808effa8467c81a3733e0d7faf39ad8dd6ebb",
+      "apps/web/src/ui.tsx": "581282409c6688836c47b8c732f9bd04789e0c4dcded6daf363a178135111626",
+      "apps/web/src/theme.ts": "178c10fcc46a9cd4602f6fd4a08e78d5db03eed0ba449431d87dde3d9c1c261a",
+      "apps/web/src/style.css": "781b59048e5470b45256aefceed547c90f6cfc76d4dc160db79b156e12736bf7",
+      "apps/web/src/desktop.tsx": "04f08dda857ae27d880d0be7dc717e7001d9d260111cdedd87c41b5355e170a3",
+      "apps/web/src/operations.tsx": "e153ae7898ed5f90bb69edd7e2d3428127e3932506691f6389dc7a7fa07fd999",
+      "apps/web/src/study.tsx": "58764d0c2a894fe943ac0f6b864ac147649a49daba2f6341b265caa987612c01",
+      "tracking/evidence/ux-ui/browser-acceptance.mjs": "9dd2140136e7ddb8614e83afd3d94651599b3a362c6886fda31c0cd148574ee0",
+      "tracking/evidence/ux-ui/harness.mjs": "5516fe676278e68e977b81fdd13c3dad1e276aca3463dcc04c2bc7869923ba86",
+      "tracking/evidence/ux-ui/screens.mjs": "a01e6e75237f18430cf351e8f7d6463a3fa62b98f832aeea02bb71fbd85d2a2b"
+    }
+  },
+  "environment": "Linux cloud container, Node v22.22.0, PostgreSQL 16, headless Chromium (Playwright), vite preview; fixture workspace and T13 test double",
+  "checks": [
+    {
+      "command": "pnpm typecheck && pnpm format:check && pnpm test (CREATOR_TEST_DATABASE_URL set)",
+      "result": "pass: 257 tests, 244 pass, 0 fail, 13 skipped (WSL2/opt-in)"
+    },
+    {
+      "command": "pnpm build",
+      "result": "pass (existing >500 kB chunk warning)"
+    },
+    {
+      "command": "impeccable detect --json on changed web files",
+      "result": "[] (no findings)"
+    },
+    {
+      "command": "node tracking/evidence/ux-ui/browser-acceptance.mjs",
+      "result": "22 passed, 0 failed, 0 page problems",
+      "at": "2026-10-19T23:01:32.599Z"
+    },
+    {
+      "command": "browser-acceptance regression check with the useRoute view guard removed",
+      "result": "the slow-Runs step failed (hash kept a stale id), so the step detects the race; guard restored"
+    }
+  ],
+  "not_checked": [
+    "native Tauri/WebView2 window",
+    "screen reader",
+    "Windows high contrast",
+    "live services or real workers"
+  ]
+}

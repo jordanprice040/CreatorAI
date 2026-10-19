@@ -1,5 +1,20 @@
 # Decision log
 
+## ADR-0035 — Dark-default studio theme, semantic tokens and grouped workspace shell
+
+October 19, 2026. Owner handoff (docs/CLAUDE_UX_UI_HANDOFF.md on the owner's machine) authorized a
+UX/UI redesign of `apps/web`, which is also the desktop view. Dark is the default on every load,
+including a light OS theme, superseding the earlier optional-dark-theme default; light is an
+explicit saved choice. A classic `public/theme-boot.js` sets the theme before the stylesheet and
+app run, so first paint is never white. Colours are semantic custom properties; components use
+tokens only. Navigation is grouped (Studio, Evidence, Oversight, Build and study, System) in a
+sidebar that becomes a drawer at 860px; route hashes, view keys and labels are unchanged.
+Rejected: a component or CSS framework (dependency churn and overlap with the parallel X08 work);
+following the OS theme (contradicts the owner's choice). `useRoute` now drops a view's late focus
+request after the user leaves it (fixes being pulled back). No API, gate, session or CSRF change.
+Numbering: if Codex's X08 lands first with ADR-0035, renumber this entry rather than X08's.
+See docs/UX_UI.md.
+
 ## ADR-0034 — X06/X07 audit repairs and conserved processor identity
 
 October 19, 2026. Owner authorized audit, repairs and strong scoped improvements.
