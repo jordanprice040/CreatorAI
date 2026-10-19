@@ -2000,6 +2000,19 @@ create trigger tranche_uses_immutable before update or delete on tranche_uses
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 20,
+    name: 'unique_payment_funding_identity',
+    sql: `
+-- Economic identity survives revocation: a new connection must not book the same
+-- Stripe account's charges again. Duplicate existing identities require explicit
+-- reconciliation; fail migration rather than rewriting immutable financial history.
+create unique index payment_stripe_account_once on payment_connections ((body->>'account_id'))
+ where body->>'processor' = 'stripe';
+create unique index funding_processor_once on funding_rails (connection_id)
+ where kind = 'processor_balance';
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

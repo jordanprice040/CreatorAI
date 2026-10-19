@@ -338,6 +338,11 @@ export class StripeTestProcessor implements PaymentProcessor {
       'GET',
       `/v1/disputes?payment_intent=${encodeURIComponent(id)}&limit=20`,
     );
+    // A partial loss history must never replace a complete ledger projection. Refuse
+    // safely until bounded pagination is supported, rather than silently dropping money.
+    for (const list of [refunds, disputes])
+      if (!Array.isArray(list.data) || list.has_more !== false)
+        throw new ProcessorUnavailable('Incomplete refund or dispute history.');
     const charge = obj(pi.latest_charge);
     const bt = obj(charge.balance_transaction);
     const status = String(pi.status);

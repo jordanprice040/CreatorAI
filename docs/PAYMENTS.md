@@ -1,5 +1,16 @@
 # Payments, entitlements, revenue and reinvestment (X07)
 
+October 19 audit (ADR-0034, migration 20): each Stripe account retains one permanent
+connection identity, including after revocation, and each processor connection has
+one funding rail. Existing duplicate identities block migration for reconciliation.
+Processor reads now occur under the financial lock before applying snapshots, and
+each operation rechecks the current credential's account. Non-USD posting, inconsistent
+balance arithmetic and partial-capture access are refused. Stripe histories with
+`has_more` or malformed list metadata are unavailable, never assumed complete.
+Failed balance observations mark a rail unavailable even if its old balance is still
+within TTL; explicitly restore availability only after verifying the rail. Full audit
+and remaining verification gaps: [X06/X07 audit](X06_X07_AUDIT.md).
+
 Status: implemented and verified with the labelled fixture processor and a Stripe contract double, October 19, 2026. No live or test-mode Stripe call has been made by this project. Live payments are not built; turning them on is a separate owner decision (ADR-0033).
 
 ## What exists

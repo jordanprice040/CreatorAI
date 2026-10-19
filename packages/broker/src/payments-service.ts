@@ -10,8 +10,8 @@ import {
   type PaymentProcessor,
 } from './payments.js';
 
-// X07 service: reads the processor outside database transactions, then hands the store only
-// what the backend observed. A webhook is a hint to look; it is never the record itself.
+// Reads and projection updates share the store's workspace lock: overlapping deliveries
+// cannot apply a snapshot read before another delivery's refund or settlement observation.
 
 export interface PaymentServiceOptions {
   /** API process environment: secret key and webhook secret variables live here. */
@@ -63,6 +63,16 @@ export class PaymentService {
     }
     return this.store.recordPaymentVerification(ctx, ws, id, observed);
   }
+  async #boundProcessor(conn: PaymentConnection) {
+    const processor = this.processor(conn);
+    const account = await processor.account();
+    if (account.livemode || account.id !== conn.body.account_id)
+      throw new ContractError(
+        'ACCESS_DENIED',
+        'The current processor credential no longer matches the verified test account.',
+      );
+    return processor;
+  }
   async checkout(ctx: CommandContext, ws: string, raw: unknown) {
     const { req, offer, connection } = await this.store.checkoutTarget(
       ctx,
@@ -71,7 +81,9 @@ export class PaymentService {
     );
     let result: { session_id: string; url: string } | { error: string };
     try {
-      result = await this.processor(connection).createCheckout({
+      result = await (
+        await this.#boundProcessor(connection)
+      ).createCheckout({
         offer_id: offer.id,
         label: offer.label,
         price_cents: Number(BigInt(offer.price_nano_usd) / NANO_PER_CENT),
@@ -93,10 +105,16 @@ export class PaymentService {
     paymentId: string,
   ) {
     const conn = await this.store.getPaymentConnection(ctx, ws, connectionId);
-    const snap = await this.#read(() =>
-      this.processor(conn).payment(paymentId),
+    return this.store.applyPaymentSnapshot(
+      ctx,
+      conn.id,
+      () =>
+        this.#read(async () =>
+          (await this.#boundProcessor(conn)).payment(paymentId),
+        ),
+      null,
+      ws,
     );
-    return this.store.applyPaymentSnapshot(ctx, conn.id, snap, null, ws);
   }
   async reconcilePayout(
     ctx: CommandContext,
@@ -105,14 +123,36 @@ export class PaymentService {
     payoutId: string,
   ) {
     const conn = await this.store.getPaymentConnection(ctx, ws, connectionId);
-    const snap = await this.#read(() => this.processor(conn).payout(payoutId));
-    return this.store.applyPayoutSnapshot(ctx, conn.id, snap, null, ws);
+    return this.store.applyPayoutSnapshot(
+      ctx,
+      conn.id,
+      () =>
+        this.#read(async () =>
+          (await this.#boundProcessor(conn)).payout(payoutId),
+        ),
+      null,
+      ws,
+    );
   }
-  /** Reads a processor-balance rail; an unreachable processor leaves the rail without a fresh balance. */
+  /** A failed observation invalidates even a previously fresh funding rail. */
   async observeRail(ctx: CommandContext, ws: string, railId: string) {
     const conn = await this.store.railConnection(ctx, ws, railId);
-    const balance = await this.#read(() => this.processor(conn).balance());
-    return this.store.recordRailBalance(ctx, ws, railId, balance);
+    try {
+      return await this.store.recordRailBalance(ctx, ws, railId, () =>
+        this.#read(async () => (await this.#boundProcessor(conn)).balance()),
+      );
+    } catch (e) {
+      if (
+        e instanceof ContractError &&
+        ['STORAGE_UNAVAILABLE', 'ACCESS_DENIED'].includes(e.code)
+      )
+        await this.store.setRailStatus(ctx, ws, railId, {
+          status: 'unavailable',
+          reason:
+            'Processor balance observation failed; verify the rail before restoring availability.',
+        });
+      throw e;
+    }
   }
   async #read<T>(f: () => Promise<T>) {
     try {
@@ -158,6 +198,8 @@ export class PaymentService {
     let event: Record<string, unknown>;
     try {
       event = JSON.parse(raw.toString('utf8')) as Record<string, unknown>;
+      if (!event || typeof event !== 'object' || Array.isArray(event))
+        return reject(400, 'malformed_json');
     } catch {
       return reject(400, 'malformed_json');
     }
@@ -207,14 +249,12 @@ export class PaymentService {
       );
       return { status: 200, body: { outcome: 'ignored' } };
     }
-    const processor = this.processor(conn);
     try {
       if (subject.kind === 'payment') {
-        const snap = await processor.payment(subject.id);
         const out = await this.store.applyPaymentSnapshot(
           ctx,
           conn.id,
-          snap,
+          async () => (await this.#boundProcessor(conn)).payment(subject.id),
           meta,
         );
         if (out.outcome === 'duplicate')
@@ -226,11 +266,10 @@ export class PaymentService {
           );
         return { status: 200, body: out };
       }
-      const snap = await processor.payout(subject.id);
       const out = await this.store.applyPayoutSnapshot(
         ctx,
         conn.id,
-        snap,
+        async () => (await this.#boundProcessor(conn)).payout(subject.id),
         meta,
       );
       if (out.outcome === 'duplicate')

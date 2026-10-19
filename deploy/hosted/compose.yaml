@@ -21,6 +21,12 @@ x-app: &app
   tmpfs: [/tmp]
   security_opt: ['no-new-privileges:true']
   cap_drop: [ALL]
+  cpus: 2
+  mem_limit: 1g
+  pids_limit: 256
+  logging:
+    driver: json-file
+    options: { max-size: '10m', max-file: '3' }
 
 services:
   migrate:
@@ -41,7 +47,13 @@ services:
       CREATOR_WORKER: 'off'
     volumes: ['products:/data/products']
     healthcheck:
-      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4310/api/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4310/api/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 4
@@ -63,6 +75,12 @@ services:
     depends_on: [api]
     ports: ['80:80', '443:443']
     volumes: ['caddy-data:/data']
+    cpus: 1
+    mem_limit: 256m
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
 
 secrets:
   database_url:

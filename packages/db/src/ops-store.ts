@@ -318,12 +318,12 @@ export class OpsStore extends Store {
       q(
         `select count(*)::int as n from desktop_jobs where state in ('queued','leased','running','reconciling')`,
       ),
-      q(`select count(*) filter (where status = 'active')::int as active,
+      q(`select count(*) filter (where kind = 'global' and status = 'active')::int as active,
                 count(*) filter (where status = 'overrun')::int as overrun,
                 coalesce(sum(reserved_nano), 0)::text as reserved,
                 coalesce(sum(unknown_nano), 0)::text as unknown,
                 coalesce(sum(incurred_nano), 0)::text as incurred
-         from budget_envelopes where kind = 'global'`),
+         from budget_envelopes`),
       q(`select count(*) filter (where status = 'in_flight')::int as in_flight,
                 count(*) filter (where status = 'unknown')::int as unknown
          from budget_reservations`),
@@ -374,7 +374,8 @@ export class OpsStore extends Store {
         })),
         local_jobs_open: Number(localJobs[0]!.n),
       },
-      // Global envelopes only, so nested run and task envelopes are not counted twice.
+      // Money is recorded only on the envelope charged, not rolled into its parents.
+      // Sum every level once; parent allocations are excluded from these totals.
       budget: {
         envelopes_active: Number(b.active),
         envelopes_overrun: Number(b.overrun),

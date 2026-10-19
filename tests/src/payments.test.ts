@@ -478,6 +478,7 @@ test('X07 reinvestment: seed, pending and payouts are not profit; partial, concu
     kind: 'processor_balance',
     connection_id: conn.id,
   });
+  await service.observeRail(owner, ws, prail.id);
   fx.down = true;
   await rejects(
     'STORAGE_UNAVAILABLE',
@@ -486,7 +487,7 @@ test('X07 reinvestment: seed, pending and payouts are not profit; partial, concu
   fx.down = false;
   assert.match(
     (await capacity()).parts.unavailable_rails.join(';'),
-    /Processor: no fresh balance/,
+    /Processor: marked unavailable/,
   );
 
   // Over capacity is refused unless partial is allowed; partial keeps the remainder.
@@ -581,6 +582,187 @@ test('X07 reinvestment: seed, pending and payouts are not profit; partial, concu
   assert.equal((await store.ledgerBalances(owner, ws)).total_nano, '0');
 });
 
+test('X07 one processor account and funding balance cannot be registered twice', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn } = await s.connected(ws);
+  const rail = {
+    label: 'Processor',
+    kind: 'processor_balance',
+    connection_id: conn.id,
+  };
+  const results = await Promise.allSettled([
+    s.store.registerRail(owner, ws, rail),
+    s.store.registerRail(owner, ws, rail),
+  ]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const stripe = {
+    label: 'Stripe test identity',
+    processor: 'stripe',
+    mode: 'test',
+    account_id: 'acct_testIdentity',
+    secret_key_env: 'CREATOR_STRIPE_TEST_KEY',
+    webhook_secret_env: 'CREATOR_STRIPE_TEST_HOOK',
+  };
+  const second = await s.workspace();
+  const accounts = await Promise.allSettled([
+    s.store.registerPaymentConnection(owner, ws, stripe),
+    s.store.registerPaymentConnection(owner, second, stripe),
+  ]);
+  assert.equal(accounts.filter((r) => r.status === 'fulfilled').length, 1);
+  const entry = accounts.find((r) => r.status === 'fulfilled')!;
+  assert.equal(entry.status, 'fulfilled');
+  if (entry.status !== 'fulfilled') return;
+  const connection = entry.value;
+  await s.store.revokePaymentConnection(
+    owner,
+    connection.workspace_id,
+    connection.id,
+    {
+      expected_version: connection.version,
+      reason: 'Identity remains reserved after revocation.',
+    },
+  );
+  await rejects(
+    'DUPLICATE',
+    s.store.registerPaymentConnection(owner, ws, stripe),
+  );
+});
+
+test('X07 non-USD processor snapshots cannot enter the USD ledger', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn, fx } = await s.connected(ws);
+  const { offer } = await s.offer(ws, conn);
+  const pi = await s.sale(ws, fx, offer.id, 'cust-currency');
+  fx.payments.get(pi)!.currency = 'eur';
+  await rejects(
+    'INVALID_CONTRACT',
+    s.service.reconcilePayment(owner, ws, conn.id, pi),
+  );
+  assert.deepEqual(await s.store.listLedger(owner, ws), []);
+  assert.deepEqual(await s.store.listEntitlements(owner, ws), []);
+});
+
+test('X07 credential account drift cannot book processor state', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn, fx } = await s.connected(ws);
+  const { offer } = await s.offer(ws, conn);
+  const pi = await s.sale(ws, fx, offer.id, 'cust-account');
+  fx.account = async () => ({ id: 'acct_anotherMerchant', livemode: false });
+  await rejects(
+    'ACCESS_DENIED',
+    s.service.reconcilePayment(owner, ws, conn.id, pi),
+  );
+  assert.deepEqual(await s.store.listLedger(owner, ws), []);
+});
+
+test('X07 fees above sale proceeds settle as a loss, never negative earnings', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn, fx } = await s.connected(ws);
+  const { offer } = await s.offer(ws, conn, 10);
+  const pi = await s.sale(ws, fx, offer.id, 'cust-small-sale');
+  fx.settle(pi);
+  await s.service.reconcilePayment(owner, ws, conn.id, pi);
+  const tranche = (await s.store.listTranches(owner, ws))[0]! as Record<
+    string,
+    unknown
+  >;
+  assert.equal(tranche.earned_nano, '0');
+  assert.equal(tranche.loss_nano, c(20).toString());
+  assert.equal(
+    (await s.store.reinvestmentCapacity(owner, ws)).surplus_nano,
+    c(-20).toString(),
+  );
+  assert.equal((await s.store.ledgerBalances(owner, ws)).total_nano, '0');
+});
+
+test('X07 overlapping reconciliation reads serialize before observing processor state', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn, fx } = await s.connected(ws);
+  const { offer } = await s.offer(ws, conn);
+  const pi = await s.sale(ws, fx, offer.id, 'cust-race');
+  const payment = fx.payment.bind(fx);
+  let enter!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let calls = 0;
+  fx.payment = async (id) => {
+    calls++;
+    const snap = await payment(id);
+    if (calls === 1) {
+      enter();
+      await gate;
+    }
+    return snap;
+  };
+  const before = s.service.reconcilePayment(owner, ws, conn.id, pi);
+  await entered;
+  fx.refund(pi, 1000);
+  const after = s.service.reconcilePayment(owner, ws, conn.id, pi);
+  // Check the actual database waiter, not timing or a sleep-based assumption.
+  for (let i = 0; i < 100; i++) {
+    const q = await s.db.pool.query(
+      "select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event = 'advisory'",
+    );
+    if (q.rows[0].n > 0) break;
+    if (i === 99) {
+      release();
+      await Promise.all([before, after]);
+      assert.fail('Second observation did not wait for the financial lock.');
+    }
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  assert.equal(
+    calls,
+    1,
+    'A waiting reconciliation must not read stale processor state.',
+  );
+  release();
+  await Promise.all([before, after]);
+  assert.equal((await s.balances(ws)).refunds, c(1000).toString());
+  assert.equal(
+    (await s.store.listEntitlements(owner, ws))[0]?.status,
+    'revoked',
+  );
+});
+
+test('X07 Stripe refuses truncated or malformed loss histories', async () => {
+  for (const incomplete of ['refunds', 'disputes']) {
+    const processor = new StripeTestProcessor('sk_test_contractDouble0001', {
+      fetch: (async (url) => {
+        const u = new URL(String(url));
+        const list = u.pathname.split('/').at(-1)!;
+        return new Response(
+          JSON.stringify(
+            list === 'refunds' || list === 'disputes'
+              ? { data: [], has_more: list === incomplete }
+              : { id: 'pi_123' },
+          ),
+          { status: 200 },
+        );
+      }) as typeof fetch,
+    });
+    await assert.rejects(
+      processor.payment('pi_123'),
+      /Incomplete refund or dispute history/,
+    );
+  }
+});
+
 test('X07 Stripe test adapter maps processor objects from a contract double', async () => {
   const calls: string[] = [];
   const json = (body: unknown, status = 200) =>
@@ -621,10 +803,12 @@ test('X07 Stripe test adapter maps processor objects from a contract double', as
         });
       if (u.includes('/v1/refunds'))
         return json({
+          has_more: false,
           data: [{ id: 're_1', amount: 500, status: 'succeeded' }],
         });
       if (u.includes('/v1/disputes'))
         return json({
+          has_more: false,
           data: [
             {
               id: 'dp_1',

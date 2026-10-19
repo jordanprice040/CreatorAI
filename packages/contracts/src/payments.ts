@@ -121,14 +121,19 @@ export type Checkout = z.infer<typeof CheckoutSchema>;
 
 // ---- Authoritative processor observations ---------------------------------------------------
 
-export const BalanceTxnSchema = z.strictObject({
-  id: processorId,
-  amount: cents,
-  fee: cents,
-  net: z.number().int(),
-  status: z.enum(['pending', 'available']),
-  available_on: timestamp,
-});
+export const BalanceTxnSchema = z
+  .strictObject({
+    id: processorId,
+    amount: cents,
+    fee: cents,
+    net: z.number().int(),
+    status: z.enum(['pending', 'available']),
+    available_on: timestamp,
+  })
+  .refine(
+    (b) => b.net === b.amount - b.fee,
+    'Balance transaction net must equal amount minus fee.',
+  );
 export const PaymentSnapshotSchema = z.strictObject({
   id: processorId,
   livemode: z.boolean(),
