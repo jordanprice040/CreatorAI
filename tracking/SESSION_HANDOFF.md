@@ -1,5 +1,39 @@
 # Session handoff
 
+## X08 implemented and test-delivery acceptance verified (October 19, 2026)
+
+Worktree: `C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`, branch
+`codex/x08-marketing`, from merged main `0dfc6e6`. Changes are uncommitted. The
+original X05 checkout and all pre-existing edits are preserved. Jordan reported
+that Claude is working on UI/UX; no cross-chat message was sent.
+
+Read docs/X08_MARKETING.md, ADR-0035 and the latest BUILD_STATUS entry. Campaign
+content uses closed evidence-backed statements about recorded T13 package checks,
+retains fixture labels/limitations, and binds exact audience/experiment/release
+to a hash. API/CLI/screen provide human-owner grants, suppression, once-only local
+fixture deliveries, reconciliation and measured synthetic feedback. Monetary
+adapter exposure is zero; host compute is unmetered. Migration 21 applies only
+to disposable test databases this turn.
+
+Final focused checks: 23/23, no skips (X08 + X07 + storage). Broader run: 248 pass,
+0 fail, 15 explicit skips (263 total), before final fixture-helper/UI/help edits;
+see BUILD_STATUS for scope. Final build and browser flow passed. Narrow-screen
+hash overflow repaired; observed final document width equals 390px viewport.
+Evidence: tracking/evidence/x08. Initial test/fixture failures remain in logs.
+
+Claude integration: keep the new `apps/web/src/marketing.tsx`; merge only its
+import/switch case into redesigned `main.tsx` and the `marketing` view tuple into
+`ui.tsx`. No shared CSS or component prop changes. Align the new screen with
+Claude's tokens after merging. Backend changes remain in contracts/domain/db/API;
+CLI commands are documented in help and docs/X08_MARKETING.md. Tracking additions
+are scoped entries; preserve Claude's entries when integrating.
+
+Limits: local fixture sink only; no real addresses, outbound adapter, paid ads,
+public unsubscribe endpoint, hosted landing page or validated demand. Missing
+native/WSL checks do not block this local test-delivery gate and were not counted
+as passes. No paid call, real outreach, release, activation, commit or push.
+Next eligible: X09 on owner request; do not advance automatically.
+
 ## X06/X07 audited and repaired (October 19, 2026)
 
 Attached worktree: C:/Users/jorda/.codex/worktrees/x06-x07-audit/creator_agent,

@@ -1,5 +1,47 @@
 # Decision log
 
+## ADR-0035 — X08 immutable campaigns and local fixture delivery
+
+October 19, 2026. Jordan authorized X08 and stated that Claude is working on
+UI/UX. Codex uses a separate managed checkout from current main `0dfc6e6`, branch
+`codex/x08-marketing`. Original X05 edits and Claude's redesign remain separate.
+
+Use deterministic templates over registered current verified artifact manifests
+instead of a marketing model/provider. Closed factual claims name recorded package
+checks, commit, execution ID, input hash and manifest hash; retain limitations and
+synthetic labels. This provides inspectable evidence without introducing new paid
+inference or claiming validated utility/demand. Arbitrary capability claims,
+testimonials and customer/traffic counts are outside the draft contract. Audience
+provenance and hypotheses are explicit owner assertions. A new draft, with its own
+grant, is required after content/audience/experiment changes.
+
+Migration 21 stores immutable campaign content and observations, human-owner
+grants, workspace suppression, pre-adapter intents and native local receipts.
+Grants bind the complete request/content hash, expiry and delivery cap. Reserve
+one slot before dispatch, with no refund after uncertain/failed attempts. Monetary
+adapter exposure is exactly zero because only a transactional local fixture sink
+exists; host compute is unmetered. No live channel, paid-ad adapter, credentials,
+real address, outbound message or public unsubscribe endpoint is implemented.
+
+One workspace lock serializes admission, suppression, revocation/cancellation,
+caps and local acceptance. A spec lock prevents candidate revisions/registration
+from racing evidence checks. Unique campaign/recipient identity prevents retries
+from creating another delivery. Unknown outcomes are reconciled through immutable
+native receipts without resend. A missing receipt is definitive only for this
+transactional local sink, never for an external service. Terminal state fences a
+delayed dispatcher. All commands retain audit/outbox events.
+
+Record synthetic feedback against an acknowledged fixture delivery and frozen
+metric, with stable deduplicated event identity. Counts are fixture observations,
+not market validation. Stop rules are explanatory; actual bounds are caps,
+expiry, exact audience, once-per-recipient admission and cancellation. There is
+no automatic experiment loop. Real distribution needs a separately implemented,
+verified and authorized adapter; hosting/payment prerequisites remain applicable.
+
+New UI is isolated in `marketing.tsx`; shared changes are one import/case in
+`main.tsx` and one view tuple in `ui.tsx`. No shared CSS or public component prop
+changes. See docs/X08_MARKETING.md and tracking/evidence/x08.
+
 ## ADR-0034 — X06/X07 audit repairs and conserved processor identity
 
 October 19, 2026. Owner authorized audit, repairs and strong scoped improvements.

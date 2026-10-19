@@ -34,7 +34,7 @@ import { readFileSync } from 'node:fs';
 import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
-  PaymentStore,
+  MarketingStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -232,7 +232,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new PaymentStore(pool) : null;
+  const store = pool ? new MarketingStore(pool) : null;
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
@@ -441,7 +441,8 @@ export function createApi(
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
       GITHUB_ROUTE.exec(url.pathname) ??
-      PAYMENTS_ROUTE.exec(url.pathname);
+      PAYMENTS_ROUTE.exec(url.pathname) ??
+      MARKETING_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -471,6 +472,23 @@ export function createApi(
       respond(res, status, value);
       return true;
     };
+    if (
+      ws &&
+      collection &&
+      MARKETING_ROUTE.test(url.pathname) &&
+      (await marketingRoutes({
+        store,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
     if (
       ws &&
       collection &&
@@ -1466,3 +1484,4 @@ export function createApi(
     loginCode: authn.generatedCode,
   };
 }
+import { MARKETING_ROUTE, marketingRoutes } from './marketing.js';

@@ -1,0 +1,88 @@
+TAP version 13
+# Subtest: X08 real HTTP/session/CSRF and CLI: review, grant, fixture delivery, reconcile, suppress and measure
+ok 1 - X08 real HTTP/session/CSRF and CLI: review, grant, fixture delivery, reconcile, suppress and measure
+  ---
+  duration_ms: 3706.0611
+  type: 'test'
+  ...
+# Subtest: X08 closed contracts reject live channels, real recipients, paid budgets and injected claims
+ok 2 - X08 closed contracts reject live channels, real recipients, paid budgets and injected claims
+  ---
+  duration_ms: 4.5106
+  type: 'test'
+  ...
+# Subtest: X08 evidence-bound draft, concurrent duplicate delivery, unknown reconciliation, measured feedback and restart
+ok 3 - X08 evidence-bound draft, concurrent duplicate delivery, unknown reconciliation, measured feedback and restart
+  ---
+  duration_ms: 1310.9327
+  type: 'test'
+  ...
+# Subtest: X08 suppression, exact audience, revocation, cancellation, expiry and concurrency caps deny disallowed sends
+ok 4 - X08 suppression, exact audience, revocation, cancellation, expiry and concurrency caps deny disallowed sends
+  ---
+  duration_ms: 1241.0295
+  type: 'test'
+  ...
+# Subtest: X08 stale evidence, altered drafts and cross-workspace/agent authority are refused
+ok 5 - X08 stale evidence, altered drafts and cross-workspace/agent authority are refused
+  ---
+  duration_ms: 1145.1808
+  type: 'test'
+  ...
+# Subtest: X08 abandoned pre-adapter intent reconciles as definitively unsent and never redispatches
+ok 6 - X08 abandoned pre-adapter intent reconciles as definitively unsent and never redispatches
+  ---
+  duration_ms: 1160.6756
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 7 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 1044.7846
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 8 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 1491.9944
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 9 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 1341.8739
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 10 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 1136.8747
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 11 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 1131.2546
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 12 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 1211.0513
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 13 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 1095.7443
+  type: 'test'
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18363.5829

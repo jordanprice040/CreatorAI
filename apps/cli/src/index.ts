@@ -196,6 +196,11 @@ const USAGE = `Usage:
   pnpm cli broker-status
   pnpm cli pricing <workspace>
   pnpm cli pricing-add <workspace> <pricing-file.json>
+  pnpm cli marketing-list <workspace>
+  pnpm cli marketing-get <workspace> <campaign-id>
+  pnpm cli marketing-draft <workspace> <campaign-json|file.json>
+  pnpm cli marketing-suppress <workspace> <suppression-json|file.json>
+  pnpm cli marketing-action <workspace> <campaign-id> <grant|cancel|revoke|deliver|reconcile|observe> <action-json|file.json>
   pnpm cli github-connect <workspace> <connection-json|file.json>
   pnpm cli github-connections <workspace>
   pnpm cli github-verify <workspace> <connection-id>
@@ -1426,6 +1431,49 @@ export async function runCli(
           jsonArg(rest[1], 'Review'),
         );
         break;
+      case 'marketing-list':
+        data = await call(z.unknown(), `${ws(rest[0])}/marketing-campaigns`);
+        break;
+      case 'marketing-get':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/marketing-campaigns/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'marketing-draft':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/marketing-campaigns`,
+          jsonArg(rest[1], 'Campaign'),
+        );
+        break;
+      case 'marketing-suppress':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/marketing-suppressions`,
+          jsonArg(rest[1], 'Suppression'),
+        );
+        break;
+      case 'marketing-action': {
+        const action = rest[2];
+        if (
+          ![
+            'grant',
+            'cancel',
+            'revoke',
+            'deliver',
+            'reconcile',
+            'observe',
+          ].includes(action ?? '')
+        )
+          throw new Error('Unknown marketing action.');
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/marketing-campaigns/${encodeURIComponent(rest[1] ?? '')}/${action}`,
+          jsonArg(rest[3], 'Action'),
+        );
+        break;
+      }
       // X07 payments, entitlements and reinvestment.
       case 'pay-connect':
         data = await call(

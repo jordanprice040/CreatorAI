@@ -1,5 +1,46 @@
 # Implementation status
 
+## X08 — campaign review and measured fixture feedback (October 19, 2026)
+
+Implemented on `codex/x08-marketing` in the managed checkout
+`C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`, from current merged
+main `0dfc6e6`. Original X05 dirty checkout preserved. Claude owns the parallel
+UI/UX redesign; X08 changes only its new screen plus small navigation wiring.
+
+Works through authenticated API, compiled CLI and Campaigns screen: immutable
+positioning/landing drafts, recorded demonstrations, pricing/channel hypotheses,
+exact artifact/manifest/check evidence and audience provenance; hash-bound human
+owner grants with zero adapter spend, caps and expiry; durable intent/native
+fixture receipt, suppression/opt-out, deduplication, unknown-outcome reconciliation,
+revocation/cancellation and distinct synthetic feedback counts. Changed content,
+audience or experiment requires a fresh draft/grant. Stale evidence refuses sends.
+Migration 21; ADR-0035; docs/X08_MARKETING.md.
+
+Executed on Windows, Node 22.21.0 and disposable PostgreSQL 18.6:
+
+- Final focused X08 HTTP/CLI/domain/DB plus X07/storage checks: **23 pass, 0 fail,
+  0 skip** (`final-focused.log`). Earlier focused run: 13/13.
+- Broader suite: **248 pass, 0 fail, 15 explicit skips, 263 tests**
+  (`full-tests.log`). Skips include native/WSL opt-in gates, one inverse-backend
+  case and unconfigured pg_dump discovery. This run began before final UI hash
+  wrapping, CLI help and fixture-helper repairs; final focused checks cover the
+  final helper, while final build/browser checks cover the final new UI.
+- TypeScript/web typecheck and production build passed; Vite retains the
+  nonfatal >500 kB bundle warning. Formatting/whitespace checks recorded alongside
+  final source hashes in tracking/evidence/x08.
+- Actual isolated Edge: signed-in Campaigns, draft/grant, simulated unknown,
+  reconcile without resend, feedback and suppression; final snapshot and desktop/
+  narrow screenshots retained. Final 390px viewport/document widths both 390px
+  with the content hash and delivery history visible. No native acceptance claim.
+
+Initial fixture failures retained and fixed without weakening immutability or
+acceptance gates. Fixture records explicitly declare no real execution or customer
+validation. Test-delivery acceptance is met; external delivery, paid ads, hosted
+landing pages, real customer/demand research and live commerce remain unavailable
+or unverified. No real outreach, paid call, release, account activation, commit or
+push. Existing studio databases were not migrated. Next eligible prompt: **X09 —
+portfolio scheduling, maintenance, and reusable knowledge**, only on request.
+
 ## X06/X07 independent audit and repairs (October 19, 2026)
 
 Audited merged main `8d44ace` in the attached worktree on `codex/x06-x07-audit`.

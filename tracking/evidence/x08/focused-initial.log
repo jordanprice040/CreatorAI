@@ -1,0 +1,92 @@
+TAP version 13
+# Subtest: X08 closed contracts reject live channels, real recipients, paid budgets and injected claims
+ok 1 - X08 closed contracts reject live channels, real recipients, paid budgets and injected claims
+  ---
+  duration_ms: 4.2863
+  type: 'test'
+  ...
+# Subtest: X08 evidence-bound draft, concurrent duplicate delivery, unknown reconciliation, measured feedback and restart
+not ok 2 - X08 evidence-bound draft, concurrent duplicate delivery, unknown reconciliation, measured feedback and restart
+  ---
+  duration_ms: 1278.4126
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\marketing.test.js:32:1'
+  failureType: 'testCodeFailure'
+  error: 'append-only table artifact_manifests: UPDATE rejected'
+  code: 'P0001'
+  name: 'error'
+  stack: |-
+    C:\Users\jorda\.codex\worktrees\x08-marketing\creator_agent\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async marketingRelease (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing-harness.js:30:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:17:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:33:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X08 suppression, exact audience, revocation, cancellation, expiry and concurrency caps deny disallowed sends
+not ok 3 - X08 suppression, exact audience, revocation, cancellation, expiry and concurrency caps deny disallowed sends
+  ---
+  duration_ms: 1206.9914
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\marketing.test.js:71:1'
+  failureType: 'testCodeFailure'
+  error: 'append-only table artifact_manifests: UPDATE rejected'
+  code: 'P0001'
+  name: 'error'
+  stack: |-
+    C:\Users\jorda\.codex\worktrees\x08-marketing\creator_agent\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async marketingRelease (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing-harness.js:30:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:17:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:72:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X08 stale evidence, altered drafts and cross-workspace/agent authority are refused
+not ok 4 - X08 stale evidence, altered drafts and cross-workspace/agent authority are refused
+  ---
+  duration_ms: 1201.7333
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\marketing.test.js:97:1'
+  failureType: 'testCodeFailure'
+  error: 'append-only table artifact_manifests: UPDATE rejected'
+  code: 'P0001'
+  name: 'error'
+  stack: |-
+    C:\Users\jorda\.codex\worktrees\x08-marketing\creator_agent\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async marketingRelease (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing-harness.js:30:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:17:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:98:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X08 abandoned pre-adapter intent reconciles as definitively unsent and never redispatches
+not ok 5 - X08 abandoned pre-adapter intent reconciles as definitively unsent and never redispatches
+  ---
+  duration_ms: 1077.2086
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\marketing.test.js:119:1'
+  failureType: 'testCodeFailure'
+  error: 'append-only table artifact_manifests: UPDATE rejected'
+  code: 'P0001'
+  name: 'error'
+  stack: |-
+    C:\Users\jorda\.codex\worktrees\x08-marketing\creator_agent\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async marketingRelease (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing-harness.js:30:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:17:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/marketing.test.js:120:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5153.7694

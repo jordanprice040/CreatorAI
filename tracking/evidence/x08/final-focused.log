@@ -1,0 +1,148 @@
+TAP version 13
+# Subtest: X08 real HTTP/session/CSRF and CLI: review, grant, fixture delivery, reconcile, suppress and measure
+ok 1 - X08 real HTTP/session/CSRF and CLI: review, grant, fixture delivery, reconcile, suppress and measure
+  ---
+  duration_ms: 4467.2969
+  type: 'test'
+  ...
+# Subtest: X08 closed contracts reject live channels, real recipients, paid budgets and injected claims
+ok 2 - X08 closed contracts reject live channels, real recipients, paid budgets and injected claims
+  ---
+  duration_ms: 4.6984
+  type: 'test'
+  ...
+# Subtest: X08 evidence-bound draft, concurrent duplicate delivery, unknown reconciliation, measured feedback and restart
+ok 3 - X08 evidence-bound draft, concurrent duplicate delivery, unknown reconciliation, measured feedback and restart
+  ---
+  duration_ms: 3028.2153
+  type: 'test'
+  ...
+# Subtest: X08 suppression, exact audience, revocation, cancellation, expiry and concurrency caps deny disallowed sends
+ok 4 - X08 suppression, exact audience, revocation, cancellation, expiry and concurrency caps deny disallowed sends
+  ---
+  duration_ms: 1713.6955
+  type: 'test'
+  ...
+# Subtest: X08 stale evidence, altered drafts and cross-workspace/agent authority are refused
+ok 5 - X08 stale evidence, altered drafts and cross-workspace/agent authority are refused
+  ---
+  duration_ms: 1350.7524
+  type: 'test'
+  ...
+# Subtest: X08 abandoned pre-adapter intent reconciles as definitively unsent and never redispatches
+ok 6 - X08 abandoned pre-adapter intent reconciles as definitively unsent and never redispatches
+  ---
+  duration_ms: 1397.4145
+  type: 'test'
+  ...
+# Subtest: X07 API and CLI: offer, checkout, inert return page, signed webhook, entitlement and capacity
+ok 7 - X07 API and CLI: offer, checkout, inert return page, signed webhook, entitlement and capacity
+  ---
+  duration_ms: 5471.5128
+  type: 'test'
+  ...
+# Subtest: X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+ok 8 - X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+  ---
+  duration_ms: 2182.5148
+  type: 'test'
+  ...
+# Subtest: X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+ok 9 - X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+  ---
+  duration_ms: 1969.4375
+  type: 'test'
+  ...
+# Subtest: X07 one processor account and funding balance cannot be registered twice
+ok 10 - X07 one processor account and funding balance cannot be registered twice
+  ---
+  duration_ms: 1442.4175
+  type: 'test'
+  ...
+# Subtest: X07 non-USD processor snapshots cannot enter the USD ledger
+ok 11 - X07 non-USD processor snapshots cannot enter the USD ledger
+  ---
+  duration_ms: 1741.0864
+  type: 'test'
+  ...
+# Subtest: X07 credential account drift cannot book processor state
+ok 12 - X07 credential account drift cannot book processor state
+  ---
+  duration_ms: 1581.2637
+  type: 'test'
+  ...
+# Subtest: X07 fees above sale proceeds settle as a loss, never negative earnings
+ok 13 - X07 fees above sale proceeds settle as a loss, never negative earnings
+  ---
+  duration_ms: 1557.0875
+  type: 'test'
+  ...
+# Subtest: X07 overlapping reconciliation reads serialize before observing processor state
+ok 14 - X07 overlapping reconciliation reads serialize before observing processor state
+  ---
+  duration_ms: 1975.7811
+  type: 'test'
+  ...
+# Subtest: X07 Stripe refuses truncated or malformed loss histories
+ok 15 - X07 Stripe refuses truncated or malformed loss histories
+  ---
+  duration_ms: 29.4276
+  type: 'test'
+  ...
+# Subtest: X07 Stripe test adapter maps processor objects from a contract double
+ok 16 - X07 Stripe test adapter maps processor objects from a contract double
+  ---
+  duration_ms: 7.8236
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 17 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 2172.9272
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 18 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 1610.9543
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 19 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 1768.4853
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 20 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 1339.1977
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 21 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 1897.0194
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 22 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 1424.0435
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 23 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 2256.989
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 23
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 45353.959
