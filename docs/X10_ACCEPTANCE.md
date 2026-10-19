@@ -116,7 +116,7 @@ file's sha256 and Git blob id. Verify reads the tar back and checks every file a
 manifest. It also checks that nothing is missing or extra, that the tar hash matches, that
 the archive comment names the commit, and (when the checkout has that commit) that every
 blob id matches `git ls-tree`. Extract writes only verified files into a new directory.
-Running install, build and readiness in a fresh extract is recorded in
+Running install, build and readiness in a fresh extract of commit `78f8536` is recorded in
 `tracking/evidence/x10/release-validation.log`.
 
 ## Failures, cleanup, backup and effort

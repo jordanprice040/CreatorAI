@@ -1,0 +1,13 @@
+Verified 1199 files of 78f8536b3b5df3b8c0e3675d00f64a6847e90435; tar sha256 c18249824b3da1a64332c671abd29235472ba2f8b5635f5afe5d83d7272d599e; matches git ls-tree.
+Verified 1199 files of 78f8536b3b5df3b8c0e3675d00f64a6847e90435; tar sha256 c18249824b3da1a64332c671abd29235472ba2f8b5635f5afe5d83d7272d599e; matches git ls-tree.
+Extracted 1199 files into /tmp/claude-0/x10rel/src
+
+Done in 1s using pnpm v11.25.0
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+fatal: not a git repository (or any of the parent directories): .git
+{
+  "verdict": "not_ready",
+  "commit": "unknown",
+  "register_sha256": "5d45d62e722c486b976e3c6ad7017bb5dfff894e247bfc2f63402b6505ac7504",
+readiness exit 3
