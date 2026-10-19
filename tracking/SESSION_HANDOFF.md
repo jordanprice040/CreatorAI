@@ -1,5 +1,23 @@
 # Session handoff
 
+## UX/UI redesign (October 19, 2026)
+
+Branch `claude/ux-ui-handoff-mfarlr` from main `0dfc6e6`; see docs/UX_UI.md and ADR-0035. The
+handoff file itself lives only in the owner's local checkout and was read, not committed.
+
+Touched shared web files: `index.html` (theme attribute, boot script), new `public/theme-boot.js`
+and `src/theme.ts`, `src/main.tsx` (shell), `src/ui.tsx` (new exports `VIEW_GROUPS`, `viewLabel`,
+`viewGroup`, `Icon`; `useRoute().go` gained an optional third `from` view argument), `src/style.css`
+(rewritten on tokens; class names kept), `src/desktop.tsx`, `src/operations.tsx`, `src/study.tsx`.
+Unchanged: view keys and labels, route hashes, component props, API calls and validation.
+
+For Codex (X08): add new views to `VIEWS` and one `VIEW_GROUPS` group, and build them from the
+classes listed in docs/UX_UI.md. If X08 also took ADR-0035, renumber this redesign's entry.
+
+To rerun the browser evidence: start `tracking/evidence/ux-ui/harness.mjs` on an empty migrated
+database, then `browser-acceptance.mjs` and `screens.mjs` (commands in docs/UX_UI.md).
+Not done: native Tauri check on Windows. Next eligible: X08 (Codex) or the owner's review of this PR.
+
 ## X06/X07 audited and repaired (October 19, 2026)
 
 Attached worktree: C:/Users/jorda/.codex/worktrees/x06-x07-audit/creator_agent,

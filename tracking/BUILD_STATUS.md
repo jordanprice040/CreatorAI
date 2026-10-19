@@ -1,5 +1,31 @@
 # Implementation status
 
+## UX/UI redesign: dark-default studio shell (October 19, 2026)
+
+Claude Code, branch `claude/ux-ui-handoff-mfarlr` from main `0dfc6e6` (PR #32 included), from the
+owner's handoff. Scope: `apps/web` only (also the desktop view). ADR-0035, docs/UX_UI.md. No
+migration, API, contract, dependency or lockfile change. X08 (Codex) status is not affected or
+claimed by this entry.
+
+What now works (checked in headless Chromium against a fixture workspace):
+- Dark theme on first paint for a fresh install with a light OS theme (checked with the app script
+  held back); saved light choice survives reload; toggle back to dark.
+- Semantic colour tokens for both themes; every text/status token is at least 4.5:1 on every
+  surface (computed in the browser).
+- Grouped sidebar navigation, breadcrumb, view-named document title, connection status in words,
+  fixture-mode banner; drawer navigation at phone width (Escape/backdrop/link close it).
+- All 15 views restyled through shared classes; Desktop and Operations show worker and check
+  states as labelled badges (an unreachable synthetic worker shows "unreachable: not reporting").
+- Fixed: a view's late focus request after the user left it pulled them back (Runs → Budgets).
+  Fixed: the skip link rewrote the route hash; it now focuses the content.
+
+Evidence: tracking/evidence/ux-ui (verification.json with source hashes, browser-acceptance.json
+22/22 steps, before/after/check screenshots). `pnpm typecheck`, `pnpm format:check` and `pnpm test`
+on PostgreSQL 16: 257 tests, 244 pass, 0 fail, 13 skips. `pnpm build` passes.
+
+Limits: browser only; native Tauri/WebView2, screen reader and Windows high contrast not observed.
+No dialogs exist to check. Fixture data and the T13 test double only.
+
 ## X06/X07 independent audit and repairs (October 19, 2026)
 
 Audited merged main `8d44ace` in the attached worktree on `codex/x06-x07-audit`.

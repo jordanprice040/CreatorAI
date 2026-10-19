@@ -33,26 +33,37 @@ export function Operations() {
               {s.readiness.mode === 'hosted' ? 'Hosted' : 'Local'}{' '}
               {s.readiness.environment}
             </strong>{' '}
-            · {s.readiness.ready ? 'ready' : 'not ready'} · schema{' '}
-            {s.readiness.schema_version ?? 'unknown'} · build{' '}
+            ·{' '}
+            <span className={`badge ${s.readiness.ready ? 'ok' : 'bad'}`}>
+              {s.readiness.ready ? 'ready' : 'not ready'}
+            </span>{' '}
+            · schema {s.readiness.schema_version ?? 'unknown'} · build{' '}
             {s.readiness.build_commit?.slice(0, 12) ?? 'not set'}
           </p>
           <p>{VERIFICATION[s.readiness.verification]}</p>
-          <ul>
+          <ul className="rows">
             {s.checks.map((c) => (
               <li key={c.name}>
-                {c.ok ? 'OK' : 'Failing'}: {c.name}. {c.detail}
+                <span className={`badge ${c.ok ? 'ok' : 'bad'}`}>
+                  {c.ok ? 'OK' : 'Failing'}
+                </span>{' '}
+                {c.name}. <span className="small">{c.detail}</span>
               </li>
             ))}
           </ul>
           <h3>Local workers</h3>
           {s.metrics.workers.local_last_seen.length === 0 ? (
-            <p>No paired local workers.</p>
+            <p className="small empty-note">No paired local workers.</p>
           ) : (
-            <ul>
+            <ul className="rows">
               {s.metrics.workers.local_last_seen.map((w) => (
                 <li key={w.id}>
-                  {w.label}: {AVAILABILITY[w.availability]} · last seen{' '}
+                  <span
+                    className={`badge ${w.availability === 'online' ? 'ok' : 'warn'}`}
+                  >
+                    {AVAILABILITY[w.availability]}
+                  </span>{' '}
+                  {w.label} · last seen{' '}
                   {w.last_seen_at ? when(w.last_seen_at) : 'never'}
                 </li>
               ))}
@@ -63,7 +74,7 @@ export function Operations() {
             another device. Its open jobs expire or wait for reconciliation.
           </p>
           <h3>Queues and outcomes</h3>
-          <ul>
+          <ul className="rows">
             <li>
               Outbox pending: {s.metrics.queue.outbox_pending}
               {s.metrics.queue.outbox_oldest_pending_seconds !== null &&
@@ -87,12 +98,17 @@ export function Operations() {
           <p className="small">
             Evaluated here only; nothing is sent outside this deployment.
           </p>
-          <ul>
+          <ul className="rows">
             {s.alerts
               .filter((a) => a.state === 'firing')
               .map((a) => (
                 <li key={a.id}>
-                  {a.severity}: {a.summary} ({a.metric} = {a.value})
+                  <span
+                    className={`badge ${a.severity === 'info' ? 'info' : a.severity === 'critical' ? 'bad' : 'warn'}`}
+                  >
+                    {a.severity}
+                  </span>{' '}
+                  {a.summary} ({a.metric} = {a.value})
                 </li>
               ))}
             {!s.alerts.some((a) => a.state === 'firing') && (

@@ -109,8 +109,8 @@ export function Studies({
   }
   return (
     <section className="panel">
-      <div className="eyebrow">SYNTHETIC · DRAFT PROTOCOL</div>
       <h2>Study runner</h2>
+      <span className="badge">Synthetic · draft protocol</span>
       <p>
         Fixture assignments test the study workflow. They are not empirical
         results. Consent and recruitment remain unresolved.
