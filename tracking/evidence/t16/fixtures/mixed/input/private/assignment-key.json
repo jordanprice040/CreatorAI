@@ -1,0 +1,46 @@
+{
+  "private": true,
+  "secret": "fixture-blinding-secret-not-real",
+  "codes": {
+    "7b100fb16b": {
+      "slot_id": "f14a0f6b0f55117877ff8b6dcbc86ee2d9f0d2d7a1b764778589482aa0ec840a",
+      "attempt_id": "00000000-0000-4000-8000-000000000001"
+    },
+    "cbf352c765": {
+      "slot_id": "30af55f6e72f31fc8fe0ecbe531cae9a34158a22a14be27fae5f483b2aa3a41b",
+      "attempt_id": "00000000-0000-4000-8000-000000000002"
+    },
+    "407a92dfbc": {
+      "slot_id": "fdb69e509003b22fe514b1db6f4071746455b51ddf09025673cbd20d81e4f126",
+      "attempt_id": "00000000-0000-4000-8000-000000000003"
+    },
+    "c89d7f963f": {
+      "slot_id": "377ccb8c12b412b9ddbdb9e350a82fcab1ae1586781632f4adab3d82277d38ca",
+      "attempt_id": "00000000-0000-4000-8000-000000000004"
+    },
+    "faf2080c42": {
+      "slot_id": "b5901f680480e06ea23bcce9dff8e4c58422c5b1b913b10eb328ce086efefd80",
+      "attempt_id": "00000000-0000-4000-8000-000000000006"
+    },
+    "f7b0e1e36d": {
+      "slot_id": "4f7f32a22e30824f4fdc04b9b162dd19be0d018852b9edf5002175b854c4cc60",
+      "attempt_id": "00000000-0000-4000-8000-000000000007"
+    },
+    "72dde3024d": {
+      "slot_id": "396921964830e826528e82f68f32743df81c9a4abec46228db864bf7484a9342",
+      "attempt_id": "00000000-0000-4000-8000-00000000000a"
+    },
+    "a0a3c69791": {
+      "slot_id": "685b02e43c9061539b6733b66adfa8f8c915d118ff31cfbb03efa47b264d1911",
+      "attempt_id": "00000000-0000-4000-8000-00000000000b"
+    },
+    "2e6da46703": {
+      "slot_id": "e20f086c92431a351966c7ce560611870a28d2fe448635abfcaa1b987d1815de",
+      "attempt_id": "00000000-0000-4000-8000-00000000000c"
+    },
+    "ef394b654c": {
+      "slot_id": "7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843",
+      "attempt_id": "00000000-0000-4000-8000-00000000000d"
+    }
+  }
+}

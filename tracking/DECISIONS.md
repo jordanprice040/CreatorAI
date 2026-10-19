@@ -10,6 +10,36 @@
 - Recorded in docs/PILOT_AND_PROTOCOL.md. Remaining protocol gates still apply;
   this documentation update did not freeze the protocol or activate live calls.
 
+## ADR-0023 - T16 analysis pipeline over T15 exports, verified on synthetic fixtures only
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's request to build T16 with empirical data collection deferred; branch claude/t16-analysis-95avhe from main 479dba4. No migration. Empirical T16 stays blocked.
+- Inputs are only the files a T15 run writes (evaluation-package.json, private/assignment-key.json, private/raw-exports) plus reviewers' ratings.csv and an optional analysis-options.json. The analysis is pure (domain) and needs no database, so it reproduces from exports; each input file's SHA-256 is recorded and two runs must hash identically. Rejected: reading the database directly (results would depend on live state rather than the frozen package).
+- Empirical status is derived, never asserted: `final_records` only for a final package under an adopted freeze with non-synthetic exports and no FIXTURE.json. Fixture outputs carry the label in every CSV row, figure banner and report.
+- `ANALYSIS_PLAN` is an implementation default (task as unit; last attempt per slot for outcomes, every attempt for resources; complete reviewer rows only, no imputation; discovery repeats averaged within theme; range/median/sign counts always, bootstrap over tasks only with 10 or more pairs; quadratic-weighted kappa for two reviewers). It is not an owner decision and should be adopted or replaced in the freeze.
+- No decision acceptance rule exists, so cost per accepted decision outcome stays undefined until Jordan supplies one (`decision_min_mean_rating` with its basis). Implementation acceptance is submitted with every executed frozen case passed. Zero accepted means undefined cost per accepted outcome with total spend shown; unknown or in-flight billing marks it a lower bound.
+- Reconciliation checks fail the run when an attempt appears in two slots or exports, when flow and export measurements disagree, or when group, flow and export spend totals differ. Privacy check fails when a participant code, actor id, familiarity note or the blinding secret appears in output. Not measured: potential benefit, observed user impact, intervention necessity coding.
+- Rollback: revert the commit; nothing persistent changes.
+
+## ADR-0022 - T15 prerequisites: final-record gate, study budget ledger and builder-backed study attempts
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's request to complete T15's prerequisites without running the study or freezing the protocol; branch claude/t15-hdrwqz on top of ADR-0021. Migration 11. T15 stays partial.
+- Owner choices recorded, not decided here: `config/evaluation.json` keeps the owner's `gpt-6-astra` preference (verified id null, live dispatch off) and Jordan's $20.00 total T15 cap (stated October 18, 2026; no spend authorized). Participants (RD3), reviewers (RD4), human-subjects review (RD5) and final tasks (RD8) are `unresolved`. RD6 must still be answered in the freeze; the gate requires the study cap to equal the $20 config cap.
+- Final records: `synthetic` is now a boolean. `synthetic: false` passes only `finalRecordBlockers` (domain): real workspace, adopted freeze hash, every governance choice equal to the owner's freeze answer, preserved model preference with a verified id equal to the config and study model, $20 ledger cap. Final attempts get real-mode workspaces and no model grant; AI execution and builds refuse with `LIVE_DISABLED`. Rejected: accepting governance values from the request alone (would let a caller choose decisions the owner never answered).
+- Budget: `study_budget_holds` holds each attempt's full frozen cap under an advisory lock before any model work. Open attempts count at cap; finished ones at settled plus in-flight/unknown reservations. Final records share one `t15-final` ledger; synthetic ones are per workspace, so fixture units never consume the real cap.
+- Builder link: studies bind a frozen build task by exact spec, freeze, task hash and current humility review (re-read at creation and assignment). Each attempt pins a same-hash copy of the spec and a review rebound to it (`study_attempt_pins`), so admission, grants and products stay in the attempt's own workspace. A/B arms build with the unchanged T12 BuildSupervisor through `studyBuildPorts`; the broker admits only builder/reviewer calls under the prepared plan's envelope and caps. The API records results only from its own re-read of the local build record (`readStudyBuild`), one build per attempt. C arms have no builder; their code is checked server-side against every frozen case. Held-out cases leave the server only as key and pass/fail.
+- Evidence states: every case result names its backend; only the reviewed WSL2 backend sets `isolation_evidence`. The cloud tests use the labelled test double.
+- Rollback: revert the commit; migration 11 is additive (three objects).
+
+## ADR-0021 - T15 frozen schedule, deterministic admission, run ledger and blinded packets
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's T15 request; branch claude/t15-hdrwqz from main 3f3544a. No migration. The protocol is not frozen, so no final run exists.
+- Schedule: built only from a freeze manifest (rebuilt from the `study.protocol_frozen` audit event against the proposal in code; a changed proposal is a VERSION_CONFLICT) and the owner's final tasks in the frozen counts. Slot ids hash the freeze, packet and arm; the order (one run at a time) comes from a seed derived from the freeze hash. The planned schedule hash goes to the audit log (`evaluation.schedule_planned`).
+- Admission is domain code: final slots need non-synthetic study records, verified live AI (RD6) and, for AI implementation work, the isolated builder. None exists, so today every final slot is `blocked` with its reasons. Fixture output and scripted people are admitted only in rehearsal mode. Rejected: building non-synthetic study records now, because their shape depends on RD3, RD5, RD6 and RD9.
+- Ledger: every slot is listed once (blocked, deferred, missing, or attempt states); a blocked slot with an attempt is an error; RD10's single infrastructure retry keeps the failed attempt.
+- Reviewer packets: identical template, per-reviewer order, codes from a per-package secret kept in the private key. A scan fails on filename, template or id leaks and flags condition-like words inside submissions for owner review instead of rewriting them. Implementation outcomes are functional checks, not reviewer items. Packets are written to disk only.
+- Rehearsal: `pnpm evaluate rehearsal` runs the frozen counts on 8 synthetic tasks with a labelled stand-in freeze; 10/10 checks pass.
+- Rollback: revert the commit.
+
 ## ADR-0020 - T17 local backup/restore, overrun propagation and boundary audit
 
 - Date: October 18, 2026. Status: implemented by Claude Code for T17 (branch claude/project-thread-k4si82 from main e46b2cf). Follows ADR-0019 (T14, built in parallel). No migration.

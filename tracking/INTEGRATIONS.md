@@ -28,6 +28,8 @@ was exposed in this chat, so the Codex connection-selector state is not separate
 certified. No generated-product Docker worker activated; T11 WSL remains in use.
 See docs/DOCKER.md, ADR-0015 and evidence/docker.
 
+T15, October 18, 2026: no new integration activated. Study builds reuse the T12 builder, the T11 WSL2 worker and the fixture broker; `config/evaluation.json` records the owner's `gpt-6-astra` preference (unverified, live dispatch off) and the $20 T15 cap with no spend authorized. See ADR-0022.
+
 T11, October 18, 2026: reviewed local execution now uses the existing Ubuntu WSL2 VM, Bubblewrap 0.11.1, systemd 259/cgroup v2 and Python 3.14.4. The authenticated owner CLI binds current frozen T08 specs to separate Git repositories and a fixed offline template recipe. Real isolation/resource/cancellation/recovery gates were exercised; no Docker socket, personal mount, live provider, paid service or remote worker activated. Other hosts are blocked without a reviewed backend; ordinary CI skips real WSL execution explicitly. See ADR-0014, docs/ISOLATED_EXECUTION.md and evidence/t11.
 
 T10, October 18, 2026: synthetic study execution reuses the fixture broker and T07 workflow worker. No new external integration, paid route, credentials, recruitment or real participant data. Native Windows PostgreSQL 18 was exercised in a disposable loopback-only cluster on port 55432. Human-only entries and conventional text checks require no model. Grader material remains under separate authorization; see ADR-0013 and evidence/t10.

@@ -1,0 +1,59 @@
+{
+  "schema_version": "study-export/1",
+  "synthetic": true,
+  "empirical_results": false,
+  "attempts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_in_loop",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 15,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 1800,
+        "known_simulated_spend_nano_usd": "6000000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 3,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_only",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 80,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 4800,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    }
+  ],
+  "raw_events": [],
+  "export_hash": "d04c1be9eb94300abe349a84d8f348cbc5f5c9464f26dbc527a4d87644eab3f9"
+}

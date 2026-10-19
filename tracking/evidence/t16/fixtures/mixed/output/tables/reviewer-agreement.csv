@@ -1,0 +1,6 @@
+data_label,dimension,items_rated_by_both,weighted_kappa,kappa_note
+"VERIFICATION FIXTURE: synthetic data, not empirical",usefulness,8,0.3077,"Quadratic weights, 1-5 scale."
+"VERIFICATION FIXTURE: synthetic data, not empirical",feasibility,8,0.3469,"Quadratic weights, 1-5 scale."
+"VERIFICATION FIXTURE: synthetic data, not empirical",evidence_support,7,0.3333,"Quadratic weights, 1-5 scale."
+"VERIFICATION FIXTURE: synthetic data, not empirical",differentiation,8,0.3469,"Quadratic weights, 1-5 scale."
+"VERIFICATION FIXTURE: synthetic data, not empirical",appropriateness,8,0.3077,"Quadratic weights, 1-5 scale."

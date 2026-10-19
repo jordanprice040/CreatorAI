@@ -1,0 +1,7 @@
+data_label,stratum,contrast,task_key,x,y,difference,excluded
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,B - A,d1,,1.5,,"B budget_exhausted, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,C - A,d1,,1.5,,"C cancelled, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,C - B,d1,,,,"C cancelled, no value; B budget_exhausted, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,B - A,i1,0.5,,,"A failed, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,C - A,i1,,,,"C failed, no value; A failed, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,C - B,i1,,0.5,,"C failed, no value"

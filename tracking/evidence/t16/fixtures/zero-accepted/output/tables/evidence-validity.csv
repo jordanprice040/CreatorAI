@@ -1,0 +1,5 @@
+data_label,comparison,stratum,arm,audited_attempts,sources,verified,unverified,attempts_with_unverified
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,A,1,1,0,1,1
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,B,1,1,0,1,1
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,A,1,1,0,1,1
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,B,1,1,0,1,1

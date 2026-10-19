@@ -75,6 +75,49 @@ pricing and enforced runtime configuration remain unverified. Documentation-only
 update; no live calls, adopted freeze or evaluation run. Next eligible: resolve
 remaining T14 decisions and verification prerequisites before freezing, then T15.
 
+T16 implementation update, October 18, 2026 (Claude Code, branch claude/t16-analysis-95avhe from
+main 479dba4; ADR-0023; no migration): **analysis pipeline built; empirical T16 blocked.** No
+final run, rating or outcome exists, so nothing was analyzed for real and no finding, power or
+comparative result is reported. Added `pnpm analyze <evaluation-dir> <out-dir>`: reads the T15
+package, private key, raw study exports and reviewers' ratings.csv; writes analysis.json,
+report.md, CSV tables and SVG figures (completion over all assigned slots, decision quality
+without imputation, functional completion, task-level paired and per-theme discovery
+comparisons, exact-money resources with undefined or lower-bound cost per accepted outcome,
+human effort and latency, interventions, evidence validity, two-reviewer kappa and
+disagreements, deviations, exploratory per-protocol completion). Checks: slot/attempt/export
+reconciliation without join multiplication, rating-code validity, privacy, identical reruns
+and no comparative wording. Empirical status is derived from the inputs. Verified on three
+labelled synthetic fixtures (`pnpm analyze fixtures`, outputs in tracking/evidence/t16/fixtures)
+and on a real T15 rehearsal package. Cloud `pnpm test:db`: **187 tests, 176 pass, 0 fail, 11
+WSL skips** (tracking/evidence/t16/test-db.log). Real-data inputs: docs/ANALYSIS.md.
+
+T15 prerequisites update, October 18, 2026 (Claude Code, branch claude/t15-hdrwqz on top of
+ADR-0021; ADR-0022; migration 11): **T15 still partial; protocol not frozen, no final run, no
+live call or spend.** Added `config/evaluation.json` (owner preference `gpt-6-astra`
+unverified, live off, $20.00 total T15 cap, RD3/RD4/RD5/RD8 unresolved); a final-record gate
+that creates non-synthetic studies only when the adopted freeze answers every governance item,
+the verified model matches config and the cap is $20 (today it refuses, listing each unmet
+condition); a study budget ledger that holds each attempt's full cap before model work; and
+builder-backed implementation attempts (A/B through the T12 builder in per-attempt products,
+C refused the builder with its code checked server-side against every frozen case). Verified
+on labelled synthetic records with the test double: exact spec/task/file hashes, condition
+isolation, human-only denial, budget refusal, cancellation retention, mismatch refusals,
+held-out cases kept out of role packets and records. Cloud `pnpm test:db`: **178 tests, 167
+pass, 0 fail, 11 WSL skips** (one new opt-in WSL2 study-build test, not yet run on Jordan's
+machine). Evidence: tracking/evidence/t15/study-build-tests.log.
+
+T15 update, October 18, 2026 (Claude Code, branch claude/t15-hdrwqz from main 3f3544a;
+ADR-0021; no migration): **final evaluation not run, because the protocol is not frozen.** Built the
+final-evaluation machinery: schedule from the adopted freeze and owner tasks, deterministic
+slot admission, a run ledger where every slot is listed (blocked, deferred, missing, or
+attempt states, with RD10 retries kept), and blinded per-reviewer packets with a leak scan, a
+private key and raw exports (`pnpm evaluate rehearsal|final`, docs/FINAL_EVALUATION.md).
+Rehearsal on 8 synthetic tasks (26 slots, fixture AI, scripted labelled humans): 10/10 checks
+pass. `pnpm evaluate final` refuses without a freeze and lists RD1-RD10; with a freeze every
+slot is blocked (synthetic-only study records, no verified live model, AI implementation not
+wired to studies). Cloud `pnpm test:db`: **174 tests, 164 pass, 0 fail, 10 WSL skips**.
+Evidence: tracking/evidence/t15.
+
 T17 update, October 18, 2026 (Claude Code, branch claude/project-thread-k4si82 from main
 e46b2cf; ADR-0020; built in parallel with T14): requirements-to-evidence report for C01–C51,
 S01–S18 and the T17 priority risks in tracking/evidence/t17/REQUIREMENTS_EVIDENCE.md. New
@@ -84,8 +127,8 @@ download checks through the real API, and tampering is refused. Fixed: a child o
 counts against every ancestor; `/api/health` reports configured live adapters; preview stdin
 survives split UTF-8; workflow lease heartbeats work (an ambiguous SQL column had made every
 heartbeat fail silently, so long calls were redelivered). Cloud `pnpm test:db`: 162 tests,
-152 pass, 0 fail, 10 WSL skips; after merging T14, 168 tests, 158 pass, 0 fail, 10 WSL skips. Not re-run on
-Jordan's Windows machine. No critical blocker found; not production-ready or live.
+152 pass, 0 fail, 10 WSL skips; after merging T14, 168 tests, 158 pass, 0 fail, 10 WSL skips.
+Real WSL2 gate on Jordan's Windows machine (reported by Jordan, October 18, 2026, on merge commit 38b3e46): `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` 168 tests, 167 pass, 0 fail, 1 skip (the no-worker test, which always skips where the worker exists, so the restore test ran there). No critical blocker found; not production-ready or live.
 
 T14 update, October 18, 2026 (Claude Code, branch claude/project-thread-ocgg8g from main
 e46b2cf; ADR-0019): `pnpm pilot <dir>` runs a pilot rehearsal (arms A, B, C on one fictional
@@ -232,9 +275,9 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T12 | Bounded builder, independent review, and QA | verified (Windows + WSL2; fixed synthetic roles) | Branch codex/t12-bounded-builder; ADR-0016; evidence/t12; 149/149 DB + real isolation | Merged PR #14 at 6fe5bab |
 | T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles) | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request |
 | T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
-| T15 | Final evaluation and blinded rating package | planned | No application code at T00 | T14 with adopted protocol |
-| T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
-| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15); Windows re-run pending | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | WSL2 gate and Windows `pnpm backup` not re-run; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
+| T15 | Final evaluation and blinded rating package | partial (cloud Linux, PostgreSQL 16; machinery, rehearsal, final-record gate, budget ledger and study builds; no final run) | Branch claude/t15-hdrwqz from 3f3544a; ADR-0021, ADR-0022; migration 11; evidence/t15; 167 pass / 11 WSL skips; rehearsal 10/10 checks | Protocol freeze (RD1-RD10) with participants, reviewers, IRB and final tasks answered; verified live model id and spend authorization (RD6); final build tasks frozen with held-out cases; WSL2 gate for study builds |
+| T16 | Reproducible analysis and limits | partial (pipeline only; empirical blocked) | Branch claude/t16-analysis-95avhe; ADR-0023; `pnpm analyze`; docs/ANALYSIS.md; evidence/t16 (3 synthetic fixtures, real rehearsal package, 187 tests / 176 pass / 11 WSL skips) | Real T15 final runs under an adopted freeze, reviewer ratings (RD4), a decision acceptance rule, owner coding of intervention necessity |
+| T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
 | X01 | Model registry and qualified automatic routing | deferred | No application code at T00 | T10 and measured task outcomes |
@@ -354,5 +397,3 @@ T02–T19 remain planned; X01–X10 remain deferred. No full requirement or prod
 | --- | --- | --- |
 | C30 | partial (real reviewed-template boundary verified) | Namespace, mount, network, resource, lease, tree-cancellation and cleanup gates passed; broader-hostile-workload audit T17 |
 | C33 | verified local owner path | Separate repo/task/review worktrees, frozen task-to-commit lineage and preserved conflicts; catalog/runtime integration remains T12–T13 |
-
-

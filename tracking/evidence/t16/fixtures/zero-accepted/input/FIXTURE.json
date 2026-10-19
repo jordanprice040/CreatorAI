@@ -1,0 +1,10 @@
+{
+  "schema_version": "analysis-fixture/1",
+  "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "scenario": "zero-accepted",
+  "covers": [
+    "zero accepted outcomes in every arm",
+    "needs_human, budget_exhausted, cancelled and failed runs",
+    "a submitted build that fails a held-out case"
+  ]
+}

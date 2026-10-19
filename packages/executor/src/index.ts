@@ -4,3 +4,4 @@ export * from './execution.js';
 export * from './build.js';
 export * from './tar.js';
 export * from './artifacts.js';
+export * from './study-build.js';

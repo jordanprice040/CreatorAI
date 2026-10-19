@@ -11,6 +11,46 @@ import {
 } from './primitives.js';
 
 const frozenText = z.strictObject({ version: text, text });
+const ref = z.strictObject({ id, version: counter.min(1) });
+/**
+ * An implementation task frozen in the owner's workspace. Every hash is checked against the
+ * stored spec, its freeze and its humility review before a study can bind it.
+ */
+export const StudyImplementationSchema = z.strictObject({
+  spec_id: id,
+  spec_version: counter.min(1),
+  spec_hash: hash,
+  freeze_id: id,
+  task_key: z.string().regex(/^T[1-9][0-9]?$/),
+  task_hash: hash,
+  humility_review: ref,
+  max_repairs: counter.max(2),
+  timeout_ms: counter.min(100).max(60000),
+  max_output_tokens: counter.min(100).max(16000),
+});
+/** A study-governance item is either explicitly unresolved or decided in the adopted freeze. */
+export const GovernanceItemSchema = z.discriminatedUnion('status', [
+  z.strictObject({ status: z.literal('unresolved'), decision: text }),
+  z.strictObject({
+    status: z.literal('decided'),
+    decision: text,
+    choice: text,
+    reference: text,
+  }),
+]);
+export const StudyGovernanceSchema = z.strictObject({
+  label: text,
+  participants: GovernanceItemSchema,
+  reviewers: GovernanceItemSchema,
+  human_subjects: GovernanceItemSchema,
+  task_selection: GovernanceItemSchema,
+  model: z.strictObject({
+    owner_preference: text,
+    verified_model_id: text.nullable(),
+    decision: text,
+  }),
+  budget: z.strictObject({ ledger_cap_nano_usd: nanoUsd }),
+});
 export const StudyPacketSchema = z
   .strictObject({
     version: text,
@@ -24,8 +64,14 @@ export const StudyPacketSchema = z
     outcome: text.max(300),
     structured_brief: SearchBriefBodySchema,
     time_cap_seconds: counter.min(5).max(86400),
+    implementation: StudyImplementationSchema.optional(),
   })
   .superRefine((p, ctx) => {
+    if (p.implementation && p.stratum !== 'implementation')
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Only the implementation stratum binds a frozen build task.',
+      });
     if (
       p.problem !== p.structured_brief.measurable_problem ||
       p.outcome !== p.structured_brief.outcome_measure
@@ -48,7 +94,8 @@ export const StudyConfigSchema = z.strictObject({
 });
 export const CreateStudySchema = z.strictObject({
   schema_version: z.literal('study/1'),
-  synthetic: z.literal(true),
+  /** false only for a final record bound to an adopted freeze; see the store's record gate. */
+  synthetic: z.boolean(),
   title: text,
   protocol: frozenText,
   packet: StudyPacketSchema,
@@ -60,6 +107,8 @@ export const CreateStudySchema = z.strictObject({
   stop_retry_rules: frozenText,
   primary_outcomes: z.array(text).min(1).max(10),
   assignment_seed: text,
+  governance: StudyGovernanceSchema.optional(),
+  evaluation: z.strictObject({ freeze_hash: hash }).optional(),
 });
 export const AssignStudySchema = z.strictObject({
   manifest_hash: hash,
@@ -112,7 +161,7 @@ export const StudyAttemptSchema = z.strictObject({
   study_id: id,
   workspace_id: id,
   run_id: id,
-  synthetic: z.literal(true),
+  synthetic: z.boolean(),
   participant_actor_id: id,
   participant_code: text,
   prior_familiarity: text,
@@ -138,12 +187,14 @@ export const StudyAttemptSchema = z.strictObject({
 export const StudySummarySchema = z.strictObject({
   id,
   title: text,
-  synthetic: z.literal(true),
+  synthetic: z.boolean(),
   manifest_hash: hash,
-  status: z.literal('draft_not_frozen'),
+  status: z.enum(['draft_not_frozen', 'final_record']),
   created_at: z.string(),
 });
 export type StudyInput = z.infer<typeof CreateStudySchema>;
+export type StudyImplementation = z.infer<typeof StudyImplementationSchema>;
+export type StudyGovernance = z.infer<typeof StudyGovernanceSchema>;
 export type StudyAssignment = z.infer<typeof AssignStudySchema>;
 export type StudyAttempt = z.infer<typeof StudyAttemptSchema>;
 export type StudySummary = z.infer<typeof StudySummarySchema>;

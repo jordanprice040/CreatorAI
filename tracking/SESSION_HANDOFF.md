@@ -79,6 +79,50 @@ and the server proposal must reflect the choice before freezing. No code/config
 changes, live calls, protocol freeze or tests were performed. Remaining research
 decisions still block adoption; next eligible work is completing T14 prerequisites.
 
+## Latest - T16 analysis pipeline, empirical analysis blocked (October 18, 2026)
+
+Claude Code on claude/t16-analysis-95avhe from main 479dba4 (ADR-0023, no migration). T16 is
+partial: the pipeline exists, nothing empirical was analyzed. Key code:
+packages/domain/src/analysis.ts (`analyze`, `ANALYSIS_PLAN`, `parseRatings`,
+`summarizeDifferences`, `weightedKappa`), analysis-report.ts (`renderAnalysis`: CSV, Markdown,
+SVG), analysis-fixtures.ts (`mixed`, `zero-accepted`, `all-blocked`), and
+packages/orchestrator/src/analysis-files.ts + analyze-main.ts (`pnpm analyze <dir> <out>`,
+`pnpm analyze fixtures <out>`). Tests: tests/src/analysis.test.ts (hand-computed fixture
+values, tampering, privacy, and a PostgreSQL test that analyzes a real T15 rehearsal package).
+Inputs for real results and open items: docs/ANALYSIS.md. `ANALYSIS_PLAN` is an implementation
+default to adopt or replace in the freeze; the decision acceptance rule (analysis-options.json)
+and intervention-necessity coding have no owner decision yet. Next: the T15 freeze and final
+runs, then reviewers' ratings, then `pnpm analyze` on the final folder.
+
+## Latest - T15 prerequisites: final records, budget ledger, study builds (October 18, 2026)
+
+Claude Code on claude/t15-hdrwqz (ADR-0022, migration 11). T15 stays partial: no freeze, no
+final run, no live call. Key code: config/evaluation.json and
+packages/domain/src/evaluation-config.ts (`finalRecordBlockers`, `evaluationReadiness`);
+study-store.ts (gate in `createStudy`, pins in `assignStudy`, `holdBudget`, `freezeIn`);
+packages/db/src/study-build-store.ts (`prepareStudyBuild`, `studyBuildState`,
+`recordStudyBuild`, `recordStudyCodeCheck`); packages/executor/src/study-build.ts
+(`studyBuildPorts`, `runStudyBuild`, `readStudyBuild`, `checkStudyCode`); broker build guard
+in budget-store.ts; API `study-attempts/<id>/build|build-record|binding|code-check`; CLI
+`study-build`, `study-code`. Tests: tests/src/study-build.test.ts (the WSL2 variant is opt-in
+and not yet run on Jordan's machine). `store.evaluation` is a test seam for the gate; the file
+is the only real source. Next: Jordan's RD answers and freeze, verified model id, final build
+tasks; then run the WSL2 gate.
+
+## Latest - T15 final evaluation machinery (October 18, 2026)
+
+Claude Code on claude/t15-hdrwqz from main 3f3544a (ADR-0021, no migration). The protocol is
+still not frozen, so T15 is partial: no final run exists. Key code:
+packages/domain/src/evaluation.ts (`buildSchedule`, `admitSlot`, `flowTable`,
+`retryPermitted`, `blindedPackets`, `scanBlinding`, `rehearsalFreeze`),
+packages/orchestrator/src/evaluation.ts and evaluate-main.ts (`pnpm evaluate rehearsal <dir>`,
+`pnpm evaluate final <ws> <tasks.json> <dir>`), `latestProtocolFreeze` and
+`recordEvaluationSchedule` in study-store.ts, `latest_freeze` on GET `/protocol-freezes`.
+Tests: tests/src/evaluation.test.ts. Report: docs/FINAL_EVALUATION.md. Before a real final
+run: Jordan's RD1-RD10 answers and freeze, then non-synthetic study records (shape depends
+on RD3/RD5/RD6/RD9), a verified live model, and builder-backed AI implementation runs. Next
+eligible: finish T15 after the freeze; T16 needs actual ratings.
+
 ## Latest - T17 boundary checks and requirements audit (October 18, 2026)
 
 Claude Code built T17 on claude/project-thread-k4si82 from main e46b2cf, in parallel with
@@ -89,8 +133,7 @@ product store. Fixed audit items 4 (overrun now counts against ancestors, `ances
 in budget-store.ts), 5 (health derives live labels) and 7 (preview stdin decoded once); item
 6 recorded in ADR-0020; workflow-store heartbeat SQL fixed (`t.version`; it had failed on every
 call and the worker swallowed the error); item 7's export note was not a defect (each study attempt has its own
-workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate not re-run
-for this branch. Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
+workspace). CI checks `pg_dump --version` before `pnpm test:db`. Real WSL2 gate on Jordan's Windows machine (reported by Jordan, October 18, 2026, on merge commit 38b3e46): `CREATOR_TEST_ISOLATION=wsl2 pnpm test:db` 168 tests, 167 pass, 0 fail, 1 skip (the no-worker test, which always skips where the worker exists, so the restore test ran there). Next eligible: T15 after T14's adopted protocol, or T18 once T16 exists.
 
 ## Latest - T14 pilot rehearsal and proposed protocol (October 18, 2026)
 
@@ -429,5 +472,3 @@ Apply the shared implementation contract. Execute T02: Persistence, provenance, 
 ```
 
 Read the complete T02 prompt and current files first. Add actual PostgreSQL persistence, migrations, stable scoped entities/links, optimistic versions, transactional state/audit/outbox, idempotent projections, API/CLI/history paths, restart/stale/cross-scope/duplicate-delivery verification. PostgreSQL service/setup remains unverified; complete unrelated work before treating live service setup as a blocker. Preserve the T01 contracts or record necessary versioned migration. No owner question currently blocks beginning T02 inspection.
-
-

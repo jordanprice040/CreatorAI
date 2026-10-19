@@ -20,7 +20,7 @@ import {
   type Preview,
 } from '@creator/contracts';
 import { canonicalHash } from '@creator/domain';
-import { StudyStore } from './study-store.js';
+import { StudyBuildStore } from './study-build-store.js';
 import {
   fail,
   iso,
@@ -47,7 +47,7 @@ export interface ArtifactRecord {
  * T13 artifact index, previews and feedback. Bytes stay in the local product store; callers
  * re-hash them against these rows on every download and start.
  */
-export class ArtifactStore extends StudyStore {
+export class ArtifactStore extends StudyBuildStore {
   private async summaries(
     c: PoolClient,
     ws: string,

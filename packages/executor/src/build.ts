@@ -52,7 +52,7 @@ const reviewSchema = z.strictObject({
   verdict: z.enum(['approve', 'changes_requested', 'blocked']),
   findings: z.array(z.string().min(1).max(2000)).max(20),
 });
-const outcomeSchema = z.strictObject({
+export const buildOutcomeSchema = z.strictObject({
   id,
   product_id: id,
   task_id: id,
@@ -66,7 +66,7 @@ const outcomeSchema = z.strictObject({
   fixture: z.boolean(),
   finished_at: z.iso.datetime(),
 });
-export type BuildOutcome = z.infer<typeof outcomeSchema>;
+export type BuildOutcome = z.infer<typeof buildOutcomeSchema>;
 
 /** Trusted owner-side ports. Models receive packets only; never these capabilities. */
 export interface BuildPorts {
@@ -104,7 +104,7 @@ export class BuildSupervisor {
       plan: BuildPlan;
     };
     const result = checked(
-      outcomeSchema,
+      buildOutcomeSchema,
       await readJson(join(dir, 'outcome.json')),
     );
     if (

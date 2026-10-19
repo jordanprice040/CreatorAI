@@ -1,0 +1,121 @@
+{
+  "schema_version": "study-export/1",
+  "synthetic": true,
+  "empirical_results": false,
+  "attempts": [
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "autonomous",
+      "state": "failed",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 200,
+        "known_simulated_spend_nano_usd": "2000000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 3,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_in_loop",
+      "state": "failed",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 0,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 20,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_in_loop",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 12,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 3,
+        "intervention_wait_seconds": 60,
+        "wall_seconds": 1000,
+        "known_simulated_spend_nano_usd": "3500000",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 3,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "participant_actor_id": "00000000-0000-4000-8000-00000000f001",
+      "participant_code": "FIXTURE-P01",
+      "prior_familiarity": "Fixture familiarity note",
+      "condition": "human_only",
+      "state": "submitted",
+      "measurements": {
+        "active_ai_seconds": 0,
+        "active_ai_source": "fixture_has_no_ai_inference",
+        "simulated_provider_request_seconds": 0,
+        "human_active_minutes": 50,
+        "human_wait_seconds": 0,
+        "intervention_active_minutes": 0,
+        "intervention_wait_seconds": 0,
+        "wall_seconds": 3000,
+        "known_simulated_spend_nano_usd": "0",
+        "unknown_simulated_exposure_nano_usd": "0",
+        "in_flight_simulated_exposure_nano_usd": "0",
+        "calls": 0,
+        "retries": 0,
+        "denials": 0,
+        "failures": 0
+      }
+    }
+  ],
+  "raw_events": [
+    {
+      "attempt_id": "00000000-0000-4000-8000-000000000006",
+      "kind": "interventions",
+      "payload": {
+        "type": "judgment",
+        "gate": "dynamic",
+        "prevented_problem": "unknown",
+        "human_active_minutes": 3,
+        "wait_seconds": 60
+      }
+    }
+  ],
+  "export_hash": "7d20e4468f2d90a39ad981d7aa2ff78ed329b9c2af1efee958f028cba2e2ff54"
+}
