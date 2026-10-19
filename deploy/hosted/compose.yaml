@@ -1,0 +1,77 @@
+# X06 hosted deployment (reviewable configuration; activating it is a separate owner decision).
+# One stack per environment, each with its own project name, env file, secrets and database:
+#   docker compose -p creator-staging --env-file environments/staging.env -f deploy/hosted/compose.yaml up -d
+# The database is a managed PostgreSQL reached with sslmode=verify-full; it is not in this stack.
+name: creator-hosted
+
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: deploy/hosted/Dockerfile
+    target: runtime
+  restart: unless-stopped
+  env_file: ${CREATOR_ENV_FILE:?Set CREATOR_ENV_FILE to environments/<env>.env}
+  environment:
+    CREATOR_DATABASE_URL_FILE: /run/secrets/database_url
+    CREATOR_METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    CREATOR_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+    CREATOR_PRODUCTS_ROOT: /data/products
+  secrets: [database_url, metrics_token, oidc_client_secret]
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ['no-new-privileges:true']
+  cap_drop: [ALL]
+
+services:
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: ['node', 'packages/db/dist/migrate-main.js']
+
+  api:
+    <<: *app
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      CREATOR_DATABASE_URL_FILE: /run/secrets/database_url
+      CREATOR_METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      CREATOR_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
+      CREATOR_PRODUCTS_ROOT: /data/products
+      # Workflows run in the separate worker service.
+      CREATOR_WORKER: 'off'
+    volumes: ['products:/data/products']
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4310/api/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+
+  worker:
+    <<: *app
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    command: ['node', 'packages/orchestrator/dist/main.js']
+    volumes: ['products:/data/products']
+
+  proxy:
+    build:
+      context: ../..
+      dockerfile: deploy/hosted/Dockerfile
+      target: proxy
+    restart: unless-stopped
+    env_file: ${CREATOR_ENV_FILE}
+    depends_on: [api]
+    ports: ['80:80', '443:443']
+    volumes: ['caddy-data:/data']
+
+secrets:
+  database_url:
+    file: ${CREATOR_SECRETS_DIR:?Set CREATOR_SECRETS_DIR to this environment's secrets folder}/database_url
+  metrics_token:
+    file: ${CREATOR_SECRETS_DIR}/metrics_token
+  oidc_client_secret:
+    file: ${CREATOR_SECRETS_DIR}/oidc_client_secret
+
+volumes:
+  products:
+  caddy-data:

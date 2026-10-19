@@ -23,3 +23,5 @@ export * from './routing.js';
 export * from './context.js';
 export * from './audit-questions.js';
 export * from './github.js';
+export * from './deployment.js';
+export * from './smoke.js';

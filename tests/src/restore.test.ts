@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, rm, writeFile, appendFile } from 'node:fs/promises';
+import {
+  appendFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
@@ -286,6 +294,9 @@ test('a backup restores the catalog and artifact references into a new database 
     pgBinDir,
   });
   assert.equal(manifest.counts.artifact_manifests, 1);
+  // X06: lineage and budget totals come from the dump's own snapshot.
+  assert.ok(manifest.totals && manifest.totals.lineage.active > 0);
+  assert.ok(manifest.totals.budget.envelopes > 0);
   assert.ok(manifest.products.some((f) => f.path.endsWith('/source.tar')));
   assert.equal(
     (await checkBackup(backupDir)).database.sha256,
@@ -312,6 +323,7 @@ test('a backup restores the catalog and artifact references into a new database 
   assert.equal(check.ok, true, JSON.stringify(check));
   assert.equal(check.audit_chain.ok, true);
   assert.deepEqual(check.counts, manifest.counts);
+  assert.deepEqual(check.totals, manifest.totals);
   assert.deepEqual(
     check.artifacts.map((a) => [a.id, a.ok]),
     [[artifact.id, true]],
@@ -341,12 +353,37 @@ test('a backup restores the catalog and artifact references into a new database 
   assert.ok(sql.includes(secret.id));
   assert.doesNotMatch(sql, /zebracorn/i);
 
+  // A backup whose recorded totals disagree with its dump is refused after pg_restore.
+  const forged = JSON.parse(
+    await readFile(join(backupDir, 'backup-manifest.json'), 'utf8'),
+  );
+  forged.totals.budget.incurred_nano = String(
+    BigInt(forged.totals.budget.incurred_nano) + 1n,
+  );
+  const forgedDir = join(dir, 'forged-backup');
+  await cp(backupDir, forgedDir, { recursive: true });
+  await writeFile(
+    join(forgedDir, 'backup-manifest.json'),
+    JSON.stringify(forged),
+  );
+  await assert.rejects(
+    restoreBackup({
+      backupDir: forgedDir,
+      databaseUrl: await emptyDatabase(t),
+      productsRoot: join(dir, 'forged-products'),
+      pgBinDir,
+    }),
+    /Restored budget incurred_nano/,
+  );
+
   // ---- The restored core path works through the real API.
   const second = await startApi(
     restoredUrl,
     new ProductSupervisor(restoredRoot),
   );
   closers.push(second.api.close);
+  // The restored copy keeps its environment label.
+  assert.equal((await second.api.ops!.identity())?.environment, 'local');
   const searchAfter = await second.get(
     `workspaces/${ws}/search?q=${encodeURIComponent('restorable')}`,
   );

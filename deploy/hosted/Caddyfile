@@ -1,0 +1,27 @@
+# X06 TLS proxy. Three separate hosts: the studio (web + /api), and previews on a host of
+# their own so preview pages never receive the studio's sign-in cookie.
+{
+	email {$CREATOR_ACME_EMAIL}
+}
+
+{$CREATOR_WEB_HOST} {
+	encode gzip
+	handle /api/* {
+		reverse_proxy api:4310
+	}
+	handle {
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+}
+
+{$CREATOR_PREVIEW_HOST} {
+	reverse_proxy api:4320
+	header Strict-Transport-Security "max-age=31536000"
+}

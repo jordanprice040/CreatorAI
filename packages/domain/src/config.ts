@@ -6,12 +6,13 @@ const port = z
   .pipe(z.number().int().min(1024).max(65535));
 export const ServiceConfigSchema = z
   .strictObject({
-    host: z.literal('127.0.0.1'),
+    // Hosted deployments may listen on all interfaces behind their TLS proxy (X06).
+    host: z.enum(['127.0.0.1', '0.0.0.0']),
     api_port: port,
     web_port: port,
     /** Separate origin for private previews; never the management API or web origin. */
     preview_port: port,
-    deployment_mode: z.literal('local'),
+    deployment_mode: z.enum(['local', 'hosted']),
     data_mode: z.literal('fixture'),
     provider: z.literal('fixture'),
     live_enabled: z.literal('false'),
@@ -19,12 +20,16 @@ export const ServiceConfigSchema = z
   .refine(
     (c) => new Set([c.api_port, c.web_port, c.preview_port]).size === 3,
     'API, web and preview ports must differ.',
+  )
+  .refine(
+    (c) => c.host === '127.0.0.1' || c.deployment_mode === 'hosted',
+    'Local deployment listens on 127.0.0.1 only.',
   );
 export function serviceConfig(env: Record<string, string | undefined>) {
   return parse(
     ServiceConfigSchema,
     {
-      host: env.CREATOR_HOST ?? '127.0.0.1',
+      host: env.CREATOR_LISTEN_HOST ?? env.CREATOR_HOST ?? '127.0.0.1',
       api_port: env.CREATOR_API_PORT ?? '4310',
       web_port: env.CREATOR_WEB_PORT ?? '5173',
       preview_port: env.CREATOR_PREVIEW_PORT ?? '4320',

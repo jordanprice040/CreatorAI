@@ -1,13 +1,11 @@
 import pg from 'pg';
-import { databaseUrl } from './config.js';
+import { configuredDatabaseUrl, processEnvironment } from './config.js';
 import { migrate } from './migrate.js';
 
 try {
-  const url = databaseUrl(process.env.CREATOR_DATABASE_URL);
+  const url = configuredDatabaseUrl(processEnvironment());
   if (!url)
-    throw new Error(
-      'Set CREATOR_DATABASE_URL to a loopback postgresql:// URL.',
-    );
+    throw new Error('Set CREATOR_DATABASE_URL (or CREATOR_DATABASE_URL_FILE).');
   const pool = new pg.Pool({ connectionString: url, max: 1 });
   try {
     const applied = await migrate(pool);

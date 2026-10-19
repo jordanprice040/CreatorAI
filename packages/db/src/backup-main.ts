@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { databaseUrl } from './config.js';
+import { configuredDatabaseUrl, processEnvironment } from './config.js';
 import { createBackup, restoreBackup, verifyRestore } from './backup.js';
 
 const USAGE = `Usage:
@@ -10,15 +10,14 @@ Optional: CREATOR_PG_BIN names the folder holding pg_dump and pg_restore.`;
 
 try {
   const [command, dir] = process.argv.slice(2);
-  const url = databaseUrl(process.env.CREATOR_DATABASE_URL);
+  const env = processEnvironment();
+  const url = configuredDatabaseUrl(env);
   if (!url)
-    throw new Error(
-      'Set CREATOR_DATABASE_URL to a loopback postgresql:// URL.',
-    );
+    throw new Error('Set CREATOR_DATABASE_URL (or CREATOR_DATABASE_URL_FILE).');
   const productsRoot = resolve(
-    process.env.CREATOR_PRODUCTS_ROOT ?? '.creator/products',
+    env.CREATOR_PRODUCTS_ROOT ?? '.creator/products',
   );
-  const pgBinDir = process.env.CREATOR_PG_BIN || undefined;
+  const pgBinDir = env.CREATOR_PG_BIN || undefined;
   let out: unknown;
   if (command === 'create' && dir)
     out = await createBackup({

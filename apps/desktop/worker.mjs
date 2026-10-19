@@ -30,11 +30,21 @@ const HeartbeatSchema = z.strictObject({
     .nullable(),
 });
 
-export function workerClient(origin = 'http://127.0.0.1:4310') {
+/**
+ * Control origin for this worker. The default is the local API on loopback. A hosted
+ * control plane (X06) is accepted only when explicitly requested and only over https with
+ * certificate verification; the worker still connects outbound only and receives no
+ * inbound connections.
+ */
+export function workerClient(
+  origin = 'http://127.0.0.1:4310',
+  { hosted = false } = {},
+) {
   const url = new URL(origin);
   if (
-    url.protocol !== 'http:' ||
-    url.hostname !== '127.0.0.1' ||
+    (hosted
+      ? url.protocol !== 'https:'
+      : url.protocol !== 'http:' || url.hostname !== '127.0.0.1') ||
     url.username ||
     url.password ||
     url.pathname !== '/' ||
@@ -42,7 +52,9 @@ export function workerClient(origin = 'http://127.0.0.1:4310') {
     url.hash
   )
     throw new Error(
-      'This worker supports an explicit local loopback control origin only.',
+      hosted
+        ? 'A hosted control origin must be a bare https origin.'
+        : 'This worker supports an explicit local loopback control origin only (set CREATOR_CONTROL=hosted for an https hosted control plane).',
     );
   async function post(path, body, schema, token) {
     const r = await fetch(`${url.origin}/api/desktop/${path}`, {
@@ -157,16 +169,19 @@ if (
       );
       executePairedJob = executor.executePairedJob;
     }
-    const client = workerClient(
-      process.env.CREATOR_API_URL ?? 'http://127.0.0.1:4310',
-    );
+    const hosted = process.env.CREATOR_CONTROL === 'hosted';
+    const origin = process.env.CREATOR_API_URL ?? 'http://127.0.0.1:4310';
+    const client = workerClient(origin, { hosted });
+    const approveAt = hosted
+      ? new URL(process.env.CREATOR_WEB_URL ?? origin).origin
+      : 'http://127.0.0.1:5173';
     const { challenge, proof } = await client.begin(
       workspaceId,
       label,
       execution ? ['artifact.run'] : ['artifact.verify'],
     );
     console.log(
-      `Compare code ${challenge.comparison_code}. Approve in your signed-in system browser:\nhttp://127.0.0.1:5173/api/desktop/approve?id=${challenge.id}`,
+      `Compare code ${challenge.comparison_code}. Approve in your signed-in system browser:\n${approveAt}/api/desktop/approve?id=${challenge.id}`,
     );
     let paired;
     for (let attempt = 0; attempt < 120; attempt++) {
