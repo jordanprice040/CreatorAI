@@ -1,0 +1,707 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import {
+  ContractError,
+  type ErrorCode,
+  type PaymentConnection,
+} from '@creator/contracts';
+import { NANO_PER_CENT } from '@creator/domain';
+import { PaymentStore, type CommandContext } from '@creator/db';
+import {
+  FixtureProcessor,
+  PaymentService,
+  StripeTestProcessor,
+} from '@creator/broker';
+import { freshDatabase } from './pg-harness.js';
+import { verifiedRelease } from './payments-harness.js';
+
+// X07 acceptance on the labelled fixture processor (no live or test-mode Stripe call is made
+// here): duplicate and out-of-order events, redirects, refunds and disputes after
+// reinvestment, partial and concurrent allocations, and unavailable funding rails.
+const rejects = (code: ErrorCode, p: Promise<unknown>) =>
+  assert.rejects(
+    p,
+    (e: unknown) => e instanceof ContractError && e.code === code,
+  );
+const owner: CommandContext = { actorId: randomUUID() };
+const editor: CommandContext = { actorId: randomUUID() };
+const hook: CommandContext = { actorId: randomUUID() };
+const SECRET = 'whsec_fixture_secret_0123456789';
+const ENV = { CREATOR_PAYMENTS_HOOK: SECRET };
+const c = (cents: number) => BigInt(cents) * NANO_PER_CENT;
+
+async function setup(t: test.TestContext) {
+  const db = await freshDatabase(t);
+  if (!db) return null;
+  const store = new PaymentStore(db.pool);
+  for (const [a, kind] of [
+    [owner, 'human'],
+    [editor, 'human'],
+    [hook, 'system'],
+  ] as const)
+    await store.ensureActor({ id: a.actorId, kind, display_name: kind });
+  const processors = new Map<string, FixtureProcessor>();
+  const service = new PaymentService(store, {
+    env: ENV,
+    fixture: (conn) => {
+      let p = processors.get(conn.id);
+      if (!p) {
+        p = new FixtureProcessor('acct_fixture0001');
+        processors.set(conn.id, p);
+      }
+      return p;
+    },
+  });
+  async function workspace(mode: 'fixture' | 'real' = 'fixture') {
+    const ws = await store.createWorkspace(owner, {
+      name: `Payments ${mode}`,
+      record_mode: mode,
+    });
+    await store.addMember(owner, ws.id, editor.actorId, 'editor');
+    return ws.id;
+  }
+  async function connected(ws: string, account = 'acct_fixture0001') {
+    const conn = await store.registerPaymentConnection(owner, ws, {
+      label: 'Fixture processor',
+      processor: 'fixture',
+      mode: 'fixture',
+      account_id: account,
+      secret_key_env: null,
+      webhook_secret_env: 'CREATOR_PAYMENTS_HOOK',
+    });
+    const verified = await service.verify(owner, ws, conn.id);
+    return { conn: verified, fx: processors.get(conn.id)! };
+  }
+  async function offer(ws: string, conn: PaymentConnection, cents = 1000) {
+    const release = await verifiedRelease(store, db!.pool, ws, owner);
+    const o = await store.createOffer(owner, ws, {
+      connection_id: conn.id,
+      artifact_id: release.artifact_id,
+      manifest_sha256: release.manifest_sha256,
+      label: 'Fixture app',
+      price_nano_usd: c(cents).toString(),
+    });
+    return { offer: o, release };
+  }
+  /** Buyer pays through checkout; returns the processor's payment id. */
+  async function sale(
+    ws: string,
+    fx: FixtureProcessor,
+    offerId: string,
+    customer: string,
+  ) {
+    const co = await service.checkout(owner, ws, {
+      offer_id: offerId,
+      customer_ref: customer,
+      success_url: 'http://127.0.0.1:5173/thanks',
+      cancel_url: 'http://127.0.0.1:5173/cancel',
+    });
+    assert.equal(co.state, 'open');
+    return fx.pay(co.processor_session_id!);
+  }
+  const deliver = (
+    conn: PaymentConnection,
+    fx: FixtureProcessor,
+    type: string,
+    object: Record<string, unknown>,
+    opts: { id?: string; t?: number; livemode?: boolean; secret?: string } = {},
+  ) => {
+    const e = fx.event(type, object, opts.secret ?? SECRET, opts);
+    return service.receiveWebhook(hook, conn.id, e.signature, e.raw);
+  };
+  const balances = async (ws: string) =>
+    (await store.ledgerBalances(owner, ws)).balances;
+  return {
+    db,
+    store,
+    service,
+    workspace,
+    connected,
+    offer,
+    sale,
+    deliver,
+    balances,
+  };
+}
+
+test('X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, service } = s;
+  await rejects('LIVE_DISABLED', s.connected(await s.workspace('real')));
+  const ws = await s.workspace();
+  // Wrong account never activates; only the owner registers.
+  await rejects(
+    'ACCESS_DENIED',
+    store.registerPaymentConnection(editor, ws, {
+      label: 'x',
+      processor: 'fixture',
+      mode: 'fixture',
+      account_id: 'acct_fixture0001',
+      secret_key_env: null,
+      webhook_secret_env: 'CREATOR_PAYMENTS_HOOK',
+    }),
+  );
+  const wrong = await s.connected(ws, 'acct_someoneelse');
+  assert.equal(wrong.conn.status, 'rejected');
+  assert.equal(wrong.conn.verification?.result, 'wrong_account');
+  await rejects('INVALID_TRANSITION', s.offer(ws, wrong.conn));
+  const { conn, fx } = await s.connected(ws);
+  assert.equal(conn.status, 'active');
+  const { offer, release } = await s.offer(ws, conn, 1000);
+  await rejects(
+    'EVIDENCE_MISMATCH',
+    store.createOffer(owner, ws, {
+      connection_id: conn.id,
+      artifact_id: release.artifact_id,
+      manifest_sha256: 'f'.repeat(64),
+      label: 'x',
+      price_nano_usd: c(10).toString(),
+    }),
+  );
+  await rejects(
+    'INVALID_CONTRACT',
+    store.createOffer(owner, ws, {
+      connection_id: conn.id,
+      artifact_id: release.artifact_id,
+      manifest_sha256: release.manifest_sha256,
+      label: 'x',
+      price_nano_usd: '15',
+    }),
+  );
+
+  const pi = await s.sale(ws, fx, offer.id, 'cust-a');
+  // The buyer lands on the success page: nothing is granted until the backend reads payment.
+  const before = await store.checkEntitlement(
+    owner,
+    ws,
+    release.artifact_id,
+    'cust-a',
+  );
+  assert.equal(before.granted, false);
+  // A forged event (wrong secret), a stale one and a live-mode one are all refused.
+  assert.equal(
+    (
+      await s.deliver(
+        conn,
+        fx,
+        'payment_intent.succeeded',
+        { object: 'payment_intent', id: pi },
+        { secret: 'whsec_attacker' },
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await s.deliver(
+        conn,
+        fx,
+        'payment_intent.succeeded',
+        { object: 'payment_intent', id: pi },
+        { t: Math.floor(Date.now() / 1000) - 900 },
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await s.deliver(
+        conn,
+        fx,
+        'payment_intent.succeeded',
+        { object: 'payment_intent', id: pi },
+        { livemode: true },
+      )
+    ).status,
+    400,
+  );
+  assert.deepEqual(await s.balances(ws), {});
+  // The processor is down: the delivery is refused for retry and records no money.
+  fx.down = true;
+  const deferred = await s.deliver(
+    conn,
+    fx,
+    'payment_intent.succeeded',
+    { object: 'payment_intent', id: pi },
+    { id: 'evt_first' },
+  );
+  assert.equal(deferred.status, 503);
+  assert.deepEqual(await s.balances(ws), {});
+  fx.down = false;
+  // An event body claiming a different amount is ignored: only the backend read counts.
+  const first = await s.deliver(
+    conn,
+    fx,
+    'payment_intent.succeeded',
+    { object: 'payment_intent', id: pi, amount: 999999 },
+    { id: 'evt_first' },
+  );
+  assert.equal(first.status, 200);
+  assert.equal((first.body as { outcome: string }).outcome, 'applied');
+  assert.equal(
+    (await store.checkEntitlement(owner, ws, release.artifact_id, 'cust-a'))
+      .granted,
+    true,
+  );
+  // Same event again, and a second distinct event about the same charge: no new money.
+  assert.equal(
+    (
+      await s.deliver(
+        conn,
+        fx,
+        'payment_intent.succeeded',
+        { object: 'payment_intent', id: pi },
+        { id: 'evt_first' },
+      )
+    ).body.outcome,
+    'duplicate',
+  );
+  const again = await s.deliver(
+    conn,
+    fx,
+    'charge.succeeded',
+    { object: 'charge', id: 'ch_x', payment_intent: pi },
+    { id: 'evt_second' },
+  );
+  assert.equal((again.body as { posted: number }).posted, 0);
+  const fee = 30 + 29; // fixture fee: 2.9% + 30 cents
+  assert.deepEqual(await s.balances(ws), {
+    processing_fees: c(fee).toString(),
+    processor_pending: c(1000 - fee).toString(),
+    revenue: c(-1000).toString(),
+  });
+
+  // Out of order: the refund event arrives before the settlement event for a second sale.
+  const pi2 = await s.sale(ws, fx, offer.id, 'cust-b');
+  fx.settle(pi2);
+  const re = fx.refund(pi2, 1000);
+  await s.deliver(conn, fx, 'refund.created', {
+    object: 'refund',
+    id: re,
+    payment_intent: pi2,
+  });
+  await s.deliver(conn, fx, 'payment_intent.succeeded', {
+    object: 'payment_intent',
+    id: pi2,
+  });
+  const b = await s.balances(ws);
+  assert.equal(b.refunds, c(1000).toString());
+  assert.equal(b.revenue, c(-2000).toString());
+  assert.equal((await store.ledgerBalances(owner, ws)).total_nano, '0');
+  // A refunded buyer never got access; the earlier buyer still has it.
+  assert.equal(
+    (await store.checkEntitlement(owner, ws, release.artifact_id, 'cust-b'))
+      .granted,
+    false,
+  );
+  const ents = await store.listEntitlements(owner, ws);
+  assert.deepEqual(ents.map((e) => [e.customer_ref, e.status]).sort(), [
+    ['cust-a', 'active'],
+    ['cust-b', 'revoked'],
+  ]);
+
+  // Dispute: suspended while open, active again when won, ledger corrected (not edited).
+  const dp = fx.dispute(pi);
+  await s.deliver(conn, fx, 'charge.dispute.created', {
+    object: 'dispute',
+    id: dp,
+    payment_intent: pi,
+  });
+  assert.equal(
+    (await store.checkEntitlement(owner, ws, release.artifact_id, 'cust-a'))
+      .granted,
+    false,
+  );
+  fx.closeDispute(pi, dp, 'won');
+  await service.reconcilePayment(owner, ws, conn.id, pi);
+  assert.equal(
+    (await store.checkEntitlement(owner, ws, release.artifact_id, 'cust-a'))
+      .granted,
+    true,
+  );
+  const ledger = await store.listLedger(owner, ws);
+  const disputeEntries = ledger.filter((e) =>
+    e.economic_key.includes(':dispute:'),
+  );
+  assert.deepEqual(
+    disputeEntries.map((e) => [e.revision, e.kind]),
+    [
+      [1, 'original'],
+      [2, 'correction'],
+    ],
+  );
+  assert.equal((await s.balances(ws)).dispute_losses, undefined);
+  assert.equal((await store.ledgerBalances(owner, ws)).total_nano, '0');
+  // Payouts move money to the bank and are not revenue; a failed payout is reversed.
+  const po = fx.payoutNow(500);
+  await s.deliver(conn, fx, 'payout.paid', { object: 'payout', id: po });
+  assert.equal((await s.balances(ws)).bank, c(500).toString());
+  fx.failPayout(po);
+  await s.deliver(conn, fx, 'payout.failed', { object: 'payout', id: po });
+  assert.equal((await s.balances(ws)).bank, undefined);
+  assert.equal((await s.balances(ws)).revenue, c(-2000).toString());
+
+  // The ledger cannot be edited or unbalanced, even directly.
+  await assert.rejects(
+    s.db.pool.query('update finance_postings set amount_nano = 1'),
+  );
+  await assert.rejects(
+    (async () => {
+      const client = await s.db.pool.connect();
+      try {
+        await client.query('begin');
+        const id = randomUUID();
+        const ev = (await client.query('select id from audit_events limit 1'))
+          .rows[0].id;
+        await client.query(
+          `insert into finance_entries (id, workspace_id, economic_key, revision, kind, memo,
+             actor_id, event_id) values ($1,$2,'forged',1,'original','x',$3,$4)`,
+          [id, ws, owner.actorId, ev],
+        );
+        await client.query(
+          `insert into finance_postings values ($1,'bank',100), ($1,'revenue',-99)`,
+          [id],
+        );
+        await client.query('commit');
+      } finally {
+        await client.query('rollback').catch(() => undefined);
+        client.release();
+      }
+    })(),
+    /unbalanced/,
+  );
+  // Revoked connections stop accepting events.
+  await store.revokePaymentConnection(owner, ws, conn.id, {
+    expected_version: (await store.getPaymentConnection(owner, ws, conn.id))
+      .version,
+    reason: 'Done.',
+  });
+  assert.equal(
+    (
+      await s.deliver(conn, fx, 'payment_intent.succeeded', {
+        object: 'payment_intent',
+        id: pi,
+      })
+    ).status,
+    409,
+  );
+  const events = await store.listPaymentEvents(owner, ws, conn.id);
+  assert.ok(events.some((e) => e.status === 'deferred'));
+  assert.ok(events.some((e) => e.reason === 'signature_mismatch'));
+});
+
+test('X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, service } = s;
+  const ws = await s.workspace();
+  const { conn, fx } = await s.connected(ws);
+  const { offer } = await s.offer(ws, conn, 10_000);
+  const policy = {
+    enabled: true,
+    eligible_bps: 5000,
+    holdback_days: 0,
+    period_days: 30,
+    period_cap_nano_usd: c(20_000).toString(),
+    min_reserve_nano_usd: c(1000).toString(),
+    rationale: 'Fixture policy: half of settled earnings, small reserve.',
+  };
+  const capacity = () => store.reinvestmentCapacity(owner, ws);
+  const allocate = (cents: number, allow_partial = false) =>
+    store.allocateReinvestment(owner, ws, {
+      amount_nano_usd: c(cents).toString(),
+      allow_partial,
+      envelope_name: 'Reinvested fixture budget',
+      max_in_flight: 2,
+    });
+  // Disabled by default.
+  assert.equal((await capacity()).binding, 'policy_disabled');
+  await rejects(
+    'ACCESS_DENIED',
+    store.setReinvestmentPolicy(editor, ws, policy),
+  );
+  await store.setReinvestmentPolicy(owner, ws, policy);
+  // Seed money is funding, not earnings.
+  await store.recordOwnerFunding(owner, ws, {
+    amount_nano_usd: c(50_000).toString(),
+    evidence: 'Fixture seed.',
+  });
+  const rail = await store.registerRail(owner, ws, {
+    label: 'Owner bank',
+    kind: 'owner_attested',
+    connection_id: null,
+  });
+  await store.attestRail(owner, ws, rail.id, {
+    available_nano_usd: c(100_000).toString(),
+    evidence: 'Fixture statement.',
+  });
+  assert.equal((await capacity()).eligible_tranches_nano, '0');
+  // Captured but pending: still nothing.
+  const p1 = await s.sale(ws, fx, offer.id, 'cust-1');
+  await service.reconcilePayment(owner, ws, conn.id, p1);
+  assert.equal((await capacity()).capacity_nano, '0');
+  // Settled: half of the net becomes eligible.
+  fx.settle(p1);
+  await service.reconcilePayment(owner, ws, conn.id, p1);
+  const net1 = 10_000 - (290 + 30);
+  let cap = await capacity();
+  assert.equal(cap.eligible_tranches_nano, c(net1 / 2).toString());
+  assert.equal(cap.capacity_nano, c(net1 / 2).toString());
+  assert.equal(cap.binding, 'eligible_tranches');
+  // A payout changes cash location, not earnings.
+  const po = fx.payoutNow(2000);
+  await service.reconcilePayout(owner, ws, conn.id, po);
+  assert.equal(
+    (await capacity()).eligible_tranches_nano,
+    c(net1 / 2).toString(),
+  );
+
+  // Unavailable rail: no money to fund it, so no authority.
+  await store.setRailStatus(owner, ws, rail.id, {
+    status: 'unavailable',
+    reason: 'Bank link down.',
+  });
+  cap = await capacity();
+  assert.equal(cap.capacity_nano, '0');
+  assert.equal(cap.binding, 'usable_liquidity');
+  assert.match(cap.parts.unavailable_rails[0]!, /marked unavailable/);
+  await rejects('BUDGET_EXCEEDED', allocate(100));
+  await store.setRailStatus(owner, ws, rail.id, {
+    status: 'available',
+    reason: 'Restored.',
+  });
+  // A processor rail with no fresh balance counts as unavailable too.
+  const prail = await store.registerRail(owner, ws, {
+    label: 'Processor',
+    kind: 'processor_balance',
+    connection_id: conn.id,
+  });
+  fx.down = true;
+  await rejects(
+    'STORAGE_UNAVAILABLE',
+    service.observeRail(owner, ws, prail.id),
+  );
+  fx.down = false;
+  assert.match(
+    (await capacity()).parts.unavailable_rails.join(';'),
+    /Processor: no fresh balance/,
+  );
+
+  // Over capacity is refused unless partial is allowed; partial keeps the remainder.
+  await rejects('BUDGET_EXCEEDED', allocate(net1));
+  const a1 = await allocate(1000);
+  assert.equal(a1.amount_nano_usd, c(1000).toString());
+  const t1 = (await store.listTranches(owner, ws))[0] as Record<
+    string,
+    unknown
+  >;
+  assert.equal(t1.consumed_nano, c(1000).toString());
+  assert.equal(
+    (await capacity()).eligible_tranches_nano,
+    c(net1 / 2 - 1000).toString(),
+  );
+
+  // Concurrency: ten racing requests can never consume more than the tranche holds.
+  const remaining = net1 / 2 - 1000;
+  const racers = await Promise.allSettled(
+    Array.from({ length: 10 }, () => allocate(Math.floor(remaining / 4) + 1)),
+  );
+  const won = racers.filter((r) => r.status === 'fulfilled').length;
+  assert.equal(won, 3);
+  const after = (await store.listTranches(owner, ws))[0] as Record<
+    string,
+    unknown
+  >;
+  const allocations = await store.listAllocations(owner, ws);
+  const total = allocations.reduce(
+    (n, a) => n + BigInt(String((a as Record<string, unknown>).amount_nano)),
+    0n,
+  );
+  assert.equal(String(after.consumed_nano), total.toString());
+  assert.ok(total <= c(net1 / 2));
+  // Partial takes exactly what is left.
+  const last = await allocate(10_000, true);
+  assert.equal(BigInt(last.amount_nano_usd), c(net1 / 2) - total);
+  assert.equal((await capacity()).capacity_nano, '0');
+  // Envelopes derived from earnings are ordinary global budgets in the budget journal.
+  const env = await store.getEnvelope(owner, ws, a1.envelope_id);
+  assert.equal(env.kind, 'global');
+  assert.deepEqual(await store.journalBalances(ws, a1.envelope_id), {
+    allocated: '0',
+    reserved: '0',
+    unknown: '0',
+    incurred: '0',
+  });
+
+  // Refund after reinvestment: idle derived envelopes give back unused authority.
+  const busy = await store.createEnvelope(owner, ws, {
+    parent_id: a1.envelope_id,
+    kind: 'period',
+    run_id: null,
+    name: 'Busy child',
+    cap_nano_usd: c(500).toString(),
+    max_in_flight: 1,
+    starts_at: new Date().toISOString(),
+    ends_at: new Date(Date.now() + 86_400_000).toISOString(),
+  });
+  fx.refund(p1, 10_000);
+  await service.reconcilePayment(owner, ws, conn.id, p1);
+  cap = await capacity();
+  // Every idle derived envelope was reclaimed; a1 has a carved-out child, so its share remains a loss.
+  const reclaimable = net1 / 2 - 1000;
+  assert.equal(cap.frozen, true);
+  assert.equal(cap.binding, 'losses_outstanding');
+  assert.equal(cap.outstanding_losses_nano, c(1000).toString());
+  await rejects('BUDGET_EXCEEDED', allocate(1));
+  const closed = await store.listEnvelopes(owner, ws);
+  const reinvested = closed.filter(
+    (e) => e.name === 'Reinvested fixture budget',
+  );
+  assert.equal(reinvested.filter((e) => e.status === 'active').length, 1);
+  assert.ok(reclaimable > 0);
+  // Freeing the child lets the loss be reclaimed from a1; expansion unfreezes.
+  await store.closeEnvelope(owner, ws, busy.id, {
+    expected_version: busy.version,
+    reason: 'Done.',
+  });
+  assert.deepEqual(await store.settleReinvestmentLosses(owner, ws), {
+    outstanding_nano: '0',
+  });
+  assert.equal((await capacity()).frozen, false);
+  // No authority survives from refunded earnings, and nothing was created from nothing.
+  assert.equal(
+    (await store.listEnvelopes(owner, ws)).filter(
+      (e) => e.name === 'Reinvested fixture budget' && e.status === 'active',
+    ).length,
+    0,
+  );
+  assert.equal((await capacity()).capacity_nano, '0');
+  assert.equal((await store.ledgerBalances(owner, ws)).total_nano, '0');
+});
+
+test('X07 Stripe test adapter maps processor objects from a contract double', async () => {
+  const calls: string[] = [];
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  const stripe = new StripeTestProcessor('sk_test_contractDouble0001', {
+    fetch: (async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      calls.push(
+        `${init?.method ?? 'GET'} ${u.replace('https://api.stripe.com', '')}`,
+      );
+      assert.equal(
+        (init?.headers as Record<string, string>).Authorization,
+        'Bearer sk_test_contractDouble0001',
+      );
+      if (u.includes('/v1/payment_intents/'))
+        return json({
+          id: 'pi_123',
+          object: 'payment_intent',
+          livemode: false,
+          currency: 'usd',
+          amount: 1500,
+          status: 'succeeded',
+          metadata: { offer_id: 'o', customer_ref: 'cust-9' },
+          latest_charge: {
+            id: 'ch_1',
+            balance_transaction: {
+              id: 'txn_1',
+              amount: 1500,
+              fee: 74,
+              net: 1426,
+              status: 'pending',
+              available_on: 1_800_000_000,
+            },
+          },
+        });
+      if (u.includes('/v1/refunds'))
+        return json({
+          data: [{ id: 're_1', amount: 500, status: 'succeeded' }],
+        });
+      if (u.includes('/v1/disputes'))
+        return json({
+          data: [
+            {
+              id: 'dp_1',
+              amount: 1000,
+              status: 'needs_response',
+              balance_transactions: [{ amount: -1000, fee: 1500 }],
+            },
+          ],
+        });
+      if (u.includes('/v1/checkout/sessions')) {
+        const body = new URLSearchParams(String(init?.body));
+        assert.equal(
+          body.get('payment_intent_data[metadata][offer_id]'),
+          'offer-1',
+        );
+        assert.equal(
+          body.get('line_items[0][price_data][unit_amount]'),
+          '1500',
+        );
+        assert.ok((init?.headers as Record<string, string>)['Idempotency-Key']);
+        return json({ id: 'cs_1', url: 'https://checkout.stripe.com/c/cs_1' });
+      }
+      if (u.includes('/v1/balance'))
+        return json({
+          livemode: false,
+          available: [
+            { amount: 700, currency: 'usd' },
+            { amount: 9, currency: 'eur' },
+          ],
+          pending: [{ amount: 300, currency: 'usd' }],
+        });
+      if (u.includes('/v1/payouts/'))
+        return json({
+          id: 'po_1',
+          livemode: false,
+          currency: 'usd',
+          amount: 50,
+          status: 'in_transit',
+        });
+      return json({ error: { message: 'no' } }, 500);
+    }) as typeof fetch,
+  });
+  const p = await stripe.payment('pi_123');
+  assert.equal(p.charge?.balance_transaction.net, 1426);
+  assert.equal(
+    p.charge?.balance_transaction.available_on,
+    new Date(1_800_000_000_000).toISOString(),
+  );
+  assert.deepEqual(p.refunds, [
+    { id: 're_1', amount: 500, status: 'succeeded' },
+  ]);
+  assert.deepEqual(p.disputes[0], {
+    id: 'dp_1',
+    amount: 1000,
+    status: 'open',
+    funds_amount: -1000,
+    funds_fee: 1500,
+  });
+  assert.equal(
+    (
+      await stripe.createCheckout({
+        offer_id: 'offer-1',
+        label: 'App',
+        price_cents: 1500,
+        customer_ref: 'cust-9',
+        success_url: 'http://127.0.0.1/a',
+        cancel_url: 'http://127.0.0.1/b',
+        idempotency_key: 'k-1',
+      })
+    ).session_id,
+    'cs_1',
+  );
+  assert.deepEqual(await stripe.balance(), {
+    livemode: false,
+    available_cents: 700,
+    pending_cents: 300,
+  });
+  assert.equal((await stripe.payout('po_1')).status, 'in_transit');
+  assert.ok(calls.every((c) => / \/v1\//.test(c)));
+});

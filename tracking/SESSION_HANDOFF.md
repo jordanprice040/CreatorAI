@@ -1,5 +1,17 @@
 # Session handoff
 
+## X07 payments, entitlements and reinvestment (October 19, 2026)
+
+Built on branch claude/x07-5zm23m from main 4fe3d33: migration 19, ADR-0033,
+docs/PAYMENTS.md, evidence/x07. pnpm check: 243 tests, 230 pass, 0 fail, 13 opt-in
+skips. Fixture processor and Stripe contract double only; no processor account, key or
+call. Payment connections are confined to fixture workspaces; live mode is not built.
+Open owner decisions: which processor (Stripe is a reversible default), whether and when
+to activate live payments, and the reinvestment policy values (disabled by default).
+Merge note: X06 takes migration 18 and ADR-0032; whichever merges second fixes the
+schema-version test (tests/src/storage.test.ts) and shared tracking lists.
+Next eligible prompt: X08 on request.
+
 ## X05 local Windows acceptance passed (October 19, 2026)
 
 Final release native menus and rendered shared UI passed local acceptance.

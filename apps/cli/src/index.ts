@@ -107,6 +107,14 @@ import {
   GitHubOperationSchema,
   GitHubRepositorySchema,
   GitHubReviewSchema,
+  AllocationSchema,
+  CapacitySchema,
+  CheckoutSchema,
+  EntitlementSchema,
+  LedgerEntrySchema,
+  OfferSchema,
+  PaymentConnectionSchema,
+  ReinvestmentPolicySchema,
 } from '@creator/contracts';
 
 const USAGE = `Usage:
@@ -198,6 +206,35 @@ const USAGE = `Usage:
   pnpm cli github-ops <workspace>
   pnpm cli github-reconcile <workspace> <operation-id>
   pnpm cli github-review <workspace> <review-json|file.json>
+  pnpm cli pay-connect <workspace> <connection-json|file.json>
+  pnpm cli pay-connections <workspace>
+  pnpm cli pay-verify <workspace> <connection-id>
+  pnpm cli pay-revoke <workspace> <connection-id> <expected-version> <reason>
+  pnpm cli pay-events <workspace> <connection-id>
+  pnpm cli offer-create <workspace> <offer-json|file.json>
+  pnpm cli offers <workspace>
+  pnpm cli offer-archive <workspace> <offer-id>
+  pnpm cli checkout <workspace> <checkout-json|file.json>
+  pnpm cli pay-reconcile <workspace> <connection-id> <payment-id>
+  pnpm cli payout-reconcile <workspace> <connection-id> <payout-id>
+  pnpm cli ledger <workspace>
+  pnpm cli ledger-balances <workspace>
+  pnpm cli owner-funding <workspace> <amount-nano-usd> <evidence>
+  pnpm cli entitlements <workspace>
+  pnpm cli entitlement-check <workspace> <artifact-id> <customer-ref>
+  pnpm cli rails <workspace>
+  pnpm cli rail-add <workspace> <rail-json|file.json>
+  pnpm cli rail-status <workspace> <rail-id> <available|unavailable> <reason>
+  pnpm cli rail-attest <workspace> <rail-id> <available-nano-usd> <evidence>
+  pnpm cli rail-observe <workspace> <rail-id>
+  pnpm cli commitment-add <workspace> <commitment-json|file.json>
+  pnpm cli commitment-close <workspace> <commitment-id>
+  pnpm cli reinvest <workspace>
+  pnpm cli reinvest-policy <workspace> [policy-json|file.json]
+  pnpm cli reinvest-allocate <workspace> <allocation-json|file.json>
+  pnpm cli reinvest-allocations <workspace>
+  pnpm cli reinvest-tranches <workspace>
+  pnpm cli reinvest-settle <workspace>
   pnpm cli route-registry-add <workspace> <config/routing/model-registry*.json>
   pnpm cli route-registries <workspace>
   pnpm cli route-policy-set <workspace> <policy-json|file.json> [project-id]
@@ -1387,6 +1424,195 @@ export async function runCli(
           GitHubReviewSchema,
           `${ws(rest[0])}/github-reviews`,
           jsonArg(rest[1], 'Review'),
+        );
+        break;
+      // X07 payments, entitlements and reinvestment.
+      case 'pay-connect':
+        data = await call(
+          PaymentConnectionSchema,
+          `${ws(rest[0])}/payment-connections`,
+          jsonArg(rest[1], 'Connection'),
+        );
+        break;
+      case 'pay-connections':
+        data = await call(
+          z.array(PaymentConnectionSchema),
+          `${ws(rest[0])}/payment-connections`,
+        );
+        break;
+      case 'pay-verify':
+        data = await call(
+          PaymentConnectionSchema,
+          `${ws(rest[0])}/payment-connections/${encodeURIComponent(rest[1] ?? '')}/verify`,
+          {},
+        );
+        break;
+      case 'pay-revoke':
+        data = await call(
+          PaymentConnectionSchema,
+          `${ws(rest[0])}/payment-connections/${encodeURIComponent(rest[1] ?? '')}/revoke`,
+          {
+            expected_version: version(rest[2]),
+            reason: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'pay-events':
+        data = await call(
+          z.array(z.unknown()),
+          `${ws(rest[0])}/payment-connections/${encodeURIComponent(rest[1] ?? '')}/events`,
+        );
+        break;
+      case 'offer-create':
+        data = await call(
+          OfferSchema,
+          `${ws(rest[0])}/payment-offers`,
+          jsonArg(rest[1], 'Offer'),
+        );
+        break;
+      case 'offers':
+        data = await call(
+          z.array(OfferSchema),
+          `${ws(rest[0])}/payment-offers`,
+        );
+        break;
+      case 'offer-archive':
+        data = await call(
+          OfferSchema,
+          `${ws(rest[0])}/payment-offers/${encodeURIComponent(rest[1] ?? '')}/archive`,
+          {},
+        );
+        break;
+      case 'checkout':
+        data = await call(
+          CheckoutSchema,
+          `${ws(rest[0])}/payment-checkouts`,
+          jsonArg(rest[1], 'Checkout'),
+        );
+        break;
+      case 'pay-reconcile':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/payments/${encodeURIComponent(rest[1] ?? '')}/reconcile`,
+          { payment_id: rest[2] ?? '' },
+        );
+        break;
+      case 'payout-reconcile':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/payouts/${encodeURIComponent(rest[1] ?? '')}/reconcile`,
+          { payout_id: rest[2] ?? '' },
+        );
+        break;
+      case 'ledger':
+        data = await call(z.array(LedgerEntrySchema), `${ws(rest[0])}/ledger`);
+        break;
+      case 'ledger-balances':
+        data = await call(z.unknown(), `${ws(rest[0])}/ledger/balances`);
+        break;
+      case 'owner-funding':
+        data = await call(z.unknown(), `${ws(rest[0])}/ledger/owner-funding`, {
+          amount_nano_usd: rest[1] ?? '',
+          evidence: rest.slice(2).join(' '),
+        });
+        break;
+      case 'entitlements':
+        data = await call(
+          z.array(EntitlementSchema),
+          `${ws(rest[0])}/entitlements`,
+        );
+        break;
+      case 'entitlement-check':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/entitlements/check?${new URLSearchParams({ artifact_id: rest[1] ?? '', customer_ref: rest[2] ?? '' }).toString()}`,
+        );
+        break;
+      case 'rails':
+        data = await call(z.array(z.unknown()), `${ws(rest[0])}/funding-rails`);
+        break;
+      case 'rail-add':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/funding-rails`,
+          jsonArg(rest[1], 'Rail'),
+        );
+        break;
+      case 'rail-status':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/funding-rails/${encodeURIComponent(rest[1] ?? '')}/status`,
+          {
+            status: rest[2],
+            reason: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'rail-attest':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/funding-rails/${encodeURIComponent(rest[1] ?? '')}/attest`,
+          {
+            available_nano_usd: rest[2] ?? '',
+            evidence: rest.slice(3).join(' '),
+          },
+        );
+        break;
+      case 'rail-observe':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/funding-rails/${encodeURIComponent(rest[1] ?? '')}/observe`,
+          {},
+        );
+        break;
+      case 'commitment-add':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/commitments`,
+          jsonArg(rest[1], 'Commitment'),
+        );
+        break;
+      case 'commitment-close':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/commitments/${encodeURIComponent(rest[1] ?? '')}/close`,
+          {},
+        );
+        break;
+      case 'reinvest':
+        data = await call(CapacitySchema, `${ws(rest[0])}/reinvestment`);
+        break;
+      case 'reinvest-policy':
+        data = await call(
+          ReinvestmentPolicySchema.nullable(),
+          `${ws(rest[0])}/reinvestment/policy`,
+          rest[1] ? jsonArg(rest[1], 'Policy') : undefined,
+        );
+        break;
+      case 'reinvest-allocate':
+        data = await call(
+          AllocationSchema,
+          `${ws(rest[0])}/reinvestment/allocations`,
+          jsonArg(rest[1], 'Allocation'),
+        );
+        break;
+      case 'reinvest-allocations':
+        data = await call(
+          z.array(z.unknown()),
+          `${ws(rest[0])}/reinvestment/allocations`,
+        );
+        break;
+      case 'reinvest-tranches':
+        data = await call(
+          z.array(z.unknown()),
+          `${ws(rest[0])}/reinvestment/tranches`,
+        );
+        break;
+      case 'reinvest-settle':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/reinvestment/settle-losses`,
+          {},
         );
         break;
       case 'route-registry-add':

@@ -1,5 +1,45 @@
 # Implementation status
 
+## X07 — payments, entitlements, revenue and reinvestment (October 19, 2026)
+
+Branch claude/x07-5zm23m from main 4fe3d33 (X05 merged); migration 19 (18 left to X06,
+built in parallel); ADR-0033; docs/PAYMENTS.md. Partial: implemented and verified with a
+labelled fixture processor and a Stripe contract double only. No processor account,
+credential or call; live payments are not built and need a separate owner decision.
+
+What works: processor connections (fixture or Stripe test mode, fixture workspaces only;
+live keys refused) verified against the configured account; offers bound to one verified
+artifact manifest by id and hash; checkout sessions that grant nothing; an inert return
+page; signed webhooks (Stripe-Signature, 5-minute tolerance) that only name objects, with
+the payment or payout then read from the processor (503 and nothing recorded if it cannot
+be read); an immutable double-entry ledger keyed by economic transaction with balanced
+corrections (deferred balance trigger); fees, refunds, disputes (open, won, lost),
+settlements and payouts; entitlements derived from verified payment state; owner seed
+funding as non-earnings; reinvestment policy, tranches per settled payment, funding rails
+(processor balance or owner attestation, with expiry), commitments, allocations bounded
+by eligible tranches, surplus, usable liquidity and the period cap under a per-workspace
+lock, partial allocations, and loss handling that reclaims idle reinvested envelopes or
+freezes new allocations. API routes, webhook endpoint and CLI commands.
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check with CREATOR_TEST_DATABASE_URL passed:
+typecheck, 243 tests, 230 pass, 0 fail, 13 skips (opt-in WSL2/native gates), format clean
+(tracking/evidence/x07/check.log). Baseline on main before X07: 234 tests, 221 pass, 13
+skips. New tests: payments-domain (5), payments (3 DB acceptance incl. Stripe contract
+double), payments-api (1 API + CLI); storage test updated for migration 19. Acceptance on
+fixtures: forged, stale, live-mode and unsigned deliveries refused; processor outage
+defers; duplicate event ids and distinct events about one charge post nothing new;
+refund-before-settlement order converges; redirect grants nothing; refund revokes, open
+dispute suspends, won dispute restores with a correction entry; payout failure reversed;
+seed, pending and payouts add no capacity; unavailable or stale rails give zero capacity;
+10 racing allocations consume exactly the tranche (3 won); refund after reinvestment
+reclaims idle envelopes and freezes while a busy one holds authority. Mutation check:
+with economic-key correction disabled the duplicate/out-of-order test fails
+(evidence/x07/mutation-economic-key.log).
+
+Limits: no live mode; no Stripe call observed (API version not pinned); no web UI; USD
+only; no taxes, subscriptions or customer accounts; fixture processor state is in API
+memory. Next eligible: X08 on request (X06 being built in parallel).
+
 ## X05 local Windows acceptance passed (October 19, 2026)
 
 Final release native menus and rendered shared UI passed local acceptance.
@@ -651,7 +691,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | X04 | Scoped GitHub management | partial (cloud Linux, PostgreSQL 16; fixture GitHub and loopback contracts) | Branch claude/x04-gm7n32 from d2c8ef1; migration 15; ADR-0027; docs/GITHUB.md; evidence/x04; 221 tests / 210 pass / 11 WSL skips | Owner-created GitHub App or fine-grained token, CREATOR_GITHUB=live, grants and a live verification; webhook forwarder; releases and settings; web UI |
 | X05 | Windows desktop and paired local workers | deferred | No application code at T00 | T13 |
 | X06 | Hosted operation and observability | deferred | No application code at T00 | T17; X05 only for hosted-to-local pairing |
-| X07 | Payments, entitlements, revenue and reinvestment | deferred | No application code at T00 | T17 and required integration infrastructure |
+| X07 | Payments, entitlements, revenue and reinvestment | partial (cloud Linux, PostgreSQL 16; fixture processor and Stripe contract double) | Branch claude/x07-5zm23m from 4fe3d33; migration 19; ADR-0033; docs/PAYMENTS.md; evidence/x07 | Owner choice of processor and live activation; a Stripe test account and keys for a real test-mode check; webhook forwarder; web UI |
 | X08 | Evidence-backed marketing and measured feedback | deferred | No application code at T00 | T13; X06/X07 only where distribution/payment requires them |
 | X09 | Portfolio scheduling, maintenance, and reusable knowledge | deferred | No application code at T00 | T13; X01/X07/X08 for their enabled features |
 | X10 | Full-product acceptance and bounded owner pilot | deferred | No application code at T00 | Applicable X01–X09 gates |

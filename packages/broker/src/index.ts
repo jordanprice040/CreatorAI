@@ -8,3 +8,5 @@ export * from './context.js';
 export * from './search.js';
 export * from './github.js';
 export * from './github-service.js';
+export * from './payments.js';
+export * from './payments-service.js';

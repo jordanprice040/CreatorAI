@@ -1663,6 +1663,310 @@ create trigger desktop_job_reports_immutable before update or delete on desktop_
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 19,
+    name: 'payments_entitlements_reinvestment',
+    sql: `
+-- X07 (migration 18 is left to X06). Processor connections, offers bound to verified releases,
+-- an immutable double-entry ledger keyed by economic transaction, entitlements derived from
+-- authoritative payment state, and reinvestment of settled earnings into new budget envelopes.
+create table payment_connections (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ version integer not null check (version >= 1),
+ status text not null check (status in ('unverified','active','rejected','revoked')),
+ body jsonb not null, body_hash char(64) not null, verification jsonb, status_reason text,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, id)
+);
+create function creator_payment_connection_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.status = 'revoked'
+     or (new.id, new.workspace_id, new.fixture, new.body, new.body_hash, new.created_by,
+         new.created_at)
+        is distinct from (old.id, old.workspace_id, old.fixture, old.body, old.body_hash,
+         old.created_by, old.created_at) then
+    raise exception 'payment connection change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger payment_connections_guard before update or delete on payment_connections
+ for each row execute function creator_payment_connection_guard();
+
+create table payment_offers (
+ id uuid primary key, workspace_id uuid not null, connection_id uuid not null,
+ product_id uuid not null, artifact_id uuid not null references artifact_manifests(id),
+ manifest_sha256 char(64) not null, label text not null,
+ price_nano numeric(30,0) not null check (price_nano > 0 and mod(price_nano, 10000000) = 0),
+ status text not null check (status in ('active','archived')),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, connection_id) references payment_connections (workspace_id, id),
+ unique (workspace_id, id)
+);
+create function creator_payment_offer_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.status <> 'active' or new.status <> 'archived'
+     or (new.id, new.workspace_id, new.connection_id, new.product_id, new.artifact_id,
+         new.manifest_sha256, new.label, new.price_nano, new.created_by, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.connection_id, old.product_id,
+         old.artifact_id, old.manifest_sha256, old.label, old.price_nano, old.created_by,
+         old.created_at) then
+    raise exception 'payment offer change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger payment_offers_guard before update or delete on payment_offers
+ for each row execute function creator_payment_offer_guard();
+
+-- A checkout is only a request to the processor; it never grants access.
+create table payment_checkouts (
+ id uuid primary key, workspace_id uuid not null, offer_id uuid not null,
+ customer_ref text not null, state text not null check (state in ('open','failed')),
+ processor_session_id text, url text, reason text,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, offer_id) references payment_offers (workspace_id, id)
+);
+create trigger payment_checkouts_immutable before update or delete on payment_checkouts
+ for each row execute function creator_reject_change();
+
+-- Every delivery, verified or not. An event id is applied once; 'deferred' means the processor
+-- could not be read, so the delivery is refused and its retry is processed.
+create table payment_events (
+ id uuid primary key, connection_id uuid not null references payment_connections(id),
+ processor_event_id text, event_type text,
+ status text not null check (status in ('applied','rejected','duplicate','deferred','ignored')),
+ reason text not null, payload_hash char(64) not null,
+ received_at timestamptz not null default clock_timestamp()
+);
+create unique index payment_events_once on payment_events (connection_id, processor_event_id)
+ where status = 'applied';
+create trigger payment_events_immutable before update or delete on payment_events
+ for each row execute function creator_reject_change();
+
+-- What the backend read from the processor; the only input to the ledger and entitlements.
+create table payment_snapshots (
+ id uuid primary key, workspace_id uuid not null, connection_id uuid not null,
+ object_kind text not null check (object_kind in ('payment','payout','balance')),
+ object_id text, snapshot jsonb not null, snapshot_hash char(64) not null,
+ retrieved_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, connection_id) references payment_connections (workspace_id, id)
+);
+create index payment_snapshots_object on payment_snapshots (connection_id, object_id, retrieved_at);
+create trigger payment_snapshots_immutable before update or delete on payment_snapshots
+ for each row execute function creator_reject_change();
+
+-- The financial ledger, separate from the budget journal. Entries never change: a different
+-- processor answer for the same economic transaction posts a balanced correction.
+create table finance_entries (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ economic_key text not null, revision integer not null check (revision >= 1),
+ kind text not null check (kind in ('original','correction')),
+ memo text not null, snapshot_id uuid references payment_snapshots(id),
+ actor_id uuid not null references actors(id), event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ unique (workspace_id, economic_key, revision),
+ check ((kind = 'original') = (revision = 1))
+);
+create table finance_postings (
+ entry_id uuid not null references finance_entries(id),
+ account text not null check (account in ('processor_pending','processor_available','bank',
+   'revenue','processing_fees','refunds','dispute_losses','dispute_fees','owner_funding')),
+ amount_nano numeric(30,0) not null check (amount_nano <> 0),
+ primary key (entry_id, account)
+);
+create trigger finance_entries_immutable before update or delete on finance_entries
+ for each row execute function creator_reject_change();
+create trigger finance_postings_immutable before update or delete on finance_postings
+ for each row execute function creator_reject_change();
+-- Checked at commit: every entry has postings and they sum to zero.
+create function creator_finance_entry_balanced() returns trigger language plpgsql as $$
+declare total numeric; n integer;
+begin
+  select coalesce(sum(amount_nano), 0), count(*) into total, n
+    from finance_postings where entry_id = new.id;
+  if n < 2 or total <> 0 then
+    raise exception 'finance entry % is unbalanced', new.id using errcode = '23514';
+  end if;
+  return null;
+end $$;
+create function creator_finance_posting_balanced() returns trigger language plpgsql as $$
+declare total numeric;
+begin
+  select coalesce(sum(amount_nano), 0) into total from finance_postings
+    where entry_id = new.entry_id;
+  if total <> 0 then
+    raise exception 'finance entry % is unbalanced', new.entry_id using errcode = '23514';
+  end if;
+  return null;
+end $$;
+create constraint trigger finance_entries_balanced after insert on finance_entries
+ deferrable initially deferred for each row execute function creator_finance_entry_balanced();
+create constraint trigger finance_postings_balanced after insert on finance_postings
+ deferrable initially deferred for each row execute function creator_finance_posting_balanced();
+
+create table entitlements (
+ id uuid primary key, workspace_id uuid not null, offer_id uuid not null,
+ connection_id uuid not null references payment_connections(id), payment_id text not null,
+ customer_ref text not null, product_id uuid not null, artifact_id uuid not null,
+ manifest_sha256 char(64) not null,
+ status text not null check (status in ('active','suspended','revoked')),
+ reason text not null, version integer not null check (version >= 1),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, offer_id) references payment_offers (workspace_id, id),
+ unique (connection_id, payment_id)
+);
+create function creator_entitlement_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.status = 'revoked'
+     or (new.id, new.workspace_id, new.offer_id, new.connection_id, new.payment_id,
+         new.customer_ref, new.product_id, new.artifact_id, new.manifest_sha256, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.offer_id, old.connection_id,
+         old.payment_id, old.customer_ref, old.product_id, old.artifact_id,
+         old.manifest_sha256, old.created_at) then
+    raise exception 'entitlement change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger entitlements_guard before update or delete on entitlements
+ for each row execute function creator_entitlement_guard();
+
+create table reinvestment_policies (
+ workspace_id uuid not null references workspaces(id), version integer not null check (version >= 1),
+ body jsonb not null, anchor_at timestamptz not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, version)
+);
+create trigger reinvestment_policies_immutable before update or delete on reinvestment_policies
+ for each row execute function creator_reject_change();
+
+-- One tranche per settled payment. Its reinvestable cap only falls (later losses), and what
+-- was consumed beyond a fallen cap moved to a clawback, so consumed <= cap + clawed.
+create table earnings_tranches (
+ id uuid primary key, workspace_id uuid not null, connection_id uuid not null,
+ payment_id text not null, bps integer not null check (bps between 0 and 10000),
+ policy_version integer,
+ earned_nano numeric(30,0) not null check (earned_nano >= 0),
+ loss_nano numeric(30,0) not null default 0 check (loss_nano >= 0),
+ cap_nano numeric(30,0) not null check (cap_nano >= 0),
+ consumed_nano numeric(30,0) not null default 0 check (consumed_nano >= 0),
+ clawed_nano numeric(30,0) not null default 0 check (clawed_nano >= 0),
+ disputed boolean not null default false,
+ settled_at timestamptz not null, eligible_at timestamptz not null,
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, connection_id) references payment_connections (workspace_id, id),
+ unique (connection_id, payment_id),
+ check (consumed_nano <= cap_nano + clawed_nano)
+);
+create function creator_tranche_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or new.cap_nano > old.cap_nano or new.loss_nano < old.loss_nano
+     or new.consumed_nano < old.consumed_nano or new.clawed_nano < old.clawed_nano
+     or (new.id, new.workspace_id, new.connection_id, new.payment_id, new.bps,
+         new.policy_version, new.earned_nano, new.settled_at, new.eligible_at, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.connection_id, old.payment_id, old.bps,
+         old.policy_version, old.earned_nano, old.settled_at, old.eligible_at, old.created_at) then
+    raise exception 'earnings tranche change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger earnings_tranches_guard before update or delete on earnings_tranches
+ for each row execute function creator_tranche_guard();
+
+create table funding_rails (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ kind text not null check (kind in ('processor_balance','owner_attested')),
+ connection_id uuid references payment_connections(id), label text not null,
+ status text not null check (status in ('available','unavailable')), status_reason text,
+ version integer not null check (version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ check ((kind = 'processor_balance') = (connection_id is not null))
+);
+create table rail_observations (
+ id uuid primary key, rail_id uuid not null references funding_rails(id),
+ available_nano numeric(30,0) not null, pending_nano numeric(30,0) not null,
+ source text not null check (source in ('processor_api','owner_attestation')),
+ evidence text not null, observed_at timestamptz not null default clock_timestamp(),
+ expires_at timestamptz not null, actor_id uuid not null references actors(id)
+);
+create index rail_observations_latest on rail_observations (rail_id, observed_at desc);
+create trigger rail_observations_immutable before update or delete on rail_observations
+ for each row execute function creator_reject_change();
+
+create table finance_commitments (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ kind text not null check (kind in ('reserve','liability','tax')), label text not null,
+ amount_nano numeric(30,0) not null check (amount_nano > 0),
+ status text not null check (status in ('open','closed')),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(), closed_at timestamptz,
+ check ((status = 'closed') = (closed_at is not null))
+);
+
+create table reinvestment_allocations (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ policy_version integer not null, period_start timestamptz not null,
+ requested_nano numeric(30,0) not null check (requested_nano > 0),
+ amount_nano numeric(30,0) not null check (amount_nano > 0 and amount_nano <= requested_nano),
+ envelope_id uuid not null references budget_envelopes(id), capacity jsonb not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, policy_version) references reinvestment_policies (workspace_id, version)
+);
+create trigger reinvestment_allocations_immutable before update or delete on reinvestment_allocations
+ for each row execute function creator_reject_change();
+-- Envelopes funded from an allocation, including successors left after a reclaim.
+create table reinvestment_envelopes (
+ envelope_id uuid primary key references budget_envelopes(id),
+ allocation_id uuid not null references reinvestment_allocations(id),
+ replaces uuid references budget_envelopes(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger reinvestment_envelopes_immutable before update or delete on reinvestment_envelopes
+ for each row execute function creator_reject_change();
+-- Losses that hit earnings already reinvested. Outstanding = amount - reclaimed - repaid;
+-- while any is outstanding, new allocations are refused.
+create table reinvestment_losses (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ tranche_id uuid not null references earnings_tranches(id),
+ amount_nano numeric(30,0) not null check (amount_nano > 0),
+ reclaimed_nano numeric(30,0) not null default 0 check (reclaimed_nano >= 0),
+ repaid_nano numeric(30,0) not null default 0 check (repaid_nano >= 0),
+ created_at timestamptz not null default clock_timestamp(),
+ check (reclaimed_nano + repaid_nano <= amount_nano)
+);
+create function creator_loss_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or new.reclaimed_nano < old.reclaimed_nano
+     or new.repaid_nano < old.repaid_nano
+     or (new.id, new.workspace_id, new.tranche_id, new.amount_nano, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.tranche_id, old.amount_nano,
+         old.created_at) then
+    raise exception 'reinvestment loss change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger reinvestment_losses_guard before update or delete on reinvestment_losses
+ for each row execute function creator_loss_guard();
+-- Each use of a tranche, by an allocation or to repay a loss; a tranche is consumed once.
+create table tranche_uses (
+ id uuid primary key, tranche_id uuid not null references earnings_tranches(id),
+ allocation_id uuid references reinvestment_allocations(id),
+ loss_id uuid references reinvestment_losses(id),
+ amount_nano numeric(30,0) not null check (amount_nano > 0),
+ created_at timestamptz not null default clock_timestamp(),
+ check ((allocation_id is null) <> (loss_id is null))
+);
+create trigger tranche_uses_immutable before update or delete on tranche_uses
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
