@@ -1,0 +1,47 @@
+{
+  "installers": [
+    {
+      "path": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\apps\\desktop\\src-tauri\\target\\debug\\bundle\\nsis\\Creator Agent X05 Acceptance_0.1.0_x64-setup.exe",
+      "sha256": "815AB0B83B1139443069A1B7B52BC50E938816B099CDC8A485AA445A2196A8D5"
+    },
+    {
+      "path": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\apps\\desktop\\src-tauri\\target\\debug\\bundle\\nsis\\Creator Agent X05 Acceptance_0.1.1_x64-setup.exe",
+      "sha256": "73EE5650E2591E6988863335C7B6BBE67217FADF2D77B02846A288AEC8B1BBB7"
+    }
+  ],
+  "steps": [
+    {
+      "step": "install",
+      "startup": true,
+      "version": "0.1.0"
+    },
+    {
+      "step": "upgrade",
+      "startup": true,
+      "version": "0.1.1"
+    },
+    {
+      "step": "downgrade_refused",
+      "executable_unchanged": true,
+      "exit_code": 2
+    },
+    {
+      "step": "explicit_uninstall_reinstall_rollback",
+      "startup": true,
+      "version": "0.1.0"
+    }
+  ],
+  "product": "Creator Agent X05 Acceptance",
+  "at": "2026-10-19T11:24:05.8790741Z",
+  "debug_build": true,
+  "fixture": true,
+  "fixture_uninstalled": true,
+  "destination": "C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\.verification\\x05 installed client",
+  "state": "fixture_installer_lifecycle_verified",
+  "limitations": [
+    "Unsigned debug installers under separate acceptance identity; not production signing acceptance.",
+    "Manual NSIS upgrade/rollback only; automatic updater is disabled.",
+    "Existing WebView2 and separately running local API/UI are prerequisites.",
+    "Startup is real WebView navigation, not rendered UI/editor acceptance."
+  ]
+}

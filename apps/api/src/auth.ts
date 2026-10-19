@@ -251,5 +251,13 @@ export function createAuth(
     }
     throw new ContractError('NOT_FOUND', 'Route not found.');
   }
-  return { route, require, generatedCode, mode: config.mode };
+  return {
+    route,
+    require,
+    generatedCode,
+    mode: config.mode,
+    desktopCookie: { name: cookieName, secure: config.cookie_secure },
+    sessionHash: (req: IncomingMessage) =>
+      digest(cookies(req).get(cookieName) ?? '').toString('hex'),
+  };
 }

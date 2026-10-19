@@ -1,0 +1,174 @@
+{
+  "format": "x05-candidate/1",
+  "created_at": "2026-10-19T09:41:51.070Z",
+  "base_commit": "ddf7bcfc0e9fad98bad8ab06c60bf5bfc90abc25",
+  "files": [
+    {
+      "path": ".prettierignore",
+      "sha256": "cbd07935801669ed2c6c20d19122cd1877aedcc750613f6d4d457c91ea8ae449"
+    },
+    {
+      "path": "apps/api/src/artifacts.ts",
+      "sha256": "0fef04ff655bcc233e05ad3467750ea4a2540403a6d518a08d65e7a8553bd8e8"
+    },
+    {
+      "path": "apps/api/src/auth.ts",
+      "sha256": "6562d63bdd59397d2f261196dbe1f0caada0005b1538d48fa4ca8a93c7702841"
+    },
+    {
+      "path": "apps/api/src/desktop.ts",
+      "sha256": "5a561376dfe706d9592d3359d37bd10ac7a5ee70b4d13870f8893f7a650e90fb"
+    },
+    {
+      "path": "apps/api/src/index.ts",
+      "sha256": "4cb769b5a501510cffe1fb6774f60c66a0695ecf43bafdaff2456bf4d494e70c"
+    },
+    {
+      "path": "apps/api/src/maintenance.ts",
+      "sha256": "5d2fc8e06898ea86b9695334a1cb85e2c001374160324d9807b47d72e82e9977"
+    },
+    {
+      "path": "apps/desktop/.gitignore",
+      "sha256": "1aafc75eb6e059a395f9e66b697dc39a1798906e8425eaea197786451105e61c"
+    },
+    {
+      "path": "apps/desktop/README.md",
+      "sha256": "6c116b9b2c2b617b31aeab1cc020a3fc5c55c7f2ab01c1c57a9e2e98f565e0a7"
+    },
+    {
+      "path": "apps/desktop/artifacts.mjs",
+      "sha256": "498416bbb300616c7eb1c240d2d81936c438cff31a09290608e2e5812494e199"
+    },
+    {
+      "path": "apps/desktop/artifacts.test.mjs",
+      "sha256": "a4cb3521d95bf85b08226c08da20ab94fcf9c7ce231f40d4a1f6ff0741a2e26e"
+    },
+    {
+      "path": "apps/desktop/native-startup.mjs",
+      "sha256": "9abf5a767faea06a83b00e5e438b98761bafabcee967d5305ad5fb6bdbf719a0"
+    },
+    {
+      "path": "apps/desktop/src-tauri/Cargo.lock",
+      "sha256": "c20780798874f79d187c891a6dedc0f756fb7a14f0306ecf18fc7248b8ddfc9e"
+    },
+    {
+      "path": "apps/desktop/src-tauri/Cargo.toml",
+      "sha256": "d05d50d57733723f7109365c809c54ec9406537d41d88ff6e420e1d7dda05e31"
+    },
+    {
+      "path": "apps/desktop/src-tauri/build.rs",
+      "sha256": "6aeeab41bc35efde4e3c2b644a6248f7fc06d24ae30b75c0d33491cbb0c1fa31"
+    },
+    {
+      "path": "apps/desktop/src-tauri/icons/icon.ico",
+      "sha256": "de838ecc08c14c066b23a863bed528bcff0055458252315d1df005bf9b99d5f2"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/download.rs",
+      "sha256": "029b32a77ef2ac8d2296ac9cf176842f50b146eb21d3d2805a4f9eab56649f76"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/main.rs",
+      "sha256": "53ed885bdf68ebbca424261bc810a3306cdd17f793b9c1c169e4482806506ab0"
+    },
+    {
+      "path": "apps/desktop/src-tauri/src/signin.rs",
+      "sha256": "feaea364bd15106fc098ac882b6c2605f52de0a200c51f25a02fad5f879cd8de"
+    },
+    {
+      "path": "apps/desktop/src-tauri/tauri.conf.json",
+      "sha256": "0ce809c3bdddc08a81c3bfb61c8c50308447885db31c714c7668accd15899b80"
+    },
+    {
+      "path": "apps/desktop/worker.mjs",
+      "sha256": "9ecb424838b5f0d5d8eb1f667de18076901f23a7167e22e24601e88cf7707358"
+    },
+    {
+      "path": "apps/web/src/desktop.tsx",
+      "sha256": "ee591d5162ac08d827ebfec2f437d948113ca403ea4bec0bb134ff7e251ba4be"
+    },
+    {
+      "path": "apps/web/src/main.tsx",
+      "sha256": "03711b041cbcf437b25a0f0405cf1da76020d0b6661d07ba1a28a7db6e201a23"
+    },
+    {
+      "path": "apps/web/src/oversight.tsx",
+      "sha256": "061434ccd34e6417c8da7444f219552339c68c120a3e08b3e5dd219652ae7c8e"
+    },
+    {
+      "path": "apps/web/src/ui.tsx",
+      "sha256": "76554d2cedb6b69e6582837c53ebdcc851ee07beb5c37918e103ac9f8ad3786c"
+    },
+    {
+      "path": "packages/contracts/src/desktop.ts",
+      "sha256": "76c3c06bcc649e493342e97997b09bd3f8dfcbadf4ac73c1da38110152e354ce"
+    },
+    {
+      "path": "packages/contracts/src/execution.ts",
+      "sha256": "5e7ea6e54e95492dcc986b5799408057cee3ab10b424bd278aaab3cc084d0848"
+    },
+    {
+      "path": "packages/contracts/src/index.ts",
+      "sha256": "1410ebe4cde44e8348625e5c8a527af6a04015f5b714d889a95313d1f529e4fe"
+    },
+    {
+      "path": "packages/db/src/desktop-store.ts",
+      "sha256": "eef49ed4edc9ffeaa4a44d746a42ed1ed6fd5b21894ee3f71f337cc6c425e964"
+    },
+    {
+      "path": "packages/db/src/index.ts",
+      "sha256": "b56c61ba9cf9a7233e05b7776a55e7b621f4cdb3edf984a4e671c68f7d9c7ee2"
+    },
+    {
+      "path": "packages/db/src/migrations.ts",
+      "sha256": "52dc953dac7b6a9f0036c9255068efd2fbffd6259aa3672ee33495e2ac4c25d3"
+    },
+    {
+      "path": "packages/executor/src/artifacts.ts",
+      "sha256": "102f7c775c5bb1073d54a00c68b3a3b1685fdaeb72cf5d077ddf45991c847e5d"
+    },
+    {
+      "path": "packages/research/src/adapters.ts",
+      "sha256": "032bb77afae5a23a71f640b9cd971afdb0cd7b21d66c6377957d484d5277a28a"
+    },
+    {
+      "path": "tests/src/api.test.ts",
+      "sha256": "4e15988098b471964da5089f557354baeae1af56678f83e4f780a1ffd72dc3e8"
+    },
+    {
+      "path": "tests/src/artifact-api.test.ts",
+      "sha256": "fd165f5b0cd1d6b69479c5964c1fda3a1f2a3bbd2a72bd9fea4bea6040c581f3"
+    },
+    {
+      "path": "tests/src/desktop.test.ts",
+      "sha256": "da8578b5b26156f91463455a14f1cff93afc0eec484e2550de3cae4d19ea608e"
+    },
+    {
+      "path": "tests/src/github-domain.test.ts",
+      "sha256": "8d1d89abec9379e12409883d14a1b2cd42f8548b4a594ae73da9922a458836d2"
+    },
+    {
+      "path": "tests/src/maintenance.test.ts",
+      "sha256": "a2c39fd55afa0ab9c2cdaf2f254b492423938c6dc67eded373a73b2c60b642e8"
+    },
+    {
+      "path": "tests/src/research.test.ts",
+      "sha256": "6a0233c286054fa77c2b92c9cb7c997fe49b3153488b2c6c5708a6528a396587"
+    },
+    {
+      "path": "tests/src/storage.test.ts",
+      "sha256": "dde69f555dd5940d4ad429100a6950f62cb3d1104ab555e41aa036e3a2d48014"
+    },
+    {
+      "path": "tests/src/web-actors.test.ts",
+      "sha256": "7ddcf6d140a7745f3849c1cea5ebbe2c45ac6ed3811bdc8af9d57d1e558e0508"
+    },
+    {
+      "path": "tests/src/web-session.test.ts",
+      "sha256": "304d8ca55c3cd0fa4fbb0f5b22391b69e1dd5d5d52cdc9e840e4a0150a33572e"
+    }
+  ],
+  "limitations": [
+    "Includes preserved local audit repairs. No new commit or release. Native and fixture evidence are distinct."
+  ]
+}

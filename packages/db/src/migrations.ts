@@ -1606,6 +1606,63 @@ create trigger github_webhook_deliveries_immutable before update or delete on gi
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 16,
+    name: 'desktop_pairing_and_signin',
+    sql: `
+create table desktop_challenges (
+ id uuid primary key, kind text not null check (kind in ('desktop_login', 'worker')),
+ proof_hash char(64) not null unique, label text not null,
+ workspace_id uuid, capabilities jsonb not null,
+ approval_session_hash char(64) references auth_sessions(token_hash),
+ created_at timestamptz not null default clock_timestamp(),
+ expires_at timestamptz not null default (clock_timestamp() + interval '5 minutes'),
+ consumed_at timestamptz
+);
+create table desktop_devices (
+ id uuid primary key, kind text not null check (kind in ('desktop_login', 'worker')),
+ owner_id uuid not null references actors(id), workspace_id uuid references workspaces(id),
+ label text not null, capabilities jsonb not null,
+ token_hash char(64) unique, session_hash char(64) unique references auth_sessions(token_hash),
+ state text not null default 'active' check (state in ('active', 'paused', 'shutdown', 'revoked')),
+ created_at timestamptz not null default clock_timestamp(),
+ expires_at timestamptz not null, last_seen_at timestamptz, lease_expires_at timestamptz,
+ fence integer not null default 0 check (fence >= 0),
+ check ((kind = 'worker' and token_hash is not null and workspace_id is not null and session_hash is null)
+     or (kind = 'desktop_login' and token_hash is null and workspace_id is null and session_hash is not null))
+);
+create index desktop_challenges_recent on desktop_challenges(created_at);
+create index desktop_devices_owner on desktop_devices(owner_id, created_at);
+`,
+  },
+  {
+    version: 17,
+    name: 'bounded_paired_artifact_jobs',
+    sql: `
+create table desktop_jobs (
+ id uuid primary key, device_id uuid not null references desktop_devices(id),
+ workspace_id uuid not null references workspaces(id), owner_id uuid not null references actors(id),
+ request_id uuid not null, request_hash char(64) not null,
+ artifact_id uuid not null references artifact_manifests(id), product_id uuid not null,
+ manifest_sha256 char(64) not null, archive_sha256 char(64) not null, input jsonb not null,
+ state text not null default 'queued' check (state in ('queued','leased','running','completed','cancelled','expired','reconciling')),
+ fence integer not null, lease_id uuid, execution_id uuid, reconciled_outcome_hash char(64), lease_expires_at timestamptz,
+ cancel_requested boolean not null default false,
+ created_at timestamptz not null default clock_timestamp(),
+ expires_at timestamptz not null default (clock_timestamp() + interval '2 minutes'),
+ unique(device_id, request_id)
+);
+create index desktop_jobs_device on desktop_jobs(device_id, created_at);
+create unique index desktop_jobs_execution_once on desktop_jobs(execution_id) where execution_id is not null;
+create index desktop_jobs_workspace on desktop_jobs(workspace_id, state);
+create table desktop_job_reports (
+ job_id uuid primary key references desktop_jobs(id), report jsonb not null,
+ report_hash char(64) not null, received_at timestamptz not null default clock_timestamp()
+);
+create trigger desktop_job_reports_immutable before update or delete on desktop_job_reports
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

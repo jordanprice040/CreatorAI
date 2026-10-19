@@ -92,6 +92,30 @@ export async function artifactRoutes(o: {
         false,
       );
     }
+    if (item && action === 'manifest' && method === 'GET') {
+      const a = await store.artifactRecord(ctx, ws, item, true);
+      const expected = o.url.searchParams.get('sha256');
+      if (expected !== a.summary.manifest_sha256)
+        throw new ContractError(
+          'VERSION_CONFLICT',
+          'Manifest export must name the current catalog hash.',
+        );
+      const bytes = await artifacts.exportManifest(
+        a.manifest.product_id,
+        item,
+        expected,
+      );
+      o.res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Length': String(bytes.length),
+        'X-Content-SHA256': expected,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': 'attachment; filename="manifest.json"',
+      });
+      o.res.end(bytes);
+      return true;
+    }
     if (item && action === 'download' && method === 'GET') {
       const a = await store.artifactRecord(ctx, ws, item, true);
       const expected = o.url.searchParams.get('sha256');

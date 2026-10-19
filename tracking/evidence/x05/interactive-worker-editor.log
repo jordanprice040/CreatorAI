@@ -1,0 +1,8 @@
+Compare code DE7B0C20. Approve in your signed-in system browser:
+http://127.0.0.1:5173/api/desktop/approve?id=4b042b34-a950-4fd9-a98c-8f79d748fe74
+Paired device 92eb3b0b-5225-4481-9677-feb7c831e823. Only owner-submitted exact-artifact jobs can run in reviewed WSL isolation. Closing the desktop window does not stop this process. Ctrl+C stops it.
+Worker state: active
+Executing paired job 5c1b397f-fc07-4f95-8463-d7a9275089c2 once.
+Worker state: paused
+Worker state: active
+Worker state: shutdown

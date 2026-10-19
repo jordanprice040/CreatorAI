@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { request } from 'node:http';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
@@ -52,7 +53,8 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     { CREATOR_DATABASE_URL: db.url, CREATOR_DEV_LOGIN_CODE: LOGIN_CODE },
     { artifacts },
   );
-  api.server.listen(0, '127.0.0.1');
+  const nativeGate = process.env.CREATOR_TEST_NATIVE === '1';
+  api.server.listen(nativeGate ? 4310 : 0, '127.0.0.1');
   api.preview.listen(0, '127.0.0.1');
   await Promise.all([
     once(api.server, 'listening'),
@@ -242,6 +244,224 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   assert.equal(reg.status, 201, JSON.stringify(reg.body));
   const a1 = reg.body;
   assert.equal(a1.current, true);
+  await t.test(
+    'paired-job HTTP admission, single dispatch, cancellation, immutable reports and unknown-outcome fencing (fixture contract only)',
+    async () => {
+      const hash = (value: string) =>
+        createHash('sha256').update(value).digest('hex');
+      async function pair(capabilities: string[]) {
+        const proof = randomBytes(32).toString('hex');
+        const c = await http('desktop/challenges', {
+          kind: 'worker',
+          label: 'Fixture job worker',
+          proof_hash: hash(proof),
+          workspace_id: ws,
+          capabilities,
+        });
+        assert.equal(c.status, 201);
+        assert.equal(
+          (await http(`desktop/challenges/${c.body.id}/approve`, {})).status,
+          200,
+        );
+        const claim = await http(`desktop/challenges/${c.body.id}/claim`, {
+          proof,
+        });
+        assert.equal(claim.status, 200);
+        return claim.body as { token: string; device: { id: string } };
+      }
+      const presence = await pair(['artifact.verify']);
+      const request = {
+        request_id: randomUUID(),
+        artifact_id: a1.id,
+        manifest_sha256: a1.manifest_sha256,
+        input: { args: [], stdin: '' },
+      };
+      assert.equal(
+        (await http(`desktop/devices/${presence.device.id}/jobs`, request))
+          .status,
+        403,
+      );
+      const worker = await pair(['artifact.run']);
+      const bearer = { Authorization: `Bearer ${worker.token}` };
+      const secondWorker = await pair(['artifact.run']);
+      const submit = (body: unknown) =>
+        http(`desktop/devices/${worker.device.id}/jobs`, body);
+      const wrong = await submit({
+        ...request,
+        manifest_sha256: digest('wrong'),
+      });
+      assert.equal(wrong.status, 400);
+      const queued = await Promise.all([
+        submit(request),
+        submit({ ...request, request_id: randomUUID() }),
+      ]);
+      assert.deepEqual(queued.map((r) => r.status).sort(), [201, 429]);
+      const accepted = queued.find((r) => r.status === 201)!;
+      const exact =
+        accepted.body.request_id === request.request_id
+          ? request
+          : { ...request, request_id: accepted.body.request_id };
+      const replay = await submit(exact);
+      assert.equal(replay.body.id, accepted.body.id);
+      assert.equal(
+        (await submit({ ...exact, input: { args: [], stdin: 'changed' } }))
+          .status,
+        409,
+      );
+      const leased = await Promise.all([
+        http('desktop/jobs', {}, bearer),
+        http('desktop/jobs', {}, bearer),
+      ]);
+      assert.equal(leased.filter((r) => r.body !== null).length, 1);
+      const job = leased.find((r) => r.body !== null)!.body;
+      const executionId = randomUUID();
+      const start = { lease_id: job.lease_id, execution_id: executionId };
+      assert.equal(
+        (
+          await http(`desktop/jobs/${job.id}/start`, start, {
+            Authorization: `Bearer ${secondWorker.token}`,
+          })
+        ).status,
+        403,
+      );
+      assert.equal(
+        (await http(`desktop/jobs/${job.id}/start`, start, bearer)).status,
+        200,
+      );
+      assert.equal(
+        (await http(`desktop/jobs/${job.id}/start`, start, bearer)).status,
+        409,
+      );
+      assert.equal(
+        (
+          await http(
+            `desktop/jobs/${job.id}/check`,
+            { lease_id: job.lease_id },
+            bearer,
+          )
+        ).body.continue,
+        true,
+      );
+      assert.equal(
+        (await http(`desktop/jobs/${job.id}/cancel`, {})).status,
+        200,
+      );
+      assert.equal(
+        (
+          await http(
+            `desktop/jobs/${job.id}/check`,
+            { lease_id: job.lease_id },
+            bearer,
+          )
+        ).body.continue,
+        false,
+      );
+      const report = {
+        execution_id: executionId,
+        manifest_sha256: a1.manifest_sha256,
+        archive_sha256: pkg1.manifest.package.sha256,
+        backend: 'wsl2-bwrap-systemd',
+        state: 'cancelled',
+        stdout: 'Synthetic worker claim, not actual execution.',
+        stdout_truncated: false,
+        exit_code: null,
+        reason: 'Fixture contract only',
+      };
+      const settled = await http(
+        `desktop/jobs/${job.id}/finish`,
+        { lease_id: job.lease_id, report },
+        bearer,
+      );
+      assert.equal(settled.status, 200);
+      assert.equal(settled.body.state, 'cancelled');
+      assert.equal(settled.body.verification, 'worker_report_only');
+      assert.equal(
+        (
+          await http(
+            `desktop/jobs/${job.id}/finish`,
+            { lease_id: job.lease_id, report },
+            bearer,
+          )
+        ).status,
+        200,
+      );
+      assert.equal(
+        (
+          await http(
+            `desktop/jobs/${job.id}/finish`,
+            {
+              lease_id: job.lease_id,
+              report: { ...report, stdout: 'rewrite' },
+            },
+            bearer,
+          )
+        ).status,
+        409,
+      );
+      const beforeStop = await submit({ ...request, request_id: randomUUID() });
+      assert.equal(beforeStop.status, 201);
+      const toStop = (await http('desktop/jobs', {}, bearer)).body;
+      await http(`desktop/devices/${worker.device.id}/control`, {
+        state: 'paused',
+      });
+      assert.equal(
+        (
+          await http(
+            `desktop/jobs/${toStop.id}/start`,
+            { lease_id: toStop.lease_id, execution_id: randomUUID() },
+            bearer,
+          )
+        ).status,
+        409,
+      );
+      await http(`desktop/devices/${worker.device.id}/control`, {
+        state: 'active',
+      });
+      assert.equal((await http('desktop/jobs', {}, bearer)).body, null);
+      const crash = await submit({ ...request, request_id: randomUUID() });
+      assert.equal(crash.status, 201);
+      const lost = (await http('desktop/jobs', {}, bearer)).body;
+      await http(
+        `desktop/jobs/${lost.id}/start`,
+        { lease_id: lost.lease_id, execution_id: randomUUID() },
+        bearer,
+      );
+      await db.pool.query(
+        `update desktop_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id=$1`,
+        [lost.id],
+      );
+      const history = await http(`desktop/devices/${worker.device.id}/jobs`);
+      assert.equal(
+        history.body.find((j: { id: string }) => j.id === lost.id).state,
+        'reconciling',
+      );
+      assert.equal(
+        (await submit({ ...request, request_id: randomUUID() })).status,
+        429,
+      );
+      assert.equal((await http('desktop/jobs', {}, bearer)).body, null);
+      await http(`desktop/devices/${worker.device.id}/control`, {
+        state: 'revoked',
+      });
+      assert.equal(
+        (
+          await http(
+            `desktop/jobs/${lost.id}/check`,
+            { lease_id: lost.lease_id },
+            bearer,
+          )
+        ).body.continue,
+        false,
+      );
+      assert.equal((await http('desktop/jobs', {}, bearer)).status, 403);
+      const events = await db.pool.query(
+        `select a.kind from audit_events e join actors a on a.id=e.actor_id where e.action='desktop.job_started' and e.workspace_id=$1`,
+        [ws],
+      );
+      assert.ok(events.rows.length > 0);
+      assert.ok(events.rows.every((r) => r.kind === 'agent'));
+    },
+  );
   const detail = await http(`workspaces/${ws}/artifacts/${a1.id}`);
   assert.equal(detail.body.integrity.ok, true);
   assert.equal(
@@ -265,6 +485,33 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   assert.equal(code.body.coverage.code_version.searchable, 1);
 
   // Download: owner session, current manifest hash, and exact bytes.
+  const rawManifest = await fetch(
+    `${origin}/api/workspaces/${ws}/artifacts/${a1.id}/manifest?sha256=${a1.manifest_sha256}`,
+    { headers: auth.read },
+  );
+  assert.equal(rawManifest.status, 200);
+  assert.equal(
+    digest(Buffer.from(await rawManifest.arrayBuffer())),
+    a1.manifest_sha256,
+  );
+  assert.equal(
+    (
+      await http(
+        `workspaces/${ws}/artifacts/${a1.id}/manifest?sha256=${digest('stale')}`,
+      )
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await http(
+        `workspaces/${ws}/artifacts/${a1.id}/manifest?sha256=${a1.manifest_sha256}`,
+        undefined,
+        {},
+      )
+    ).status,
+    401,
+  );
   const dl = await http(
     `workspaces/${ws}/artifacts/${a1.id}/download?sha256=${a1.manifest_sha256}`,
   );
@@ -272,6 +519,82 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   const bytes = Buffer.from(dl.body as ArrayBuffer);
   assert.equal(digest(bytes), pkg1.manifest.package.sha256);
   assert.equal(dl.headers.get('x-content-sha256'), digest(bytes));
+  await t.test(
+    'actual Windows native authenticated download preserves manifest and archive bytes',
+    {
+      skip: nativeGate
+        ? false
+        : 'Native gate requires CREATOR_TEST_NATIVE=1 and a built Windows executable',
+    },
+    async () => {
+      const web = spawn(
+        process.execPath,
+        [
+          resolve('node_modules/vite/bin/vite.js'),
+          'preview',
+          '--host',
+          '127.0.0.1',
+          '--port',
+          '5173',
+          '--strictPort',
+        ],
+        { cwd: resolve('apps/web'), windowsHide: true, stdio: 'ignore' },
+      );
+      try {
+        for (let i = 0; i < 50; i++) {
+          if (web.exitCode !== null)
+            throw new Error('Native-gate web preview failed to start');
+          try {
+            if (
+              (
+                await fetch('http://127.0.0.1:5173/', {
+                  signal: AbortSignal.timeout(500),
+                })
+              ).ok
+            )
+              break;
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        const native = await promisify(execFile)(
+          resolve('apps/desktop/src-tauri/target/debug/creator-desktop.exe'),
+          ['--download-probe'],
+          {
+            timeout: 30000,
+            windowsHide: true,
+            env: {
+              ...process.env,
+              CREATOR_NATIVE_PROBE_WORKSPACE: ws,
+              CREATOR_NATIVE_PROBE_ARTIFACT: a1.id,
+              CREATOR_NATIVE_PROBE_COOKIE: auth.cookie,
+            },
+          },
+        );
+        const downloaded = native.stdout
+          .match(/NATIVE_SOURCE_CACHE (.+)/)?.[1]
+          ?.trim();
+        assert.ok(downloaded, native.stderr);
+        assert.equal(
+          digest(await readFile(join(downloaded!, 'manifest.json'))),
+          a1.manifest_sha256,
+        );
+        assert.equal(
+          digest(await readFile(join(downloaded!, 'source.tar'))),
+          pkg1.manifest.package.sha256,
+        );
+        const receipt = JSON.parse(
+          await readFile(join(downloaded!, 'receipt.json'), 'utf8'),
+        ) as { offline: string; extracted: boolean };
+        assert.equal(receipt.offline, 'read_only_snapshot');
+        assert.equal(receipt.extracted, false);
+        console.log(
+          'Native source download verified on Windows; fixture artifact, no isolation or browser-approval claim.',
+        );
+      } finally {
+        web.kill();
+      }
+    },
+  );
   assert.equal(
     (
       await http(

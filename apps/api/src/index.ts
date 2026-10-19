@@ -27,7 +27,7 @@ import {
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import {
-  SearchStore,
+  DesktopJobStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -62,6 +62,7 @@ import {
   readStudyBuild,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
+import { desktopRoutes } from './desktop.js';
 import {
   GITHUB_ROUTE,
   GITHUB_WEBHOOK_ROUTE,
@@ -162,7 +163,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -190,7 +191,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new SearchStore(pool) : null;
+  const store = pool ? new DesktopJobStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -1231,6 +1232,25 @@ export function createApi(
         });
       }
       const url = new URL(req.url ?? '/', 'http://local');
+      if (url.pathname.startsWith('/api/desktop/')) {
+        if (!store)
+          throw new ContractError(
+            'STORAGE_UNAVAILABLE',
+            'Desktop pairing needs PostgreSQL.',
+          );
+        await ensureReady();
+        await desktopRoutes({
+          req,
+          res,
+          url,
+          store,
+          auth: authn,
+          artifacts,
+          body: () => readJson(req),
+          send: (status, value) => respond(res, status, value),
+        });
+        return;
+      }
       if (
         url.pathname.startsWith('/api/auth/') &&
         url.pathname !== '/api/auth/status' &&

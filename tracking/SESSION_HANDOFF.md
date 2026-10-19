@@ -1,5 +1,163 @@
 # Session handoff
 
+## X05 local Windows acceptance passed (October 19, 2026)
+
+Final release native menus and rendered shared UI passed local acceptance.
+Sign-in invoked the OS browser handler; approval used the disposable fixture HTTP
+owner seam, not personal login or live OIDC. Native Gallery download rehashed the
+source. The original editor action failed visibly (owner confirmed); repaired
+behavior exports a rehashed copy to Downloads and activates packaged Notepad.
+The actual screenshot showed the selected artifact/workspace. Notepad UIA text
+was stale from an older tab and was not used as passing evidence.
+
+Native job 5c1b397f-fc07-4f95-8463-d7a9275089c2 completed through the real
+outbound CLI and offline WSL sandbox. Native UI and shared owner API agreed on
+the exact artifact/manifest and succeeded/exit 0 report (worker_report_only).
+Visible pause/resume/shutdown changed states; explicit shutdown exited CLI 0.
+Earlier native window-close observation left the separate worker polling.
+Rust final tests: 4 passed, 0 failed, 1 explicit editor-probe opt-in ignored;
+actual final editor menu was observed separately. Final release/NSIS rebuilt.
+Previous real native/WSL tests (2 pass), paired fault tests (3 pass), Windows
+cache tests (3 pass) and installer fixture lifecycle evidence remain scoped to
+their recorded candidates; no acceptance assertions were weakened. Earlier full
+suite: 223 passed, 0 failed, 14 opt-in skips. Fixture hold harness is skipped,
+not an automated acceptance pass. Final typechecks/format/whitespace recorded
+with source and release hashes in tracking/evidence/x05.
+
+See apps/desktop/INTERACTIVE_ACCEPTANCE.md and native-ui-acceptance.json.
+Local Windows acceptance is complete; production signing, signed automatic
+updates, live OIDC and other hosts remain unverified/disabled. No paid call,
+public release, account activation, commit or push. Existing dirty work retained.
+Next eligible prompt: X06 — hosted operation and observability; not started.
+Earlier continuation entries below are historical evidence, superseded here.
+
+## X05 acceptance attempt - native Computer Use stopped (October 19, 2026)
+
+Supported @oai/sky Computer Use was available; earlier claims that no native path
+was available were too broad. Actual release window rendered the shared UI and
+native menu. Sign-in menu opened the local approval page through the OS browser
+handler and displayed comparison code 538F1524. No user authentication dialog
+was automated. Opera access initially timed out; owner approved access. Subsequent
+capture required restoring its minimized window, then the helper stopped the
+turn because it could not determine the current browser URL confidently enough
+to enforce policy. No further UI input issued. Acceptance remains open; editor,
+authenticated native navigation and visible job checks not completed this attempt.
+Disposable fixture shutdown requested; test fixture mode is explicitly skipped,
+not counted as an automated acceptance pass. No personal Notepad documents edited.
+
+## X05 continuation - actual worker faults and local installer lifecycle (October 19, 2026)
+
+Real paired lifecycle acceptance passed 3/3 with no skips (paired-lifecycle-final.log).
+A dedicated synthetic artifact explicitly declares its long-lived test path and
+passes real package QA. Tests observe the detached child in Linux /proc before
+revocation or killing the actual outbound CLI. Revocation cancels parent/child,
+records inactive cleanup and exits the revoked worker. Crash leaves no report;
+actual lease expiry yields reconciling, blocks new work and never redispatches.
+Owner API reconciliation binds the stopped local outcome hash. Synthetic review
+is labelled fixture, not independent review or empirical validation.
+
+Pinned Tauri CLI 2.12.3; added opt-in NSIS current-user bundle configuration with
+no WebView installation, no automatic updater and downgrade refusal. Separate
+acceptance identity/version installers verified native startup after baseline,
+upgrade and explicit uninstall/reinstall rollback. Silent downgrade refused with
+unchanged executable. Fixture uninstalled. See windows-installer-acceptance.json
+and windows-installer-final.log; unsigned debug fixtures, not production signing.
+Earlier failures retained: signal-killed test-child cleanup awaited a second close;
+first installer upgrade returned 2; two subsequent runs passed after adding an
+executable-write-access barrier. Final lock observations were zero, so its cause
+is not confirmed.
+No acceptance assertions weakened. Release-mode unsigned NSIS build passed
+(windows-release-bundle.log); fixture install lifecycle used debug builds. Orphan disposable DB from interrupted first
+run matched to retained fixture product before removal. Default bundling remains
+off; production local bundle requires explicit configuration. No paid call,
+public release, signing key, account integration, automatic update, commit or push.
+
+Native functional gates now cover pairing/sign-in, source download, real paired
+launch, window/worker separation, active-process revocation and crash reconciliation.
+Local manual installer/update/rollback gates passed on this observed host.
+Interactive native UI/editor/default-browser-handler checks (apps/desktop/INTERACTIVE_ACCEPTANCE.md) and live OIDC/signing
+remain unverified. Other Windows hosts/architectures are unverified. Next eligible
+work: finish X05 interactive acceptance; X06 not started. Earlier suite evidence
+(223 pass, 0 fail, 14 opt-in skips) remains for the prior runtime candidate; this
+continuation changes tests, packaging configuration/dependency and probe selection.
+Final TypeScript project/web checks, Rust tests 3/3, formatting and whitespace
+checks passed. Source hashes: lifecycle-candidate-sha256.json. Release executable
+and installer hashes/signature status: windows-release-artifacts.json.
+
+## X05 continuation - bounded paired jobs and native handoff (October 19, 2026)
+
+Migration 17 adds owner/API/UI/native paths for exact artifact jobs on explicitly
+execution-capable paired workers. Code enforces immutable idempotency, one-time
+leases, pre-dispatch admission, artifact/profile binding, fixed offline sandbox
+limits, bounded concurrency/rate and cancellation/fencing. Reports remain
+`worker_report_only`, with full evidence retained locally. Unknown outcomes block
+new workspace jobs until explicit observed-stop reconciliation. Existing presence
+pairings gain no authority. No paid call, deployment, account activation, commit or
+push. Existing audit edits preserved.
+
+Native queue -> outbound CLI -> reviewed WSL2/bubblewrap/systemd execution passed
+(2/2, no skips; native-paired-wsl-final.log): exact archive/output, inactive cleanup,
+worker alive after window exit, then explicit shutdown exits worker. Underlying
+real detached-child cancellation and killed-supervisor reconciliation passed 2/2
+(real-worker-stop-reconcile.log). Native browser approval in isolated Edge
+authenticated the Windows WebView using ordinary and Secure cookies, with separate
+browser/desktop sessions (native-signin*.json). Fixture identity; no live OIDC or
+personal browser-handler claim. Corrected debug instrumentation; prior failure
+recorded in native-signin-probe-diagnosis.md. Windows cache checks passed 3/3 after
+sandbox junction creation denial required an unchanged elevated rerun. Rust 3/3,
+TypeScript project/web checks and production web build passed. Vite retains its
+nonfatal bundle-size warning.
+
+X05 remains partial: interactive native UI/editor/default-browser acceptance,
+paired running revocation/crash reconciliation and installer/update/rollback
+checks remain. Bundling and updater activation disabled. Next eligible prompt:
+continue X05; X06 is not started. Integrated PostgreSQL suite: 237 tests, 223 passed, 0 failed, 14 explicit opt-in
+skips (paired-integrated-tests.log). Real native/WSL gates ran separately as above.
+Formatting and diff whitespace checks passed. Current source hashes are in
+paired-candidate-sha256.json; earlier evidence is retained for its prior candidate.
+
+## X05 — native build, sign-in and paired presence controls (October 19, 2026)
+
+Owner installed Rust/Cargo and confirmed X03/X04 finished. Verified Rust/Cargo 1.99.1,
+Windows MSVC toolchain, Visual Studio 18 C++ Build Tools and WebView2 155.0.4283.62.
+Fast-forwarded this checkout to origin/main ddf7bcf (X01–X04); restored all local
+audit/X05 edits from a retained stash, retaining both sides of tracking conflicts.
+No new commit, push, paid call, hosted deployment or account activation.
+
+Tauri shell now builds and starts natively; missing Windows icon fixed and Cargo
+lockfile retained. Native menus implement proof-bound system-browser sign-in,
+authenticated selected-artifact source download with exact manifest/archive hashes,
+and opening only the last downloaded manifest in Notepad. Private preview tickets
+open only on T13's separate origin in the system browser; no generated source is
+extracted/executed on the desktop. No native IPC granted to remote web content.
+Raw manifest export added to existing owner/hash-bound artifact routes.
+
+Migration 16 and shared contracts/API/UI implement durable five-minute one-time
+challenges, session-bound browser approval, separate revocable desktop sessions,
+hashed/revocable/expiring workspace worker identities, scoped 30-second presence
+leases and control fences. Shared Desktop and workers view offers refresh and
+pause/resume/shutdown/revoke. Outbound worker CLI holds its token in memory only.
+Presence-only leases grant no dispatch, artifact-read, model or budget authority.
+Window close, shutdown request, lease expiry and observed process exit are distinct.
+
+Executed: TypeScript project/web checks and production web build; locked Cargo
+check/build and 3 Rust tests; 3 Windows Node cache tests; 11 focused DB/HTTP/storage
+checks; actual Windows WebView startup and authenticated native source download
+(2 fixture-backed checks; manifest/archive hash readback). Imported X04 Git test
+failed on POSIX mkdir/file URL assumptions, repaired with Node portable setup;
+all 4 Git/REST domain checks then passed unchanged assertions. Initial integrated
+run preserved as failed evidence (221 pass, 1 fail, 13 skips).
+Final integrated PostgreSQL suite: 236 tests, 222 pass, 0 fail, 14 explicit native/WSL opt-in skips (final-integrated-tests.log).
+Formatting and diff whitespace checks passed. Final runtime source hashes are in
+tracking/evidence/x05/candidate-sha256.json; logs are in that evidence folder.
+
+X05 remains PARTIAL. Native browser approval/editor interaction, OIDC secure-cookie
+path, actual bounded job dispatch to paired workers, native-to-real-worker launch
+and revocation, and installer/signed-update acceptance remain unverified/incomplete.
+Native download fixture used test-double execution; it is not isolation evidence.
+No installer/updater or background service activated. Next eligible: continue X05;
+no automatic X06. Commands and trust assumptions: apps/desktop/README.md.
+
 ## X04 — scoped GitHub management (October 19, 2026)
 
 Branch claude/x04-gm7n32 from main d2c8ef1; migration 15 (after X03's 14,
@@ -679,3 +837,32 @@ Apply the shared implementation contract. Execute T02: Persistence, provenance, 
 ```
 
 Read the complete T02 prompt and current files first. Add actual PostgreSQL persistence, migrations, stable scoped entities/links, optimistic versions, transactional state/audit/outbox, idempotent projections, API/CLI/history paths, restart/stale/cross-scope/duplicate-delivery verification. PostgreSQL service/setup remains unverified; complete unrelated work before treating live service setup as a blocker. Preserve the T01 contracts or record necessary versioned migration. No owner question currently blocks beginning T02 inspection.
+
+## X05 continuation — October 19, 2026
+
+Owner requested an independent start alongside Claude Code X03/X04. Work is limited
+to new apps/desktop files; prior dirty API/UI/contracts/research/docs/tests preserved.
+X05 requires T13 only; reported X01/X02 source not available in this checkout.
+See apps/desktop/README.md for commands, trust assumptions and remaining integration.
+
+Implemented: Tauri shell source using existing default local web origin (no native
+IPC), and executable source archive import/inspect CLI using shared T13 manifest
+schema and existing executor path/tar validators. Cache bytes are bounded, hashed,
+scoped, dated and rechecked; no launch or authority is granted by offline receipts.
+
+Verified: installed TypeScript build passes; 3 focused tests pass on actual Windows,
+including CLI readback, path spaces, junction rejection, concurrent imports and
+negative integrity/identity/bounds checks. Final log: tracking/evidence/x05/artifact-cache-test.log.
+Prettier and diff whitespace checks pass. Initial test fixture path error repaired;
+sandbox junction restriction required an unrestricted test rerun. pnpm wrapper
+stalled and was interrupted; direct installed Node CLIs worked.
+
+Not verified: native Rust build/startup (cargo/rustc absent), MSVC/WebView2, full suite
+or browser. No system install, account change, credentials, external mutation or
+activation. Cargo.lock and installer/update work remain. Cache ownership assumptions
+are documented; not a defense against owner-privileged concurrent path replacement.
+
+Next eligible: continue X05 after coordinating shared API/database/UI edits with
+X03/X04. Implement system-browser session handoff, durable single-use pairing,
+revocable identities, outbound scoped/fenced leases and actual worker/native controls;
+then execute Windows/native gates. X05 remains partial; do not start X06 automatically.

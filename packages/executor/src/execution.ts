@@ -46,6 +46,14 @@ function wslPath(p: string): string {
   return `/mnt/${full[0]!.toLowerCase()}/${full.slice(3).replaceAll('\\', '/')}`;
 }
 export class ExecutionSupervisor {
+  async profile() {
+    return {
+      backend: 'wsl2-bwrap-systemd' as const,
+      recipe_hash: digest(await readFile(RECIPE)),
+      policy_hash: digest(POLICY),
+      bridge_hash: digest(await readFile(WORKER)),
+    };
+  }
   constructor(
     readonly products: ProductSupervisor,
     readonly distro = 'Ubuntu',
@@ -109,7 +117,7 @@ export class ExecutionSupervisor {
     taskId: string,
     commit: string,
     binding: Binding,
-    onStarted: (id: string) => void = () => {},
+    onStarted: (id: string) => void | Promise<void> = () => {},
     qa?: QaCase,
   ): Promise<Execution> {
     const p = await this.products.product(productId);
@@ -139,7 +147,7 @@ export class ExecutionSupervisor {
     files: PackageFile[],
     owner: string,
     archiveSha256: string,
-    onStarted: (id: string) => void = () => {},
+    onStarted: (id: string) => void | Promise<void> = () => {},
     input?: QaCase | RunInput,
   ): Promise<Execution> {
     const p = await this.products.product(productId);
@@ -171,7 +179,7 @@ export class ExecutionSupervisor {
     commit: string,
     prepare: (input: string) => Promise<string>,
     source: Record<string, unknown>,
-    onStarted: (id: string) => void,
+    onStarted: (id: string) => void | Promise<void>,
     qa?: QaCase | RunInput,
   ): Promise<Execution> {
     // One local generated-code unit at a time. A crash leaves the lock for explicit reconciliation.
@@ -201,7 +209,7 @@ export class ExecutionSupervisor {
     commit: string,
     prepare: (input: string) => Promise<string>,
     source: Record<string, unknown>,
-    onStarted: (id: string) => void,
+    onStarted: (id: string) => void | Promise<void>,
     qa?: QaCase | RunInput,
   ): Promise<Execution> {
     await this.products.task(productId, taskId);
@@ -269,7 +277,6 @@ export class ExecutionSupervisor {
       await rename(tmp, join(job, 'lease.json'));
     };
     await heartbeat();
-    onStarted(executionId);
     let busy = false;
     let heartbeatWriteErrors = 0;
     const timer = setInterval(() => {
@@ -285,6 +292,8 @@ export class ExecutionSupervisor {
     }, 750);
     let dispatchIntent = false;
     try {
+      // Await paired admission after persisting the local intent and before launching a worker.
+      await onStarted(executionId);
       if (process.platform !== 'win32')
         throw new Error(
           'Isolation unavailable: this reviewed backend requires Windows + WSL2',

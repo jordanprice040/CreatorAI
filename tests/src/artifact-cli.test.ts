@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createApi } from '@creator/api';
@@ -15,7 +15,7 @@ import {
   BUILD_FIXTURE_SPEC,
   fixtureHumilityReview,
 } from '@creator/domain';
-import { freshDatabase, LOGIN_CODE } from './pg-harness.js';
+import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
 const sha256 = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const real = process.env.CREATOR_TEST_ISOLATION === 'wsl2';
@@ -31,7 +31,8 @@ test(
       CREATOR_DATABASE_URL: db.url,
       CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
     });
-    api.server.listen(0, '127.0.0.1');
+    const native = process.env.CREATOR_TEST_NATIVE === '1';
+    api.server.listen(native ? 4310 : 0, '127.0.0.1');
     api.preview.listen(0, '127.0.0.1');
     await Promise.all([
       once(api.server, 'listening'),
@@ -199,6 +200,222 @@ test(
     );
     assert.equal(sha256(await readFile(out)), detail.manifest.package.sha256);
     assert.equal(downloaded.sha256, detail.manifest.package.sha256);
+
+    if (process.env.CREATOR_TEST_INTERACTIVE === '1') {
+      // Fixture server only, never counted as completion of this automated test.
+      const finish = join(dir, 'finish-interactive');
+      console.log(
+        JSON.stringify({
+          mode: 'interactive_fixture_only',
+          workspace_id: ws,
+          artifact_id: a1.id,
+          manifest_sha256: a1.manifest_sha256,
+          finish_file: finish,
+          fixture_login_code: LOGIN_CODE,
+        }),
+      );
+      const until = Date.now() + 1800000;
+      while (Date.now() < until) {
+        try {
+          await readFile(finish);
+          break;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      t.skip(
+        'Interactive fixture only; normal T13/native automated assertions were not run',
+      );
+      return;
+    }
+
+    await t.test(
+      'paired worker CLI executes an exact owner job in real WSL; native window closure leaves the worker running',
+      async () => {
+        const auth = await login(`${origin}/api`);
+        const post = async (path: string, body: unknown) => {
+          const r = await fetch(`${origin}/api/${path}`, {
+            method: 'POST',
+            headers: { ...auth.write, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const value = (await r.json()) as any;
+          assert.ok(r.ok, JSON.stringify(value));
+          return value;
+        };
+        const wait = async (
+          condition: () => boolean | Promise<boolean>,
+          timeoutMs: number,
+          description: string,
+        ) => {
+          const until = Date.now() + timeoutMs;
+          while (Date.now() < until) {
+            if (await condition()) return;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          throw new Error(`Timed out: ${description}`);
+        };
+        const worker = spawn(
+          process.execPath,
+          [
+            'apps/desktop/worker.mjs',
+            'run',
+            ws,
+            resolve('.creator/products'),
+            'X05 WSL acceptance worker',
+          ],
+          {
+            windowsHide: true,
+            env: { ...process.env, CREATOR_API_URL: origin },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          },
+        );
+        let output = '';
+        let workerError = '';
+        worker.stdout.on('data', (b) => {
+          output = (output + b.toString()).slice(-12000);
+        });
+        worker.stderr.on('data', (b) => {
+          workerError = (workerError + b.toString()).slice(-4000);
+        });
+        let web: ReturnType<typeof spawn> | undefined;
+        try {
+          await wait(
+            () => /approve\?id=([a-f0-9-]{36})/.test(output),
+            10000,
+            'worker pairing challenge',
+          );
+          const challengeId = output.match(/approve\?id=([a-f0-9-]{36})/)![1];
+          await post(`desktop/challenges/${challengeId}/approve`, {});
+          await wait(
+            () => /Paired device ([a-f0-9-]{36})/.test(output),
+            10000,
+            'worker identity',
+          );
+          const deviceId = output.match(/Paired device ([a-f0-9-]{36})/)![1];
+          let queuedId: string;
+          if (native) {
+            web = spawn(
+              process.execPath,
+              [
+                resolve('node_modules/vite/bin/vite.js'),
+                'preview',
+                '--host',
+                '127.0.0.1',
+                '--port',
+                '5173',
+                '--strictPort',
+              ],
+              { cwd: resolve('apps/web'), windowsHide: true, stdio: 'ignore' },
+            );
+            await wait(
+              async () => {
+                try {
+                  return (
+                    await fetch('http://127.0.0.1:5173/', {
+                      signal: AbortSignal.timeout(500),
+                    })
+                  ).ok;
+                } catch {
+                  return false;
+                }
+              },
+              10000,
+              'native shared UI',
+            );
+            const probe = await promisify(execFile)(
+              resolve(
+                'apps/desktop/src-tauri/target/debug/creator-desktop.exe',
+              ),
+              ['--paired-job-probe'],
+              {
+                windowsHide: true,
+                timeout: 30000,
+                env: {
+                  ...process.env,
+                  CREATOR_NATIVE_PROBE_COOKIE: auth.cookie,
+                  CREATOR_NATIVE_PROBE_WORKSPACE: ws,
+                  CREATOR_NATIVE_PROBE_ARTIFACT: a1.id,
+                },
+              },
+            );
+            const id = probe.stdout.match(
+              /NATIVE_PAIRED_JOB ([a-f0-9-]{36})/,
+            )?.[1];
+            assert.ok(id, probe.stderr);
+            queuedId = id;
+          } else {
+            queuedId = (
+              await post(`desktop/devices/${deviceId}/jobs`, {
+                request_id: randomUUID(),
+                artifact_id: a1.id,
+                manifest_sha256: a1.manifest_sha256,
+                input: { args: [], stdin: '' },
+              })
+            ).id;
+          }
+          let completed: any;
+          await wait(
+            async () => {
+              const r = await fetch(
+                `${origin}/api/desktop/devices/${deviceId}/jobs`,
+                { headers: auth.read },
+              );
+              const jobs = (await r.json()) as any[];
+              completed = jobs.find((j) => j.id === queuedId);
+              if (worker.exitCode !== null)
+                throw new Error(`Worker exited: ${workerError}`);
+              return (
+                completed?.state === 'completed' ||
+                completed?.state === 'reconciling'
+              );
+            },
+            60000,
+            'real paired execution',
+          );
+          assert.equal(completed.state, 'completed', JSON.stringify(completed));
+          assert.equal(completed.verification, 'worker_report_only');
+          assert.equal(
+            completed.report.state,
+            'succeeded',
+            JSON.stringify(completed.report),
+          );
+          assert.equal(completed.report.stdout, BUILD_FIXTURE_CASES[0]!.stdout);
+          assert.equal(
+            completed.report.archive_sha256,
+            detail.manifest.package.sha256,
+          );
+          const execution = await api.artifacts.executor.status(
+            product.id,
+            completed.execution_id,
+          );
+          assert.equal(execution.environment.backend, 'wsl2-bwrap-systemd');
+          assert.match(String(execution.environment.kernel), /microsoft/i);
+          assert.ok(execution.environment.effective_limits);
+          assert.equal(execution.environment.cleanup, 'inactive');
+          assert.equal(execution.state, 'succeeded');
+          assert.equal(worker.exitCode, null); // Native probe has exited; separate worker stays alive.
+          const stopped = once(worker, 'close');
+          await post(`desktop/devices/${deviceId}/control`, {
+            state: 'shutdown',
+          });
+          const [code] = await Promise.race([
+            stopped,
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error('Worker shutdown was not observed')),
+                15000,
+              ),
+            ),
+          ]);
+          assert.equal(code, 0, workerError);
+        } finally {
+          web?.kill();
+          if (worker.exitCode === null) worker.kill();
+        }
+      },
+    );
 
     // Private preview: readiness is a real run of the exported package; then a real interactive run.
     const started = await cli(

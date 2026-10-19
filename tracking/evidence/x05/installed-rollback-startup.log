@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-19T11:24:05.074Z",
+  "platform": "win32",
+  "state": "native_navigation_observed",
+  "native": "NATIVE_WEBVIEW_NAVIGATION_FINISHED http://127.0.0.1:5173/",
+  "fixture": true,
+  "limitations": [
+    "Navigation completion is not rendered-UI, sign-in, download, pairing or launch acceptance.",
+    "Window close leaves separately running API and workers alive."
+  ]
+}

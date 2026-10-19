@@ -1,0 +1,4 @@
+Error:   × resolve pnpm@11.25.0
+  ╰─▶ Failed to fetch metadata from https://registry.npmjs.org/pnpm: error
+      sending request: client error (Connect): dns error: No such host is
+      known. (os error 11001)

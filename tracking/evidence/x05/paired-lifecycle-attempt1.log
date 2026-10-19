@@ -1,0 +1,8 @@
+TAP version 13
+# Subtest: paired real-process revocation and killed-worker reconciliation never redispatch
+    # Subtest: revoke
+    ok 1 - revoke
+      ---
+      duration_ms: 29525.494
+      type: 'test'
+      ...

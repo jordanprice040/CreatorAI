@@ -1,0 +1,8 @@
+   Compiling creator-desktop v0.1.0 (C:\Users\jorda\OneDrive\Desktop\creator_agent\apps\desktop\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.32s
+     Running unittests src\main.rs (apps\desktop\src-tauri\target\debug\deps\creator_desktop-7d33291c1da4fe7d.exe)
+
+running 1 test
+test download::tests::native_editor_file_activation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.19s

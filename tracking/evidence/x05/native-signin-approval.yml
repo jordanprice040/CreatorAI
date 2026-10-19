@@ -1,0 +1,9 @@
+- generic [active] [ref=f1e1]:
+  - heading "Approve Creator Agent device" [level=1] [ref=f1e2]
+  - paragraph [ref=f1e3]: Windows desktop — desktop_login — capabilities — code C7FBC093 — expires 2026-10-19T10:14:07.504Z
+  - paragraph [ref=f1e4]: Continue only if you started this request. Compare the code with your desktop window or worker terminal.
+  - paragraph [ref=f1e5]: Desktop login grants your current studio session access. A worker with artifact.run may accept exact owner-submitted artifact jobs in the reviewed offline WSL sandbox. Presence-only workers cannot execute jobs.
+  - button "Approve this device" [disabled] [ref=f1e6]
+  - status [ref=f1e8]: Approved. Return to your desktop or worker terminal.
+  - link "Open studio to sign in, then return and reload this page" [ref=f1e7] [cursor=pointer]:
+    - /url: /

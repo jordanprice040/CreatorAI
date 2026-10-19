@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-19T10:13:54.185Z",
+  "state": "native_browser_handoff_verified",
+  "secure_cookie": false,
+  "platform": "win32",
+  "browser": "isolated Edge via development Playwright MCP",
+  "native_cookie_authenticated_fetch": true,
+  "separate_browser_and_desktop_sessions": true,
+  "fixture": true,
+  "limitations": [
+    "Probe routes the approval URL to isolated Edge instead of invoking the personal default-browser handler.",
+    "No live OIDC provider, installer, update or editor interaction acceptance."
+  ]
+}

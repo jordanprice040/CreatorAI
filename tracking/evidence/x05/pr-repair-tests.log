@@ -1,0 +1,105 @@
+TAP version 13
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+not ok 1 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 810.8405
+  type: 'test'
+  location: 'C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\.verification\\x05-pr-candidate\\tests\\dist\\storage.test.js:67:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    17 !== 15
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 15
+  actual: 17
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/.verification/x05-pr-candidate/tests/dist/storage.test.js:72:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 2 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 868.4841
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 3 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 919.7252
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 4 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 854.6998
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 5 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 868.8847
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 6 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 890.177
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 7 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 890.4578
+  type: 'test'
+  ...
+# Subtest: T15 config keeps the owner model preference and $20 cap and leaves every study decision unresolved
+ok 8 - T15 config keeps the owner model preference and $20 cap and leaves every study decision unresolved
+  ---
+  duration_ms: 5.8748
+  type: 'test'
+  ...
+# Subtest: synthetic implementation attempts: A/B build in isolated per-attempt products with exact hashes; C is refused the builder and its code is checked server-side; budget holds, cancellation and mismatches refuse
+not ok 9 - synthetic implementation attempts: A/B build in isolated per-attempt products with exact hashes; C is refused the builder and its code is checked server-side; budget holds, cancellation and mismatches refuse
+  ---
+  duration_ms: 13037.8783
+  type: 'test'
+  location: 'C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\.verification\\x05-pr-candidate\\tests\\dist\\study-build.test.js:183:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"error":"CLI_ERROR","message":"Git command failed: Preparing worktree (new branch 'task/5ecc3ecd-6e02-4ab2-84ef-51ad799434fa')\nfatal: '$GIT_DIR' too big\n"}
+
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.cli (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/.verification/x05-pr-candidate/tests/dist/study-build.test.js:73:19)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/.verification/x05-pr-candidate/tests/dist/study-build.test.js:253:18)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: final (non-synthetic) records are refused until every owner answer is in an adopted freeze, and never run AI while live dispatch is disabled
+ok 10 - final (non-synthetic) records are refused until every owner answer is in an adopted freeze, and never run AI while live dispatch is disabled
+  ---
+  duration_ms: 11766.6489
+  type: 'test'
+  ...
+# Subtest: compiled study-build CLI runs a synthetic A attempt in the reviewed WSL2 worker and records isolation evidence
+ok 11 - compiled study-build CLI runs a synthetic A attempt in the reviewed WSL2 worker and records isolation evidence # SKIP Study builds in real isolation require the opt-in WSL2 gate
+  ---
+  duration_ms: 0.1333
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 8
+# fail 2
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 31893.9341

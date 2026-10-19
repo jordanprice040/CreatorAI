@@ -1,0 +1,22 @@
+[package]
+name = "creator-desktop"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "=2.7.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.4", features = [] }
+reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "json"] }
+serde_json = "=1.0.154"
+sha2 = "=0.10.9"
+getrandom = "=0.3.4"
+uuid = "=1.28.0"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "=0.62.2", features = ["Win32_System_Com", "Win32_UI_Shell"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

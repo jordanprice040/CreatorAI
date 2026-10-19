@@ -1,5 +1,50 @@
 # Decision log
 
+## ADR-0031 - verified editor exports and explicit Windows activation
+
+October 19, 2026: the native editor action initially launched no visible document,
+confirmed by the owner. Direct AppData cache paths produced Notepad path errors;
+the internal Windows cause is unconfirmed. Export only the last receipt-verified
+manifest to a unique Downloads/Creator Agent source directory, verify those bytes
+again, then activate fixed packaged Windows Notepad through
+IApplicationActivationManager.ActivateApplication with a quoted UTF-16 path.
+Pin the Windows API crate to 0.62.2. No arbitrary editor/program command, file
+association fallback, source extraction or generated execution. Missing packaged
+Notepad produces a visible failure. Export edits do not change the dated cache.
+Ancestor reparse checks retain the existing owner-controlled filesystem
+assumption; no protection against concurrent owner-privileged replacement claimed.
+Final native screenshot showed the exact selected manifest; stale Notepad UIA
+document text was not accepted as evidence. Rust tests verify cache preservation,
+fresh copies and changed-source refusal. This supersedes prior pending editor
+acceptance only for the observed local Windows host.
+
+## ADR-0030 - explicit local NSIS packaging and manual rollback
+
+October 19, 2026: pin Tauri CLI 2.12.3 and opt-in NSIS packaging for the existing
+local-client shell. Current-user installation, existing WebView2, no hosted service
+or worker installation. Refuse silent downgrades; explicit rollback is uninstall
+and reinstall of a prior client, not rollback of authoritative data/schema.
+Automatic updater/artifact signing remains disabled without configured keys and
+release authority. Acceptance installs only a separately named/identified debug
+fixture in a checked workspace directory, no shortcuts, and uninstalls it. Real
+Windows WebView startup is observed after install/upgrade/rollback. Production
+signing, rendered UI/editor and other supported-host claims require their own
+acceptance. Default Cargo configuration keeps bundling disabled.
+
+## ADR-0029 - scoped local paired execution
+
+October 19, 2026: X05 reuses the reviewed execution supervisor. New explicit pairing
+is required for artifact.run; owner jobs pin catalog manifest/archive and current
+recipe/policy/bridge hashes. The local product root is owner configuration, never
+job input. Admission is awaited after durable local intent and before dispatch.
+One attempt per request; 10-second leases; 20-second/256 MiB/no-network limits;
+one unresolved job per workspace, three globally, twenty hourly. Local compute
+billing stays unknown. Expiry after start is reconciling, never queued again.
+Reconciliation binds an independently observed stopped local outcome hash;
+worker claims cannot verify QA. Presence pairing grants controls without execution.
+Remote artifact synchronization, automatic retry, background installation, updater
+activation and hosted pairing are outside this local implementation.
+
 ## ADR-0026 - X03 search, lineage and audit questions (fixture-verified)
 
 - Date: October 19, 2026. Status: implemented by Claude Code on Jordan's request to start extra milestone X03; branch claude/x03-s7po1x from main d2c8ef1. Migration 14. X03 is fixture-verified: no real embedding model is verified, so real workspaces refuse semantic search; no live call and no spend.
@@ -397,3 +442,67 @@ are unchanged. Retain the original 185-pass/1-fail/1-skip full log and focused
 checks rather than claiming a green whole-suite rerun. Committee acceptance,
 participant evaluation, protocol freeze and academic schedule remain unresolved.
 No live activation, release or sending follows from creating a local archive.
+
+## X05 implementation boundary — October 19, 2026
+
+Owner authorized starting independent X05 work alongside Claude Code X03/X04.
+Keep this pass in new apps/desktop files; reuse T13 manifest schema and executor
+canonical-path/ustar validators. Initial Tauri source uses existing loopback web
+origin and same-origin API proxy, with no native command/plugin/IPC grants. This
+avoids duplicating catalog authority or adding a credential-bearing native bridge.
+Offline artifact cache stores exact bytes plus local import date; every inspection
+re-hashes, and receipts grant no permission. No extraction or host execution.
+Alternative retained: existing browser plus authenticated Gallery downloads already
+works; desktop convenience does not justify weakening isolation/authentication.
+Full system-browser handoff and paired-worker control require coordinated shared
+API/database edits, not a process-local identity map or trusted model decision.
+Tauri 2.12.4 and tauri-build 2.7.3 were checked on official docs.rs on this date;
+capability/configuration/prerequisite references are in apps/desktop/README.md.
+Native toolchain absent; transitive lock/build/native acceptance still pending.
+
+## ADR-0028 — X05 local desktop sign-in, source cache and presence pairing
+
+October 19, 2026. Owner confirmed Rust/Cargo installation and that X03/X04 were
+finished, authorizing shared integration. Fast-forwarded to origin/main ddf7bcf;
+restored local audit/X05 changes from a retained recoverable stash. Tracking-only
+conflicts retain both sets of records. No new commit or push was made.
+
+Use a Tauri 2.12.4 Windows shell over the existing loopback shared UI/API. No
+remote-origin native IPC grants. Rust menu actions own browser opening, authenticated
+source download and opening only the downloaded manifest in Notepad. Preview
+window requests can open only the exact separate-origin T13 ticket URL in the
+system browser; other navigation/new-window origins are denied. No source extraction
+or generated-code execution occurs on the desktop host. Raw manifest export is an
+owner-only, hash-bound addition to T13; original bytes are rehashed before sending.
+Native and Node caches are dated read-only snapshots, not authority or synchronization.
+
+Migration 16 follows X04's 15. Five-minute one-time challenges bind to SHA-256 of a
+256-bit native/client proof. Browser approval uses existing session/CSRF, binds the
+approving session and, for workers, requires current human workspace ownership.
+Claiming is transactional and verifies that approval has not expired/revoked.
+Desktop claims issue separate revocable HttpOnly sessions; worker claims issue
+hashed, expiring, revocable identities scoped to one workspace. No token/proof in
+URLs, audit events or device lists. Worker client credentials remain in memory;
+restarting requires re-pairing. Declared capability is not infrastructure evidence.
+
+Presence heartbeats use 30-second scoped leases and controls invalidate the fence.
+Paired workers cannot dispatch work, read artifacts with their bearer token, call a
+model or consume a budget. This is an explicit partial X05 boundary. Reject a
+process-local identity map, copying a browser cookie to a worker, or wiring an
+arbitrary shell command to a worker lease. Actual paired execution must integrate
+existing isolation and admission/accounting, with its own acceptance evidence.
+Closing a window is separate from stopping a worker. Shutdown is a request until
+observed; revocation denies future polls immediately, and is not proof of OS exit.
+
+The importer/native filesystem boundary assumes an owner-controlled cache outside
+product execution workspaces. Ancestor symlink/reparse checks do not protect against
+concurrent replacement by another owner-privileged process. No installer/updater,
+background service, external tracing, hosted deployment or live integration activated.
+
+Native source download and startup were executed on Windows with fixture inputs;
+HTTP/PostgreSQL pairing/session checks are separate from native interactive browser
+approval, which remains unverified. The imported X04 Git contract used POSIX mkdir
+and an invalid Windows file URL; replaced its test setup with Node mkdirSync,
+pathToFileURL and platform-appropriate Git environment, retaining every assertion.
+Generated Cargo target/schema files are excluded from Git/Prettier. Dependency
+versions and commands are in apps/desktop/README.md; exact results in evidence/x05.

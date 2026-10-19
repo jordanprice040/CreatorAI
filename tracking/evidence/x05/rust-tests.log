@@ -1,0 +1,13 @@
+   Compiling creator-desktop v0.1.0 (C:\Users\jorda\OneDrive\Desktop\creator_agent\apps\desktop\src-tauri)
+warning: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\C:\Users\jorda\OneDrive\Desktop\creator_agent\apps\desktop\src-tauri\target\debug\incremental\creator_desktop-2sx6dvbqnknce\s-hncqh1nawc-0fuwe54-working`
+
+warning: `creator-desktop` (bin "creator-desktop" test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.59s
+     Running unittests src\main.rs (apps\desktop\src-tauri\target\debug\deps\creator_desktop-bf80d7aaa48508e1.exe)
+
+running 3 tests
+test download::tests::hash_validation_rejects_tampering_and_malformed_hash ... ok
+test tests::navigation_refuses_other_origins_and_credentials ... ok
+test tests::only_scoped_private_preview_tickets_can_open_a_browser ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
