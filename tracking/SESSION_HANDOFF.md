@@ -1,8 +1,87 @@
 # Session handoff
 
+<<<<<<< HEAD
+
+## X09 local portfolio acceptance (October 19, 2026)
+
+Branch `codex/x09-portfolio`, parent local X08 commit `64596ef`, in managed
+checkout `C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`. Directory
+name intentionally unchanged. X08's recorded hashes were checked before the local
+commit. No push; X09 is uncommitted. Original X05 dirty work and Claude's separate
+UI/UX work preserved.
+
+Read docs/X09_PORTFOLIO.md and ADR-0036. Migration 22 introduces portfolio
+policy/lanes/schedules/jobs/health and reviewed versioned knowledge. Shared
+admission, broker allocation checks and workflow leasing enforce reserve,
+maintenance, backlog and conservation constraints. Stable intents coalesce missed
+intervals and fence uncertain dispatchers. Source refresh uses the original source
+broker; health uses exact package rehashing; scheduled review uses existing durable
+workflows. Cancellation also cancels the schedule's dedicated run.
+
+Knowledge is bounded task data with current provenance and permitted use. Propose,
+execute structural regression, review the exact hash, activate and roll back.
+Workflow/task bindings retain exact versions. Revocation or stale provenance
+blocks queued dispatch; no policy, credential, finance or held-out mutation.
+Source/skill truth and output-quality improvements are not inferred from the
+structural regression.
+
+Seven focused X09 checks passed without skips, including HTTP/CLI and negative
+gates. Final full suite: 270 tests, 256 pass, 0 fail, 14 explicit native/WSL/inverse
+backend skips; actual backup/restore passed. See evidence/x09/full-tests.log. Final typecheck,
+build, format and whitespace checks passed. Actual isolated Edge verified the
+new screen's scheduling, review/activation, pause/resume, cancellation and revoke
+flows; 390px viewport has 390px document width. Browser evidence is retained.
+
+Claude integration: add `portfolio.tsx`, merge its import/view case into redesigned
+`main.tsx` and the `portfolio` view tuple into `ui.tsx`; preserve the earlier X08
+wiring too. No shared CSS or existing public component prop changes. Scoped
+tracking entries must be preserved alongside Claude's updates.
+
+Optional polling defaults off (`CREATOR_PORTFOLIO_SCHEDULER=off`). Only manual
+fixture passes were executed; no new live model/source integration, spending,
+public deployment, outreach, account activation or pilot. Health is archive
+integrity only; skills are passive reviewed guidance. Fixed policy budget IDs
+require a new workspace for rotation. Existing studio databases were not migrated.
+Next eligible: X10 on request, with inherited live/hosted readiness gaps explicit.
+
+## X08 implemented and test-delivery acceptance verified (October 19, 2026)
+
+Worktree: `C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent`, branch
+`codex/x08-marketing`, from merged main `0dfc6e6`. Changes are uncommitted. The
+original X05 checkout and all pre-existing edits are preserved. Jordan reported
+that Claude is working on UI/UX; no cross-chat message was sent.
+
+Read docs/X08_MARKETING.md, ADR-0035 and the latest BUILD_STATUS entry. Campaign
+content uses closed evidence-backed statements about recorded T13 package checks,
+retains fixture labels/limitations, and binds exact audience/experiment/release
+to a hash. API/CLI/screen provide human-owner grants, suppression, once-only local
+fixture deliveries, reconciliation and measured synthetic feedback. Monetary
+adapter exposure is zero; host compute is unmetered. Migration 21 applies only
+to disposable test databases this turn.
+
+Final focused checks: 23/23, no skips (X08 + X07 + storage). Broader run: 248 pass,
+0 fail, 15 explicit skips (263 total), before final fixture-helper/UI/help edits;
+see BUILD_STATUS for scope. Final build and browser flow passed. Narrow-screen
+hash overflow repaired; observed final document width equals 390px viewport.
+Evidence: tracking/evidence/x08. Initial test/fixture failures remain in logs.
+
+Claude integration: keep the new `apps/web/src/marketing.tsx`; merge only its
+import/switch case into redesigned `main.tsx` and the `marketing` view tuple into
+`ui.tsx`. No shared CSS or component prop changes. Align the new screen with
+Claude's tokens after merging. Backend changes remain in contracts/domain/db/API;
+CLI commands are documented in help and docs/X08_MARKETING.md. Tracking additions
+are scoped entries; preserve Claude's entries when integrating.
+
+Limits: local fixture sink only; no real addresses, outbound adapter, paid ads,
+public unsubscribe endpoint, hosted landing page or validated demand. Missing
+native/WSL checks do not block this local test-delivery gate and were not counted
+as passes. No paid call, real outreach, release, activation, commit or push.
+Next eligible: X09 on owner request; do not advance automatically.
+=======
+
 ## UX/UI redesign (October 19, 2026)
 
-Branch `claude/ux-ui-handoff-mfarlr` from main `0dfc6e6`; see docs/UX_UI.md and ADR-0035. The
+Branch `claude/ux-ui-handoff-mfarlr` from main `0dfc6e6`; see docs/UX_UI.md and ADR-0037. The
 handoff file itself lives only in the owner's local checkout and was read, not committed.
 
 Touched shared web files: `index.html` (theme attribute, boot script), new `public/theme-boot.js`
@@ -17,6 +96,8 @@ classes listed in docs/UX_UI.md. If X08 also took ADR-0035, renumber this redesi
 To rerun the browser evidence: start `tracking/evidence/ux-ui/harness.mjs` on an empty migrated
 database, then `browser-acceptance.mjs` and `screens.mjs` (commands in docs/UX_UI.md).
 Not done: native Tauri check on Windows. Next eligible: X08 (Codex) or the owner's review of this PR.
+
+> > > > > > > origin/main
 
 ## X06/X07 audited and repaired (October 19, 2026)
 
@@ -63,6 +144,7 @@ Migration 18, ADR-0032, docs/HOSTED_OPERATION.md. Status: implemented and checke
 locally; **no hosted environment exists and nothing was deployed or activated.**
 
 What now works (checked):
+
 - Explicit hosted mode (test/staging/live) with refusals for unsafe configs: non-https
   or path origins, preview host sharing or nesting the studio host, no build commit,
   relative product root, missing metrics token, dev login, remote DB without
@@ -765,7 +847,6 @@ Limits: synthetic fixtures only; no real participants, independent ratings, live
 The disposable demo used API 4314, web 5176, and .verification/t10-pg on loopback port 55432. Do not assume those processes are still running in a later chat. Session/database files are ignored. The saved synthetic-study-export.json contains labeled synthetic data, with no session credentials. A source manifest binds the candidate independently of tracking documentation.
 
 **Next eligible prompt: T11 - Isolated execution and local product Git**, after owner review/merge and a new request. T11 is not started. Protocol adoption remains T14; empirical collection and analysis remain T15-T16.
-
 
 ## Latest — T09 usable catalog, decisions, search and run monitor (October 18, 2026)
 

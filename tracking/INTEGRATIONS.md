@@ -1,5 +1,25 @@
 # Integration readiness
 
+X09 (October 19, 2026): portfolio schedules run through existing source, artifact
+and workflow adapters, with shared admission/budget gates. Optional API polling
+(`CREATOR_PORTFOLIO_SCHEDULER=on`) is implemented but defaults off and was not
+activated. Verified manual passes use synthetic sources and fixture models;
+there is no new live adapter, credential, paid call or external mutation.
+Knowledge components/lessons/prompts/skills are reviewed bounded task guidance,
+not installed executable plugins or policy changes. Structural regressions do
+not establish empirical quality gains. Product health means archive integrity,
+not runtime uptime. See docs/X09_PORTFOLIO.md, ADR-0036 and evidence/x09.
+
+X08 (October 19, 2026): implemented local fixture sink, authenticated API/CLI and
+Campaigns screen. No real outreach adapter, mailing-list import, paid ads,
+credentials, public landing-page deployment or payment integration was activated.
+Fixture recipients are opaque `test:` IDs; exposure is bounded at zero adapter
+spend plus a grant delivery cap/expiry. Host compute is unmetered. Unknown outcomes
+reconcile from the local transactional native inbox without resend; this does not
+establish an external-provider reconciliation contract. Suppression is owner-managed
+and workspace-wide; no public unsubscribe flow exists. See docs/X08_MARKETING.md,
+ADR-0035 and tracking/evidence/x08 for verification and limits.
+
 October 19 audit: X06/X07 repaired in the attached worktree (ADR-0034, migration 20).
 No change in activation: hosted configuration remains undeployed; payments remain
 fixture/contract checked, with no Stripe test/live API observation. Account identity,

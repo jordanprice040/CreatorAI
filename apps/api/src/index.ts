@@ -34,7 +34,7 @@ import { readFileSync } from 'node:fs';
 import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
-  PaymentStore,
+  PortfolioStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -232,7 +232,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new PaymentStore(pool) : null;
+  const store = pool ? new PortfolioStore(pool) : null;
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
@@ -325,6 +325,14 @@ export function createApi(
       )
     : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };
+  const portfolio =
+    store && sources ? new PortfolioService(store, sources, artifacts) : null;
+  const portfolioScheduler = env.CREATOR_PORTFOLIO_SCHEDULER ?? 'off';
+  if (!['on', 'off'].includes(portfolioScheduler))
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'CREATOR_PORTFOLIO_SCHEDULER must be on or off.',
+    );
   // Workflows run on the server, not in the page: this in-process worker (or a separate
   // `pnpm worker`) continues them after restarts. CREATOR_WORKER=off leaves it to others.
   const workerMode = env.CREATOR_WORKER ?? 'on';
@@ -386,6 +394,7 @@ export function createApi(
     await store.sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS);
     await store.drainOutbox();
     worker?.start();
+    if (portfolioScheduler === 'on') portfolio?.start();
   }
   let ready = init();
   ready.catch(() => undefined);
@@ -441,7 +450,9 @@ export function createApi(
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
       GITHUB_ROUTE.exec(url.pathname) ??
-      PAYMENTS_ROUTE.exec(url.pathname);
+      PAYMENTS_ROUTE.exec(url.pathname) ??
+      MARKETING_ROUTE.exec(url.pathname) ??
+      PORTFOLIO_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -471,6 +482,41 @@ export function createApi(
       respond(res, status, value);
       return true;
     };
+    if (
+      ws &&
+      collection &&
+      PORTFOLIO_ROUTE.test(url.pathname) &&
+      (await portfolioRoutes({
+        store,
+        service: portfolio!,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection &&
+      MARKETING_ROUTE.test(url.pathname) &&
+      (await marketingRoutes({
+        store,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
     if (
       ws &&
       collection &&
@@ -1439,6 +1485,7 @@ export function createApi(
   async function close() {
     if (relay) clearInterval(relay);
     await worker?.stop();
+    await portfolio?.stop();
     server.closeAllConnections();
     preview.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -1455,6 +1502,7 @@ export function createApi(
     store,
     broker,
     sources,
+    portfolio,
     worker,
     ready: () => ready,
     close,
@@ -1466,3 +1514,9 @@ export function createApi(
     loginCode: authn.generatedCode,
   };
 }
+import { MARKETING_ROUTE, marketingRoutes } from './marketing.js';
+import {
+  PORTFOLIO_ROUTE,
+  PortfolioService,
+  portfolioRoutes,
+} from './portfolio.js';

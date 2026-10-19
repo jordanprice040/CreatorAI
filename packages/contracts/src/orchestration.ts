@@ -89,6 +89,10 @@ export type WorkflowLimits = z.infer<typeof WorkflowLimitsSchema>;
 
 export const StartWorkflowRequestSchema = z
   .strictObject({
+    knowledge_keys: z
+      .array(z.string().regex(/^[a-z][a-z0-9_-]{0,59}$/))
+      .max(4)
+      .optional(),
     role: z.literal('r05_skeptic'),
     /** The record under review, pinned to one version; its content hash is bound at start. */
     subject: TargetRefSchema,

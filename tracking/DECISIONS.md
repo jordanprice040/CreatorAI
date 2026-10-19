@@ -1,6 +1,101 @@
 # Decision log
 
-## ADR-0035 — Dark-default studio theme, semantic tokens and grouped workspace shell
+<<<<<<< HEAD
+
+## ADR-0036 — X09 bounded portfolio policy and reviewed task knowledge
+
+October 19, 2026. Jordan authorized X09 after X08 and reported Claude's parallel
+UI/UX work. X08 was hash-checked and preserved as local commit `64596ef`; X09 is
+on `codex/x09-portfolio` in the same managed checkout. No push or changes to the
+original dirty X05 checkout. Claude's shared styling remains separate.
+
+Keep PostgreSQL scheduling beside the existing durable workflows and brokers;
+do not introduce another scheduler service, paid adapter or credential path.
+Migration 22 stores versioned owner policy, immutable run lanes and schedules,
+deduplicated job intents, health and knowledge provenance. Source refresh uses
+the existing source policy/admission; reviews create existing bounded workflows;
+health rehashes exact artifact bytes and claims archive integrity only.
+
+Reserve real maintenance authority in an existing period child of the configured
+global envelope. Existing journal/ancestor accounting remains authoritative.
+Improvement and exploration retain separate run allocations; non-maintenance
+calls cannot spend the maintenance subtree. A depleted/expired reserve, due or
+unfinished maintenance, unresolved health, review backlog, capacity and explicit
+normal/conserve/maintenance_only/paused modes constrain shared dispatch. Study
+attempts retain their frozen conditions and do not inherit portfolio changes.
+
+Coalesce outage intervals into one current job; never enumerate missed slots.
+Use a workspace cooldown, per-pass cap, one open job per schedule and stable
+effect/idempotency IDs. Unknown outcomes occupy capacity and require read-only
+reconciliation, not redispatch. Missing durable effect receipts fence delayed
+dispatchers. Cancellation marks the schedule and cancels its dedicated run;
+already-dispatched observations remain recorded. Optional API polling is off by
+default and was not activated. Policy budget identities are fixed in this version;
+budget rotation into different identities requires a new workspace.
+
+Use bounded task guidance and artifact/source locators for reusable components,
+lessons, prompts and skills. This is not an executable skill installer or a
+system-policy loader. Proposals cannot change permissions, credentials, finance
+or evaluation holdouts. Require executed structural renderer regressions bound
+to the exact content hash, then human review and explicit activation. Regression
+evidence records what was checked, not empirical output-quality gains. Rollback
+selects a still-reviewed version using expected-head concurrency. Revocation and
+stale provenance fence future workflow dispatch without changing immutable task
+history. Workflow knowledge bindings retain exact candidate versions/hashes.
+
+Owner feedback uses existing Gallery records; portfolio backlog counts those
+unresolved submissions and pending decisions. An explicit hash/identity-bound
+owner health deferral preserves the failed report as `owner_deferred`, never as
+a successful check. No profit threshold or fixed production quota is introduced.
+
+See docs/X09_PORTFOLIO.md and tracking/evidence/x09. The new Portfolio screen
+requires only an import/view case in main.tsx and a view tuple in ui.tsx;
+shared CSS and existing component props remain unchanged for Claude integration.
+
+## ADR-0035 — X08 immutable campaigns and local fixture delivery
+
+October 19, 2026. Jordan authorized X08 and stated that Claude is working on
+UI/UX. Codex uses a separate managed checkout from current main `0dfc6e6`, branch
+`codex/x08-marketing`. Original X05 edits and Claude's redesign remain separate.
+
+Use deterministic templates over registered current verified artifact manifests
+instead of a marketing model/provider. Closed factual claims name recorded package
+checks, commit, execution ID, input hash and manifest hash; retain limitations and
+synthetic labels. This provides inspectable evidence without introducing new paid
+inference or claiming validated utility/demand. Arbitrary capability claims,
+testimonials and customer/traffic counts are outside the draft contract. Audience
+provenance and hypotheses are explicit owner assertions. A new draft, with its own
+grant, is required after content/audience/experiment changes.
+
+Migration 21 stores immutable campaign content and observations, human-owner
+grants, workspace suppression, pre-adapter intents and native local receipts.
+Grants bind the complete request/content hash, expiry and delivery cap. Reserve
+one slot before dispatch, with no refund after uncertain/failed attempts. Monetary
+adapter exposure is exactly zero because only a transactional local fixture sink
+exists; host compute is unmetered. No live channel, paid-ad adapter, credentials,
+real address, outbound message or public unsubscribe endpoint is implemented.
+
+One workspace lock serializes admission, suppression, revocation/cancellation,
+caps and local acceptance. A spec lock prevents candidate revisions/registration
+from racing evidence checks. Unique campaign/recipient identity prevents retries
+from creating another delivery. Unknown outcomes are reconciled through immutable
+native receipts without resend. A missing receipt is definitive only for this
+transactional local sink, never for an external service. Terminal state fences a
+delayed dispatcher. All commands retain audit/outbox events.
+
+Record synthetic feedback against an acknowledged fixture delivery and frozen
+metric, with stable deduplicated event identity. Counts are fixture observations,
+not market validation. Stop rules are explanatory; actual bounds are caps,
+expiry, exact audience, once-per-recipient admission and cancellation. There is
+no automatic experiment loop. Real distribution needs a separately implemented,
+verified and authorized adapter; hosting/payment prerequisites remain applicable.
+
+New UI is isolated in `marketing.tsx`; shared changes are one import/case in
+`main.tsx` and one view tuple in `ui.tsx`. No shared CSS or public component prop
+changes. See docs/X08_MARKETING.md and tracking/evidence/x08.
+=======
+
+## ADR-0037 — Dark-default studio theme, semantic tokens and grouped workspace shell
 
 October 19, 2026. Owner handoff (docs/CLAUDE_UX_UI_HANDOFF.md on the owner's machine) authorized a
 UX/UI redesign of `apps/web`, which is also the desktop view. Dark is the default on every load,
@@ -14,6 +109,8 @@ following the OS theme (contradicts the owner's choice). `useRoute` now drops a 
 request after the user leaves it (fixes being pulled back). No API, gate, session or CSRF change.
 Numbering: if Codex's X08 lands first with ADR-0035, renumber this entry rather than X08's.
 See docs/UX_UI.md.
+
+> > > > > > > origin/main
 
 ## ADR-0034 — X06/X07 audit repairs and conserved processor identity
 
@@ -280,7 +377,6 @@ activation and hosted pairing are outside this local implementation.
 - Review hardening: manual stops share the broker run lock; study events take the audit lock before insertion; no-key-update parent locks avoid foreign-key/audit inversion. Late outputs retain artifacts and charges but fail the original assignment deadline. Grader principals are human-only. Seed commands have distinct repeatable keys. Equal problem/outcome fields and bounded snapshots prevent arm-specific information loss.
 - Rollback: additive migration 9 can remain unused if the study routes are disabled; do not delete study/audit evidence. A future live/participant implementation needs a new authorized configuration, verified adapters, protocol and recruitment decisions. T11 is the next milestone; it is not started here.
 
-
 ## ADR-0012 — T09 studio interface, PostgreSQL text search and address-kept state
 
 - Date: October 18, 2026. Status: accepted reversible implementation decision within Jordan's request to start T09. Decision-maker: coding agent; owner review pending on the pull request.
@@ -407,34 +503,34 @@ Affected requirements: C22, C26–C35 and C49–C50 guide this architecture; non
 
 All paths are relative to the local root above.
 
-| Actual path | Observed role |
-| --- | --- |
-| `.git/` | Created by T00: unborn main/origin, no commits or tracked files. |
-| `AGENTS.md` | Canonical coding instructions, preserved. |
-| `agent.md`, `CLAUDE.md` | Instruction entry points, preserved; incoming CLAUDE checksum differed from original kit manifest. |
+| Actual path                                            | Observed role                                                                                                                                       |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.git/`                                                | Created by T00: unborn main/origin, no commits or tracked files.                                                                                    |
+| `AGENTS.md`                                            | Canonical coding instructions, preserved.                                                                                                           |
+| `agent.md`, `CLAUDE.md`                                | Instruction entry points, preserved; incoming CLAUDE checksum differed from original kit manifest.                                                  |
 | `PROJECT_CONTEXT.md`, `PROMPT_LIBRARY.md`, `README.md` | v3.0 vision, milestones/shared contract, kit guide; their uninspected-repository statements describe kit creation, superseded by this dated intake. |
-| `context/` | 9 design, policy, requirements and reconciliation documents, not runtime code. |
-| `agents/` | RUNTIME_CONTRACT.md and ROLE_PROMPTS.md; future runtime specifications, no executable agents. |
-| `templates/` | 5 JSON examples/scenarios and IDEA_DOSSIER.md; not executable validators/tests. |
-| `references/` | 4 archived historical Markdown documents, retained as references. |
-| `tracking/` | Four status/decision/integration/handoff documents updated by T00. |
-| `tracking/evidence/t00/` | Added input hashes, remote observation, PowerShell verifier, baseline output and final file hashes. Intake tooling only. |
-| `PACKAGE_VALIDATION.md`, `SHA256SUMS.txt` | Historical kit validation/checksums preserved; not a checksum manifest for the edited working tree. |
+| `context/`                                             | 9 design, policy, requirements and reconciliation documents, not runtime code.                                                                      |
+| `agents/`                                              | RUNTIME_CONTRACT.md and ROLE_PROMPTS.md; future runtime specifications, no executable agents.                                                       |
+| `templates/`                                           | 5 JSON examples/scenarios and IDEA_DOSSIER.md; not executable validators/tests.                                                                     |
+| `references/`                                          | 4 archived historical Markdown documents, retained as references.                                                                                   |
+| `tracking/`                                            | Four status/decision/integration/handoff documents updated by T00.                                                                                  |
+| `tracking/evidence/t00/`                               | Added input hashes, remote observation, PowerShell verifier, baseline output and final file hashes. Intake tooling only.                            |
+| `PACKAGE_VALIDATION.md`, `SHA256SUMS.txt`              | Historical kit validation/checksums preserved; not a checksum manifest for the edited working tree.                                                 |
 
 Absent: apps/, packages/, src/, application tests, dependency manifests/lockfiles, .github/workflows/, container definitions, migrations, provider adapters and application build/start/test commands. Input inventory: 32 files including SHA256SUMS.txt. Reusable assets are specifications, prompts, templates and requirements; no reusable implemented functionality was found. No other personal repository was searched.
 
 ### Planned dependency/path map — not present yet
 
-| Gate | Paths / dependency direction | Prerequisite and behavior |
-| --- | --- | --- |
-| T01 | `packages/contracts` → runtime validation library | Versioned executable schemas, decimal-string exact money and explicit errors. Select/pin library after compatibility review. |
-| T01 | `packages/domain` → contracts | Lifecycle, containment and transition rules; no external effects. |
-| T01 | `apps/api` → contracts/domain; `apps/cli` and `apps/web` → API | Thin health and validated fixture demonstration; React/Vite client. Clients do not own enforcement. Share schemas as needed. |
-| T01 | Root pnpm workspace/scripts | Strict checks, compatible pinned dependencies, lockfile and documented install/build/test/dev commands. Tool presence is not compatibility evidence. |
-| T02 | `packages/db` → contracts/domain + PostgreSQL | Migrations, persistence, audit/outbox; usable service unverified. |
-| T03–T05 | policy/finance/providers and `apps/orchestrator` | Admission precedes provider/Temporal effects; verified SDKs, budgets, caps and grants required. |
-| T11–T13 | `apps/worker`, artifacts/integrations | Isolated generated workspaces, exact Git/artifact evidence; no host-execution fallback. |
-| X05 onward | `apps/desktop` and hosted extensions | Deferred; no empty packages created. |
+| Gate       | Paths / dependency direction                                   | Prerequisite and behavior                                                                                                                            |
+| ---------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T01        | `packages/contracts` → runtime validation library              | Versioned executable schemas, decimal-string exact money and explicit errors. Select/pin library after compatibility review.                         |
+| T01        | `packages/domain` → contracts                                  | Lifecycle, containment and transition rules; no external effects.                                                                                    |
+| T01        | `apps/api` → contracts/domain; `apps/cli` and `apps/web` → API | Thin health and validated fixture demonstration; React/Vite client. Clients do not own enforcement. Share schemas as needed.                         |
+| T01        | Root pnpm workspace/scripts                                    | Strict checks, compatible pinned dependencies, lockfile and documented install/build/test/dev commands. Tool presence is not compatibility evidence. |
+| T02        | `packages/db` → contracts/domain + PostgreSQL                  | Migrations, persistence, audit/outbox; usable service unverified.                                                                                    |
+| T03–T05    | policy/finance/providers and `apps/orchestrator`               | Admission precedes provider/Temporal effects; verified SDKs, budgets, caps and grants required.                                                      |
+| T11–T13    | `apps/worker`, artifacts/integrations                          | Isolated generated workspaces, exact Git/artifact evidence; no host-execution fallback.                                                              |
+| X05 onward | `apps/desktop` and hosted extensions                           | Deferred; no empty packages created.                                                                                                                 |
 
 Create only paths required by the authorized milestone. Smallest useful T01 slice: CLI/web → local API → runtime-validated fixture contract and deterministic lifecycle result, with health and invalid-input/transition checks. The persistent bounded-role slice in context/ARCHITECTURE.md spans T01–T05; T01 alone does not complete it.
 

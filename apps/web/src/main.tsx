@@ -23,6 +23,8 @@ import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
+import { Marketing } from './marketing.js';
+import { Portfolio } from './portfolio.js';
 import {
   Icon,
   VIEW_GROUPS,
@@ -349,6 +351,14 @@ function App() {
       );
     const s = auth.session;
     switch (route.view) {
+      case 'portfolio':
+        return (
+          <Portfolio key={workspace.id} workspace={workspace} session={s} />
+        );
+      case 'marketing':
+        return (
+          <Marketing key={workspace.id} workspace={workspace} session={s} />
+        );
       case 'operations':
         return <Operations />;
       case 'desktop':

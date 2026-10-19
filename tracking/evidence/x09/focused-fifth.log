@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: X09 HTTP/CSRF/CLI: schedule, bounded pass, evidence, mode changes and knowledge review
+ok 1 - X09 HTTP/CSRF/CLI: schedule, bounded pass, evidence, mode changes and knowledge review
+  ---
+  duration_ms: 6049.1208
+  type: 'test'
+  ...
+# Subtest: X09 conservation gates distinguish obligations, low reserves, capacity and improvement allocations
+ok 2 - X09 conservation gates distinguish obligations, low reserves, capacity and improvement allocations
+  ---
+  duration_ms: 2.9514
+  type: 'test'
+  ...
+# Subtest: X09 overdue maintenance stops real admission; coalesced concurrent ticks refresh sources once without an outage storm
+ok 3 - X09 overdue maintenance stops real admission; coalesced concurrent ticks refresh sources once without an outage storm
+  ---
+  duration_ms: 1909.534
+  type: 'test'
+  ...
+# Subtest: X09 broker cannot spend the maintenance subtree from exploration and low funds preserve the configured reserve
+ok 4 - X09 broker cannot spend the maintenance subtree from exploration and low funds preserve the configured reserve
+  ---
+  duration_ms: 1778.8546
+  type: 'test'
+  ...
+# Subtest: X09 owner feedback, failed health evidence and conservation modes constrain discovery without fabricating health
+ok 5 - X09 owner feedback, failed health evidence and conservation modes constrain discovery without fabricating health
+  ---
+  duration_ms: 1862.3899
+  type: 'test'
+  ...
+# Subtest: X09 crash before dispatch is fenced by reconciliation; durable workflow creation recovers without duplicate start
+ok 6 - X09 crash before dispatch is fenced by reconciliation; durable workflow creation recovers without duplicate start
+  ---
+  duration_ms: 1771.1448
+  type: 'test'
+  ...
+# Subtest: X09 reviewed versioned knowledge enriches real workflow task constraints, supports rollback, and revocation/stale provenance fence queued work
+ok 7 - X09 reviewed versioned knowledge enriches real workflow task constraints, supports rollback, and revocation/stale provenance fence queued work
+  ---
+  duration_ms: 1561.4547
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 16094.591

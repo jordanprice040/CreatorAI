@@ -26,3 +26,5 @@ export * from './github.js';
 export * from './deployment.js';
 export * from './smoke.js';
 export * from './payments.js';
+export * from './marketing.js';
+export * from './portfolio.js';

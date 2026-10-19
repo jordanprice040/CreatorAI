@@ -43,3 +43,5 @@ export * from './desktop.js';
 export * from './github.js';
 export * from './operations.js';
 export * from './payments.js';
+export * from './marketing.js';
+export * from './portfolio.js';

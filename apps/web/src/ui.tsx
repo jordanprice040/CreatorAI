@@ -27,16 +27,18 @@ export const VIEWS = [
   ['gallery', 'Gallery'],
   ['desktop', 'Desktop and workers'],
   ['operations', 'Operations'],
+  ['marketing', 'Campaigns'],
+  ['portfolio', 'Portfolio'],
 ] as const;
 export type View = (typeof VIEWS)[number][0];
 
 /** Navigation groups for the shell. Every view in VIEWS appears in exactly one group. */
 export const VIEW_GROUPS: readonly { label: string; views: readonly View[] }[] =
   [
-    { label: 'Studio', views: ['overview', 'submit', 'compare'] },
+    { label: 'Studio', views: ['overview', 'submit', 'compare', 'portfolio'] },
     { label: 'Evidence', views: ['catalog', 'evidence', 'scores', 'search'] },
     { label: 'Oversight', views: ['decisions', 'runs', 'budgets', 'activity'] },
-    { label: 'Build and study', views: ['gallery', 'studies'] },
+    { label: 'Build and study', views: ['gallery', 'studies', 'marketing'] },
     { label: 'System', views: ['desktop', 'operations'] },
   ];
 export const viewLabel = (view: View) =>

@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: X09 conservation gates distinguish obligations, low reserves, capacity and improvement allocations
+ok 1 - X09 conservation gates distinguish obligations, low reserves, capacity and improvement allocations
+  ---
+  duration_ms: 3.2725
+  type: 'test'
+  ...
+# Subtest: X09 overdue maintenance stops real admission; coalesced concurrent ticks refresh sources once without an outage storm
+not ok 2 - X09 overdue maintenance stops real admission; coalesced concurrent ticks refresh sources once without an outage storm
+  ---
+  duration_ms: 1343.0471
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\portfolio.test.js:41:1'
+  failureType: 'testCodeFailure'
+  error: 'Input does not satisfy the versioned contract.'
+  code: 'INVALID_CONTRACT'
+  name: 'ContractError'
+  stack: |-
+    parse (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/contracts/dist/primitives.js:157:15)
+    validateBody (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:85:20)
+    PortfolioStore.createEntity (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:461:22)
+    portfolioFixture (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio-harness.js:15:32)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:21:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:42:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X09 broker cannot spend the maintenance subtree from exploration and low funds preserve the configured reserve
+not ok 3 - X09 broker cannot spend the maintenance subtree from exploration and low funds preserve the configured reserve
+  ---
+  duration_ms: 1094.3928
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\portfolio.test.js:69:1'
+  failureType: 'testCodeFailure'
+  error: 'Input does not satisfy the versioned contract.'
+  code: 'INVALID_CONTRACT'
+  name: 'ContractError'
+  stack: |-
+    parse (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/contracts/dist/primitives.js:157:15)
+    validateBody (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:85:20)
+    PortfolioStore.createEntity (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:461:22)
+    portfolioFixture (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio-harness.js:15:32)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:21:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:70:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X09 crash before dispatch is fenced by reconciliation; durable workflow creation recovers without duplicate start
+not ok 4 - X09 crash before dispatch is fenced by reconciliation; durable workflow creation recovers without duplicate start
+  ---
+  duration_ms: 1119.0752
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\portfolio.test.js:87:1'
+  failureType: 'testCodeFailure'
+  error: 'Input does not satisfy the versioned contract.'
+  code: 'INVALID_CONTRACT'
+  name: 'ContractError'
+  stack: |-
+    parse (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/contracts/dist/primitives.js:157:15)
+    validateBody (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:85:20)
+    PortfolioStore.createEntity (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:461:22)
+    portfolioFixture (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio-harness.js:15:32)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:21:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:88:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X09 reviewed versioned knowledge enriches real workflow task constraints, supports rollback, and revocation/stale provenance fence queued work
+not ok 5 - X09 reviewed versioned knowledge enriches real workflow task constraints, supports rollback, and revocation/stale provenance fence queued work
+  ---
+  duration_ms: 1089.6672
+  type: 'test'
+  location: 'C:\\Users\\jorda\\.codex\\worktrees\\x08-marketing\\creator_agent\\tests\\dist\\portfolio.test.js:109:1'
+  failureType: 'testCodeFailure'
+  error: 'Input does not satisfy the versioned contract.'
+  code: 'INVALID_CONTRACT'
+  name: 'ContractError'
+  stack: |-
+    parse (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/contracts/dist/primitives.js:157:15)
+    validateBody (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:85:20)
+    PortfolioStore.createEntity (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/packages/db/dist/store.js:461:22)
+    portfolioFixture (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio-harness.js:15:32)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async setup (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:21:21)
+    async TestContext.<anonymous> (file:///C:/Users/jorda/.codex/worktrees/x08-marketing/creator_agent/tests/dist/portfolio.test.js:110:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 1
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5177.3018

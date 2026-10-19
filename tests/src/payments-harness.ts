@@ -10,6 +10,12 @@ export async function verifiedRelease(
   pool: pg.Pool,
   ws: string,
   owner: CommandContext,
+  makeManifest?: (ids: {
+    id: string;
+    spec_id: string;
+    freeze_id: string;
+    product_id: string;
+  }) => unknown,
 ) {
   const run = await store.createEntity(owner, ws, {
     kind: 'run',
@@ -95,11 +101,20 @@ export async function verifiedRelease(
   );
   const manifestId = randomUUID();
   const product = randomUUID();
-  const manifestSha = h(`manifest-${manifestId}`);
+  const manifest =
+    makeManifest?.({
+      id: manifestId,
+      spec_id: spec.id,
+      freeze_id: freeze,
+      product_id: product,
+    }) ?? {};
+  const manifestSha = makeManifest
+    ? h(JSON.stringify(manifest))
+    : h(`manifest-${manifestId}`);
   await pool.query(
     `insert into artifact_manifests (id, workspace_id, entity_id, product_id, spec_id,
        spec_version, freeze_id, commit, state, manifest, manifest_sha256, archive_sha256,
-       created_by) values ($1,$2,$3,$4,$5,1,$6,$7,'verified','{}',$8,$9,$10)`,
+       created_by) values ($1,$2,$3,$4,$5,1,$6,$7,'verified',$11,$8,$9,$10)`,
     [
       manifestId,
       ws,
@@ -111,6 +126,7 @@ export async function verifiedRelease(
       manifestSha,
       h('archive'),
       owner.actorId,
+      JSON.stringify(manifest),
     ],
   );
   return {

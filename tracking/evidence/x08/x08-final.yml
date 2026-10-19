@@ -1,0 +1,83 @@
+- main [ref=f2e1]:
+  - region [ref=f2e2]:
+    - heading "Campaigns" [level=2] [ref=f2e3]
+    - paragraph [ref=f2e4]: Local fixture delivery only · $0 budget · no outreach or ads. Drafts describe recorded checks; they do not establish customer validation or demand.
+    - button "Refresh campaigns" [ref=f2e5] [cursor=pointer]
+    - generic [ref=f2e6]:
+      - heading "Draft from a verified package" [level=3] [ref=f2e7]
+      - generic [ref=f2e8]:
+        - text: Verified artifact
+        - combobox "Verified artifact" [ref=f2e9]:
+          - option "Select a package" [selected]
+          - option "5e7d52c7-0404-450a-9c82-fdd241ef9ffe · test-double"
+      - generic [ref=f2e10]:
+        - text: Intended audience
+        - textbox "Intended audience" [ref=f2e11]: Local synthetic reviewers
+      - generic [ref=f2e12]:
+        - text: Audience provenance
+        - textbox "Audience provenance" [ref=f2e13]: Owner-created synthetic test audience; no contact information.
+      - generic [ref=f2e14]:
+        - text: "Synthetic recipients (comma separated test: IDs)"
+        - 'textbox "Synthetic recipients (comma separated test: IDs)" [ref=f2e15]': test:reviewer1
+      - generic [ref=f2e16]:
+        - text: Hypothesis (unvalidated)
+        - textbox "Hypothesis (unvalidated)" [ref=f2e17]: A reviewer can inspect the recorded demonstration and provide feedback.
+      - generic [ref=f2e18]:
+        - text: Feedback success threshold
+        - spinbutton "Feedback success threshold" [ref=f2e19]: "1"
+      - generic [ref=f2e20]:
+        - text: Optional price hypothesis (USD cents; no checkout)
+        - spinbutton "Optional price hypothesis (USD cents; no checkout)" [ref=f2e21]
+      - button "Create reviewable draft" [ref=f2e22] [cursor=pointer]
+    - heading "Review campaigns" [level=3] [ref=f2e23]
+    - generic [ref=f2e24]:
+      - text: Campaign
+      - combobox "Campaign" [ref=f2e25]:
+        - option "Select a campaign"
+        - option "2faa1079-61e7-4f12-b4b9-ef2fbe9ba894" [selected]
+    - paragraph [ref=f2e82]: "SYNTHETIC FIXTURE — not real execution, customer validation or demand evidence. · Evidence: current"
+    - paragraph [ref=f2e83]:
+      - text: "Content binding:"
+      - code [ref=f2e84]: 582a3ec96f5d79636d36941055362d5a48c04a8177b2314a51d4714b16ffaa33
+    - heading "Positioning and landing draft" [level=3] [ref=f2e85]
+    - paragraph [ref=f2e86]: Inspect a versioned product candidate and its recorded package checks.
+    - generic [ref=f2e87]: "SYNTHETIC FIXTURE — not real execution, customer validation or demand evidence. Private product evaluation draft. Recorded package check A1 passed for commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa. Limitation: Synthetic test seam; no code executed. No testimonials, customer counts, traffic or demand have been established. Call to action: inspect the private package and record feedback."
+    - group [ref=f2e88]:
+      - generic "Claims, demonstration recipes and experiment" [ref=f2e89] [cursor=pointer]
+    - heading "Authorize bounded fixture delivery" [level=3] [ref=f2e90]
+    - generic [ref=f2e91]:
+      - text: Delivery cap
+      - spinbutton "Delivery cap" [ref=f2e92]: "1"
+    - generic [ref=f2e93]:
+      - text: Control reason / grant rationale
+      - textbox "Control reason / grant rationale" [ref=f2e94]: Owner requested local fixture control.
+    - button "Grant exact draft and audience for 24 hours" [ref=f2e95] [cursor=pointer]
+    - generic [ref=f2e96]:
+      - text: Grant
+      - combobox "Grant" [ref=f2e97]:
+        - option "Select grant" [selected]
+        - option "448e58c7-973c-4ddd-b2f6-6626fd6ecc9c · 1/1 · expires 2026-10-20T22:35:03.345Z"
+    - button "Revoke selected grant" [disabled] [ref=f2e98]
+    - button "Cancel campaign" [ref=f2e99] [cursor=pointer]
+    - heading "Test delivery and opt-out" [level=3] [ref=f2e100]
+    - generic [ref=f2e101]:
+      - text: Recipient
+      - textbox "Recipient" [ref=f2e102]: test:reviewer1
+    - generic [ref=f2e103]:
+      - text: Simulated outcome
+      - combobox "Simulated outcome" [ref=f2e104]:
+        - option "Local acceptance" [selected]
+        - option "Lost acknowledgement"
+        - option "Definitive failure"
+    - button "Deliver to local fixture sink" [disabled] [ref=f2e105]
+    - button "Record opt-out / suppress" [ref=f2e106] [cursor=pointer]
+    - generic [ref=f2e107]:
+      - text: Fixture feedback note
+      - textbox "Fixture feedback note" [ref=f2e108]
+    - list [ref=f2e109]:
+      - listitem [ref=f2e110]:
+        - text: "test:reviewer1: delivered · fixture:53ee5e81-45d9-45bc-99f3-aadd5e0a1ffe · Local fixture accepted; no real message sent."
+        - button "Record fixture feedback" [disabled] [ref=f2e111]
+    - heading "Measured fixture outcomes" [level=3] [ref=f2e112]
+    - generic [ref=f2e113]: "{ \"mode\": \"fixture_only_not_traffic_or_demand\", \"delivered\": 1, \"observed\": 1, \"threshold\": 1, \"budget_nano_usd\": \"0\", \"spent_nano_usd\": \"0\" }"
+    - paragraph [ref=f2e114]: "Suppressed recipients: test:reviewer1"

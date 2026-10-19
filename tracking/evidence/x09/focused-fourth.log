@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: X09 conservation gates distinguish obligations, low reserves, capacity and improvement allocations
+ok 1 - X09 conservation gates distinguish obligations, low reserves, capacity and improvement allocations
+  ---
+  duration_ms: 3.6185
+  type: 'test'
+  ...
+# Subtest: X09 overdue maintenance stops real admission; coalesced concurrent ticks refresh sources once without an outage storm
+ok 2 - X09 overdue maintenance stops real admission; coalesced concurrent ticks refresh sources once without an outage storm
+  ---
+  duration_ms: 1784.128
+  type: 'test'
+  ...
+# Subtest: X09 broker cannot spend the maintenance subtree from exploration and low funds preserve the configured reserve
+ok 3 - X09 broker cannot spend the maintenance subtree from exploration and low funds preserve the configured reserve
+  ---
+  duration_ms: 1382.7116
+  type: 'test'
+  ...
+# Subtest: X09 crash before dispatch is fenced by reconciliation; durable workflow creation recovers without duplicate start
+ok 4 - X09 crash before dispatch is fenced by reconciliation; durable workflow creation recovers without duplicate start
+  ---
+  duration_ms: 1722.9666
+  type: 'test'
+  ...
+# Subtest: X09 reviewed versioned knowledge enriches real workflow task constraints, supports rollback, and revocation/stale provenance fence queued work
+ok 5 - X09 reviewed versioned knowledge enriches real workflow task constraints, supports rollback, and revocation/stale provenance fence queued work
+  ---
+  duration_ms: 1952.967
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7437.4965

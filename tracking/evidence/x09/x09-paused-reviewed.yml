@@ -1,0 +1,60 @@
+- main [ref=f4e13]:
+  - region [ref=f4e62]:
+    - heading "Portfolio and maintenance" [level=2] [ref=f4e63]
+    - paragraph [ref=f4e64]: Maintenance reserves, review obligations and capacity constrain new work. Exploration and existing-product improvements keep separate run allocations.
+    - status [ref=f4e111]: Loading portfolio…
+    - button "Refresh portfolio" [disabled] [ref=f4e66]
+    - generic [ref=f4e77]:
+      - term [ref=f4e78]: Mode
+      - definition [ref=f4e79]: normal
+      - term [ref=f4e80]: Maintenance reserve available (nano-USD)
+      - definition [ref=f4e81]: "300000000"
+      - term [ref=f4e82]: Due maintenance / review backlog / active capacity
+      - definition [ref=f4e83]: 0 / 0 / 0 of 4
+      - term [ref=f4e84]: Health items needing attention
+      - definition [ref=f4e85]: "0"
+    - generic [ref=f4e86]:
+      - text: Reason for owner changes
+      - textbox "Reason for owner changes" [ref=f4e87]: Owner reviewed the exact portfolio change.
+    - generic [ref=f4e88]:
+      - text: Conservation mode
+      - combobox "Conservation mode" [disabled] [ref=f4e89]:
+        - option "Normal" [selected]
+        - option "Conserve — pause exploration"
+        - option "Maintenance only"
+        - option "Paused — stop new dispatch"
+    - paragraph [ref=f4e90]: Pausing stops new work; cancellation also fences the schedule's dedicated run. Already dispatched effects remain in history.
+    - button "Run one bounded scheduling pass" [disabled] [ref=f4e91]
+    - heading "Schedules" [level=3] [ref=f4e67]
+    - list [ref=f4e92]:
+      - listitem [ref=f4e93]:
+        - strong [ref=f4e94]: Synthetic source refresh
+        - text: · maintenance · next due 2026-10-20T00:03:25.484Z
+        - group [ref=f4e95]:
+          - generic "Exact schedule binding" [ref=f4e96] [cursor=pointer]
+        - button "Cancel schedule and its run" [disabled] [ref=f4e97]
+    - heading "Scheduled outcomes" [level=3] [ref=f4e68]
+    - list [ref=f4e106]:
+      - listitem [ref=f4e107]:
+        - text: maintenance · succeeded · a9e0a1fe-6c5f-4e85-8214-5f2a963ab478
+        - group [ref=f4e108]:
+          - generic "Observed outcome" [ref=f4e109] [cursor=pointer]
+    - heading "Product health and owner feedback" [level=3] [ref=f4e69]
+    - paragraph [ref=f4e70]: Health checks rehash the private package; they do not establish runtime uptime. Submit product feedback in Gallery.
+    - list
+    - group [ref=f4e71]:
+      - generic "Health observations and product feedback" [ref=f4e72] [cursor=pointer]
+    - heading "Reusable knowledge" [level=3] [ref=f4e73]
+    - paragraph [ref=f4e74]: Reviewed lessons, components, prompts and skills add bounded task guidance. They cannot change policy, credentials, budgets or frozen study tasks. Regression checks establish structural safety; usefulness remains unverified.
+    - list [ref=f4e98]:
+      - listitem [ref=f4e99]:
+        - strong [ref=f4e100]: Synthetic evidence review guidance
+        - text: · evidence-review@1 · reviewed · active
+        - group [ref=f4e101]:
+          - generic "Provenance, permitted use and regression evidence" [ref=f4e102] [cursor=pointer]
+        - button "Revoke this version" [disabled] [ref=f4e105]
+    - group [ref=f4e75]:
+      - generic "Configure a policy, schedule or knowledge proposal" [ref=f4e76] [cursor=pointer]
+      - option "Portfolio policy" [selected]
+      - option "Schedule"
+      - option "Knowledge proposal"
