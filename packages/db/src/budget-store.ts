@@ -40,7 +40,7 @@ const n = (v: unknown) => (v === null || v === undefined ? '0' : String(v));
 /** How long past its timeout an in-flight attempt may stay unreported before it is unknown. */
 export const LATE_RESULT_WINDOW_MS = 10 * 60_000;
 
-function toPricing(r: Row): PricingSnapshot {
+export function toPricing(r: Row): PricingSnapshot {
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),

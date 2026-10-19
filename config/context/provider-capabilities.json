@@ -1,0 +1,45 @@
+{
+  "format": "context-capabilities-config/1",
+  "capabilities_version": "openai-context/2026-10-19.1",
+  "recorded_on": "2026-10-19",
+  "fixture": false,
+  "capabilities": [
+    {
+      "provider": "openai",
+      "model_id": "gpt-6-astra",
+      "feature": "prompt_caching",
+      "state": "documented",
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6-astra",
+      "retrieved_at": "2026-10-19T12:00:00.000Z",
+      "evidence": "The official model page lists cached input and cache-write prices. Documented only: no call has been made, so the model id, account access and cache behaviour are unverified.",
+      "batch": null,
+      "output_opaque": false
+    },
+    {
+      "provider": "openai",
+      "model_id": "gpt-6-astra",
+      "feature": "batch",
+      "state": "documented",
+      "source_url": "https://developers.openai.com/api/docs/guides/batch",
+      "retrieved_at": "2026-10-19T12:00:00.000Z",
+      "evidence": "Batch API: JSONL uploaded with purpose=batch, endpoint /v1/responses, 24h completion window, 50% discount; expired requests are written to the error file and not charged. Documented only; unverified on this account.",
+      "batch": {
+        "pricing_file": "config/pricing/openai-gpt-6-astra-batch.json",
+        "completion_window_ms": 86400000,
+        "max_items": 32
+      },
+      "output_opaque": false
+    },
+    {
+      "provider": "openai",
+      "model_id": "gpt-6-astra",
+      "feature": "provider_compaction",
+      "state": "documented",
+      "source_url": "https://developers.openai.com/api/docs/guides/compaction",
+      "retrieved_at": "2026-10-19T12:00:00.000Z",
+      "evidence": "Server-side compaction (context_management, POST /responses/compact) returns an encrypted compaction item that is opaque and not human-interpretable, so surviving constraints and facts cannot be checked by this application.",
+      "batch": null,
+      "output_opaque": true
+    }
+  ]
+}

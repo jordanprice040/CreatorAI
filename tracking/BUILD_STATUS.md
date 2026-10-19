@@ -1,5 +1,45 @@
 # Implementation status
 
+## X02 — context selection, caching, compaction and batches (October 19, 2026)
+
+Branch claude/x02-b3wzes from main c738369; migration 13; ADR-0025; docs/CONTEXT_AND_CACHING.md.
+Partial: implemented and verified in fixture workspaces only. No live call, no spend;
+gpt-6-astra's prompt caching, batch and compaction stay `documented`, so real
+workspaces refuse them until verified. No savings are claimed.
+
+What works: incremental index of code/note/source corpora and workspace records
+(version bump on change, explicit and snapshot removals); immutable context packs with
+application-derived authority, pinned constraints/objections/acceptance criteria and
+required facts, per-item provenance and exclusion reasons; extractive, model (metered)
+and provider compaction, each verified to keep pins verbatim and every required fact;
+reusable handoffs that go stale when a source changes; a result cache separate from
+provider prompt caching, keyed by scope and version, invalidated by dependency
+changes, re-admitted on every hit (revoked grant refuses), never read by study runs;
+capability registry per model and feature; batches with all-or-nothing reservation at
+the batch price, per-item settlement, expiry release, unknown-then-late settlement;
+quality-and-total-cost evaluations including compaction overhead; a usage report whose
+figures list their reservation and operation ids. Broker ContextService, fixture and
+OpenAI batch adapters, API routes and `context-*` CLI commands.
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check with CREATOR_TEST_DATABASE_URL:
+typecheck passed; 212 tests, 201 pass, 0 fail, 11 skips (real WSL2 gates, opt-in);
+format check clean (tracking/evidence/x02/check.log). New tests: context-domain (7,
+incl. the OpenAI batch loopback contract), context (6 DB acceptance), context-api (1
+API + CLI); storage test updated for migration 13.
+Acceptance gate on fixtures: model-compacted pack answers 2/2 questions like the full
+pack (quality maintained, compaction overhead counted) while a starved pack fails
+(`not_claimed_quality_drop`); pins, authority and facts survive extractive and model
+compaction, a lossy compactor is rejected naming the lost facts, opaque provider
+compaction is refused; cache hits, dependency invalidation, revoked-grant refusal and
+workspace isolation verified; usage figures trace to reservations and source
+operations. No WSL2 run needed.
+
+Limits: no live verification of the OpenAI batch adapter or of prompt caching; no
+provider compaction adapter; packs and caching are opt-in per call and not yet used by
+workflow, study or builder paths; no web UI; the quality check uses a small synthetic
+question set. Next eligible: X03 on request, or remaining T15/T16 work once the
+protocol is frozen.
+
 ## X01 — model registry and qualified routing (October 19, 2026)
 
 Branch claude/x01-qfktko from main 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md.
@@ -334,7 +374,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
 | X01 | Model registry and qualified automatic routing | partial (cloud Linux, PostgreSQL 16; fixture-verified routing machinery) | Branch claude/x01-qfktko from 8c09748; migration 12; ADR-0024; docs/MODEL_ROUTING.md; evidence/x01; 198 tests / 187 pass / 11 WSL skips | Measured task outcomes (T15) to qualify real models; verified gpt-6-astra id; routing used by workflow/study/builder paths; web UI |
-| X02 | Context selection, caching, compaction, and batches | deferred | No application code at T00 | X01 |
+| X02 | Context selection, caching, compaction, and batches | partial (cloud Linux, PostgreSQL 16; fixture-verified) | Branch claude/x02-b3wzes from c738369; migration 13; ADR-0025; docs/CONTEXT_AND_CACHING.md; evidence/x02; 212 tests / 201 pass / 11 WSL skips | Live verification of gpt-6-astra prompt caching and batch (owner-authorized call); provider compaction adapter; packs/cache used by workflow, study and builder paths; web UI |
 | X03 | Comprehensive search, lineage, and audit questions | deferred | No application code at T00 | T09 and T13 |
 | X04 | Scoped GitHub management | deferred | No application code at T00 | T13 and policy/broker coverage |
 | X05 | Windows desktop and paired local workers | deferred | No application code at T00 | T13 |

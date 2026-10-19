@@ -1296,6 +1296,152 @@ create trigger route_outcomes_immutable before update or delete on route_outcome
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 13,
+    name: 'context_cache_batches',
+    sql: `
+-- X02: provider capabilities, an incremental context index, hash-bound context packs,
+-- compactions and handoffs, a scoped result cache that never grants permission, batches
+-- whose items are ordinary broker reservations, and quality/total-cost comparisons.
+create table context_capabilities (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ capabilities_version text not null, registry_hash char(64) not null, body jsonb not null,
+ batch_pricing_snapshot_ids jsonb not null, created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, capabilities_version)
+);
+create trigger context_capabilities_immutable before update or delete on context_capabilities
+ for each row execute function creator_reject_change();
+-- Mutable by design: re-indexing updates an entry in place and bumps its version when the
+-- content hash changes. Packs and cache entries keep the hashes they were built from.
+create table context_index_entries (
+ workspace_id uuid not null, fixture boolean not null, corpus text not null, key text not null,
+ kind text not null check (kind in ('code','note','source','record')),
+ data_class text not null check (data_class in ('synthetic','public','private_approved')),
+ version integer not null check (version >= 1), content_hash char(64) not null,
+ locator text, record jsonb, text text not null, tokens integer not null check (tokens >= 0),
+ status text not null check (status in ('current','removed')),
+ indexed_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ primary key (workspace_id, corpus, key)
+);
+create table context_packs (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null, run_id uuid not null,
+ pack_hash char(64) not null, prefix_hash char(64) not null, body jsonb not null,
+ compacted_from uuid references context_packs(id), created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture)
+);
+create index context_packs_run on context_packs(workspace_id, run_id, created_at);
+create trigger context_packs_immutable before update or delete on context_packs
+ for each row execute function creator_reject_change();
+create table context_compactions (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ pack_id uuid not null references context_packs(id),
+ method text not null check (method in ('extractive','model','provider')),
+ status text not null check (status in ('accepted','rejected','refused')),
+ reason_code text not null, explanation text not null,
+ result_pack_id uuid references context_packs(id), operation_id uuid,
+ missing_pins jsonb not null, missing_facts jsonb not null,
+ tokens_before integer not null, tokens_after integer,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ check ((status = 'accepted') = (result_pack_id is not null))
+);
+create unique index context_compactions_operation on context_compactions(workspace_id, operation_id)
+ where operation_id is not null;
+create trigger context_compactions_immutable before update or delete on context_compactions
+ for each row execute function creator_reject_change();
+create table context_handoffs (
+ id uuid primary key, workspace_id uuid not null references workspaces(id), run_id uuid not null,
+ pack_id uuid not null references context_packs(id), handoff_hash char(64) not null, body jsonb not null,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp()
+);
+create trigger context_handoffs_immutable before update or delete on context_handoffs
+ for each row execute function creator_reject_change();
+-- A cache entry holds an answer, never authority. Only its invalidation and hit count change.
+create table context_cache_entries (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ cache_key char(64) not null, scope jsonb not null, version jsonb not null, deps jsonb not null,
+ output jsonb not null, source_operation_id uuid not null, source_run_id uuid not null,
+ status text not null check (status in ('valid','invalidated')),
+ invalidated_reason text, invalidated_at timestamptz, invalidated_by uuid references actors(id),
+ hits integer not null default 0 check (hits >= 0),
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ check ((status = 'invalidated') = (invalidated_at is not null))
+);
+create unique index context_cache_one_valid on context_cache_entries(workspace_id, cache_key)
+ where status = 'valid';
+create function creator_context_cache_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.status = 'invalidated' and new.status <> 'invalidated'
+     or (new.id, new.workspace_id, new.cache_key, new.scope, new.version, new.deps, new.output,
+         new.source_operation_id, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.cache_key, old.scope, old.version, old.deps,
+         old.output, old.source_operation_id, old.created_at) then
+    raise exception 'context cache entry change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger context_cache_entries_guard before update or delete on context_cache_entries
+ for each row execute function creator_context_cache_guard();
+create table context_events (
+ id uuid primary key, workspace_id uuid not null references workspaces(id), run_id uuid,
+ kind text not null check (kind in ('cache_hit','cache_hit_refused','cache_miss','cache_store',
+   'cache_invalidated','pack_call')),
+ pack_id uuid references context_packs(id), cache_entry_id uuid references context_cache_entries(id),
+ operation_id uuid, detail jsonb not null, created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create index context_events_run on context_events(workspace_id, run_id, created_at);
+create trigger context_events_immutable before update or delete on context_events
+ for each row execute function creator_reject_change();
+create table context_batches (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null, run_id uuid not null,
+ batch_operation_id uuid not null, request_hash char(64) not null,
+ provider text not null, model_id text not null, pricing_snapshot_id uuid not null references pricing_snapshots(id),
+ capability_registry_id uuid references context_capabilities(id),
+ status text not null check (status in ('refused','submitting','submitted','completed','partial',
+   'expired','failed','unknown')),
+ reason_code text not null, explanation text not null, provider_batch_id text,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, batch_operation_id)
+);
+create table context_batch_items (
+ batch_id uuid not null references context_batches(id), custom_id text not null,
+ logical_operation_id uuid not null, reservation_id uuid references budget_reservations(id),
+ request jsonb not null, primary key (batch_id, custom_id), unique (batch_id, logical_operation_id)
+);
+create table context_evaluations (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null, run_id uuid not null,
+ manifest_hash char(64) not null, request jsonb not null,
+ state text not null check (state in ('pending','evaluated')), result jsonb,
+ created_by uuid not null references actors(id), created_at timestamptz not null default clock_timestamp(),
+ evaluated_at timestamptz,
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, manifest_hash),
+ check ((state = 'evaluated') = (result is not null and evaluated_at is not null))
+);
+-- Results are written once: a pending evaluation may become evaluated, nothing else changes.
+create function creator_context_evaluation_guard() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.state = 'evaluated'
+     or (new.request, new.manifest_hash, new.run_id) is distinct from (old.request, old.manifest_hash, old.run_id) then
+    raise exception 'context evaluation change refused' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+create trigger context_evaluations_guard before update or delete on context_evaluations
+ for each row execute function creator_context_evaluation_guard();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

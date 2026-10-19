@@ -1,0 +1,45 @@
+{
+  "format": "context-capabilities-config/1",
+  "capabilities_version": "fixture-context/2026-10-19.1",
+  "recorded_on": "2026-10-19",
+  "fixture": true,
+  "capabilities": [
+    {
+      "provider": "fixture",
+      "model_id": "fixture-context-v1",
+      "feature": "prompt_caching",
+      "state": "fixture",
+      "source_url": null,
+      "retrieved_at": null,
+      "evidence": "The fixture adapter simulates prefix caching: the first call with a given leading pair of messages (256+ tokens) writes it; later calls read it as cached input.",
+      "batch": null,
+      "output_opaque": false
+    },
+    {
+      "provider": "fixture",
+      "model_id": "fixture-context-v1",
+      "feature": "batch",
+      "state": "fixture",
+      "source_url": null,
+      "retrieved_at": null,
+      "evidence": "FixtureBatchAdapter: deterministic local batches with simulated per-item errors, expiry and late results.",
+      "batch": {
+        "pricing_file": "config/pricing/fixture-context-v1-batch.json",
+        "completion_window_ms": 60000,
+        "max_items": 32
+      },
+      "output_opaque": false
+    },
+    {
+      "provider": "fixture",
+      "model_id": "fixture-context-v1",
+      "feature": "provider_compaction",
+      "state": "unsupported",
+      "source_url": null,
+      "retrieved_at": null,
+      "evidence": "No fixture simulates provider-side compaction; extractive and model compaction are the verified routes.",
+      "batch": null,
+      "output_opaque": false
+    }
+  ]
+}

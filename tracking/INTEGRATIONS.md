@@ -1,5 +1,15 @@
 # Integration readiness
 
+X02, October 19, 2026: no live call. config/context/provider-capabilities.json
+records gpt-6-astra prompt caching, Batch API (/v1/responses, 24h window, 50% price in
+config/pricing/openai-gpt-6-astra-batch.json) and server-side compaction as
+`documented` from the official pages; real workspaces refuse them until verified.
+OpenAIBatchAdapter (Files upload, POST /v1/batches, poll, output/error files) exists
+behind the same CREATOR_LIVE_PROVIDER=openai opt-in and key as the live adapter and is
+checked only against a loopback contract test. Fixture models fixture-context-v1
+(simulated prompt cache and batches) and fixture-lossy-v1 use simulated rates. See
+ADR-0025 and docs/CONTEXT_AND_CACHING.md.
+
 X01, October 19, 2026: no new external integration and no live call. The model
 registry records gpt-6-astra as `documented` (account access unverified), so a real
 workspace refuses to route to it until an accessible API id is verified and recorded

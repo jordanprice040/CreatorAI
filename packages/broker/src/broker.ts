@@ -338,7 +338,7 @@ export class ModelBroker {
       hardStop.unref();
       const late = pending
         .then(async (o) => {
-          const f = toFinish(o, req, pricing, adapter, true);
+          const f = toFinish(o, req, pricing, adapter.live, true);
           if (f.kind !== 'unknown')
             await this.store.finishAttempt(ctx, reservation.id, f);
         })
@@ -372,7 +372,7 @@ export class ModelBroker {
         },
         retryAfter: null,
       };
-    const finish = toFinish(first, req, pricing, adapter, false);
+    const finish = toFinish(first, req, pricing, adapter.live, false);
     return {
       finish,
       retryAfter:
@@ -383,11 +383,12 @@ export class ModelBroker {
   }
 }
 
-function toFinish(
+/** Maps an adapter outcome to how its reservation ends (also used for batch items, X02). */
+export function toFinish(
   o: AdapterOutcome,
-  req: BrokerCallRequest,
+  req: Pick<BrokerCallRequest, 'output_format'>,
   pricing: Parameters<typeof usageCost>[0],
-  adapter: ModelAdapter,
+  live: boolean,
   late: boolean,
 ): Finish {
   if (o.kind === 'rejected')
@@ -432,7 +433,7 @@ function toFinish(
   return {
     kind: 'settle',
     usage: o.usage,
-    source: adapter.live
+    source: live
       ? late
         ? 'late_provider_response'
         : 'provider_response'

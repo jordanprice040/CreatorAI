@@ -67,6 +67,17 @@ import {
   RouteDecisionSchema,
   RouteOutcomeSchema,
   ModelRefSchema,
+  CapabilityRegistrySchema,
+  IndexEntrySchema,
+  IndexResultSchema,
+  ContextPackSchema,
+  CompactionSchema,
+  HandoffSchema,
+  ContextCallResultSchema,
+  CacheEntrySchema,
+  BatchSchema,
+  ContextEvaluationSchema,
+  ContextUsageReportSchema,
   type SelectionReport,
   type SpecStatus,
   type WorkflowDetail,
@@ -81,7 +92,9 @@ import {
   fixtureScorecards,
   fixtureSpecRevision,
   registryRequestFromConfig,
+  capabilitiesRequestFromConfig,
 } from '@creator/domain';
+import { batchesOf, readCorpus } from './context-index.js';
 
 const USAGE = `Usage:
   pnpm cli product-init <workspace> <frozen-spec-id> [--from <artifact-id>]
@@ -164,6 +177,25 @@ const USAGE = `Usage:
   pnpm cli route-call <workspace> <decision-id> <broker-request-json|file.json> [--shadow]
   pnpm cli route-outcome <workspace> <decision-id> <outcome-json|file.json>
   pnpm cli route-escalate <workspace> <decision-id> [new-operation-id]
+  pnpm cli context-capabilities-add <workspace> <config/context/provider-capabilities*.json>
+  pnpm cli context-capabilities <workspace>
+  pnpm cli context-index <workspace> <corpus> <code|note|source> <data-class> <folder|items.json>
+  pnpm cli context-index-records <workspace> <corpus> <data-class> <kind,kind,...>
+  pnpm cli context-entries <workspace> [corpus]
+  pnpm cli context-pack <workspace> <pack-request-json|file.json>
+  pnpm cli context-packs <workspace> [run-id]
+  pnpm cli context-pack-show <workspace> <pack-id>
+  pnpm cli context-compact <workspace> <pack-id> <compact-request-json|file.json>
+  pnpm cli context-compactions <workspace> <pack-id>
+  pnpm cli context-handoff <workspace> <handoff-json|file.json>
+  pnpm cli context-call <workspace> <call-request-json|file.json>
+  pnpm cli context-cache <workspace>
+  pnpm cli context-cache-invalidate <workspace> <entry-id> <reason>
+  pnpm cli context-batch <workspace> <batch-request-json|file.json>
+  pnpm cli context-batch-show|context-batch-poll <workspace> <batch-id>
+  pnpm cli context-eval-create <workspace> <evaluation-request-json|file.json>
+  pnpm cli context-eval-run|context-eval <workspace> <evaluation-id>
+  pnpm cli context-usage <workspace> [run-id]
   pnpm cli budgets <workspace>
   pnpm cli budget <workspace> <envelope-id>
   pnpm cli budget-create <workspace> <envelope-json>
@@ -1241,6 +1273,193 @@ export async function runCli(
           RouteDecisionSchema,
           `${ws(rest[0])}/route-decisions/${encodeURIComponent(rest[1] ?? '')}/escalate`,
           { logical_operation_id: rest[2] ?? randomUUID() },
+        );
+        break;
+      case 'context-capabilities-add':
+        data = await call(
+          CapabilityRegistrySchema,
+          `${ws(rest[0])}/context-capabilities`,
+          capabilitiesRequestFromConfig(
+            jsonArg(rest[1], 'Capability config'),
+            (f) => json(readFileSync(f, 'utf8'), f),
+          ),
+        );
+        break;
+      case 'context-capabilities':
+        data = await call(
+          z.array(CapabilityRegistrySchema),
+          `${ws(rest[0])}/context-capabilities`,
+        );
+        break;
+      case 'context-index': {
+        const [w, corpus, kind, dataClass, path] = rest;
+        if (!w || !corpus || !kind || !dataClass || !path)
+          throw new Error(USAGE);
+        const items = readCorpus(path);
+        const local = new Set(items.map((i) => i.key));
+        const current = await call(
+          z.array(IndexEntrySchema),
+          `${ws(w)}/context-index?corpus=${encodeURIComponent(corpus)}`,
+        );
+        // Files gone from the folder are removed explicitly (the snapshot spans requests).
+        const removed = current
+          .filter((e) => e.status === 'current' && !local.has(e.key))
+          .map((e) => e.key);
+        const parts = batchesOf(items);
+        if (!parts.length) parts.push([]);
+        const totals = {
+          corpus,
+          added: 0,
+          updated: 0,
+          unchanged: 0,
+          removed: 0,
+          current: 0,
+        };
+        for (const [n, part] of parts.entries()) {
+          const r = await call(
+            IndexResultSchema,
+            `${ws(w)}/context-index`,
+            {
+              corpus,
+              kind,
+              data_class: dataClass,
+              items: part,
+              complete: false,
+              removed_keys: n === parts.length - 1 ? removed : [],
+            },
+            60000,
+          );
+          totals.added += r.added;
+          totals.updated += r.updated;
+          totals.unchanged += r.unchanged;
+          totals.removed += r.removed;
+          totals.current = r.current;
+        }
+        data = totals;
+        break;
+      }
+      case 'context-index-records':
+        data = await call(
+          IndexResultSchema,
+          `${ws(rest[0])}/context-index/records`,
+          {
+            corpus: rest[1],
+            data_class: rest[2],
+            kinds: (rest[3] ?? '').split(',').filter(Boolean),
+          },
+          60000,
+        );
+        break;
+      case 'context-entries':
+        data = await call(
+          z.array(IndexEntrySchema),
+          `${ws(rest[0])}/context-index${rest[1] ? `?corpus=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'context-pack':
+        data = await call(
+          ContextPackSchema,
+          `${ws(rest[0])}/context-packs`,
+          jsonArg(rest[1], 'Pack request'),
+          30000,
+        );
+        break;
+      case 'context-packs':
+        data = await call(
+          z.array(ContextPackSchema),
+          `${ws(rest[0])}/context-packs${rest[1] ? `?run=${encodeURIComponent(rest[1])}` : ''}`,
+        );
+        break;
+      case 'context-pack-show':
+        data = await call(
+          ContextPackSchema,
+          `${ws(rest[0])}/context-packs/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'context-compact':
+        data = await call(
+          z.strictObject({
+            compaction: CompactionSchema,
+            pack: ContextPackSchema.nullable(),
+            broker: BrokerCallResultSchema.optional(),
+          }),
+          `${ws(rest[0])}/context-packs/${encodeURIComponent(rest[1] ?? '')}/compact`,
+          jsonArg(rest[2], 'Compact request'),
+          700_000,
+        );
+        break;
+      case 'context-compactions':
+        data = await call(
+          z.array(CompactionSchema),
+          `${ws(rest[0])}/context-packs/${encodeURIComponent(rest[1] ?? '')}/compactions`,
+        );
+        break;
+      case 'context-handoff':
+        data = await call(
+          HandoffSchema,
+          `${ws(rest[0])}/context-handoffs`,
+          jsonArg(rest[1], 'Handoff'),
+        );
+        break;
+      case 'context-call':
+        data = await call(
+          ContextCallResultSchema,
+          `${ws(rest[0])}/context-calls`,
+          jsonArg(rest[1], 'Context call'),
+          1_900_000,
+        );
+        break;
+      case 'context-cache':
+        data = await call(
+          z.array(CacheEntrySchema),
+          `${ws(rest[0])}/context-cache`,
+        );
+        break;
+      case 'context-cache-invalidate':
+        data = await call(
+          CacheEntrySchema,
+          `${ws(rest[0])}/context-cache/${encodeURIComponent(rest[1] ?? '')}/invalidate`,
+          { reason: rest.slice(2).join(' ') },
+        );
+        break;
+      case 'context-batch':
+        data = await call(
+          BatchSchema,
+          `${ws(rest[0])}/context-batches`,
+          jsonArg(rest[1], 'Batch request'),
+          180_000,
+        );
+        break;
+      case 'context-batch-show':
+      case 'context-batch-poll':
+        data = await call(
+          BatchSchema,
+          `${ws(rest[0])}/context-batches/${encodeURIComponent(rest[1] ?? '')}${command === 'context-batch-poll' ? '/poll' : ''}`,
+          command === 'context-batch-poll' ? {} : undefined,
+          180_000,
+        );
+        break;
+      case 'context-eval-create':
+        data = await call(
+          ContextEvaluationSchema,
+          `${ws(rest[0])}/context-evaluations`,
+          jsonArg(rest[1], 'Evaluation request'),
+        );
+        break;
+      case 'context-eval-run':
+      case 'context-eval':
+        data = await call(
+          ContextEvaluationSchema,
+          `${ws(rest[0])}/context-evaluations/${encodeURIComponent(rest[1] ?? '')}${command === 'context-eval-run' ? '/run' : ''}`,
+          command === 'context-eval-run' ? {} : undefined,
+          // Every case for both packs, each bounded by its timeout.
+          1_900_000,
+        );
+        break;
+      case 'context-usage':
+        data = await call(
+          ContextUsageReportSchema,
+          `${ws(rest[0])}/context-usage${rest[1] ? `?run=${encodeURIComponent(rest[1])}` : ''}`,
         );
         break;
       case 'pricing':

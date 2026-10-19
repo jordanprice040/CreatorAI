@@ -26,17 +26,21 @@ import {
 } from '@creator/domain';
 import { resolve } from 'node:path';
 import {
-  RoutingStore,
+  ContextStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
   type CommandContext,
 } from '@creator/db';
 import {
+  ContextService,
   FixtureAdapter,
+  fixtureBatchAdapters,
+  fixtureContextAdapters,
   fixtureRouteAdapters,
   ModelBroker,
   liveAdapterFromEnv,
+  liveBatchAdapterFromEnv,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
 import {
@@ -56,6 +60,7 @@ import {
 import { createAuth } from './auth.js';
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
 import { routingRoutes } from './routing.js';
+import { contextRoutes } from './context.js';
 
 const MAX_BODY = 65536;
 function respond(res: ServerResponse, status: number, value: unknown) {
@@ -144,7 +149,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -172,7 +177,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new RoutingStore(pool) : null;
+  const store = pool ? new ContextStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -191,10 +196,23 @@ export function createApi(
   const broker = store
     ? new ModelBroker(
         store,
-        { fixture: new FixtureAdapter(), live, routes: fixtureRouteAdapters() },
+        {
+          fixture: new FixtureAdapter(),
+          live,
+          routes: [...fixtureRouteAdapters(), ...fixtureContextAdapters()],
+        },
         { decisions: store },
       )
     : null;
+  // X02: batch adapters are looked up by model; a live one exists only with the live opt-in.
+  const liveBatch = liveBatchAdapterFromEnv(env);
+  const contextService =
+    store && broker
+      ? new ContextService(store, broker, [
+          ...fixtureBatchAdapters(),
+          ...(liveBatch ? [liveBatch] : []),
+        ])
+      : null;
   // Pages reach the app only through this broker, under the owner-approved source policy.
   const sources = store
     ? new SourceBroker(
@@ -352,6 +370,24 @@ export function createApi(
       (await routingRoutes({
         store,
         broker: broker!,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        url,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection?.startsWith('context-') &&
+      (await contextRoutes({
+        store,
+        service: contextService!,
         ctx,
         ws,
         collection,

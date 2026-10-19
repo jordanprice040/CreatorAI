@@ -56,7 +56,7 @@ const token = () => randomBytes(32).toString('base64url');
 const nullableIso = (v: unknown) => (v === null ? null : iso(v));
 const DECISION_TTL_MS = 72 * 3_600_000;
 
-function toRun(r: Row): RunControl {
+export function toRun(r: Row): RunControl {
   return {
     run_id: String(r.run_id),
     workspace_id: String(r.workspace_id),
@@ -73,7 +73,7 @@ function toRun(r: Row): RunControl {
     cancelled_at: nullableIso(r.cancelled_at),
   };
 }
-function toGrant(r: Row): Grant {
+export function toGrant(r: Row): Grant {
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),

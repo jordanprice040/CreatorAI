@@ -1,0 +1,20 @@
+{
+  "provider": "fixture",
+  "model_id": "fixture-context-v1",
+  "basis": "fixture",
+  "source_url": null,
+  "retrieved_at": "2026-10-19T12:00:00.000Z",
+  "unit": "nano_usd_per_token",
+  "rates": {
+    "input": "10000",
+    "cached_input": "1000",
+    "cache_write": "12500",
+    "output": "50000"
+  },
+  "long_context": null,
+  "tool_call_rates": {},
+  "context_window_tokens": 200000,
+  "max_output_tokens": 8000,
+  "supported_actions": ["model.generate", "model.summarize"],
+  "notes": "Simulated X02 fixture model with simulated provider prompt caching (cached input at a tenth of input, cache writes at 1.25x). Not money and not a real provider price."
+}

@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
-import { discoveryFixtureAnswer, buildFixtureAnswer } from '@creator/domain';
+import {
+  buildFixtureAnswer,
+  contextFixtureAnswer,
+  discoveryFixtureAnswer,
+} from '@creator/domain';
 import type {
   BrokerCallRequest,
   MeteredAction,
@@ -33,7 +37,12 @@ export type AdapterOutcome =
   | {
       kind: 'rejected';
       reason_code:
-        'rate_limited' | 'invalid_request' | 'auth_failed' | 'unsupported';
+        | 'rate_limited'
+        | 'invalid_request'
+        | 'auth_failed'
+        | 'unsupported'
+        /** X02: a batch item the provider expired unprocessed (documented as not charged). */
+        | 'batch_expired';
       retry_after_ms: number | null;
       message: string;
     }
@@ -65,11 +74,42 @@ export class FixtureAdapter implements ModelAdapter {
   /**
    * `failEvery` makes a simulated model deliberately unreliable (X01): about one in that
    * many inputs, chosen by input hash, gets output that fails validation.
+   * `promptCache` (X02) simulates provider prompt caching: the first call with a given
+   * leading pair of messages writes that prefix, later calls read it as cached input.
+   * `lossy` (X02) makes the simulated compactor drop required facts.
    */
+  readonly #prefixes = new Set<string>();
   constructor(
     readonly model_id: string = FIXTURE_MODEL_ID,
-    private readonly behaviour: { failEvery?: number } = {},
+    private readonly behaviour: {
+      failEvery?: number;
+      promptCache?: boolean;
+      lossy?: boolean;
+    } = {},
   ) {}
+  /** Splits simulated input tokens into uncached, cached and cache-write parts. */
+  #usage(req: AdapterRequest, input: number, output: number): Usage {
+    const u = usage(input, output, {});
+    if (!this.behaviour.promptCache || req.input.length < 3) return u;
+    const prefix = req.input.slice(0, 2);
+    const tokens = Math.min(
+      input,
+      Math.ceil(
+        Buffer.byteLength(prefix.map((m) => m.text).join('\n'), 'utf8') / 4,
+      ) + 16,
+    );
+    // Like the documented provider behaviour, short prefixes are not cached.
+    if (tokens < 256) return u;
+    const key = `${req.model_id}\u0000${digest(JSON.stringify(prefix)).toString('hex')}`;
+    const seen = this.#prefixes.has(key);
+    this.#prefixes.add(key);
+    return {
+      ...u,
+      uncached_input_tokens: input - tokens,
+      cached_input_tokens: seen ? tokens : 0,
+      cache_write_tokens: seen ? 0 : tokens,
+    };
+  }
   call(req: AdapterRequest, signal: AbortSignal): Promise<AdapterOutcome> {
     this.calls += 1;
     if (signal.aborted) return Promise.reject(new Error('aborted'));
@@ -116,7 +156,11 @@ export class FixtureAdapter implements ModelAdapter {
     let scripted: string | null = null;
     try {
       scripted =
-        buildFixtureAnswer(req.input) ?? discoveryFixtureAnswer(req.input);
+        contextFixtureAnswer(req.input, {
+          lossy: this.behaviour.lossy === true,
+        }) ??
+        buildFixtureAnswer(req.input) ??
+        discoveryFixtureAnswer(req.input);
     } catch {
       scripted = null;
     }
@@ -126,10 +170,10 @@ export class FixtureAdapter implements ModelAdapter {
         response_id: `fixture-${h.toString('hex').slice(0, 12)}`,
         text: scripted,
         vector: null,
-        usage: usage(
+        usage: this.#usage(
+          req,
           input,
           Math.min(req.max_output_tokens, Math.ceil(scripted.length / 4)),
-          {},
         ),
         incomplete_reason:
           Math.ceil(scripted.length / 4) > req.max_output_tokens
@@ -146,7 +190,7 @@ export class FixtureAdapter implements ModelAdapter {
           ? JSON.stringify({ fixture: true, summary })
           : summary,
       vector: null,
-      usage: usage(input, out, {}),
+      usage: this.#usage(req, input, out),
       incomplete_reason: null,
     });
   }
@@ -157,6 +201,18 @@ export function fixtureRouteAdapters(): FixtureAdapter[] {
     new FixtureAdapter(),
     new FixtureAdapter('fixture-economy-v1'),
     new FixtureAdapter('fixture-bargain-v1', { failEvery: 2 }),
+  ];
+}
+/**
+ * X02 fixture models: one with simulated prompt caching and batch support, one whose
+ * simulated compactor is lossy so the survival check can be shown rejecting it.
+ */
+export const FIXTURE_CONTEXT_MODEL_ID = 'fixture-context-v1';
+export const FIXTURE_LOSSY_MODEL_ID = 'fixture-lossy-v1';
+export function fixtureContextAdapters(): FixtureAdapter[] {
+  return [
+    new FixtureAdapter(FIXTURE_CONTEXT_MODEL_ID, { promptCache: true }),
+    new FixtureAdapter(FIXTURE_LOSSY_MODEL_ID, { lossy: true }),
   ];
 }
 export const usage = (
