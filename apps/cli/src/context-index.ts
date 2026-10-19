@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 /** X02: reads a local folder (or a JSON item list) into index items, for `context-index`. */
@@ -34,7 +34,8 @@ export function readCorpus(path: string): LocalItem[] {
     for (const name of readdirSync(dir).sort()) {
       if (SKIP.has(name) || name.startsWith('.env')) continue;
       const full = join(dir, name);
-      const st = statSync(full);
+      // Links are skipped, so nothing outside the named folder is indexed (and no loops).
+      const st = lstatSync(full);
       if (st.isDirectory()) walk(full);
       else if (st.isFile() && TEXT.test(name) && st.size <= MAX_FILE) {
         const text = readFileSync(full, 'utf8');

@@ -26,7 +26,8 @@ CREATOR_DATABASE_URL=... pnpm pilot <output-dir>
 
 This creates a new fixture workspace owned by the local owner, runs all five attempts through
 the T10 study store, broker and workflow worker, and writes `pilot-package.json`,
-`reviewer-packet.json` and `reviewer-key.private.json`. It exits non-zero if any check fails.
+`reviewer-packet.json` and `reviewer-key.private.json`. It exits non-zero if any check fails,
+and refuses an output folder that is not empty so an earlier reviewer key is never overwritten.
 Ids and timestamps change per run; `reproducible_digest` covers manifests, outcomes,
 classifications, calls, simulated spend, check results and the estimate. Two runs on one
 database and one run on a fresh database produced the same digest

@@ -4,6 +4,7 @@ import pg from 'pg';
 import { assertSchemaCurrent, databaseUrl, StudyStore } from '@creator/db';
 import { FixtureAdapter, ModelBroker } from '@creator/broker';
 import { runPilotRehearsal } from './pilot.js';
+import { assertFreshOutDir } from './out-dir.js';
 
 // `pnpm pilot <output-dir>`: T14 pilot rehearsal in a new fixture workspace. Fixture adapter
 // only (never live). The workspace belongs to the local owner (the same identity the API's
@@ -15,6 +16,12 @@ if (!url || !out) {
     'Usage: CREATOR_DATABASE_URL=... pnpm pilot <output-dir> (writes pilot-package.json, reviewer-packet.json, reviewer-key.private.json)',
   );
   process.exit(1);
+}
+try {
+  assertFreshOutDir(resolve(out));
+} catch (e) {
+  console.error(`Refused: ${(e as Error).message}`);
+  process.exit(2);
 }
 const pool = new pg.Pool({ connectionString: url, max: 5 });
 try {
