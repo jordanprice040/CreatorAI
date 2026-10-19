@@ -12,7 +12,6 @@ import {
 import { dirname, join, relative, sep } from 'node:path';
 import pg from 'pg';
 import { ContractError } from '@creator/contracts';
-import { databaseUrl } from './config.js';
 import { assertSchemaCurrent } from './migrate.js';
 import { migrations } from './migrations.js';
 import { Store } from './store.js';
@@ -38,9 +37,26 @@ export type BackupManifest = {
   database: { file: 'database.dump'; sha256: string; bytes: number };
   products: BackupFile[];
   counts: Record<string, number>;
+  /** X06: lineage and budget totals read in the dump's own snapshot (absent before X06). */
+  totals?: BackupTotals;
+};
+export type BackupTotals = {
+  lineage: { links: number; active: number; sha256: string };
+  budget: {
+    envelopes: number;
+    cap_nano: string;
+    allocated_nano: string;
+    reserved_nano: string;
+    unknown_nano: string;
+    incurred_nano: string;
+    journal_entries: number;
+    reservations: number;
+    reservations_incurred_nano: string;
+  };
 };
 export type RestoreCheck = {
   ok: boolean;
+  totals: BackupTotals;
   schema_version: number;
   audit_chain: { ok: boolean; events: number; broken_at: string | null };
   counts: Record<string, number>;
@@ -69,7 +85,8 @@ const COUNTED = [
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */
 function pgTarget(raw: string) {
-  const url = new URL(databaseUrl(raw)!);
+  // Already checked by configuredDatabaseUrl; a hosted URL keeps its sslmode for the tools.
+  const url = new URL(raw);
   const password = decodeURIComponent(url.password);
   url.password = '';
   return {
@@ -96,7 +113,8 @@ async function tool(bin: string, args: string[], env: NodeJS.ProcessEnv) {
 }
 const pgBin = (name: string, dir?: string) => (dir ? join(dir, name) : name);
 
-async function counts(pool: pg.Pool) {
+type Queryable = Pick<pg.Pool, 'query'>;
+async function counts(pool: Queryable) {
   const out: Record<string, number> = {};
   for (const table of COUNTED) {
     const { rows } = await pool.query<{ n: number }>(
@@ -105,6 +123,52 @@ async function counts(pool: pg.Pool) {
     out[table] = rows[0]!.n;
   }
   return out;
+}
+
+/**
+ * Lineage is fingerprinted link by link (endpoints, versions, relation, retracted or not), so
+ * a restore that lost, duplicated or changed a link fails even when the count still matches.
+ * Money stays exact: numeric sums are compared as decimal strings.
+ */
+export async function totals(q: Queryable): Promise<BackupTotals> {
+  const links = await q.query<{ n: number; active: number; h: string }>(
+    `select count(*)::int as n, count(*) filter (where retracted_at is null)::int as active,
+       encode(sha256(convert_to(coalesce(string_agg(
+         id::text || '|' || workspace_id || '|' || relation || '|' || from_id || '@' || from_version
+         || '|' || to_id || '@' || to_version || '|' || (retracted_at is not null)::text,
+         E'\\n' order by id), ''), 'UTF8')), 'hex') as h
+     from entity_links`,
+  );
+  const env = await q.query<Record<string, string>>(
+    `select count(*)::text as n, coalesce(sum(cap_nano), 0)::text as cap,
+       coalesce(sum(allocated_nano), 0)::text as allocated,
+       coalesce(sum(reserved_nano), 0)::text as reserved,
+       coalesce(sum(unknown_nano), 0)::text as unknown,
+       coalesce(sum(incurred_nano), 0)::text as incurred
+     from budget_envelopes`,
+  );
+  const other = await q.query<{ j: number; r: number; ri: string }>(
+    `select (select count(*)::int from budget_journal) as j,
+       (select count(*)::int from budget_reservations) as r,
+       (select coalesce(sum(incurred_nano), 0)::text from budget_reservations) as ri`,
+  );
+  const e = env.rows[0]!;
+  const l = links.rows[0]!;
+  const o = other.rows[0]!;
+  return {
+    lineage: { links: l.n, active: l.active, sha256: l.h },
+    budget: {
+      envelopes: Number(e.n),
+      cap_nano: e.cap!,
+      allocated_nano: e.allocated!,
+      reserved_nano: e.reserved!,
+      unknown_nano: e.unknown!,
+      incurred_nano: e.incurred!,
+      journal_entries: o.j,
+      reservations: o.r,
+      reservations_incurred_nano: o.ri,
+    },
+  };
 }
 
 /** Lists regular files under root, refusing links so a backup never follows one out. */
@@ -165,24 +229,36 @@ export async function createBackup(o: {
       'INVALID_CONTRACT',
       'The backup directory already exists; choose a new one.',
     );
-  const pool = new pg.Pool({ connectionString: o.databaseUrl, max: 1 });
+  // Two connections: one holds the exported snapshot while the other checks the schema.
+  const pool = new pg.Pool({ connectionString: o.databaseUrl, max: 2 });
   pool.on('error', () => undefined);
+  const snap = await pool.connect();
   try {
     const schema = await assertSchemaCurrent(pool);
     await mkdir(join(o.outDir, 'products'), { recursive: true });
     const target = pgTarget(o.databaseUrl);
     const dump = join(o.outDir, 'database.dump');
+    // X06: pg_dump reads the snapshot this transaction exported, so the counts and totals in
+    // the manifest describe exactly the rows in the dump, even with writers running.
+    await snap.query('begin isolation level repeatable read read only');
+    const { rows } = await snap.query<{ id: string }>(
+      'select pg_export_snapshot() as id',
+    );
     await tool(
       pgBin('pg_dump', o.pgBinDir),
       [
         '--format=custom',
         '--no-owner',
         '--no-privileges',
+        `--snapshot=${rows[0]!.id}`,
         `--file=${dump}`,
         `--dbname=${target.dbname}`,
       ],
       target.env,
     );
+    const snapshotCounts = await counts(snap);
+    const snapshotTotals = await totals(snap);
+    await snap.query('commit');
     const products: BackupFile[] = [];
     for (const file of await files(o.productsRoot)) {
       const rel = relative(o.productsRoot, file).split(sep).join('/');
@@ -203,8 +279,8 @@ export async function createBackup(o: {
         bytes: dumpBytes.length,
       },
       products,
-      // Counted after the dump; a concurrent writer can only make these lower than the dump.
-      counts: await counts(pool),
+      counts: snapshotCounts,
+      totals: snapshotTotals,
     };
     await writeFile(
       join(o.outDir, 'backup-manifest.json'),
@@ -213,6 +289,8 @@ export async function createBackup(o: {
     );
     return manifest;
   } finally {
+    await snap.query('rollback').catch(() => undefined);
+    snap.release();
     await pool.end();
   }
 }
@@ -306,14 +384,30 @@ export async function restoreBackup(o: {
     await copyFile(join(o.backupDir, 'products', safeRelative(f.path)), to);
   }
   const check = await verifyRestore(o.databaseUrl, o.productsRoot);
-  for (const [table, n] of Object.entries(manifest.counts))
-    if ((check.counts[table] ?? 0) < n) {
-      check.ok = false;
+  // Snapshot backups (X06) must match exactly; older ones counted after the dump (at least).
+  for (const [table, n] of Object.entries(manifest.counts)) {
+    const got = check.counts[table] ?? 0;
+    if (manifest.totals ? got !== n : got < n)
       throw new ContractError(
         'EVIDENCE_MISMATCH',
-        `Restored ${table} has ${check.counts[table]} rows; the backup recorded ${n}.`,
+        `Restored ${table} has ${got} rows; the backup recorded ${n}.`,
       );
-    }
+  }
+  if (manifest.totals) {
+    const want = manifest.totals;
+    const got = check.totals;
+    if (want.lineage.sha256 !== got.lineage.sha256)
+      throw new ContractError(
+        'EVIDENCE_MISMATCH',
+        `Restored lineage differs from the backup (${got.lineage.links} links, ${want.lineage.links} recorded).`,
+      );
+    for (const [k, v] of Object.entries(want.budget))
+      if (got.budget[k as keyof typeof got.budget] !== v)
+        throw new ContractError(
+          'EVIDENCE_MISMATCH',
+          `Restored budget ${k} is ${got.budget[k as keyof typeof got.budget]}; the backup recorded ${v}.`,
+        );
+  }
   return check;
 }
 
@@ -372,6 +466,7 @@ export async function verifyRestore(
       schema_version: schema,
       audit_chain: audit,
       counts: await counts(pool),
+      totals: await totals(pool),
       artifacts,
     };
   } finally {

@@ -310,15 +310,19 @@ const statusOf: Partial<Record<ContractError['code'], number>> = {
 export function createPreviewServer(
   store: ArtifactStore | null,
   artifacts: ArtifactSupervisor,
+  /** X06: a hosted deployment's public preview origin (its own host behind the proxy). */
+  publicOrigin: string | null = null,
 ): Server {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       const port = req.socket.localPort;
-      const self = `http://127.0.0.1:${port}`;
-      if (req.headers.host !== `127.0.0.1:${port}`)
+      const self = publicOrigin ?? `http://127.0.0.1:${port}`;
+      if (req.headers.host !== new URL(self).host)
         throw new ContractError(
           'ORIGIN_DENIED',
-          'Use the 127.0.0.1 preview origin.',
+          publicOrigin
+            ? 'Use the public preview origin.'
+            : 'Use the 127.0.0.1 preview origin.',
         );
       if (!store)
         throw new ContractError(

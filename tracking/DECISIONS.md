@@ -1,5 +1,18 @@
 # Decision log
 
+## ADR-0032 - X06 explicit hosted mode, environment-labelled databases and build-bound verification
+
+- Date: October 19, 2026. Status: implemented by Claude Code on Jordan's request to start X06; branch claude/x06-j2pz5g from main 4fe3d33 (X05 merged). Migration 18 (X05 used 16 and 17; X07 takes 19). Prerequisites: T17 (backup/restore, health) and X05 (paired workers, for hosted-to-local pairing). Checked on local PostgreSQL with hosted processes on loopback behind a stand-in proxy; no hosted environment, DNS, certificate, managed database, identity provider or alert channel exists, and no live verification is recorded.
+- Hosted is an explicit mode (`CREATOR_DEPLOYMENT_MODE=hosted`) with environments `test`, `staging` and `live`; local stays the default and unchanged. Hosted startup refuses: missing build commit, non-https or path-bearing public origins, a preview host equal to or a parent/child of the web or API host (cookie isolation), a relative product root, a missing metrics token, development login or insecure cookies, a web origin that differs from the OIDC web origin, no database, and a non-loopback database without `sslmode=verify-full`. Rejected: inferring hosted from a non-loopback host (an accidental exposure would silently change the security model).
+- Secrets: generic `NAME_FILE` loading for `CREATOR_*`/`OPENAI_*` variables (Docker secrets/systemd credentials), both forms refused; values never enter the configuration hash, logs or status. Rejected: a secrets service client (no provider chosen; files work with every host).
+- Environment separation is enforced by the data, not by naming: `deployment_identity` labels each database; API and worker claim an unlabelled one and refuse another environment's. Restores keep the label; relabelling a restored copy is audited and relabelling into live is refused.
+- Verification is owner-recorded, append-only and bound to commit, configuration hash and schema: a smoke report (read-only checks of the declared public target) plus the server's own readiness. Any change makes it `stale`. A passing live record needs a typed confirmation of the exact build, also enforced by a database check. Readiness never reports live as verified otherwise. Rejected: self-declared verification via environment variables (not evidence).
+- Observability is pull-only: `/api/ready` (public, terse), `/api/ops/status` and Prometheus `/api/ops/metrics` (owner session or read-only scrape token), `/api/ops/uncertain`. Alerts are local rule evaluation with delivery fixed to `none`; sending alerts anywhere is an outbound integration needing its own decision. Unreachable local workers are reported and never fail readiness.
+- Backups now dump inside an exported snapshot and record counts plus lineage fingerprint and exact budget totals from that snapshot; restore requires exact equality (pre-X06 backups keep the at-least count rule).
+- Cleanup removes only expired sign-in material past `config/operations/retention.json` (unreferenced sessions, OIDC states, pairing challenges), dry run by default, audited when applied. Records, audit history, budgets and artifacts are never cleaned.
+- `deploy/hosted/` is reviewable configuration (Dockerfile, Compose per environment, Caddy with separate preview host, env examples without secrets); validated with `docker compose config` and `pnpm ops config-check` only, never built or run.
+- Rollback: revert the commit; drop `deployment_verifications`, `deployment_identity` and their triggers. Earlier backups remain restorable.
+
 ## ADR-0031 - verified editor exports and explicit Windows activation
 
 October 19, 2026: the native editor action initially launched no visible document,

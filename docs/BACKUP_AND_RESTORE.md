@@ -18,7 +18,9 @@ This writes a new folder (it refuses an existing one) with:
 - `database.dump`, a `pg_dump --format=custom` archive (no owners or privileges);
 - `products/`, a byte copy of the product store (links and special files are refused);
 - `backup-manifest.json`, the schema version, the dump's SHA-256 and the SHA-256 and size of
-  every product file, plus row counts for the main tables.
+  every product file, plus row counts for the main tables and (since X06) lineage and budget
+  totals. The dump runs inside an exported snapshot and the counts and totals are read from
+  that same snapshot, so they describe exactly what is in the dump.
 
 `pg_dump` and `pg_restore` must be at least as new as the server. They come with any
 PostgreSQL installation; set `CREATOR_PG_BIN` to their folder if they are not on `PATH` (for
@@ -41,7 +43,9 @@ Before writing anything, restore re-hashes the dump and every product file and r
 backup if any hash, size or file list differs, if its schema version is not the one this code
 expects, or if the target database or products folder is not empty. It then runs
 `pg_restore --single-transaction --exit-on-error`, copies the product files and verifies the
-result. Point the API at the restored database and products folder to use it.
+result, including exact row counts, the lineage fingerprint and the budget totals (see
+[HOSTED_OPERATION.md](HOSTED_OPERATION.md)). Point the API at the restored database and
+products folder to use it. The restored database keeps its environment label.
 
 ## Verify
 

@@ -1,0 +1,6 @@
+{
+  "version": "2026-10-19",
+  "auth_sessions_days": 30,
+  "oidc_logins_days": 2,
+  "desktop_challenges_days": 7
+}

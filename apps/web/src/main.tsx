@@ -22,6 +22,7 @@ import { Search } from './search.js';
 import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
+import { Operations } from './operations.js';
 import { VIEWS, useActors, useRoute, type View } from './ui.js';
 import './style.css';
 import { Studies } from './study.js';
@@ -328,6 +329,8 @@ function App() {
       );
     const s = auth.session;
     switch (route.view) {
+      case 'operations':
+        return <Operations />;
       case 'desktop':
         return (
           <DesktopDevices

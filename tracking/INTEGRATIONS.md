@@ -1,5 +1,14 @@
 # Integration readiness
 
+X06 hosted operation (October 19, 2026, Claude Code, branch claude/x06-j2pz5g):
+hosted mode, environment-labelled databases, readiness/metrics/status endpoints,
+owner-recorded build-bound verification and hosted-to-local worker pairing are
+implemented and checked against local PostgreSQL with loopback hosted processes and
+a stand-in proxy. Not activated or verified: any hosted environment, DNS/TLS
+certificates, managed PostgreSQL (verify-full TLS), OIDC provider for hosted sign-in,
+Prometheus scraping, external alert delivery (fixed to none; no adapter), and the
+deploy/hosted container images (never built). No live verification is recorded.
+
 X05 local Windows acceptance passed October 19, 2026: final release native
 sign-in/browser-handler launch, shared authenticated Gallery, verified source,
 visible Notepad editor copy, real paired WSL job and visible worker controls.

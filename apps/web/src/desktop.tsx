@@ -12,6 +12,17 @@ import {
 import { api, message, when } from './oversight.js';
 import { useLoad } from './ui.js';
 
+/** X06: an active worker whose presence lease lapsed is shown as unreachable, not active. */
+function availability(d: DesktopDevice): string {
+  const now = Date.now();
+  if (d.state === 'revoked') return 'revoked';
+  if (Date.parse(d.expires_at) < now) return 'pairing expired';
+  if (d.state !== 'active') return d.state;
+  return d.lease_expires_at && Date.parse(d.lease_expires_at) >= now
+    ? 'online'
+    : 'unreachable: not reporting';
+}
+
 export function DesktopDevices({
   workspace,
   session,
@@ -80,7 +91,9 @@ export function DesktopDevices({
           <article key={d.id}>
             <h3>{d.label}</h3>
             <p>
-              {d.kind} · {d.state} · expires {when(d.expires_at)}
+              {d.kind} · {d.state}
+              {d.kind === 'worker' && ` · ${availability(d)}`} · expires{' '}
+              {when(d.expires_at)}
             </p>
             <p>Declared capabilities: {d.capabilities.join(', ') || 'None'}</p>
             <p>
