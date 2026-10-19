@@ -1,6 +1,6 @@
 # Full-product readiness report
 
-Verdict: **NOT READY**. Generated from commit `78f8536b3b5df3b8c0e3675d00f64a6847e90435 (working tree has uncommitted changes)`, register `config/readiness.json` (as of 2026-10-19, sha256 `5d45d62e722c486b976e3c6ad7017bb5dfff894e247bfc2f63402b6505ac7504`).
+Verdict: **NOT READY**. Generated from commit `d825c556275bcce9c5c25e658ca6a030df992f2c`, register `config/readiness.json` (as of 2026-10-19, sha256 `5d45d62e722c486b976e3c6ad7017bb5dfff894e247bfc2f63402b6505ac7504`).
 
 Bold cells are the states a row requires. "yes" means verified with the cited evidence; anything else is not verified. This report never upgrades a state: it only checks the register against evidence on disk and the requirement table.
 
