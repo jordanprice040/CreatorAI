@@ -1,0 +1,40 @@
+pass flow.every_slot_once: 26 scheduled slots, each listed once.
+pass flow.truthful_terminal: 21 slots ran and ended in a terminal state; 5 did not run and say why.
+pass packets.identical_across_arms: Every attempt received exactly the scheduled packet for its task.
+pass versions.matched: All task studies share one config, rubric, prompt, model and pricing version.
+pass contamination.no_cross_arm_or_grader_text: No other-arm output or hidden grading material appears in any runtime context.
+pass contamination.human_only_no_model: Human-only attempts recorded no admitted model call.
+pass contamination.separate_workspaces: Each attempt has its own workspace.
+pass reviewer.blinding: 42 reviewer files: no hidden metadata in filenames, templates or ids.
+pass reviewer.key_complete: The private key maps all 19 reviewed items, one code each.
+pass export.repeatable: 8 study exports re-exported to identical hashes.
+States: {"blocked":4,"submitted":8,"failed":12,"cancelled":1,"deferred":1}
+flag reviewers/reviewer-1/items/item-02.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-09.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-1/items/item-10.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-2/items/item-06.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-2/items/item-07.md: submission text contains "Fixture"; owner review before sending.
+flag reviewers/reviewer-2/items/item-09.md: submission text contains "Fixture"; owner review before sending.
+Package a0c0a86b41c1ee8bee248366dd2c32dc06cecd6d6e7ca7c59274922d7aa73836 in C:\Users\jorda\OneDrive\Desktop\creator_agent\.verification\t19-clean\.verification\t19-rehearsal\private-evaluation; 0 failed check(s). Not empirical results. reviewers/ is shareable only after owner review; private/ never is.
+
+C:\Users\jorda\OneDrive\Desktop\creator_agent\.verification\t19-clean\.verification\t19-rehearsal\private-evaluation: NOT EMPIRICAL: rehearsal or synthetic study records.
+pass slots.match_schedule: 26 flow rows for 26 scheduled slots, each once.
+pass slots.groups_partition: Every slot is counted in exactly one comparison/stratum/arm group.
+pass attempts.unique: 21 attempts in the flow, none in two slots.
+pass attempts.in_one_export: Every flow attempt appears in exactly one raw export, once.
+pass attempts.measurements_match_export: Flow measurements equal the raw export for every attempt (spend, exposure, calls).
+pass spend.totals_reconcile: Group sum 0.316390000 = flow sum 0.316390000; plus unscheduled 0.000000000 = export sum 0.316390000 USD.
+pass ratings.codes_valid: 38 rating rows from 2 reviewer(s), each code known, mapped to a slot's last attempt and rated once per reviewer.
+pass functional.bound_to_flow: 5 functional checks each bind an attempt of their slot.
+pass export.kind_consistent: 8 export(s), 8 synthetic; data kind not_empirical.
+pass privacy.no_participant_metadata: None of 4 private participant or key values appears in the output.
+pass reproducible.rerun_identical: Two analyses from the same files hash to dc2be5fe0aa4 and dc2be5fe0aa4.
+pass claims.no_comparative_wording: No inferential or superiority wording in any table, figure or report.
+gap  Not empirical (not_empirical): no table here is a study finding.
+gap  19 reviewed item(s) lack complete ratings from every reviewer; no rating is imputed.
+gap  No decision acceptance rule: cost per accepted decision outcome is undefined.
+gap  4 slot(s) blocked; they stay in the assigned denominators.
+gap  Potential benefit and observed user impact are not measured by the current study contracts; they are reported as not measured, never inferred from quality ratings.
+gap  Intervention necessity (necessary, missed, unnecessary) needs owner coding that the current contracts do not record; only the recorded intervention fields are summarised.
+Analysis dc2be5fe0aa4cb413daaf2504bcb1048e2eae4756686c18b3ce0cffafd462714 (not_empirical) written to C:\Users\jorda\OneDrive\Desktop\creator_agent\.verification\t19-clean\.verification\t19-rehearsal\public-analysis.
+PASS: 26-slot fixture A/B/C and discovery rehearsal; analysis remains not empirical. Private evaluation folder must not be distributed.

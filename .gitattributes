@@ -1,2 +1,7 @@
 # Keep pnpm format:check reproducible on Windows and Linux.
 * text=auto eol=lf
+
+# Evidence hashes and archive manifests bind exact bytes, including line endings.
+tracking/evidence/t18/** -text whitespace=cr-at-eol
+tracking/evidence/t19/** -text whitespace=cr-at-eol
+t17-test.log -text

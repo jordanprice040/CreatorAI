@@ -1,0 +1,53 @@
+{
+  "source_commit": "3e9026f12d85d5eb6fd933e217176fae30be61c3",
+  "files": [
+    {
+      "path": "docs/ANALYSIS.md",
+      "sha256": "b1bb65bf8596aeb7dd3ff6495cc46729204d1e8e6be778b818cc3deaf5f5a43f"
+    },
+    {
+      "path": "docs/FINAL_EVALUATION.md",
+      "sha256": "d474dc82c140bfba022e9b7ab296e07e262a759367d61880a97e103cbe21d313"
+    },
+    {
+      "path": "docs/PILOT_AND_PROTOCOL.md",
+      "sha256": "4ec5752dd4398f19a07de7b4109e12a86365bb9a657f7cdc8606099f9c80d615"
+    },
+    {
+      "path": "config/evaluation.json",
+      "sha256": "b0375b7768d8aa470916a7f785368f093d31dee5349e89c7aba9db3572662472"
+    },
+    {
+      "path": "tracking/evidence/t15/evaluation-package.json",
+      "sha256": "2e23836c2c1e31d3f18be71a7a525327395d43fe6c5f79255e8d524edb0e0873"
+    },
+    {
+      "path": "tracking/evidence/t15/study-build-tests.log",
+      "sha256": "ff808d771ec63b83a74f7e90623807836e423f4a82e6ab2a12b0e361b470c4d4"
+    },
+    {
+      "path": "tracking/evidence/t15/final-refused.log",
+      "sha256": "e83588cb3e0757a9a19f316d58f267d0755458c32f777b13d7bc4e5b229c0c59"
+    },
+    {
+      "path": "tracking/evidence/t16/test-db.log",
+      "sha256": "b8e286172870550a0a428ee87cb1f415e07735563af60dac34757c0c7b96cce5"
+    },
+    {
+      "path": "tracking/evidence/t16/fixtures-run.log",
+      "sha256": "caef04ceb5e60819073746eac6dc4e6249a63cd16356a303b09b324dc93a864b"
+    },
+    {
+      "path": "tracking/evidence/t17/verification.json",
+      "sha256": "2aa9e6d18856279dbf417e3ef1b5982f0a8edd236022cb55a7199f8fac9f6141"
+    },
+    {
+      "path": "tracking/evidence/t13/cli-acceptance.json",
+      "sha256": "dd5e4bddefe87c391293d884a2ea46d348604a2b260508946ff5f4d8f88549af"
+    },
+    {
+      "path": "tracking/SESSION_HANDOFF.md",
+      "sha256": "c0a91e2c226aa8da78690f0d7ffb245830570a6b09eb2ea4e516349825d22ded"
+    }
+  ]
+}

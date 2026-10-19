@@ -90,7 +90,8 @@ The full proposal is `PROPOSED_PROTOCOL` in packages/domain/src/pilot.ts (hash
 - **People:** single-participant case study (Jordan) with matched task variants; two
   independent blinded reviewers; rubric calibration on non-study examples.
 - **Limits:** 7 calls, 2,000 output tokens per call, no retries, 3 candidates per AI run;
-  60/90 minute caps; one run at a time; total live cap unset until RD6.
+  60/90 minute caps; one run at a time; owner-selected total T15 live cap of $20 USD
+  (October 18, 2026), pending configuration and model verification.
 - **Missing data and stops:** every assigned run stays in its condition; autonomous
   `needs_human` may get a linked assisted continuation outside the primary A outcome; one
   retry only for an infrastructure failure before any output.
@@ -104,18 +105,27 @@ The full proposal is `PROPOSED_PROTOCOL` in packages/domain/src/pilot.ts (hash
 
 The protocol is not frozen. Each needs an owner (and where noted, committee) answer:
 
-| Id                    | Decision                                                               | Recommended                            |
-| --------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
-| RD1-priority          | Is RQ1 primary and RQ2 secondary?                                      | Yes                                    |
-| RD2-primary-outcome   | Confirm the two primary outcomes                                       | Confirm                                |
-| RD3-participants      | Who does human-only and assisted work; how is familiarity handled?     | Jordan, case study, matched variants   |
-| RD4-reviewers         | Who rates, how many, blinded?                                          | Two independent blinded reviewers      |
-| RD5-human-subjects    | Committee/IRB determination for participants and reviewers             | Obtain and record it                   |
-| RD6-model-and-cap     | Verified model id and total live cap for T15                           | gpt-6-astra once verified, with a cap  |
-| RD7-design-counts     | Which design and caps                                                  | proposed                               |
-| RD8-final-tasks       | Final domains and tasks, chosen without looking at pilot performance   | Owner picks low-risk NAE-derived tasks |
-| RD9-source-snapshots  | Verify packet sources through the source broker before freezing?       | Yes                                    |
-| RD10-retry-and-search | One infrastructure retry; avoid search AI summaries in human-only work | Adopt both                             |
+| Id                    | Decision                                                               | Recommended                                                                                    |
+| --------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| RD1-priority          | Is RQ1 primary and RQ2 secondary?                                      | Yes                                                                                            |
+| RD2-primary-outcome   | Confirm the two primary outcomes                                       | Confirm                                                                                        |
+| RD3-participants      | Who does human-only and assisted work; how is familiarity handled?     | Jordan, case study, matched variants                                                           |
+| RD4-reviewers         | Who rates, how many, blinded?                                          | Two independent blinded reviewers                                                              |
+| RD5-human-subjects    | Committee/IRB determination for participants and reviewers             | Obtain and record it                                                                           |
+| RD6-model-and-cap     | Verified model id and total live cap for T15                           | Owner selected GPT-6 Astra and $20 USD total; API identifier/access still require verification |
+| RD7-design-counts     | Which design and caps                                                  | proposed                                                                                       |
+| RD8-final-tasks       | Final domains and tasks, chosen without looking at pilot performance   | Owner picks low-risk NAE-derived tasks                                                         |
+| RD9-source-snapshots  | Verify packet sources through the source broker before freezing?       | Yes                                                                                            |
+| RD10-retry-and-search | One infrastructure retry; avoid search AI summaries in human-only work | Adopt both                                                                                     |
+
+RD6 owner decision, October 18, 2026: Jordan selected GPT-6 Astra with a **$20 USD
+total live budget for T15**, not $20 per run. Count child work, retries, tools and
+reviews within that total; unknown billing is not zero. This records the model
+preference and budget authorization, not verified API availability, an enforced
+runtime cap, or permission to bypass the remaining protocol gates. Verify the
+actual accessible API identifier and compatible pricing, configure the bounded
+budget, and update the server proposal before obtaining its freeze hash. No live
+calls or protocol freeze were performed by this documentation update.
 
 ## Freezing
 

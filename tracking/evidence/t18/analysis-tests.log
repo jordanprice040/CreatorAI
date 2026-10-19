@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: mixed fixture: hand-computed quality, pairs, retries, unknown billing and denominators
+ok 1 - mixed fixture: hand-computed quality, pairs, retries, unknown billing and denominators
+  ---
+  duration_ms: 24.9337
+  type: 'test'
+  ...
+# Subtest: zero accepted outcomes leave cost per accepted outcome undefined and total spend visible
+ok 2 - zero accepted outcomes leave cost per accepted outcome undefined and total spend visible
+  ---
+  duration_ms: 3.7561
+  type: 'test'
+  ...
+# Subtest: an all-blocked final-shaped package yields explicit gaps, and only real final records are empirical
+ok 3 - an all-blocked final-shaped package yields explicit gaps, and only real final records are empirical
+  ---
+  duration_ms: 18.4157
+  type: 'test'
+  ...
+# Subtest: totals reconcile without join multiplication and flow measurements must match the exports
+ok 4 - totals reconcile without join multiplication and flow measurements must match the exports
+  ---
+  duration_ms: 7.9143
+  type: 'test'
+  ...
+# Subtest: ratings: blanks are missing, anything else must be 1-5 and each code rated once
+ok 5 - ratings: blanks are missing, anything else must be 1-5 and each code rated once
+  ---
+  duration_ms: 5.4048
+  type: 'test'
+  ...
+# Subtest: private participant metadata never reaches the output
+ok 6 - private participant metadata never reaches the output
+  ---
+  duration_ms: 4.3198
+  type: 'test'
+  ...
+# Subtest: kappa and the bootstrap give hand-checked values and refuse small samples
+ok 7 - kappa and the bootstrap give hand-checked values and refuse small samples
+  ---
+  duration_ms: 9.2033
+  type: 'test'
+  ...
+# Subtest: the pipeline reproduces from files and every standalone output carries the fixture label
+ok 8 - the pipeline reproduces from files and every standalone output carries the fixture label
+  ---
+  duration_ms: 182.0074
+  type: 'test'
+  ...
+# Subtest: the analysis reads a real T15 rehearsal package, key and raw exports unchanged
+ok 9 - the analysis reads a real T15 rehearsal package, key and raw exports unchanged # SKIP PostgreSQL gate not run: CREATOR_TEST_DATABASE_URL is not set
+  ---
+  duration_ms: 0.7108
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 1020.837

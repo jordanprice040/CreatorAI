@@ -1,0 +1,6 @@
+data_label,slot_id,task_key,arm,dimension,reviewer-1,reviewer-2
+"VERIFICATION FIXTURE: synthetic data, not empirical",7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843,t1,D-open,usefulness,2,4
+"VERIFICATION FIXTURE: synthetic data, not empirical",7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843,t1,D-open,feasibility,2,4
+"VERIFICATION FIXTURE: synthetic data, not empirical",7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843,t1,D-open,evidence_support,2,4
+"VERIFICATION FIXTURE: synthetic data, not empirical",7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843,t1,D-open,differentiation,2,4
+"VERIFICATION FIXTURE: synthetic data, not empirical",7f024654d7f867d23f53040142c68832e5fcda4adeb31ca75067b1a396323843,t1,D-open,appropriateness,2,4

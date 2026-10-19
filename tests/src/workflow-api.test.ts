@@ -195,6 +195,14 @@ test('a workflow started over HTTP survives killed worker and API processes', as
   assert.ok(succeeded(mid) >= 1, 'a checkpoint was committed');
   assert.notEqual(mid.workflow.state, 'succeeded', 'killed before finishing');
   const doneBefore = succeeded(mid);
+  // A killed worker can hold the default 30s lease; recovery must wait for expiry.
+  const recoveryDeadline =
+    Math.max(
+      Date.now(),
+      ...mid.tasks.map((task) =>
+        task.lease_expires_at ? Date.parse(task.lease_expires_at) : 0,
+      ),
+    ) + 20_000;
 
   // The API also restarts, now with its in-process worker on; work continues from the DB.
   await kill(api);
@@ -206,7 +214,7 @@ test('a workflow started over HTTP survives killed worker and API processes', as
   children.push(api);
   const auth2 = await login(base);
   let done = mid;
-  for (let i = 0; i < 200 && !done.workflow.finished_at; i += 1) {
+  while (Date.now() < recoveryDeadline && !done.workflow.finished_at) {
     await sleep(100);
     done = parse(
       WorkflowDetailSchema,

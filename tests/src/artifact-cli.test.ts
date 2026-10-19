@@ -381,6 +381,62 @@ test(
       ),
       /409/,
     );
+    if (process.env.CREATOR_RECORD_T19_EVIDENCE === 'true') {
+      const evidence = 'tracking/evidence/t19/product-demo';
+      await mkdir(evidence, { recursive: true });
+      await writeFile(join(evidence, 'original.tar'), await readFile(out));
+      const revisionDownload = await cli(
+        'artifact-download',
+        ws,
+        packaged2.artifact.id,
+        packaged2.artifact.manifest_sha256,
+        join(evidence, 'revision.tar'),
+      );
+      const lineage = await cli('lineage', ws, a1.entity_id, 'upstream', '8');
+      const search = await cli('search', ws, a1.entity_id);
+      const overview = await cli('overview', ws);
+      assert.ok(JSON.stringify(lineage).includes(specId));
+      assert.ok(JSON.stringify(search).includes(a1.entity_id));
+      assert.ok(BigInt(overview.budget.incurred) > 0n);
+      assert.equal(
+        sha256(await readFile(join(evidence, 'revision.tar'))),
+        packaged2.artifact.archive_sha256,
+      );
+      await writeFile(
+        join(evidence, 'acceptance.json'),
+        JSON.stringify(
+          {
+            synthetic: true,
+            empirical_results: false,
+            source_note:
+              'Fixture discovery/selection, explicit checklist spec substitution, real worker and same-workspace search/cost inspection; no participant study.',
+            first: { build, packaged, manifest: detail.manifest },
+            preview: {
+              state: started.preview.state,
+              interactive: ran,
+              invalid_input: invalid,
+            },
+            revision: {
+              build: build2,
+              packaged: packaged2,
+              download: revisionDownload,
+            },
+            comparison: cmp,
+            lineage,
+            search,
+            overview,
+            refusals: [
+              'revoked preview 403',
+              'expired preview 410',
+              'tampered archive download 400',
+              'stale feedback revision 409',
+            ],
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+    }
     if (process.env.CREATOR_RECORD_T13_EVIDENCE === 'true') {
       await mkdir('tracking/evidence/t13', { recursive: true });
       await writeFile(

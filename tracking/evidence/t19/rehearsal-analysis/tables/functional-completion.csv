@@ -1,0 +1,7 @@
+data_label,slot_id,task_key,arm,slot_state,cases,passed,held_out_cases,held_out_passed,pass_share,backends,accepted
+NOT EMPIRICAL: rehearsal or synthetic study records.,aa2089854ba3dd3608fb09a02295a367e9d30b0afdfae3fd266957cbd1f422e3,build-1,B,blocked,0,0,0,0,,,false
+NOT EMPIRICAL: rehearsal or synthetic study records.,adbbc8ee11a037adf2603e6c55112a1fd411d07169ab3fd0a3b60eac23459c4b,build-1,A,blocked,0,0,0,0,,,false
+NOT EMPIRICAL: rehearsal or synthetic study records.,3177eb2c79a50a04b862cee862a4911959771134182de75bf5cf0031e0d64858,build-1,C,submitted,1,1,0,0,1,conventional-text-check/1,true
+NOT EMPIRICAL: rehearsal or synthetic study records.,a71be815d487888567c7df4e14fff9e9b5c25b6e5ec23c7d45bd4ed57ce96435,build-2,C,submitted,1,1,0,0,1,conventional-text-check/1,true
+NOT EMPIRICAL: rehearsal or synthetic study records.,b799276bbf312df9a7a36e3bf491ddd0fe1647f733416fc9e8cdf507789b5d80,build-2,A,blocked,0,0,0,0,,,false
+NOT EMPIRICAL: rehearsal or synthetic study records.,0535fb83a903c32fe2e1dda3d190c787ac09e9ffff2d1b4e8b2e1e0203859ae1,build-2,B,blocked,0,0,0,0,,,false

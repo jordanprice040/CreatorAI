@@ -1,0 +1,47 @@
+{
+  "milestone": "T18",
+  "date": "2026-10-18",
+  "route": "documented missing-data allowance, explicitly requested by owner",
+  "source_commit": "3e9026f12d85d5eb6fd933e217176fae30be61c3",
+  "working_head": "38b3e46",
+  "node": "22.21.0",
+  "pnpm": "11.25.0 (successful cached install output)",
+  "checks": [
+    {
+      "command": "corepack pnpm install --frozen-lockfile --offline",
+      "result": "pass with sandbox escalation; 50 cached packages, no downloads reported"
+    },
+    {
+      "command": "corepack pnpm build:code",
+      "result": "pass on source snapshot"
+    },
+    {
+      "command": "node --test tests/dist/analysis.test.js",
+      "pass": 8,
+      "fail": 0,
+      "skip": 1,
+      "skip_reason": "database-dependent rehearsal integration"
+    },
+    {
+      "command": "node packages/orchestrator/dist/analyze-main.js fixtures ../../tracking/evidence/t18/demo-output",
+      "result": "pass; three synthetic scenarios, 12 checks each; hashes match committed historical fixture hashes"
+    }
+  ],
+  "setup_failures": [
+    "Initial sandbox pnpm install: EPERM package-store symlink",
+    "Later sandbox corepack version probe: registry DNS/access error; successful escalated install had already reported pinned version"
+  ],
+  "not_executed": [
+    "participant evaluation",
+    "final protocol adoption",
+    "independent human ratings",
+    "live model or paid calls",
+    "latest study-build WSL gate",
+    "database suites",
+    "full product walkthrough",
+    "committee contact or submission"
+  ],
+  "empirical_results": "unavailable",
+  "study_status": "proposed and unfrozen",
+  "academic_dates": "unconfirmed"
+}

@@ -1,0 +1,243 @@
+{
+  "schema_version": "evaluation-package/1",
+  "mode": "final",
+  "empirical_results": false,
+  "evidence_kind": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "freeze": {
+    "origin": "adopted",
+    "freeze_hash": "118a25fe6645907ea56d29d994c9c524d5c5f59dd4edf5c7bcd3e63c9534e4d7"
+  },
+  "schedule": {
+    "schema_version": "evaluation-schedule/1",
+    "freeze_origin": "adopted",
+    "freeze_hash": "118a25fe6645907ea56d29d994c9c524d5c5f59dd4edf5c7bcd3e63c9534e4d7",
+    "tasks": [
+      {
+        "key": "d1",
+        "role": "autonomy",
+        "stratum": "decision",
+        "packet_hash": "1dfde046a48cb49b67b67fe1666870814007e9b31a3672d05274fa83ae526cd9"
+      },
+      {
+        "key": "i1",
+        "role": "autonomy",
+        "stratum": "implementation",
+        "packet_hash": "8c52884254bc7cd07b6ec1fc78d13043ec5f23bc4c9ce29a3c2279fd27e8c0cf"
+      },
+      {
+        "key": "t1",
+        "role": "discovery",
+        "stratum": "decision",
+        "packet_hash": "32d889a8ed58c4d15827a24a3e125e25c365014fb1a8fd08a5c71b6a045c6901"
+      }
+    ],
+    "slots": [
+      {
+        "slot_id": "ae0571632f75ff782127880958a7a406355f37e7ba2a0054fc0530e1d9a51549",
+        "sequence": 1
+      },
+      {
+        "slot_id": "688865aa6b65542e7ba072eefe2c481542c412181dc15ed0c44130c4a7b8b1ad",
+        "sequence": 2
+      },
+      {
+        "slot_id": "54a05bb96df0bc730666f4101488585a1677cf45d77b08d04c90f24ef287b8cc",
+        "sequence": 3
+      },
+      {
+        "slot_id": "4e30469f25100df27435b3abaacbbb14e98064f3cacedfaf86b170bbb4bd95e4",
+        "sequence": 4
+      },
+      {
+        "slot_id": "6392828cde872d3d3a572b208a96c17aac416888463352ac088e0e66f8d3d23a",
+        "sequence": 5
+      },
+      {
+        "slot_id": "ba3058f2bca7a774893c81fc4d33781ddeec7463b325c5b0b98345bfc7c6c688",
+        "sequence": 6
+      },
+      {
+        "slot_id": "d0de04a15403163e8c71143f45aa7eede7aa4129edae4bb883ec10209e3f2369",
+        "sequence": 7
+      },
+      {
+        "slot_id": "b631d9a437eb214daf95af632066e481c4cf614111bedc65276c31fb60d743a9",
+        "sequence": 8
+      },
+      {
+        "slot_id": "20bfa3b4b050b8679e2b6133dc2ca8b4a9cf8ef1bd3902409dc470b8c514b1ad",
+        "sequence": 9
+      },
+      {
+        "slot_id": "5c3e08c9dc39161737b7eba39941762a71804aa24e2137928c9fd4dea2159888",
+        "sequence": 10
+      }
+    ],
+    "schedule_hash": "e9be2ef4e303e4ebab2089b5d0903ca3e063534e01f8a61bb84504dbccd553fa"
+  },
+  "flow": [
+    {
+      "slot_id": "ae0571632f75ff782127880958a7a406355f37e7ba2a0054fc0530e1d9a51549",
+      "sequence": 1,
+      "task_key": "d1",
+      "arm": "A",
+      "condition": "autonomous",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "688865aa6b65542e7ba072eefe2c481542c412181dc15ed0c44130c4a7b8b1ad",
+      "sequence": 2,
+      "task_key": "d1",
+      "arm": "B",
+      "condition": "human_in_loop",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "54a05bb96df0bc730666f4101488585a1677cf45d77b08d04c90f24ef287b8cc",
+      "sequence": 3,
+      "task_key": "d1",
+      "arm": "C",
+      "condition": "human_only",
+      "discovery_method": "human_defined",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "4e30469f25100df27435b3abaacbbb14e98064f3cacedfaf86b170bbb4bd95e4",
+      "sequence": 4,
+      "task_key": "i1",
+      "arm": "A",
+      "condition": "autonomous",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "6392828cde872d3d3a572b208a96c17aac416888463352ac088e0e66f8d3d23a",
+      "sequence": 5,
+      "task_key": "i1",
+      "arm": "B",
+      "condition": "human_in_loop",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "ba3058f2bca7a774893c81fc4d33781ddeec7463b325c5b0b98345bfc7c6c688",
+      "sequence": 6,
+      "task_key": "i1",
+      "arm": "C",
+      "condition": "human_only",
+      "discovery_method": "human_defined",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "d0de04a15403163e8c71143f45aa7eede7aa4129edae4bb883ec10209e3f2369",
+      "sequence": 7,
+      "task_key": "t1",
+      "arm": "D-structured",
+      "condition": "autonomous",
+      "discovery_method": "structured",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "b631d9a437eb214daf95af632066e481c4cf614111bedc65276c31fb60d743a9",
+      "sequence": 8,
+      "task_key": "t1",
+      "arm": "D-open",
+      "condition": "autonomous",
+      "discovery_method": "open_ended",
+      "repeat": 1,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "20bfa3b4b050b8679e2b6133dc2ca8b4a9cf8ef1bd3902409dc470b8c514b1ad",
+      "sequence": 9,
+      "task_key": "t1",
+      "arm": "D-structured",
+      "condition": "autonomous",
+      "discovery_method": "structured",
+      "repeat": 2,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    },
+    {
+      "slot_id": "5c3e08c9dc39161737b7eba39941762a71804aa24e2137928c9fd4dea2159888",
+      "sequence": 10,
+      "task_key": "t1",
+      "arm": "D-open",
+      "condition": "autonomous",
+      "discovery_method": "open_ended",
+      "repeat": 2,
+      "state": "blocked",
+      "reasons": [
+        "Fixture: no adopted protocol freeze (RD1-RD10).",
+        "Fixture: no verified model id and live dispatch disabled (RD6)."
+      ],
+      "outcome": null,
+      "attempts": []
+    }
+  ],
+  "source_support_audits": [],
+  "functional_checks": [],
+  "package_hash": "316c4fdb9c513b8604776e54b0a6d3511a6590621fcc67d11dd942c864e4cce1"
+}

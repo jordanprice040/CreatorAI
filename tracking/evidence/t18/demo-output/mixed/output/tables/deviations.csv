@@ -1,0 +1,3 @@
+data_label,source,slot_id,task_key,arm,reason,impact
+"VERIFICATION FIXTURE: synthetic data, not empirical",recorded deviation,fdb69e509003b22fe514b1db6f4071746455b51ddf09025673cbd20d81e4f126,d1,C,Fixture: a search page showed an AI summary.,"Fixture deviation; recorded, not excluded."
+"VERIFICATION FIXTURE: synthetic data, not empirical",slot blocked,470395d0f588aae6e85e1beb1589f316bde93400b0b61d011db15b414377221e,i1,A,Fixture: no frozen build task bound for the AI builder.,No outcome; kept in the assigned denominator.

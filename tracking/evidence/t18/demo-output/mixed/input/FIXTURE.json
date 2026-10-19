@@ -1,0 +1,13 @@
+{
+  "schema_version": "analysis-fixture/1",
+  "label": "VERIFICATION FIXTURE: synthetic data, not empirical",
+  "scenario": "mixed",
+  "covers": [
+    "missing ratings (blank items, one partial reviewer row)",
+    "failed and blocked runs kept in assigned denominators",
+    "retry after an infrastructure failure; both attempts counted for resources",
+    "unknown billing (lower-bound cost)",
+    "repeated observations: discovery repeats and one participant across human arms",
+    "interventions and a recorded deviation"
+  ]
+}

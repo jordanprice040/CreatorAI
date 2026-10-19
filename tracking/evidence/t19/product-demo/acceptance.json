@@ -1,0 +1,871 @@
+{
+  "synthetic": true,
+  "empirical_results": false,
+  "source_note": "Fixture discovery/selection, explicit checklist spec substitution, real worker and same-workspace search/cost inspection; no participant study.",
+  "first": {
+    "build": {
+      "id": "0ea30635-b87a-49b2-bfff-1d9ef8d2d9de",
+      "product_id": "392d280a-aae6-4034-b71f-bd5a48204448",
+      "task_id": "8a0ef151-d311-4674-b2b1-e76d15305c5c",
+      "plan_hash": "2dd155833fdc7f7f0a51c4463e87e449b2d23c1e136bc0c5288a839ae370d1ee",
+      "spec_hash": "069dec6c99eda1cfc151a533510d5f4422665cb0701a5146fa5438e6f1bf886f",
+      "commit": "5d626cd1e15ff72e71b3016c2fe7068eea60a4f0",
+      "state": "verified_candidate",
+      "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+      "calls": 2,
+      "repairs": 0,
+      "fixture": true,
+      "finished_at": "2026-10-19T01:47:24.987Z"
+    },
+    "packaged": {
+      "artifact": {
+        "id": "820e7dd6-6772-460f-8e14-9eda7de93c87",
+        "entity_id": "c2455ad7-e91e-4d9e-a50e-0402f8d0f6ef",
+        "state": "verified",
+        "manifest_sha256": "e1254eba4a42879934454cbaa2792a01c48360ab67c9bad6bb44a818bd396191",
+        "archive_sha256": "b2f6eedb34a3f8e7e77778672124e834214d149506febb18b45bc9b7b1dc6de0",
+        "spec": {
+          "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+          "version": 3
+        },
+        "commit": "5d626cd1e15ff72e71b3016c2fe7068eea60a4f0",
+        "backend": "wsl2-bwrap-systemd",
+        "availability": {
+          "source_archive": {
+            "state": "available",
+            "reason": "Exact committed source as a deterministic tar archive."
+          },
+          "runnable_demo": {
+            "state": "available",
+            "reason": "Private preview runs this exact package in the isolated worker."
+          },
+          "native_installer": {
+            "state": "unavailable",
+            "reason": "No native installer recipe exists for the Python CLI template."
+          }
+        },
+        "current": true,
+        "previous_id": null,
+        "created_at": "2026-10-19T01:47:28.657Z"
+      },
+      "state": "verified",
+      "package_checks": [
+        {
+          "check_key": "A1",
+          "execution_id": "3235969a-feee-4e0a-a44c-76b575e1939a",
+          "state": "succeeded",
+          "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+          "passed": true,
+          "reason": null
+        },
+        {
+          "check_key": "A2",
+          "execution_id": "93b75996-21ee-4da9-b22c-d3e61bfa9d29",
+          "state": "failed",
+          "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+          "passed": true,
+          "reason": null
+        }
+      ],
+      "limitations": [
+        "Verifies one task commit and its owner-authored exact stdout/exit cases, not a merge, the whole product or real user needs.",
+        "Python standard-library CLI only: no web UI, persistence or dependency recipe.",
+        "No native installer; the runnable demo exists only as a private preview in the isolated worker.",
+        "Local compute is bounded but not monetarily metered by the studio.",
+        "Builder and reviewer were fixed synthetic fixture roles, not model reasoning."
+      ]
+    },
+    "manifest": {
+      "format": "build-manifest/1",
+      "id": "820e7dd6-6772-460f-8e14-9eda7de93c87",
+      "created_at": "2026-10-19T01:47:28.570Z",
+      "state": "verified",
+      "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+      "product_id": "392d280a-aae6-4034-b71f-bd5a48204448",
+      "owner_id": "00000000-0000-4000-8000-000000000001",
+      "spec": {
+        "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+        "version": 3,
+        "hash": "069dec6c99eda1cfc151a533510d5f4422665cb0701a5146fa5438e6f1bf886f",
+        "freeze_id": "4e095a2d-7047-4ab4-b9fd-df934857f808"
+      },
+      "task": {
+        "id": "8a0ef151-d311-4674-b2b1-e76d15305c5c",
+        "key": "T1",
+        "hash": "909194407b58e74292c1024758277d2b3e6ba6bfaf1c4ee1c6a60077b81dc270"
+      },
+      "build": {
+        "id": "0ea30635-b87a-49b2-bfff-1d9ef8d2d9de",
+        "plan_hash": "2dd155833fdc7f7f0a51c4463e87e449b2d23c1e136bc0c5288a839ae370d1ee",
+        "prompt_hash": "f98292fb9e4f279835838714243f931e188a82d3ae994b6ca200289574754370",
+        "calls": 2,
+        "repairs": 0,
+        "fixture_roles": true
+      },
+      "repository": {
+        "commit": "5d626cd1e15ff72e71b3016c2fe7068eea60a4f0",
+        "base_commit": "113546922f6efc4d66d984f538cc0b5405060284",
+        "initial_commit": "113546922f6efc4d66d984f538cc0b5405060284",
+        "git_version": "git version 2.45.1.windows.1"
+      },
+      "template": {
+        "id": "checklist/1",
+        "hash": "58475808dd957b944a75eb76971bf99c0a774850b8920287d0881f9137a754f4"
+      },
+      "toolchain": {
+        "recipe": "python-build/1",
+        "recipe_hash": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+        "policy_hash": "1cd1c03df7a41cebc319773a35bf9c2244c44d1151ebe2e698b402ebd939e3d7",
+        "bridge_hash": "67c57285456eabccc0bfa52846feb76d4eacabecdcb88bdb9201044157c7a539",
+        "backend": "wsl2-bwrap-systemd",
+        "python": "3.14.4",
+        "supervisor_node": "v22.21.0"
+      },
+      "dependencies": {
+        "kind": "python-stdlib-only",
+        "lockfile": null,
+        "note": "Reviewed template uses only the Python standard library; there is nothing to lock or install."
+      },
+      "package": {
+        "kind": "source_archive",
+        "file": "source.tar",
+        "media_type": "application/x-tar",
+        "sha256": "b2f6eedb34a3f8e7e77778672124e834214d149506febb18b45bc9b7b1dc6de0",
+        "bytes": 3072,
+        "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+        "files": [
+          {
+            "path": "readme.md",
+            "sha256": "f48bf116c312c37d8ecc696b454612f47501503ada29e8f3bd87adef24b1ed58",
+            "bytes": 82
+          },
+          {
+            "path": "src/main.py",
+            "sha256": "425a2911d97725eda6b3e9c1befa241a042293dcc1406cb8b197e03f20988c8d",
+            "bytes": 186
+          }
+        ]
+      },
+      "availability": {
+        "source_archive": {
+          "state": "available",
+          "reason": "Exact committed source as a deterministic tar archive."
+        },
+        "runnable_demo": {
+          "state": "available",
+          "reason": "Private preview runs this exact package in the isolated worker."
+        },
+        "native_installer": {
+          "state": "unavailable",
+          "reason": "No native installer recipe exists for the Python CLI template."
+        }
+      },
+      "startup": {
+        "runtime": "Python 3 standard library (python3 -I)",
+        "command": [
+          "python3",
+          "-I",
+          "src/main.py"
+        ],
+        "network": "none",
+        "requirements": [
+          "Python 3 interpreter",
+          "No packages, network or persistent files"
+        ],
+        "readiness_case": "A1"
+      },
+      "tests": {
+        "cases": [
+          {
+            "check_key": "A1",
+            "args": [],
+            "stdin": "",
+            "stdout": "{\"template\": \"checklist/1\", \"items\": [\"inspect\", \"build\", \"review\", \"verify\"]}\n",
+            "exit_code": 0
+          },
+          {
+            "check_key": "A2",
+            "args": [
+              "unexpected"
+            ],
+            "stdin": "",
+            "stdout": "invalid input\n",
+            "exit_code": 2
+          }
+        ],
+        "build_qa": [
+          {
+            "check_key": "A1",
+            "execution_id": "033d11d9-e68d-4905-b0b0-ba90862d0947",
+            "state": "succeeded",
+            "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+            "passed": true,
+            "reason": null
+          },
+          {
+            "check_key": "A2",
+            "execution_id": "924225bc-a219-41f4-adf7-41fdd69aa0a4",
+            "state": "failed",
+            "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+            "passed": true,
+            "reason": null
+          }
+        ],
+        "package": [
+          {
+            "check_key": "A1",
+            "execution_id": "3235969a-feee-4e0a-a44c-76b575e1939a",
+            "state": "succeeded",
+            "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+            "passed": true,
+            "reason": null
+          },
+          {
+            "check_key": "A2",
+            "execution_id": "93b75996-21ee-4da9-b22c-d3e61bfa9d29",
+            "state": "failed",
+            "input_hash": "79f0ec63fff3540b97e0c0a23c89748751193c365f76ab90f1ccbe3d13073f3c",
+            "passed": true,
+            "reason": null
+          }
+        ]
+      },
+      "costs": {
+        "broker_calls": 2,
+        "settled_nano_usd": "26590000",
+        "unsettled_attempts": 0,
+        "local_compute": "not_metered_by_studio"
+      },
+      "lineage": {
+        "previous": null,
+        "feedback_ids": []
+      },
+      "limitations": [
+        "Verifies one task commit and its owner-authored exact stdout/exit cases, not a merge, the whole product or real user needs.",
+        "Python standard-library CLI only: no web UI, persistence or dependency recipe.",
+        "No native installer; the runnable demo exists only as a private preview in the isolated worker.",
+        "Local compute is bounded but not monetarily metered by the studio.",
+        "Builder and reviewer were fixed synthetic fixture roles, not model reasoning."
+      ]
+    }
+  },
+  "preview": {
+    "state": "ready",
+    "interactive": {
+      "preview_id": "712e32c8-1da4-4d40-8825-a42ae7cec885",
+      "execution_id": "11ddb10b-ecf0-4152-b0d3-cacb85f1e0e2",
+      "state": "succeeded",
+      "stdout": "{\"template\": \"checklist/1\", \"items\": [\"inspect\", \"build\", \"review\", \"verify\"]}\n",
+      "exit_code": 0,
+      "reason": null,
+      "runs_used": 1,
+      "max_runs": 3
+    },
+    "invalid_input": {
+      "preview_id": "712e32c8-1da4-4d40-8825-a42ae7cec885",
+      "execution_id": "3c919f9f-ac1a-43cc-9816-1b4faac06aba",
+      "state": "failed",
+      "stdout": "invalid input\n",
+      "exit_code": 2,
+      "reason": null,
+      "runs_used": 2,
+      "max_runs": 3
+    }
+  },
+  "revision": {
+    "build": {
+      "id": "09b36210-0b34-4391-8c7c-16e444f34c2b",
+      "product_id": "a87738a9-2627-4359-b659-883269d0533d",
+      "task_id": "0a728ac9-927b-4d60-b23c-887aae2f9a62",
+      "plan_hash": "8e396cb76dc108fe2e76689a51020ddcd44266462425fd1ace18a6c83a15c361",
+      "spec_hash": "bebea3020e00cb024be6a266ea4a1bd60ee0aae1b3c673b51c618e9491dec6be",
+      "commit": "6d0d5b3de63eef2788cd3fafffd3784984136bca",
+      "state": "verified_candidate",
+      "reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+      "calls": 2,
+      "repairs": 0,
+      "fixture": true,
+      "finished_at": "2026-10-19T01:47:52.065Z"
+    },
+    "packaged": {
+      "artifact": {
+        "id": "8da87328-741a-4c2a-9fdd-514e735e9590",
+        "entity_id": "d3d42d1f-40b9-4cd6-a6a6-e897e92d63c2",
+        "state": "verified",
+        "manifest_sha256": "b84bcbcdf6cb98948f6ab66fb16331336c8121d836a2293744702507f55d6248",
+        "archive_sha256": "917278ea17678d4c91e765c62bf85fafb02174c71c29f6d5ba6b448596402a31",
+        "spec": {
+          "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+          "version": 4
+        },
+        "commit": "6d0d5b3de63eef2788cd3fafffd3784984136bca",
+        "backend": "wsl2-bwrap-systemd",
+        "availability": {
+          "source_archive": {
+            "state": "available",
+            "reason": "Exact committed source as a deterministic tar archive."
+          },
+          "runnable_demo": {
+            "state": "available",
+            "reason": "Private preview runs this exact package in the isolated worker."
+          },
+          "native_installer": {
+            "state": "unavailable",
+            "reason": "No native installer recipe exists for the Python CLI template."
+          }
+        },
+        "current": true,
+        "previous_id": "820e7dd6-6772-460f-8e14-9eda7de93c87",
+        "created_at": "2026-10-19T01:47:55.210Z"
+      },
+      "state": "verified",
+      "package_checks": [
+        {
+          "check_key": "A1",
+          "execution_id": "6b5d9bc9-d49e-4248-a86a-d2a40a8dcc2f",
+          "state": "succeeded",
+          "input_hash": "02bcb300cad8dfbc214002acd5e7c42460034e4222c4270fafcf74df9df0e18e",
+          "passed": true,
+          "reason": null
+        },
+        {
+          "check_key": "A2",
+          "execution_id": "74653879-52ee-4f60-bf11-86da50d3d718",
+          "state": "failed",
+          "input_hash": "02bcb300cad8dfbc214002acd5e7c42460034e4222c4270fafcf74df9df0e18e",
+          "passed": true,
+          "reason": null
+        },
+        {
+          "check_key": "A3",
+          "execution_id": "f83eedda-dffb-435b-b6bc-95655205440e",
+          "state": "succeeded",
+          "input_hash": "02bcb300cad8dfbc214002acd5e7c42460034e4222c4270fafcf74df9df0e18e",
+          "passed": true,
+          "reason": null
+        }
+      ],
+      "limitations": [
+        "Verifies one task commit and its owner-authored exact stdout/exit cases, not a merge, the whole product or real user needs.",
+        "Python standard-library CLI only: no web UI, persistence or dependency recipe.",
+        "No native installer; the runnable demo exists only as a private preview in the isolated worker.",
+        "Local compute is bounded but not monetarily metered by the studio.",
+        "Builder and reviewer were fixed synthetic fixture roles, not model reasoning."
+      ]
+    },
+    "download": {
+      "path": "tracking\\evidence\\t19\\product-demo\\revision.tar",
+      "sha256": "917278ea17678d4c91e765c62bf85fafb02174c71c29f6d5ba6b448596402a31",
+      "bytes": 3072
+    }
+  },
+  "comparison": {
+    "base": {
+      "id": "820e7dd6-6772-460f-8e14-9eda7de93c87",
+      "entity_id": "c2455ad7-e91e-4d9e-a50e-0402f8d0f6ef",
+      "state": "verified",
+      "manifest_sha256": "e1254eba4a42879934454cbaa2792a01c48360ab67c9bad6bb44a818bd396191",
+      "archive_sha256": "b2f6eedb34a3f8e7e77778672124e834214d149506febb18b45bc9b7b1dc6de0",
+      "spec": {
+        "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+        "version": 3
+      },
+      "commit": "5d626cd1e15ff72e71b3016c2fe7068eea60a4f0",
+      "backend": "wsl2-bwrap-systemd",
+      "availability": {
+        "source_archive": {
+          "state": "available",
+          "reason": "Exact committed source as a deterministic tar archive."
+        },
+        "runnable_demo": {
+          "state": "available",
+          "reason": "Private preview runs this exact package in the isolated worker."
+        },
+        "native_installer": {
+          "state": "unavailable",
+          "reason": "No native installer recipe exists for the Python CLI template."
+        }
+      },
+      "current": false,
+      "previous_id": null,
+      "created_at": "2026-10-19T01:47:28.657Z"
+    },
+    "candidate": {
+      "id": "8da87328-741a-4c2a-9fdd-514e735e9590",
+      "entity_id": "d3d42d1f-40b9-4cd6-a6a6-e897e92d63c2",
+      "state": "verified",
+      "manifest_sha256": "b84bcbcdf6cb98948f6ab66fb16331336c8121d836a2293744702507f55d6248",
+      "archive_sha256": "917278ea17678d4c91e765c62bf85fafb02174c71c29f6d5ba6b448596402a31",
+      "spec": {
+        "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+        "version": 4
+      },
+      "commit": "6d0d5b3de63eef2788cd3fafffd3784984136bca",
+      "backend": "wsl2-bwrap-systemd",
+      "availability": {
+        "source_archive": {
+          "state": "available",
+          "reason": "Exact committed source as a deterministic tar archive."
+        },
+        "runnable_demo": {
+          "state": "available",
+          "reason": "Private preview runs this exact package in the isolated worker."
+        },
+        "native_installer": {
+          "state": "unavailable",
+          "reason": "No native installer recipe exists for the Python CLI template."
+        }
+      },
+      "current": true,
+      "previous_id": "820e7dd6-6772-460f-8e14-9eda7de93c87",
+      "created_at": "2026-10-19T01:47:55.210Z"
+    },
+    "linked": true,
+    "spec_versions": [
+      3,
+      4
+    ],
+    "changed_tasks": [
+      "T1"
+    ],
+    "files": [
+      {
+        "path": "readme.md",
+        "change": "same"
+      },
+      {
+        "path": "src/main.py",
+        "change": "changed"
+      }
+    ],
+    "tests": [
+      {
+        "check_key": "A1",
+        "base": true,
+        "candidate": true
+      },
+      {
+        "check_key": "A2",
+        "base": true,
+        "candidate": true
+      },
+      {
+        "check_key": "A3",
+        "base": null,
+        "candidate": true
+      }
+    ],
+    "costs": {
+      "base_nano_usd": "26590000",
+      "candidate_nano_usd": "30490000",
+      "base_calls": 2,
+      "candidate_calls": 2
+    },
+    "feedback": [
+      {
+        "id": "aa5ad3c1-a4a7-4ae5-bdc6-f17a4d162eb9",
+        "artifact_id": "820e7dd6-6772-460f-8e14-9eda7de93c87",
+        "manifest_sha256": "e1254eba4a42879934454cbaa2792a01c48360ab67c9bad6bb44a818bd396191",
+        "spec": {
+          "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+          "version": 3
+        },
+        "category": "change_request",
+        "text": "Synthetic feedback: I want a plain list, one step per line, to paste into notes.",
+        "status": "revised",
+        "rationale": "Synthetic owner acceptance",
+        "revision": {
+          "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+          "version": 4
+        },
+        "version": 3,
+        "created_at": "2026-10-19T01:47:36.125Z"
+      }
+    ]
+  },
+  "lineage": [
+    {
+      "depth": 1,
+      "link": {
+        "id": "88f9489a-9486-43a9-a372-cef1a23713eb",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "implements",
+        "from": {
+          "id": "c2455ad7-e91e-4d9e-a50e-0402f8d0f6ef",
+          "kind": "artifact",
+          "version": 1
+        },
+        "to": {
+          "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+          "kind": "specification",
+          "version": 3
+        },
+        "rationale": "Packaged from this exact frozen spec version.",
+        "asserted_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-19T01:47:28.630Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 2,
+      "link": {
+        "id": "f0a3bd30-f208-44b3-ab77-5676b2627dd9",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "derived_from",
+        "from": {
+          "id": "d10da87b-ff32-4684-b6db-99d0efedd1c7",
+          "kind": "specification",
+          "version": 1
+        },
+        "to": {
+          "id": "2c785485-07f0-42ab-977b-cbde966bdc92",
+          "kind": "alternative",
+          "version": 1
+        },
+        "rationale": "Specified from the selected alternative.",
+        "asserted_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-19T01:46:59.032Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 3,
+      "link": {
+        "id": "9b2a4c52-ed78-45af-9c74-bef8b3d16e9a",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "derived_from",
+        "from": {
+          "id": "2c785485-07f0-42ab-977b-cbde966bdc92",
+          "kind": "alternative",
+          "version": 1
+        },
+        "to": {
+          "id": "dde72e61-5ec9-4fa9-9c25-6b3c86e27cf0",
+          "kind": "problem",
+          "version": 1
+        },
+        "rationale": "P1 (software) from discovery run ddce2079-4715-4fa3-98de-d5ea2f46d1ce.",
+        "asserted_by": "00000000-0000-4000-8000-000000000003",
+        "created_at": "2026-10-19T01:46:57.805Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 3,
+      "link": {
+        "id": "ca6bb48e-fada-44f0-a04f-caedce1cbaf3",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "assesses",
+        "from": {
+          "id": "a08c85dd-69af-4d8c-91ee-81bebadc8d5f",
+          "kind": "scorecard",
+          "version": 1
+        },
+        "to": {
+          "id": "2c785485-07f0-42ab-977b-cbde966bdc92",
+          "kind": "alternative",
+          "version": 1
+        },
+        "rationale": "Scorecard ratings.",
+        "asserted_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-19T01:46:58.342Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 3,
+      "link": {
+        "id": "d172b6e9-4fe2-4ebe-9f78-1f13290f898e",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "assesses",
+        "from": {
+          "id": "694b792b-9ccd-4047-9b65-6154829acf6e",
+          "kind": "scorecard",
+          "version": 1
+        },
+        "to": {
+          "id": "2c785485-07f0-42ab-977b-cbde966bdc92",
+          "kind": "alternative",
+          "version": 1
+        },
+        "rationale": "Scorecard ratings.",
+        "asserted_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-19T01:46:58.404Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 3,
+      "link": {
+        "id": "d9d0dfbc-7b5e-4fad-b475-82695e9473cf",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "assesses",
+        "from": {
+          "id": "c5dfbba5-5156-4ace-84ea-6adfe700acc5",
+          "kind": "scorecard",
+          "version": 1
+        },
+        "to": {
+          "id": "2c785485-07f0-42ab-977b-cbde966bdc92",
+          "kind": "alternative",
+          "version": 1
+        },
+        "rationale": "Scorecard ratings.",
+        "asserted_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-19T01:46:58.469Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 4,
+      "link": {
+        "id": "3743e754-1f0a-4029-98c5-6c641a0fbeaa",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "supports",
+        "from": {
+          "id": "f838eea1-380b-4a14-9125-a142f4441588",
+          "kind": "claim",
+          "version": 1
+        },
+        "to": {
+          "id": "dde72e61-5ec9-4fa9-9c25-6b3c86e27cf0",
+          "kind": "problem",
+          "version": 1
+        },
+        "rationale": "Packet C1, evidence supported when the run started.",
+        "asserted_by": "00000000-0000-4000-8000-000000000003",
+        "created_at": "2026-10-19T01:46:57.805Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 4,
+      "link": {
+        "id": "f8fe1455-833b-4176-b31a-a3c9314130d9",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "derived_from",
+        "from": {
+          "id": "dde72e61-5ec9-4fa9-9c25-6b3c86e27cf0",
+          "kind": "problem",
+          "version": 1
+        },
+        "to": {
+          "id": "0a35a29f-6d1d-49fd-9b0a-cc25e629be5c",
+          "kind": "search_brief",
+          "version": 1
+        },
+        "rationale": "Narrowed from this search brief by discovery run ddce2079-4715-4fa3-98de-d5ea2f46d1ce.",
+        "asserted_by": "00000000-0000-4000-8000-000000000003",
+        "created_at": "2026-10-19T01:46:57.805Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    },
+    {
+      "depth": 5,
+      "link": {
+        "id": "df520811-f42b-4e6f-95fb-522a35b533c6",
+        "workspace_id": "3ffef547-18bb-42fb-9a82-523880833f24",
+        "relation": "supports",
+        "from": {
+          "id": "a95d105f-277f-460d-a14a-131eea28a5ec",
+          "kind": "source",
+          "version": 1
+        },
+        "to": {
+          "id": "f838eea1-380b-4a14-9125-a142f4441588",
+          "kind": "claim",
+          "version": 1
+        },
+        "rationale": "Assessed against the passage text (fixture).",
+        "asserted_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-19T01:46:50.095Z",
+        "retracted_at": null,
+        "retraction_reason": null
+      }
+    }
+  ],
+  "search": {
+    "mode": "id",
+    "fixture": true,
+    "counts": {
+      "record": 1,
+      "passage": 0,
+      "decision": 0,
+      "activity": 5
+    },
+    "truncated": false,
+    "hits": [
+      {
+        "type": "record",
+        "id": "c2455ad7-e91e-4d9e-a50e-0402f8d0f6ef",
+        "match": "id",
+        "kind": "artifact",
+        "title": "Source package 5d626cd1e1 (spec v3, verified)",
+        "status": "active",
+        "snippet": "Source package 5d626cd1e1 (spec v3, verified) · application/x-tar · artifact://392d280a-aae6-4034-b71f-bd5a48204448/820e7dd6-6772-460f-8e14-9eda7de93c87/source.tar"
+      },
+      {
+        "type": "activity",
+        "id": "1b8fd6d4-dec4-4c3b-bd95-af6d05ac962d",
+        "match": "id",
+        "kind": "preview.leased",
+        "title": "Leased private preview for 5 min, 3 runs",
+        "status": "artifact",
+        "snippet": "Leased private preview for 5 min, 3 runs"
+      },
+      {
+        "type": "activity",
+        "id": "665f191f-a97d-4d40-b872-d42157765966",
+        "match": "id",
+        "kind": "preview.leased",
+        "title": "Leased private preview for 5 min, 3 runs",
+        "status": "artifact",
+        "snippet": "Leased private preview for 5 min, 3 runs"
+      },
+      {
+        "type": "activity",
+        "id": "9567609b-4282-495e-bcdb-8f4294291863",
+        "match": "id",
+        "kind": "artifact.downloaded",
+        "title": "artifact.downloaded",
+        "status": "artifact",
+        "snippet": "artifact.downloaded"
+      },
+      {
+        "type": "activity",
+        "id": "92caf726-3a01-4057-b888-fe0b550a090a",
+        "match": "id",
+        "kind": "artifact.registered",
+        "title": "Registered verified package for spec v3",
+        "status": "artifact",
+        "snippet": "Registered verified package for spec v3"
+      },
+      {
+        "type": "activity",
+        "id": "560779f4-4c59-43d7-adc9-b34632d6c4d9",
+        "match": "id",
+        "kind": "entity.created",
+        "title": "Created artifact v1",
+        "status": "artifact",
+        "snippet": "Created artifact v1"
+      }
+    ]
+  },
+  "overview": {
+    "workspace": {
+      "id": "3ffef547-18bb-42fb-9a82-523880833f24",
+      "name": "Fixture discovery demonstration",
+      "record_mode": "fixture",
+      "role": "owner",
+      "created_at": "2026-10-19T01:46:48.231Z"
+    },
+    "records": [
+      {
+        "kind": "alternative",
+        "active": 8,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "artifact",
+        "active": 2,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "claim",
+        "active": 11,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "humility_review",
+        "active": 3,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "idea",
+        "active": 1,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "problem",
+        "active": 3,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "run",
+        "active": 3,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "scorecard",
+        "active": 8,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "search_brief",
+        "active": 3,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "source",
+        "active": 10,
+        "archived": 0,
+        "redacted": 0
+      },
+      {
+        "kind": "specification",
+        "active": 1,
+        "archived": 0,
+        "redacted": 0
+      }
+    ],
+    "runs": {
+      "active": 3,
+      "cancelled": 0
+    },
+    "decisions": {
+      "pending": 0,
+      "expiring_24h": 0
+    },
+    "workflows": {
+      "succeeded": 3
+    },
+    "attention": [],
+    "budget": {
+      "envelopes": 1,
+      "cap": "100000000000",
+      "incurred": "600540000",
+      "reserved": "0",
+      "unknown": "0",
+      "denied_calls": 0
+    },
+    "products": [],
+    "sources": {
+      "count": 10,
+      "last_fetched_at": "2026-10-19T01:46:52.356Z"
+    },
+    "generated_at": "2026-10-19T01:47:58.978Z"
+  },
+  "refusals": [
+    "revoked preview 403",
+    "expired preview 410",
+    "tampered archive download 400",
+    "stale feedback revision 409"
+  ]
+}

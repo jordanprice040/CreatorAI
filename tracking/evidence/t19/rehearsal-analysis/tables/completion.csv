@@ -1,0 +1,9 @@
+data_label,comparison,stratum,arm,assigned,blocked,deferred,missing,ran,submitted,failed,cancelled,needs_human,budget_exhausted,attempts,retries,infrastructure_failures,completion,completion_share
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,A,4,0,0,0,4,0,4,0,0,0,4,0,0,0/4,0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,B,4,0,0,0,4,0,4,0,0,0,4,0,0,0/4,0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,C,4,0,0,0,4,3,0,1,0,0,4,0,0,3/4,0.75
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,A,2,2,0,0,0,0,0,0,0,0,0,0,0,0/2,0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,B,2,2,0,0,0,0,0,0,0,0,0,0,0,0/2,0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,C,2,0,0,0,2,2,0,0,0,0,2,0,0,2/2,1
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-open,4,0,1,0,3,3,0,0,0,0,3,0,0,3/4,0.75
+NOT EMPIRICAL: rehearsal or synthetic study records.,discovery,decision,D-structured,4,0,0,0,4,0,4,0,0,0,4,0,0,0/4,0

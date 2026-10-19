@@ -1,0 +1,7 @@
+data_label,comparison,stratum,arm,attempts,calls,provider_retries,known_spend_nano_usd,known_spend_usd,unknown_exposure_usd,in_flight_exposure_usd,billing,accepted,cost_per_accepted_usd,cost_per_accepted_note
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,A,1,3,0,3000000,0.003000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,B,1,3,0,7000000,0.007000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,decision,C,1,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,A,1,3,0,5000000,0.005000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,B,1,3,0,4000000,0.004000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.
+"VERIFICATION FIXTURE: synthetic data, not empirical",autonomy,implementation,C,1,0,0,0,0.000000000,0.000000000,0.000000000,complete,0,,Undefined: zero accepted outcomes. Total known spend stays visible.

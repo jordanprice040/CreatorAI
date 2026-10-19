@@ -1,0 +1,7 @@
+T18 packet validation, October 18, 2026
+PASS: every relative Markdown link in docs/thesis resolves locally.
+PASS: all 12 copied upstream source files match source-manifest.json SHA256 hashes.
+PASS: Prettier completed on all five packet documents and the two T18 JSON manifests.
+Source snapshot compiled successfully; analysis test and fixture logs retained separately.
+Preexisting docs/PILOT_AND_PROTOCOL.md edits and t17-test.log preserved.
+No sending, commit, push, protocol adoption or live dispatch performed.

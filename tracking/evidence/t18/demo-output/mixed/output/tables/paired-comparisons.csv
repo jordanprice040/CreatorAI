@@ -1,0 +1,10 @@
+data_label,stratum,contrast,task_key,x,y,difference,excluded
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,B - A,d1,4.5,3.5,1,
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,B - A,d2,3.7,,,"A failed, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,C - A,d1,2.5,3.5,-1,
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,C - A,d2,3,,,"A failed, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,C - B,d1,2.5,4.5,-2,
+"VERIFICATION FIXTURE: synthetic data, not empirical",decision,C - B,d2,3,3.7,-0.7,
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,B - A,i1,1,,,"A blocked, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,C - A,i1,0.6667,,,"A blocked, no value"
+"VERIFICATION FIXTURE: synthetic data, not empirical",implementation,C - B,i1,0.6667,1,-0.3333,

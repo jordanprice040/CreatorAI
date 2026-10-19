@@ -1,0 +1,3 @@
+data_label,comparison,stratum,arm,interventions,clarification,judgment,authorization,feedback,fixed_gate,dynamic_gate,prevented_problem_yes,prevented_problem_no,prevented_problem_unknown,active_minutes
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,decision,B,4,0,4,0,0,4,0,0,0,4,0
+NOT EMPIRICAL: rehearsal or synthetic study records.,autonomy,implementation,B,0,0,0,0,0,0,0,0,0,0,0
