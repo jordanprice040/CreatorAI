@@ -1,0 +1,30 @@
+{
+  "provider": "openai",
+  "model_id": "gpt-6-astra",
+  "basis": "documented",
+  "source_url": "https://developers.openai.com/api/docs/models/gpt-6-astra",
+  "retrieved_at": "2026-10-19T12:00:00.000Z",
+  "unit": "nano_usd_per_token",
+  "rates": {
+    "input": "5000",
+    "cached_input": "500",
+    "cache_write": "6250",
+    "output": "25000"
+  },
+  "long_context": {
+    "above_input_tokens": 272000,
+    "input_multiplier": {
+      "numerator": 2,
+      "denominator": 1
+    },
+    "output_multiplier": {
+      "numerator": 3,
+      "denominator": 2
+    }
+  },
+  "tool_call_rates": {},
+  "context_window_tokens": 1050000,
+  "max_output_tokens": 128000,
+  "supported_actions": ["model.generate", "model.summarize"],
+  "notes": "Batch API price as published on the official model page (Batch is priced at 50% of Standard: $5 input, $0.50 cached input, $6.25 cache writes, $25 output per 1M tokens; the same long-context multipliers). Used only for batch items. Documented price only: account access and billed price are unverified."
+}

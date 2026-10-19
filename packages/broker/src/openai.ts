@@ -18,6 +18,54 @@ export interface OpenAIConfig {
 }
 const OFFICIAL = 'https://api.openai.com/v1';
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+/** Validates the base URL and key; returns the normalized base. Shared with the batch adapter. */
+export function openAIBase(config: OpenAIConfig): string {
+  const base = new URL(config.baseUrl ?? OFFICIAL);
+  if (
+    base.toString().replace(/\/$/, '') !== OFFICIAL &&
+    !(base.protocol === 'http:' && LOOPBACK.has(base.hostname))
+  )
+    throw new Error('OpenAI base URL must be the official API or loopback.');
+  if (!/^[A-Za-z0-9_-]{20,300}$/.test(config.apiKey))
+    throw new Error('OpenAI API key is malformed.');
+  return base.toString().replace(/\/$/, '');
+}
+/** The Responses request body for one call (also one batch line's body, X02). */
+export function responsesBody(req: AdapterRequest) {
+  return {
+    model: req.model_id,
+    input: req.input.map((m) => ({ role: m.role, content: m.text })),
+    max_output_tokens: req.max_output_tokens,
+    // Data minimisation: do not ask the provider to retain the response.
+    store: false,
+  };
+}
+/** Maps a successful Responses body to an outcome; anything unusable is unknown, not zero. */
+export function responseOutcome(body: Record<string, unknown>): AdapterOutcome {
+  const usage = normalizeOpenAIUsage(body.usage);
+  const text = outputText(body);
+  if (!usage || text === null || typeof body.status !== 'string')
+    return {
+      kind: 'unknown',
+      reason_code: 'malformed_response',
+      message: 'Response lacked usable usage or output.',
+    };
+  const details = body.incomplete_details as
+    { reason?: unknown } | null | undefined;
+  return {
+    kind: 'completed',
+    response_id: typeof body.id === 'string' ? body.id.slice(0, 200) : null,
+    text,
+    vector: null,
+    usage,
+    incomplete_reason:
+      body.status === 'completed'
+        ? null
+        : typeof details?.reason === 'string'
+          ? details.reason.slice(0, 80)
+          : body.status.slice(0, 80),
+  };
+}
 
 const isCount = (v: unknown): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -75,16 +123,8 @@ export class OpenAIAdapter implements ModelAdapter {
   readonly #key: string;
   readonly #base: string;
   constructor(config: OpenAIConfig) {
-    const base = new URL(config.baseUrl ?? OFFICIAL);
-    if (
-      base.toString().replace(/\/$/, '') !== OFFICIAL &&
-      !(base.protocol === 'http:' && LOOPBACK.has(base.hostname))
-    )
-      throw new Error('OpenAI base URL must be the official API or loopback.');
-    if (!/^[A-Za-z0-9_-]{20,300}$/.test(config.apiKey))
-      throw new Error('OpenAI API key is malformed.');
+    this.#base = openAIBase(config);
     this.#key = config.apiKey;
-    this.#base = base.toString().replace(/\/$/, '');
     this.model_id = config.model_id;
   }
   toJSON() {
@@ -110,16 +150,7 @@ export class OpenAIAdapter implements ModelAdapter {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.#key}`,
         },
-        body: JSON.stringify({
-          model: req.model_id,
-          input: req.input.map((m) => ({
-            role: m.role,
-            content: m.text,
-          })),
-          max_output_tokens: req.max_output_tokens,
-          // Data minimisation: do not ask the provider to retain the response.
-          store: false,
-        }),
+        body: JSON.stringify(responsesBody(req)),
         signal,
       });
     } catch (e) {
@@ -178,28 +209,6 @@ export class OpenAIAdapter implements ModelAdapter {
         message: 'Response was not JSON.',
       };
     }
-    const usage = normalizeOpenAIUsage(body.usage);
-    const text = outputText(body);
-    if (!usage || text === null || typeof body.status !== 'string')
-      return {
-        kind: 'unknown',
-        reason_code: 'malformed_response',
-        message: 'Response lacked usable usage or output.',
-      };
-    const details = body.incomplete_details as
-      { reason?: unknown } | null | undefined;
-    return {
-      kind: 'completed',
-      response_id: typeof body.id === 'string' ? body.id.slice(0, 200) : null,
-      text,
-      vector: null,
-      usage,
-      incomplete_reason:
-        body.status === 'completed'
-          ? null
-          : typeof details?.reason === 'string'
-            ? details.reason.slice(0, 80)
-            : body.status.slice(0, 80),
-    };
+    return responseOutcome(body);
   }
 }
