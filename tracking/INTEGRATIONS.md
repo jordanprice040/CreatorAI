@@ -7,6 +7,15 @@ loopback contract tests and a local bare repository. Live use needs CREATOR_GITH
 on the API process, a verified connection in a real workspace and grants. Endpoint
 permissions were checked on docs.github.com. See ADR-0027 and docs/GITHUB.md.
 
+X03, October 19, 2026: no new external integration and no live call. Semantic search
+calls embedding models only through the broker (`model.embed`), and
+config/search/semantic-models.json lists none for real workspaces, so they refuse it until
+an owner verifies an embedding model (accessible id, dated pricing snapshot, data-class
+approval). The fixture model fixture-embed-v1 (config/pricing/fixture-embed-v1.json) is a
+labelled trigram hash with simulated rates. A model-compiled audit question is one
+ordinary metered `model.generate` call; its output is a plan validated by schema, never SQL.
+See ADR-0026 and docs/SEARCH_AND_AUDIT.md.
+
 X02, October 19, 2026: no live call. config/context/provider-capabilities.json
 records gpt-6-astra prompt caching, Batch API (/v1/responses, 24h window, 50% price in
 config/pricing/openai-gpt-6-astra-batch.json) and server-side compaction as

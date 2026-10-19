@@ -25,8 +25,9 @@ import {
   sourcePolicyHash,
 } from '@creator/domain';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import {
-  ContextStore,
+  SearchStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -38,7 +39,9 @@ import {
   fixtureBatchAdapters,
   fixtureContextAdapters,
   fixtureRouteAdapters,
+  fixtureSearchAdapters,
   ModelBroker,
+  SearchService,
   liveAdapterFromEnv,
   liveBatchAdapterFromEnv,
 } from '@creator/broker';
@@ -68,6 +71,7 @@ import {
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
 import { routingRoutes } from './routing.js';
 import { contextRoutes } from './context.js';
+import { searchRoutes } from './search.js';
 
 const MAX_BODY = 65536;
 function respond(res: ServerResponse, status: number, value: unknown) {
@@ -158,7 +162,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -186,7 +190,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new ContextStore(pool) : null;
+  const store = pool ? new SearchStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -208,7 +212,11 @@ export function createApi(
         {
           fixture: new FixtureAdapter(),
           live,
-          routes: [...fixtureRouteAdapters(), ...fixtureContextAdapters()],
+          routes: [
+            ...fixtureRouteAdapters(),
+            ...fixtureContextAdapters(),
+            ...fixtureSearchAdapters(),
+          ],
         },
         { decisions: store },
       )
@@ -241,6 +249,23 @@ export function createApi(
         },
       })
     : null;
+  // X03: embedding models semantic search may call, per workspace mode (dated config).
+  const searchService =
+    store && broker
+      ? new SearchService(
+          store,
+          broker,
+          JSON.parse(
+            readFileSync(
+              new URL(
+                '../../../config/search/semantic-models.json',
+                import.meta.url,
+              ),
+              'utf8',
+            ),
+          ) as unknown,
+        )
+      : null;
   // Pages reach the app only through this broker, under the owner-approved source policy.
   const sources = store
     ? new SourceBroker(
@@ -439,6 +464,24 @@ export function createApi(
       (await contextRoutes({
         store,
         service: contextService!,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        url,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection &&
+      (await searchRoutes({
+        store,
+        service: searchService!,
         ctx,
         ws,
         collection,
@@ -1029,6 +1072,9 @@ export function createApi(
           kind: p.get('kind') || null,
           status: p.get('status') || null,
           limit: Number(p.get('limit') ?? 20),
+          from: p.get('from') || null,
+          to: p.get('to') || null,
+          ...(p.get('tz') ? { tz: p.get('tz') } : {}),
         }),
         false,
       );

@@ -21,4 +21,5 @@ export * from './analysis-fixtures.js';
 export * from './analysis-report.js';
 export * from './routing.js';
 export * from './context.js';
+export * from './audit-questions.js';
 export * from './github.js';

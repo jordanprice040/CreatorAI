@@ -1443,7 +1443,43 @@ create trigger context_evaluations_guard before update or delete on context_eval
 `,
   },
   {
-    // 14 is left for X03, built in parallel; migrations apply by version, so a gap is fine.
+    version: 14,
+    name: 'saved_queries_and_member_removal',
+    sql: `
+-- X03 saved queries: a named search or audit question. The stored body is a request, never
+-- query text; it is validated again and run with the caller's current access every time.
+create table saved_queries (
+ id uuid primary key, workspace_id uuid not null references workspaces(id),
+ name text not null check (length(name) between 1 and 120),
+ kind text not null check (kind in ('search','question')),
+ body jsonb not null, body_hash char(64) not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ archived_at timestamptz, archived_by uuid references actors(id),
+ check ((archived_at is null) = (archived_by is null))
+);
+create unique index saved_queries_name on saved_queries(workspace_id, lower(name))
+ where archived_at is null;
+-- Only archiving, once, may change a saved query.
+create function creator_saved_query_archive_only() returns trigger language plpgsql as $$
+begin
+  if tg_op = 'DELETE' or old.archived_at is not null or new.archived_at is null
+     or (new.id, new.workspace_id, new.name, new.kind, new.body, new.body_hash,
+         new.created_by, new.created_at)
+        is distinct from (old.id, old.workspace_id, old.name, old.kind, old.body,
+         old.body_hash, old.created_by, old.created_at) then
+    raise exception 'saved queries can only be archived, once' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+create trigger saved_queries_archive_only before update or delete on saved_queries
+ for each row execute function creator_saved_query_archive_only();
+-- Workspace access is revoked by removing the membership row (audited as member.removed);
+-- every read checks membership first, so a removed member learns nothing more.
+create index cost_search_reservations on budget_reservations (workspace_id, created_at);
+`,
+  },
+  {
     version: 15,
     name: 'github_scoped_management',
     sql: `

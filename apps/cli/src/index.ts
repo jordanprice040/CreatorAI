@@ -60,6 +60,12 @@ import {
   OverviewSchema,
   ProblemComparisonSchema,
   SearchResultSchema,
+  SemanticSearchResultSchema,
+  SavedQuerySchema,
+  AuditAnswerSchema,
+  LineageGraphSchema,
+  LineageExportSchema,
+  LineageVerifyResultSchema,
   ModelRegistrySchema,
   RoutePolicySchema,
   RouteBenchmarkSchema,
@@ -148,7 +154,20 @@ const USAGE = `Usage:
   pnpm cli archive <workspace> <id> <expected-version> <reason>
   pnpm cli link <workspace> <relation> <from-id>@<version> <to-id>@<version> <rationale>
   pnpm cli lineage <workspace> <id> [upstream|downstream] [depth 1-8]
-  pnpm cli search <workspace> <query> [record,passage,decision,activity] [kind] [status]
+  pnpm cli search <workspace> <query> [record,passage,decision,activity,code_version,model,cost] [kind] [status] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--tz Area/City]
+  pnpm cli search-semantic <workspace> <semantic-request-json|file.json>
+  pnpm cli saved-query-save <workspace> <name> <search|question> <body-json|file.json>
+  pnpm cli saved-queries <workspace>
+  pnpm cli saved-query-run <workspace> <saved-query-id>
+  pnpm cli saved-query-archive <workspace> <saved-query-id>
+  pnpm cli ask <workspace> <question> [time-zone]
+  pnpm cli ask-model <workspace> <question-request-json|file.json>
+  pnpm cli audit-plan <workspace> <plan-json|file.json>
+  pnpm cli lineage-graph <workspace> <id> [upstream|downstream|both] [depth 1-8] [max-nodes]
+  pnpm cli lineage-export <workspace> <id> <output.json> [upstream|downstream|both] [depth 1-8]
+  pnpm cli lineage-verify <workspace> <export.json>
+  pnpm cli member-add <workspace> <actor-id> <owner|editor|viewer>
+  pnpm cli member-remove <workspace> <actor-id> <reason>
   pnpm cli activity <workspace> [query] [action-prefix]
   pnpm cli overview <workspace>
   pnpm cli compare <workspace> <problem-id>
@@ -998,17 +1017,30 @@ export async function runCli(
         );
         break;
       case 'search': {
-        const p = new URLSearchParams({ q: rest[1] ?? '' });
-        if (rest[2]) p.set('types', rest[2]);
-        if (rest[3]) p.set('kind', rest[3]);
-        if (rest[4]) p.set('status', rest[4]);
-        const r = await call(SearchResultSchema, `${ws(rest[0])}/search?${p}`);
+        const pos = rest.filter(
+          (v, i) =>
+            !v.startsWith('--') &&
+            !['--from', '--to', '--tz'].includes(rest[i - 1] ?? ''),
+        );
+        const p = new URLSearchParams({ q: pos[1] ?? '' });
+        if (pos[2]) p.set('types', pos[2]);
+        if (pos[3]) p.set('kind', pos[3]);
+        if (pos[4]) p.set('status', pos[4]);
+        for (const f of ['from', 'to', 'tz']) {
+          const v = flagged(`--${f}`)[0];
+          if (v) p.set(f, v);
+        }
+        const r = await call(SearchResultSchema, `${ws(pos[0])}/search?${p}`);
         data = {
           mode: r.mode,
           fixture: r.fixture,
           counts: r.counts,
           truncated: r.truncated,
+          coverage: r.coverage,
+          freshness: r.freshness,
           hits: r.hits.map((h) => ({
+            occurred_local: h.occurred_local,
+            ...(h.amounts ? { amounts: h.amounts } : {}),
             type: h.type,
             id: h.id,
             match: h.match,
@@ -1022,6 +1054,117 @@ export async function runCli(
         };
         break;
       }
+      case 'search-semantic':
+        data = await call(
+          SemanticSearchResultSchema,
+          `${ws(rest[0])}/semantic-search`,
+          jsonArg(rest[1], 'Semantic search request'),
+          120_000,
+        );
+        break;
+      case 'saved-query-save':
+        data = await call(SavedQuerySchema, `${ws(rest[0])}/saved-queries`, {
+          name: rest[1],
+          kind: rest[2],
+          body: jsonArg(rest[3], 'Saved query body'),
+        });
+        break;
+      case 'saved-queries':
+        data = await call(
+          z.array(SavedQuerySchema),
+          `${ws(rest[0])}/saved-queries`,
+        );
+        break;
+      case 'saved-query-run':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/saved-queries/${encodeURIComponent(rest[1] ?? '')}/run`,
+        );
+        break;
+      case 'saved-query-archive':
+        data = await call(
+          SavedQuerySchema,
+          `${ws(rest[0])}/saved-queries/${encodeURIComponent(rest[1] ?? '')}/archive`,
+          {},
+        );
+        break;
+      case 'ask':
+        data = await call(
+          AuditAnswerSchema,
+          `${ws(rest[0])}/audit-questions`,
+          {
+            question: rest[1] ?? '',
+            ...(rest[2] ? { tz: rest[2] } : {}),
+          },
+          30_000,
+        );
+        break;
+      case 'ask-model':
+        data = await call(
+          AuditAnswerSchema,
+          `${ws(rest[0])}/audit-questions`,
+          jsonArg(rest[1], 'Question request'),
+          120_000,
+        );
+        break;
+      case 'audit-plan':
+        data = await call(
+          AuditAnswerSchema,
+          `${ws(rest[0])}/audit-plans`,
+          { plan: jsonArg(rest[1], 'Plan') },
+          30_000,
+        );
+        break;
+      case 'lineage-graph':
+      case 'lineage-export': {
+        const exporting = command === 'lineage-export';
+        const [dir, depth, maxNodes] = exporting
+          ? [rest[3], rest[4], undefined]
+          : [rest[2], rest[3], rest[4]];
+        const p = new URLSearchParams();
+        if (dir) p.set('direction', dir);
+        if (depth) p.set('depth', depth);
+        if (maxNodes) p.set('max_nodes', maxNodes);
+        const path = `${ws(rest[0])}/entities/${encodeURIComponent(rest[1] ?? '')}/${command}?${p}`;
+        if (!exporting) {
+          data = await call(LineageGraphSchema, path);
+          break;
+        }
+        if (!rest[2]) throw new Error(USAGE);
+        const bundle = await call(LineageExportSchema, path);
+        // Never overwrite: an earlier export may be the only copy someone relies on.
+        writeFileSync(rest[2], JSON.stringify(bundle, null, 2) + '\n', {
+          flag: 'wx',
+        });
+        data = {
+          written: rest[2],
+          graph_sha256: bundle.graph_sha256,
+          nodes: bundle.graph.nodes.length,
+          edges: bundle.graph.edges.length,
+          truncated: bundle.graph.truncated,
+        };
+        break;
+      }
+      case 'lineage-verify':
+        data = await call(
+          LineageVerifyResultSchema,
+          `${ws(rest[0])}/lineage-verify`,
+          jsonArg(rest[1], 'Lineage export'),
+        );
+        break;
+      case 'member-add':
+        data = await call(z.unknown(), `${ws(rest[0])}/members`, {
+          actor_id: rest[1],
+          role: rest[2],
+        });
+        break;
+      case 'member-remove':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/members/${encodeURIComponent(rest[1] ?? '')}/remove`,
+          { reason: rest.slice(2).join(' ') },
+        );
+        break;
       case 'activity': {
         const p = new URLSearchParams();
         if (rest[1]) p.set('q', rest[1]);

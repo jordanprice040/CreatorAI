@@ -17,16 +17,45 @@ export const SearchTypeSchema = z.enum([
   'passage',
   'decision',
   'activity',
+  // X03: code versions (artifact commits), models used, and resource/cost records.
+  'code_version',
+  'model',
+  'cost',
 ]);
 export type SearchType = z.infer<typeof SearchTypeSchema>;
 export const SEARCH_TYPES = SearchTypeSchema.options;
-export const SearchQuerySchema = z.strictObject({
-  q: z.string().trim().max(200),
-  types: z.array(SearchTypeSchema).min(1).max(4),
-  kind: StoredKindSchema.nullable(),
-  status: StoredStatusSchema.nullable(),
-  limit: z.number().int().min(1).max(50),
-});
+/** An IANA time zone name the runtime knows (checked again by PostgreSQL when used). */
+export const TimeZoneSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z][A-Za-z0-9_+\-]*(\/[A-Za-z0-9_+\-]+){0,2}$/)
+  .refine((tz) => {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: tz });
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'Unknown time zone.');
+/** A calendar date, read in the query's time zone. */
+export const LocalDateSchema = z.iso.date();
+export const SearchQuerySchema = z
+  .strictObject({
+    q: z.string().trim().max(200),
+    types: z.array(SearchTypeSchema).min(1).max(7),
+    kind: StoredKindSchema.nullable(),
+    status: StoredStatusSchema.nullable(),
+    limit: z.number().int().min(1).max(50),
+    /** X03: inclusive local dates, interpreted in `tz`, applied to each hit's time. */
+    from: LocalDateSchema.nullable().default(null),
+    to: LocalDateSchema.nullable().default(null),
+    tz: TimeZoneSchema.default('UTC'),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'from must not be after to.',
+    path: ['to'],
+  });
 export type SearchQuery = z.infer<typeof SearchQuerySchema>;
 /** Highlighted text as segments, so a page never renders stored text as markup. */
 export const SnippetSchema = z
@@ -45,18 +74,51 @@ export const SearchHitSchema = z.strictObject({
   version: version.nullable(),
   snippet: SnippetSchema,
   occurred_at: timestamp,
+  /** X03: occurred_at as wall-clock time in the query's zone, with its UTC offset. */
+  occurred_local: z.string().max(40),
   /** The record to open for this hit (a passage's source, an event's subject). */
   subject: z.strictObject({ id, kind: z.string().max(40) }).nullable(),
+  /** X03: amounts of a cost hit (a model's total for a model hit); null otherwise. */
+  amounts: z
+    .strictObject({
+      reserved: nanoUsd,
+      incurred: nanoUsd,
+      unknown: nanoUsd,
+      /** Fixture amounts are simulated units, never money. */
+      fixture: z.boolean(),
+    })
+    .nullable(),
 });
 export type SearchHit = z.infer<typeof SearchHitSchema>;
+/**
+ * X03: what each searched type could and could not match, so an empty result is not read as
+ * "nothing exists". Redacted records, passages without text and unsupported or oversized
+ * media are counted, never shown.
+ */
+export const SearchCoverageSchema = z.strictObject({
+  searchable: counter,
+  excluded: z.strictObject({
+    redacted: counter,
+    no_text: counter,
+    unsupported_media: counter,
+  }),
+  latest_change_at: timestamp.nullable(),
+});
 export const SearchResultSchema = z.strictObject({
   query: SearchQuerySchema,
   mode: z.enum(['browse', 'id', 'text']),
   fixture: z.boolean(),
-  hits: z.array(SearchHitSchema).max(200),
+  hits: z.array(SearchHitSchema).max(350),
   /** Matches per type before the limit; computed only over what the caller may read. */
   counts: z.partialRecord(SearchTypeSchema, counter),
   truncated: z.boolean(),
+  coverage: z.partialRecord(SearchTypeSchema, SearchCoverageSchema),
+  freshness: z.strictObject({
+    /** The database time the search read at. */
+    as_of: timestamp,
+    /** Audit events not yet in the activity history (activity search lags by these). */
+    activity_pending: counter,
+  }),
 });
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 
