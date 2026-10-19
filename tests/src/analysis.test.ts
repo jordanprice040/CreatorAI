@@ -253,6 +253,22 @@ test('ratings: blanks are missing, anything else must be 1-5 and each code rated
     /invalid ratings/,
   );
   assert.throws(() => parseRatings('r', `item,code,score\n`), /header/);
+  // Spreadsheet exports quote notes with line breaks (CRLF too); they stay one row.
+  const multi = parseRatings(
+    'r',
+    `${header}\r\n01,abc,1,2,3,4,5,"first line\r\nsecond, ""quoted"" line"\r\n02,def,5,4,3,2,1,\r\n`,
+  );
+  assert.deepEqual(
+    multi.map((r) => [r.code, r.has_note]),
+    [
+      ['abc', true],
+      ['def', false],
+    ],
+  );
+  assert.throws(
+    () => parseRatings('r', `${header}\n01,abc,1,2,3,4,5,"never closed\n`),
+    (e: any) => /never closed/.test(String(e.details)),
+  );
   const dup = analyze(
     input(mixedFixture(), (f) => {
       const r = f.ratings[0]!;

@@ -1,5 +1,25 @@
 # Implementation status
 
+## Audit 2026-10-19 (T14–X02) fixes (October 19, 2026)
+
+Branch claude/audit-x02-iois7j from main 6ffb0e6; no migration, no ADR. Report:
+project file audits/2026-10-19-codebase-audit.md. Three contained fixes: `parseRatings`
+reads ratings.csv as RFC 4180 records (quoted notes with line breaks no longer break
+`pnpm analyze`); `context-index` skips symbolic links and junctions (nothing outside the
+named folder is indexed, no ELOOP crash); `pnpm evaluate` and `pnpm pilot` refuse a
+non-empty output folder so the only copy of the blinding key is never overwritten.
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check with CREATOR_TEST_DATABASE_URL:
+typecheck passed; 212 tests, 201 pass, 0 fail, 11 skips (real WSL2 gates); format check
+clean (tracking/evidence/audit-2026-10-19/check.log). The new link and multi-line-note
+checks fail on the previous code. evaluate/pilot reruns into a used folder exit 2;
+scripts/t19-rehearsal.mjs still passes on rerun.
+
+Open recommendations (owner judgment): working folder inside OneDrive syncs private study
+files, backups and the CLI session; the $20 ledger covers study attempts only; OpenAI batch
+files are never deleted; study export repeats the workspace audit log per attempt; backups
+are unencrypted. No live call, no spend; the protocol freeze and study decisions untouched.
+
 ## X02 — context selection, caching, compaction and batches (October 19, 2026)
 
 Branch claude/x02-b3wzes from main c738369; migration 13; ADR-0025; docs/CONTEXT_AND_CACHING.md.

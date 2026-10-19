@@ -180,48 +180,62 @@ export interface RatingRow {
   has_note: boolean;
 }
 
-/** One CSV line, RFC 4180 quoting, so reviewer notes with commas stay in their column. */
-function splitCsv(line: string) {
-  const out: string[] = [];
+/**
+ * RFC 4180 records, so reviewer notes with commas, quotes or line breaks stay in their column.
+ * Each record keeps the line it starts on; blank lines are skipped.
+ */
+function csvRecords(text: string) {
+  const out: { line: number; cells: string[] }[] = [];
+  let cells: string[] = [];
   let cur = '';
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!;
+  let line = 1;
+  let start = 1;
+  const end = () => {
+    cells.push(cur);
+    if (cells.length > 1 || cells[0]!.trim()) out.push({ line: start, cells });
+    cells = [];
+    cur = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '\n') line++;
     if (quoted) {
-      if (ch === '"' && line[i + 1] === '"') {
+      if (ch === '"' && text[i + 1] === '"') {
         cur += '"';
         i++;
       } else if (ch === '"') quoted = false;
       else cur += ch;
     } else if (ch === '"') quoted = true;
     else if (ch === ',') {
-      out.push(cur);
+      cells.push(cur);
       cur = '';
+    } else if (ch === '\n') {
+      end();
+      start = line;
     } else cur += ch;
   }
-  out.push(cur);
-  return out;
+  end();
+  return { records: out, unterminated: quoted ? start : null };
 }
 
 /** Parses a reviewer's ratings.csv. Blank cells are missing; anything else must be 1-5. */
 export function parseRatings(reviewer: string, csv: string) {
-  const lines = csv
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .filter((l) => l.trim());
-  const header = splitCsv(lines[0] ?? '').map((h) => h.trim());
+  const { records, unterminated } = csvRecords(csv.replace(/\r\n?/g, '\n'));
+  const header = (records[0]?.cells ?? []).map((h) => h.trim());
   const want = ['item', 'code', ...DIMS, 'notes'];
   if (header.join(',') !== want.join(','))
     throw new ContractError(
       'INVALID_CONTRACT',
       `${reviewer}/ratings.csv header must be ${want.join(',')}.`,
     );
-  const problems: string[] = [];
+  const problems: string[] = unterminated
+    ? [`line ${unterminated}: a quoted cell is never closed.`]
+    : [];
   const rows: RatingRow[] = [];
-  for (const [n, line] of lines.slice(1).entries()) {
-    const cells = splitCsv(line);
+  for (const { line, cells } of records.slice(1)) {
     if (cells.length !== want.length) {
-      problems.push(`line ${n + 2}: expected ${want.length} columns.`);
+      problems.push(`line ${line}: expected ${want.length} columns.`);
       continue;
     }
     const values = {} as Record<Dim, number | null>;
@@ -231,7 +245,7 @@ export function parseRatings(reviewer: string, csv: string) {
       else if (/^[1-5]$/.test(cell)) values[d] = Number(cell);
       else {
         values[d] = null;
-        problems.push(`line ${n + 2}: ${d} "${cell}" is not 1-5.`);
+        problems.push(`line ${line}: ${d} "${cell}" is not 1-5.`);
       }
     });
     rows.push({

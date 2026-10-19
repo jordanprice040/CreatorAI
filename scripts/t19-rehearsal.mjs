@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { migrate } from '../packages/db/dist/index.js';
 
@@ -30,6 +30,8 @@ try {
     await db.end();
   }
   mkdirSync(out, { recursive: true });
+  // evaluate refuses a used folder (it holds the only blinding key); this output is disposable.
+  rmSync(join(out, 'private-evaluation'), { recursive: true, force: true });
   const run = (script, args) => {
     const result = spawnSync(process.execPath, [script, ...args], {
       env: { ...process.env, CREATOR_DATABASE_URL: url.toString() },

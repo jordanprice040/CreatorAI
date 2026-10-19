@@ -29,6 +29,8 @@ pnpm evaluate final <workspace-id> .\final-tasks.json .\eval-final
 The output folder holds `evaluation-package.json`, `reviewers/reviewer-N/` (README, items,
 `ratings.csv`) and `private/` (assignment key, raw study exports). Only `reviewers/` is ever
 meant for reviewers, and only after the owner checks the flags. Nothing is sent anywhere.
+The output folder must be new or empty: `private/assignment-key.json` is the only copy of the
+blinding key, so `pnpm evaluate` refuses a used folder instead of overwriting it.
 
 ## Rehearsal result
 

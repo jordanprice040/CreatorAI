@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -137,6 +137,13 @@ test('context API and CLI: capabilities, folder index, pack, cached call, batch,
     join(src, 'node_modules', 'x', 'index.js'),
     'module.exports = 1;\n',
   );
+  // A link out of the folder (here to a private file and a looping parent) is never followed.
+  const outside = join(tmp, 'outside');
+  await mkdir(outside, { recursive: true });
+  await writeFile(join(outside, 'secret.ts'), 'export const key = "x";\n');
+  await symlink(outside, join(src, 'linked'), 'junction');
+  await symlink(join(outside, 'secret.ts'), join(src, 'secret.ts'));
+  await symlink(src, join(src, 'src', 'loop'), 'junction');
   const first = await cli(
     'context-index',
     ws,
@@ -148,7 +155,7 @@ test('context API and CLI: capabilities, folder index, pack, cached call, batch,
   assert.deepEqual(
     [first.added, first.current],
     [3, 3],
-    'node_modules is skipped',
+    'node_modules and links are skipped',
   );
   await rm(join(src, 'src', 'old.ts'));
   await writeFile(

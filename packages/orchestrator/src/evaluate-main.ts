@@ -10,6 +10,7 @@ import {
 import { FixtureAdapter, ModelBroker } from '@creator/broker';
 import { evaluationReadiness, type EvaluationTask } from '@creator/domain';
 import { planFinalEvaluation, runEvaluationRehearsal } from './evaluation.js';
+import { assertFreshOutDir } from './out-dir.js';
 
 // `pnpm evaluate rehearsal <out-dir>`: T15 schedule rehearsal on synthetic tasks (fixture only).
 // `pnpm evaluate final <workspace> <tasks.json> <out-dir>`: binds the owner's adopted freeze and
@@ -27,6 +28,7 @@ if (!url || !out) {
 }
 const pool = new pg.Pool({ connectionString: url, max: 5 });
 try {
+  assertFreshOutDir(resolve(out));
   await assertSchemaCurrent(pool);
   const store = new StudyStore(pool);
   const operator =
