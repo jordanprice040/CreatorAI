@@ -1,0 +1,91 @@
+{
+  "base_commit": "8d44ace",
+  "branch": "codex/x06-x07-audit",
+  "schema_version": 20,
+  "files": [
+    {
+      "path": ".dockerignore",
+      "sha256": "9734c105df91bf8c8286e4862848d000554bc352d2ac8682f25e8fae0caa243a"
+    },
+    {
+      "path": "deploy/hosted/compose.yaml",
+      "sha256": "da8aa5069f4f8e6e6eb82574c573bd62a009308e1589dde383568bd9672398bd"
+    },
+    {
+      "path": "deploy/hosted/Dockerfile",
+      "sha256": "8fae812e9b53798730e02351360e08cd9a2a4088c67d9995246c654c8f0f7b67"
+    },
+    {
+      "path": "docs/HOSTED_OPERATION.md",
+      "sha256": "a11466b37ebc3b1ef27e8697f5f3849bd9b6e111c9c299d2eceab4b8eea520d0"
+    },
+    {
+      "path": "docs/PAYMENTS.md",
+      "sha256": "3a550582c23e5fc3fb4ddb77409ebd9d923ab1a21efb641f36b0f1b14fddc8ae"
+    },
+    {
+      "path": "docs/X06_X07_AUDIT.md",
+      "sha256": "a9aa8bd563e1f37e3f47153715f6e10ae2e8cb325ab8efb039e664fdb74f00d1"
+    },
+    {
+      "path": "packages/broker/src/payments-service.ts",
+      "sha256": "05aead10c98ab7445a156d146f9a4c509c2c64527466aa3c4f0d5a05b2d150d6"
+    },
+    {
+      "path": "packages/broker/src/payments.ts",
+      "sha256": "640a684cf9752f9db663475c2c8393e6a9f7e9019411e6a5f8d2d6880676887a"
+    },
+    {
+      "path": "packages/contracts/src/payments.ts",
+      "sha256": "4214a46865e752a8cd01361be23f711e6b57fd6c9ed7c67ebb91f5adef724ec6"
+    },
+    {
+      "path": "packages/db/src/migrations.ts",
+      "sha256": "80b48f281829f6f2aaff70661a52ed9a28fd36e9e89171c50f7c436db65a2030"
+    },
+    {
+      "path": "packages/db/src/ops-store.ts",
+      "sha256": "2e9d97206e3e08598ebdcb47478357a7018581d9fa16d10f642fe74b006fc665"
+    },
+    {
+      "path": "packages/db/src/payment-store.ts",
+      "sha256": "2ea9bd898794da8ab94f0e5cde21756b1c291e0eedb051e50a438fa7bb09d63f"
+    },
+    {
+      "path": "packages/domain/src/payments.ts",
+      "sha256": "49ef198f3c965d275924e7eefff579ce2ec6c496c2a761cfbdbb9a31ff7b48e6"
+    },
+    {
+      "path": "tests/src/operations.test.ts",
+      "sha256": "5aa50815e879deb8cff2f3d84527d6f283f2f9e69021af81d0bc2555de116ad9"
+    },
+    {
+      "path": "tests/src/payments-domain.test.ts",
+      "sha256": "68327ae529f99a9918241bd2c18db0555ed03565d14308e3c919bcfe397a191b"
+    },
+    {
+      "path": "tests/src/payments.test.ts",
+      "sha256": "6ca36320e5f74d9acaa16260485a82adb7ca036ca3904d08c227afb077e89d93"
+    },
+    {
+      "path": "tests/src/storage.test.ts",
+      "sha256": "ab3b75a261ab4bae576302d18a9c29db5c0a73fa2d82ea023e5a0cbab16b3919"
+    },
+    {
+      "path": "tracking/BUILD_STATUS.md",
+      "sha256": "fd3527616f760e3da6bb64b1f892674c718043042fdc2716595a583e3eab8172"
+    },
+    {
+      "path": "tracking/DECISIONS.md",
+      "sha256": "1442ac9c0da46316e24e59ce14619230b35b58d4590b7cc6621e24433c1143c4"
+    },
+    {
+      "path": "tracking/INTEGRATIONS.md",
+      "sha256": "79b075cd2810c08b2123743a687019ae711c504602c1ae71d9bfca2655ff722d"
+    },
+    {
+      "path": "tracking/SESSION_HANDOFF.md",
+      "sha256": "eb253f95df4c2479cedd7f53a1d6a70d99412be8ac8bf4f00de7c01ffc0922f3"
+    }
+  ]
+}

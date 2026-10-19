@@ -1,0 +1,22 @@
+# Send only build inputs. Local credentials, records, repositories and evidence must
+# never enter the Docker build context or the runtime image copied from it.
+**/.git
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+**/*.env
+**/secrets
+**/*.pem
+**/*.key
+**/.creator
+**/.verification
+.agents
+.claude
+.codex
+.aws
+.pnpm-store
+tracking/evidence
+deploy/hosted/environments
+apps/desktop/src-tauri/target

@@ -1,5 +1,26 @@
 # Decision log
 
+## ADR-0034 — X06/X07 audit repairs and conserved processor identity
+
+October 19, 2026. Owner authorized audit, repairs and strong scoped improvements.
+Migration 20 permanently reserves each Stripe account identity and allows only one
+processor funding rail per connection. This prevents economic double counting;
+revoking a connection does not authorize re-registering its old financial history.
+Existing duplicates block migration pending reconciliation, rather than rewriting
+immutable records. Multiple fixture connections remain independent simulations.
+
+Processor reads now run under the workspace financial lock and a connection row
+lock, followed by atomic snapshot/projection writes. This supersedes ADR-0033's
+outside-transaction read choice: that choice admitted stale observation ordering.
+Bounded HTTP timeouts limit lock exposure; model/action authority is unchanged.
+Account binding is checked against the current credential for each operation.
+Incomplete loss histories are refused; bounded pagination is deferred. Failed rail
+refresh invalidates availability instead of relying on an older balance TTL.
+
+Hosted build exclusions, owned product storage, PostgreSQL 18 backup client,
+service limits/log rotation and correct nested-budget metrics are preparation,
+not hosted activation. See docs/X06_X07_AUDIT.md for reproduction and limitations.
+
 ## ADR-0033 - X07 payments, entitlements and reinvestment: backend reads, economic keys, tranche-bounded budgets (fixture-verified)
 
 - Date: October 19, 2026. Status: implemented by Claude Code on Jordan's request to start X07 (prerequisites T17 and integration infrastructure; X05 and X06 not required). Branch claude/x07-5zm23m from main 4fe3d33. Migration 19 and this ADR number leave migration 18 and ADR-0032 to X06, built in parallel and merged first; this branch merged main afterwards and orders 18 before 19. X07 stays partial: no live or test-mode processor call, account or credential exists.

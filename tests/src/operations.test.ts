@@ -596,6 +596,36 @@ test('operations metrics show unreachable local workers, and cleanup removes onl
   assert.equal(m.workers.local.online, 1);
   assert.equal(m.workers.local.unreachable, 2);
   assert.equal(m.budget.unknown_nano, '0');
+  const global = await api.store!.createEnvelope(owner, ws.id, {
+    parent_id: null,
+    kind: 'global',
+    run_id: null,
+    name: 'Fixture root',
+    cap_nano_usd: '1000',
+    max_in_flight: 1,
+    starts_at: null,
+    ends_at: null,
+  });
+  const child = await api.store!.createEnvelope(owner, ws.id, {
+    parent_id: global.id,
+    kind: 'period',
+    run_id: null,
+    name: 'Fixture child',
+    cap_nano_usd: '100',
+    max_in_flight: 1,
+    starts_at: new Date().toISOString(),
+    ends_at: new Date(Date.now() + 86400000).toISOString(),
+  });
+  // Labelled metrics fixture: budget admission/journal behavior is tested separately.
+  await db.pool.query(
+    'update budget_envelopes set reserved_nano = 10, unknown_nano = 20, incurred_nano = 40 where id = $1',
+    [child.id],
+  );
+  const nested = await ops.metrics();
+  assert.equal(nested.budget.envelopes_active, 1);
+  assert.equal(nested.budget.reserved_nano, '10');
+  assert.equal(nested.budget.unknown_nano, '20');
+  assert.equal(nested.budget.incurred_nano, '40');
   assert.deepEqual(await ops.uncertainActions(), []);
   assert.ok('github_operations_unknown' in m.uncertain);
 

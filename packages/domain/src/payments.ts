@@ -140,7 +140,10 @@ export function correction(desired: Postings, current: Postings): Postings {
 /** Earnings and losses of one payment as the processor reports them, in nano-USD. */
 export function paymentEconomics(s: PaymentSnapshot) {
   const bt = s.status === 'succeeded' ? s.charge?.balance_transaction : null;
-  let loss = 0n;
+  // A small payment can cost more in fees than it earns. Preserve that deficit
+  // as a loss rather than inserting negative earnings or dropping the payment.
+  const net = bt ? nano(bt.net) : 0n;
+  let loss = net < 0n ? -net : 0n;
   let refunded = 0n;
   for (const r of s.refunds)
     if (r.status === 'succeeded') refunded += nano(r.amount);
@@ -150,7 +153,7 @@ export function paymentEconomics(s: PaymentSnapshot) {
     captured: bt !== null && bt !== undefined,
     settled: bt?.status === 'available',
     settled_at: bt?.status === 'available' ? bt.available_on : null,
-    earned: bt ? nano(bt.net) : 0n,
+    earned: net > 0n ? net : 0n,
     refunded,
     loss: loss > 0n ? loss : 0n,
     dispute_open: s.disputes.some((d) => d.status === 'open'),
@@ -173,7 +176,12 @@ export function entitlementFor(
   if (s.metadata.offer_id !== offer.id) return null;
   const e = paymentEconomics(s);
   if (!e.captured) return null;
-  if (s.currency !== 'usd' || nano(s.amount) !== offer.price_nano) return null;
+  if (
+    s.currency !== 'usd' ||
+    nano(s.amount) !== offer.price_nano ||
+    s.charge?.balance_transaction.amount !== s.amount
+  )
+    return null;
   if (e.refunded > 0n)
     return { status: 'revoked', reason: 'The payment was refunded.' };
   if (e.dispute_lost)

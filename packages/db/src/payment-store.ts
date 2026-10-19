@@ -8,6 +8,9 @@ import {
   CreateCheckoutRequestSchema,
   CreateOfferRequestSchema,
   PAYMENTS_POLICY_VERSION,
+  PaymentSnapshotSchema,
+  PayoutSnapshotSchema,
+  BalanceSnapshotSchema,
   RecordOwnerFundingRequestSchema,
   RegisterPaymentConnectionRequestSchema,
   RegisterRailRequestSchema,
@@ -188,6 +191,20 @@ export class PaymentStore extends DesktopJobStore {
             'Real workspaces need live payments, which are not activated; use a fixture workspace for fixture and test-mode processors.',
           );
         const id = randomUUID();
+        if (body.processor === 'stripe') {
+          await c.query('select pg_advisory_xact_lock(hashtext($1))', [
+            'creator:stripe-account:' + body.account_id,
+          ]);
+          const existing = await c.query(
+            "select id from payment_connections where body->>'processor' = 'stripe' and body->>'account_id' = $1",
+            [body.account_id],
+          );
+          if (existing.rowCount)
+            throw fail(
+              'DUPLICATE',
+              'This Stripe account is already registered. Reusing its identity prevents counting the same economic transaction twice.',
+            );
+        }
         const bodyHash = canonicalHash(body);
         const { rows } = await c.query(
           `insert into payment_connections (id, workspace_id, fixture, version, status, body,
@@ -731,7 +748,7 @@ export class PaymentStore extends DesktopJobStore {
   async applyPaymentSnapshot(
     ctx: CommandContext,
     connectionId: string,
-    snap: PaymentSnapshot,
+    observed: PaymentSnapshot | (() => Promise<PaymentSnapshot>),
     event: EventMeta | null,
     ws?: string,
   ): Promise<{ outcome: 'applied' | 'duplicate'; posted: number }> {
@@ -743,11 +760,20 @@ export class PaymentStore extends DesktopJobStore {
         connectionId,
       );
       if (ws) await this.requireOwner(c, conn.workspace_id, ctx.actorId);
-      this.#usable(conn, snap.livemode);
       const wsId = conn.workspace_id;
       await this.#reinvestLock(c, wsId);
+      // Recheck and lock the connection after waiting; revocation must fence dispatch.
+      const current = await this.#connection(c, wsId, conn.id, true);
+      this.#usable(current, false);
       if (!(await this.#claimEvent(c, conn.id, event)))
         return { outcome: 'duplicate' as const, posted: 0 };
+      const snap = parse(
+        PaymentSnapshotSchema,
+        typeof observed === 'function' ? await observed() : observed,
+      );
+      this.#usable(current, snap.livemode);
+      if (snap.currency !== 'usd')
+        throw fail('INVALID_CONTRACT', 'Only USD payments are recorded.');
       const snapshotId = await this.#snapshot(
         c,
         conn,
@@ -772,7 +798,7 @@ export class PaymentStore extends DesktopJobStore {
   async applyPayoutSnapshot(
     ctx: CommandContext,
     connectionId: string,
-    snap: PayoutSnapshot,
+    observed: PayoutSnapshot | (() => Promise<PayoutSnapshot>),
     event: EventMeta | null,
     ws?: string,
   ): Promise<{ outcome: 'applied' | 'duplicate'; posted: number }> {
@@ -784,9 +810,21 @@ export class PaymentStore extends DesktopJobStore {
         connectionId,
       );
       if (ws) await this.requireOwner(c, conn.workspace_id, ctx.actorId);
-      this.#usable(conn, snap.livemode);
+      await this.#reinvestLock(c, conn.workspace_id);
+      const current = await this.#connection(
+        c,
+        conn.workspace_id,
+        conn.id,
+        true,
+      );
+      this.#usable(current, false);
       if (!(await this.#claimEvent(c, conn.id, event)))
         return { outcome: 'duplicate' as const, posted: 0 };
+      const snap = parse(
+        PayoutSnapshotSchema,
+        typeof observed === 'function' ? await observed() : observed,
+      );
+      this.#usable(current, snap.livemode);
       if (snap.currency !== 'usd')
         throw fail('INVALID_CONTRACT', 'Only USD payouts are recorded.');
       const snapshotId = await this.#snapshot(c, conn, 'payout', snap.id, snap);
@@ -1682,6 +1720,18 @@ export class PaymentStore extends DesktopJobStore {
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
       if (req.connection_id) await this.#connection(c, ws, req.connection_id);
+      if (req.connection_id) {
+        await this.#reinvestLock(c, ws);
+        const existing = await c.query(
+          'select id from funding_rails where connection_id = $1',
+          [req.connection_id],
+        );
+        if (existing.rowCount)
+          throw fail(
+            'INVALID_CONTRACT',
+            'This processor connection already has a funding rail. Reuse that rail.',
+          );
+      }
       const id = randomUUID();
       await c.query(
         `insert into funding_rails (id, workspace_id, kind, connection_id, label, status, version,
@@ -1718,6 +1768,7 @@ export class PaymentStore extends DesktopJobStore {
     const req = parse(SetRailStatusRequestSchema, raw);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
+      await this.#reinvestLock(c, ws);
       const { rows } = await c.query(
         `update funding_rails set status = $3, status_reason = $4, version = version + 1
          where workspace_id = $1 and id = $2 returning id, status, version`,
@@ -1793,14 +1844,25 @@ export class PaymentStore extends DesktopJobStore {
     ctx: CommandContext,
     ws: string,
     id: string,
-    balance: BalanceSnapshot,
+    observed: BalanceSnapshot | (() => Promise<BalanceSnapshot>),
   ) {
     ctx = normalize(ctx);
     ws = uuid(ws);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
+      await this.#reinvestLock(c, ws);
       const rail = await this.#rail(c, ws, id);
-      const conn = await this.#connection(c, ws, String(rail.connection_id));
+      const conn = await this.#connection(
+        c,
+        ws,
+        String(rail.connection_id),
+        true,
+      );
+      this.#usable(conn, false);
+      const balance = parse(
+        BalanceSnapshotSchema,
+        typeof observed === 'function' ? await observed() : observed,
+      );
       this.#usable(conn, balance.livemode);
       await this.#snapshot(c, conn, 'balance', null, balance);
       await c.query(

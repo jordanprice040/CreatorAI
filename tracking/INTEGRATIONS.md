@@ -1,5 +1,11 @@
 # Integration readiness
 
+October 19 audit: X06/X07 repaired in the attached worktree (ADR-0034, migration 20).
+No change in activation: hosted configuration remains undeployed; payments remain
+fixture/contract checked, with no Stripe test/live API observation. Account identity,
+loss history completeness and funding rail uniqueness now fail closed. Existing
+databases were not migrated. See docs/X06_X07_AUDIT.md and current build status.
+
 X06 hosted operation (October 19, 2026, Claude Code, branch claude/x06-j2pz5g):
 hosted mode, environment-labelled databases, readiness/metrics/status endpoints,
 owner-recorded build-bound verification and hosted-to-local worker pairing are

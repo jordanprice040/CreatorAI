@@ -1,5 +1,39 @@
 # Implementation status
 
+## X06/X07 independent audit and repairs (October 19, 2026)
+
+Audited merged main `8d44ace` in the attached worktree on `codex/x06-x07-audit`.
+Original X05 checkout and its pre-existing local edits preserved. See
+docs/X06_X07_AUDIT.md for findings, reproduction, fixes and limits; ADR-0034.
+
+Repaired processor/account and rail double counting (migration 20), stale concurrent
+observations, partial loss histories, credential account drift, non-USD posting,
+partial-capture access, inconsistent balance arithmetic, low-sale fee deficits and
+fresh-rail outage handling. Repaired omitted child-budget metrics and malformed
+signed JSON handling. Hosted preparation now excludes private/generated build
+inputs, owns fresh product storage, uses PostgreSQL 18 clients and bounds service
+CPU/memory/processes/logs. No existing studio database migrated.
+
+Executed on Windows with disposable PostgreSQL 18.6:
+- Final exact-source focused X06/X07 checks: 24 pass, 0 fail, 0 skip, including
+  API/CLI, concurrency and actual dump/restore. `final-focused-tests.log`.
+- Broader suite during audit: 256 tests, 242 pass, 0 fail, 14 explicit skips.
+  `full-tests.log`; completed before the final fee-deficit repair, subsequently
+  covered by the final focused checks. This is not a final full-suite rerun.
+- Final TypeScript/web typecheck, production build, Prettier and whitespace passed.
+  Vite retains its nonfatal >500 kB bundle warning. Hosted Compose config validated
+  with example-only environment values, without building or starting containers.
+- Evidence in tracking/evidence/x06-x07-audit, with source/config hashes. Initial
+  disconnected database attempt failed; subsequent database lifecycle stayed within
+  each test session. The final test database was stopped.
+
+Status remains partial: Docker daemon unavailable, so no image/fresh-volume startup,
+actual hosted TLS/OIDC/staging verification or external monitoring. X07 remains
+fixture/contract only, USD only, no observed Stripe call or live commerce. Migration
+20 refuses pre-existing duplicate identities for explicit reconciliation; no silent
+financial-history rewrite. No paid call, release, activation, commit or push.
+Next eligible prompt: X08 on owner request; no automatic milestone advance.
+
 ## X07 — payments, entitlements, revenue and reinvestment (October 19, 2026)
 
 Branch claude/x07-5zm23m from main 4fe3d33 (X05 merged); migration 19 (main with X06's

@@ -1,5 +1,31 @@
 # Session handoff
 
+## X06/X07 audited and repaired (October 19, 2026)
+
+Attached worktree: C:/Users/jorda/.codex/worktrees/x06-x07-audit/creator_agent,
+branch codex/x06-x07-audit from merged main 8d44ace. Changes are uncommitted.
+Original checkout remains on X05 with all existing local edits preserved.
+
+Read docs/X06_X07_AUDIT.md and the latest BUILD_STATUS entry. ADR-0034 and migration
+20 preserve unique Stripe account and processor funding identity. Financial reads
+now share the projection transaction's lock, current account/revocation checks and
+strict snapshot validation. Regression checks cover stale observations, incomplete
+loss histories, currency/partial capture, fee deficits, account drift, rail outages
+and nested-budget metrics. Hosted config preparation repairs are not activation.
+
+Final focused PostgreSQL checks: 24/24, no skips. Broader audit suite: 242 pass,
+0 fail, 14 skips (256 total), before the last fee-deficit repair; final focused run
+covers that change. Final typecheck/build/format/whitespace and Compose config passed.
+Evidence and hashes: tracking/evidence/x06-x07-audit. Disposable PostgreSQL 18.6 on
+127.0.0.1:55439 stopped after verification; no existing database was migrated.
+
+No Docker daemon, image build, real hosted staging/TLS/OIDC, Stripe API observation
+or live commerce. Existing duplicate financial identities block migration pending
+explicit reconciliation; do not edit immutable history to bypass it. No paid call,
+public release, commit or push. Next eligible: X08 on request, or separately scoped
+hosted staging verification. Do not treat the earlier milestone completion prose as
+proof of production activation.
+
 ## X07 payments, entitlements and reinvestment (October 19, 2026)
 
 Built on branch claude/x07-5zm23m from main 4fe3d33: migration 19, ADR-0033,

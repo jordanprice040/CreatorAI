@@ -7,11 +7,17 @@ COPY . .
 RUN pnpm install --frozen-lockfile && pnpm build
 
 FROM node:22.21.0-bookworm-slim AS runtime
-# PostgreSQL client tools for `pnpm backup` against the managed database.
-RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+# Match the supported PostgreSQL 18 server; Bookworm's default client is too old
+# to dump 16+ servers. Use the PostgreSQL project's signed package repository.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+  && install -d /usr/share/postgresql-common/pgdg \
+  && curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  && echo 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main' > /etc/apt/sources.list.d/pgdg.list \
+  && apt-get update && apt-get install -y --no-install-recommends postgresql-client-18 \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=node:node /app /app
+RUN mkdir -p /data/products && chown node:node /data/products
 USER node
 ENV NODE_ENV=production CREATOR_DEPLOYMENT_MODE=hosted CREATOR_LISTEN_HOST=0.0.0.0
 EXPOSE 4310 4320

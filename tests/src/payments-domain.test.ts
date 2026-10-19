@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { PaymentSnapshot } from '@creator/contracts';
+import { BalanceTxnSchema, type PaymentSnapshot } from '@creator/contracts';
 import {
   NANO_PER_CENT,
   consume,
@@ -164,6 +164,21 @@ test('ledger postings balance per economic key and corrections bring a key to th
 test('entitlements follow verified payment state only', () => {
   const offer = { id: 'offer-1', price_nano: 1000n * NANO_PER_CENT };
   assert.equal(entitlementFor(base(), offer)?.status, 'active');
+  const partial = base();
+  partial.charge!.balance_transaction.amount = 500;
+  partial.charge!.balance_transaction.net = 441;
+  assert.equal(
+    entitlementFor(partial, offer),
+    null,
+    'A partially captured payment cannot grant the full-price release.',
+  );
+  assert.equal(
+    BalanceTxnSchema.safeParse({
+      ...base().charge!.balance_transaction,
+      net: 9999,
+    }).success,
+    false,
+  );
   assert.equal(entitlementFor(base({ amount: 999 }), offer), null);
   assert.equal(entitlementFor(base({ currency: 'eur' }), offer), null);
   assert.equal(entitlementFor(base({ status: 'processing' }), offer), null);

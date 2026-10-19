@@ -114,8 +114,9 @@ The scrape token is read-only; it never authorizes a change.
 
 Metrics cover: queue (live workflows by state, open tasks, oldest queued task, outbox
 backlog), workers (workflow leases active and expired, paired local workers by availability
-with last-seen times, open local jobs), budget (global envelopes: reserved, unknown and
-incurred amounts, overruns, in-flight and unknown reservations), index (current context
+with last-seen times, open local jobs), budget (active global-envelope count; reserved,
+unknown and incurred amounts across directly charged envelopes without allocation
+transfers; overruns, in-flight and unknown reservations), index (current context
 index entries and freshness, saved queries), webhooks (accepted and signature-rejected
 deliveries in the last day) and uncertain outcomes per subsystem. Money is exact in the JSON
 status; the Prometheus series are floats for graphs only.
