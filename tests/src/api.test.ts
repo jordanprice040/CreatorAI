@@ -32,7 +32,15 @@ test('real HTTP health/fixture/validation paths enforce shape, scope and bounded
     });
   const health = await fetch(`${base}/api/health`);
   assert.equal(health.status, 200);
-  assert.equal(parse(HealthSchema, await health.json()).data_mode, 'fixture');
+  const healthInfo = parse(HealthSchema, await health.json());
+  assert.equal(healthInfo.data_mode, 'fixture');
+  assert.equal(healthInfo.maintenance.enabled, false);
+  assert.equal(healthInfo.maintenance.degraded, false);
+  assert.deepEqual(Object.keys(healthInfo.maintenance.jobs), [
+    'outbox',
+    'broker_recovery',
+    'retrieval_recovery',
+  ]);
   const response = await post('/api/fixture', {
     goal: 'Synthetic HTTP task',
     outcome: 'human_led',

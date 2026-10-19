@@ -1,66 +1,52 @@
 # Creator Agent
 
-T01 now provides a minimal local TypeScript API, CLI and React fixture demonstration. Start with [Local development](docs/LOCAL_DEVELOPMENT.md) for install/build/start/check commands and limitations. See [build status](tracking/BUILD_STATUS.md) for version-bound evidence and the next eligible milestone. No live AI, research or persistence is implemented.
+Creator Agent is a local evidence and product studio with a React web interface,
+Node API/CLI and PostgreSQL records. It supports evidence-backed discovery,
+alternative comparison, human decisions, bounded workflows and budgets, searchable
+provenance, and a reviewed Python CLI prototype build/package/preview path.
 
-The original implementation-kit introduction follows as historical context.
+Start with [local development](docs/LOCAL_DEVELOPMENT.md) for setup and operation.
+The [product guide and audit](docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md) covers features,
+usage and remaining work. [Build status](tracking/BUILD_STATUS.md) and
+[integration readiness](tracking/INTEGRATIONS.md) distinguish implementation,
+recorded verification, configuration and activation.
 
-## Creator Agent implementation kit
+## Quick start
 
-Prepared for Jordan Price • October 9, 2026 • Version 3.0
+Use Node 22.21+ within Node 22 or 24.19+ within Node 24 and pnpm 11.25.0.
 
-This is a repository-ready specification and prompt package for building Creator Agent. It incorporates the existing product plans, September thesis materials, and the October 8 committee feedback. It contains instructions and templates, not an implemented application or evidence of completed experiments.
+```powershell
+pnpm install --frozen-lockfile
+pnpm build
+pnpm dev
+```
 
-## Start here
+Open [the local app](http://127.0.0.1:5173). Without CREATOR_DATABASE_URL, only
+the stateless fixture demonstration is available. For saved records and sign-in,
+configure loopback PostgreSQL, run `pnpm db:migrate`, then start the app and use
+the one-run login link printed by the API.
 
-1. Extract this folder. Copy its contents into a dedicated Creator Agent repository. If files with the same names already exist, have the coding agent compare and merge them; do not blindly overwrite existing instructions or user changes.
-2. Start the coding tool in that repository. Read PROJECT_CONTEXT.md, then use prompt T00 in PROMPT_LIBRARY.md. Run one milestone at a time. The thesis track is the recommended first route; the full-product track preserves the wider vision.
-3. After each milestone, inspect its completion report and updated tracking/BUILD_STATUS.md. A prompt being run does not mean its acceptance gate passed.
-4. In a new conversation, use utility prompt U01 and the current tracking/SESSION_HANDOFF.md. The agent must check the repository before trusting a handoff.
-5. Configure real models, accounts, and budget limits only when their implementation step needs them. All example configuration starts with live external effects disabled.
+## Current boundaries
 
-Paste this to begin:
+Fixture demonstrations use deterministic synthetic responses. Live provider and
+source-fetch adapters exist, but paid inference and live research are not verified
+or activated by setup. Submitting a theme uses recorded evidence; it does not
+automatically search the internet. Generated execution needs the reviewed WSL2
+worker and supports a bounded Python standard-library CLI recipe.
 
-~~~text
-You are helping me implement Creator Agent. Read AGENTS.md, PROJECT_CONTEXT.md,
-PROMPT_LIBRARY.md, context/DECISIONS_AND_OPEN_QUESTIONS.md, and
-tracking/BUILD_STATUS.md. Follow the thesis track and execute T00 only.
-Inspect the actual repository, preserve existing work, and record what is
-implemented versus proposed. Do not begin T01 automatically. Complete useful
-authorized work before raising any genuinely blocking question.
-~~~
+Study/evaluation/analysis machinery is implemented and rehearsed; final participant
+evaluation, independent ratings, empirical analysis and committee acceptance remain
+incomplete. Hosted control, Tauri desktop, remote GitHub automation, commerce and
+marketing remain broader-product work.
 
-## What each file does
+Run `pnpm check` for typecheck, tests and formatting. Database and real-isolation
+tests explicitly skip unless configured; use the documented disposable database
+and WSL gates before claiming those paths pass.
 
-| File or folder | Purpose |
-| --- | --- |
-| AGENTS.md | Canonical instructions for a coding agent implementing the platform |
-| agent.md | Requested singular filename; points to AGENTS.md without duplicating rules |
-| CLAUDE.md | A short entry point telling Claude to read the same canonical instructions |
-| PROJECT_CONTEXT.md | Product vision, thesis requirements, constraints, scope, and priorities |
-| PROMPT_LIBRARY.md | T00–T19 thesis milestones, X01–X10 full-product extensions, U01–U05 utility prompts |
-| context/ | Architecture, requirements traceability, oversight, rubric, experiment protocol, roadmap, unresolved decisions |
-| agents/ | Runtime role prompts for agents inside Creator Agent; these are separate from coding-agent instructions |
-| templates/ | Editable task, decision, dossier, run configuration, and experiment templates |
-| tracking/ | Initial implementation status, decision log, integration readiness, and session handoff |
-| references/ | Archived earlier specifications and research guide, retained for detail and provenance |
+## Project context
 
-The canonical coding instructions use the filename AGENTS.md, which Codex documents as a project instruction file. The singular agent.md is a compatibility pointer; do not assume every coding tool automatically reads it. For any tool, explicitly ask it to read AGENTS.md if discovery is uncertain. [Official guidance](https://learn.chatgpt.com/docs/agent-configuration/agents-md), checked October 9, 2026.
-
-## Two delivery tracks
-
-**Thesis track:** guided evidence-based discovery; honest scoring; configurable human oversight and humility; autonomous, human-assisted, and human-only evaluation; one complete tested prototype; searchable provenance, budgets, and a reproducible research package.
-
-**Full-product track:** qualified model routing; deeper context optimization; comprehensive search; remote GitHub management; Windows desktop and paired workers; hosted operation; payments and reinvestment; marketing; reusable components; portfolio scheduling and maintenance.
-
-These are delivery priorities proposed in this kit, not a claim that the committee approved a new scope. Advanced features remain requirements of the broader product. Their deferral must be visible.
-
-## Important distinctions
-
-- Approval controls in Creator Agent are runtime application behavior. These files do not change the permissions of the coding tool used to build it.
-- A fully autonomous experiment runs inside a fixed, preauthorized boundary. It cannot approve its own expansion of that boundary. A necessary human intervention becomes a recorded stop or protocol deviation.
-- No-code, existing-tool, process-change, human-led, hybrid, and decline/defer outcomes are legitimate. A prototype is required for the demonstration, but individual discovery trials are not forced to recommend software.
-- Historical budgets, model prices, sample counts, and framework details in references are dated proposals. The new context and protocol take precedence; verify provider details at implementation time.
-
-## Package validation
-
-The package is checked for internal file links, prompt numbering/dependencies, JSON readability, coverage of requirement IDs, and archive integrity. Those checks validate this kit only. No application tests, model evaluations, live integrations, publication, or spending have been performed by creating it.
+[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) defines intent;
+[PROMPT_LIBRARY.md](PROMPT_LIBRARY.md) defines milestones. Follow
+[AGENTS.md](AGENTS.md) for coding-agent work. The
+[original kit/scaffold README](README_IMPLEMENTATION_KIT.md) is historical evidence,
+not current setup guidance.

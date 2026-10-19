@@ -98,11 +98,16 @@ export function useSession(persistent: boolean) {
   }
   async function signOut() {
     if (!session) return;
-    await api(z.unknown(), 'auth/logout', {
-      body: {},
-      csrf: session.csrf_token,
-    }).catch(() => undefined);
-    setSession(null);
+    setError('');
+    try {
+      await api(z.unknown(), 'auth/logout', {
+        body: {},
+        csrf: session.csrf_token,
+      });
+      setSession(null);
+    } catch (e) {
+      setError(`Sign-out was not confirmed. Try again. ${message(e)}`);
+    }
   }
   useEffect(() => {
     if (!persistent) return;

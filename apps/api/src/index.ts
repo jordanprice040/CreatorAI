@@ -1,3 +1,5 @@
+import { createMaintenance } from './maintenance.js';
+export { createMaintenance } from './maintenance.js';
 import {
   createServer,
   type IncomingMessage,
@@ -333,6 +335,7 @@ export function createApi(
       'INVALID_CONFIG',
       'CREATOR_PORTFOLIO_SCHEDULER must be on or off.',
     );
+  const maintenance = createMaintenance(store !== null);
   // Workflows run on the server, not in the page: this in-process worker (or a separate
   // `pnpm worker`) continues them after restarts. CREATOR_WORKER=off leaves it to others.
   const workerMode = env.CREATOR_WORKER ?? 'on';
@@ -390,9 +393,13 @@ export function createApi(
       display_name: 'Payment webhook receiver',
     });
     storage = 'postgresql';
-    await store.sweepStale(brokerActor);
-    await store.sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS);
-    await store.drainOutbox();
+    await maintenance.run('broker_recovery', () =>
+      store.sweepStale(brokerActor),
+    );
+    await maintenance.run('retrieval_recovery', () =>
+      store.sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS),
+    );
+    await maintenance.run('outbox', () => store.drainOutbox());
     worker?.start();
     if (portfolioScheduler === 'on') portfolio?.start();
   }
@@ -412,11 +419,17 @@ export function createApi(
   const relay = store
     ? setInterval(() => {
         if (storage !== 'postgresql') return;
-        void store.drainOutbox().catch(() => undefined);
+        void maintenance
+          .run('outbox', () => store.drainOutbox())
+          .catch(() => undefined);
         if (++ticks % 15 === 0) {
-          void store.sweepStale(brokerActor).catch(() => undefined);
-          void store
-            .sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS)
+          void maintenance
+            .run('broker_recovery', () => store.sweepStale(brokerActor))
+            .catch(() => undefined);
+          void maintenance
+            .run('retrieval_recovery', () =>
+              store.sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS),
+            )
             .catch(() => undefined);
         }
       }, 1000)
@@ -478,7 +491,10 @@ export function createApi(
       ...(key ? { idempotencyKey: key } : {}),
     };
     const send = async (status: number, value: unknown, mutated: boolean) => {
-      if (mutated) await store.drainOutbox().catch(() => undefined);
+      if (mutated)
+        await maintenance
+          .run('outbox', () => store.drainOutbox())
+          .catch(() => undefined);
       respond(res, status, value);
       return true;
     };
@@ -1195,7 +1211,7 @@ export function createApi(
           true,
         );
     } else if (collection === 'search' && !item && method === 'GET') {
-      await store.drainOutbox();
+      await maintenance.run('outbox', () => store.drainOutbox());
       const p = url.searchParams;
       const types = p.get('types');
       return send(
@@ -1213,7 +1229,7 @@ export function createApi(
         false,
       );
     } else if (collection === 'activity' && !item && method === 'GET') {
-      await store.drainOutbox();
+      await maintenance.run('outbox', () => store.drainOutbox());
       const p = url.searchParams;
       const filter: Parameters<typeof store.activity>[2] = {};
       const q = p.get('q');
@@ -1233,7 +1249,7 @@ export function createApi(
       return send(200, await store.overview(ctx, ws), false);
     } else if (collection === 'history' && !item) {
       if (method === 'GET') {
-        await store.drainOutbox();
+        await maintenance.run('outbox', () => store.drainOutbox());
         const subject = url.searchParams.get('subject');
         return send(
           200,
@@ -1307,6 +1323,7 @@ export function createApi(
             },
             persistent: storage === 'postgresql',
             storage,
+            maintenance: maintenance.snapshot(),
           }),
         );
       if (req.method === 'GET' && req.url === '/api/broker/status')

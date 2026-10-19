@@ -151,11 +151,19 @@ export function useRoute() {
 export function useActors(workspace: string) {
   const [actors, setActors] = useState<ActorSummary[]>([]);
   useEffect(() => {
+    let stop = false;
     setActors([]);
     if (!workspace) return;
     api(z.array(ActorSummarySchema), `workspaces/${workspace}/actors`)
-      .then(setActors)
-      .catch(() => setActors([]));
+      .then((actors) => {
+        if (!stop) setActors(actors);
+      })
+      .catch(() => {
+        if (!stop) setActors([]);
+      });
+    return () => {
+      stop = true;
+    };
   }, [workspace]);
   const map = new Map(actors.map((a) => [a.id, a]));
   return (id: string) => {

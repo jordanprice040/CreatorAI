@@ -330,6 +330,11 @@ export const FixtureRequestSchema = z.strictObject({
   goal: text.max(500),
   outcome: OutcomeSchema,
 });
+const MaintenanceJobSchema = z.strictObject({
+  last_success_at: z.iso.datetime().nullable(),
+  last_failure_at: z.iso.datetime().nullable(),
+  error_code: z.string().max(48).nullable(),
+});
 export const HealthSchema = z.strictObject({
   schema_version: schemaVersion,
   status: z.literal('ok'),
@@ -344,6 +349,15 @@ export const HealthSchema = z.strictObject({
   }),
   persistent: z.boolean(),
   storage: z.enum(['postgresql', 'not_configured', 'unavailable']),
+  maintenance: z.strictObject({
+    enabled: z.boolean(),
+    degraded: z.boolean(),
+    jobs: z.strictObject({
+      outbox: MaintenanceJobSchema,
+      broker_recovery: MaintenanceJobSchema,
+      retrieval_recovery: MaintenanceJobSchema,
+    }),
+  }),
 });
 export const FixtureResponseSchema = z.strictObject({
   fixture: z.literal(true),

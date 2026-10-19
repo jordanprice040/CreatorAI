@@ -182,3 +182,7 @@ Updated October 17, 2026 (America/New_York), T01. Local API/CLI/web and the dete
 Local tooling: Node v22.21.0 application baseline, bundled Node v24.19.0 additionally tested; pnpm 11.25.0 uses that bundled runtime. Strict manifests and lockfile now pin dependencies; a fresh frozen install/build/check passed. npm/Python/gh observations remain in T00 evidence. gh availability is not authentication verification. No secrets/private account configuration were read. Services, real model access, pricing and grants remain unresolved at their later gates.
 
 Record verification date, observed target/account identity, versions, and evidence without storing credentials. A missing key blocks a live check; complete unrelated implementation first.
+
+## Local audit publication — 2026-10-19
+
+No external integration activated. Local maintenance diagnostics and cancellation/session fixes are published separately from X08/X09. Earlier local tracking edits are preserved in evidence/local-audit/original-tracking.patch; current entries above remain authoritative.

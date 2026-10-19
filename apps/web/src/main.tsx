@@ -280,13 +280,13 @@ function App() {
       setPersistent(data.persistent);
       setTone(data.persistent ? 'ok' : 'warn');
       setHealth(
-        `Connected · fixture provider only · ${
+        `Connected · ${data.live_enabled ? 'live adapters configured, unverified' : 'fixture provider only'} · ${
           data.persistent
             ? 'records saved in PostgreSQL'
             : data.storage === 'unavailable'
               ? 'database unavailable'
               : 'persistence off'
-        }`,
+        }${data.maintenance.degraded ? ' · maintenance degraded (see /api/health)' : ''}`,
       );
     } catch {
       setPersistent(false);
@@ -571,6 +571,11 @@ function App() {
         />
       )}
       <div className="column">
+        {signedIn && auth.error && (
+          <p role="alert" className="error">
+            {auth.error}
+          </p>
+        )}
         <header className="topbar">
           {inStudio ? (
             <>

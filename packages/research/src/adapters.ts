@@ -76,10 +76,19 @@ export class HttpFetchAdapter implements SourceAdapter {
 
   async fetchHop(req: HopRequest): Promise<HopOutcome> {
     const { url, signal, maxBytes } = req;
+    if (signal.aborted) return timeoutOutcome;
     const host = url.hostname.replace(/^\[|\]$/g, '');
     let addresses: { address: string; family: number }[];
+    let onAbort: (() => void) | undefined;
     try {
-      addresses = await this.#resolve(host);
+      // System DNS cannot be cancelled; stop waiting and never connect after abort.
+      addresses = await Promise.race([
+        new Promise<never>((_resolve, reject) => {
+          onAbort = () => reject(signal.reason);
+          signal.addEventListener('abort', onAbort, { once: true });
+        }),
+        this.#resolve(host),
+      ]);
     } catch {
       return signal.aborted
         ? timeoutOutcome
@@ -88,7 +97,10 @@ export class HttpFetchAdapter implements SourceAdapter {
             reason_code: 'dns_failed',
             explanation: `${host} did not resolve.`,
           };
+    } finally {
+      if (onAbort) signal.removeEventListener('abort', onAbort);
     }
+    if (signal.aborted) return timeoutOutcome;
     if (!addresses.length)
       return {
         kind: 'error',

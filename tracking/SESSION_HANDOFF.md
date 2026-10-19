@@ -1,5 +1,9 @@
 # Session handoff
 
+## Local audit fixes published for review — 2026-10-19
+
+Preserves the original checkout while publishing its DNS cancellation, sign-out, stale actor request, and maintenance-health fixes with regression tests. Documentation cleanup and historical local tracking patches are retained. This PR is stacked on X08/X09; X10 is not started. Validation: typecheck, production build, formatting, and 15 focused regression tests passed. PostgreSQL/live activation was not rerun for this audit branch.
+
 <<<<<<< HEAD
 
 ## X09 local portfolio acceptance (October 19, 2026)
