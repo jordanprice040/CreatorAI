@@ -17,7 +17,11 @@ import {
   type PaymentConnection,
 } from '@creator/contracts';
 import {
+  allowedHosts,
   authConfig,
+  deploymentConfig,
+  deploymentConfigHash,
+  resolveSecretFiles,
   BLOCKING_DECISIONS,
   canonicalHash,
   PROPOSED_PROTOCOL,
@@ -28,6 +32,8 @@ import {
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import {
+  OPERATIONS_ACTOR_ID,
+  OpsStore,
   PaymentStore,
   assertSchemaCurrent,
   databaseUrl,
@@ -85,6 +91,7 @@ import {
 import { routingRoutes } from './routing.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
+import { createOps } from './ops.js';
 
 const MAX_BODY = 65536;
 function respond(res: ServerResponse, status: number, value: unknown) {
@@ -187,10 +194,26 @@ export function createApi(
     paymentFixture?: (connection: PaymentConnection) => FixtureProcessor;
   } = {},
 ) {
+  // X06: NAME_FILE secrets (Docker/systemd credentials) are loaded before anything reads env.
+  env = resolveSecretFiles(env, (p) => readFileSync(p, 'utf8')).env;
   // Checked first so a hosted deployment with development login fails with that reason.
   const auth = authConfig(env);
   const config = serviceConfig(env);
-  const dbUrl = databaseUrl(env.CREATOR_DATABASE_URL);
+  const deployment = deploymentConfig(env);
+  const configHash = deploymentConfigHash(deployment, env);
+  const dbUrl = databaseUrl(env.CREATOR_DATABASE_URL, deployment.mode);
+  if (deployment.mode === 'hosted') {
+    if (!dbUrl)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'A hosted deployment needs its durable database: set CREATOR_DATABASE_URL or CREATOR_DATABASE_URL_FILE.',
+      );
+    if (auth.oidc?.web_origin !== deployment.web_origin)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'CREATOR_WEB_ORIGIN must equal CREATOR_PUBLIC_WEB_ORIGIN in a hosted deployment.',
+      );
+  }
   const ownerId = parse(
     idSchema,
     env.CREATOR_OWNER_ACTOR_ID ?? DEFAULT_OWNER_ACTOR_ID,
@@ -210,6 +233,7 @@ export function createApi(
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
   const store = pool ? new PaymentStore(pool) : null;
+  const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
     deps.artifacts ??
@@ -322,9 +346,16 @@ export function createApi(
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
     : 'not_configured';
+  let schemaVersion: number | null = null;
   async function init() {
-    if (!pool || !store) return;
-    await assertSchemaCurrent(pool);
+    if (!pool || !store || !ops) return;
+    schemaVersion = await assertSchemaCurrent(pool);
+    await ops.ensureOperationsActor();
+    // Refuses a database labelled for another environment before any work starts.
+    await ops.claimEnvironment(
+      { actorId: OPERATIONS_ACTOR_ID },
+      deployment.environment,
+    );
     await store.ensureActor({
       id: ownerId,
       kind: 'human',
@@ -383,8 +414,13 @@ export function createApi(
     : null;
   relay?.unref();
 
-  const preview = createPreviewServer(store, artifacts);
+  const preview = createPreviewServer(
+    store,
+    artifacts,
+    deployment.mode === 'hosted' ? deployment.preview_origin : null,
+  );
   const previewOrigin = () => {
+    if (deployment.mode === 'hosted') return deployment.preview_origin;
     const a = preview.address();
     return a && typeof a === 'object' ? `http://127.0.0.1:${a.port}` : null;
   };
@@ -1167,27 +1203,41 @@ export function createApi(
     throw new ContractError('NOT_FOUND', 'Route not found.');
   }
 
+  const opsRoutes = createOps({
+    deployment,
+    configHash,
+    ops,
+    productsRoot: artifacts.products.root,
+    ensureReady,
+    workerMode,
+    schemaVersion: () => schemaVersion,
+    requireSession: (req, mutating) => authn.require(req, mutating),
+  });
   const server = createServer((req, res) => {
     void (async () => {
-      // Restrict Host and browser origins even for this stateless, fixture-only local service.
-      const localPort = req.socket.localPort;
-      if (
-        req.headers.host !== `127.0.0.1:${localPort}` &&
-        req.headers.host !== `localhost:${localPort}`
-      )
+      // Restrict Host and browser origins. Hosted deployments also answer to their public
+      // API host (behind the TLS proxy); loopback stays allowed for local probes.
+      const localPort = req.socket.localPort ?? 0;
+      if (!allowedHosts(deployment, localPort).includes(req.headers.host ?? ''))
         throw new ContractError(
           'ORIGIN_DENIED',
-          'Only loopback Host headers are accepted.',
+          deployment.mode === 'local'
+            ? 'Only loopback Host headers are accepted.'
+            : 'Host header not accepted.',
         );
       const origin = req.headers.origin;
       if (
         origin &&
-        ![
-          `http://127.0.0.1:${config.web_port}`,
-          `http://localhost:${config.web_port}`,
-          `http://127.0.0.1:${localPort}`,
-          `http://localhost:${localPort}`,
-        ].includes(origin)
+        !(
+          deployment.mode === 'hosted'
+            ? [deployment.web_origin, deployment.api_origin]
+            : [
+                `http://127.0.0.1:${config.web_port}`,
+                `http://localhost:${config.web_port}`,
+                `http://127.0.0.1:${localPort}`,
+                `http://localhost:${localPort}`,
+              ]
+        ).includes(origin)
       )
         throw new ContractError('ORIGIN_DENIED', 'Browser origin denied.');
       if (req.method === 'GET' && req.url === '/api/health')
@@ -1283,6 +1333,19 @@ export function createApi(
         });
       }
       const url = new URL(req.url ?? '/', 'http://local');
+      const opsOut = await opsRoutes.route(req, url, () => readJson(req));
+      if (opsOut) {
+        if (opsOut.text !== undefined) {
+          res.writeHead(opsOut.status, {
+            'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          });
+          res.end(opsOut.text);
+          return;
+        }
+        return respond(res, opsOut.status, opsOut.value);
+      }
       if (url.pathname.startsWith('/api/desktop/')) {
         if (!store)
           throw new ContractError(
@@ -1395,6 +1458,9 @@ export function createApi(
     worker,
     ready: () => ready,
     close,
+    ops,
+    deployment,
+    configHash,
     authMode: authn.mode,
     /** The development login code generated at startup, if one was not configured. */
     loginCode: authn.generatedCode,

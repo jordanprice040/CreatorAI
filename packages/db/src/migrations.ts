@@ -1664,6 +1664,39 @@ create trigger desktop_job_reports_immutable before update or delete on desktop_
 `,
   },
   {
+    version: 18,
+    name: 'deployment_identity_and_verifications',
+    sql: `
+-- X06: which environment this database belongs to. A process configured for another
+-- environment refuses to start against it, so staging cannot write to live records.
+create table deployment_identity (
+ singleton boolean primary key default true check (singleton),
+ environment text not null check (environment in ('local','test','staging','live')),
+ claimed_at timestamptz not null default clock_timestamp(),
+ version integer not null default 1 check (version >= 1)
+);
+create trigger deployment_identity_no_delete before delete on deployment_identity
+ for each row execute function creator_reject_change();
+-- Owner-recorded deployment verifications, bound to the exact commit, configuration hash
+-- and schema they checked. A later change of any of them makes the record stale.
+create table deployment_verifications (
+ id uuid primary key,
+ environment text not null check (environment in ('local','test','staging','live')),
+ build_commit char(40) not null check (build_commit ~ '^[0-9a-f]{40}$'),
+ config_hash char(64) not null, schema_version integer not null,
+ result text not null check (result in ('passed','failed')),
+ checks jsonb not null, smoke_report_sha256 char(64) not null,
+ confirmation text, recorded_by uuid not null references actors(id),
+ audit_event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ check (environment <> 'live' or result <> 'passed' or confirmation is not null)
+);
+create index deployment_verifications_latest on deployment_verifications(environment, created_at desc);
+create trigger deployment_verifications_immutable before update or delete on deployment_verifications
+ for each row execute function creator_reject_change();
+`,
+  },
+  {
     version: 19,
     name: 'payments_entitlements_reinvestment',
     sql: `

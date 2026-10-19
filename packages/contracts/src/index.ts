@@ -41,4 +41,5 @@ export * from './context.js';
 export * from './search.js';
 export * from './desktop.js';
 export * from './github.js';
+export * from './operations.js';
 export * from './payments.js';

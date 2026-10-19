@@ -340,10 +340,18 @@ test('result success cannot replace missing evidence or unknown usage with fixtu
     false,
   );
 });
-test('service configuration rejects hosted/live/invalid ports and binds loopback', () => {
+test('service configuration rejects unknown modes/live/invalid ports and binds loopback locally', () => {
   assert.equal(serviceConfig({}).host, '127.0.0.1');
+  // X06: hosted is an explicit mode; its own checks live in deploymentConfig.
+  assert.equal(
+    serviceConfig({
+      CREATOR_DEPLOYMENT_MODE: 'hosted',
+      CREATOR_LISTEN_HOST: '0.0.0.0',
+    }).host,
+    '0.0.0.0',
+  );
   for (const env of [
-    { CREATOR_DEPLOYMENT_MODE: 'hosted' },
+    { CREATOR_DEPLOYMENT_MODE: 'cloud' },
     { CREATOR_HOST: '0.0.0.0' },
     { CREATOR_PROVIDER: 'live' },
     { CREATOR_DATA_MODE: 'live' },

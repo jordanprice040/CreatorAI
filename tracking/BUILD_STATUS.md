@@ -2,8 +2,8 @@
 
 ## X07 — payments, entitlements, revenue and reinvestment (October 19, 2026)
 
-Branch claude/x07-5zm23m from main 4fe3d33 (X05 merged); migration 19 (18 left to X06,
-built in parallel); ADR-0033; docs/PAYMENTS.md. Partial: implemented and verified with a
+Branch claude/x07-5zm23m from main 4fe3d33 (X05 merged); migration 19 (main with X06's
+migration 18 merged in); ADR-0033; docs/PAYMENTS.md. Partial: implemented and verified with a
 labelled fixture processor and a Stripe contract double only. No processor account,
 credential or call; live payments are not built and need a separate owner decision.
 
@@ -38,7 +38,46 @@ with economic-key correction disabled the duplicate/out-of-order test fails
 
 Limits: no live mode; no Stripe call observed (API version not pinned); no web UI; USD
 only; no taxes, subscriptions or customer accounts; fixture processor state is in API
-memory. Next eligible: X08 on request (X06 being built in parallel).
+memory. Next eligible: X08 on request (X06 merged into this branch).
+
+## X06 — hosted operation and observability (October 19, 2026)
+
+Implemented by Claude Code on branch claude/x06-j2pz5g from main 4fe3d33.
+Migration 18, ADR-0032, docs/HOSTED_OPERATION.md. Status: implemented and checked
+locally; **no hosted environment exists and nothing was deployed or activated.**
+
+What now works (checked):
+- Explicit hosted mode (test/staging/live) with refusals for unsafe configs: non-https
+  or path origins, preview host sharing or nesting the studio host, no build commit,
+  relative product root, missing metrics token, dev login, remote DB without
+  sslmode=verify-full. `NAME_FILE` secrets. `pnpm ops config-check`.
+- Environment-labelled databases: API and worker refuse another environment's database;
+  audited relabel of restored copies; relabel into live refused.
+- `/api/ready` (503 when not ready), `/api/ops/status`, Prometheus `/api/ops/metrics`
+  (owner session or read-only scrape token), `/api/ops/uncertain`; queue, worker,
+  local-worker availability, budget, index, webhook and uncertain-outcome metrics;
+  local alert rules (delivery fixed to none); web Operations view; Desktop view shows
+  unreachable workers.
+- Owner-recorded verification bound to commit + config hash + schema (stale on change);
+  passing live record needs typed confirmation, also enforced in the database.
+  `pnpm ops smoke` read-only smoke check of a declared target.
+- Backups dump inside an exported snapshot with lineage fingerprint and exact budget
+  totals; restore requires exact match. Cleanup of expired sign-in material (dry run
+  default, audited). Hosted-to-local worker pairing (explicit, https only).
+- deploy/hosted (Dockerfile, Compose, Caddy, env examples): `docker compose config` and
+  `pnpm ops config-check` pass; images never built (no Docker daemon in the cloud).
+
+Evidence: full PostgreSQL suite in the cloud container, 242 tests, 229 pass, 0 fail,
+13 WSL2 opt-in skips (storage schema test re-run separately after bumping to 18). New
+tests/src/operations.test.ts: 8 tests (hosted staging rehearsal through a stand-in proxy,
+live confirmation, environment separation, cleanup, worker availability). restore.test
+extended (totals, forged totals refused). Browser check of the Operations view against
+a local API showed a synthetic unreachable worker and its info alert.
+
+Limitations: no real hosted target, TLS, managed DB, OIDC provider, scraper or alert
+channel; staging smoke only against loopback hosted processes; hosted desktop (Tauri)
+sign-in not covered; product files still copied after the dump. Next eligible prompt:
+X07 (in progress in its own thread) or X08; a real staging deployment is an owner decision.
 
 ## X05 local Windows acceptance passed (October 19, 2026)
 

@@ -1,0 +1,62 @@
+{
+  "version": "2026-10-19",
+  "delivery": "none",
+  "rules": [
+    {
+      "id": "outbox_backlog",
+      "metric": "outbox_oldest_pending_seconds",
+      "above": 120,
+      "severity": "warning",
+      "summary": "Audit events have waited over two minutes for projection; the API relay may be stopped."
+    },
+    {
+      "id": "queued_work_waiting",
+      "metric": "oldest_queued_task_seconds",
+      "above": 600,
+      "severity": "warning",
+      "summary": "A workflow task has been queued for over ten minutes; check that a workflow worker is running."
+    },
+    {
+      "id": "workflow_leases_lost",
+      "metric": "workflow_leases_expired",
+      "above": 0,
+      "severity": "warning",
+      "summary": "A workflow worker stopped holding a lease; the stale sweep will reconcile it."
+    },
+    {
+      "id": "uncertain_outcomes",
+      "metric": "uncertain_actions",
+      "above": 0,
+      "severity": "warning",
+      "summary": "Some actions have unknown outcomes; follow the reconciliation runbook before retrying anything."
+    },
+    {
+      "id": "unknown_spend",
+      "metric": "budget_unknown_nano",
+      "above": 0,
+      "severity": "warning",
+      "summary": "Some spend is unknown and is held against budgets until reconciled."
+    },
+    {
+      "id": "budget_overrun",
+      "metric": "budget_envelopes_overrun",
+      "above": 0,
+      "severity": "critical",
+      "summary": "A budget envelope is overrun; new paid work in it is refused."
+    },
+    {
+      "id": "webhook_signature_failures",
+      "metric": "webhooks_rejected_signature_24h",
+      "above": 0,
+      "severity": "warning",
+      "summary": "Webhook deliveries failed signature checks in the last day."
+    },
+    {
+      "id": "local_workers_unreachable",
+      "metric": "local_workers_unreachable",
+      "above": 0,
+      "severity": "info",
+      "summary": "A paired local worker has stopped reporting; its jobs wait or reconcile, nothing is reassigned."
+    }
+  ]
+}

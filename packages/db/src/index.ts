@@ -20,4 +20,5 @@ export * from './context-store.js';
 export * from './search-store.js';
 export * from './desktop-store.js';
 export * from './desktop-job-store.js';
+export * from './ops-store.js';
 export * from './payment-store.js';
