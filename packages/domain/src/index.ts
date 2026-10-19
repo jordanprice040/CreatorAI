@@ -25,3 +25,4 @@ export * from './audit-questions.js';
 export * from './github.js';
 export * from './deployment.js';
 export * from './smoke.js';
+export * from './payments.js';

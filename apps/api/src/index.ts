@@ -14,6 +14,7 @@ import {
   SEARCH_TYPES,
   parse,
   id as idSchema,
+  type PaymentConnection,
 } from '@creator/contracts';
 import {
   allowedHosts,
@@ -31,9 +32,9 @@ import {
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import {
-  DesktopJobStore,
   OPERATIONS_ACTOR_ID,
   OpsStore,
+  PaymentStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -52,7 +53,11 @@ import {
   liveBatchAdapterFromEnv,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
-import { GitHubService } from '@creator/broker';
+import {
+  FixtureProcessor,
+  GitHubService,
+  PaymentService,
+} from '@creator/broker';
 import {
   FIXTURE_SOURCE_POLICY,
   FixtureSourceAdapter,
@@ -76,6 +81,13 @@ import {
   readRaw,
 } from './github.js';
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
+import {
+  PAYMENTS_RETURN_ROUTE,
+  PAYMENTS_ROUTE,
+  PAYMENTS_WEBHOOK_ROUTE,
+  RETURN_BODY,
+  paymentRoutes,
+} from './payments.js';
 import { routingRoutes } from './routing.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
@@ -120,6 +132,8 @@ export const DEFAULT_OWNER_ACTOR_ID = '00000000-0000-4000-8000-000000000001';
 export const BROKER_ACTOR_ID = '00000000-0000-4000-8000-000000000002';
 /** System actor that records verified GitHub webhook deliveries (X04). */
 export const GITHUB_WEBHOOK_ACTOR_ID = '00000000-0000-4000-8000-000000000004';
+/** System actor that records verified payment processor deliveries (X07). */
+export const PAYMENT_WEBHOOK_ACTOR_ID = '00000000-0000-4000-8000-000000000007';
 /** An in-flight fetch older than this lost its process; sweeps close it as interrupted. */
 const RETRIEVAL_STALE_MS = 120_000;
 const CONNECTION_FAILURES = new Set([
@@ -174,7 +188,11 @@ const RECORD_ROUTE =
 
 export function createApi(
   env: Record<string, string | undefined> = {},
-  deps: { artifacts?: ArtifactSupervisor } = {},
+  deps: {
+    artifacts?: ArtifactSupervisor;
+    /** Test seam: the fixture processor for a payment connection. */
+    paymentFixture?: (connection: PaymentConnection) => FixtureProcessor;
+  } = {},
 ) {
   // X06: NAME_FILE secrets (Docker/systemd credentials) are loaded before anything reads env.
   env = resolveSecretFiles(env, (p) => readFileSync(p, 'utf8')).env;
@@ -214,7 +232,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
-  const store = pool ? new DesktopJobStore(pool) : null;
+  const store = pool ? new PaymentStore(pool) : null;
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
@@ -255,6 +273,13 @@ export function createApi(
           ...(liveBatch ? [liveBatch] : []),
         ])
       : null;
+  // X07: payments. Fixture and test-mode processors only; live payments are not built.
+  const payments = store
+    ? new PaymentService(store, {
+        env,
+        ...(deps.paymentFixture ? { fixture: deps.paymentFixture } : {}),
+      })
+    : null;
   // X04: GitHub operations; live calls need CREATOR_GITHUB=live plus a connection's grant.
   const github = store
     ? new GitHubService(store, {
@@ -351,6 +376,11 @@ export function createApi(
       kind: 'system',
       display_name: 'GitHub webhook receiver',
     });
+    await store.ensureActor({
+      id: PAYMENT_WEBHOOK_ACTOR_ID,
+      kind: 'system',
+      display_name: 'Payment webhook receiver',
+    });
     storage = 'postgresql';
     await store.sweepStale(brokerActor);
     await store.sweepRetrievals(brokerActor, RETRIEVAL_STALE_MS);
@@ -409,7 +439,9 @@ export function createApi(
   };
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
-      RECORD_ROUTE.exec(url.pathname) ?? GITHUB_ROUTE.exec(url.pathname);
+      RECORD_ROUTE.exec(url.pathname) ??
+      GITHUB_ROUTE.exec(url.pathname) ??
+      PAYMENTS_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -472,6 +504,25 @@ export function createApi(
         item,
         action,
         method,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection &&
+      PAYMENTS_ROUTE.test(url.pathname) &&
+      (await paymentRoutes({
+        store,
+        service: payments!,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
+        url,
         body: () => readJson(req),
         send,
       }))
@@ -1328,6 +1379,20 @@ export function createApi(
                   'Database unavailable.',
                 ));
         });
+      if (PAYMENTS_RETURN_ROUTE.test(url.pathname) && req.method === 'GET')
+        return respond(res, 200, RETURN_BODY);
+      const payHook = PAYMENTS_WEBHOOK_ROUTE.exec(url.pathname);
+      if (payHook && req.method === 'POST' && store && payments) {
+        // No session or CSRF: the signature over the raw body is the authentication.
+        await ensureReady();
+        const out = await payments.receiveWebhook(
+          { actorId: PAYMENT_WEBHOOK_ACTOR_ID },
+          payHook[1]!,
+          header(req, 'stripe-signature') ?? null,
+          await readRaw(req),
+        );
+        return respond(res, out.status, out.body);
+      }
       const hook = GITHUB_WEBHOOK_ROUTE.exec(url.pathname);
       if (hook && req.method === 'POST' && store && github) {
         // No session or CSRF: the HMAC signature over the raw body is the authentication.

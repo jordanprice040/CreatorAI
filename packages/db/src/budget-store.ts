@@ -167,7 +167,7 @@ export class BudgetStore extends OversightStore {
     if (!rows[0]) throw fail('NOT_FOUND', 'Workspace not found.');
     return rows[0].fixture;
   }
-  private async journal(
+  protected async journal(
     c: PoolClient,
     ctx: CommandContext,
     ws: string,

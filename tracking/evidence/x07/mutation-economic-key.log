@@ -1,0 +1,3 @@
+not ok 1 - X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+ok 2 - X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+ok 3 - X07 Stripe test adapter maps processor objects from a contract double
