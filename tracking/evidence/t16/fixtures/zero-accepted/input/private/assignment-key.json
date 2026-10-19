@@ -1,0 +1,18 @@
+{
+  "private": true,
+  "secret": "fixture-blinding-secret-not-real",
+  "codes": {
+    "546f6dd528": {
+      "slot_id": "7ba099bd81857306223c8a78aa0da4e7cedb4346d51e6ca7d8fd04b4f1941457",
+      "attempt_id": "00000000-0000-4000-8000-000000000001"
+    },
+    "c9bd670797": {
+      "slot_id": "24878948f8c5d96b6d0c6a8dd7dc22c93b5f6c33dac5df8d46aeabffd62cd02f",
+      "attempt_id": "00000000-0000-4000-8000-000000000002"
+    },
+    "a4e988aadb": {
+      "slot_id": "01ae2fb7a50f6b328093c93bff8c390097998c857436e1c9ebfb5a5a1e0f14cf",
+      "attempt_id": "00000000-0000-4000-8000-000000000003"
+    }
+  }
+}

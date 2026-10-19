@@ -1,5 +1,15 @@
 # Decision log
 
+## ADR-0023 - T16 analysis pipeline over T15 exports, verified on synthetic fixtures only
+
+- Date: October 18, 2026. Status: implemented by Claude Code on Jordan's request to build T16 with empirical data collection deferred; branch claude/t16-analysis-95avhe from main 479dba4. No migration. Empirical T16 stays blocked.
+- Inputs are only the files a T15 run writes (evaluation-package.json, private/assignment-key.json, private/raw-exports) plus reviewers' ratings.csv and an optional analysis-options.json. The analysis is pure (domain) and needs no database, so it reproduces from exports; each input file's SHA-256 is recorded and two runs must hash identically. Rejected: reading the database directly (results would depend on live state rather than the frozen package).
+- Empirical status is derived, never asserted: `final_records` only for a final package under an adopted freeze with non-synthetic exports and no FIXTURE.json. Fixture outputs carry the label in every CSV row, figure banner and report.
+- `ANALYSIS_PLAN` is an implementation default (task as unit; last attempt per slot for outcomes, every attempt for resources; complete reviewer rows only, no imputation; discovery repeats averaged within theme; range/median/sign counts always, bootstrap over tasks only with 10 or more pairs; quadratic-weighted kappa for two reviewers). It is not an owner decision and should be adopted or replaced in the freeze.
+- No decision acceptance rule exists, so cost per accepted decision outcome stays undefined until Jordan supplies one (`decision_min_mean_rating` with its basis). Implementation acceptance is submitted with every executed frozen case passed. Zero accepted means undefined cost per accepted outcome with total spend shown; unknown or in-flight billing marks it a lower bound.
+- Reconciliation checks fail the run when an attempt appears in two slots or exports, when flow and export measurements disagree, or when group, flow and export spend totals differ. Privacy check fails when a participant code, actor id, familiarity note or the blinding secret appears in output. Not measured: potential benefit, observed user impact, intervention necessity coding.
+- Rollback: revert the commit; nothing persistent changes.
+
 ## ADR-0022 - T15 prerequisites: final-record gate, study budget ledger and builder-backed study attempts
 
 - Date: October 18, 2026. Status: implemented by Claude Code on Jordan's request to complete T15's prerequisites without running the study or freezing the protocol; branch claude/t15-hdrwqz on top of ADR-0021. Migration 11. T15 stays partial.

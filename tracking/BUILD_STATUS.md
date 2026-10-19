@@ -1,5 +1,21 @@
 # Implementation status
 
+T16 implementation update, October 18, 2026 (Claude Code, branch claude/t16-analysis-95avhe from
+main 479dba4; ADR-0023; no migration): **analysis pipeline built; empirical T16 blocked.** No
+final run, rating or outcome exists, so nothing was analyzed for real and no finding, power or
+comparative result is reported. Added `pnpm analyze <evaluation-dir> <out-dir>`: reads the T15
+package, private key, raw study exports and reviewers' ratings.csv; writes analysis.json,
+report.md, CSV tables and SVG figures (completion over all assigned slots, decision quality
+without imputation, functional completion, task-level paired and per-theme discovery
+comparisons, exact-money resources with undefined or lower-bound cost per accepted outcome,
+human effort and latency, interventions, evidence validity, two-reviewer kappa and
+disagreements, deviations, exploratory per-protocol completion). Checks: slot/attempt/export
+reconciliation without join multiplication, rating-code validity, privacy, identical reruns
+and no comparative wording. Empirical status is derived from the inputs. Verified on three
+labelled synthetic fixtures (`pnpm analyze fixtures`, outputs in tracking/evidence/t16/fixtures)
+and on a real T15 rehearsal package. Cloud `pnpm test:db`: **187 tests, 176 pass, 0 fail, 11
+WSL skips** (tracking/evidence/t16/test-db.log). Real-data inputs: docs/ANALYSIS.md.
+
 T15 prerequisites update, October 18, 2026 (Claude Code, branch claude/t15-hdrwqz on top of
 ADR-0021; ADR-0022; migration 11): **T15 still partial; protocol not frozen, no final run, no
 live call or spend.** Added `config/evaluation.json` (owner preference `gpt-6-astra`
@@ -185,7 +201,7 @@ Use planned, in_progress, implemented_unverified, verified, partial, blocked, or
 | T13 | Verified artifacts, private preview, and feedback revision | verified (Windows + WSL2; synthetic fixture roles) | Branch claude/t13-8h288j from 6fe5bab; migration 10; ADR-0017; evidence/t13; real WSL2 gate 155 pass / 1 expected skip; cloud 146 pass / 10 WSL skips; 13-step browser walkthrough | Merged PR #15 at b035d99; CLI-only runnable demo, no native installer, web-app preview or public release; next eligible T14 on request |
 | T14 | Pilot, rubric calibration, and protocol freeze | partial (cloud Linux, PostgreSQL 16; fixture pilot rehearsal, protocol proposed not adopted) | Branch claude/project-thread-ocgg8g from e46b2cf; ADR-0019; evidence/t14; 154 pass / 10 WSL skips; pilot 16 pass, 1 warn | Owner research decisions RD1-RD10, then freeze; live AI pilot, human pilot and reviewer calibration not run |
 | T15 | Final evaluation and blinded rating package | partial (cloud Linux, PostgreSQL 16; machinery, rehearsal, final-record gate, budget ledger and study builds; no final run) | Branch claude/t15-hdrwqz from 3f3544a; ADR-0021, ADR-0022; migration 11; evidence/t15; 167 pass / 11 WSL skips; rehearsal 10/10 checks | Protocol freeze (RD1-RD10) with participants, reviewers, IRB and final tasks answered; verified live model id and spend authorization (RD6); final build tasks frozen with held-out cases; WSL2 gate for study builds |
-| T16 | Reproducible analysis and limits | planned | No application code at T00 | T15 and actual ratings/outcomes |
+| T16 | Reproducible analysis and limits | partial (pipeline only; empirical blocked) | Branch claude/t16-analysis-95avhe; ADR-0023; `pnpm analyze`; docs/ANALYSIS.md; evidence/t16 (3 synthetic fixtures, real rehearsal package, 187 tests / 176 pass / 11 WSL skips) | Real T15 final runs under an adopted freeze, reviewer ratings (RD4), a decision acceptance rule, owner coding of intervention necessity |
 | T17 | Failure recovery, boundary checks, and requirements audit | verified (cloud Linux, PostgreSQL 16.15; Jordan's Windows/WSL2 gate 167 pass, 1 expected skip) | Branch claude/project-thread-k4si82 from e46b2cf; ADR-0020; evidence/t17 (requirements-to-evidence report, verification.json); backup → restore → real API on the restored copy; audit items 4, 5 and 7 and a silent workflow heartbeat failure fixed with reproduced failures | `pnpm backup` CLI not run by hand on Windows; overrun guard not serialized against a concurrent settle; no member-removal path; no live end-to-end run |
 | T18 | Thesis, committee review, and defense preparation | planned | No application code at T00 | T16 and T17, or documented missing-data limits |
 | T19 | Final thesis acceptance and reproducibility archive | planned | No application code at T00 | T18 |
