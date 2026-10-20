@@ -1,5 +1,64 @@
 # Decision log
 
+## ADR-0041 — Installed desktop studio: supervisor, storage and dependency ownership
+
+October 20, 2026. Accepted before implementation of COMPLETION_RUNBOOK §2.1 by Claude
+Code on `claude/project-thread-b82rw9` from main 54ce751 (content 5f7d224). No migration.
+Owner approvals in force: Jordan requested a persistent installed Windows studio (§2.1),
+the fresh `creator_studio` adoption (§1.2), the $20 runtime ceiling and T15 $20 total.
+Everything else below is an implementation decision under that request, not an owner
+approval, and is reversible by a later recorded decision.
+
+The installed Tauri executable is the supervisor. It owns one Node child (bundled
+`node.exe` plus a single-file service bundle) that serves the production UI, the API with
+its in-process durable workflow worker, and the private preview origin on the existing
+loopback ports 5173/4310/4320. Keeping one child keeps one workflow worker and the
+existing lease fencing; a second studio is refused by a per-user named mutex, and a second
+launch only asks the first to show its window. A Windows job object kills owned children
+if the supervisor dies; the child also exits when its stdin closes. Before showing the
+studio the supervisor verifies an HMAC over a fresh nonce from the web and API ports with a
+per-launch secret sent over the child's stdin, so an unrelated process on an occupied port
+is never trusted or shown. Restarts are bounded (3 in 10 minutes, backoff), then the
+setup window shows an actionable failure with Retry. Quit asks the child to stop, waits
+20 s, then terminates only that child.
+
+Storage: a per-user directory (`%LOCALAPPDATA%\com.creatoragent.studio`, overridable
+only by an absolute `CREATOR_STUDIO_HOME` outside OneDrive for acceptance) holds
+`studio.json`, logs, backups, products and DPAPI-protected secrets. Nothing at normal
+launch reads the repository. PostgreSQL stays authoritative. Two database modes:
+`managed` — an app-owned PostgreSQL 18 cluster in the data directory, started with the app
+on loopback and stopped only by the app that started it, using verified PostgreSQL 18
+binaries the owner already installed (a managed prerequisite, not bundled); and
+`external` — an existing loopback server reused through its URL, never started, stopped
+or claimed. Adoption of the §1.2 studio is an explicit first-run action: back up
+`creator_studio` and its products with the existing T17 backup format, restore into the
+managed cluster and a new products directory, and require the existing restore
+verification (schema, audit chain, artifacts, lineage, exact budget totals) before the
+config switches. The source database and files are left untouched. Alternatively the owner
+may select the existing server in external mode. Creating an empty studio is a separate,
+explicitly labelled choice. Migrations run only after a recorded owner click, after a
+verified backup, under the existing advisory lock.
+
+Identity: the supervisor generates a random per-launch local-owner code passed only over
+stdin and signs in by an explicit owner action, then sets the HttpOnly session cookie in
+the WebView. The session token is stored with Windows DPAPI (CurrentUser), validated
+against the server at each launch, and deleted when expired or revoked; reauthorization is
+the same explicit action. Database credentials are DPAPI-protected too. Paired execution
+worker credentials remain in memory (ADR-0028) until persistent worker identity is
+implemented; it is not claimed here. No token in URLs, argv, logs or web storage.
+
+Close behavior is a setting: `quit` (initial default) or `background` (window hides, a tray
+icon remains, services and workflows continue). Launch at login is off by default and is
+only written to the current user's Run key after an explicit setting change. These
+defaults follow the handoff's conservative suggestion and are not the owner's choice;
+first-run setup asks. No Windows service, scheduled task, or account change.
+
+Rejected: a shortcut to the existing shell; starting or stopping the Docker development
+container (it serves `creator_dev` too and is not app-owned); bundling an unreviewed
+PostgreSQL distribution; separate API/worker processes (duplicate worker risk without new
+fencing); automatic migration or adoption; plaintext token files. New Cargo features only
+(tauri `tray-icon`, extra `windows` API features); no new crates or npm packages.
+
 ## ADR-0040 — Repair audit boundaries without changing owner authority
 
 October 20, 2026. Jordan authorized repair of all four findings in Codex audit PR #40 and directed work to C:/dev/creator_agent. Migration 24; docs/AUDIT_FIXES_2026-10-20.md.
@@ -741,3 +800,7 @@ and an invalid Windows file URL; replaced its test setup with Node mkdirSync,
 pathToFileURL and platform-appropriate Git environment, retaining every assertion.
 Generated Cargo target/schema files are excluded from Git/Prettier. Dependency
 versions and commands are in apps/desktop/README.md; exact results in evidence/x05.
+
+## Owner-requested UX roadmap refinement — October 20, 2026 (planning)
+
+Owner requested routing/effort optimization, broad file operations and conversion, discoverable keyboard navigation, visual file relationships and further QoL ideas. COMPLETION_RUNBOOK §2.10–§2.15 records planned acceptance and phased delivery. Reuse X01/X02/X03 rather than parallel subsystems; evaluate sufficient quality by task class instead of guaranteeing universal sufficiency. Store/reference permitted arbitrary formats with an explicit supported-operation matrix, immutable evidence originals and versioned edits/conversions. Relationship suggestions remain distinct from provenance. Additional QoL proposals are prioritized for task-based validation; no new stack, provider, implementation sequence, study protocol or activation is approved by this planning record. Claude's current §2.1 remains the selected implementation work.

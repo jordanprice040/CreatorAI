@@ -1,5 +1,7 @@
 # Integration readiness
 
+October 20, 2026 §2.1 installed desktop (ADR-0041): no external integration activated and no readiness state promoted. The installed app uses owner-installed PostgreSQL 18 binaries as a verified local prerequisite (not bundled, not downloaded) and bundles the build host's Node 22.21.0. Its service child gets no OPENAI_* or provider settings, so live adapters stay unconfigured. Building the NSIS installer let the Tauri CLI fetch its NSIS tools from the official tauri-apps release URLs with hash validation. See docs/DESKTOP_STUDIO.md and tracking/evidence/desktop-2-1.
+
 October 20, 2026 audit repair: the payment and OpenAI batch adapters were hardened locally (observation fences, bounded reads, durable cleanup and expiry). The QA input boundary was verified in the real WSL worker. No live provider/payment call, file deletion, account verification or activation occurred. See docs/AUDIT_FIXES_2026-10-20.md and tracking/evidence/audit-fixes. Existing readiness states are not promoted by these repairs.
 
 

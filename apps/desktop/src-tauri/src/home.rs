@@ -1,0 +1,206 @@
+//! The installed studio's per-user home (ADR-0041): configuration, logs, backups, product
+//! store, managed PostgreSQL data and DPAPI secrets, outside the repository and OneDrive.
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+pub const CONFIG_FORMAT: &str = "creator-desktop-config/1";
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DatabaseConfig {
+    /// `managed`: app-owned cluster in this home. `external`: reused, never started/stopped.
+    pub mode: String,
+    /// Loopback port of the managed cluster, or of the external server (display only).
+    pub port: u16,
+    pub name: String,
+    pub user: String,
+    /// Non-secret description shown in status, e.g. `127.0.0.1:55433/creator_studio`.
+    pub label: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StudioConfig {
+    pub format: String,
+    pub database: DatabaseConfig,
+    /// PostgreSQL 18 binaries (managed prerequisite; also used for backups).
+    pub pg_bin: Option<String>,
+    pub products_root: String,
+    /// `quit` or `background`.
+    pub close_behavior: String,
+    pub launch_at_login: bool,
+    /// How the studio's records got here: adoption evidence, a new studio, or a connection.
+    pub origin: serde_json::Value,
+    pub created_at: String,
+}
+
+impl StudioConfig {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.format != CONFIG_FORMAT {
+            return Err("Unsupported studio configuration format".into());
+        }
+        if !["managed", "external"].contains(&self.database.mode.as_str()) {
+            return Err("Database mode must be managed or external".into());
+        }
+        if !["quit", "background"].contains(&self.close_behavior.as_str()) {
+            return Err("Close behavior must be quit or background".into());
+        }
+        if self.database.port < 1024 {
+            return Err("Database port must be 1024 or higher".into());
+        }
+        valid_ident(&self.database.name)?;
+        valid_ident(&self.database.user)?;
+        if !Path::new(&self.products_root).is_absolute() {
+            return Err("Product folder must be absolute".into());
+        }
+        Ok(())
+    }
+}
+
+pub fn valid_ident(s: &str) -> Result<(), String> {
+    let ok = !s.is_empty()
+        && s.len() <= 63
+        && s.chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if ok {
+        Ok(())
+    } else {
+        Err("Database and user names use lowercase letters, digits and underscores".into())
+    }
+}
+
+/// Refuses repository-relative or OneDrive-synced locations for owner data.
+pub fn check_home(path: &Path) -> Result<(), String> {
+    if !path.is_absolute() {
+        return Err("The studio folder must be an absolute path".into());
+    }
+    if path.components().any(|c| {
+        c.as_os_str()
+            .to_string_lossy()
+            .to_ascii_lowercase()
+            .starts_with("onedrive")
+    }) {
+        return Err("The studio folder must not be inside OneDrive".into());
+    }
+    Ok(())
+}
+
+#[derive(Clone)]
+pub struct Home {
+    pub root: PathBuf,
+}
+
+impl Home {
+    pub fn new(root: PathBuf) -> Result<Self, String> {
+        check_home(&root)?;
+        std::fs::create_dir_all(&root).map_err(|_| "Could not create the studio folder")?;
+        for d in ["logs", "secrets", "backups"] {
+            std::fs::create_dir_all(root.join(d)).map_err(|_| "Could not create studio folders")?;
+        }
+        Ok(Self { root })
+    }
+    pub fn config_path(&self) -> PathBuf {
+        self.root.join("studio.json")
+    }
+    pub fn logs(&self) -> PathBuf {
+        self.root.join("logs")
+    }
+    pub fn secrets(&self) -> PathBuf {
+        self.root.join("secrets")
+    }
+    pub fn backups(&self) -> PathBuf {
+        self.root.join("backups")
+    }
+    pub fn products(&self) -> PathBuf {
+        self.root.join("products")
+    }
+    pub fn pg_data(&self) -> PathBuf {
+        self.root.join("postgres").join("data")
+    }
+    /// Short stable key for per-home kernel object names.
+    pub fn key(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let lower = self.root.to_string_lossy().to_lowercase();
+        format!("{:x}", Sha256::digest(lower.as_bytes()))[..16].to_string()
+    }
+    pub fn load(&self) -> Result<Option<StudioConfig>, String> {
+        let raw = match std::fs::read(self.config_path()) {
+            Ok(b) => b,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err("Could not read studio.json".into()),
+        };
+        let config: StudioConfig =
+            serde_json::from_slice(&raw).map_err(|e| format!("studio.json is invalid: {e}"))?;
+        config.validate()?;
+        Ok(Some(config))
+    }
+    pub fn save(&self, config: &StudioConfig) -> Result<(), String> {
+        config.validate()?;
+        let tmp = self.root.join("studio.json.tmp");
+        let bytes = serde_json::to_vec_pretty(config).map_err(|_| "Could not encode settings")?;
+        std::fs::write(&tmp, bytes).map_err(|_| "Could not write studio.json")?;
+        std::fs::rename(&tmp, self.config_path()).map_err(|_| "Could not save studio.json".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn sample(root: &Path) -> StudioConfig {
+        StudioConfig {
+            format: CONFIG_FORMAT.into(),
+            database: DatabaseConfig {
+                mode: "managed".into(),
+                port: 55440,
+                name: "creator_studio".into(),
+                user: "creator".into(),
+                label: "managed".into(),
+            },
+            pg_bin: None,
+            products_root: root.join("products").display().to_string(),
+            close_behavior: "quit".into(),
+            launch_at_login: false,
+            origin: serde_json::json!({"kind":"new"}),
+            created_at: "2026-10-20T00:00:00Z".into(),
+        }
+    }
+    #[test]
+    fn refuses_onedrive_relative_and_bad_settings() {
+        assert!(check_home(Path::new("relative/home")).is_err());
+        assert!(check_home(Path::new("C:\\Users\\x\\OneDrive\\studio")).is_err());
+        assert!(check_home(Path::new("C:\\Users\\x\\OneDrive - Personal\\studio")).is_err());
+        assert!(check_home(Path::new("C:\\Users\\x\\AppData\\Local\\studio")).is_ok());
+        let root = std::env::temp_dir();
+        let mut c = sample(&root);
+        assert!(c.validate().is_ok());
+        c.close_behavior = "tray".into();
+        assert!(c.validate().is_err());
+        let mut c = sample(&root);
+        c.database.name = "Robert'); drop".into();
+        assert!(c.validate().is_err());
+        let mut c = sample(&root);
+        c.products_root = "products".into();
+        assert!(c.validate().is_err());
+    }
+    #[test]
+    fn saves_atomically_and_rejects_unknown_fields() {
+        let root = std::env::temp_dir().join(format!(
+            "creator-home-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        let home = Home::new(root.clone()).unwrap();
+        assert_eq!(home.load().unwrap(), None);
+        let c = sample(&root);
+        home.save(&c).unwrap();
+        assert_eq!(home.load().unwrap(), Some(c));
+        let mut v: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(home.config_path()).unwrap()).unwrap();
+        v["surprise"] = serde_json::json!(true);
+        std::fs::write(home.config_path(), v.to_string()).unwrap();
+        assert!(home.load().is_err());
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

@@ -72,13 +72,16 @@ const short = (h: string | null | undefined) =>
 export function useSession(persistent: boolean) {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [mode, setMode] = useState<'dev_local' | 'oidc' | null>(null);
+  const [managed, setManaged] = useState(false);
   const [error, setError] = useState('');
   async function load() {
     try {
-      setMode(
-        parse(AuthStatusSchema, await (await fetch('/api/auth/status')).json())
-          .mode,
+      const status = parse(
+        AuthStatusSchema,
+        await (await fetch('/api/auth/status')).json(),
       );
+      setMode(status.mode);
+      setManaged(status.managed_by === 'desktop_app');
       setSession(await api(SessionInfoSchema, 'auth/session'));
     } catch (e) {
       setSession(null);
@@ -125,15 +128,17 @@ export function useSession(persistent: boolean) {
     window.addEventListener('hashchange', fromLink);
     return () => window.removeEventListener('hashchange', fromLink);
   }, [persistent]);
-  return { session, mode, error, signIn, signOut };
+  return { session, mode, managed, error, signIn, signOut };
 }
 
 export function SignIn({
   mode,
+  managed = false,
   error,
   signIn,
 }: {
   mode: 'dev_local' | 'oidc' | null;
+  managed?: boolean;
   error: string;
   signIn: (code: string) => Promise<void>;
 }) {
@@ -145,7 +150,14 @@ export function SignIn({
   return (
     <section className="panel records" aria-labelledby="signin-title">
       <h2 id="signin-title">Sign in to review decisions and records</h2>
-      {mode === 'oidc' ? (
+      {managed ? (
+        <p>
+          This studio was started by the Creator Agent desktop app. Choose{' '}
+          <strong>Creator Agent → Sign in as local owner</strong> in the window
+          menu. Your sign-in is kept on this computer, protected by Windows,
+          until it expires or you sign out.
+        </p>
+      ) : mode === 'oidc' ? (
         <a className="primary link" href="/api/auth/oidc/login">
           Sign in with your identity provider <span aria-hidden="true">↗</span>
         </a>

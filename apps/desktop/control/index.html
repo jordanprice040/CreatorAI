@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Creator Agent — status and settings</title>
+    <link rel="stylesheet" href="control.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Creator Agent</h1>
+        <p id="phase" class="badge">Starting</p>
+      </header>
+      <section id="status" aria-live="polite">
+        <h2 id="title">Starting Creator Agent</h2>
+        <p id="detail">Reading settings…</p>
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section id="setup" hidden>
+        <h2>Set up this computer's studio</h2>
+        <p>
+          Creator Agent keeps its records in PostgreSQL and its settings, logs,
+          backups and generated products in <code id="home"></code>. Nothing
+          here changes your existing databases or files unless a step says so.
+        </p>
+        <fieldset>
+          <legend>1. PostgreSQL 18 folder</legend>
+          <p class="small">
+            The app runs its own database with PostgreSQL 18 that is already
+            installed on this computer. It is not downloaded or installed for
+            you. If none is listed, install PostgreSQL 18 (the EDB installer or
+            zip from postgresql.org), then enter its
+            <code>bin</code> folder.
+          </p>
+          <div id="pg-list"></div>
+          <label for="pg-bin">Folder</label>
+          <input id="pg-bin" autocomplete="off" spellcheck="false" />
+        </fieldset>
+
+        <fieldset>
+          <legend>2. Where the records come from</legend>
+          <label class="choice"
+            ><input type="radio" name="kind" value="adopt" checked />
+            <span
+              ><strong>Adopt your existing studio (recommended)</strong
+              ><br /><span class="small"
+                >Backs up the studio below, restores it into the app's own
+                database and product folder, and checks every record, the audit
+                chain, artifacts, lineage and budget totals before switching.
+                The original stays untouched.</span
+              ></span
+            ></label
+          >
+          <label class="choice"
+            ><input type="radio" name="kind" value="external" />
+            <span
+              ><strong>Keep using that database server directly</strong
+              ><br /><span class="small"
+                >The app connects to it but never starts or stops it. You start
+                it yourself (for Docker: Docker Desktop and its database
+                container) before launching.</span
+              ></span
+            ></label
+          >
+          <label class="choice"
+            ><input type="radio" name="kind" value="new" />
+            <span
+              ><strong>Start a new, empty studio</strong><br /><span
+                class="small"
+                >Creates an empty database owned by the app. Your existing
+                studio is not imported.</span
+              ></span
+            ></label
+          >
+          <div id="source">
+            <div class="grid">
+              <label>Host <input id="src-host" value="127.0.0.1" /></label>
+              <label
+                >Port <input id="src-port" value="55433" inputmode="numeric"
+              /></label>
+              <label
+                >Database <input id="src-db" value="creator_studio"
+              /></label>
+              <label>User <input id="src-user" value="creator" /></label>
+            </div>
+            <label for="src-password"
+              >Password (leave empty to read it from the file below)</label
+            >
+            <input id="src-password" type="password" autocomplete="off" />
+            <label for="src-password-file"
+              >File holding <code>CREATOR_DOCKER_PASSWORD=</code></label
+            >
+            <input
+              id="src-password-file"
+              value="C:\dev\creator_agent\.env.docker"
+              spellcheck="false"
+            />
+            <label for="src-products">Products folder of that studio</label>
+            <input
+              id="src-products"
+              value="C:\dev\creator_agent\.creator\studio\products"
+              spellcheck="false"
+            />
+            <button id="check-source" type="button">Check this studio</button>
+            <div id="source-result" class="small"></div>
+          </div>
+        </fieldset>
+
+        <fieldset id="prefs-setup">
+          <legend>3. When you close the window</legend>
+          <div class="prefs"></div>
+        </fieldset>
+        <button id="run-setup" class="primary" type="button">
+          Set up Creator Agent
+        </button>
+      </section>
+
+      <section id="migrate" hidden>
+        <button id="approve-migration" class="primary" type="button">
+          Back up and upgrade the database
+        </button>
+      </section>
+
+      <section id="running" hidden>
+        <div class="row">
+          <button id="open-studio" class="primary" type="button">
+            Open the studio
+          </button>
+          <button id="sign-in" type="button">Sign in as local owner</button>
+          <button id="sign-out" type="button">Sign out on this computer</button>
+        </div>
+        <p class="small" id="signin-state"></p>
+        <fieldset id="prefs-running">
+          <legend>When you close the studio window</legend>
+          <div class="prefs"></div>
+          <button id="save-prefs" type="button">Save</button>
+        </fieldset>
+        <dl id="facts"></dl>
+      </section>
+
+      <section id="always">
+        <div class="row">
+          <button id="retry" type="button" hidden>Retry</button>
+          <button id="logs" type="button">Open logs folder</button>
+          <button id="quit" type="button">Quit Creator Agent</button>
+        </div>
+        <details>
+          <summary>Recent activity</summary>
+          <ol id="log"></ol>
+        </details>
+        <p class="small" id="build"></p>
+      </section>
+    </main>
+    <template id="prefs-template">
+      <label class="choice"
+        ><input type="radio" value="quit" />
+        <span
+          ><strong>Quit Creator Agent</strong> (default)<br /><span
+            class="small"
+            >Stops the studio, its workflow worker and previews. Workflows keep
+            their saved state and continue at the next launch; a separately
+            paired execution worker keeps running but cannot get new work until
+            the studio is back.</span
+          ></span
+        ></label
+      >
+      <label class="choice"
+        ><input type="radio" value="background" />
+        <span
+          ><strong>Keep running in the background</strong><br /><span
+            class="small"
+            >The window hides and a tray icon stays. Workflows keep running.
+            Quit from the tray icon or the Creator Agent menu.</span
+          ></span
+        ></label
+      >
+      <label class="choice"
+        ><input type="checkbox" class="login" />
+        <span
+          ><strong>Start Creator Agent when I sign in to Windows</strong> (off
+          by default)<br /><span class="small"
+            >Adds an entry for your Windows account only. Turn it off here to
+            remove it.</span
+          ></span
+        ></label
+      >
+    </template>
+    <script src="control.js"></script>
+  </body>
+</html>

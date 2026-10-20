@@ -32,6 +32,7 @@ export function createAuth(
   config: AuthConfig,
   store: OversightStore | null,
   ownerId: string,
+  desktopManaged = false,
 ) {
   const cookieName = config.cookie_secure
     ? '__Host-creator_session'
@@ -134,6 +135,9 @@ export function createAuth(
           config.mode === 'oidc'
             ? '/api/auth/oidc/login'
             : '/api/auth/dev-login',
+        ...(desktopManaged && config.mode === 'dev_local'
+          ? { managed_by: 'desktop_app' }
+          : {}),
       });
       return true;
     }

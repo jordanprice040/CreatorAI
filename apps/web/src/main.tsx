@@ -323,7 +323,12 @@ function App() {
     if (!persistent) return <FixtureDemo />;
     if (!auth.session)
       return (
-        <SignIn mode={auth.mode} error={auth.error} signIn={auth.signIn} />
+        <SignIn
+          mode={auth.mode}
+          managed={auth.managed}
+          error={auth.error}
+          signIn={auth.signIn}
+        />
       );
     if (wsError)
       return (

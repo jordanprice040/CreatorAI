@@ -3,6 +3,9 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": false,
+    "resources": {
+      "../.bundle/studio/": "studio/"
+    },
     "windows": {
       "webviewInstallMode": {
         "type": "skip"

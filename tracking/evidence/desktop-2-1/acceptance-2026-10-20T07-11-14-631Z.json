@@ -1,0 +1,202 @@
+{
+  "format": "creator-desktop-acceptance/1",
+  "started_at": "2026-10-20T07:11:14.631Z",
+  "installed_exe": "C:\\Users\\jorda\\AppData\\Local\\Creator Agent\\creator-desktop.exe",
+  "bundle": {
+    "format": "creator-desktop-bundle/1",
+    "built_at": "2026-10-20T06:56:14.275Z",
+    "source_commit": "5f7d22443e91f421197b3b0f9b1d3e623afc9edf",
+    "source_dirty": true,
+    "node_version": "v22.21.0"
+  },
+  "home_kind": "isolated acceptance home under %TEMP%, not the owner default",
+  "interactive_not_executed": [
+    "first-run setup screen clicks",
+    "menu sign-in as local owner and record creation inside the window",
+    "background/tray mode and launch-at-login toggles",
+    "Windows restart"
+  ],
+  "studio_ports_busy_before_launch": false,
+  "finished_at": "2026-10-20T07:11:46.858Z",
+  "results": [
+    {
+      "check": "adopt existing creator_studio read-only into the managed cluster",
+      "ok": true,
+      "detail": {
+        "workspaces": [
+          {
+            "name": "Jordan’s Creator Studio",
+            "record_mode": "real"
+          }
+        ],
+        "counts": {
+          "entities": 0,
+          "entity_links": 0,
+          "audit_events": 4,
+          "decision_requests": 0,
+          "budget_envelopes": 0,
+          "budget_reservations": 0,
+          "workflows": 0,
+          "research_sources": 0,
+          "spec_freezes": 0,
+          "study_attempts": 0,
+          "artifact_manifests": 0,
+          "artifact_feedback": 0
+        },
+        "audit_chain": {
+          "ok": true,
+          "events": 4,
+          "broken_at": null
+        },
+        "products_files": 0
+      }
+    },
+    {
+      "check": "cold installed launch reaches running with ownership verified",
+      "ok": true,
+      "detail": {
+        "seconds": 2.05
+      }
+    },
+    {
+      "check": "API health from installed service",
+      "ok": true,
+      "detail": {
+        "storage": "postgresql",
+        "data_mode": "fixture"
+      }
+    },
+    {
+      "check": "production UI served (no dev server)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "sign-in is app-managed (code never displayed)",
+      "ok": true,
+      "detail": {
+        "mode": "dev_local",
+        "available": true,
+        "login_path": "/api/auth/dev-login",
+        "managed_by": "desktop_app"
+      }
+    },
+    {
+      "check": "preview origin listening",
+      "ok": true
+    },
+    {
+      "check": "exactly one service child, owned by the app",
+      "ok": true,
+      "detail": {
+        "nodes": 1
+      }
+    },
+    {
+      "check": "no repository or dev-server process involved",
+      "ok": true,
+      "detail": {
+        "cmd": "\"C:\\Users\\jorda\\AppData\\Local\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Local\\Creator Agent\\studio\\node\\node.exe\" \"C:\\Users\\jorda\\AppData\\Local\\Packages\\Claude_p"
+      }
+    },
+    {
+      "check": "duplicate launch hands off and exits",
+      "ok": true,
+      "detail": {
+        "second_pid": 46172
+      }
+    },
+    {
+      "check": "service crash is restarted (bounded) and ownership re-verified",
+      "ok": true,
+      "detail": {
+        "restart_lines": [
+          "2026-10-20T07:11:30Z [starting] Restarting the studio service — It stopped unexpectedly. Restart 1 of 3; durable work resumes and uncertain outcomes stay for review."
+        ]
+      }
+    },
+    {
+      "check": "close with quit setting stops service and database gracefully",
+      "ok": true,
+      "detail": {
+        "lines": [
+          "2026-10-20T07:11:33Z stopped the app's PostgreSQL",
+          "2026-10-20T07:11:33Z quit complete"
+        ]
+      }
+    },
+    {
+      "check": "relaunch after quit reaches running from saved settings",
+      "ok": true
+    },
+    {
+      "check": "supervisor crash leaves no orphan service (job object)",
+      "ok": true
+    },
+    {
+      "check": "database survives a supervisor crash",
+      "ok": true
+    },
+    {
+      "check": "relaunch after crash reuses the app's running database",
+      "ok": true
+    },
+    {
+      "check": "foreign listener on 5173 is refused with an actionable message",
+      "ok": true,
+      "detail": {
+        "line": "2026-10-20T07:11:41Z [failed] A studio port is in use — Port 5173 is already in use by another program. Close the other Creator Agent or development studio (ports 5173, 4310 and 4320), then choose Retry."
+      }
+    },
+    {
+      "check": "missing PostgreSQL prerequisite is an actionable failure",
+      "ok": true,
+      "detail": {
+        "line": "2026-10-20T07:11:44Z [failed] The studio database is not available — postgres.exe is missing from C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45\\missing-pg"
+      }
+    }
+  ],
+  "supervisor_log": [
+    "2026-10-20T07:11:22Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45)",
+    "2026-10-20T07:11:22Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:11:23Z started the app's PostgreSQL",
+    "2026-10-20T07:11:23Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:11:24Z [running] Creator Agent is running — The studio, its workflow worker and private previews are running on this computer.",
+    "2026-10-20T07:11:30Z studio service exited with code Some(1)",
+    "2026-10-20T07:11:30Z [starting] Restarting the studio service — It stopped unexpectedly. Restart 1 of 3; durable work resumes and uncertain outcomes stay for review.",
+    "2026-10-20T07:11:31Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:11:31Z reusing the app's running PostgreSQL",
+    "2026-10-20T07:11:31Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:11:31Z [running] Creator Agent is running — The studio, its workflow worker and private previews are running on this computer.",
+    "2026-10-20T07:11:33Z quit requested",
+    "2026-10-20T07:11:33Z stopped the app's PostgreSQL",
+    "2026-10-20T07:11:33Z quit complete",
+    "2026-10-20T07:11:34Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45)",
+    "2026-10-20T07:11:34Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:11:35Z started the app's PostgreSQL",
+    "2026-10-20T07:11:35Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:11:35Z [running] Creator Agent is running — The studio, its workflow worker and private previews are running on this computer.",
+    "2026-10-20T07:11:37Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45)",
+    "2026-10-20T07:11:38Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:11:38Z reusing the app's running PostgreSQL",
+    "2026-10-20T07:11:38Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:11:38Z [running] Creator Agent is running — The studio, its workflow worker and private previews are running on this computer.",
+    "2026-10-20T07:11:39Z quit requested",
+    "2026-10-20T07:11:40Z stopped the app's PostgreSQL",
+    "2026-10-20T07:11:40Z quit complete",
+    "2026-10-20T07:11:40Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45)",
+    "2026-10-20T07:11:40Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:11:41Z started the app's PostgreSQL",
+    "2026-10-20T07:11:41Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:11:41Z [failed] A studio port is in use — Port 5173 is already in use by another program. Close the other Creator Agent or development studio (ports 5173, 4310 and 4320), then choose Retry.",
+    "2026-10-20T07:11:41Z studio service exited with code Some(5)",
+    "2026-10-20T07:11:43Z quit requested",
+    "2026-10-20T07:11:43Z stopped the app's PostgreSQL",
+    "2026-10-20T07:11:43Z quit complete",
+    "2026-10-20T07:11:44Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45)",
+    "2026-10-20T07:11:44Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:11:44Z [failed] The studio database is not available — postgres.exe is missing from C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-e30d0e45\\missing-pg",
+    "2026-10-20T07:11:45Z quit requested",
+    "2026-10-20T07:11:45Z quit complete"
+  ]
+}
