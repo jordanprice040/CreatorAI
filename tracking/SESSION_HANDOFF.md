@@ -1,5 +1,12 @@
 # Session handoff
 
+## Owner decisions 2026-10-20 (October 20, 2026)
+
+Branch `claude/audit-full-qgjinb` from main `fc1e83f`; migration 23, ADR-0039. Next free
+numbers: migration 24, ADR-0040. Read docs/OWNER_DECISIONS_2026-10-20.md. Raising the $20
+runtime ceiling is a reviewed edit of config/spending.json with Jordan's recorded approval.
+Jordan still has to run scripts/move-out-of-onedrive.ps1 on his machine; it has not run yet.
+
 ## Audit 2026-10-20 fixes (October 20, 2026)
 
 Branch `claude/audit-full-qgjinb` from main `051a9bb`. Report in the project files at
