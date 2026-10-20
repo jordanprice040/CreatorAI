@@ -45,27 +45,62 @@ function device(r: Row): DesktopDevice {
   });
 }
 
+/** Pairing limits; a challenge expires five minutes after it is opened (migration 16). */
+export const PAIRING_LIMITS = {
+  visitorRecent: 5,
+  visitorPending: 3,
+  serverRecent: 30,
+  serverPending: 15,
+} as const;
 export class DesktopStore extends SearchStore {
   protected async desktopControlChanged(
     _c: PoolClient,
     _deviceId: string,
     _state: string,
   ) {}
-  async beginDesktop(input: unknown) {
+  /**
+   * Opens a pairing request without sign-in; only an owner's approval completes it. Limits
+   * (owner decision 2026-10-20): per visitor and overall, both for new requests in a
+   * five-minute window and for requests still pending, with each visitor's share well below
+   * the server's so one visitor cannot use up pairing for everyone.
+   */
+  async beginDesktop(input: unknown, visitorHash: string) {
     const v = parse(DesktopChallengeRequestSchema, input);
+    if (!/^[0-9a-f]{64}$/.test(visitorHash))
+      throw fail('INVALID_CONTRACT', 'Visitor key must be a SHA-256 hash.');
     return this.tx(async (c) => {
       await c.query('select pg_advisory_xact_lock(4310016)');
-      const count = await c.query(
-        `select count(*)::int n from desktop_challenges where created_at > clock_timestamp() - interval '5 minutes'`,
+      const { rows } = await c.query<{
+        recent: number;
+        pending: number;
+        mine_recent: number;
+        mine_pending: number;
+      }>(
+        `select count(*) filter (where created_at > clock_timestamp() - interval '5 minutes')::int recent,
+                count(*) filter (where consumed_at is null and expires_at > clock_timestamp())::int pending,
+                count(*) filter (where visitor_hash = $1 and created_at > clock_timestamp() - interval '5 minutes')::int mine_recent,
+                count(*) filter (where visitor_hash = $1 and consumed_at is null and expires_at > clock_timestamp())::int mine_pending
+           from desktop_challenges where created_at > clock_timestamp() - interval '1 day'`,
+        [visitorHash],
       );
-      if (Number(count.rows[0]?.n) >= 20)
+      const n = rows[0]!;
+      const L = PAIRING_LIMITS;
+      if (
+        n.mine_pending >= L.visitorPending ||
+        n.mine_recent >= L.visitorRecent
+      )
         throw fail(
           'LIMIT_EXCEEDED',
-          'Too many pairing attempts; wait five minutes.',
+          'Too many pairing requests from this address; finish or wait for the open ones (five minutes).',
+        );
+      if (n.pending >= L.serverPending || n.recent >= L.serverRecent)
+        throw fail(
+          'LIMIT_EXCEEDED',
+          'Too many pairing requests on this server; wait five minutes.',
         );
       const r = await c.query(
-        `insert into desktop_challenges(id, kind, proof_hash, label, workspace_id, capabilities)
-        values ($1,$2,$3,$4,$5,$6) returning *`,
+        `insert into desktop_challenges(id, kind, proof_hash, label, workspace_id, capabilities, visitor_hash)
+        values ($1,$2,$3,$4,$5,$6,$7) returning *`,
         [
           randomUUID(),
           v.kind,
@@ -73,6 +108,7 @@ export class DesktopStore extends SearchStore {
           v.label,
           v.workspace_id,
           JSON.stringify(v.capabilities),
+          visitorHash,
         ],
       );
       return challenge(r.rows[0] as Row);

@@ -41,6 +41,7 @@ import {
   taskHashes,
 } from '@creator/domain';
 import { CatalogStore } from './catalog-store.js';
+import { ceilingRefusal, runtimeExposure } from './runtime-ceiling.js';
 import {
   AUDIT_CHAIN_LOCK,
   fail,
@@ -303,6 +304,20 @@ export class StudyStore extends CatalogStore {
     if (exposure + cap > total) {
       await this.event(c, ctx, a.study_id, a.id, 'budget_refused', detail);
       return detail;
+    }
+    // The T15 ledger sits inside the owner's overall runtime ceiling (2026-10-20).
+    if (!input.synthetic) {
+      const runtime = await runtimeExposure(c, this.spending);
+      if (ceilingRefusal(runtime, cap)) {
+        const over = {
+          ledger: 'runtime-ceiling',
+          ledger_cap_nano_usd: runtime.ceiling_nano_usd,
+          attempt_cap_nano_usd: cap.toString(),
+          exposure_before_nano_usd: runtime.exposure_nano_usd,
+        };
+        await this.event(c, ctx, a.study_id, a.id, 'budget_refused', over);
+        return over;
+      }
     }
     await c.query(
       'insert into study_budget_holds(attempt_id,ledger,cap_nano,ledger_cap_nano) values($1,$2,$3,$4)',

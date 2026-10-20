@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { createMaintenance } from './maintenance.js';
 export { createMaintenance } from './maintenance.js';
 import {
@@ -75,7 +76,7 @@ import {
   readStudyBuild,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
-import { desktopRoutes } from './desktop.js';
+import { desktopRoutes, visitorKey } from './desktop.js';
 import {
   GITHUB_ROUTE,
   GITHUB_WEBHOOK_ROUTE,
@@ -327,6 +328,8 @@ export function createApi(
       )
     : null;
   const brokerActor = { actorId: BROKER_ACTOR_ID };
+  // Per-process salt: stored pairing visitor keys cannot be turned back into addresses.
+  const visitorSalt = randomBytes(32).toString('hex');
   const portfolio =
     store && sources ? new PortfolioService(store, sources, artifacts) : null;
   const portfolioScheduler = env.CREATOR_PORTFOLIO_SCHEDULER ?? 'off';
@@ -336,6 +339,34 @@ export function createApi(
       'CREATOR_PORTFOLIO_SCHEDULER must be on or off.',
     );
   const maintenance = createMaintenance(store !== null);
+  async function schedulerHealth() {
+    const enabled = portfolioScheduler === 'on';
+    const empty = {
+      enabled,
+      last_attempt_at: null,
+      last_success_at: null,
+      error_code: null,
+      failing_scopes: 0,
+      stopped_scopes: 0,
+    };
+    if (!enabled || !store) return { ...empty, state: 'off' as const };
+    try {
+      const s = await store.schedulerSummary();
+      return {
+        enabled,
+        ...s,
+        state: s.stopped_scopes
+          ? ('stopped' as const)
+          : s.failing_scopes
+            ? ('failing' as const)
+            : s.last_attempt_at
+              ? ('ok' as const)
+              : ('not_run' as const),
+      };
+    } catch {
+      return { ...empty, state: 'unavailable' as const };
+    }
+  }
   // Workflows run on the server, not in the page: this in-process worker (or a separate
   // `pnpm worker`) continues them after restarts. CREATOR_WORKER=off leaves it to others.
   const workerMode = env.CREATOR_WORKER ?? 'on';
@@ -1324,6 +1355,7 @@ export function createApi(
             persistent: storage === 'postgresql',
             storage,
             maintenance: maintenance.snapshot(),
+            portfolio_scheduler: await schedulerHealth(),
           }),
         );
       if (req.method === 'GET' && req.url === '/api/broker/status')
@@ -1425,6 +1457,7 @@ export function createApi(
           artifacts,
           body: () => readJson(req),
           send: (status, value) => respond(res, status, value),
+          visitor: visitorKey(req, deployment.mode === 'hosted', visitorSalt),
         });
         return;
       }
@@ -1537,3 +1570,4 @@ import {
   PortfolioService,
   portfolioRoutes,
 } from './portfolio.js';
+export { visitorKey } from './desktop.js';

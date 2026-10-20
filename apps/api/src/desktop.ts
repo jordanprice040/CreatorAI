@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { ContractError, id, parse, type SessionInfo } from '@creator/contracts';
 import type { DesktopJobStore } from '@creator/db';
@@ -20,6 +20,8 @@ export async function desktopRoutes(o: {
   auth: Auth;
   body: () => Promise<unknown>;
   send: (status: number, body: unknown) => void;
+  /** One-way hash of the caller's address, for per-visitor pairing limits. */
+  visitor: string;
 }) {
   const { req, res, url, store, auth, body, send } = o;
   const path = url.pathname.slice('/api/desktop/'.length);
@@ -50,7 +52,7 @@ button.onclick=async()=>{ button.disabled=true; try { await read('desktop/challe
     return;
   }
   if (path === 'challenges' && req.method === 'POST') {
-    send(201, await store.beginDesktop(await body()));
+    send(201, await store.beginDesktop(await body(), o.visitor));
     return;
   }
   const challenge = /^challenges\/([^/]+)(?:\/(approve|claim))?$/.exec(path);
@@ -213,4 +215,26 @@ button.onclick=async()=>{ button.disabled=true; try { await read('desktop/challe
     return;
   }
   throw new ContractError('NOT_FOUND', 'Desktop route not found.');
+}
+
+/**
+ * The address that pairing limits count. Hosted deployments sit behind the TLS proxy, which
+ * appends the client it saw as the last X-Forwarded-For entry (earlier entries are whatever
+ * the client sent, so they are ignored). Local deployments use the socket address. Only a
+ * salted hash is stored.
+ */
+export function visitorKey(
+  req: IncomingMessage,
+  hosted: boolean,
+  salt: string,
+): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  const last = (Array.isArray(forwarded) ? forwarded.join(',') : forwarded)
+    ?.split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .at(-1);
+  const address =
+    (hosted && last ? last : req.socket.remoteAddress) ?? 'unknown';
+  return createHash('sha256').update(`${salt}\n${address}`).digest('hex');
 }

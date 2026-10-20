@@ -198,7 +198,7 @@ const USAGE = `Usage:
   pnpm cli pricing-add <workspace> <pricing-file.json>
   pnpm cli marketing-list <workspace>
   pnpm cli portfolio <workspace>
-  pnpm cli portfolio-command <workspace> <policy|runs|tick|reconcile|health> <json|file.json>
+  pnpm cli portfolio-command <workspace> <policy|runs|tick|reconcile|health|scheduler-resume> <json|file.json>
   pnpm cli portfolio-schedule <workspace> <json|file.json>
   pnpm cli portfolio-cancel <workspace> <schedule-id> <reason>
   pnpm cli knowledge-propose <workspace> <json|file.json>
@@ -1444,9 +1444,14 @@ export async function runCli(
       case 'portfolio-command': {
         const operation = rest[1];
         if (
-          !['policy', 'runs', 'tick', 'reconcile', 'health'].includes(
-            operation ?? '',
-          )
+          ![
+            'policy',
+            'runs',
+            'tick',
+            'reconcile',
+            'health',
+            'scheduler-resume',
+          ].includes(operation ?? '')
         )
           throw new Error('Unknown portfolio command.');
         data = await call(
