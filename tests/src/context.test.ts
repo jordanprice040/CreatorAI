@@ -14,6 +14,8 @@ import {
   FixtureBatchAdapter,
   ModelBroker,
   fixtureContextAdapters,
+  type BatchItemCall,
+  type BatchPollOutcome,
 } from '@creator/broker';
 import { capabilitiesRequestFromConfig } from '@creator/domain';
 import { freshDatabase } from './pg-harness.js';
@@ -969,4 +971,187 @@ test('X02 evaluation: quality maintained for the compacted pack, a starved pack 
   assert.equal(usage.evaluations.quality_maintained, 1);
   assert.equal(usage.compaction.accepted, 1);
   assert.equal(usage.compaction.operation_ids.length, 1);
+});
+
+test('X02 batch cleanup is durable, retries after restart, and never deletes unresolved results', async (t) => {
+  class Files extends FixtureBatchAdapter {
+    deletes: string[] = [];
+    polls = 0;
+    failDelete = true;
+    unreadable = false;
+    override async submit(
+      items: BatchItemCall[],
+      _signal?: AbortSignal,
+      record?: (id: string) => Promise<void>,
+    ) {
+      await record?.('input');
+      return super.submit(items);
+    }
+    override async poll(
+      id: string,
+      _ids?: string[],
+      _signal?: AbortSignal,
+      record?: (id: string) => Promise<void>,
+    ): Promise<BatchPollOutcome> {
+      this.polls++;
+      await record?.('output');
+      if (this.unreadable)
+        return {
+          kind: 'error',
+          message: 'Bounded parser refused oversized data',
+        };
+      return super.poll(id);
+    }
+    async deleteFile(id: string) {
+      this.deletes.push(id);
+      return !this.failDelete;
+    }
+  }
+  const files = new Files();
+  const s = await setup(t, files);
+  if (!s) return;
+  const w = await s.workspace();
+  const request = () => ({
+    batch_operation_id: randomUUID(),
+    run_id: w.run,
+    envelope_id: w.envelope,
+    model: CTX,
+    pricing_snapshot_id: w.pricing.batch,
+    action_type: 'model.generate',
+    data_class: 'synthetic',
+    items: [
+      {
+        custom_id: 'a',
+        logical_operation_id: randomUUID(),
+        task_id: null,
+        input: [{ role: 'user', text: 'A' }],
+        max_output_tokens: 50,
+        output_format: 'text',
+      },
+    ],
+    justification: 'Cleanup regression',
+  });
+  const batch = await s.service.submitBatch(
+    owner,
+    w.ws.toUpperCase(),
+    request(),
+  );
+  assert.deepEqual(
+    await s.store.pendingBatchFiles(owner, w.ws.toUpperCase(), batch.id),
+    ['input'],
+  );
+  const done = await s.service.pollBatch(owner, w.ws.toUpperCase(), batch.id);
+  assert.equal(done.status, 'completed');
+  assert.deepEqual(files.deletes, ['input', 'output']);
+  assert.deepEqual(
+    await s.store.pendingBatchFiles(owner, w.ws.toUpperCase(), batch.id),
+    ['input', 'output'],
+  );
+  files.failDelete = false;
+  const restarted = new ContextService(s.store, s.broker, [files]);
+  await restarted.pollBatch(owner, w.ws.toUpperCase(), batch.id);
+  assert.equal(
+    files.polls,
+    1,
+    'Saved results must survive deleted provider files; cleanup does not re-poll.',
+  );
+  assert.deepEqual(
+    await s.store.pendingBatchFiles(owner, w.ws.toUpperCase(), batch.id),
+    [],
+  );
+  const other = await restarted.submitBatch(
+    owner,
+    w.ws.toUpperCase(),
+    request(),
+  );
+  files.unreadable = true;
+  const deleteCount = files.deletes.length;
+  const unknown = await restarted.pollBatch(
+    owner,
+    w.ws.toUpperCase(),
+    other.id,
+  );
+  assert.equal(unknown.status, 'unknown');
+  assert.equal(unknown.items[0]?.status, 'unknown');
+  assert.equal(
+    files.deletes.length,
+    deleteCount,
+    'Unresolved billing keeps provider evidence.',
+  );
+  files.unreadable = false;
+  assert.equal(
+    (await restarted.pollBatch(owner, w.ws.toUpperCase(), other.id)).status,
+    'completed',
+  );
+  assert.deepEqual(
+    await s.store.pendingBatchFiles(owner, w.ws.toUpperCase(), other.id),
+    [],
+  );
+  assert.equal(
+    (await s.store.verifyAuditChain()).ok,
+    true,
+    'Uppercase IDs must preserve the cleanup audit chain.',
+  );
+});
+
+test('X02 a delayed failed poll cannot downgrade already reconciled batch results', async (t) => {
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>((r) => {
+    enter = r;
+  });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  class Racing extends FixtureBatchAdapter {
+    calls = 0;
+    override async poll(id: string): Promise<BatchPollOutcome> {
+      if (++this.calls === 1) {
+        enter();
+        await gate;
+        return {
+          kind: 'error',
+          message: 'A concurrent cleanup deleted the remote file',
+        };
+      }
+      return super.poll(id);
+    }
+  }
+  const fx = new Racing();
+  const s = await setup(t, fx);
+  if (!s) return;
+  const w = await s.workspace();
+  const b = await s.service.submitBatch(owner, w.ws, {
+    batch_operation_id: randomUUID(),
+    run_id: w.run,
+    envelope_id: w.envelope,
+    model: CTX,
+    pricing_snapshot_id: w.pricing.batch,
+    action_type: 'model.generate',
+    data_class: 'synthetic',
+    items: [
+      {
+        custom_id: 'a',
+        logical_operation_id: randomUUID(),
+        task_id: null,
+        input: [{ role: 'user', text: 'A' }],
+        max_output_tokens: 50,
+        output_format: 'text',
+      },
+    ],
+    justification: 'Concurrent poll regression',
+  });
+  const delayed = s.service.pollBatch(owner, w.ws, b.id);
+  await entered;
+  try {
+    assert.equal(
+      (await s.service.pollBatch(owner, w.ws, b.id)).status,
+      'completed',
+    );
+  } finally {
+    release();
+  }
+  await delayed;
+  const saved = await s.store.getBatch(owner, w.ws, b.id);
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.items[0]?.status, 'settled');
 });

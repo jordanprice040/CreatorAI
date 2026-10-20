@@ -1,0 +1,73 @@
+{
+  "transformation": "CRLF to LF; trim trailing spaces/tabs only. Raw local outputs retained under .verification/audit-fixes.",
+  "files": {
+    "batch-before.log": {
+      "original_sha256": "ef5c9558c22aa5c2625492d23f64d60e0617d2f93c7682b88775cf567f36fa22",
+      "committed_sha256": "8b8914e90a5407646c4171470336f195ecc782d590393c30deff4bb08f40435b"
+    },
+    "canonical-cleanup.log": {
+      "original_sha256": "57b25b8c30212e9964055a6419ee6613eded75d4d2607d7ba485de8c05d7c155",
+      "committed_sha256": "d22e9a41515846401b77449cff1e9a0ebb103fe709b341b7e9006a71054eee6e"
+    },
+    "check.log": {
+      "original_sha256": "a692a102d01eb37537b21ea27e282f1491efabaff1d30c19bbb6484893d5c7c3",
+      "committed_sha256": "d7ea8d261e90766358bb80781a6dc728e13b6a97e1a87cf89301bd36c367ca23"
+    },
+    "default-suite-intermediate.log": {
+      "original_sha256": "b258af6cd5b9b841c2b16333e0437640b46ee94a129eb9e55343520a1934d6f0",
+      "committed_sha256": "47d34d6042920fb3bfd14d75b8f93430adbe31a7aede154bc2ac79cfeb2ae864"
+    },
+    "final-context.log": {
+      "original_sha256": "4c5676457b8ea4085632cb1d883b875b5a7a2443520bffed2dd2e650a7d9c9a3",
+      "committed_sha256": "858a1f81338dc6dd4cc2c4f0b469ddf0e97b698cf0bac7fa2cef8623eb3ce21e"
+    },
+    "final-regressions.log": {
+      "original_sha256": "b2a3f0f9561075d380cfa10affbdabddcd3f3447c86bc4106def67832f38e390",
+      "committed_sha256": "be7af7ff11b7edff5aad3c0d9d48014d7614f4b1dcbc52097f26e7ac41f1f5b2"
+    },
+    "final-static.log": {
+      "original_sha256": "25c7f29a557e18716e86ee5a3777ad908daff7c381143cc1935cbc87bfc5a58f",
+      "committed_sha256": "4b25c1a2d7ff7962306a6a426a5d710bbca8ca4fee18793b8c9c4c74a20d3f29"
+    },
+    "focused-initial.log": {
+      "original_sha256": "0e4f53fdc1cc274db89440f8b0c06f35856a14cdf15a654bb4809f7bbc92795d",
+      "committed_sha256": "73c404a47a2f04c14e7442bff09b0e26c746ac074e46c77f30c31428867f947b"
+    },
+    "focused-pass.log": {
+      "original_sha256": "9ec4c4ec0a20776be5f31a253b417a49125b41b119a3d65d8e8cc25ca44a83b7",
+      "committed_sha256": "4585eeafcbfffe3a1a403c4fa1eba9142ece6b98583c00ecd5bdf67aae236900"
+    },
+    "migrations.log": {
+      "original_sha256": "367434756eda3777edcb17ddd25a8efcb3bedcf0a746d6344d178272d58ec1e2",
+      "committed_sha256": "367434756eda3777edcb17ddd25a8efcb3bedcf0a746d6344d178272d58ec1e2"
+    },
+    "native-qa.log": {
+      "original_sha256": "9ce3f271e0529158ea0252fc679b076346b229adf3814a754105dbfe364537fb",
+      "committed_sha256": "424bc9d794b46f11cd0d09fcbc2569ff6f4f70874d19eeba29b9c428388083cc"
+    },
+    "native-suite-intermediate.log": {
+      "original_sha256": "e6d9b5ede06e1262c6593d53e2cea6703603b1ab2b92a16f7112aa29340b6565",
+      "committed_sha256": "e378d8206ca04e465529e0236cd6a710b15a44f2c3fb7dbe3222124a07101d6f"
+    },
+    "payments-before.log": {
+      "original_sha256": "d1c6173e05c6323fa6314bce0ed124a5b4004148652787e9643971a541ede8f0",
+      "committed_sha256": "9c36a0ed9d7efd848f695334093e34c2e51a21823616770ac0b59f901bdedbc8"
+    },
+    "qa-before.log": {
+      "original_sha256": "e96a8d164df7728cb0122468abe3bdfcc829730ab73a0e9e066b9af3bdc1a48b",
+      "committed_sha256": "df9c2116e1a65866a3a197ee1a52edd363c31b57fb682ccf55e4b1d258f19e68"
+    },
+    "readiness.log": {
+      "original_sha256": "b19874ec81fe919d44cfe0cbe7e090fd704fc3b69df6f60bd91886f112199508",
+      "committed_sha256": "77846227f7d20f8de838d3b738020b0fa2b6c704f8f38da67008bf868ca3438a"
+    },
+    "smoke.log": {
+      "original_sha256": "dd404ade55f48aeff0ce92a214e598dc6d08a67b5f86e9724674d399e9e940b3",
+      "committed_sha256": "a69c578677eea43d77a40b845563386e360031af7532ff03ea9d13f41627d918"
+    },
+    "web-build.log": {
+      "original_sha256": "ad75805fdeeb2072b25f4cdf8c3192f2b8fdf574070acc42b62153ed0f479aca",
+      "committed_sha256": "1bf736f161971e4936c3418b650bbff2913270a131d5b98359a347eda501f7ee"
+    }
+  }
+}

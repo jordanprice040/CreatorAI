@@ -1,0 +1,709 @@
+TAP version 13
+# Subtest: X07 overlapping observations reject an older result without holding financial locks across reads
+not ok 1 - X07 overlapping observations reject an older result without holding financial locks across reads
+  ---
+  duration_ms: 1811.1444
+  type: 'test'
+  location: 'C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\tests\\dist\\payments.test.js:493:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Processor wait must not hold the workspace financial lock.
+
+    false !== true
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/tests/dist/payments.test.js:530:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: X07 invalid webhook signatures never write durable receipts, even with repeated bodies
+not ok 2 - X07 invalid webhook signatures never write durable receipts, even with repeated bodies
+  ---
+  duration_ms: 1571.1971
+  type: 'test'
+  location: 'C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\tests\\dist\\payments.test.js:549:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+    + [
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.177Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.176Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.175Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.174Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.173Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.172Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.170Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.169Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.168Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.166Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.165Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.164Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.163Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.162Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.161Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.160Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.159Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.158Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.157Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.156Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.155Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.155Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.153Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.152Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.152Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.151Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.150Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.149Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.148Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.147Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.146Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.145Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.144Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.142Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.141Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.140Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.139Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.138Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.136Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.136Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.135Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.134Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.132Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.131Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.130Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.129Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.127Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.125Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.124Z',
+    +     status: 'rejected'
+    +   },
+    +   {
+    +     event_type: null,
+    +     processor_event_id: null,
+    +     reason: 'malformed_signature',
+    +     received_at: '2026-10-20T04:51:21.122Z',
+    +     status: 'rejected'
+    +   }
+    + ]
+    - []
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.177Z'
+    1:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.176Z'
+    2:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.175Z'
+    3:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.174Z'
+    4:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.173Z'
+    5:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.172Z'
+    6:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.170Z'
+    7:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.169Z'
+    8:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.168Z'
+    9:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.166Z'
+    10:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.165Z'
+    11:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.164Z'
+    12:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.163Z'
+    13:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.162Z'
+    14:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.161Z'
+    15:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.160Z'
+    16:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.159Z'
+    17:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.158Z'
+    18:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.157Z'
+    19:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.156Z'
+    20:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.155Z'
+    21:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.155Z'
+    22:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.153Z'
+    23:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.152Z'
+    24:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.152Z'
+    25:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.151Z'
+    26:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.150Z'
+    27:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.149Z'
+    28:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.148Z'
+    29:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.147Z'
+    30:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.146Z'
+    31:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.145Z'
+    32:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.144Z'
+    33:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.142Z'
+    34:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.141Z'
+    35:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.140Z'
+    36:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.139Z'
+    37:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.138Z'
+    38:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.136Z'
+    39:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.136Z'
+    40:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.135Z'
+    41:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.134Z'
+    42:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.132Z'
+    43:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.131Z'
+    44:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.130Z'
+    45:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.129Z'
+    46:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.127Z'
+    47:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.125Z'
+    48:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.124Z'
+    49:
+      processor_event_id: ~
+      event_type: ~
+      status: 'rejected'
+      reason: 'malformed_signature'
+      received_at: '2026-10-20T04:51:21.122Z'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/tests/dist/payments.test.js:557:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3830.631

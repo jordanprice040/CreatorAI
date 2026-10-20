@@ -43,15 +43,60 @@ export interface BatchAdapter {
   submit(
     items: BatchItemCall[],
     signal: AbortSignal,
+    recordFile?: (fileId: string) => Promise<void>,
   ): Promise<BatchSubmitOutcome>;
   poll(
     providerBatchId: string,
     customIds: string[],
     signal: AbortSignal,
+    recordFile?: (fileId: string) => Promise<void>,
   ): Promise<BatchPollOutcome>;
+  deleteFile?(fileId: string, signal: AbortSignal): Promise<boolean>;
 }
 
 const TERMINAL = new Set(['completed', 'expired', 'failed', 'cancelled']);
+export const BATCH_FILE_RETENTION_SECONDS = 48 * 3600;
+export const BATCH_RESULT_LIMITS = {
+  bytes: 8 * 1024 * 1024,
+  lineBytes: 256 * 1024,
+  lines: 10000,
+} as const;
+
+async function readBounded(
+  response: Response,
+  maxBytes: number,
+  consume: (text: string) => void,
+) {
+  if (Number(response.headers.get('content-length') ?? 0) > maxBytes) {
+    await response.body?.cancel();
+    throw new Error('Provider response exceeds byte limit');
+  }
+  if (!response.body) throw new Error('Provider returned no body');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes)
+        throw new Error('Provider response exceeds byte limit');
+      consume(decoder.decode(value, { stream: true }));
+    }
+    consume(decoder.decode());
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
+async function boundedJson(response: Response) {
+  let text = '';
+  await readBounded(response, 256 * 1024, (chunk) => {
+    text += chunk;
+  });
+  return JSON.parse(text) as Record<string, unknown>;
+}
 
 /**
  * Deterministic local batches. `failIds` come back as provider request errors (not charged),
@@ -174,6 +219,7 @@ export class OpenAIBatchAdapter implements BatchAdapter {
   async submit(
     items: BatchItemCall[],
     signal: AbortSignal,
+    recordFile?: (fileId: string) => Promise<void>,
   ): Promise<BatchSubmitOutcome> {
     const lines = items.map((i) =>
       JSON.stringify({
@@ -185,6 +231,9 @@ export class OpenAIBatchAdapter implements BatchAdapter {
     );
     const form = new FormData();
     form.append('purpose', 'batch');
+    // Expiry covers a crash after upload or an uncertain creation response with no batch ID.
+    form.append('expires_after[anchor]', 'created_at');
+    form.append('expires_after[seconds]', String(BATCH_FILE_RETENTION_SECONDS));
     form.append(
       'file',
       new Blob([`${lines.join('\n')}\n`], { type: 'application/jsonl' }),
@@ -205,7 +254,7 @@ export class OpenAIBatchAdapter implements BatchAdapter {
         message: 'File upload failed; nothing was submitted.',
       };
     }
-    const fileBody = (await file.json().catch(() => null)) as {
+    const fileBody = (await boundedJson(file).catch(() => null)) as {
       id?: unknown;
     } | null;
     if (!file.ok || typeof fileBody?.id !== 'string')
@@ -213,6 +262,15 @@ export class OpenAIBatchAdapter implements BatchAdapter {
         kind: 'rejected',
         message: `File upload was refused (${file.status}); nothing was submitted.`,
       };
+    try {
+      await recordFile?.(fileBody.id);
+    } catch {
+      await this.deleteFile(fileBody.id, AbortSignal.timeout(10000));
+      return {
+        kind: 'rejected',
+        message: 'Input file could not be journalled; no batch was created.',
+      };
+    }
     let batch: Response;
     try {
       batch = await fetch(`${this.#base}/batches`, {
@@ -222,6 +280,10 @@ export class OpenAIBatchAdapter implements BatchAdapter {
           input_file_id: fileBody.id,
           endpoint: '/v1/responses',
           completion_window: '24h',
+          output_expires_after: {
+            anchor: 'created_at',
+            seconds: BATCH_FILE_RETENTION_SECONDS,
+          },
         }),
         signal,
       });
@@ -232,7 +294,7 @@ export class OpenAIBatchAdapter implements BatchAdapter {
           'Batch creation may have reached the provider before the connection failed.',
       };
     }
-    const body = (await batch.json().catch(() => null)) as {
+    const body = (await boundedJson(batch).catch(() => null)) as {
       id?: unknown;
     } | null;
     if (batch.status >= 400 && batch.status < 500)
@@ -252,6 +314,7 @@ export class OpenAIBatchAdapter implements BatchAdapter {
     providerBatchId: string,
     customIds: string[],
     signal: AbortSignal,
+    recordFile?: (fileId: string) => Promise<void>,
   ): Promise<BatchPollOutcome> {
     let res: Response;
     try {
@@ -268,7 +331,7 @@ export class OpenAIBatchAdapter implements BatchAdapter {
         message: 'Could not reach the provider to poll.',
       };
     }
-    const b = (await res.json().catch(() => null)) as Record<
+    const b = (await boundedJson(res).catch(() => null)) as Record<
       string,
       unknown
     > | null;
@@ -278,10 +341,21 @@ export class OpenAIBatchAdapter implements BatchAdapter {
     const terminal = TERMINAL.has(status);
     const results: { custom_id: string; outcome: AdapterOutcome }[] = [];
     const wanted = new Set(customIds);
+    const seen = new Set<string>();
+    try {
+      for (const key of ['input_file_id', 'output_file_id', 'error_file_id']) {
+        const id = b[key];
+        if (typeof id === 'string') await recordFile?.(id);
+      }
+    } catch {
+      return {
+        kind: 'error',
+        message: 'Provider files could not be journalled.',
+      };
+    }
     for (const key of ['output_file_id', 'error_file_id'] as const) {
       const fileId = b[key];
       if (typeof fileId !== 'string') continue;
-      let text: string;
       try {
         const f = await fetch(
           `${this.#base}/files/${encodeURIComponent(fileId)}/content`,
@@ -292,21 +366,41 @@ export class OpenAIBatchAdapter implements BatchAdapter {
             kind: 'error',
             message: `Result file read ended ${f.status}.`,
           };
-        text = await f.text();
+        let pending = '',
+          lines = 0;
+        const line = (text: string) => {
+          if (
+            ++lines > BATCH_RESULT_LIMITS.lines ||
+            Buffer.byteLength(text) > BATCH_RESULT_LIMITS.lineBytes
+          )
+            throw new Error('Batch result line limit');
+          if (!text.trim()) return;
+          const row = JSON.parse(text) as Record<string, unknown>;
+          if (!row || typeof row !== 'object' || Array.isArray(row))
+            throw new Error('Invalid batch record');
+          const id = row.custom_id;
+          if (typeof id !== 'string' || !wanted.has(id)) return;
+          if (seen.has(id)) throw new Error('Duplicate batch result');
+          seen.add(id);
+          results.push({ custom_id: id, outcome: lineOutcome(row) });
+        };
+        await readBounded(f, BATCH_RESULT_LIMITS.bytes, (chunk) => {
+          pending += chunk;
+          let end;
+          while ((end = pending.indexOf('\n')) !== -1) {
+            line(pending.slice(0, end));
+            pending = pending.slice(end + 1);
+          }
+          if (Buffer.byteLength(pending) > BATCH_RESULT_LIMITS.lineBytes)
+            throw new Error('Batch result line limit');
+        });
+        if (pending) line(pending);
       } catch {
-        return { kind: 'error', message: 'Could not read a result file.' };
-      }
-      for (const line of text.split('\n')) {
-        if (!line.trim()) continue;
-        let row: Record<string, unknown>;
-        try {
-          row = JSON.parse(line) as Record<string, unknown>;
-        } catch {
-          continue;
-        }
-        const id = row.custom_id;
-        if (typeof id !== 'string' || !wanted.has(id)) continue;
-        results.push({ custom_id: id, outcome: lineOutcome(row) });
+        return {
+          kind: 'error',
+          message:
+            'Result file unreadable, malformed or beyond bounded limits; costs remain unresolved.',
+        };
       }
     }
     // A batch that failed validation ran nothing (documented); every item is unprocessed.
@@ -322,6 +416,23 @@ export class OpenAIBatchAdapter implements BatchAdapter {
           },
         });
     return { kind: 'status', status, terminal, results };
+  }
+
+  async deleteFile(fileId: string, signal: AbortSignal): Promise<boolean> {
+    try {
+      const res = await fetch(
+        `${this.#base}/files/${encodeURIComponent(fileId)}`,
+        { method: 'DELETE', headers: this.#auth(), signal },
+      );
+      if (res.status === 404) {
+        await res.body?.cancel();
+        return true;
+      }
+      const body = await boundedJson(res);
+      return res.ok && body.id === fileId && body.deleted === true;
+    } catch {
+      return false;
+    }
   }
 }
 

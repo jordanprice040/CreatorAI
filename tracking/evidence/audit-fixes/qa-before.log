@@ -1,0 +1,50 @@
+TAP version 13
+# Subtest: QA dispatch mounts only runtime inputs, never expected answers or case labels
+not ok 1 - QA dispatch mounts only runtime inputs, never expected answers or case labels
+  ---
+  duration_ms: 1173.8963
+  type: 'test'
+  location: 'C:\\Users\\jorda\\OneDrive\\Desktop\\creator_agent\\tests\\dist\\executor.test.js:149:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+        args: [
+          'runtime-argument'
+        ],
+    +   check_key: 'A1',
+    +   exit_code: 7,
+        stdin: 'runtime input',
+    +   stdout: 'HELD_OUT_EXPECTED_ANSWER'
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    args:
+      0: 'runtime-argument'
+    stdin: 'runtime input'
+  actual:
+    check_key: 'A1'
+    args:
+      0: 'runtime-argument'
+    stdin: 'runtime input'
+    stdout: 'HELD_OUT_EXPECTED_ANSWER'
+    exit_code: 7
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/Users/jorda/OneDrive/Desktop/creator_agent/tests/dist/executor.test.js:157:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1580.5946

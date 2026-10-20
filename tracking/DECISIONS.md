@@ -1,5 +1,16 @@
 # Decision log
 
+## ADR-0040 — Repair audit boundaries without changing owner authority
+
+October 20, 2026. Jordan authorized repair of all four findings in Codex audit PR #40 and directed work to C:/dev/creator_agent. Migration 24; docs/AUDIT_FIXES_2026-10-20.md.
+
+Keep QA expected outputs in the supervisor; mount only runtime inputs and reject legacy full cases. Stop persisting unauthenticated invalid-signature webhook requests; verified event receipts remain durable. Superseding ADR-0034's processor-read lock placement only, use a per-connection monotonic observation epoch: short begin transaction, bounded external read without a database connection, then financial-lock projection with current revocation/epoch checks. Older reads fail rather than overwriting newer state. Conservative conflicts across different objects require bounded caller retry; no automatic retry is introduced.
+
+Stream batch results with byte/line/count bounds; keep unknown costs held on unreadable data. Journal input/output/error IDs before use and delete only after durable terminal reconciliation; failed deletion retries on polling. Explicit 48-hour input/output/error expiry covers abandoned uploads and unknown creation, with possible loss of result availability when the studio remains offline. This is an implementation retention default under the repair request, not a frozen study choice. No provider cleanup runs outside the existing scoped adapter credential.
+
+Rejected: removing stale-read ordering protection, holding financial locks across network I/O, marking parse failures free, deleting evidence with unresolved billing, storing raw hostile request samples, or changing held-out expected cases. Historical audit and ADRs remain intact. No new dependency, activation or spending grant.
+
+
 ## ADR-0039 — Owner decisions after the 2026-10-20 audit: runtime ceiling, pairing limits, scheduler state, portfolio reinvestment, OneDrive move
 
 October 20, 2026. Jordan's decisions on audit items N1, N2, N4, R1 and R2. Built by Claude

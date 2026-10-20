@@ -830,7 +830,8 @@
       "required": ["implemented", "contract", "live"],
       "evidence": [
         "tracking/INTEGRATIONS.md",
-        "config/provider-availability.json"
+        "config/provider-availability.json",
+        "docs/AUDIT_FIXES_2026-10-20.md"
       ],
       "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
     },
@@ -925,7 +926,11 @@
         "native": "verified"
       },
       "required": ["implemented", "native"],
-      "evidence": ["tracking/evidence/t11", "tracking/evidence/t17"],
+      "evidence": [
+        "tracking/evidence/t11",
+        "tracking/evidence/t17",
+        "docs/AUDIT_FIXES_2026-10-20.md"
+      ],
       "blocked_on": null
     },
     {
@@ -1015,7 +1020,7 @@
         "native": "not_applicable"
       },
       "required": ["implemented", "contract", "live"],
-      "evidence": ["docs/PAYMENTS.md"],
+      "evidence": ["docs/PAYMENTS.md", "docs/AUDIT_FIXES_2026-10-20.md"],
       "blocked_on": "No Stripe test or live call; live mode is not built and activation is Jordan's decision."
     },
     {

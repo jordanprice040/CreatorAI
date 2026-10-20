@@ -1,5 +1,7 @@
 # Context packs, caching, compaction and batches (X02)
 
+October 20 audit repair (ADR-0040, migration 24): batch result streams now have hard byte/line/count limits; unreadable results keep costs unknown. Input/output/error file IDs are journalled for retryable cleanup only after terminal settlement. Provider files have a 48-hour expiry fallback. See [audit repairs](AUDIT_FIXES_2026-10-20.md) for bounds and recovery limits.
+
 X02 decides what a model call is shown, reuses earlier work where that is safe, and
 meters everything it costs. Every model call still goes through the T04 broker
 (admission, reservation, settlement). Nothing here can grant authority: a cached

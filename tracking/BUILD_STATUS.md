@@ -1,5 +1,14 @@
 # Implementation status
 
+## Codex audit repairs — October 20, 2026
+
+Work continues in C:/dev/creator_agent, branch codex/audit-boundary-fixes, from main 1cf6d63. All four PR #40 findings are implemented: runtime-only QA mount plus legacy rejection; no unauthenticated invalid-signature receipt writes; processor observation epochs with network reads outside financial transactions; bounded streaming batch reads, durable file IDs, retryable post-reconciliation deletion and 48-hour orphan expiry. Migration 24, ADR-0040. See docs/AUDIT_FIXES_2026-10-20.md and tracking/evidence/audit-fixes for exact verification and remaining limits.
+
+Verified: full pnpm check 302 tests / 287 pass / 0 fail / 15 skips; typecheck/format clean. Real WSL QA secrecy 1/1; final context 18/18 and uppercase audit-chain case 1/1; final API/cleanup regressions 3/3. Build/smoke pass; readiness honestly not_ready (exit 3, no inconsistencies). Intermediate failed runs retained and explained in the repair report. Migrations 1–23 checksum-identical; only disposable databases migrated to 24.
+
+No paid/live runtime operation, protocol/owner decision change, deployment or activation. Existing deployment databases were not migrated. Next eligible: U02 independent review of the repair candidate; no automatic next milestone.
+
+
 ## Owner decisions after the 2026-10-20 audit (October 20, 2026)
 
 Branch claude/audit-full-qgjinb from main fc1e83f; migration 23, ADR-0039,

@@ -231,6 +231,7 @@ export class ContextService {
         };
       }),
       AbortSignal.timeout(120000),
+      (fileId) => this.store.recordBatchFile(ctx, ws, batchId, fileId),
     );
     if (out.kind === 'submitted')
       await this.store.setBatchStatus(ctx, ws, batchId, {
@@ -263,21 +264,38 @@ export class ContextService {
         explanation: out.message,
       });
     }
-    return this.store.getBatch(ctx, ws, batchId);
+    const saved = await this.store.getBatch(ctx, ws, batchId);
+    if (out.kind === 'rejected')
+      await this.#cleanupFiles(ctx, ws, saved, adapter!);
+    return saved;
   }
 
   /**
    * Settles whatever results the provider reports. A terminal batch with items still missing
    * holds them as unknown; a later poll that finds them settles them late, exactly once.
    */
+  async #cleanupFiles(
+    ctx: CommandContext,
+    ws: string,
+    batch: Batch,
+    adapter: BatchAdapter,
+  ) {
+    if (
+      !adapter.deleteFile ||
+      batch.items.some(
+        (i) => i.status === 'in_flight' || i.status === 'unknown',
+      )
+    )
+      return;
+    for (const file of await this.store.pendingBatchFiles(ctx, ws, batch.id)) {
+      if (await adapter.deleteFile(file, AbortSignal.timeout(10000)))
+        await this.store.batchFileDeleted(ctx, ws, batch.id, file);
+    }
+  }
   async pollBatch(ctx: CommandContext, ws: string, id: string): Promise<Batch> {
     const data = await this.store.batchForPoll(ctx, ws, id);
     const { batch } = data;
-    if (
-      !batch.provider_batch_id ||
-      ['refused', 'submitting'].includes(batch.status)
-    )
-      return batch;
+    if (['refused', 'submitting'].includes(batch.status)) return batch;
     const adapter = this.#batchAdapter(
       batch.fixture,
       batch.provider,
@@ -288,13 +306,40 @@ export class ContextService {
         'INVALID_CONFIG',
         'No batch adapter is configured for this model here.',
       );
+    if (
+      ['completed', 'partial', 'failed', 'expired'].includes(batch.status) &&
+      batch.items.every((i) => !['in_flight', 'unknown'].includes(i.status))
+    ) {
+      await this.#cleanupFiles(ctx, ws, batch, adapter);
+      return batch;
+    }
+    if (!batch.provider_batch_id) return batch;
     const ids = batch.items.map((i) => i.custom_id);
     const polled = await adapter.poll(
       batch.provider_batch_id,
       ids,
       AbortSignal.timeout(120000),
+      (fileId) => this.store.recordBatchFile(ctx, ws, batch.id, fileId),
     );
-    if (polled.kind === 'error') return batch;
+    if (polled.kind === 'error') {
+      for (const item of batch.items)
+        if (item.reservation_id && item.status === 'in_flight')
+          await this.store.finishAttempt(ctx, item.reservation_id, {
+            kind: 'unknown',
+            reasonCode: 'batch_result_unreadable',
+            explanation: polled.message,
+            result: {
+              status: 'unknown',
+              reason_code: 'batch_result_unreadable',
+            },
+          });
+      await this.store.setBatchStatus(ctx, ws, id, {
+        status: 'unknown',
+        reason: 'batch_result_unreadable',
+        explanation: polled.message,
+      });
+      return this.store.getBatch(ctx, ws, id);
+    }
     const items = new Map(batch.items.map((i) => [i.custom_id, i]));
     const seen = new Set<string>();
     for (const r of polled.results) {
@@ -331,7 +376,9 @@ export class ContextService {
     const now = await this.store.getBatch(ctx, ws, id);
     const next = batchStatus(now, polled.status, polled.terminal);
     await this.store.setBatchStatus(ctx, ws, id, next);
-    return this.store.getBatch(ctx, ws, id);
+    const saved = await this.store.getBatch(ctx, ws, id);
+    if (polled.terminal) await this.#cleanupFiles(ctx, ws, saved, adapter);
+    return saved;
   }
 }
 

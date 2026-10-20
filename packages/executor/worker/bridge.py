@@ -89,7 +89,10 @@ def main():
                '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
     acceptance = job / 'acceptance.json'
     if acceptance.is_file():
-        # Supervisor-owned input, outside the generated snapshot and mounted read-only.
+        # Refuse legacy/full QA records before exposing any bytes to generated code.
+        runtime_input = json.loads(acceptance.read_text())
+        if not isinstance(runtime_input, dict) or set(runtime_input) != {'args', 'stdin'}:
+            raise RuntimeError('Only runtime argv and stdin may enter the sandbox')
         sandbox[1:1] = ['--ro-bind', str(acceptance), '/acceptance.json']
     launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pipe', '--wait', '--collect', '--unit=' + unit,
               '-p', 'MemoryMax=268435456', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32',

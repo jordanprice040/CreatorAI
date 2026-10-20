@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: cache keys separate every scope and version component
+ok 1 - cache keys separate every scope and version component
+  ---
+  duration_ms: 1.9822
+  type: 'test'
+  ...
+# Subtest: capability states: fixture only in fixture workspaces, verified only in real ones
+ok 2 - capability states: fixture only in fixture workspaces, verified only in real ones
+  ---
+  duration_ms: 0.4699
+  type: 'test'
+  ...
+# Subtest: rendering keeps the pinned prefix identical across tasks; verification catches edits
+ok 3 - rendering keeps the pinned prefix identical across tasks; verification catches edits
+  ---
+  duration_ms: 1.8711
+  type: 'test'
+  ...
+# Subtest: fixture prompt cache: first prefix use writes, the repeat reads; short prefixes are not cached
+ok 4 - fixture prompt cache: first prefix use writes, the repeat reads; short prefixes are not cached
+  ---
+  duration_ms: 1.1915
+  type: 'test'
+  ...
+# Subtest: batch result lines: expiry and request errors are not charged, others are unknown
+ok 5 - batch result lines: expiry and request errors are not charged, others are unknown
+  ---
+  duration_ms: 0.3744
+  type: 'test'
+  ...
+# Subtest: batch status comes from item reservations, not the provider status alone
+ok 6 - batch status comes from item reservations, not the provider status alone
+  ---
+  duration_ms: 0.2948
+  type: 'test'
+  ...
+# Subtest: OpenAI batch adapter (loopback contract): upload, create, poll, output and error files
+ok 7 - OpenAI batch adapter (loopback contract): upload, create, poll, output and error files
+  ---
+  duration_ms: 89.2969
+  type: 'test'
+  ...
+# Subtest: OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output
+ok 8 - OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output
+  ---
+  duration_ms: 31.2713
+  type: 'test'
+  ...
+# Subtest: OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials
+ok 9 - OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials
+  ---
+  duration_ms: 26.6274
+  type: 'test'
+  ...
+# Subtest: OpenAI batch streaming rejects an oversized body, malformed data and duplicate results
+ok 10 - OpenAI batch streaming rejects an oversized body, malformed data and duplicate results
+  ---
+  duration_ms: 104.0079
+  type: 'test'
+  ...
+# Subtest: X02 index: incremental counts, explicit removals, and record reuse
+ok 11 - X02 index: incremental counts, explicit removals, and record reuse
+  ---
+  duration_ms: 2250.3197
+  type: 'test'
+  ...
+# Subtest: X02 packs: pins and authority survive compaction; lossy and opaque compaction refused
+ok 12 - X02 packs: pins and authority survive compaction; lossy and opaque compaction refused
+  ---
+  duration_ms: 1639.0823
+  type: 'test'
+  ...
+# Subtest: X02 result cache: hits re-admit, dependencies and grants invalidate, scope isolates
+ok 13 - X02 result cache: hits re-admit, dependencies and grants invalidate, scope isolates
+  ---
+  duration_ms: 2427.3794
+  type: 'test'
+  ...
+# Subtest: X02 batches: capability and price checks, partial failure, unknown then late settlement
+ok 14 - X02 batches: capability and price checks, partial failure, unknown then late settlement
+  ---
+  duration_ms: 2197.1091
+  type: 'test'
+  ...
+# Subtest: X02 batches: expiry releases, a real workspace refuses unverified capabilities
+ok 15 - X02 batches: expiry releases, a real workspace refuses unverified capabilities
+  ---
+  duration_ms: 1944.7738
+  type: 'test'
+  ...
+# Subtest: X02 evaluation: quality maintained for the compacted pack, a starved pack fails
+ok 16 - X02 evaluation: quality maintained for the compacted pack, a starved pack fails
+  ---
+  duration_ms: 2195.5808
+  type: 'test'
+  ...
+# Subtest: X02 batch cleanup is durable, retries after restart, and never deletes unresolved results
+ok 17 - X02 batch cleanup is durable, retries after restart, and never deletes unresolved results
+  ---
+  duration_ms: 1717.2157
+  type: 'test'
+  ...
+# Subtest: X02 a delayed failed poll cannot downgrade already reconciled batch results
+ok 18 - X02 a delayed failed poll cannot downgrade already reconciled batch results
+  ---
+  duration_ms: 1720.927
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17309.8097

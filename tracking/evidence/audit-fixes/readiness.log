@@ -1,0 +1,61 @@
+$ pnpm build:code && node packages/orchestrator/dist/readiness-main.js
+$ tsc -b
+{
+  "verdict": "not_ready",
+  "commit": "1cf6d6332ece2ad36ad22eea50349b447b791c11 (working tree has uncommitted changes)",
+  "register_sha256": "dd08ad5df1c491b95262c13ce33ddcec5c654f4b74a10e1e375022db3391654f",
+  "problems": [],
+  "not_ready": [
+    "C01: live",
+    "C02: live",
+    "C03: live",
+    "C04: live",
+    "C05: live",
+    "C06: live",
+    "C07: live",
+    "C08: live",
+    "C10: live",
+    "C11: live",
+    "C15: live",
+    "C17: live",
+    "C18: live",
+    "C19: live",
+    "C23: live",
+    "C36: live",
+    "C37: live",
+    "C38: live",
+    "C39: live",
+    "C40: live",
+    "C42: native",
+    "C43: live",
+    "C44: live",
+    "C45: live",
+    "C46: live",
+    "openai-models: live",
+    "source-fetch: live",
+    "source-search: implemented, live",
+    "oidc-sign-in: live",
+    "desktop-signing-updates: implemented",
+    "github: live",
+    "hosted-operation: live",
+    "alert-delivery: implemented",
+    "stripe-payments: live",
+    "campaign-delivery: live",
+    "paid-ads: implemented"
+  ],
+  "pilot": {
+    "ready": false,
+    "refusals": [
+      "Owner has not recorded the pilot decision (decided_by, decided_at).",
+      "Owner has not chosen a pilot budget (exact nano-USD).",
+      "Stop rule max_spend_nano_usd is not set.",
+      "Stop rule max_consecutive_failures is not set.",
+      "Stop rule max_owner_minutes is not set.",
+      "Owner has not chosen the pilot window (starts_at, ends_at).",
+      "Owner has not chosen pilot schedules.",
+      "Owner has not chosen supported platforms.",
+      "Owner has not chosen which accounts the pilot may use."
+    ]
+  }
+}
+[ELIFECYCLE] Command failed with exit code 3.

@@ -1,5 +1,8 @@
 # Integration readiness
 
+October 20, 2026 audit repair: the payment and OpenAI batch adapters were hardened locally (observation fences, bounded reads, durable cleanup and expiry). The QA input boundary was verified in the real WSL worker. No live provider/payment call, file deletion, account verification or activation occurred. See docs/AUDIT_FIXES_2026-10-20.md and tracking/evidence/audit-fixes. Existing readiness states are not promoted by these repairs.
+
+
 X10 (October 19, 2026): no new integration and no live call. Integration states now live in
 `config/readiness.json` and are checked by `pnpm readiness`; the generated report is
 tracking/evidence/x10/READINESS.md. None of the 15 integrations gained a state in X10.

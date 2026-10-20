@@ -1,0 +1,1 @@
+PASS: migrations 1-23 retain their exact SQL checksums; migration 24 is append-only.

@@ -189,7 +189,12 @@ test('X07 API and CLI: offer, checkout, inert return page, signed webhook, entit
   const balances = await cli('ledger-balances', ws);
   assert.equal(balances.total_nano, '0');
   assert.equal(balances.balances.revenue, (-2500n * NANO_PER_CENT).toString());
-  assert.equal((await cli('pay-events', ws, conn.id)).length, 4);
+  const receipts = await cli('pay-events', ws, conn.id);
+  assert.deepEqual(
+    receipts.map((r: { status: string }) => r.status).sort(),
+    ['applied', 'duplicate'],
+    'Only signature-verified deliveries create durable receipts.',
+  );
   // Reinvestment is off until the owner sets a policy.
   assert.equal((await cli('reinvest', ws)).binding, 'policy_disabled');
   assert.equal(await cli('reinvest-policy', ws), null);

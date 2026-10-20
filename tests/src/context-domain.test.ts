@@ -376,6 +376,7 @@ test('OpenAI batch adapter (loopback contract): upload, create, poll, output and
   assert.deepEqual(sub, { kind: 'submitted', provider_batch_id: 'batch_1' });
   const upload = seen[0]!;
   assert.equal(upload.auth, `Bearer ${key}`);
+  assert.match(upload.body, /name="expires_after\[seconds\]"\r\n\r\n172800/);
   assert.match(upload.body, /name="purpose"\r\n\r\nbatch/);
   const line = JSON.parse(
     upload.body.split(/\r?\n/).find((l) => l.startsWith('{"custom_id":"a"'))!,
@@ -395,6 +396,7 @@ test('OpenAI batch adapter (loopback contract): upload, create, poll, output and
     input_file_id: 'file-in',
     endpoint: '/v1/responses',
     completion_window: '24h',
+    output_expires_after: { anchor: 'created_at', seconds: 172800 },
   });
   const pending = await adapter.poll('batch_1', ['a', 'b'], signal);
   assert.ok(
@@ -420,4 +422,143 @@ test('OpenAI batch adapter (loopback contract): upload, create, poll, output and
       a.text === 'Done' &&
       a.usage.uncached_input_tokens === 10,
   );
+});
+
+test('OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output', async (t) => {
+  const server = createServer((req, res) => {
+    if (req.url === '/batches/probe')
+      return res.end(
+        JSON.stringify({ status: 'completed', output_file_id: 'large' }),
+      );
+    res.end(
+      JSON.stringify({ custom_id: 'a', padding: 'x'.repeat(300_000) }) + '\n',
+    );
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const port = (server.address() as { port: number }).port;
+  const adapter = new OpenAIBatchAdapter({
+    apiKey: 'fixture_key_00000000000000',
+    model_id: 'm',
+    baseUrl: `http://127.0.0.1:${port}`,
+  });
+  const result = await adapter.poll('probe', ['a'], AbortSignal.timeout(5000));
+  assert.equal(result.kind, 'error');
+});
+
+test('OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials', async (t) => {
+  let mode = 'deleted';
+  const seen: string[] = [];
+  const server = createServer((req, res) => {
+    seen.push(req.method + ' ' + req.url);
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'POST')
+      return res.end(JSON.stringify({ id: 'file-owned' }));
+    if (mode === 'missing') {
+      res.statusCode = 404;
+      res.end('{}');
+    } else if (mode === 'fail') {
+      res.statusCode = 503;
+      res.end('{}');
+    } else res.end(JSON.stringify({ id: 'file-owned', deleted: true }));
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const port = (server.address() as { port: number }).port;
+  const a = new OpenAIBatchAdapter({
+    apiKey: 'fixture_key_00000000000000',
+    model_id: 'm',
+    baseUrl: 'http://127.0.0.1:' + port,
+  });
+  assert.equal(
+    await a.deleteFile('file-owned', AbortSignal.timeout(5000)),
+    true,
+  );
+  mode = 'fail';
+  assert.equal(
+    await a.deleteFile('file-owned', AbortSignal.timeout(5000)),
+    false,
+  );
+  mode = 'missing';
+  assert.equal(
+    await a.deleteFile('file-owned', AbortSignal.timeout(5000)),
+    true,
+  );
+  assert.deepEqual(seen, [
+    'DELETE /files/file-owned',
+    'DELETE /files/file-owned',
+    'DELETE /files/file-owned',
+  ]);
+  mode = 'deleted';
+  const failed = await a.submit(
+    [
+      {
+        custom_id: 'a',
+        request: {
+          action: 'model.generate',
+          model_id: 'm',
+          input: [{ role: 'user', text: 'A' }],
+          max_output_tokens: 10,
+          output_format: 'text',
+          tool: null,
+        },
+      },
+    ],
+    AbortSignal.timeout(5000),
+    async () => {
+      throw Error('Simulated journal outage');
+    },
+  );
+  assert.equal(failed.kind, 'rejected');
+  assert.equal(
+    seen.includes('POST /batches'),
+    false,
+    'Never dispatch without recording the input file.',
+  );
+  assert.deepEqual(seen.slice(-2), ['POST /files', 'DELETE /files/file-owned']);
+});
+test('OpenAI batch streaming rejects an oversized body, malformed data and duplicate results', async (t) => {
+  let mode = 'bytes';
+  const server = createServer((req, res) => {
+    if (req.url === '/batches/probe')
+      return res.end(
+        JSON.stringify({ status: 'completed', output_file_id: 'out' }),
+      );
+    if (mode === 'bytes') {
+      res.writeHead(200);
+      for (let i = 0; i < 140; i++)
+        res.write(
+          JSON.stringify({ custom_id: 'ignored', pad: 'x'.repeat(65536) }) +
+            '\n',
+        );
+      return res.end();
+    }
+    if (mode === 'malformed') return res.end('{bad json}\n');
+    const row =
+      JSON.stringify({ custom_id: 'a', error: { code: 'batch_expired' } }) +
+      '\n';
+    res.end(row + row);
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const a = new OpenAIBatchAdapter({
+    apiKey: 'fixture_key_00000000000000',
+    model_id: 'm',
+    baseUrl: 'http://127.0.0.1:' + (server.address() as { port: number }).port,
+  });
+  for (mode of ['bytes', 'malformed', 'duplicate'])
+    assert.equal(
+      (await a.poll('probe', ['a'], AbortSignal.timeout(5000))).kind,
+      'error',
+      mode,
+    );
 });
