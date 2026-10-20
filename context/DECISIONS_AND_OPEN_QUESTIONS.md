@@ -1,5 +1,11 @@
 # Decisions, defaults, and unresolved questions
 
+Current choices: [October 20 owner register](../tracking/OWNER_DECISIONS_2026-10-20.md).
+This supersedes proposed defaults below where they conflict. User-configurable
+spending, studio setup, tray behavior, fallback and repository scope are settled
+design direction; actual accounts, grants, external rulings and freeze remain gates.
+The tables below retain historical context; do not reopen settled preferences.
+
 ## Status vocabulary
 
 **Established direction:** supported by the supplied project history/documents. **Proposed default:** a practical choice in this kit, open to revision. **Unresolved:** materially affects activation, study interpretation, or scope. **Implemented:** requires repository/evidence inspection; no implementation is asserted here.

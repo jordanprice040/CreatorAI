@@ -854,16 +854,19 @@
       "id": "source-search",
       "title": "Live web search provider",
       "states": {
-        "implemented": "unsupported",
-        "fixture": "not_applicable",
-        "contract": "not_applicable",
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
         "live": "not_verified",
         "activated": "not_verified",
         "native": "not_applicable"
       },
       "required": ["implemented", "live"],
-      "evidence": ["tracking/INTEGRATIONS.md"],
-      "blocked_on": "No live search adapter exists; Jordan has not chosen a provider."
+      "evidence": [
+        "tracking/evidence/research-2-5",
+        "docs/RESEARCH_RETRIEVAL.md"
+      ],
+      "blocked_on": "Disabled Brave candidate implemented and contract-tested. Live qualification requires account-specific pricing/terms, credentials, local/subscription prerequisite verification and a concrete bounded grant; no live search or source fetch performed."
     },
     {
       "id": "postgresql",

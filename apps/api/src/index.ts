@@ -9,6 +9,7 @@ import {
 import pg from 'pg';
 import {
   BrokerStatusSchema,
+  BrokerCallRequestSchema,
   ContractError,
   z,
   contractSchemas,
@@ -54,6 +55,8 @@ import {
   SearchService,
   liveAdapterFromEnv,
   liveBatchAdapterFromEnv,
+  publicSearchFromEnv,
+  BRAVE_SEARCH_ID,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
 import {
@@ -187,7 +190,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -235,6 +238,7 @@ export function createApi(
   );
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
+  const publicSearch = publicSearchFromEnv(env, sourceConfig.policy);
   const store = pool ? new PortfolioStore(pool) : null;
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
@@ -262,6 +266,7 @@ export function createApi(
             ...fixtureRouteAdapters(),
             ...fixtureContextAdapters(),
             ...fixtureSearchAdapters(),
+            ...(publicSearch ? [publicSearch] : []),
           ],
         },
         { decisions: store },
@@ -980,6 +985,7 @@ export function createApi(
         );
         // Stop in-flight calls too; their exposure stays held until reconciled.
         broker?.cancelRun(cancelled.run_id);
+        sources?.cancelRun(cancelled.run_id);
         return send(200, cancelled, true);
       }
       if (item && method === 'POST' && action === 'workflows')
@@ -1012,6 +1018,32 @@ export function createApi(
           await broker!.call(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && method === 'POST' && action === 'source-searches') {
+        const body = await readJson(req);
+        const searchRequest = parse(BrokerCallRequestSchema, body);
+        if (
+          searchRequest.action_type !== 'tool.search_public' ||
+          searchRequest.tool !== 'search_public'
+        )
+          throw new ContractError(
+            'INVALID_CONTRACT',
+            'Source search requires tool.search_public and search_public.',
+          );
+        const fixture = await store.isFixtureWorkspace(ctx, ws);
+        return send(
+          200,
+          await broker!.callModel(
+            ctx,
+            ws,
+            item,
+            fixture
+              ? { provider: 'fixture', model_id: 'fixture-model-v1' }
+              : { provider: 'brave', model_id: BRAVE_SEARCH_ID },
+            searchRequest,
+          ),
+          true,
+        );
+      }
       if (item && method === 'POST' && action === 'source-fetches')
         return send(
           200,
@@ -1147,7 +1179,10 @@ export function createApi(
           await readJson(req),
         );
         // Stop this process's in-flight calls now; other workers see it on their next heartbeat.
-        if (action === 'cancel') broker?.cancelRun(detail.workflow.run_id);
+        if (action === 'cancel') {
+          broker?.cancelRun(detail.workflow.run_id);
+          sources?.cancelRun(detail.workflow.run_id);
+        }
         return send(200, detail, true);
       }
     } else if (collection === 'problems' && item && method === 'GET') {

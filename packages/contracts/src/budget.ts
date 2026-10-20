@@ -20,7 +20,7 @@ const ratio = z.strictObject({
 });
 
 export const BUDGET_POLICY_VERSION = 'budget/1.0' as const;
-export const ProviderSchema = z.enum(['fixture', 'openai']);
+export const ProviderSchema = z.enum(['fixture', 'openai', 'brave']);
 export type Provider = z.infer<typeof ProviderSchema>;
 /** Actions the broker meters. Everything else is admitted (T03) but never dispatched here. */
 export const MeteredActionSchema = ActionTypeSchema.extract([

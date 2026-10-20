@@ -1,5 +1,29 @@
 # Studio UX/UI: dark-default workspace
 
+## Page draft retention — October 20, 2026
+
+Owner reported unsubmitted fields disappearing on page navigation in the Tauri app.
+The shared UI now retains visited page components in session memory within the
+current workspace. Switching pages or Back/Forward keeps fields and form selections;
+ordinary sidebar navigation restores that page's record/query, including an unsent
+search revision. Hidden Monitor/Runs polling pauses. Existing submit handlers retain
+their success/reset behavior; invalid submissions keep drafts. No draft or credential
+is written to web storage. Sign-out/session change and workspace change discard the
+retained forms. Reload/restart recovery remains planned, not implemented here.
+
+**Reset page fields** asks for confirmation and restores only the current page's
+starting values. It does not delete saved records, reset other pages, cancel work
+already submitted, or make a new backend request. **Keep fields** cancels reset.
+
+Verification: `scripts/verify-page-drafts.playwright.js` exercises actual browser UI
+with intercepted fixture APIs, including independent forms, Back/Forward, invalid
+submission, reset/cancel, query revisions, workspace isolation and sign-out. It expects
+a temporary Vite server on port 5175. No operational database/provider is used.
+Browser evidence and candidate hashes: `tracking/evidence/page-drafts/`.
+Typecheck, production UI build and desktop resource staging passed. Native installer
+build is recorded there; browser acceptance does not establish native interaction.
+Rebuild/reinstall is required for an already installed app to receive these changes.
+
 Implemented October 19, 2026 by Claude Code from the owner's handoff (`docs/CLAUDE_UX_UI_HANDOFF.md`
 on the owner's machine). Branch `claude/ux-ui-handoff-mfarlr` from main `0dfc6e6` (PR #32 included).
 The web app in `apps/web` is also the desktop (Tauri) view: `apps/desktop/src-tauri/tauri.conf.json`

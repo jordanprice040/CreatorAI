@@ -30,6 +30,73 @@ const REPOST = 'https://news.fixture.test/2026/03/clinic-waits';
 const COPY = 'https://blog.fixture.test/posts/clinic-waits-copy';
 const SURVEY = 'https://journal.fixture.test/articles/wait-time-survey';
 
+test('source cancellation aborts the socket path and adapter exceptions leave durable failures', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const run = await s.run();
+  let started!: () => void;
+  const began = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const broker = new SourceBroker(
+    s.store,
+    {
+      live: null,
+      fixture: {
+        kind: 'fixture',
+        fetchHop: async ({ signal }) => {
+          started();
+          return new Promise((resolve) =>
+            signal.addEventListener(
+              'abort',
+              () =>
+                resolve({
+                  kind: 'error',
+                  reason_code: 'timeout',
+                  explanation: 'Aborted',
+                }),
+              { once: true },
+            ),
+          );
+        },
+      },
+    },
+    { live: null, fixture: FIXTURE_SOURCE_POLICY },
+  );
+  const req = {
+    url: REPORT,
+    task_id: null,
+    logical_operation_id: randomUUID(),
+    justification: 'Cancellation check.',
+  };
+  const pending = broker.fetch(owner, s.ws.id, run, req);
+  await began;
+  assert.equal(broker.cancelRun(run.toUpperCase()), 1);
+  const out = await pending;
+  assert.equal(out.state, 'failed');
+  assert.equal(out.reason_code, 'run_cancelled');
+  assert.equal(broker.cancelRun(run), 0);
+  const broken = new SourceBroker(
+    s.store,
+    {
+      live: null,
+      fixture: {
+        kind: 'fixture',
+        fetchHop: async () => {
+          throw new Error('adapter failed');
+        },
+      },
+    },
+    { live: null, fixture: FIXTURE_SOURCE_POLICY },
+  );
+  const failed = await broken.fetch(owner, s.ws.id, run, {
+    ...req,
+    logical_operation_id: randomUUID(),
+  });
+  assert.equal(failed.state, 'failed');
+  assert.equal(failed.reason_code, 'adapter_error');
+});
+
 async function setup(
   t: test.TestContext,
   policy: Partial<SourcePolicy> = {},

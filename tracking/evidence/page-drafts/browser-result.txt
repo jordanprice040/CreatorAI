@@ -1,0 +1,2 @@
+### Result
+{"passed":["multiple fields survive page changes","independent evidence draft","Back and Forward preserve drafts","cancel reset preserves draft","reset affects only current page","unsubmitted search preserved","invalid submission keeps fields","search revision after submitted query","workspace isolation","sign-out removes retained forms","no mutation on navigation/reset"],"mode":"intercepted fixture API; browser UI only"}

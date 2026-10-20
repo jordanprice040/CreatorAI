@@ -1,5 +1,10 @@
 # T14 pilot rehearsal and proposed final protocol
 
+October 20 owner direction: [accepted RD1–RD10](../tracking/OWNER_DECISIONS_2026-10-20.md)
+now settles preferences behind the historical proposal below. Actual reviewer
+identities, institutional ruling, model access, final tasks, feasibility and exact
+adoption/freeze remain gates. No study config, budget or frozen protocol changed.
+
 October 18, 2026. Status: pilot rehearsal executed; final protocol **proposed, not adopted**.
 Nothing in this document is an empirical result.
 

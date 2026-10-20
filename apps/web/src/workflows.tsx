@@ -19,6 +19,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
+import { usePageActive } from './page-drafts.js';
 
 const TERMINAL = ['succeeded', 'failed', 'cancelled'];
 const SUBJECT_KINDS = ['idea', 'problem', 'alternative', 'specification'];
@@ -40,6 +41,7 @@ export function Workflows({
   onFocus: (id: string) => void;
 }) {
   const workspace = current.id;
+  const active = usePageActive();
   const [list, setList] = useState<Workflow[]>([]);
   const selected = focus;
   const setSelected = (u: string | ((c: string) => string)) =>
@@ -100,7 +102,7 @@ export function Workflows({
   }, [workspace]);
   // Poll the durable state while the selected workflow is live.
   useEffect(() => {
-    if (!selected || !workspace) return;
+    if (!active || !selected || !workspace) return;
     let stop = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -123,7 +125,7 @@ export function Workflows({
       stop = true;
       clearTimeout(timer);
     };
-  }, [selected, workspace]);
+  }, [active, selected, workspace]);
 
   async function start(e: FormEvent) {
     e.preventDefault();

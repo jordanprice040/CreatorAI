@@ -37,6 +37,7 @@ import {
 import { useTheme } from './theme.js';
 import './style.css';
 import { Studies } from './study.js';
+import { PageDrafts } from './page-drafts.js';
 
 const choices = [
   ['use_existing', 'Use an existing tool'],
@@ -315,10 +316,26 @@ function App() {
   }, [auth.session]);
   const workspace = workspaces?.find((w) => w.id === route.ws) ?? null;
   const names = useActors(workspace?.id ?? '');
-  const focus = (id: string) => go({ id }, true, route.view);
-  const open = (view: View, id = '', q = '') => go({ view, id, q });
+  const open = (view: View, id?: string, q?: string) =>
+    go({
+      view,
+      ...(id === undefined ? {} : { id }),
+      ...(q === undefined ? {} : { q }),
+    });
 
-  function body() {
+  function body(pageRoute = route) {
+    const workspace = workspaces?.find((w) => w.id === pageRoute.ws) ?? null;
+    const focus = (id: string) => go({ id }, true, pageRoute.view);
+    const open = (view: View, id?: string, q?: string) =>
+      go(
+        {
+          view,
+          ...(id === undefined ? {} : { id }),
+          ...(q === undefined ? {} : { q }),
+        },
+        false,
+        pageRoute.view,
+      );
     if (persistent === null) return <p className="small">Connecting…</p>;
     if (!persistent) return <FixtureDemo />;
     if (!auth.session)
@@ -355,7 +372,7 @@ function App() {
         </section>
       );
     const s = auth.session;
-    switch (route.view) {
+    switch (pageRoute.view) {
       case 'portfolio':
         return (
           <Portfolio key={workspace.id} workspace={workspace} session={s} />
@@ -382,7 +399,7 @@ function App() {
         return (
           <Catalog
             workspace={workspace}
-            focus={route.id}
+            focus={pageRoute.id}
             onFocus={focus}
             names={names}
             open={open}
@@ -393,7 +410,7 @@ function App() {
           <Compare
             session={s}
             workspace={workspace}
-            focus={route.id}
+            focus={pageRoute.id}
             onFocus={focus}
             open={open}
           />
@@ -403,7 +420,7 @@ function App() {
           <Evidence
             session={s}
             workspace={workspace}
-            focus={route.id}
+            focus={pageRoute.id}
             onFocus={focus}
           />
         );
@@ -412,7 +429,7 @@ function App() {
           <Oversight
             session={s}
             workspace={workspace}
-            focus={route.id}
+            focus={pageRoute.id}
             names={names}
           />
         );
@@ -421,7 +438,7 @@ function App() {
           <Workflows
             session={s}
             workspace={workspace}
-            focus={route.id}
+            focus={pageRoute.id}
             onFocus={focus}
           />
         );
@@ -429,13 +446,13 @@ function App() {
         return <Budgets session={s} workspace={workspace} />;
       case 'scores':
         return (
-          <Scoring workspace={workspace} focus={route.id} onFocus={focus} />
+          <Scoring workspace={workspace} focus={pageRoute.id} onFocus={focus} />
         );
       case 'search':
         return (
           <Search
             workspace={workspace}
-            q={route.q}
+            q={pageRoute.q}
             setQ={(q) => go({ q }, true)}
             open={open}
           />
@@ -444,9 +461,9 @@ function App() {
         return (
           <Activity
             workspace={workspace}
-            q={route.q}
+            q={pageRoute.q}
             setQ={(q) => go({ q }, true)}
-            focus={route.id}
+            focus={pageRoute.id}
             open={open}
           />
         );
@@ -457,7 +474,7 @@ function App() {
           <Gallery
             workspace={workspace}
             session={s}
-            focus={route.id}
+            focus={pageRoute.id}
             open={open}
           />
         );
@@ -646,7 +663,15 @@ function App() {
           </p>
         )}
         <main id="content" tabIndex={-1}>
-          {body()}
+          {inStudio && auth.session ? (
+            <PageDrafts
+              key={`${auth.session.csrf_token}:${workspace?.id}`}
+              route={route}
+              render={body}
+            />
+          ) : (
+            body()
+          )}
         </main>
         {!inStudio && (
           <footer className="foot">

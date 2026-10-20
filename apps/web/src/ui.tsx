@@ -120,9 +120,14 @@ export function useRoute() {
   // after the user navigated away) merges into where the user is, not where they were.
   const latest = useRef(route);
   latest.current = route;
+  const visited = useRef(new Map<string, Route>());
   useEffect(() => {
     const on = () => {
       if (!window.location.hash.startsWith('#login=')) {
+        visited.current.set(
+          `${latest.current.ws}:${latest.current.view}`,
+          latest.current,
+        );
         latest.current = parseRoute(window.location.hash);
         setRoute(latest.current);
       }
@@ -135,9 +140,13 @@ export function useRoute() {
   function go(next: Partial<Route>, replace = false, from?: View) {
     const now = latest.current;
     if (from && from !== now.view) return;
+    visited.current.set(`${now.ws}:${now.view}`, now);
     const r = { ...now, ...next };
-    if (next.view && next.view !== now.view && next.id === undefined) r.id = '';
-    if (next.view && next.view !== now.view && next.q === undefined) r.q = '';
+    const previous = visited.current.get(`${r.ws}:${r.view}`);
+    if (next.view && next.view !== now.view && next.id === undefined)
+      r.id = previous?.id ?? '';
+    if (next.view && next.view !== now.view && next.q === undefined)
+      r.q = previous?.q ?? '';
     const hash = routeHash(r);
     if (replace) history.replaceState(null, '', hash);
     else history.pushState(null, '', hash);

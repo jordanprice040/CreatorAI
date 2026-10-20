@@ -212,6 +212,7 @@ export const SECRET_NAMES = [
   'CREATOR_METRICS_TOKEN',
   'CREATOR_DEV_LOGIN_CODE',
   'OPENAI_API_KEY',
+  'CREATOR_BRAVE_SEARCH_API_KEY',
 ] as const;
 
 // Monitoring: alert rules are evaluated locally from metrics. Delivering an alert anywhere

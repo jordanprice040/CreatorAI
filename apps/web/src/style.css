@@ -559,6 +559,37 @@ mark {
   padding: 22px 24px;
   min-width: 0;
 }
+/* Keep the shared reset action inside the page panel, beside its heading. */
+.draft-page {
+  position: relative;
+}
+.page-reset {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+}
+.draft-content > .panel:first-child {
+  margin-top: 0;
+}
+.draft-content > .panel:first-child > h2:first-child,
+.draft-content > .panel:first-child > .decision-head:first-child {
+  padding-right: 150px;
+  min-height: 34px;
+}
+@media (max-width: 760px) {
+  .page-reset {
+    top: 18px;
+    right: 16px;
+  }
+  .draft-content > .panel:first-child {
+    padding-top: 68px;
+  }
+  .draft-content > .panel:first-child > h2:first-child,
+  .draft-content > .panel:first-child > .decision-head:first-child {
+    padding-right: 0;
+    min-height: 0;
+  }
+}
 .panel + .panel {
   margin-top: 16px;
 }

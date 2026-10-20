@@ -1,5 +1,34 @@
 # Decision log
 
+## Page-navigation draft repair — October 20, 2026
+
+Owner reported Tauri form text disappearing on page changes and requested retention
+until submission or deliberate clearing, plus a clear-fields control. Implemented
+current-workspace/session memory retention at the shared page boundary, with scoped
+confirmed Reset page fields and remembered page locations; hidden polling is paused.
+No persistent web-storage drafts/credentials, API mutation or data/schema change.
+This is a bounded navigation repair, not complete durable draft/undo implementation.
+Reload/workspace-change/restart retention is still a documented limitation; future
+draft adapters must preserve sensitive-data isolation and evidence/version rules.
+Checks and candidate hashes: tracking/evidence/page-drafts. Native acceptance pending.
+
+## Owner acceptance — completion-runbook decisions (October 20, 2026)
+
+Canonical record: [accepted #1–#52 and RD1–RD10](OWNER_DECISIONS_2026-10-20.md).
+Jordan accepted the recommendation list and final revisions in chat, then requested
+project-wide recording. This supersedes conflicting proposed defaults, including
+ADR-0041's historical close-to-quit default: target is configurable close-to-tray
+by default with first-close notice. Product ceilings are owner-adjustable, including
+above $20; the current $20 allowance and separate $20 T15 cap are unchanged.
+No universal three-repository cap; initial live verification is one private repo
+under a concrete scoped grant. Full rationale, gates, accepted deferrals, model/file/
+UX/pilot/distribution choices and research direction are in the register.
+
+This records design and operating choices, not implementation completion, protocol
+freeze, new spending, provider activation or publication. Existing config/evidence
+remain authoritative for actual implemented state. §2.1 interactive acceptance and
+new owner-default reconciliation remain pending; next eligible afterward is §2.2.
+
 ## ADR-0041 — Installed desktop studio: supervisor, storage and dependency ownership
 
 October 20, 2026. Accepted before implementation of COMPLETION_RUNBOOK §2.1 by Claude
@@ -804,3 +833,13 @@ versions and commands are in apps/desktop/README.md; exact results in evidence/x
 ## Owner-requested UX roadmap refinement — October 20, 2026 (planning)
 
 Owner requested routing/effort optimization, broad file operations and conversion, discoverable keyboard navigation, visual file relationships and further QoL ideas. COMPLETION_RUNBOOK §2.10–§2.15 records planned acceptance and phased delivery. Reuse X01/X02/X03 rather than parallel subsystems; evaluate sufficient quality by task class instead of guaranteeing universal sufficiency. Store/reference permitted arbitrary formats with an explicit supported-operation matrix, immutable evidence originals and versioned edits/conversions. Relationship suggestions remain distinct from provenance. Additional QoL proposals are prioritized for task-based validation; no new stack, provider, implementation sequence, study protocol or activation is approved by this planning record. Claude's current §2.1 remains the selected implementation work.
+
+## §2.5 provisional search adapter — October 20, 2026
+
+Existing SourceBroker/HttpFetchAdapter retained; no existing live search adapter was present to qualify (only synthetic tool.search_public). Add a disabled Brave raw Web Search candidate using the existing metered ModelBroker rather than inventing a second authorization/accounting path. Raw results remain unverified; source fetch and exact passage support remain separate. One request/page, ten results, task domains plus output filtering, no generated summary or credential redirects. Provider HTTP errors conservatively keep billing unknown. This is an implementation choice, not final coverage/cost/terms qualification or owner account activation. Official Brave guide recommends LLM Context for machine consumption; owner plan terms/storage rights and suitability must be checked before activation, with an alternative if unsuitable. Migration 25 reserved for Brave provider constraints; coordinate concurrent §2.4 migration allocation before durable application. Guide and evidence: docs/RESEARCH_RETRIEVAL.md, tracking/evidence/research-2-5.
+
+
+October 20, 2026 — Owner explicitly approved installed studio backup and migration
+24→25 during reset-layout update verification. Applied through native upgrade action;
+backup present and startup succeeded. Provider activation unchanged. Evidence:
+tracking/evidence/reset-layout/result.json.

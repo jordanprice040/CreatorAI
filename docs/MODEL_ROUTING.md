@@ -1,5 +1,7 @@
 # Model registry and qualified routing (X01)
 
+Accepted owner policy: [register #4–#10](../tracking/OWNER_DECISIONS_2026-10-20.md). Economy with measured quality floor is the target default; qualified local fallback and opt-in bounded paid fallback remain distinct. User-adjustable ceilings may exceed $20; the current studio allowance is unchanged. This is design direction, not new qualification evidence.
+
 X01 adds a versioned model registry, route policies, a held-out promotion gate and
 rollback on top of the T04 broker. Routing only chooses _which_ model serves a call:
 the broker still checks the run, grants, envelope and pricing for every routed call,

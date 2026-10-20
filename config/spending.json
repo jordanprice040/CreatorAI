@@ -7,5 +7,5 @@
   "decided_on": "2026-10-20",
   "source": "Owner decision after the 2026-10-20 audit: a $20 overall ceiling on new Creator Agent runtime spending until the owner explicitly approves more. The T15 study keeps its own $20 total, which counts inside this ceiling.",
   "covers": "Every paid dispatch in a real (non-fixture) workspace: workflow, study, portfolio, context, batch, routing benchmark and semantic search calls all reserve through the budget broker and count here. Open final study attempts count at their full frozen cap. Any paid call with an unknown outcome blocks new paid dispatch until it is reconciled.",
-  "change_rule": "Raising the ceiling is a reviewed change to this file with the owner's recorded approval, never a runtime setting."
+  "change_rule": "Current implementation: raising this configured ceiling requires a reviewed change with the owner's recorded approval. Accepted product target (tracking/OWNER_DECISIONS_2026-10-20.md #10): authenticated users may explicitly change their own overall and narrower limits in Settings, including above $20, through audited/versioned deterministic policy; agents cannot raise limits. Settings support is not established by this metadata update. The current $20 amount is unchanged."
 }

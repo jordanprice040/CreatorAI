@@ -2213,6 +2213,16 @@ create table context_batch_files (
 );
 `,
   },
+  {
+    version: 25,
+    name: 'public_search_provider',
+    sql: `
+alter table pricing_snapshots drop constraint pricing_snapshots_provider_check;
+alter table pricing_snapshots add constraint pricing_snapshots_provider_check check (provider in ('fixture','openai','brave'));
+alter table budget_reservations drop constraint budget_reservations_provider_check;
+alter table budget_reservations add constraint budget_reservations_provider_check check (provider in ('fixture','openai','brave'));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
