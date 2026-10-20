@@ -1,0 +1,248 @@
+import type { PlanConnectionService } from '@creator/broker';
+import { ContractError, parse, z } from '@creator/contracts';
+import type { CommandContext, ConnectionStore } from '@creator/db';
+import {
+  PlanRelay,
+  codexBuilder,
+  linuxCodexLauncher,
+  wslCodexLauncher,
+  type CodexLauncher,
+} from '@creator/executor';
+
+/**
+ * The Codex jail launcher from configuration: WSL2 on Windows (CREATOR_CODEX_DIR is the WSL
+ * path of the pinned binaries); on Linux only with the explicit development opt-in.
+ */
+export function codexLauncherFromEnv(
+  env: Record<string, string | undefined>,
+): CodexLauncher | null {
+  const dir = env.CREATOR_CODEX_DIR;
+  if (!dir) return null;
+  if (process.platform === 'win32')
+    return wslCodexLauncher({
+      distro: env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
+      codex_dir: dir,
+    });
+  if (env.CREATOR_CODEX_LINUX === 'dev' && env.CREATOR_CODEX_BWRAP)
+    return linuxCodexLauncher({
+      codex_dir: dir,
+      bwrap: env.CREATOR_CODEX_BWRAP,
+    });
+  return null;
+}
+const CodexBuildBody = z.strictObject({
+  build_id: z.uuid(),
+  run_id: z.uuid(),
+  model_id: z.string().min(1).max(120),
+  data_class: z.enum(['synthetic', 'public', 'private_approved']),
+  packet: z
+    .object({
+      candidate: z.string().regex(/^[0-9a-f]{40}$/),
+      files: z
+        .array(
+          z.object({ path: z.string().min(1).max(300), content: z.string() }),
+        )
+        .max(200),
+      task: z.object({
+        file_scope: z.array(z.string().min(1).max(300)).min(1).max(20),
+      }),
+    })
+    .passthrough(),
+});
+/** Codex turns per build in this process; the per-build request cap is the durable limit. */
+const codexTurns = new Map<string, number>();
+
+/** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
+export const CONNECTIONS_ROUTE =
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|qualifications|requests|reconcile|quota-recheck|codex-builds|run|finish))?)?$/;
+
+const VerifyBody = z.strictObject({
+  grant_id: z.uuid(),
+  model_id: z.string().min(1).max(120),
+});
+const SignInBody = z.strictObject({ open_browser: z.boolean().default(true) });
+const ReconcileBody = z.strictObject({ request_id: z.uuid() }).passthrough();
+const RecheckBody = z.strictObject({
+  expected_version: z.number().int().positive(),
+});
+
+export async function connectionRoutes(r: {
+  store: ConnectionStore;
+  service: PlanConnectionService | null;
+  codex: CodexLauncher | null;
+  ctx: CommandContext;
+  ws: string;
+  collection: string;
+  item: string | undefined;
+  action: string | undefined;
+  method: string;
+  body: () => Promise<unknown>;
+  send: (status: number, value: unknown, mutated: boolean) => Promise<boolean>;
+}): Promise<boolean> {
+  const { store, ctx, ws, collection, item, action, method, send } = r;
+  const get = method === 'GET';
+  const post = method === 'POST';
+  const service = () => {
+    if (!r.service)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'The ChatGPT plan service is not configured.',
+      );
+    return r.service;
+  };
+  if (collection === 'plan-qualifications' && item && post) {
+    if (action === 'run')
+      return send(200, await service().runQualification(ctx, ws, item), true);
+    if (action === 'finish')
+      return send(
+        200,
+        await store.finishPlanQualification(ctx, ws, item),
+        true,
+      );
+    return false;
+  }
+  if (collection !== 'plan-connections') return false;
+  if (!item) {
+    if (get) return send(200, await store.listPlanConnections(ctx, ws), false);
+    if (post)
+      return send(
+        201,
+        await store.createPlanConnection(ctx, ws, await r.body()),
+        true,
+      );
+    return false;
+  }
+  if (!action && get) {
+    const detail = await store.planConnectionDetail(ctx, ws, item);
+    return send(
+      200,
+      { ...detail, sign_in_attempt: r.service?.signInStatus(item) ?? null },
+      false,
+    );
+  }
+  if (action === 'requests' && get)
+    return send(200, await store.planRequests(ctx, ws, item), false);
+  if (!post) return false;
+  switch (action) {
+    case 'settings':
+      return send(
+        200,
+        await store.updatePlanSettings(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'accept-caps':
+      return send(
+        200,
+        await store.acceptPlanCaps(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'credits':
+      return send(
+        200,
+        await store.attestPlanCredits(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'credits-withdraw':
+      return send(
+        200,
+        await store.withdrawPlanCredits(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'sign-in': {
+      const b = parse(SignInBody, await r.body());
+      return send(202, await service().beginSignIn(ctx, ws, item, b), true);
+    }
+    case 'sign-out':
+      return send(200, await service().signOut(ctx, ws, item), true);
+    case 'verification-grants':
+      return send(
+        201,
+        await store.createPlanVerificationGrant(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'verify': {
+      const b = parse(VerifyBody, await r.body());
+      return send(
+        200,
+        await service().verifyModel(ctx, ws, item, {
+          id: b.grant_id,
+          model_id: b.model_id,
+        }),
+        true,
+      );
+    }
+    case 'qualifications':
+      return send(
+        201,
+        await store.startPlanQualification(ctx, ws, item, await r.body()),
+        true,
+      );
+    case 'reconcile': {
+      const { request_id, ...rest } = parse(ReconcileBody, await r.body()) as {
+        request_id: string;
+      } & Record<string, unknown>;
+      return send(
+        200,
+        await store.reconcilePlanRequest(ctx, ws, item, request_id, rest),
+        true,
+      );
+    }
+    case 'codex-builds': {
+      // One supervised Codex turn for a T12 build. T12 itself applies, reviews and tests it.
+      const b = parse(CodexBuildBody, await r.body());
+      if (!r.codex)
+        throw new ContractError(
+          'INVALID_CONFIG',
+          'The pinned Codex CLI is not configured for the studio (CREATOR_CODEX_DIR).',
+        );
+      const { connection } = await store.planConnectionDetail(ctx, ws, item);
+      const caps = connection.settings.caps.codex;
+      const turns = codexTurns.get(b.build_id) ?? 0;
+      if (turns >= caps.max_turns_per_build)
+        throw new ContractError(
+          'LIMIT_EXCEEDED',
+          'The per-build Codex turn cap is reached.',
+        );
+      codexTurns.set(b.build_id, turns + 1);
+      const admit = service().codexAdmission(ctx, ws, {
+        connection_id: item,
+        model_id: b.model_id,
+        run_id: b.run_id,
+        build_id: b.build_id,
+        data_class: b.data_class,
+      });
+      let record: unknown = null;
+      const out = await codexBuilder({
+        launcher: r.codex,
+        model: b.model_id,
+        timeout_ms: caps.build_timeout_ms,
+        relay: async () =>
+          new PlanRelay({
+            admit,
+            request_timeout_ms:
+              connection.settings.caps.responses.request_timeout_ms,
+            onViolation: () => {},
+          }),
+        record: async (result) => {
+          const { files: _, ...evidence } = result;
+          record = evidence;
+        },
+      })(b.packet as Parameters<ReturnType<typeof codexBuilder>>[0]);
+      return send(200, { ...out, evidence: record }, true);
+    }
+    case 'quota-recheck': {
+      const b = parse(RecheckBody, await r.body());
+      return send(
+        200,
+        await store.resetPlanQuotaObservation(
+          ctx,
+          ws,
+          item,
+          b.expected_version,
+        ),
+        true,
+      );
+    }
+  }
+  return false;
+}

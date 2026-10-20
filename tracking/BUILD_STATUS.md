@@ -1,5 +1,37 @@
 # Implementation status
 
+## §2.2 / §2.4 — ChatGPT plan connection and Codex builder (October 20, 2026)
+
+ADR-0042, migration 26, docs/MODEL_CONNECTIONS.md. Implemented and contract-verified,
+not activated.
+
+Works (against loopback stand-ins only): connection settings and caps with hash-bound
+acceptance; dated credits-off confirmation; Sign in with ChatGPT (PKCE, state/nonce, ID
+token signature and audience, refresh rotation, revocation on sign-out); DPAPI vault;
+direct Responses adapter (store:false, streamed, client-side output cap, documented
+`subscription_sharing_*` and `chatpass_v2_*` codes mapped to eligibility/quota/sign-in/
+model states); one-in-flight and daily/run caps; one-shot verification grants (≤60
+min); held-out qualification per task class; unknown-outcome reconciliation; API under
+`/plan-connections`, `pnpm cli plan-*`, System → Models and connections. Codex builder:
+relay, supervisor and bwrap jail, optional `codex_plan_builder` in a T12 build plan.
+
+Executed (cloud Linux, PostgreSQL test DB): full suite 345 tests, 328 pass, 16 skip,
+1 fail (`research-api` "research demonstration", uncaught "Connection terminated" from
+the maintenance outbox during database teardown; passes 3/3 alone; code untouched by
+this work). Changed files re-run: 48 tests, 46 pass, 2 WSL-gated skips. Codex host
+tests ran the pinned 0.163.0 binary as root and as an unprivileged user: in-scope patch
+lands, out-of-scope patch declined, function call, `tools.exec_command` and
+`local_shell_call` each cut by the relay, and the hardened config alone still runs none.
+Typecheck, web typecheck and format check pass. Codex 0.163.0 installed in Jordan's WSL
+Ubuntu by scripts/install-codex-wsl.sh (both binary SHA-256 match the pin); on Windows
+the 13 codex-host tests then passed 13/13 through the production WSL2 launcher.
+
+Not done: registration/eligibility (needs Jordan's sign-in), credits confirmation, cap
+acceptance, any live call, Codex install and native jail tests in Jordan's WSL, a
+Codex-path verification and a `code_build` qualification (Path B stays blocked by
+design). Next eligible: Jordan's backed-up upgrade to migration 26, sign-in, then the
+bounded verification in docs/MODEL_CONNECTIONS.md once approved.
+
 ## Reset layout installed and checked natively — October 20, 2026
 
 Rebuilt studio runtime, native release and unsigned NSIS installer; installed per-user

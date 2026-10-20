@@ -11,3 +11,7 @@ export * from './github.js';
 export * from './github-service.js';
 export * from './payments.js';
 export * from './payments-service.js';
+export * from './plan-oauth.js';
+export * from './plan-vault.js';
+export * from './plan-responses.js';
+export * from './plan-service.js';

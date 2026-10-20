@@ -24,6 +24,7 @@ import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
 import { Marketing } from './marketing.js';
+import { Models } from './models.js';
 import { Portfolio } from './portfolio.js';
 import {
   Icon,
@@ -381,6 +382,8 @@ function App() {
         return (
           <Marketing key={workspace.id} workspace={workspace} session={s} />
         );
+      case 'models':
+        return <Models key={workspace.id} workspace={workspace} session={s} />;
       case 'operations':
         return <Operations />;
       case 'desktop':

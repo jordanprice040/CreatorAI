@@ -1,8 +1,8 @@
 # ADR-0042: ChatGPT-plan and Codex integration route, eligibility and isolation
 
-Status: **Proposed** (2026-10-20). Not accepted, not implemented. Kept as its own file
-because `tracking/DECISIONS.md` has uncommitted local edits and is being changed by
-the §2.1 work; fold it into DECISIONS.md (newest first) when this design is accepted.
+Status: **Accepted** (2026-10-20, Jordan accepted the recommendations) and folded
+into `tracking/DECISIONS.md` as "ADR-0042". This file keeps the original proposal text
+for reference; the decision log entry is authoritative.
 
 Design: [docs/CODEX_INTEGRATION.md](../docs/CODEX_INTEGRATION.md).
 

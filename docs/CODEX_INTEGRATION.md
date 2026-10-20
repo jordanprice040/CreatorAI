@@ -1,8 +1,12 @@
 # ChatGPT-plan and Codex integration design (runbook §2.4 preparation)
 
-Status: **proposed design, not implemented.** Prepared 2026-10-20 for Jordan's review.
-Nothing here signs in, registers an OAuth client, installs a binary, calls a model or
-changes spending. Proposed decision record: [ADR-0042](../tracking/ADR-0042-codex-integration.md).
+Status: **accepted 2026-10-20; implemented and contract-verified, not activated.**
+Jordan accepted the recommendations below (Q1–Q7 answers in §8). The implementation,
+how to use it and what is still blocked are in
+[MODEL_CONNECTIONS.md](MODEL_CONNECTIONS.md); the decision is ADR-0042 in
+`tracking/DECISIONS.md`. Nothing has signed in, registered a client, installed a
+binary on Jordan's machine or called a model yet. Sections 1–7 are the design as
+proposed; where the build differs, §10 says so.
 
 This document answers three questions from `docs/COMPLETION_RUNBOOK.md` §2.4:
 
@@ -313,17 +317,22 @@ Listed so the next milestone can be scoped; none are made here.
   quota error pauses and does not fall back to paid; refresh race; crash mid-turn
   leaves an unknown outcome and no redispatch; study conditions refuse the route.
 
-## 8. Open questions for Jordan
+## 8. Owner answers (October 20, 2026)
 
-| #   | Question                                                                                                                                      | Default if unanswered                                                                         |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Q1  | Does a private, local, non-distributed Creator Agent qualify for ChatGPT plan usage? Try registration, ask OpenAI, or open-source the client? | Build locally; activation waits.                                                              |
-| Q2  | Which ChatGPT plan (Plus or Pro) will be connected?                                                                                           | Resolved: Jordan confirmed Plus on October 20, 2026; connection verification remains pending. |
-| Q3  | Credits after limit: keep the connection blocked until you confirm credits are off for Creator Agent in ChatGPT Settings?                     | Blocked.                                                                                      |
-| Q4  | Approve installing a pinned Linux Codex CLI into the `Ubuntu` WSL2 distro for the agent host (exact version and hash shown first)?            | Path B not built past contract tests.                                                         |
-| Q5  | Initial quota caps: requests/turns per run and per day, per-request time and output limits.                                                   | Pilot defaults from #31 (one job, 30-minute run) plus a small per-day request cap you set.    |
-| Q6  | Allowed data classes for this connection.                                                                                                     | `synthetic` and `public` only.                                                                |
-| Q7  | Which Path A task classes to qualify first.                                                                                                   | `summarization` and `specification`.                                                          |
+| #   | Question                   | Jordan's answer                                                                                                                                                          |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Q1  | Private client eligibility | Try the supported private-client registration. Keep Creator Agent private; if refused or unclear, report the exact blocker. Do not publish the client or contact OpenAI. |
+| Q2  | Plan                       | ChatGPT Plus. Its usage allowance is shared with Jordan's personal Codex use.                                                                                            |
+| Q3  | Credits after limit        | Keep disabled. Build the connection and tests now; block inference until Jordan confirms credits are off for Creator Agent. No silent paid fallback.                     |
+| Q4  | Linux Codex CLI in WSL     | Allowed after presenting the exact version, official download source and verified hash.                                                                                  |
+| Q5  | Caps                       | Propose conservative request/turn, daily, timeout and output caps before activation.                                                                                     |
+| Q6  | Data classes               | Public and synthetic.                                                                                                                                                    |
+| Q7  | First task classes         | Summarization and specification.                                                                                                                                         |
+
+Jordan also required: "no command execution" enforced and tested deterministically
+(declining approvals is not enough), the T12 isolated build, held-out checks and
+independent review preserved, and sign-in, model access and task qualification kept
+as separate verified states.
 
 ## 9. Rollback
 
@@ -346,3 +355,21 @@ broker, T11 and T12 paths are unchanged.
 - Codex app-server protocol: https://learn.chatgpt.com/docs/app-server
 - Codex config reference: https://learn.chatgpt.com/docs/config-file/config-reference
 - Codex environment variables: https://learn.chatgpt.com/docs/config-file/environment-variables
+
+## 10. Where the implementation differs from the proposal
+
+- **Network path for Codex.** The jail has no network except loopback. Codex talks to a
+  studio relay (through the WSL bridge's stdio tunnel), not to `api.openai.com`. The
+  relay holds the real token, so the jail never sees it (stronger than §5.1's
+  "short-lived token in the jail" and its egress proxy).
+- **Command blocking is enforced in four places**, not by declining approvals: hardened
+  config, relay tool allowlist on requests and on streamed calls, supervisor kill on any
+  command/unknown item or server request, and a jail with only the two static Codex
+  binaries. Probing the pinned binary showed default Codex runs commands without asking
+  for approval at all, so approvals alone were confirmed insufficient.
+- **Accounting** is a separate `plan_requests` ledger with studio caps (migration 26),
+  not an extension of the dollar budget contracts; no provider enum or registry entry
+  was added, so the X01 router and the dollar broker are unchanged.
+- **Codex path activation** needs two steps that do not exist yet: a one-call
+  verification on the Codex path and a `code_build` qualification. Until both are built
+  and run, admission refuses every Codex build request.

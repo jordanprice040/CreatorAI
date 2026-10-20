@@ -1,0 +1,348 @@
+import { z, id, hash, timestamp, counter, version } from './primitives.js';
+import { DataClassSchema } from './oversight.js';
+import {
+  BenchmarkManifestSchema,
+  RateSchema,
+  TaskClassSchema,
+} from './routing.js';
+
+// §2.2/§2.4 model connections. A ChatGPT-plan connection uses Sign in with ChatGPT plan usage
+// (one OAuth token) through two separate capabilities: direct Responses calls for general
+// inference and Codex app-server for code_build. Sign-in, model access and task
+// qualification are separate verified states; none implies another. Tokens never appear in
+// these records: the database stores only a vault reference.
+
+export const CONNECTIONS_POLICY_VERSION = 'connections/1.0' as const;
+const short = z.string().trim().min(1).max(200);
+const note = z.string().trim().min(1).max(1200);
+const label = z.string().trim().min(1).max(80);
+
+export const PlanPathSchema = z.enum(['responses', 'codex']);
+export type PlanPath = z.infer<typeof PlanPathSchema>;
+/** Task classes the direct Responses path may serve once qualified. */
+export const PLAN_RESPONSES_TASK_CLASSES = [
+  'research_synthesis',
+  'candidate_generation',
+  'scoring',
+  'specification',
+  'summarization',
+] as const;
+export const PlanTaskClassSchema = TaskClassSchema.extract([
+  ...PLAN_RESPONSES_TASK_CLASSES,
+  'code_build',
+]);
+export type PlanTaskClass = z.infer<typeof PlanTaskClassSchema>;
+export const pathForTaskClass = (t: PlanTaskClass): PlanPath =>
+  t === 'code_build' ? 'codex' : 'responses';
+
+/**
+ * Studio-side caps, in units the studio can enforce itself. They are not OpenAI's limits: a
+ * request can still be refused by the provider's own (shared) plan allowance.
+ */
+export const PlanCapsSchema = z.strictObject({
+  responses: z.strictObject({
+    max_requests_per_run: counter.min(1).max(50),
+    request_timeout_ms: counter.min(5_000).max(300_000),
+    /** Enforced client-side by ending the stream; the plan route rejects max_output_tokens. */
+    max_output_chars: counter.min(500).max(200_000),
+    max_input_chars: counter.min(500).max(200_000),
+  }),
+  codex: z.strictObject({
+    max_builds_per_day: counter.min(0).max(20),
+    max_turns_per_build: counter.min(1).max(3),
+    max_model_requests_per_build: counter.min(1).max(60),
+    build_timeout_ms: counter.min(60_000).max(1_800_000),
+  }),
+  shared: z.strictObject({
+    /** Rolling 24 hours, both paths together. */
+    max_model_requests_per_day: counter.min(1).max(300),
+    max_in_flight: z.literal(1),
+  }),
+});
+export type PlanCaps = z.infer<typeof PlanCapsSchema>;
+
+export const PlanTypeSchema = z.enum(['plus', 'pro', 'unknown']);
+export const PlanSettingsSchema = z
+  .strictObject({
+    format: z.literal('chatgpt-plan-settings/1'),
+    plan_type: PlanTypeSchema,
+    /** Plus shares its five-hour allowance with every app, including personal Codex use. */
+    shared_allowance_note: note,
+    allowed_data_classes: z.array(DataClassSchema).min(1).max(3),
+    allowed_task_classes: z.array(PlanTaskClassSchema).min(1).max(6),
+    caps: PlanCapsSchema,
+  })
+  .superRefine((s, ctx) => {
+    for (const [k, list] of [
+      ['allowed_data_classes', s.allowed_data_classes],
+      ['allowed_task_classes', s.allowed_task_classes],
+    ] as const)
+      if (new Set(list).size !== list.length)
+        ctx.addIssue({ code: 'custom', message: `${k} has duplicates.` });
+  });
+export type PlanSettings = z.infer<typeof PlanSettingsSchema>;
+
+export const CreatePlanConnectionRequestSchema = z.strictObject({
+  label,
+  settings: PlanSettingsSchema,
+});
+export const UpdatePlanSettingsRequestSchema = z.strictObject({
+  expected_version: version,
+  settings: PlanSettingsSchema,
+});
+/** Owner accepts the exact caps now stored; any later settings change clears the acceptance. */
+export const AcceptPlanCapsRequestSchema = z.strictObject({
+  expected_version: version,
+  settings_hash: hash,
+});
+/**
+ * The studio cannot see per request whether ChatGPT credits were used after a plan limit, so
+ * inference stays blocked until the owner records that credits are off for this app.
+ */
+export const CREDITS_OFF_STATEMENT =
+  'I checked ChatGPT Settings > Usage: Creator Agent is not allowed to use credits after reaching plan limits.' as const;
+export const AttestCreditsRequestSchema = z.strictObject({
+  expected_version: version,
+  statement: z.literal(CREDITS_OFF_STATEMENT),
+  checked_on: z.iso.date(),
+});
+export const WithdrawCreditsRequestSchema = z.strictObject({
+  expected_version: version,
+  reason: note,
+});
+
+export const SignInStateSchema = z.enum([
+  'not_signed_in',
+  'signed_in',
+  'reauthorization_required',
+  'signed_out',
+]);
+export const EligibilityStateSchema = z.enum([
+  'unknown',
+  'eligible',
+  'not_eligible',
+  'temporarily_unavailable',
+]);
+export const QuotaStateSchema = z.enum([
+  'unknown',
+  'available',
+  'exhausted',
+  'unavailable',
+]);
+export const PlanConnectionSchema = z.strictObject({
+  id,
+  workspace_id: id,
+  fixture: z.boolean(),
+  kind: z.literal('chatgpt_plan'),
+  label,
+  version,
+  settings: PlanSettingsSchema,
+  settings_hash: hash,
+  caps_accepted_at: timestamp.nullable(),
+  ext_agent_host_id: short,
+  sign_in: z.strictObject({
+    state: SignInStateSchema,
+    issued_client_id: short.nullable(),
+    account_label: short.nullable(),
+    scopes: z.array(short).max(20),
+    plan_usage_granted: z.boolean(),
+    verified_at: timestamp.nullable(),
+    access_expires_at: timestamp.nullable(),
+  }),
+  credits: z.strictObject({
+    state: z.enum(['unconfirmed', 'confirmed_off']),
+    checked_on: z.iso.date().nullable(),
+    confirmed_at: timestamp.nullable(),
+    confirmed_by: id.nullable(),
+  }),
+  eligibility: z.strictObject({
+    state: EligibilityStateSchema,
+    reason_code: short.nullable(),
+    upstream_request_id: short.nullable(),
+    observed_at: timestamp.nullable(),
+  }),
+  quota: z.strictObject({
+    state: QuotaStateSchema,
+    reason_code: short.nullable(),
+    observed_at: timestamp.nullable(),
+  }),
+  status_reason: note.nullable(),
+  created_at: timestamp,
+  updated_at: timestamp,
+});
+export type PlanConnection = z.infer<typeof PlanConnectionSchema>;
+
+/** One verified-access fact per (model, path). A catalog listing never creates one. */
+export const PlanModelAccessSchema = z.strictObject({
+  connection_id: id,
+  model_id: short,
+  path: PlanPathSchema,
+  access: z.enum(['verified', 'refused']),
+  reason_code: short.nullable(),
+  request_id: id,
+  verified_at: timestamp,
+});
+export type PlanModelAccess = z.infer<typeof PlanModelAccessSchema>;
+
+/** A one-shot owner approval for the live call that verifies one model on one path. */
+export const CreateVerificationGrantRequestSchema = z.strictObject({
+  expected_version: version,
+  model_id: short,
+  path: PlanPathSchema,
+  expires_in_minutes: counter.min(1).max(60),
+});
+export const PlanVerificationGrantSchema = z.strictObject({
+  id,
+  connection_id: id,
+  model_id: short,
+  path: PlanPathSchema,
+  max_requests: z.literal(1),
+  used: counter.max(1),
+  expires_at: timestamp,
+  created_by: id,
+  created_at: timestamp,
+});
+export type PlanVerificationGrant = z.infer<typeof PlanVerificationGrantSchema>;
+
+export const PlanPurposeSchema = z.enum([
+  'verification',
+  'qualification',
+  'task',
+  'codex_build',
+]);
+export const PlanAdmissionRequestSchema = z
+  .strictObject({
+    connection_id: id,
+    logical_operation_id: id,
+    path: PlanPathSchema,
+    purpose: PlanPurposeSchema,
+    model_id: short,
+    task_class: PlanTaskClassSchema.nullable(),
+    data_class: DataClassSchema,
+    run_id: id.nullable(),
+    /** Codex: every upstream model request of one build carries the build id. */
+    build_id: id.nullable(),
+    grant_id: id.nullable(),
+    qualification_id: id.nullable(),
+    input_chars: counter,
+  })
+  .superRefine((r, ctx) => {
+    const issue = (message: string) =>
+      ctx.addIssue({ code: 'custom', message });
+    if ((r.purpose === 'verification') !== (r.grant_id !== null))
+      issue(
+        'A verification request names its one-shot grant, and only it does.',
+      );
+    if ((r.purpose === 'qualification') !== (r.qualification_id !== null))
+      issue(
+        'A qualification request names its qualification run, and only it does.',
+      );
+    if ((r.purpose === 'codex_build') !== (r.build_id !== null))
+      issue('A Codex build request names its build, and only it does.');
+    if ((r.purpose === 'codex_build') !== (r.path === 'codex'))
+      issue('Only Codex builds use the Codex path.');
+    if (r.purpose === 'task' && r.task_class === null)
+      issue('A task request names its task class.');
+    if (r.task_class && pathForTaskClass(r.task_class) !== r.path)
+      issue('This task class belongs to the other path.');
+  });
+export type PlanAdmissionRequest = z.infer<typeof PlanAdmissionRequestSchema>;
+
+export const PlanRequestStateSchema = z.enum([
+  'in_flight',
+  'completed',
+  'failed',
+  'rejected',
+  'unknown',
+  'reconciled',
+]);
+export const PlanRequestSchema = z.strictObject({
+  id,
+  connection_id: id,
+  logical_operation_id: id,
+  path: PlanPathSchema,
+  purpose: PlanPurposeSchema,
+  model_id: short,
+  task_class: PlanTaskClassSchema.nullable(),
+  data_class: DataClassSchema,
+  run_id: id.nullable(),
+  build_id: id.nullable(),
+  state: PlanRequestStateSchema,
+  reason_code: short.nullable(),
+  upstream_request_id: short.nullable(),
+  /** Observed only; null when the stream did not report it, never assumed zero. */
+  output_tokens: counter.nullable(),
+  output_chars: counter.nullable(),
+  output_hash: hash.nullable(),
+  started_at: timestamp,
+  finished_at: timestamp.nullable(),
+});
+export type PlanRequest = z.infer<typeof PlanRequestSchema>;
+
+/** How a finished plan request ended, as observed by the adapter or relay. */
+export const PlanSettlementSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('completed'),
+    upstream_request_id: short.nullable(),
+    output_tokens: counter.nullable(),
+    output_chars: counter,
+    output_hash: hash,
+  }),
+  z.strictObject({
+    state: z.enum(['failed', 'rejected', 'unknown']),
+    reason_code: short,
+    upstream_request_id: short.nullable(),
+    output_chars: counter.nullable(),
+  }),
+]);
+export type PlanSettlement = z.infer<typeof PlanSettlementSchema>;
+export const ReconcilePlanRequestSchema = z.strictObject({
+  expected_version: version,
+  outcome: z.enum(['did_not_run', 'ran']),
+  note,
+});
+
+/**
+ * Qualification gate: absolute held-out pass rate against a frozen route-benchmark/1 manifest.
+ * It is not baseline-relative; the owner's reference model is not reachable on this route.
+ */
+export const StartPlanQualificationRequestSchema = z.strictObject({
+  expected_version: version,
+  model_id: short,
+  manifest: BenchmarkManifestSchema,
+  min_held_out_cases: counter.min(3).max(200),
+  floor: RateSchema,
+});
+export const PlanQualificationSchema = z.strictObject({
+  id,
+  connection_id: id,
+  model_id: short,
+  task_class: PlanTaskClassSchema,
+  manifest_hash: hash,
+  min_held_out_cases: counter,
+  floor: RateSchema,
+  state: z.enum(['running', 'qualified', 'failed', 'abandoned']),
+  development: z.strictObject({ passed: counter, total: counter }),
+  held_out: z.strictObject({ passed: counter, total: counter }),
+  reason: note.nullable(),
+  created_by: id,
+  created_at: timestamp,
+  decided_at: timestamp.nullable(),
+});
+export type PlanQualification = z.infer<typeof PlanQualificationSchema>;
+
+export const PlanConnectionDetailSchema = z.strictObject({
+  connection: PlanConnectionSchema,
+  model_access: z.array(PlanModelAccessSchema),
+  qualifications: z.array(PlanQualificationSchema),
+  grants: z.array(PlanVerificationGrantSchema),
+  usage: z.strictObject({
+    last_24h_requests: counter,
+    last_24h_codex_builds: counter,
+    in_flight: counter,
+    unresolved: counter,
+  }),
+  /** Every reason inference would be refused right now, in plain words. Empty means ready. */
+  blockers: z.array(note),
+});
+export type PlanConnectionDetail = z.infer<typeof PlanConnectionDetailSchema>;

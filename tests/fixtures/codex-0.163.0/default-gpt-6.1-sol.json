@@ -1,0 +1,96 @@
+{
+  "model": "gpt-6.1-sol",
+  "store": false,
+  "stream": true,
+  "tools": [],
+  "input": [
+    {
+      "type": "additional_tools",
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "functions",
+          "tools": [
+            {
+              "type": "custom",
+              "name": "exec",
+              "description": "### `apply_patch`\n### `create_goal`\n### `exec_command`\n### `get_goal`\n### `list_mcp_resource_templates`\n### `list_mcp_resources`\n### `read_mcp_resource`\n### `update_goal`\n### `view_image`\n### `write_stdin`\n### `clock__curr_time`"
+            },
+            {
+              "type": "function",
+              "name": "wait",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "request_user_input",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "request_user_input_async",
+              "description": "",
+              "strict": false
+            }
+          ]
+        },
+        {
+          "type": "namespace",
+          "name": "clock",
+          "tools": [
+            {
+              "type": "function",
+              "name": "sleep",
+              "description": "",
+              "strict": false
+            }
+          ]
+        },
+        {
+          "type": "namespace",
+          "name": "collaboration",
+          "tools": [
+            {
+              "type": "function",
+              "name": "followup_task",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "interrupt_agent",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "list_agents",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "send_message",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "spawn_agent",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "wait_agent",
+              "description": "",
+              "strict": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

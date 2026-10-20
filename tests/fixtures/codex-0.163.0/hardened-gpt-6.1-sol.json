@@ -1,0 +1,42 @@
+{
+  "model": "gpt-6.1-sol",
+  "store": false,
+  "stream": true,
+  "tools": [],
+  "input": [
+    {
+      "type": "additional_tools",
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "functions",
+          "tools": [
+            {
+              "type": "custom",
+              "name": "exec",
+              "description": "### `apply_patch`\n### `list_mcp_resource_templates`\n### `list_mcp_resources`\n### `read_mcp_resource`\n### `clock__curr_time`"
+            },
+            {
+              "type": "function",
+              "name": "wait",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "request_user_input",
+              "description": "",
+              "strict": false
+            },
+            {
+              "type": "function",
+              "name": "request_user_input_async",
+              "description": "",
+              "strict": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

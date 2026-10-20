@@ -1,5 +1,12 @@
 # Integration readiness
 
+October 20, 2026 §2.2/§2.4 (ADR-0042): ChatGPT plan connection (Sign in with ChatGPT,
+direct Responses) and Codex 0.163.0 builder implemented and verified only against
+loopback stand-ins and the pinned binary with a fake relay upstream. No client was
+registered, no sign-in, no model call, no Codex install on Jordan's machine. Activation
+needs Jordan's sign-in, dated credits-off confirmation, cap acceptance and one approved
+verification call. No readiness state promoted. See docs/MODEL_CONNECTIONS.md.
+
 October 20 reset layout: rebuilt/installed and checked in native app. Owner-approved
 backed-up schema 24→25 upgrade applied; no provider activated or readiness promoted.
 Evidence: tracking/evidence/reset-layout/result.json.
