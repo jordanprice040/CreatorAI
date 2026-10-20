@@ -1,0 +1,85 @@
+{
+  "format": "creator-desktop-acceptance/1",
+  "started_at": "2026-10-20T07:06:39.242Z",
+  "installed_exe": "C:\\Users\\jorda\\AppData\\Local\\Creator Agent\\creator-desktop.exe",
+  "bundle": {
+    "format": "creator-desktop-bundle/1",
+    "built_at": "2026-10-20T06:56:14.275Z",
+    "source_commit": "5f7d22443e91f421197b3b0f9b1d3e623afc9edf",
+    "source_dirty": true,
+    "node_version": "v22.21.0"
+  },
+  "home_kind": "isolated acceptance home under %TEMP%, not the owner default",
+  "interactive_not_executed": [
+    "first-run setup screen clicks",
+    "menu sign-in as local owner and record creation inside the window",
+    "background/tray mode and launch-at-login toggles",
+    "Windows restart"
+  ],
+  "studio_ports_busy_before_launch": false,
+  "finished_at": "2026-10-20T07:08:20.597Z",
+  "results": [
+    {
+      "check": "adopt existing creator_studio read-only into the managed cluster",
+      "ok": true,
+      "detail": {
+        "workspaces": [
+          {
+            "name": "Jordan’s Creator Studio",
+            "record_mode": "real"
+          }
+        ],
+        "counts": {
+          "entities": 0,
+          "entity_links": 0,
+          "audit_events": 4,
+          "decision_requests": 0,
+          "budget_envelopes": 0,
+          "budget_reservations": 0,
+          "workflows": 0,
+          "research_sources": 0,
+          "spec_freezes": 0,
+          "study_attempts": 0,
+          "artifact_manifests": 0,
+          "artifact_feedback": 0
+        },
+        "audit_chain": {
+          "ok": true,
+          "events": 4,
+          "broken_at": null
+        },
+        "products_files": 0
+      }
+    },
+    {
+      "check": "harness",
+      "ok": false,
+      "detail": {
+        "error": "Timed out waiting for [running] after line 1"
+      }
+    }
+  ],
+  "supervisor_log": [
+    "2026-10-20T07:06:49Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-81fd289a)",
+    "2026-10-20T07:06:49Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:06:50Z started the app's PostgreSQL",
+    "2026-10-20T07:06:50Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:06:50Z studio service exited with code Some(1)",
+    "2026-10-20T07:06:50Z [starting] Restarting the studio service — It stopped unexpectedly. Restart 1 of 3; durable work resumes and uncertain outcomes stay for review.",
+    "2026-10-20T07:06:51Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:06:51Z reusing the app's running PostgreSQL",
+    "2026-10-20T07:06:51Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:06:51Z studio service exited with code Some(1)",
+    "2026-10-20T07:06:51Z [starting] Restarting the studio service — It stopped unexpectedly. Restart 2 of 3; durable work resumes and uncertain outcomes stay for review.",
+    "2026-10-20T07:06:55Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:06:55Z reusing the app's running PostgreSQL",
+    "2026-10-20T07:06:55Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:06:55Z studio service exited with code Some(1)",
+    "2026-10-20T07:06:55Z [starting] Restarting the studio service — It stopped unexpectedly. Restart 3 of 3; durable work resumes and uncertain outcomes stay for review.",
+    "2026-10-20T07:07:10Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:07:10Z reusing the app's running PostgreSQL",
+    "2026-10-20T07:07:10Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:07:10Z studio service exited with code Some(1)",
+    "2026-10-20T07:07:10Z [failed] The studio service keeps stopping — It stopped unexpectedly three times in ten minutes, so automatic restarts are paused. Your records are saved. Open the logs, then choose Retry."
+  ]
+}

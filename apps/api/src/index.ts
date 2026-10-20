@@ -384,7 +384,12 @@ export function createApi(
             : {}),
         })
       : null;
-  const authn = createAuth(auth, store, ownerId);
+  const authn = createAuth(
+    auth,
+    store,
+    ownerId,
+    deployment.mode === 'local' && env.CREATOR_DESKTOP_MANAGED === '1',
+  );
   let storage: 'postgresql' | 'not_configured' | 'unavailable' = pool
     ? 'unavailable'
     : 'not_configured';

@@ -4,12 +4,34 @@
   "version": "0.1.0",
   "identifier": "com.creatoragent.studio",
   "build": {
-    "frontendDist": "../../web/dist"
+    "frontendDist": "../control"
   },
   "app": {
     "windows": [],
     "security": {
-      "capabilities": []
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src ipc: http://ipc.localhost",
+      "capabilities": [
+        {
+          "identifier": "control-window",
+          "description": "Bundled setup/status window only; the remote studio UI has no native IPC.",
+          "local": true,
+          "windows": ["control"],
+          "permissions": [
+            "allow-studio-state",
+            "allow-studio-detect-postgres",
+            "allow-studio-inspect-source",
+            "allow-studio-setup",
+            "allow-studio-retry",
+            "allow-studio-migrate",
+            "allow-studio-preferences",
+            "allow-studio-sign-in",
+            "allow-studio-sign-out",
+            "allow-studio-open-logs",
+            "allow-studio-open",
+            "allow-studio-quit"
+          ]
+        }
+      ]
     }
   },
   "bundle": {

@@ -1,0 +1,110 @@
+{
+  "format": "creator-desktop-acceptance/1",
+  "started_at": "2026-10-20T07:10:09.127Z",
+  "installed_exe": "C:\\Users\\jorda\\AppData\\Local\\Creator Agent\\creator-desktop.exe",
+  "bundle": {
+    "format": "creator-desktop-bundle/1",
+    "built_at": "2026-10-20T06:56:14.275Z",
+    "source_commit": "5f7d22443e91f421197b3b0f9b1d3e623afc9edf",
+    "source_dirty": true,
+    "node_version": "v22.21.0"
+  },
+  "home_kind": "isolated acceptance home under %TEMP%, not the owner default",
+  "interactive_not_executed": [
+    "first-run setup screen clicks",
+    "menu sign-in as local owner and record creation inside the window",
+    "background/tray mode and launch-at-login toggles",
+    "Windows restart"
+  ],
+  "studio_ports_busy_before_launch": false,
+  "finished_at": "2026-10-20T07:10:22.073Z",
+  "results": [
+    {
+      "check": "adopt existing creator_studio read-only into the managed cluster",
+      "ok": true,
+      "detail": {
+        "workspaces": [
+          {
+            "name": "Jordan’s Creator Studio",
+            "record_mode": "real"
+          }
+        ],
+        "counts": {
+          "entities": 0,
+          "entity_links": 0,
+          "audit_events": 4,
+          "decision_requests": 0,
+          "budget_envelopes": 0,
+          "budget_reservations": 0,
+          "workflows": 0,
+          "research_sources": 0,
+          "spec_freezes": 0,
+          "study_attempts": 0,
+          "artifact_manifests": 0,
+          "artifact_feedback": 0
+        },
+        "audit_chain": {
+          "ok": true,
+          "events": 4,
+          "broken_at": null
+        },
+        "products_files": 0
+      }
+    },
+    {
+      "check": "cold installed launch reaches running with ownership verified",
+      "ok": true,
+      "detail": {
+        "seconds": 2.222
+      }
+    },
+    {
+      "check": "API health from installed service",
+      "ok": true,
+      "detail": {
+        "storage": "postgresql",
+        "data_mode": "fixture"
+      }
+    },
+    {
+      "check": "production UI served (no dev server)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "check": "sign-in is app-managed (code never displayed)",
+      "ok": true,
+      "detail": {
+        "mode": "dev_local",
+        "available": true,
+        "login_path": "/api/auth/dev-login",
+        "managed_by": "desktop_app"
+      }
+    },
+    {
+      "check": "preview origin listening",
+      "ok": true
+    },
+    {
+      "check": "exactly one service child, owned by the app",
+      "ok": false,
+      "detail": {
+        "nodes": 0
+      }
+    },
+    {
+      "check": "harness",
+      "ok": false,
+      "detail": {
+        "error": "Cannot read properties of undefined (reading 'CommandLine')"
+      }
+    }
+  ],
+  "supervisor_log": [
+    "2026-10-20T07:10:18Z Creator Agent 0.1.0 starting (home C:\\Users\\jorda\\AppData\\Local\\Temp\\creator-acceptance-b7bbaa89)",
+    "2026-10-20T07:10:18Z [starting] Starting Creator Agent — Connecting to the studio database (app-managed PostgreSQL on 127.0.0.1:55440)",
+    "2026-10-20T07:10:19Z started the app's PostgreSQL",
+    "2026-10-20T07:10:19Z [starting] Starting Creator Agent — Starting the studio service",
+    "2026-10-20T07:10:19Z [running] Creator Agent is running — The studio, its workflow worker and private previews are running on this computer."
+  ]
+}

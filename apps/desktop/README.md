@@ -1,5 +1,11 @@
 # Windows desktop and paired workers — X05
 
+> **October 20, 2026 (§2.1, ADR-0041):** the installed app now starts the whole local
+> studio itself — app-managed PostgreSQL, one bundled Node service for UI/API/worker/
+> previews, ownership-checked ports, DPAPI sign-in, quit/background settings. See
+> [docs/DESKTOP_STUDIO.md](../../docs/DESKTOP_STUDIO.md). The instructions below describe
+> the development shell and X05 probes, which still run against separately started services.
+
 Status on October 19, 2026: native functional and local installer gates verified on this Windows host.
 Native UI/editor acceptance passed with local fixture approval and real WSL execution.
 Production signing/provider activation remain unverified.

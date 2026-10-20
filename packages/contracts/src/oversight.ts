@@ -435,6 +435,8 @@ export const AuthStatusSchema = z.strictObject({
   mode: AuthModeSchema,
   available: z.boolean(),
   login_path: z.string().max(200),
+  /** §2.1: the installed desktop app holds the local-owner code; sign in from its menu. */
+  managed_by: z.literal('desktop_app').optional(),
 });
 export const DevLoginRequestSchema = z.strictObject({
   code: z.string().min(32).max(200),
