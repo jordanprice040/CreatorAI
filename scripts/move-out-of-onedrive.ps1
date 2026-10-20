@@ -47,6 +47,11 @@ if ((Test-Path -LiteralPath $Target) -and @(Get-ChildItem -LiteralPath $Target -
 foreach ($tool in 'git', 'corepack', 'docker', 'node') {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH." }
 }
+# The backup step needs PostgreSQL 18 client tools (docs/BACKUP_AND_RESTORE.md).
+$pgDump = if ($env:CREATOR_PG_BIN) { Join-Path $env:CREATOR_PG_BIN 'pg_dump.exe' } else { 'pg_dump' }
+if (-not (Get-Command $pgDump -ErrorAction SilentlyContinue)) {
+    throw 'pg_dump was not found. Install the PostgreSQL 18 command-line tools and set $env:CREATOR_PG_BIN to their bin folder.'
+}
 
 Push-Location -LiteralPath $Source
 try {
@@ -109,6 +114,9 @@ try {
     Step 'Installing and building in the new location'
     Run @('corepack', 'pnpm', 'install', '--frozen-lockfile')
     Run @('corepack', 'pnpm', '-s', 'build:code')
+    # Call the built backup tool directly: `pnpm backup` starts a nested pnpm, which can pick
+    # up a different global pnpm than corepack's (seen on Windows with pnpm 12 installed).
+    $backupCli = Join-Path $Target 'packages\db\dist\backup-main.js'
 
     Step 'Connecting to the Docker database (same volume as before)'
     $envFile = Join-Path $Target '.env.docker'
@@ -119,13 +127,13 @@ try {
     $env:CREATOR_DATABASE_URL = "postgresql://creator:$password@127.0.0.1:55433/creator_dev"
     $env:CREATOR_PRODUCTS_ROOT = Join-Path $Target '.creator\products'
     New-Item -ItemType Directory -Force -Path $env:CREATOR_PRODUCTS_ROOT | Out-Null
-    Run @('corepack', 'pnpm', 'backup', 'verify')
+    Run @('node', $backupCli, 'verify')
 
     $stamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')
     $backup = Join-Path $BackupRoot $stamp
     Step "Taking a backup to $backup"
     New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
-    Run @('corepack', 'pnpm', 'backup', 'create', $backup)
+    Run @('node', $backupCli, 'create', $backup)
 
     Step 'Proving the backup restores into an empty database'
     $check = "creator_restore_check_$stamp".Replace('-', '_')
@@ -134,8 +142,8 @@ try {
     try {
         $env:CREATOR_DATABASE_URL = "postgresql://creator:$password@127.0.0.1:55433/$check"
         $env:CREATOR_PRODUCTS_ROOT = $restoredProducts
-        Run @('corepack', 'pnpm', 'backup', 'restore', $backup)
-        Run @('corepack', 'pnpm', 'backup', 'verify')
+        Run @('node', $backupCli, 'restore', $backup)
+        Run @('node', $backupCli, 'verify')
         Write-Output "  Restore check passed: $check matches the backup."
     } finally {
         $env:CREATOR_DATABASE_URL = "postgresql://creator:$password@127.0.0.1:55433/creator_dev"
