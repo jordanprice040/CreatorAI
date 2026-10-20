@@ -1,6 +1,37 @@
 # Decision log
 
-<<<<<<< HEAD
+## ADR-0038 — X10 readiness register, declared-workload benchmark and owner pilot gate
+
+October 19, 2026. Jordan asked for X10 after Codex finished X08/X09. Built by Claude Code on
+`claude/x10-1y6bd6` from main `a68e9f9`. ADR-0037 is the UX/UI redesign, so this takes 0038;
+no migration (the benchmark found no bottleneck that needed a schema change).
+
+Decision: full-product readiness is a checked register, not prose. `config/readiness.json`
+holds one row per requirement C01–C51 and per integration, with six separately recorded
+states (implemented, fixture, contract, live, activated, native), the states each row
+requires, evidence paths and what blocks it. `pnpm readiness` checks it against the
+requirement table and the files on disk and refuses a verified state without evidence,
+a later state without its earlier one (activated without live, live without implemented),
+a missing or duplicate row, and a not-ready row with no blocker. The verdict is READY only
+when every required state is verified and the owner pilot is completed with evidence.
+
+The owner pilot is a gate, not a run: `config/owner-pilot.json` starts with every owner
+choice empty, and `pnpm readiness pilot-check` refuses until Jordan records the decision,
+an exact nano-USD budget, a spend stop at or under it, failure and owner-time stops,
+stop-on-unknown-cost, a future window, schedules, platforms whose backing integration is
+ready, and accounts that are both live-verified and activated. No account qualifies today.
+
+The benchmark (`pnpm bench`) creates and drops its own database, seeds through the audited
+store and fixture broker (no SQL shortcuts around the hash chain), and times the owner HTTP
+API with one sequential client. Results are labelled synthetic; the 2 s search and 5 s event
+targets are reported as provisional. `scripts/release-archive.mjs` binds a `git archive` tar
+to its commit by per-file sha256 and Git blob id.
+
+Consequences: the report says NOT READY while live/model/hosted/payment paths and the pilot
+remain unverified, and it cannot be talked into READY without evidence on disk. The register
+is hand-maintained: a row is only as true as the evidence it cites, so review it on each
+milestone. Single-client latency says nothing about concurrent users.
+
 
 ## ADR-0036 — X09 bounded portfolio policy and reviewed task knowledge
 
@@ -93,7 +124,6 @@ verified and authorized adapter; hosting/payment prerequisites remain applicable
 New UI is isolated in `marketing.tsx`; shared changes are one import/case in
 `main.tsx` and one view tuple in `ui.tsx`. No shared CSS or public component prop
 changes. See docs/X08_MARKETING.md and tracking/evidence/x08.
-=======
 
 ## ADR-0037 — Dark-default studio theme, semantic tokens and grouped workspace shell
 
@@ -110,7 +140,6 @@ request after the user leaves it (fixes being pulled back). No API, gate, sessio
 Numbering: if Codex's X08 lands first with ADR-0035, renumber this entry rather than X08's.
 See docs/UX_UI.md.
 
-> > > > > > > origin/main
 
 ## ADR-0034 — X06/X07 audit repairs and conserved processor identity
 

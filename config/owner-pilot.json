@@ -1,0 +1,18 @@
+{
+  "schema": "owner-pilot/1",
+  "status": "not_started",
+  "decided_by": null,
+  "decided_at": null,
+  "budget_nano_usd": null,
+  "window": { "starts_at": null, "ends_at": null },
+  "schedules": null,
+  "enabled_accounts": [],
+  "platforms": [],
+  "stop_rules": {
+    "max_spend_nano_usd": null,
+    "max_consecutive_failures": null,
+    "max_owner_minutes": null,
+    "stop_on_unknown_cost": true
+  },
+  "evidence": []
+}

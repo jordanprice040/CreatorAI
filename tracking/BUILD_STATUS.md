@@ -1,10 +1,33 @@
 # Implementation status
 
+## X10 — full-product acceptance and readiness (October 19, 2026)
+
+Claude Code, branch `claude/x10-1y6bd6` from main `a68e9f9`; ADR-0038, no migration,
+docs/X10_ACCEPTANCE.md. Also removed leftover merge-conflict marker lines from the three
+tracking files on main (both sides kept).
+
+Works: `pnpm readiness` checks `config/readiness.json` (C01–C51 plus 15 integrations, six
+separately recorded states each) against REQUIREMENTS.md and evidence on disk; verdict is
+**NOT READY** with 36 rows open (no live model/source call, study unfrozen, GitHub/hosted/
+payments/OIDC/outreach not live, paid ads/alerts/signed updates not built, C42 offline cache
+unverified). `pnpm readiness pilot-check` refuses the owner pilot: every owner choice in
+`config/owner-pilot.json` is empty and no account is live-verified and activated. The pilot
+was not run. `pnpm bench` seeded 10,000 ideas / 100,000 audit events through the real store
+in a disposable database and timed the HTTP API (p95: text search 410 ms, lineage 13 ms, cost
+21 ms, event display 13 ms; synthetic workload, one client, cloud container). The first run
+found lineage/cost at ~650 ms p95; the lineage walk now uses indexed per-hop lookups.
+`scripts/release-archive.mjs` builds/verifies/extracts a commit-bound tar.
+
+Executed: see tracking/evidence/x10 (bench runs, readiness report, full-suite log, release
+validation). Limits: register is hand-maintained; no concurrent load, browser or Windows
+measurement; nothing live, deployed, spent or sent. Next eligible: owner decisions listed in
+the readiness report (pilot choices, model verification, RD1–RD10); no automatic milestone.
+
+
 ## Local audit fixes published for review — 2026-10-19
 
 Preserves the original checkout while publishing its DNS cancellation, sign-out, stale actor request, and maintenance-health fixes with regression tests. Documentation cleanup and historical local tracking patches are retained. This PR is stacked on X08/X09; X10 is not started. Validation: typecheck, production build, formatting, and 15 focused regression tests passed. PostgreSQL/live activation was not rerun for this audit branch.
 
-<<<<<<< HEAD
 
 ## X09 — portfolio scheduling and reviewed knowledge (October 19, 2026)
 
@@ -94,7 +117,6 @@ landing pages, real customer/demand research and live commerce remain unavailabl
 or unverified. No real outreach, paid call, release, account activation, commit or
 push. Existing studio databases were not migrated. Next eligible prompt: **X09 —
 portfolio scheduling, maintenance, and reusable knowledge**, only on request.
-=======
 
 ## UX/UI redesign: dark-default studio shell (October 19, 2026)
 
@@ -123,7 +145,6 @@ on PostgreSQL 16: 257 tests, 244 pass, 0 fail, 13 skips. `pnpm build` passes.
 Limits: browser only; native Tauri/WebView2, screen reader and Windows high contrast not observed.
 No dialogs exist to check. Fixture data and the T13 test double only.
 
-> > > > > > > origin/main
 
 ## X06/X07 independent audit and repairs (October 19, 2026)
 

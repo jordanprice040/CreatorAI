@@ -1,0 +1,70 @@
+[bench] seeded 10000 ideas
+[bench] seeded 200 runs and 600 metered fixture calls
+[bench] events 35943/100000
+[bench] events 45943/100000
+[bench] events 55943/100000
+[bench] events 65943/100000
+[bench] events 75943/100000
+[bench] events 85943/100000
+[bench] events 95943/100000
+[bench] events 100000/100000
+[bench] seeded in 263.8s: {"ideas":10000,"entities":11900,"entity_versions":85957,"links":11840,"audit_events":100000,"history_rows":100000,"reservations":600}
+{
+  "catalog_text_search": {
+    "what": "GET search, text mode over all types, limit 20",
+    "samples": 200,
+    "p50_ms": 331.3,
+    "p95_ms": 416.4,
+    "p99_ms": 432.6,
+    "max_ms": 450.5
+  },
+  "catalog_browse": {
+    "what": "GET search, empty query (browse) over records, limit 20",
+    "samples": 200,
+    "p50_ms": 18.9,
+    "p95_ms": 24.4,
+    "p99_ms": 29.7,
+    "max_ms": 33.1
+  },
+  "catalog_id_lookup": {
+    "what": "GET search by 8-character id prefix over all types",
+    "samples": 200,
+    "p50_ms": 56.4,
+    "p95_ms": 74,
+    "p99_ms": 78.9,
+    "max_ms": 112.7
+  },
+  "bounded_lineage": {
+    "what": "GET entity lineage-graph, both directions, depth 4, max 200 nodes, from a product",
+    "samples": 200,
+    "p50_ms": 581.7,
+    "p95_ms": 648.7,
+    "p99_ms": 677.3,
+    "max_ms": 728.9
+  },
+  "cost_aggregation": {
+    "what": "POST audit-questions: cost of two products (shared runs counted once)",
+    "samples": 200,
+    "p50_ms": 595.7,
+    "p95_ms": 663,
+    "p99_ms": 691.4,
+    "max_ms": 714.2
+  },
+  "overview": {
+    "what": "GET overview (counts and attention items)",
+    "samples": 200,
+    "p50_ms": 5.6,
+    "p95_ms": 8.2,
+    "p99_ms": 10.6,
+    "max_ms": 17.2
+  },
+  "event_display_lag": {
+    "what": "commit of a revision until GET activity returns it (API drains the outbox on read)",
+    "samples": 100,
+    "p50_ms": 9,
+    "p95_ms": 12.5,
+    "p99_ms": 25.2,
+    "max_ms": 36.2
+  }
+}
+EXIT 0
