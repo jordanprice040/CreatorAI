@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: studio input refuses relative paths, unknown fields and a wrong protocol
+ok 1 - studio input refuses relative paths, unknown fields and a wrong protocol
+  ---
+  duration_ms: 2.9049
+  type: 'test'
+  ...
+# Subtest: UI origin serves the built app, falls back for routes and refuses traversal and foreign hosts
+ok 2 - UI origin serves the built app, falls back for routes and refuses traversal and foreign hosts
+  ---
+  duration_ms: 38.1528
+  type: 'test'
+  ...
+# Subtest: installed studio: new studio, serve, sign in, record survives quit and relaunch
+ok 3 - installed studio: new studio, serve, sign in, record survives quit and relaunch
+  ---
+  duration_ms: 2582.6254
+  type: 'test'
+  ...
+# Subtest: an occupied port is reported, never shared, and nothing else starts serving
+ok 4 - an occupied port is reported, never shared, and nothing else starts serving
+  ---
+  duration_ms: 1402.9746
+  type: 'test'
+  ...
+# Subtest: unreachable database is an actionable error, not a crash loop
+ok 5 - unreachable database is an actionable error, not a crash loop
+  ---
+  duration_ms: 178.9715
+  type: 'test'
+  ...
+# Subtest: upgrade takes a verified backup first, then migrates under the lock
+ok 6 - upgrade takes a verified backup first, then migrates under the lock
+  ---
+  duration_ms: 1884.8055
+  type: 'test'
+  ...
+# Subtest: adoption copies a studio through a verified backup and leaves the source untouched
+ok 7 - adoption copies a studio through a verified backup and leaves the source untouched
+  ---
+  duration_ms: 4663.7891
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11277.6216

@@ -1,0 +1,17 @@
+{
+  "format": "creator-desktop-candidate/1",
+  "recorded_at": "2026-10-20T07:27:27.8159762Z",
+  "source_commit": "efe6627fd1d3f38b3a28d224cd4b0e35b8f3e8ad",
+  "source_dirty_note": "only pre-existing uncommitted tracking/runbook notes; no code changes outside the commit",
+  "installer": "apps/desktop/src-tauri/target/release/bundle/nsis/Creator Agent_0.1.0_x64-setup.exe",
+  "installer_sha256": "F3B461B6EF811C2482DB05EA4243C085124891DBDC719449A5254C88D393CE00",
+  "signed": false,
+  "checks_on_this_candidate": {
+    "service_tests_installed_bundle": "7/7 pass (service-tests-installed-bundle.log)",
+    "scripted_installed_acceptance": "17/17 pass (acceptance-2026-10-20T07-26-41-400Z.json)",
+    "full_suite_pre_format": "309 tests, 294 pass, 0 fail, 15 skipped (same code before prettier/rustfmt formatting)",
+    "rust_unit": "16 pass, 1 ignored"
+  },
+  "install_location_note": "The agent shell runs inside the Claude desktop MSIX package, so its silent install was virtualized into that package's LocalCache and has been uninstalled. The owner installs by running the installer from Explorer.",
+  "not_executed": ["setup-window clicks", "menu sign-in and record creation in the window", "tray/background and login-start toggles", "Windows restart"]
+}
