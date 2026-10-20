@@ -1236,3 +1236,15 @@ Next: continue §2.5 with owner-account terms/storage rights and per-request pri
 ## §2.4 plan clarification — October 20, 2026
 
 Jordan confirmed ChatGPT Plus. Q2 resolved in docs/CODEX_INTEGRATION.md and proposed ADR-0042; plan is owner-reported, connection/eligibility unverified. Shared plan usage must account for Creator Agent and personal Codex use. No other proposed decision accepted, activation authorized or code changed. Next eligible work remains the selected milestones and their documented gates.
+
+## PR #43 CI repair — October 20, 2026
+
+GitHub Actions runs 39403134152/39403141239 exposed unformatted
+CODEX_INTEGRATION.md and a storage migration assertion still expecting schema 24
+following migration 25. Applied Prettier and updated the expected version to 25;
+no runtime behavior or acceptance gate changed. Direct TypeScript build, full
+repository formatting check and 7/7 storage tests passed on disposable PostgreSQL
+18 databases. Initial local role mismatch and test-port conflict were environmental
+failures; isolated cluster on 55579 resolved them. GitHub PostgreSQL 16 rerun pending.
+Next eligible milestone remains outstanding section 2.1 native acceptance; no
+additional milestone authorized by this CI repair.

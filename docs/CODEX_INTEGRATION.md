@@ -21,14 +21,14 @@ and owner decisions #5, #6, #7, #10, #14, #26, #30–#32 in
 
 ## 1. What was checked
 
-| Check | Result | Evidence |
-| --- | --- | --- |
-| Installed Codex desktop app | `OpenAI.Codex` MSIX package 26.1013.4894.0 | `Get-AppxPackage`, 2026-10-20 |
-| Bundled Codex CLI | `codex-cli 0.163.0-alpha.10.2` at `%LOCALAPPDATA%\OpenAI\Codex\bin\896a0166b774037a\codex.exe` (hashed folder, changes with app updates) | `codex.exe --version` |
-| `codex` on PATH (PowerShell) | Not found | `Get-Command codex` |
-| `codex` inside the reviewed `Ubuntu` WSL2 distro | Not found | `wsl -d Ubuntu -- command -v codex` |
-| `codex app-server` | Present; help text marks it **[experimental]** | `codex.exe app-server --help` |
-| Official docs | Read 2026-10-20 (sources at the end) | Copies were not committed |
+| Check                                            | Result                                                                                                                                   | Evidence                            |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Installed Codex desktop app                      | `OpenAI.Codex` MSIX package 26.1013.4894.0                                                                                               | `Get-AppxPackage`, 2026-10-20       |
+| Bundled Codex CLI                                | `codex-cli 0.163.0-alpha.10.2` at `%LOCALAPPDATA%\OpenAI\Codex\bin\896a0166b774037a\codex.exe` (hashed folder, changes with app updates) | `codex.exe --version`               |
+| `codex` on PATH (PowerShell)                     | Not found                                                                                                                                | `Get-Command codex`                 |
+| `codex` inside the reviewed `Ubuntu` WSL2 distro | Not found                                                                                                                                | `wsl -d Ubuntu -- command -v codex` |
+| `codex app-server`                               | Present; help text marks it **[experimental]**                                                                                           | `codex.exe app-server --help`       |
+| Official docs                                    | Read 2026-10-20 (sources at the end)                                                                                                     | Copies were not committed           |
 
 Only version and help commands were run. No sign-in, token read, `~/.codex` read, model
 call or install happened. Jordan's existing Codex desktop login was not inspected and
@@ -40,10 +40,10 @@ OpenAI documents one supported way for a locally hosted third-party app to use a
 ChatGPT plan: **Sign in with ChatGPT (SIWC) with ChatGPT plan usage.** It has two
 inference paths, and both use the same OAuth access token.
 
-| Path | What it is | Proposed Creator Agent use |
-| --- | --- | --- |
-| **A. Direct Responses** | The app sends `POST https://api.openai.com/v1/responses` with the OAuth access token as bearer, `store: false`, `stream: true`. | General model inference: research synthesis, candidate generation, scoring, specification drafting, summarization. A new broker adapter beside the existing `OpenAIAdapter`. |
-| **B. Codex app-server** | The app starts `codex app-server --listen stdio://` with a custom `model_provider` whose `env_key` holds the same access token, then drives threads and turns over JSONL. | Agentic coding only (`code_build`), behind the T12 builder and T11 worker. |
+| Path                    | What it is                                                                                                                                                                | Proposed Creator Agent use                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A. Direct Responses** | The app sends `POST https://api.openai.com/v1/responses` with the OAuth access token as bearer, `store: false`, `stream: true`.                                           | General model inference: research synthesis, candidate generation, scoring, specification drafting, summarization. A new broker adapter beside the existing `OpenAIAdapter`. |
+| **B. Codex app-server** | The app starts `codex app-server --listen stdio://` with a custom `model_provider` whose `env_key` holds the same access token, then drives threads and turns over JSONL. | Agentic coding only (`code_build`), behind the T12 builder and T11 worker.                                                                                                   |
 
 The runbook requires "general model inference and agentic coding must retain separate
 capability/security scopes". OpenAI issues one token with one scope set
@@ -75,7 +75,7 @@ settled by code.
    "open-source and locally hosted apps"; paid or remotely hosted apps must use the
    interest form. Creator Agent is a **private** repository run locally by its owner.
    Whether a private, unpublished, non-distributed local app qualifies is not stated.
-   *Open question Q1 for Jordan.* Options: (a) try registration and treat a
+   _Open question Q1 for Jordan._ Options: (a) try registration and treat a
    `subscription_sharing_user_not_eligible` or registration refusal as the answer,
    (b) ask OpenAI through the interest form, (c) publish the relevant client code as
    open source. The design works the same in every case; only activation depends on it.
@@ -90,9 +90,9 @@ settled by code.
    broker, and the studio cannot see per request whether credits were used. Under R2
    ("unknown costs block paid dispatch") the studio must treat that as unknown cost.
    Proposed rule: the connection stays **blocked** until Jordan records that credits
-   are **off** for Creator Agent in ChatGPT Settings, with the date checked. *Q3:
+   are **off** for Creator Agent in ChatGPT Settings, with the date checked. _Q3:
    confirm this rule, or decide that credit use should count against the $20 ceiling
-   with some recording method.*
+   with some recording method._
 5. **Model entitlement.** `/v1/models` and app-server's `model/list` are catalogs, not
    entitlement checks. A model becomes `verified` in the X01 registry only after one
    completed request (`response.completed`, or `turn/completed` with
@@ -110,14 +110,14 @@ sent somewhere else.
 
 ### 4.1 Connection-level rules (both paths)
 
-| Rule | Source |
-| --- | --- |
-| Connection is `verified` (completed request recorded) and `chatgpt.tokens.use.direct` is in the granted scopes. | Docs; X01 availability rule |
-| Credits-after-limit attestation is present and current (§3.4). | R2, #32 |
-| Data class is one Jordan allowed for this connection. Proposed default: `synthetic` and `public` only; `private_approved` needs a per-project sharing rule. | #14 |
-| Not a T15 study condition, routing held-out benchmark case, or any frozen protocol path, unless the adopted freeze names this route. Today's frozen choice is GPT-6 Astra via API, so the answer is no. | Invariant 9, runbook §2.2 "do not change frozen study models" |
-| Quota state is not `exhausted` or `unavailable`. On `subscription_sharing_usage_limit_exceeded` the route pauses; the work goes to an already-qualified local (Ollama) route if one is permitted for that task, otherwise it pauses. Paid API fallback only if Jordan has enabled the fallback setting with providers, scope, caps and privacy rules. | #5, #7, #32 |
-| One active model job at a time during the pilot. | #31 |
+| Rule                                                                                                                                                                                                                                                                                                                                                  | Source                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Connection is `verified` (completed request recorded) and `chatgpt.tokens.use.direct` is in the granted scopes.                                                                                                                                                                                                                                       | Docs; X01 availability rule                                   |
+| Credits-after-limit attestation is present and current (§3.4).                                                                                                                                                                                                                                                                                        | R2, #32                                                       |
+| Data class is one Jordan allowed for this connection. Proposed default: `synthetic` and `public` only; `private_approved` needs a per-project sharing rule.                                                                                                                                                                                           | #14                                                           |
+| Not a T15 study condition, routing held-out benchmark case, or any frozen protocol path, unless the adopted freeze names this route. Today's frozen choice is GPT-6 Astra via API, so the answer is no.                                                                                                                                               | Invariant 9, runbook §2.2 "do not change frozen study models" |
+| Quota state is not `exhausted` or `unavailable`. On `subscription_sharing_usage_limit_exceeded` the route pauses; the work goes to an already-qualified local (Ollama) route if one is permitted for that task, otherwise it pauses. Paid API fallback only if Jordan has enabled the fallback setting with providers, scope, caps and privacy rules. | #5, #7, #32                                                   |
+| One active model job at a time during the pilot.                                                                                                                                                                                                                                                                                                      | #31                                                           |
 
 ### 4.2 Path A (direct Responses) task classes
 
@@ -156,18 +156,18 @@ Codex app-server runs as a new **agent host** inside the reviewed WSL2 distro, u
 the same Bubblewrap + systemd user-unit pattern as the T11 worker, but as a separate
 unit type with its own limits. It is a different boundary from the product worker:
 
-| | T11 product worker (unchanged) | New Codex agent host |
-| --- | --- | --- |
-| Runs | Generated product code | Pinned Linux `codex` binary only |
-| Network | None | Egress only to `api.openai.com:443` through a studio-owned allowlist proxy on a Unix socket |
-| Credential inside | None | The current one-hour access token, in the app-server environment only |
-| Writable | 16 MiB work tmpfs | A disposable copy of the task's `file_scope` files, and an empty private `CODEX_HOME` |
-| Mounted | Read-only `/usr`, input snapshot, recipe | Read-only `/usr`, the Codex binary, disposable workspace, `CODEX_HOME` |
-| Never mounted | Home, Windows drives, studio dir, Git metadata, sessions, D-Bus | Same, plus the refresh token, the studio database and `.creator/` |
+|                   | T11 product worker (unchanged)                                  | New Codex agent host                                                                        |
+| ----------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Runs              | Generated product code                                          | Pinned Linux `codex` binary only                                                            |
+| Network           | None                                                            | Egress only to `api.openai.com:443` through a studio-owned allowlist proxy on a Unix socket |
+| Credential inside | None                                                            | The current one-hour access token, in the app-server environment only                       |
+| Writable          | 16 MiB work tmpfs                                               | A disposable copy of the task's `file_scope` files, and an empty private `CODEX_HOME`       |
+| Mounted           | Read-only `/usr`, input snapshot, recipe                        | Read-only `/usr`, the Codex binary, disposable workspace, `CODEX_HOME`                      |
+| Never mounted     | Home, Windows drives, studio dir, Git metadata, sessions, D-Bus | Same, plus the refresh token, the studio database and `.creator/`                           |
 
 A Linux Codex binary is needed inside WSL2 because none is installed there. Installing
 it is a download into the reviewed distro and needs Jordan's approval, with the exact
-version and SHA-256 recorded (*Q4*).
+version and SHA-256 recorded (_Q4_).
 
 ### 5.2 Codex configuration (defence in depth inside the jail)
 
@@ -207,13 +207,13 @@ specific reviewed need appears.
 
 Server-initiated requests are answered by fixed rules:
 
-| Request | Studio answer (v1) |
-| --- | --- |
-| `item/fileChange/requestApproval` | `accept` only if every path is inside the task `file_scope` and passes T11's path dialect; else `decline`. |
-| `item/commandExecution/requestApproval` | `decline`. Codex does not run code in v1; all execution goes through the T11 worker after the build. |
-| `item/permissions/requestApproval` | Grant nothing. |
-| `mcpServer/elicitation/request`, `item/tool/requestUserInput` | `decline` / cancel. |
-| `account/chatgptAuthTokens/refresh` | Not applicable (not using that mode); fail the turn. |
+| Request                                                       | Studio answer (v1)                                                                                         |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `item/fileChange/requestApproval`                             | `accept` only if every path is inside the task `file_scope` and passes T11's path dialect; else `decline`. |
+| `item/commandExecution/requestApproval`                       | `decline`. Codex does not run code in v1; all execution goes through the T11 worker after the build.       |
+| `item/permissions/requestApproval`                            | Grant nothing.                                                                                             |
+| `mcpServer/elicitation/request`, `item/tool/requestUserInput` | `decline` / cancel.                                                                                        |
+| `account/chatgptAuthTokens/refresh`                           | Not applicable (not using that mode); fail the turn.                                                       |
 
 Declining all command execution means Codex cannot run its own tests. That is
 deliberate for v1: it keeps generated code out of the process that holds a token, and
@@ -275,8 +275,8 @@ billing mode instead of bending the money path:
   `billing_mode: "subscription_quota"` in the registry and connection records.
 - A quota envelope type with **owner-set caps in the units the studio can enforce**:
   requests or turns per run and per day, wall-clock time per request, and observed
-  output tokens per request (enforced client-side by aborting the stream). *Q5: the
-  initial caps.* These are studio limits, not OpenAI's limits.
+  output tokens per request (enforced client-side by aborting the stream). _Q5: the
+  initial caps._ These are studio limits, not OpenAI's limits.
 - Metered dollars for this route are recorded as **zero only while the credits-off
   attestation holds**. Without it, exposure is unknown and paid dispatch blocks (R2).
 - Quota state comes from errors (`..._usage_limit_exceeded`, `..._usage_unavailable`)
@@ -315,15 +315,15 @@ Listed so the next milestone can be scoped; none are made here.
 
 ## 8. Open questions for Jordan
 
-| # | Question | Default if unanswered |
-| --- | --- | --- |
-| Q1 | Does a private, local, non-distributed Creator Agent qualify for ChatGPT plan usage? Try registration, ask OpenAI, or open-source the client? | Build locally; activation waits. |
-| Q2 | Which ChatGPT plan (Plus or Pro) will be connected? | Resolved: Jordan confirmed Plus on October 20, 2026; connection verification remains pending. |
-| Q3 | Credits after limit: keep the connection blocked until you confirm credits are off for Creator Agent in ChatGPT Settings? | Blocked. |
-| Q4 | Approve installing a pinned Linux Codex CLI into the `Ubuntu` WSL2 distro for the agent host (exact version and hash shown first)? | Path B not built past contract tests. |
-| Q5 | Initial quota caps: requests/turns per run and per day, per-request time and output limits. | Pilot defaults from #31 (one job, 30-minute run) plus a small per-day request cap you set. |
-| Q6 | Allowed data classes for this connection. | `synthetic` and `public` only. |
-| Q7 | Which Path A task classes to qualify first. | `summarization` and `specification`. |
+| #   | Question                                                                                                                                      | Default if unanswered                                                                         |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Q1  | Does a private, local, non-distributed Creator Agent qualify for ChatGPT plan usage? Try registration, ask OpenAI, or open-source the client? | Build locally; activation waits.                                                              |
+| Q2  | Which ChatGPT plan (Plus or Pro) will be connected?                                                                                           | Resolved: Jordan confirmed Plus on October 20, 2026; connection verification remains pending. |
+| Q3  | Credits after limit: keep the connection blocked until you confirm credits are off for Creator Agent in ChatGPT Settings?                     | Blocked.                                                                                      |
+| Q4  | Approve installing a pinned Linux Codex CLI into the `Ubuntu` WSL2 distro for the agent host (exact version and hash shown first)?            | Path B not built past contract tests.                                                         |
+| Q5  | Initial quota caps: requests/turns per run and per day, per-request time and output limits.                                                   | Pilot defaults from #31 (one job, 30-minute run) plus a small per-day request cap you set.    |
+| Q6  | Allowed data classes for this connection.                                                                                                     | `synthetic` and `public` only.                                                                |
+| Q7  | Which Path A task classes to qualify first.                                                                                                   | `summarization` and `specification`.                                                          |
 
 ## 9. Rollback
 
