@@ -33,6 +33,12 @@ const ENTRY = process.env.CREATOR_TEST_STUDIO_BUNDLE
   : resolve('apps/api/dist/studio-main.js');
 const PG_BIN = process.env.CREATOR_PG_BIN || null;
 type Event = Record<string, unknown> & { event: string };
+// A stand-in UI so these checks do not depend on a prior web build (CI runs them unbuilt).
+const WEB_ROOT = await mkdtemp(join(tmpdir(), 'creator-studio-ui-'));
+await writeFile(
+  join(WEB_ROOT, 'index.html'),
+  '<!doctype html><html><body><div id="root"></div></body></html>',
+);
 
 function studio(mode: string, input: Record<string, unknown>) {
   const proc = spawn(process.execPath, [ENTRY, mode], {
@@ -90,7 +96,7 @@ function input(url: string, dir: string, extra: Record<string, unknown> = {}) {
     products_root: join(dir, 'products'),
     backups_dir: join(dir, 'backups'),
     pg_bin: PG_BIN,
-    web_root: resolve('apps/web/dist'),
+    web_root: WEB_ROOT,
     owner_secret: randomBytes(32).toString('hex'),
     login_code: randomBytes(32).toString('base64url'),
     worker_distro: null,
