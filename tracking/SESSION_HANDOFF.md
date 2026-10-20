@@ -1,5 +1,13 @@
 # Session handoff
 
+## Audit 2026-10-20 fixes (October 20, 2026)
+
+Branch `claude/audit-full-qgjinb` from main `051a9bb`. Report in the project files at
+audits/2026-10-20-codebase-audit.md. Next free numbers unchanged: migration 23, ADR-0039.
+X08/X09 entries below were merged via PR #34 (local audit fixes via PR #35); ignore their
+"uncommitted" wording. Before enabling `CREATOR_PORTFOLIO_SCHEDULER=on` or hosting, read
+recommendations N1 and N4 in the report.
+
 ## X10 readiness, benchmark and pilot gate (October 19, 2026)
 
 Branch `claude/x10-1y6bd6` (Claude Code) from main `a68e9f9`. Read docs/X10_ACCEPTANCE.md

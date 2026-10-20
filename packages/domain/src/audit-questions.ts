@@ -67,8 +67,11 @@ export function questionWindow(
     ).exec(q))
   )
     return { from: m[1]!, to: m[2]!, tz };
-  if ((m = new RegExp(`\\b(?:since|after|from)\\s+${DATE}`).exec(q)))
+  if ((m = new RegExp(`\\b(?:since|from)\\s+${DATE}`).exec(q)))
     return { from: m[1]!, to: null, tz };
+  // "after" and "before" both exclude the named day.
+  if ((m = new RegExp(`\\bafter\\s+${DATE}`).exec(q)))
+    return { from: addDays(m[1]!, 1), to: null, tz };
   if ((m = new RegExp(`\\b(?:before|until)\\s+${DATE}`).exec(q)))
     return { from: null, to: addDays(m[1]!, -1), tz };
   if ((m = new RegExp(`\\bon\\s+${DATE}`).exec(q)))

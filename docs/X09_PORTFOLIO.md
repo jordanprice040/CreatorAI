@@ -67,7 +67,7 @@ manual model/build requests and workflow leasing, rather than only in the UI:
 | Maintenance due, unresolved maintenance workflow or health attention | Non-maintenance work waits                                                       |
 | Reserve availability below the configured floor                      | Non-maintenance work waits                                                       |
 | Review backlog at threshold                                          | Exploration waits; improvement/remediation may proceed                           |
-| Active jobs/workflows at capacity                                    | New work waits                                                                   |
+| Active jobs/workflows at capacity                                    | New work waits; older unfinished workflows keep their slots                      |
 
 The reserve's available amount excludes allocated children, reserved exposure,
 unknown outcomes and incurred usage. Child allocations therefore conservatively

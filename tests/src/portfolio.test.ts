@@ -219,6 +219,46 @@ test('X09 broker cannot spend the maintenance subtree from exploration and low f
   );
 });
 
+test('X09 capacity lets the oldest unfinished workflow proceed while newer runs wait', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.store.configurePortfolio(s.ctx, s.ws, {
+    ...s.policy,
+    expected_version: 1,
+    max_active: 1,
+  });
+  const a = await s.run('exploration');
+  const b = await s.run('exploration');
+  const older = await s.store.startWorkflow(s.ctx, s.ws, a.id, a.request);
+  await s.store.startWorkflow(s.ctx, s.ws, b.id, b.request);
+  // Before the audit fix each run counted the other as active, so nothing ever leased.
+  const leases = await s.store.claimTasks(s.ctx, 'capacity-worker', 4, 30000);
+  assert.deepEqual(
+    [...new Set(leases.map((l) => l.workflowId))],
+    [older.workflow.id],
+  );
+  const action = {
+    action_type: 'model.generate',
+    task_id: null,
+    target: null,
+    spec_hash: null,
+    amount_nano_usd: '1',
+    data_class: 'synthetic',
+    assumption_ids: [],
+    humility_review: null,
+    flags: [],
+    justification: 'Capacity gate.',
+  };
+  assert.equal(
+    (await s.store.admitAction(s.ctx, s.ws, a.id, action)).verdict,
+    'allow',
+  );
+  assert.equal(
+    (await s.store.admitAction(s.ctx, s.ws, b.id, action)).reason_code,
+    'portfolio_capacity',
+  );
+});
+
 test('X09 owner feedback, failed health evidence and conservation modes constrain discovery without fabricating health', async (t) => {
   const s = await setup(t);
   if (!s) return;

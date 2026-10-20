@@ -104,6 +104,22 @@ test("time windows are calendar days in the asker's zone", () => {
     questionWindow('between 2026-10-01 and 2026-10-05', 'UTC', NOW),
     { from: '2026-10-01', to: '2026-10-05', tz: 'UTC' },
   );
+  // "since" includes the named day; "after" and "before" exclude it.
+  assert.deepEqual(questionWindow('changes since 2026-10-05', 'UTC', NOW), {
+    from: '2026-10-05',
+    to: null,
+    tz: 'UTC',
+  });
+  assert.deepEqual(questionWindow('changes after 2026-10-05', 'UTC', NOW), {
+    from: '2026-10-06',
+    to: null,
+    tz: 'UTC',
+  });
+  assert.deepEqual(questionWindow('changes before 2026-10-05', 'UTC', NOW), {
+    from: null,
+    to: '2026-10-04',
+    tz: 'UTC',
+  });
   assert.equal(
     localTimestamp('2026-10-19T07:31:06.000Z', 'America/New_York'),
     '2026-10-19T03:31:06-04:00',

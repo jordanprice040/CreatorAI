@@ -1,5 +1,26 @@
 # Implementation status
 
+## Audit 2026-10-20 (full product, T00–X10) fixes (October 20, 2026)
+
+Branch claude/audit-full-qgjinb from main 051a9bb; no migration, no ADR. Report: project
+file audits/2026-10-20-codebase-audit.md. Two contained fixes. X09 portfolio capacity:
+each run counted every other unfinished workflow as active, so two runs over capacity
+waited on each other and nothing leased; now only older unfinished workflows count, so the
+oldest work proceeds and newer work waits (docs/X09_PORTFOLIO.md). X03 audit questions:
+"after DATE" now excludes that day, like "before DATE" (docs/SEARCH_AND_AUDIT.md).
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check on main: 280 tests, 267 pass, 0 fail,
+13 WSL2/native skips. With the fixes: 281 tests, 268 pass, 0 fail, 13 skips; format clean (tracking/evidence/audit-2026-10-20/check.log).
+The new capacity test fails on the previous code (0 leases). `pnpm readiness`: NOT READY,
+register consistent, 36 rows open, unchanged. `pnpm audit --prod` clean.
+
+Note on older entries below: X08 and X09 were merged to main through PR #34, and the local
+audit fixes through PR #35. Their "uncommitted / not pushed" wording describes the moment
+they were written. Open recommendations (owner judgment): see the report (hosted rate
+limits, reinvestment vs portfolio root, processor read inside a transaction, silent
+scheduler errors, plus the still-open 10-19 items R1–R6). No live call, no spend; the
+protocol freeze and study decisions untouched.
+
 ## X10 — full-product acceptance and readiness (October 19, 2026)
 
 Claude Code, branch `claude/x10-1y6bd6` from main `a68e9f9`; ADR-0038, no migration,
