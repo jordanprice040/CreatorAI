@@ -17,6 +17,7 @@ import {
   BUILD_FIXTURE_CASES,
   BUILD_FIXTURE_SOURCE,
   buildFixtureAnswer,
+  frozenCases,
   taskHashes,
 } from '@creator/domain';
 import type {
@@ -360,4 +361,101 @@ test('held-out QA cases never reach a role packet, and a task without one is ref
   s.spec.acceptance_checks[1]!.cases![0]!.held_out = false;
   await assert.rejects(s.run(), /held-out case/);
   assert.equal(s.requests.length, before);
+});
+
+test('the ChatGPT-plan Codex builder still goes through scoped patches and an independent broker review', async (t) => {
+  const s = await setup(t);
+  const plan = {
+    ...s.plan,
+    codex_plan_builder: {
+      connection_id: randomUUID(),
+      model_id: 'fixture-plan-model',
+    },
+  };
+  const missing = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    s.ports,
+  );
+  assert.equal(missing.state, 'checkpoint');
+  assert.match(missing.reason, /Codex plan builder is not configured/);
+  assert.equal(s.requests.length, 0);
+  const packets: Record<string, unknown>[] = [];
+  const ports: BuildPorts = {
+    ...s.ports,
+    codexBuilder: async (target, packet) => {
+      assert.equal(target.model_id, 'fixture-plan-model');
+      packets.push(packet);
+      // The fixture's own builder answer stands in for a Codex workspace diff.
+      const answer = JSON.parse(
+        buildFixtureAnswer([
+          { role: 'system', text: 'builder/1: fixture' },
+          { role: 'user', text: JSON.stringify(packet) },
+        ])!,
+      ) as { submission: unknown };
+      return {
+        summary: 'CODEX_SUMMARY_CLAIM',
+        submission: answer.submission,
+        blocker: null,
+      };
+    },
+  };
+  const result = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    ports,
+  );
+  assert.equal(packets.length, 1);
+  assert.equal(s.requests.length, 1, 'only the reviewer used the broker');
+  assert.ok(s.requests[0]!.input[0]!.text.startsWith('independent-reviewer/'));
+  assert.ok(!JSON.stringify(s.requests[0]).includes('CODEX_SUMMARY_CLAIM'));
+  // Held-out expectations never reach the Codex packet either.
+  const assigned = s.spec.tasks.find((x) => x.key === 'T1')!.acceptance;
+  const heldOut = frozenCases(s.spec, assigned).filter((c) => c.held_out);
+  assert.ok(heldOut.length > 0);
+  for (const c of heldOut)
+    assert.ok(!JSON.stringify(packets[0]).includes(JSON.stringify(c.stdout)));
+  assert.notEqual(
+    result.commit,
+    s.product.initial_commit,
+    'the patch was applied as a scoped change',
+  );
+  if (process.env.CREATOR_TEST_ISOLATION !== 'wsl2')
+    assert.equal(result.state, 'checkpoint');
+});
+
+test('a Codex builder change outside the task scope is refused by the scoped patch tool', async (t) => {
+  const s = await setup(t);
+  const plan = {
+    ...s.plan,
+    codex_plan_builder: {
+      connection_id: randomUUID(),
+      model_id: 'fixture-plan-model',
+    },
+  };
+  const result = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    {
+      ...s.ports,
+      codexBuilder: async (_target, packet) => ({
+        summary: 's',
+        submission: {
+          expected_commit: packet.candidate,
+          changes: [{ path: 'policy.json', before_hash: null, content: '{}' }],
+        },
+        blocker: null,
+      }),
+    },
+  );
+  assert.equal(result.state, 'checkpoint');
+  assert.match(result.reason, /scope/);
+  assert.equal(result.commit, s.product.initial_commit);
+  assert.equal(s.requests.length, 0);
 });

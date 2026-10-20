@@ -29,6 +29,7 @@ export const VIEWS = [
   ['operations', 'Operations'],
   ['marketing', 'Campaigns'],
   ['portfolio', 'Portfolio'],
+  ['models', 'Models and connections'],
 ] as const;
 export type View = (typeof VIEWS)[number][0];
 
@@ -39,7 +40,7 @@ export const VIEW_GROUPS: readonly { label: string; views: readonly View[] }[] =
     { label: 'Evidence', views: ['catalog', 'evidence', 'scores', 'search'] },
     { label: 'Oversight', views: ['decisions', 'runs', 'budgets', 'activity'] },
     { label: 'Build and study', views: ['gallery', 'studies', 'marketing'] },
-    { label: 'System', views: ['desktop', 'operations'] },
+    { label: 'System', views: ['models', 'desktop', 'operations'] },
   ];
 export const viewLabel = (view: View) =>
   VIEWS.find(([k]) => k === view)?.[1] ?? view;

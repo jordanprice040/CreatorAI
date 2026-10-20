@@ -532,6 +532,8 @@ export async function serveStudio(
     CREATOR_AUTH_MODE: 'dev_local',
     CREATOR_DEV_LOGIN_CODE: input.login_code,
     CREATOR_DESKTOP_MANAGED: '1',
+    // ADR-0042: DPAPI-protected ChatGPT sign-in, beside the studio's products folder.
+    CREATOR_PLAN_VAULT_DIR: join(input.products_root, '..', 'plan-credentials'),
     ...(input.worker_distro
       ? { CREATOR_WORKER_DISTRO: input.worker_distro }
       : {}),

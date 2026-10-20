@@ -1,0 +1,707 @@
+import { randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import {
+  ContractError,
+  type PlanConnection,
+  type PlanTaskClass,
+} from '@creator/contracts';
+import { checkOutput } from '@creator/domain';
+import type {
+  CommandContext,
+  ConnectionStore,
+  PlanObservation,
+} from '@creator/db';
+import {
+  OFFICIAL_PLAN_ENDPOINTS,
+  PLAN_USAGE_SCOPE,
+  PlanAuthError,
+  TERMINAL_REFRESH_ERRORS,
+  authorizationUrl,
+  checkedEndpoints,
+  discover,
+  exchangeCode,
+  loopbackCallback,
+  refreshTokens,
+  revokeRefreshToken,
+  verifyIdToken,
+  type AuthorizationAttempt,
+  type PlanEndpoints,
+  type TokenResponse,
+} from './plan-oauth.js';
+import {
+  callPlanResponses,
+  classifyPlanError,
+  type PlanObservedOutcome,
+} from './plan-responses.js';
+
+/** What the executor's Codex relay observed for one upstream request (structural copy). */
+export interface CodexRelayOutcome {
+  kind: 'completed' | 'failed' | 'rejected' | 'unknown';
+  reason_code: string;
+  http_status: number | null;
+  error_code: string | null;
+  error_param: string | null;
+  output_tokens: number | null;
+  output_chars: number;
+  output_hash: string;
+  response_id: string | null;
+}
+import {
+  newCredentialRef,
+  type PlanCredential,
+  type PlanVault,
+} from './plan-vault.js';
+
+// Orchestrates one ChatGPT-plan connection: sign-in, token refresh, admission, the direct
+// Responses call and settlement. The store decides admission; this service only carries
+// out admitted requests and records exactly what happened.
+
+export const VERIFICATION_INSTRUCTIONS =
+  'This is a connection check from Creator Agent. Reply with exactly the word: ok';
+export const VERIFICATION_INPUT = 'Reply with exactly: ok';
+const REFRESH_MARGIN_MS = 5 * 60_000;
+const SIGN_IN_TIMEOUT_MS = 10 * 60_000;
+
+export interface PlanServiceDeps {
+  store: ConnectionStore;
+  vault: PlanVault | null;
+  /** Loopback stand-ins, honoured only for fixture connections (contract tests). */
+  fixtureEndpoints?: PlanEndpoints;
+  openBrowser?: (url: string) => void;
+  fetchImpl?: typeof fetch;
+  callbackPort?: number;
+}
+
+type SignInStatus =
+  | { state: 'pending'; started_at: string }
+  | { state: 'completed'; plan_usage_granted: boolean; finished_at: string }
+  | { state: 'failed'; code: string; message: string; finished_at: string };
+
+/** Opens the system browser without a shell parsing the URL. */
+export function openSystemBrowser(url: string) {
+  if (process.platform === 'win32')
+    spawn('rundll32.exe', ['url.dll,FileProtocolHandler', url], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }).unref();
+  else if (process.platform === 'darwin')
+    spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+  else
+    spawn('xdg-open', [url], { detached: true, stdio: 'ignore' })
+      .on('error', () => {})
+      .unref();
+}
+
+export class PlanConnectionService {
+  readonly #signIns = new Map<string, SignInStatus>();
+  readonly #refreshing = new Map<string, Promise<PlanCredential>>();
+  constructor(readonly deps: PlanServiceDeps) {}
+
+  endpointsFor(conn: PlanConnection): PlanEndpoints {
+    if (!conn.fixture) return OFFICIAL_PLAN_ENDPOINTS;
+    if (!this.deps.fixtureEndpoints)
+      throw new ContractError(
+        'LIVE_DISABLED',
+        'Fixture connections need loopback stand-in endpoints.',
+      );
+    return checkedEndpoints(this.deps.fixtureEndpoints, true);
+  }
+
+  #vault(): PlanVault {
+    if (!this.deps.vault)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'No protected credential store is configured, so ChatGPT sign-in is unavailable. The installed Windows studio uses Windows DPAPI.',
+      );
+    return this.deps.vault;
+  }
+
+  signInStatus(id: string): SignInStatus | null {
+    return this.#signIns.get(id) ?? null;
+  }
+
+  /** Starts a browser sign-in. Returns the authorization URL; the callback finishes it. */
+  async beginSignIn(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    opts: { open_browser: boolean },
+  ) {
+    const vault = this.#vault();
+    const { connection: conn, credential_ref } =
+      await this.deps.store.planCredentialRef(ctx, ws, id);
+    if (this.#signIns.get(conn.id)?.state === 'pending')
+      throw new ContractError(
+        'DUPLICATE',
+        'A sign-in is already waiting for the browser.',
+      );
+    const endpoints = this.endpointsFor(conn);
+    const previous = credential_ref ? await vault.get(credential_ref) : null;
+    let attempt: AuthorizationAttempt | null = null;
+    const cb = await loopbackCallback(() => attempt, {
+      timeout_ms: SIGN_IN_TIMEOUT_MS,
+      ...(this.deps.callbackPort !== undefined
+        ? { port: this.deps.callbackPort }
+        : {}),
+    });
+    attempt = authorizationUrl({
+      endpoints,
+      host_id: conn.ext_agent_host_id,
+      redirect_uri: cb.redirect_uri,
+      client_id: conn.sign_in.issued_client_id,
+      id_token_hint: previous?.id_token ?? null,
+      login_hint: previous?.account_label ?? null,
+    });
+    this.#signIns.set(conn.id, {
+      state: 'pending',
+      started_at: new Date().toISOString(),
+    });
+    const a = attempt;
+    void cb.result
+      .then((r) =>
+        this.#finishSignIn(
+          ctx,
+          ws,
+          conn,
+          a,
+          r.code,
+          r.client_id,
+          previous,
+          credential_ref,
+        ),
+      )
+      .catch((e) => {
+        this.#signIns.set(conn.id, {
+          state: 'failed',
+          code: e instanceof PlanAuthError ? e.code : 'sign_in_failed',
+          message:
+            e instanceof Error ? e.message.slice(0, 300) : 'Sign-in failed.',
+          finished_at: new Date().toISOString(),
+        });
+      });
+    if (opts.open_browser) (this.deps.openBrowser ?? openSystemBrowser)(a.url);
+    return {
+      authorization_url: a.url,
+      redirect_uri: a.redirect_uri,
+      expires_in_s: SIGN_IN_TIMEOUT_MS / 1000,
+    };
+  }
+
+  async #finishSignIn(
+    ctx: CommandContext,
+    ws: string,
+    conn: PlanConnection,
+    a: AuthorizationAttempt,
+    code: string,
+    clientId: string,
+    previous: PlanCredential | null,
+    previousRef: string | null,
+  ) {
+    const endpoints = this.endpointsFor(conn);
+    const f = this.deps.fetchImpl ?? fetch;
+    const tokens = await exchangeCode({
+      endpoints,
+      client_id: clientId,
+      code,
+      verifier: a.verifier,
+      redirect_uri: a.redirect_uri,
+      fetchImpl: f,
+    });
+    if (!tokens.id_token)
+      throw new PlanAuthError(
+        'id_token_missing',
+        'The token response had no ID token.',
+      );
+    const discovery = await discover(endpoints, f);
+    const identity = await verifyIdToken({
+      id_token: tokens.id_token,
+      discovery,
+      client_id: clientId,
+      nonce: a.nonce,
+      fetchImpl: f,
+    });
+    if (previous && previous.subject !== identity.subject)
+      throw new PlanAuthError(
+        'account_mismatch',
+        'A different ChatGPT account signed in; the saved registration was kept.',
+      );
+    const ref = previousRef ?? newCredentialRef();
+    const cred = this.#credential(
+      conn,
+      clientId,
+      identity.subject,
+      identity.issuer,
+      identity.email,
+      tokens,
+      previous,
+    );
+    await this.#vault().put(ref, cred);
+    await this.deps.store.recordPlanSignIn(ctx, ws, conn.id, {
+      issued_client_id: clientId,
+      account_label: cred.account_label,
+      scopes: tokens.scope,
+      access_expires_at: cred.expires_at,
+      credential_ref: ref,
+    });
+    this.#signIns.set(conn.id, {
+      state: 'completed',
+      plan_usage_granted: tokens.scope.includes(PLAN_USAGE_SCOPE),
+      finished_at: new Date().toISOString(),
+    });
+  }
+
+  #credential(
+    conn: PlanConnection,
+    clientId: string,
+    subject: string,
+    issuer: string,
+    email: string | null,
+    t: TokenResponse,
+    previous: PlanCredential | null,
+  ): PlanCredential {
+    return {
+      issuer,
+      subject,
+      account_label: email ?? previous?.account_label ?? 'ChatGPT account',
+      client_id: clientId,
+      ext_agent_host_id: conn.ext_agent_host_id,
+      id_token: t.id_token ?? previous?.id_token ?? null,
+      access_token: t.access_token,
+      refresh_token: t.refresh_token ?? previous?.refresh_token ?? null,
+      scopes: t.scope.length ? t.scope : (previous?.scopes ?? []),
+      expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
+      saved_at: new Date().toISOString(),
+    };
+  }
+
+  /** A current access token, refreshed once at a time per connection near expiry. */
+  async accessToken(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<{ token: string; connection: PlanConnection }> {
+    const { connection, credential_ref } =
+      await this.deps.store.planCredentialRef(ctx, ws, id);
+    if (!credential_ref || connection.sign_in.state !== 'signed_in')
+      throw new ContractError('UNAUTHENTICATED', 'Sign in with ChatGPT first.');
+    const vault = this.#vault();
+    let cred = await vault.get(credential_ref);
+    if (!cred)
+      throw new ContractError(
+        'UNAUTHENTICATED',
+        'The saved sign-in is missing; sign in again.',
+      );
+    if (Date.parse(cred.expires_at) - Date.now() < REFRESH_MARGIN_MS) {
+      let pending = this.#refreshing.get(connection.id);
+      if (!pending) {
+        pending = this.#refresh(connection, credential_ref, cred).finally(() =>
+          this.#refreshing.delete(connection.id),
+        );
+        this.#refreshing.set(connection.id, pending);
+      }
+      cred = await pending;
+    }
+    return { token: cred.access_token, connection };
+  }
+
+  async #refresh(
+    conn: PlanConnection,
+    ref: string,
+    cred: PlanCredential,
+  ): Promise<PlanCredential> {
+    if (!cred.refresh_token) {
+      await this.deps.store.markPlanReauthorizationRequired(
+        conn.id,
+        'No refresh token was granted; sign in again.',
+      );
+      throw new ContractError('UNAUTHENTICATED', 'Sign in with ChatGPT again.');
+    }
+    try {
+      const t = await refreshTokens({
+        endpoints: this.endpointsFor(conn),
+        client_id: cred.client_id,
+        refresh_token: cred.refresh_token,
+        ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+      });
+      // Access token, expiry, scopes and the rotating refresh token are replaced together.
+      const next: PlanCredential = {
+        ...cred,
+        access_token: t.access_token,
+        refresh_token: t.refresh_token ?? cred.refresh_token,
+        scopes: t.scope.length ? t.scope : cred.scopes,
+        expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
+        saved_at: new Date().toISOString(),
+      };
+      await this.#vault().put(ref, next);
+      await this.deps.store.recordPlanAccessRefresh(conn.id, next.expires_at);
+      return next;
+    } catch (e) {
+      if (e instanceof PlanAuthError && TERMINAL_REFRESH_ERRORS.has(e.code)) {
+        await this.#vault().put(ref, {
+          ...cred,
+          access_token: 'revoked-'.padEnd(20, '0'),
+          refresh_token: null,
+          expires_at: new Date(0).toISOString(),
+        });
+        await this.deps.store.markPlanReauthorizationRequired(
+          conn.id,
+          `Token refresh refused (${e.code}); sign in again.`,
+        );
+        throw new ContractError(
+          'UNAUTHENTICATED',
+          'Sign in with ChatGPT again.',
+        );
+      }
+      // Temporary failures keep the credentials (docs: never erase on a network error).
+      throw new ContractError(
+        'STORAGE_UNAVAILABLE',
+        'Could not refresh the ChatGPT sign-in right now.',
+      );
+    }
+  }
+
+  async signOut(ctx: CommandContext, ws: string, id: string) {
+    const { connection, credential_ref } =
+      await this.deps.store.planCredentialRef(ctx, ws, id);
+    let confirmed = false;
+    if (credential_ref && this.deps.vault) {
+      const cred = await this.deps.vault.get(credential_ref);
+      if (cred?.refresh_token) {
+        try {
+          const discovery = await discover(
+            this.endpointsFor(connection),
+            this.deps.fetchImpl ?? fetch,
+          );
+          confirmed = await revokeRefreshToken({
+            discovery,
+            client_id: cred.client_id,
+            refresh_token: cred.refresh_token,
+            ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+          });
+        } catch {
+          confirmed = false;
+        }
+      }
+      await this.deps.vault.delete(credential_ref);
+    }
+    return this.deps.store.recordPlanSignOut(ctx, ws, connection.id, confirmed);
+  }
+
+  /** One admitted direct Responses request; the caller never sees the token. */
+  async invoke(
+    ctx: CommandContext,
+    ws: string,
+    r: {
+      connection_id: string;
+      purpose: 'task' | 'verification' | 'qualification';
+      model_id: string;
+      task_class: PlanTaskClass | null;
+      data_class: 'synthetic' | 'public' | 'private_approved';
+      run_id: string | null;
+      grant_id?: string | null;
+      qualification_id?: string | null;
+      qualification_case?: {
+        case_id: string;
+        split: 'development' | 'held_out';
+      };
+      instructions: string;
+      input: string;
+      logical_operation_id?: string;
+      signal?: AbortSignal;
+      score?: (text: string | null, outcome: PlanObservedOutcome) => string;
+    },
+  ): Promise<{ request_id: string; outcome: PlanObservedOutcome }> {
+    const admitted = await this.deps.store.admitPlanRequest(
+      ctx,
+      ws,
+      {
+        connection_id: r.connection_id,
+        logical_operation_id: r.logical_operation_id ?? randomUUID(),
+        path: 'responses',
+        purpose: r.purpose,
+        model_id: r.model_id,
+        task_class: r.task_class,
+        data_class: r.data_class,
+        run_id: r.run_id,
+        build_id: null,
+        grant_id: r.grant_id ?? null,
+        qualification_id: r.qualification_id ?? null,
+        input_chars: r.instructions.length + r.input.length,
+      },
+      r.qualification_case,
+    );
+    let outcome: PlanObservedOutcome;
+    try {
+      const { token, connection } = await this.accessToken(
+        ctx,
+        ws,
+        r.connection_id,
+      );
+      const caps = connection.settings.caps.responses;
+      outcome = await callPlanResponses({
+        api_base: this.endpointsFor(connection).api_base,
+        access_token: token,
+        model: r.model_id,
+        instructions: r.instructions,
+        input: r.input,
+        timeout_ms: caps.request_timeout_ms,
+        max_output_chars: caps.max_output_chars,
+        ...(r.signal ? { signal: r.signal } : {}),
+        ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+      });
+    } catch (e) {
+      // Nothing was sent: the token could not be obtained.
+      outcome = {
+        kind: 'rejected',
+        reason_code:
+          e instanceof ContractError
+            ? e.code.toLowerCase()
+            : 'token_unavailable',
+        message: e instanceof Error ? e.message.slice(0, 200) : 'No token.',
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+      };
+    }
+    const observed: PlanObservation =
+      outcome.kind === 'completed'
+        ? {}
+        : {
+            ...(outcome.eligibility
+              ? { eligibility: outcome.eligibility }
+              : {}),
+            ...(outcome.quota ? { quota: outcome.quota } : {}),
+            ...(outcome.sign_in_invalid ? { sign_in_invalid: true } : {}),
+            ...(outcome.model_refused ? { model_refused: true } : {}),
+            reason_code: outcome.reason_code,
+            upstream_request_id: outcome.response_id,
+          };
+    if (r.score)
+      observed.signal = r.score(
+        outcome.kind === 'completed' ? outcome.text : null,
+        outcome,
+      );
+    await this.deps.store.settlePlanRequest(
+      admitted.request_id,
+      outcome.kind === 'completed'
+        ? {
+            state: 'completed',
+            upstream_request_id: outcome.response_id,
+            output_tokens: outcome.output_tokens,
+            output_chars: outcome.output_chars,
+            output_hash: outcome.output_hash,
+          }
+        : {
+            state: outcome.kind,
+            reason_code: outcome.reason_code,
+            upstream_request_id: outcome.response_id,
+            output_chars: outcome.output_chars,
+          },
+      observed,
+    );
+    return { request_id: admitted.request_id, outcome };
+  }
+
+  /**
+   * Admission for the Codex relay (Path B): each upstream request Codex makes is admitted and
+   * settled here like a direct request, so the per-build, daily and in-flight caps hold. The
+   * returned token stays in the studio process; Codex itself only holds the relay capability.
+   */
+  codexAdmission(
+    ctx: CommandContext,
+    ws: string,
+    b: {
+      connection_id: string;
+      model_id: string;
+      run_id: string | null;
+      build_id: string;
+      data_class: 'synthetic' | 'public' | 'private_approved';
+    },
+  ) {
+    return async (): Promise<{
+      api_base: string;
+      access_token: string;
+      settle(o: CodexRelayOutcome): Promise<void>;
+    }> => {
+      const admitted = await this.deps.store.admitPlanRequest(ctx, ws, {
+        connection_id: b.connection_id,
+        logical_operation_id: randomUUID(),
+        path: 'codex',
+        purpose: 'codex_build',
+        model_id: b.model_id,
+        task_class: 'code_build',
+        data_class: b.data_class,
+        run_id: b.run_id,
+        build_id: b.build_id,
+        grant_id: null,
+        qualification_id: null,
+        input_chars: 0,
+      });
+      let token: string;
+      let connection: PlanConnection;
+      try {
+        ({ token, connection } = await this.accessToken(
+          ctx,
+          ws,
+          b.connection_id,
+        ));
+      } catch (e) {
+        await this.deps.store.settlePlanRequest(
+          admitted.request_id,
+          {
+            state: 'rejected',
+            reason_code: 'token_unavailable',
+            upstream_request_id: null,
+            output_chars: null,
+          },
+          { reason_code: 'token_unavailable' },
+        );
+        throw e;
+      }
+      return {
+        api_base: this.endpointsFor(connection).api_base,
+        access_token: token,
+        settle: async (o) => {
+          const c =
+            o.kind === 'completed'
+              ? null
+              : classifyPlanError(
+                  o.http_status ?? 0,
+                  o.error_code,
+                  o.error_param,
+                );
+          await this.deps.store.settlePlanRequest(
+            admitted.request_id,
+            o.kind === 'completed'
+              ? {
+                  state: 'completed',
+                  upstream_request_id: o.response_id,
+                  output_tokens: o.output_tokens,
+                  output_chars: o.output_chars,
+                  output_hash: o.output_hash,
+                }
+              : {
+                  state: o.kind,
+                  reason_code: o.reason_code.slice(0, 120),
+                  upstream_request_id: o.response_id,
+                  output_chars: o.output_chars,
+                },
+            c
+              ? {
+                  ...(c.eligibility ? { eligibility: c.eligibility } : {}),
+                  ...(c.quota ? { quota: c.quota } : {}),
+                  ...(c.sign_in_invalid ? { sign_in_invalid: true } : {}),
+                  ...(c.model_refused ? { model_refused: true } : {}),
+                  reason_code: o.reason_code.slice(0, 120),
+                  upstream_request_id: o.response_id,
+                }
+              : {},
+          );
+        },
+      };
+    };
+  }
+
+  /** Uses the owner's one-shot approval for one live call that verifies model access. */
+  async verifyModel(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    grant: { id: string; model_id: string },
+  ) {
+    const r = await this.invoke(ctx, ws, {
+      connection_id: id,
+      purpose: 'verification',
+      model_id: grant.model_id,
+      task_class: null,
+      data_class: 'synthetic',
+      run_id: null,
+      grant_id: grant.id,
+      instructions: VERIFICATION_INSTRUCTIONS,
+      input: VERIFICATION_INPUT,
+    });
+    return {
+      request_id: r.request_id,
+      verified: r.outcome.kind === 'completed',
+      outcome: summarize(r.outcome),
+    };
+  }
+
+  /** Runs every not-yet-attempted case once, then decides. Stops early on any refusal. */
+  async runQualification(ctx: CommandContext, ws: string, qid: string) {
+    const {
+      qualification: q,
+      manifest,
+      attempted_cases,
+    } = await this.deps.store.planQualificationManifest(ctx, ws, qid);
+    const seen = new Set(attempted_cases);
+    for (const c of manifest.cases) {
+      if (seen.has(c.case_id)) continue;
+      const system = c.input
+        .filter((m) => m.role === 'system')
+        .map((m) => m.text)
+        .join('\n\n');
+      const user = c.input
+        .filter((m) => m.role === 'user')
+        .map((m) => m.text)
+        .join('\n\n');
+      const r = await this.invoke(ctx, ws, {
+        connection_id: q.connection_id,
+        purpose: 'qualification',
+        model_id: q.model_id,
+        task_class: q.task_class,
+        data_class: manifest.data_class,
+        run_id: null,
+        qualification_id: qid,
+        qualification_case: { case_id: c.case_id, split: c.split },
+        instructions: system || 'Follow the user instructions.',
+        input: user,
+        score: (text, outcome) => {
+          let json: unknown = null;
+          if (text !== null && c.output_format === 'json')
+            try {
+              json = JSON.parse(text);
+            } catch {
+              return 'schema_invalid';
+            }
+          return checkOutput(c.check, text === null ? null : { text, json }, {
+            succeeded: outcome.kind === 'completed',
+            reason_code:
+              outcome.kind === 'completed' ? 'ok' : outcome.reason_code,
+          });
+        },
+      });
+      if (
+        r.outcome.kind !== 'completed' &&
+        !r.outcome.retry_allowed &&
+        r.outcome.kind !== 'failed'
+      )
+        return { state: 'stopped' as const, reason: r.outcome.reason_code };
+    }
+    return {
+      state: 'decided' as const,
+      qualification: await this.deps.store.finishPlanQualification(
+        ctx,
+        ws,
+        qid,
+      ),
+    };
+  }
+}
+
+export function summarize(o: PlanObservedOutcome) {
+  return o.kind === 'completed'
+    ? {
+        kind: o.kind,
+        output_chars: o.output_chars,
+        output_tokens: o.output_tokens,
+        response_id: o.response_id,
+      }
+    : {
+        kind: o.kind,
+        reason_code: o.reason_code,
+        message: o.message,
+        response_id: o.response_id,
+      };
+}

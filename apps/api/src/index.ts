@@ -38,7 +38,7 @@ import { readFileSync } from 'node:fs';
 import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
-  PortfolioStore,
+  ConnectionStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -57,6 +57,8 @@ import {
   liveBatchAdapterFromEnv,
   publicSearchFromEnv,
   BRAVE_SEARCH_ID,
+  PlanConnectionService,
+  planVaultFromEnv,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
 import {
@@ -95,6 +97,11 @@ import {
   paymentRoutes,
 } from './payments.js';
 import { routingRoutes } from './routing.js';
+import {
+  CONNECTIONS_ROUTE,
+  codexLauncherFromEnv,
+  connectionRoutes,
+} from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
 import { createOps } from './ops.js';
@@ -198,6 +205,8 @@ export function createApi(
     artifacts?: ArtifactSupervisor;
     /** Test seam: the fixture processor for a payment connection. */
     paymentFixture?: (connection: PaymentConnection) => FixtureProcessor;
+    /** Test seam: ChatGPT-plan service with loopback stand-in endpoints (ADR-0042). */
+    planService?: (store: ConnectionStore) => PlanConnectionService;
   } = {},
 ) {
   // X06: NAME_FILE secrets (Docker/systemd credentials) are loaded before anything reads env.
@@ -239,7 +248,13 @@ export function createApi(
   const live = liveAdapterFromEnv(env);
   const sourceConfig = sourceConfigFromEnv(env);
   const publicSearch = publicSearchFromEnv(env, sourceConfig.policy);
-  const store = pool ? new PortfolioStore(pool) : null;
+  const store = pool ? new ConnectionStore(pool) : null;
+  // ADR-0042: ChatGPT plan usage. Tokens live in the protected vault, never in the database.
+  const planService = store
+    ? (deps.planService?.(store) ??
+      new PlanConnectionService({ store, vault: planVaultFromEnv(env) }))
+    : null;
+  const codexLauncher = codexLauncherFromEnv(env);
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
   const artifacts =
@@ -505,6 +520,7 @@ export function createApi(
       RECORD_ROUTE.exec(url.pathname) ??
       GITHUB_ROUTE.exec(url.pathname) ??
       PAYMENTS_ROUTE.exec(url.pathname) ??
+      CONNECTIONS_ROUTE.exec(url.pathname) ??
       MARKETING_ROUTE.exec(url.pathname) ??
       PORTFOLIO_ROUTE.exec(url.pathname);
     if (!match) return false;
@@ -626,6 +642,25 @@ export function createApi(
         action,
         method,
         url,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      collection &&
+      CONNECTIONS_ROUTE.test(url.pathname) &&
+      (await connectionRoutes({
+        store,
+        service: planService,
+        codex: codexLauncher,
+        ctx,
+        ws,
+        collection,
+        item,
+        action,
+        method,
         body: () => readJson(req),
         send,
       }))

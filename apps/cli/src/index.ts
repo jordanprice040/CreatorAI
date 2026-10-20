@@ -102,6 +102,14 @@ import {
 } from '@creator/domain';
 import { batchesOf, readCorpus } from './context-index.js';
 import {
+  CREDITS_OFF_STATEMENT,
+  PlanConnectionSchema,
+  PlanConnectionDetailSchema,
+  PlanQualificationSchema,
+  PlanRequestSchema,
+  PlanVerificationGrantSchema,
+} from '@creator/contracts';
+import {
   GitHubConnectionSchema,
   GitHubDeliverySchema,
   GitHubOperationSchema,
@@ -260,6 +268,21 @@ const USAGE = `Usage:
   pnpm cli route-decide <workspace> <route-request-json|file.json>
   pnpm cli route-decisions <workspace> [run-id]
   pnpm cli route-call <workspace> <decision-id> <broker-request-json|file.json> [--shadow]
+  pnpm cli plan-connect <workspace> <label> [config/connections/chatgpt-plan.json]
+  pnpm cli plan-connections <workspace>
+  pnpm cli plan-connection <workspace> <connection-id>
+  pnpm cli plan-settings <workspace> <connection-id> <expected-version> <settings.json>
+  pnpm cli plan-accept-caps <workspace> <connection-id> <expected-version> <settings-hash>
+  pnpm cli plan-credits-off <workspace> <connection-id> <expected-version> <checked-on YYYY-MM-DD>
+  pnpm cli plan-credits-withdraw <workspace> <connection-id> <expected-version> <reason>
+  pnpm cli plan-sign-in|plan-sign-out <workspace> <connection-id>
+  pnpm cli plan-verify-approve <workspace> <connection-id> <expected-version> <model-id> [minutes]
+  pnpm cli plan-verify <workspace> <connection-id> <grant-id> <model-id>
+  pnpm cli plan-qualify <workspace> <connection-id> <expected-version> <model-id> <manifest.json> <min-held-out> <floor n/d>
+  pnpm cli plan-qualify-run|plan-qualify-finish <workspace> <qualification-id>
+  pnpm cli plan-requests <workspace> <connection-id>
+  pnpm cli plan-reconcile <workspace> <connection-id> <request-id> <expected-version> <did_not_run|ran> <note>
+  pnpm cli plan-quota-recheck <workspace> <connection-id> <expected-version>
   pnpm cli route-outcome <workspace> <decision-id> <outcome-json|file.json>
   pnpm cli route-escalate <workspace> <decision-id> [new-operation-id]
   pnpm cli context-capabilities-add <workspace> <config/context/provider-capabilities*.json>
@@ -593,6 +616,23 @@ export async function runCli(
             request,
             request.timeout_ms + 5000,
           );
+        },
+        // ADR-0042: the API holds the ChatGPT sign-in, relay and Codex jail; T12 keeps review and QA.
+        codexBuilder: async (target, packet) => {
+          const p = await local.product(productId);
+          const { evidence: _, ...out } = await call(
+            z.object({ evidence: z.unknown() }).passthrough(),
+            `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/codex-builds`,
+            {
+              build_id: target.build_id,
+              run_id: target.run_id,
+              model_id: target.model_id,
+              data_class: target.data_class,
+              packet,
+            },
+            1_900_000,
+          );
+          return out;
         },
       };
     };
@@ -1730,6 +1770,138 @@ export async function runCli(
           z.unknown(),
           `${ws(rest[0])}/reinvestment/settle-losses`,
           {},
+        );
+        break;
+      case 'plan-connect':
+        data = await call(
+          PlanConnectionSchema,
+          `${ws(rest[0])}/plan-connections`,
+          {
+            label: rest[1],
+            settings: jsonArg(
+              rest[2] ?? 'config/connections/chatgpt-plan.json',
+              'Plan settings',
+            ),
+          },
+        );
+        break;
+      case 'plan-connections':
+        data = await call(
+          z.array(PlanConnectionSchema),
+          `${ws(rest[0])}/plan-connections`,
+        );
+        break;
+      case 'plan-connection':
+        data = await call(
+          PlanConnectionDetailSchema.extend({ sign_in_attempt: z.unknown() }),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}`,
+        );
+        break;
+      case 'plan-settings':
+      case 'plan-accept-caps':
+      case 'plan-credits-off':
+      case 'plan-credits-withdraw':
+      case 'plan-quota-recheck': {
+        const expected_version = version(rest[2]);
+        const [action, body]: [string, unknown] =
+          command === 'plan-settings'
+            ? [
+                'settings',
+                {
+                  expected_version,
+                  settings: jsonArg(rest[3], 'Plan settings'),
+                },
+              ]
+            : command === 'plan-accept-caps'
+              ? ['accept-caps', { expected_version, settings_hash: rest[3] }]
+              : command === 'plan-credits-off'
+                ? [
+                    'credits',
+                    {
+                      expected_version,
+                      statement: CREDITS_OFF_STATEMENT,
+                      checked_on: rest[3],
+                    },
+                  ]
+                : command === 'plan-credits-withdraw'
+                  ? ['credits-withdraw', { expected_version, reason: rest[3] }]
+                  : ['quota-recheck', { expected_version }];
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/${action}`,
+          body,
+        );
+        break;
+      }
+      case 'plan-sign-in':
+      case 'plan-sign-out':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/${command.slice(5)}`,
+          command === 'plan-sign-in' ? { open_browser: true } : {},
+          20000,
+        );
+        break;
+      case 'plan-verify-approve':
+        data = await call(
+          PlanVerificationGrantSchema,
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/verification-grants`,
+          {
+            expected_version: version(rest[2]),
+            model_id: rest[3],
+            path: 'responses',
+            expires_in_minutes: rest[4] ? Number(rest[4]) : 30,
+          },
+        );
+        break;
+      case 'plan-verify':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/verify`,
+          { grant_id: rest[2], model_id: rest[3] },
+          330000,
+        );
+        break;
+      case 'plan-qualify': {
+        const [n, d] = (rest[6] ?? '').split('/').map(Number);
+        data = await call(
+          PlanQualificationSchema,
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/qualifications`,
+          {
+            expected_version: version(rest[2]),
+            model_id: rest[3],
+            manifest: jsonArg(rest[4], 'Benchmark manifest'),
+            min_held_out_cases: Number(rest[5]),
+            floor: { numerator: n, denominator: d },
+          },
+        );
+        break;
+      }
+      case 'plan-qualify-run':
+      case 'plan-qualify-finish':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-qualifications/${encodeURIComponent(rest[1] ?? '')}/${command === 'plan-qualify-run' ? 'run' : 'finish'}`,
+          {},
+          command === 'plan-qualify-run' ? 3_600_000 : 5000,
+        );
+        break;
+      case 'plan-requests':
+        data = await call(
+          z.array(PlanRequestSchema),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/requests`,
+        );
+        break;
+      case 'plan-reconcile':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/reconcile`,
+          {
+            request_id: rest[2],
+            expected_version: version(rest[3]),
+            outcome: rest[4],
+            note: rest[5],
+          },
         );
         break;
       case 'route-registry-add':

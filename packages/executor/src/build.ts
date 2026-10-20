@@ -38,6 +38,11 @@ export const buildPlanSchema = z.strictObject({
   max_output_tokens: z.number().int().min(100).max(16000),
   deadline: z.iso.datetime(),
   cases: z.array(qaCaseSchema).min(1).max(10),
+  // ADR-0042: present means the ChatGPT-plan Codex builder on that connection; absent means
+  // the broker builder, so existing plan hashes are unchanged.
+  codex_plan_builder: z
+    .strictObject({ connection_id: id, model_id: z.string().min(1).max(120) })
+    .optional(),
 });
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
 const builderSchema = z.strictObject({
@@ -74,6 +79,22 @@ export interface BuildPorts {
   assertActive(runId: string): Promise<void>;
   authorize(plan: BuildPlan): Promise<unknown>;
   call(runId: string, request: BrokerCallRequest): Promise<BrokerCallResult>;
+  /** ChatGPT-plan Codex builder (ADR-0042). Review and QA still use the paths above. */
+  codexBuilder?(
+    target: {
+      connection_id: string;
+      model_id: string;
+      build_id: string;
+      run_id: string;
+      data_class: BuildPlan['data_class'];
+    },
+    packet: {
+      candidate: string;
+      files: { path: string; hash: string; content: string }[];
+      task: { file_scope: string[] };
+      [k: string]: unknown;
+    },
+  ): Promise<unknown>;
 }
 const PROMPTS = {
   builder:
@@ -332,15 +353,42 @@ export class BuildSupervisor {
             await ports.authorize(plan),
           );
           await active();
-          const built = checked(
-            builderSchema,
-            await invoke('builder', {
-              ...packet,
+          const builderPacket = {
+            ...packet,
+            candidate: commit,
+            files: await files(),
+            feedback,
+          };
+          let built: z.infer<typeof builderSchema>;
+          if (plan.codex_plan_builder) {
+            if (!ports.codexBuilder)
+              throw new Error('Codex plan builder is not configured');
+            await jsonWrite(join(dir, `codex-${cycle}-intent.json`), {
               candidate: commit,
-              files: await files(),
-              feedback,
-            }),
-          );
+              context_hash: digest(JSON.stringify(builderPacket)),
+            });
+            built = checked(
+              builderSchema,
+              await ports.codexBuilder(
+                {
+                  ...plan.codex_plan_builder,
+                  build_id: buildId,
+                  run_id: plan.run_id,
+                  data_class: plan.data_class,
+                },
+                {
+                  ...builderPacket,
+                  allowed_tools: ['apply_patch in the task workspace'],
+                },
+              ),
+            );
+            await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), built);
+            await active();
+          } else
+            built = checked(
+              builderSchema,
+              await invoke('builder', builderPacket),
+            );
           if (!built.submission)
             throw new Error(
               `Builder blocked: ${built.blocker ?? 'no submitted patch'}`,

@@ -1,5 +1,25 @@
 # Decision log
 
+## ADR-0042 — ChatGPT plan connection and Codex builder (accepted October 20, 2026)
+
+Full record: [ADR-0042](ADR-0042-codex-integration.md); design and Jordan's answers
+Q1–Q7: docs/CODEX_INTEGRATION.md; owner guide: docs/MODEL_CONNECTIONS.md.
+
+Creator Agent may use Jordan's ChatGPT Plus allowance through Sign in with ChatGPT
+(private client, `dynamic_agent_client` registration, PKCE, loopback callback). Path A:
+direct Responses for general inference. Path B: Codex app-server 0.163.0 in a WSL2
+bubblewrap jail for `code_build` only. Sign-in, credits-off confirmation, accepted
+caps, per-model verification and per-task-class qualification are separate recorded
+states; any missing one blocks inference. Credits after the limit stay off and are
+attested by the owner with a date; there is never a paid API fallback. Unknown
+outcomes block the connection until reconciled. Tokens live only in the control
+process vault (DPAPI), never in the database, logs or the jail. "No command execution"
+is enforced by hardened config, a relay tool allowlist that cuts the stream, an
+app-server supervisor and the jail, and is tested against the pinned binary. The T12
+build keeps its scoped patch tool, independent broker review and held-out checks.
+Migration 26 (25 belongs to the §2.5 Brave work). Not activated: no registration,
+sign-in, Codex install on Jordan's machine or model call happened.
+
 ## Page-navigation draft repair — October 20, 2026
 
 Owner reported Tauri form text disappearing on page changes and requested retention

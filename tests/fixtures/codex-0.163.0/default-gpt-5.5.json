@@ -1,0 +1,66 @@
+{
+  "model": "gpt-5.5",
+  "store": false,
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "name": "exec_command",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "write_stdin",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "request_user_input",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "custom",
+      "name": "apply_patch",
+      "description": ""
+    },
+    {
+      "type": "function",
+      "name": "view_image",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "get_goal",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "create_goal",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "function",
+      "name": "update_goal",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "tool_search",
+      "execution": "client",
+      "description": ""
+    },
+    {
+      "type": "web_search",
+      "external_web_access": false,
+      "search_content_types": ["text", "image"],
+      "description": ""
+    }
+  ],
+  "input": []
+}

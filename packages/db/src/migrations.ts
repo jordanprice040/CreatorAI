@@ -2223,6 +2223,88 @@ alter table budget_reservations drop constraint budget_reservations_provider_che
 alter table budget_reservations add constraint budget_reservations_provider_check check (provider in ('fixture','openai','brave'));
 `,
   },
+  {
+    // §2.2/§2.4 ChatGPT-plan connections. No token is stored here: credential_ref names a
+    // vault entry held by the studio process. Sign-in, model access and qualification are
+    // separate tables so one can never stand in for another.
+    version: 26,
+    name: 'chatgpt_plan_connections',
+    sql: `
+create table plan_connections (
+ id uuid primary key, workspace_id uuid not null, fixture boolean not null,
+ version integer not null check (version >= 1),
+ label text not null check (length(label) between 1 and 80),
+ settings jsonb not null, settings_hash char(64) not null,
+ caps_accepted_at timestamptz, caps_accepted_by uuid references actors(id),
+ ext_agent_host_id text not null check (ext_agent_host_id ~ '^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'),
+ sign_in jsonb not null, credits jsonb not null, eligibility jsonb not null, quota jsonb not null,
+ credential_ref text check (credential_ref is null or credential_ref ~ '^chatgpt-plan/[0-9a-f-]{36}$'),
+ status_reason text,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, fixture) references workspaces (id, fixture),
+ unique (workspace_id, label)
+);
+create table plan_model_access (
+ connection_id uuid not null references plan_connections(id),
+ model_id text not null check (length(model_id) between 1 and 200),
+ path text not null check (path in ('responses','codex')),
+ access text not null check (access in ('verified','refused')),
+ reason_code text, request_id uuid not null,
+ verified_at timestamptz not null default clock_timestamp(),
+ primary key (connection_id, model_id, path)
+);
+create table plan_verification_grants (
+ id uuid primary key, connection_id uuid not null references plan_connections(id),
+ model_id text not null, path text not null check (path in ('responses','codex')),
+ max_requests integer not null check (max_requests = 1),
+ used integer not null default 0 check (used between 0 and 1),
+ expires_at timestamptz not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create table plan_qualifications (
+ id uuid primary key, connection_id uuid not null references plan_connections(id),
+ model_id text not null, task_class text not null,
+ manifest jsonb not null, manifest_hash char(64) not null,
+ min_held_out_cases integer not null check (min_held_out_cases >= 3),
+ floor jsonb not null,
+ state text not null check (state in ('running','qualified','failed','abandoned')),
+ development jsonb not null, held_out jsonb not null, reason text,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ decided_at timestamptz
+);
+create unique index plan_qualifications_one_running on plan_qualifications (connection_id, model_id, task_class) where state = 'running';
+create table plan_requests (
+ id uuid primary key, connection_id uuid not null references plan_connections(id),
+ logical_operation_id uuid not null unique,
+ path text not null check (path in ('responses','codex')),
+ purpose text not null check (purpose in ('verification','qualification','task','codex_build')),
+ model_id text not null, task_class text, data_class text not null,
+ run_id uuid, build_id uuid, grant_id uuid references plan_verification_grants(id),
+ qualification_id uuid references plan_qualifications(id), case_id text, case_split text check (case_split is null or case_split in ('development','held_out')), signal text,
+ state text not null check (state in ('in_flight','completed','failed','rejected','unknown','reconciled')),
+ reason_code text, upstream_request_id text,
+ output_tokens bigint check (output_tokens is null or output_tokens >= 0),
+ output_chars bigint check (output_chars is null or output_chars >= 0),
+ output_hash char(64),
+ created_by uuid not null references actors(id),
+ started_at timestamptz not null default clock_timestamp(), finished_at timestamptz
+);
+create index plan_requests_window on plan_requests (connection_id, started_at);
+create unique index plan_requests_one_case on plan_requests (qualification_id, case_id) where qualification_id is not null;
+create table plan_connection_events (
+ id uuid primary key, connection_id uuid not null references plan_connections(id),
+ kind text not null check (length(kind) between 1 and 80), body jsonb not null,
+ actor_id uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger plan_connection_events_immutable before update or delete on plan_connection_events
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

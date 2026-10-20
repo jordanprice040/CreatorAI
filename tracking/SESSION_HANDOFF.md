@@ -1,5 +1,21 @@
 # Session handoff
 
+## §2.2 / §2.4 — ChatGPT plan connection and Codex builder (October 20, 2026)
+
+Read docs/MODEL_CONNECTIONS.md first, then ADR-0042. Migration 26 is this work's; the
+§2.5 Brave work owns 25 and its edits (brave enum, source-searches route, fetch
+cancellation, secret registry entry) were preserved. Code: contracts/connections.ts,
+domain/plan-admission.ts, db/connection-store.ts, broker plan-oauth/plan-vault/
+plan-responses/plan-service, executor codex-host.ts + worker/codex_bridge.py,
+apps/api/src/connections.ts, apps/web/src/models.tsx, CLI `plan-*`. Proposed caps:
+config/connections/chatgpt-plan.json (not accepted). Codex pin and installer:
+scripts/install-codex-wsl.sh (run 2026-10-20 in Jordan's WSL Ubuntu; hashes match;
+native codex-host tests 13/13 via the WSL2 launcher). Codex tests need `CREATOR_CODEX_DIR` (and `CREATOR_CODEX_BWRAP` if bwrap is not
+/usr/bin/bwrap). Never add a paid fallback, enable credits or publish the client.
+Path B stays blocked until a Codex-path verification and `code_build` qualification
+exist; neither is built. Known unrelated flake: research-api teardown race in the
+maintenance outbox under the full suite.
+
 ## Reset layout installed and checked natively — October 20, 2026
 
 Rebuilt studio runtime, native release and unsigned NSIS installer; installed per-user

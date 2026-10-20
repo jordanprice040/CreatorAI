@@ -1,0 +1,25 @@
+{
+  "format": "chatgpt-plan-settings/1",
+  "plan_type": "plus",
+  "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent. Studio caps below are proposals pending Jordan's acceptance.",
+  "allowed_data_classes": ["synthetic", "public"],
+  "allowed_task_classes": ["summarization", "specification"],
+  "caps": {
+    "responses": {
+      "max_requests_per_run": 10,
+      "request_timeout_ms": 120000,
+      "max_output_chars": 16000,
+      "max_input_chars": 24000
+    },
+    "codex": {
+      "max_builds_per_day": 2,
+      "max_turns_per_build": 1,
+      "max_model_requests_per_build": 25,
+      "build_timeout_ms": 600000
+    },
+    "shared": {
+      "max_model_requests_per_day": 40,
+      "max_in_flight": 1
+    }
+  }
+}

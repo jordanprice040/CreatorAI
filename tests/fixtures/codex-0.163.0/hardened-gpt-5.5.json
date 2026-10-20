@@ -1,0 +1,19 @@
+{
+  "model": "gpt-5.5",
+  "store": false,
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "name": "request_user_input",
+      "description": "",
+      "strict": false
+    },
+    {
+      "type": "custom",
+      "name": "apply_patch",
+      "description": ""
+    }
+  ],
+  "input": []
+}

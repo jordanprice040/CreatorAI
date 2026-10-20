@@ -1,0 +1,169 @@
+import type {
+  PlanAdmissionRequest,
+  PlanConnection,
+  PlanModelAccess,
+  PlanQualification,
+  PlanVerificationGrant,
+} from '@creator/contracts';
+import { pathForTaskClass } from '@creator/contracts';
+
+// Deterministic admission for ChatGPT-plan requests (§2.4). The store evaluates this under a
+// row lock with the counts it just read; a model never supplies any of these facts.
+
+export interface PlanUsageCounts {
+  /** Upstream model requests started in the last 24 hours, both paths. */
+  last_24h_requests: number;
+  last_24h_codex_builds: number;
+  /** Requests of this run on the responses path (any purpose). */
+  run_requests: number;
+  /** Upstream requests already made by this Codex build. */
+  build_requests: number;
+  in_flight: number;
+  /** Requests whose outcome is still unknown: they block new dispatch until reconciled. */
+  unresolved: number;
+}
+
+/** Reasons the connection as a whole cannot serve inference now, independent of a request. */
+export function connectionBlockers(c: PlanConnection): string[] {
+  const out: string[] = [];
+  if (c.sign_in.state !== 'signed_in')
+    out.push(
+      c.sign_in.state === 'reauthorization_required'
+        ? 'Sign in with ChatGPT again: the saved authorization stopped working.'
+        : 'Not signed in with ChatGPT.',
+    );
+  else if (!c.sign_in.plan_usage_granted)
+    out.push(
+      'ChatGPT plan usage was not granted at sign-in (chatgpt.tokens.use.direct is missing).',
+    );
+  if (c.credits.state !== 'confirmed_off')
+    out.push(
+      'Credits after the plan limit are not confirmed off for Creator Agent in ChatGPT Settings > Usage.',
+    );
+  if (!c.caps_accepted_at)
+    out.push(
+      'The owner has not accepted the current request, daily, time and output caps.',
+    );
+  if (c.eligibility.state === 'not_eligible')
+    out.push(
+      `OpenAI reported this account or app as not eligible for plan usage (${c.eligibility.reason_code ?? 'no code'}).`,
+    );
+  if (c.quota.state === 'exhausted')
+    out.push(
+      'The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage.',
+    );
+  return out;
+}
+
+export function admissionBlockers(input: {
+  connection: PlanConnection;
+  request: PlanAdmissionRequest;
+  access: PlanModelAccess[];
+  qualifications: PlanQualification[];
+  grant: PlanVerificationGrant | null;
+  usage: PlanUsageCounts;
+  now: Date;
+}): string[] {
+  const { connection: c, request: r, usage: u } = input;
+  const caps = c.settings.caps;
+  const out = connectionBlockers(c);
+  if (!c.settings.allowed_data_classes.includes(r.data_class))
+    out.push(`Data class ${r.data_class} is not allowed on this connection.`);
+  if (r.task_class && !c.settings.allowed_task_classes.includes(r.task_class))
+    out.push(`Task class ${r.task_class} is not allowed on this connection.`);
+  if (r.task_class && pathForTaskClass(r.task_class) !== r.path)
+    out.push('This task class belongs to the other path.');
+  if (u.unresolved > 0)
+    out.push(
+      'An earlier plan request has an unknown outcome; reconcile it first.',
+    );
+  if (u.in_flight >= caps.shared.max_in_flight)
+    out.push('Another plan request is already running (one at a time).');
+  if (u.last_24h_requests >= caps.shared.max_model_requests_per_day)
+    out.push('The studio daily request cap for this connection is reached.');
+  if (r.path === 'responses') {
+    if (r.input_chars > caps.responses.max_input_chars)
+      out.push('The request input is larger than the per-request input cap.');
+    if (r.run_id && u.run_requests >= caps.responses.max_requests_per_run)
+      out.push('The per-run request cap is reached.');
+  } else if (u.build_requests >= caps.codex.max_model_requests_per_build)
+    out.push('The per-build Codex model request cap is reached.');
+  const verified = input.access.some(
+    (a) =>
+      a.model_id === r.model_id && a.path === r.path && a.access === 'verified',
+  );
+  switch (r.purpose) {
+    case 'verification': {
+      const g = input.grant;
+      if (!g || g.id !== r.grant_id || g.connection_id !== c.id)
+        out.push('The one-shot verification approval was not found.');
+      else {
+        if (g.model_id !== r.model_id || g.path !== r.path)
+          out.push('The verification approval is for another model or path.');
+        if (g.used >= g.max_requests)
+          out.push('The verification approval was already used.');
+        if (Date.parse(g.expires_at) <= input.now.getTime())
+          out.push('The verification approval has expired.');
+      }
+      if (verified) out.push('This model is already verified on this path.');
+      break;
+    }
+    case 'qualification': {
+      if (!verified) out.push('Verify model access before qualifying it.');
+      const q = input.qualifications.find((x) => x.id === r.qualification_id);
+      if (!q || q.state !== 'running' || q.model_id !== r.model_id)
+        out.push('The qualification run is not open for this model.');
+      break;
+    }
+    case 'task':
+    case 'codex_build': {
+      if (!verified)
+        out.push(
+          `Model ${r.model_id} has no verified access on the ${r.path} path.`,
+        );
+      const qualified =
+        r.task_class !== null &&
+        input.qualifications.some(
+          (q) =>
+            q.model_id === r.model_id &&
+            q.task_class === r.task_class &&
+            q.state === 'qualified',
+        );
+      if (!qualified)
+        out.push(
+          `Model ${r.model_id} is not qualified for ${r.task_class ?? 'this task'} on this connection.`,
+        );
+      if (
+        r.purpose === 'codex_build' &&
+        u.build_requests === 0 &&
+        u.last_24h_codex_builds >= caps.codex.max_builds_per_day
+      )
+        out.push('The daily Codex build cap is reached.');
+      break;
+    }
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * Qualification decision: held-out pass rate at or above the floor, with at least the minimum
+ * number of held-out cases. Development cases are reported but never decide.
+ */
+export function qualificationDecision(q: {
+  held_out: { passed: number; total: number };
+  min_held_out_cases: number;
+  floor: { numerator: number; denominator: number };
+}): { qualified: boolean; reason: string } {
+  if (q.held_out.total < q.min_held_out_cases)
+    return {
+      qualified: false,
+      reason: `Only ${q.held_out.total} held-out cases ran; ${q.min_held_out_cases} are required.`,
+    };
+  const ok =
+    q.held_out.passed * q.floor.denominator >=
+    q.floor.numerator * q.held_out.total;
+  return {
+    qualified: ok,
+    reason: `${q.held_out.passed}/${q.held_out.total} held-out cases accepted against a floor of ${q.floor.numerator}/${q.floor.denominator} (absolute, not baseline-relative).`,
+  };
+}
