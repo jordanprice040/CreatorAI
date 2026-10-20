@@ -1,0 +1,260 @@
+TAP version 13
+# Subtest: cache keys separate every scope and version component
+ok 1 - cache keys separate every scope and version component
+  ---
+  duration_ms: 1.319
+  type: 'test'
+  ...
+# Subtest: capability states: fixture only in fixture workspaces, verified only in real ones
+ok 2 - capability states: fixture only in fixture workspaces, verified only in real ones
+  ---
+  duration_ms: 0.2196
+  type: 'test'
+  ...
+# Subtest: rendering keeps the pinned prefix identical across tasks; verification catches edits
+ok 3 - rendering keeps the pinned prefix identical across tasks; verification catches edits
+  ---
+  duration_ms: 1.4135
+  type: 'test'
+  ...
+# Subtest: fixture prompt cache: first prefix use writes, the repeat reads; short prefixes are not cached
+ok 4 - fixture prompt cache: first prefix use writes, the repeat reads; short prefixes are not cached
+  ---
+  duration_ms: 1.2887
+  type: 'test'
+  ...
+# Subtest: batch result lines: expiry and request errors are not charged, others are unknown
+ok 5 - batch result lines: expiry and request errors are not charged, others are unknown
+  ---
+  duration_ms: 0.366
+  type: 'test'
+  ...
+# Subtest: batch status comes from item reservations, not the provider status alone
+ok 6 - batch status comes from item reservations, not the provider status alone
+  ---
+  duration_ms: 0.3026
+  type: 'test'
+  ...
+# Subtest: OpenAI batch adapter (loopback contract): upload, create, poll, output and error files
+ok 7 - OpenAI batch adapter (loopback contract): upload, create, poll, output and error files
+  ---
+  duration_ms: 46.5644
+  type: 'test'
+  ...
+# Subtest: OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output
+ok 8 - OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output
+  ---
+  duration_ms: 12.7476
+  type: 'test'
+  ...
+# Subtest: X02 index: incremental counts, explicit removals, and record reuse
+ok 9 - X02 index: incremental counts, explicit removals, and record reuse
+  ---
+  duration_ms: 1373.6467
+  type: 'test'
+  ...
+# Subtest: X02 packs: pins and authority survive compaction; lossy and opaque compaction refused
+ok 10 - X02 packs: pins and authority survive compaction; lossy and opaque compaction refused
+  ---
+  duration_ms: 1315.1358
+  type: 'test'
+  ...
+# Subtest: X02 result cache: hits re-admit, dependencies and grants invalidate, scope isolates
+ok 11 - X02 result cache: hits re-admit, dependencies and grants invalidate, scope isolates
+  ---
+  duration_ms: 1383.6255
+  type: 'test'
+  ...
+# Subtest: X02 batches: capability and price checks, partial failure, unknown then late settlement
+ok 12 - X02 batches: capability and price checks, partial failure, unknown then late settlement
+  ---
+  duration_ms: 1359.615
+  type: 'test'
+  ...
+# Subtest: X02 batches: expiry releases, a real workspace refuses unverified capabilities
+ok 13 - X02 batches: expiry releases, a real workspace refuses unverified capabilities
+  ---
+  duration_ms: 1397.5672
+  type: 'test'
+  ...
+# Subtest: X02 evaluation: quality maintained for the compacted pack, a starved pack fails
+ok 14 - X02 evaluation: quality maintained for the compacted pack, a starved pack fails
+  ---
+  duration_ms: 1540.3995
+  type: 'test'
+  ...
+# Subtest: local products use separate repositories, exact bases, scoped CAS patches and preserve dirty user work
+ok 15 - local products use separate repositories, exact bases, scoped CAS patches and preserve dirty user work
+  ---
+  duration_ms: 1522.9837
+  type: 'test'
+  ...
+# Subtest: symlink, junction and hardlink inputs are refused before Git reads product files
+ok 16 - symlink, junction and hardlink inputs are refused before Git reads product files
+  ---
+  duration_ms: 826.9765
+  type: 'test'
+  ...
+# Subtest: one integration owner, stale heads and real merge conflicts preserve every checkout
+ok 17 - one integration owner, stale heads and real merge conflicts preserve every checkout
+  ---
+  duration_ms: 3408.6534
+  type: 'test'
+  ...
+# Subtest: QA dispatch mounts only runtime inputs, never expected answers or case labels
+ok 18 - QA dispatch mounts only runtime inputs, never expected answers or case labels
+  ---
+  duration_ms: 866.9288
+  type: 'test'
+  ...
+# Subtest: an unresolved dispatch blocks another worker instead of silently retrying
+ok 19 - an unresolved dispatch blocks another worker instead of silently retrying
+  ---
+  duration_ms: 652.214
+  type: 'test'
+  ...
+# Subtest: real WSL worker builds the reviewed template with observed cgroup limits and disposes the workspace
+ok 20 - real WSL worker builds the reviewed template with observed cgroup limits and disposes the workspace # SKIP Set CREATOR_TEST_ISOLATION=wsl2 for the real worker gate
+  ---
+  duration_ms: 0.4224
+  type: 'test'
+  ...
+# Subtest: real WSL worker denies secret reads, metadata/public/loopback network and privilege escalation
+ok 21 - real WSL worker denies secret reads, metadata/public/loopback network and privilege escalation # SKIP Real isolation gate is opt-in
+  ---
+  duration_ms: 0.2288
+  type: 'test'
+  ...
+# Subtest: real cancellation kills a detached child process tree and repeated cancel is idempotent
+ok 22 - real cancellation kills a detached child process tree and repeated cancel is idempotent # SKIP Real isolation gate is opt-in
+  ---
+  duration_ms: 0.0936
+  type: 'test'
+  ...
+# Subtest: real worker enforces disk, memory, process and output bounds
+ok 23 - real worker enforces disk, memory, process and output bounds # SKIP Real isolation gate is opt-in
+  ---
+  duration_ms: 0.184
+  type: 'test'
+  ...
+# Subtest: real killed supervisor loses its lease; explicit reconciliation stops the unit without redispatch
+ok 24 - real killed supervisor loses its lease; explicit reconciliation stops the unit without redispatch # SKIP Real isolation gate is opt-in
+  ---
+  duration_ms: 0.2129
+  type: 'test'
+  ...
+# Subtest: a missing real isolation backend blocks execution without a host fallback
+ok 25 - a missing real isolation backend blocks execution without a host fallback # SKIP Real isolation gate is opt-in
+  ---
+  duration_ms: 0.0488
+  type: 'test'
+  ...
+# Subtest: X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+not ok 26 - X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+  ---
+  duration_ms: 1987.133
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\dist\\payments.test.js:104:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(events.some((e) => e.reason === 'signature_mismatch'))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/dist/payments.test.js:257:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+ok 27 - X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+  ---
+  duration_ms: 2136.6509
+  type: 'test'
+  ...
+# Subtest: X07 one processor account and funding balance cannot be registered twice
+ok 28 - X07 one processor account and funding balance cannot be registered twice
+  ---
+  duration_ms: 1555.7766
+  type: 'test'
+  ...
+# Subtest: X07 non-USD processor snapshots cannot enter the USD ledger
+ok 29 - X07 non-USD processor snapshots cannot enter the USD ledger
+  ---
+  duration_ms: 1413.8261
+  type: 'test'
+  ...
+# Subtest: X07 credential account drift cannot book processor state
+ok 30 - X07 credential account drift cannot book processor state
+  ---
+  duration_ms: 1418.8873
+  type: 'test'
+  ...
+# Subtest: X07 fees above sale proceeds settle as a loss, never negative earnings
+ok 31 - X07 fees above sale proceeds settle as a loss, never negative earnings
+  ---
+  duration_ms: 1373.6639
+  type: 'test'
+  ...
+# Subtest: X07 overlapping observations reject an older result without holding financial locks across reads
+not ok 32 - X07 overlapping observations reject an older result without holding financial locks across reads
+  ---
+  duration_ms: 1527.4551
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\dist\\payments.test.js:493:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Processor wait must not hold the workspace financial lock.
+
+    false !== true
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/dist/payments.test.js:530:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: X07 invalid webhook signatures never write durable receipts, even with repeated bodies
+ok 33 - X07 invalid webhook signatures never write durable receipts, even with repeated bodies
+  ---
+  duration_ms: 1450.2372
+  type: 'test'
+  ...
+# Subtest: X07 Stripe refuses truncated or malformed loss histories
+ok 34 - X07 Stripe refuses truncated or malformed loss histories
+  ---
+  duration_ms: 19.6736
+  type: 'test'
+  ...
+# Subtest: X07 Stripe test adapter maps processor objects from a contract double
+ok 35 - X07 Stripe test adapter maps processor objects from a contract double
+  ---
+  duration_ms: 4.0374
+  type: 'test'
+  ...
+# Subtest: reinvested earnings stay unallocated until the owner assigns them; a portfolio allocation funds non-maintenance work only, once
+ok 36 - reinvested earnings stay unallocated until the owner assigns them; a portfolio allocation funds non-maintenance work only, once
+  ---
+  duration_ms: 1669.6182
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 28
+# fail 2
+# cancelled 0
+# skipped 6
+# todo 0
+# duration_ms 31951.2398

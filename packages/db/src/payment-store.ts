@@ -167,6 +167,79 @@ export class PaymentStore extends DesktopJobStore {
 
   // ---- Connections --------------------------------------------------------------------------
 
+  /** A newer read fences an older one; no database connection is held during processor I/O. */
+  async #readObservation<T>(
+    ctx: CommandContext,
+    connectionId: string,
+    observed: T | (() => Promise<T>),
+    ws?: string,
+    railId?: string,
+  ) {
+    const epoch = await this.tx(async (c) => {
+      const conn = await this.#connection(
+        c,
+        ws ? uuid(ws) : null,
+        connectionId,
+        true,
+      );
+      if (ws) await this.requireOwner(c, conn.workspace_id, ctx.actorId);
+      this.#usable(conn, false);
+      const { rows } = await c.query(
+        'update payment_connections set observation_epoch=observation_epoch+1 where id=$1 returning observation_epoch::text as epoch',
+        [conn.id],
+      );
+      await this.append(c, ctx, {
+        workspaceId: conn.workspace_id,
+        action: 'payment.observation_started',
+        subjectKind: 'payment_connection',
+        subjectId: conn.id,
+        subjectVersion: conn.version,
+        contentHash: null,
+        payload: { epoch: rows[0].epoch },
+      });
+      return String(rows[0].epoch);
+    });
+    try {
+      return {
+        epoch,
+        value:
+          typeof observed === 'function'
+            ? await (observed as () => Promise<T>)()
+            : observed,
+      };
+    } catch (e) {
+      if (
+        railId &&
+        ws &&
+        e instanceof ContractError &&
+        ['STORAGE_UNAVAILABLE', 'ACCESS_DENIED'].includes(e.code)
+      )
+        await this.setRailStatus(
+          ctx,
+          ws,
+          railId,
+          {
+            status: 'unavailable',
+            reason:
+              'Processor balance observation failed; verify the rail before restoring availability.',
+          },
+          { connectionId, epoch },
+        );
+      throw e;
+    }
+  }
+  async #checkObservation(c: PoolClient, connectionId: string, epoch: string) {
+    const r = await c.query(
+      'select observation_epoch::text as epoch from payment_connections where id=$1',
+      [connectionId],
+    );
+    if (r.rows[0]?.epoch !== epoch)
+      throw fail(
+        'VERSION_CONFLICT',
+        'A newer processor observation started; retry this read rather than applying stale state.',
+      );
+  }
+
   /**
    * Registers a processor connection in a fixture workspace. Real workspaces would need live
    * payments, which are not built: test-mode money is not money, so it never funds real budgets.
@@ -753,6 +826,12 @@ export class PaymentStore extends DesktopJobStore {
     ws?: string,
   ): Promise<{ outcome: 'applied' | 'duplicate'; posted: number }> {
     ctx = normalize(ctx);
+    const observation = await this.#readObservation(
+      ctx,
+      connectionId,
+      observed,
+      ws,
+    );
     return this.tx(async (c) => {
       const conn = await this.#connection(
         c,
@@ -765,12 +844,10 @@ export class PaymentStore extends DesktopJobStore {
       // Recheck and lock the connection after waiting; revocation must fence dispatch.
       const current = await this.#connection(c, wsId, conn.id, true);
       this.#usable(current, false);
+      await this.#checkObservation(c, conn.id, observation.epoch);
       if (!(await this.#claimEvent(c, conn.id, event)))
         return { outcome: 'duplicate' as const, posted: 0 };
-      const snap = parse(
-        PaymentSnapshotSchema,
-        typeof observed === 'function' ? await observed() : observed,
-      );
+      const snap = parse(PaymentSnapshotSchema, observation.value);
       this.#usable(current, snap.livemode);
       if (snap.currency !== 'usd')
         throw fail('INVALID_CONTRACT', 'Only USD payments are recorded.');
@@ -803,6 +880,12 @@ export class PaymentStore extends DesktopJobStore {
     ws?: string,
   ): Promise<{ outcome: 'applied' | 'duplicate'; posted: number }> {
     ctx = normalize(ctx);
+    const observation = await this.#readObservation(
+      ctx,
+      connectionId,
+      observed,
+      ws,
+    );
     return this.tx(async (c) => {
       const conn = await this.#connection(
         c,
@@ -818,12 +901,10 @@ export class PaymentStore extends DesktopJobStore {
         true,
       );
       this.#usable(current, false);
+      await this.#checkObservation(c, conn.id, observation.epoch);
       if (!(await this.#claimEvent(c, conn.id, event)))
         return { outcome: 'duplicate' as const, posted: 0 };
-      const snap = parse(
-        PayoutSnapshotSchema,
-        typeof observed === 'function' ? await observed() : observed,
-      );
+      const snap = parse(PayoutSnapshotSchema, observation.value);
       this.#usable(current, snap.livemode);
       if (snap.currency !== 'usd')
         throw fail('INVALID_CONTRACT', 'Only USD payouts are recorded.');
@@ -1785,6 +1866,7 @@ export class PaymentStore extends DesktopJobStore {
     ws: string,
     id: string,
     raw: unknown,
+    observation?: { connectionId: string; epoch: string },
   ) {
     ctx = normalize(ctx);
     ws = uuid(ws);
@@ -1792,6 +1874,21 @@ export class PaymentStore extends DesktopJobStore {
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
       await this.#reinvestLock(c, ws);
+      if (observation) {
+        const conn = await this.#connection(
+          c,
+          ws,
+          observation.connectionId,
+          true,
+        );
+        if (conn.status !== 'active') return { status: 'unchanged' };
+        const r = await c.query(
+          'select observation_epoch::text as epoch from payment_connections where id=$1',
+          [conn.id],
+        );
+        if (r.rows[0]?.epoch !== observation.epoch)
+          return { status: 'unchanged' };
+      }
       const { rows } = await c.query(
         `update funding_rails set status = $3, status_reason = $4, version = version + 1
          where workspace_id = $1 and id = $2 returning id, status, version`,
@@ -1871,6 +1968,14 @@ export class PaymentStore extends DesktopJobStore {
   ) {
     ctx = normalize(ctx);
     ws = uuid(ws);
+    const initial = await this.railConnection(ctx, ws, id);
+    const observation = await this.#readObservation(
+      ctx,
+      initial.id,
+      observed,
+      ws,
+      id,
+    );
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
       await this.#reinvestLock(c, ws);
@@ -1882,10 +1987,8 @@ export class PaymentStore extends DesktopJobStore {
         true,
       );
       this.#usable(conn, false);
-      const balance = parse(
-        BalanceSnapshotSchema,
-        typeof observed === 'function' ? await observed() : observed,
-      );
+      await this.#checkObservation(c, conn.id, observation.epoch);
+      const balance = parse(BalanceSnapshotSchema, observation.value);
       this.#usable(conn, balance.livemode);
       await this.#snapshot(c, conn, 'balance', null, balance);
       await c.query(

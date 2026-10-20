@@ -227,7 +227,12 @@ export class ExecutionSupervisor {
       throw e;
     }
     const recipeHash = digest(await readFile(RECIPE));
-    if (qa) await jsonWrite(join(job, 'acceptance.json'), qa);
+    // Generated code shares this mount. Expected answers and case labels stay on the host.
+    if (qa)
+      await jsonWrite(join(job, 'acceptance.json'), {
+        args: qa.args,
+        stdin: qa.stdin,
+      });
     const record: Execution = {
       id: executionId,
       product_id: productId,

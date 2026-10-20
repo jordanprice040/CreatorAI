@@ -1,0 +1,28 @@
+TAP version 13
+# Subtest: OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials
+ok 1 - OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials
+  ---
+  duration_ms: 66.6856
+  type: 'test'
+  ...
+# Subtest: X02 a delayed failed poll cannot downgrade already reconciled batch results
+ok 2 - X02 a delayed failed poll cannot downgrade already reconciled batch results
+  ---
+  duration_ms: 2883.0944
+  type: 'test'
+  ...
+# Subtest: X07 API and CLI: offer, checkout, inert return page, signed webhook, entitlement and capacity
+ok 3 - X07 API and CLI: offer, checkout, inert return page, signed webhook, entitlement and capacity
+  ---
+  duration_ms: 7355.8312
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 12432.7239

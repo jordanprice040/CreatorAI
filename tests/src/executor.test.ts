@@ -267,6 +267,43 @@ test('one integration owner, stale heads and real merge conflicts preserve every
 });
 
 const real = process.env.CREATOR_TEST_ISOLATION === 'wsl2';
+test('QA dispatch mounts only runtime inputs, never expected answers or case labels', async (t) => {
+  const { local, product: p, task, binding } = await setup(t);
+  let mounted: unknown;
+  const result = await new ExecutionSupervisor(local).run(
+    p.id,
+    task.id,
+    p.initial_commit,
+    binding,
+    async (executionId) => {
+      mounted = JSON.parse(
+        await readFile(
+          join(
+            local.dir(p.id),
+            'executions',
+            executionId,
+            'job',
+            'acceptance.json',
+          ),
+          'utf8',
+        ),
+      );
+      throw new Error('Audit probe stops before native dispatch');
+    },
+    {
+      check_key: 'A1',
+      args: ['runtime-argument'],
+      stdin: 'runtime input',
+      stdout: 'HELD_OUT_EXPECTED_ANSWER',
+      exit_code: 7,
+    },
+  );
+  assert.equal(result.state, 'blocked');
+  assert.deepEqual(mounted, {
+    args: ['runtime-argument'],
+    stdin: 'runtime input',
+  });
+});
 test('an unresolved dispatch blocks another worker instead of silently retrying', async (t) => {
   const { local, product: p, task, binding } = await setup(t);
   await writeFile(
@@ -549,5 +586,46 @@ test(
     ).run(p.id, task.id, p.initial_commit, binding);
     assert.equal(result.state, 'blocked');
     assert.ok(result.reason);
+  },
+);
+
+test(
+  'real QA worker cannot copy expected answers from its runtime input mount',
+  { skip: !real && 'Real isolation gate is opt-in' },
+  async (t) => {
+    const { local, product: p, task, binding } = await setup(t);
+    const code =
+      "import json,pathlib,sys\ncase=json.loads(pathlib.Path('/acceptance.json').read_text())\nassert set(case)=={'args','stdin'}, list(case)\nassert not pathlib.Path('/input/acceptance.json').exists()\nprint('NO_EXPECTED_ANSWERS')\n";
+    const changed = await local.apply(
+      p.id,
+      task.id,
+      {
+        expected_commit: p.initial_commit,
+        changes: [
+          {
+            path: 'src/main.py',
+            before_hash: digest(TEMPLATE['src/main.py']),
+            content: code,
+          },
+        ],
+      },
+      binding,
+    );
+    const result = await new ExecutionSupervisor(local).run(
+      p.id,
+      task.id,
+      changed.commit,
+      binding,
+      () => {},
+      {
+        check_key: 'A1',
+        args: [],
+        stdin: 'input',
+        stdout: 'NO_EXPECTED_ANSWERS\n',
+        exit_code: 0,
+      },
+    );
+    assert.equal(result.state, 'succeeded', JSON.stringify(result));
+    assert.equal(result.log, 'NO_EXPECTED_ANSWERS\n');
   },
 );

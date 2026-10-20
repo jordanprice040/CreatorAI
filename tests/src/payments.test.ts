@@ -391,7 +391,11 @@ test('X07 redirects never grant; duplicate and out-of-order events converge on o
   );
   const events = await store.listPaymentEvents(owner, ws, conn.id);
   assert.ok(events.some((e) => e.status === 'deferred'));
-  assert.ok(events.some((e) => e.reason === 'signature_mismatch'));
+  assert.equal(
+    events.some((e) => e.reason === 'signature_mismatch'),
+    false,
+    'Unauthenticated signature failures must not create database rows.',
+  );
 });
 
 test('X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money', async (t) => {
@@ -685,7 +689,7 @@ test('X07 fees above sale proceeds settle as a loss, never negative earnings', a
   assert.equal((await s.store.ledgerBalances(owner, ws)).total_nano, '0');
 });
 
-test('X07 overlapping reconciliation reads serialize before observing processor state', async (t) => {
+test('X07 overlapping observations reject an older result without holding financial locks across reads', async (t) => {
   const s = await setup(t);
   if (!s) return;
   const ws = await s.workspace();
@@ -714,32 +718,63 @@ test('X07 overlapping reconciliation reads serialize before observing processor 
   const before = s.service.reconcilePayment(owner, ws, conn.id, pi);
   await entered;
   fx.refund(pi, 1000);
-  const after = s.service.reconcilePayment(owner, ws, conn.id, pi);
-  // Check the actual database waiter, not timing or a sleep-based assumption.
-  for (let i = 0; i < 100; i++) {
-    const q = await s.db.pool.query(
-      "select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event = 'advisory'",
-    );
-    if (q.rows[0].n > 0) break;
-    if (i === 99) {
-      release();
-      await Promise.all([before, after]);
-      assert.fail('Second observation did not wait for the financial lock.');
+  const outcome = before.catch((e: unknown) => e);
+  try {
+    const client = await s.db.pool.connect();
+    try {
+      await client.query('begin');
+      const lock = await client.query(
+        'select pg_try_advisory_xact_lock(hashtext($1)) as acquired',
+        ['creator:reinvest:' + ws],
+      );
+      assert.equal(
+        lock.rows[0].acquired,
+        true,
+        'Processor wait must not hold the workspace financial lock.',
+      );
+      await client.query(
+        'select id from payment_connections where id=$1 for update nowait',
+        [conn.id],
+      );
+      await client.query('rollback');
+    } finally {
+      await client.query('rollback');
+      client.release();
     }
-    await new Promise((r) => setTimeout(r, 10));
+    await s.service.reconcilePayment(owner, ws, conn.id, pi);
+    assert.equal(calls, 2);
+  } finally {
+    release();
   }
-  assert.equal(
-    calls,
-    1,
-    'A waiting reconciliation must not read stale processor state.',
+  const stale = await outcome;
+  assert.ok(
+    stale instanceof ContractError && stale.code === 'VERSION_CONFLICT',
   );
-  release();
-  await Promise.all([before, after]);
   assert.equal((await s.balances(ws)).refunds, c(1000).toString());
   assert.equal(
     (await s.store.listEntitlements(owner, ws))[0]?.status,
     'revoked',
   );
+});
+
+test('X07 invalid webhook signatures never write durable receipts, even with repeated bodies', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn } = await s.connected(ws);
+  for (let i = 0; i < 50; i++)
+    assert.equal(
+      (
+        await s.service.receiveWebhook(
+          hook,
+          conn.id,
+          'invalid',
+          Buffer.from('{}'),
+        )
+      ).status,
+      400,
+    );
+  assert.deepEqual(await s.store.listPaymentEvents(owner, ws, conn.id), []);
 });
 
 test('X07 Stripe refuses truncated or malformed loss histories', async () => {
@@ -1032,4 +1067,121 @@ test('reinvested earnings stay unallocated until the owner assigns them; a portf
     listed.map((a) => (a as Record<string, unknown>).target),
     ['standalone', 'portfolio'],
   );
+});
+
+test('X07 payout and balance reads release locks and recheck revocation before applying', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  for (const kind of ['payout', 'balance'] as const)
+    await t.test(kind, async () => {
+      const ws = await s.workspace();
+      const { conn, fx } = await s.connected(ws);
+      let enter!: () => void, release!: () => void;
+      const entered = new Promise<void>((r) => {
+        enter = r;
+      });
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      const rail = await s.store.registerRail(owner, ws, {
+        kind: 'processor_balance',
+        connection_id: conn.id,
+        label: 'Observation test',
+      });
+      const id = fx.payoutNow(100);
+      const payout = await fx.payout(id);
+      const balance = await fx.balance();
+      fx.payout = async () => {
+        enter();
+        await gate;
+        return payout;
+      };
+      fx.balance = async () => {
+        enter();
+        await gate;
+        return balance;
+      };
+      const pending = (
+        kind === 'payout'
+          ? s.service.reconcilePayout(owner, ws, conn.id, id)
+          : s.service.observeRail(owner, ws, rail.id)
+      ).catch((e: unknown) => e);
+      await entered;
+      try {
+        const c = await s.db.pool.connect();
+        try {
+          await c.query('begin');
+          assert.equal(
+            (
+              await c.query(
+                'select pg_try_advisory_xact_lock(hashtext($1)) acquired',
+                ['creator:reinvest:' + ws],
+              )
+            ).rows[0].acquired,
+            true,
+          );
+          await c.query(
+            'select id from payment_connections where id=$1 for update nowait',
+            [conn.id],
+          );
+        } finally {
+          await c.query('rollback');
+          c.release();
+        }
+        await s.store.revokePaymentConnection(owner, ws, conn.id, {
+          expected_version: conn.version,
+          reason: 'Stop while processor waits',
+        });
+      } finally {
+        release();
+      }
+      const result = await pending;
+      assert.ok(
+        result instanceof ContractError && result.code === 'INVALID_TRANSITION',
+      );
+      assert.deepEqual(await s.store.listLedger(owner, ws), []);
+    });
+});
+test('X07 a late failed balance read cannot invalidate a newer successful observation', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const ws = await s.workspace();
+  const { conn, fx } = await s.connected(ws);
+  const rail = await s.store.registerRail(owner, ws, {
+    kind: 'processor_balance',
+    connection_id: conn.id,
+    label: 'Freshness test',
+  });
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>((r) => {
+    enter = r;
+  });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let calls = 0;
+  fx.balance = async () => {
+    if (++calls === 1) {
+      enter();
+      await gate;
+      throw Error('Delayed outage');
+    }
+    return { livemode: false, available_cents: 123, pending_cents: 0 };
+  };
+  const old = s.service
+    .observeRail(owner, ws, rail.id)
+    .catch((e: unknown) => e);
+  await entered;
+  try {
+    await s.service.observeRail(owner, ws, rail.id);
+  } finally {
+    release();
+  }
+  assert.ok((await old) instanceof ContractError);
+  const actual = (await s.store.listRails(owner, ws))[0]! as Record<
+    string,
+    unknown
+  >;
+  assert.equal(actual.status, 'available');
+  assert.equal(actual.available_nano, c(123).toString());
 });

@@ -1943,7 +1943,8 @@ export class ContextStore extends RoutingStore {
       const { rows } = await c.query(
         `update context_batches set status = $3, reason_code = $4, explanation = $5,
            provider_batch_id = coalesce($6, provider_batch_id), updated_at = clock_timestamp()
-         where workspace_id = $1 and id = $2 and status <> $3 returning id`,
+         where workspace_id = $1 and id = $2 and status <> $3
+           and status not in ('completed','partial','failed','expired','refused') returning id`,
         [
           ws,
           uuid(batchId),
@@ -1962,6 +1963,101 @@ export class ContextStore extends RoutingStore {
           subjectVersion: null,
           contentHash: null,
           payload: { reason_code: v.reason },
+        });
+    });
+  }
+  async recordBatchFile(
+    ctx: CommandContext,
+    ws: string,
+    batchId: string,
+    fileId: string,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    batchId = uuid(batchId);
+    if (!/^[A-Za-z0-9_-]{1,200}$/.test(fileId))
+      throw fail('INVALID_CONTRACT', 'Invalid provider file ID.');
+    await this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const b = await c.query(
+        'select id from context_batches where workspace_id=$1 and id=$2 for update',
+        [ws, batchId],
+      );
+      if (!b.rowCount) throw fail('NOT_FOUND', 'Batch not found.');
+      const count = await c.query(
+        'select count(*)::int n from context_batch_files where batch_id=$1',
+        [batchId],
+      );
+      if (
+        count.rows[0].n >= 3 &&
+        !(
+          await c.query(
+            'select 1 from context_batch_files where batch_id=$1 and file_id=$2',
+            [batchId, fileId],
+          )
+        ).rowCount
+      )
+        throw fail(
+          'LIMIT_EXCEEDED',
+          'A batch has only input, output and error files.',
+        );
+      const inserted = await c.query(
+        'insert into context_batch_files(batch_id,file_id) values($1,$2) on conflict do nothing returning file_id',
+        [batchId, fileId],
+      );
+      if (inserted.rowCount)
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'context.batch_file_recorded',
+          subjectKind: 'context_batch',
+          subjectId: batchId,
+          subjectVersion: null,
+          contentHash: null,
+          payload: { file_id: fileId },
+        });
+    });
+  }
+  async pendingBatchFiles(
+    ctx: CommandContext,
+    ws: string,
+    batchId: string,
+  ): Promise<string[]> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    batchId = uuid(batchId);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const r = await c.query(
+        'select f.file_id from context_batch_files f join context_batches b on b.id=f.batch_id where b.workspace_id=$1 and b.id=$2 and f.deleted_at is null order by f.file_id',
+        [ws, batchId],
+      );
+      return r.rows.map((r) => String(r.file_id));
+    });
+  }
+  async batchFileDeleted(
+    ctx: CommandContext,
+    ws: string,
+    batchId: string,
+    fileId: string,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    batchId = uuid(batchId);
+    await this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const r = await c.query(
+        'update context_batch_files f set deleted_at=clock_timestamp() from context_batches b where f.batch_id=b.id and b.workspace_id=$1 and b.id=$2 and f.file_id=$3 and f.deleted_at is null returning f.file_id',
+        [ws, batchId, fileId],
+      );
+      if (r.rowCount)
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'context.batch_file_deleted',
+          subjectKind: 'context_batch',
+          subjectId: batchId,
+          subjectVersion: null,
+          contentHash: null,
+          payload: { file_id: fileId },
         });
     });
   }

@@ -10,8 +10,7 @@ import {
   type PaymentProcessor,
 } from './payments.js';
 
-// Reads and projection updates share the store's workspace lock: overlapping deliveries
-// cannot apply a snapshot read before another delivery's refund or settlement observation.
+// Reads run outside financial transactions. The store fences older observations before applying.
 
 export interface PaymentServiceOptions {
   /** API process environment: secret key and webhook secret variables live here. */
@@ -137,22 +136,9 @@ export class PaymentService {
   /** A failed observation invalidates even a previously fresh funding rail. */
   async observeRail(ctx: CommandContext, ws: string, railId: string) {
     const conn = await this.store.railConnection(ctx, ws, railId);
-    try {
-      return await this.store.recordRailBalance(ctx, ws, railId, () =>
-        this.#read(async () => (await this.#boundProcessor(conn)).balance()),
-      );
-    } catch (e) {
-      if (
-        e instanceof ContractError &&
-        ['STORAGE_UNAVAILABLE', 'ACCESS_DENIED'].includes(e.code)
-      )
-        await this.store.setRailStatus(ctx, ws, railId, {
-          status: 'unavailable',
-          reason:
-            'Processor balance observation failed; verify the rail before restoring availability.',
-        });
-      throw e;
-    }
+    return this.store.recordRailBalance(ctx, ws, railId, () =>
+      this.#read(async () => (await this.#boundProcessor(conn)).balance()),
+    );
   }
   async #read<T>(f: () => Promise<T>) {
     try {
@@ -185,12 +171,11 @@ export class PaymentService {
     } catch {
       return { status: 404, body: { error: 'unknown endpoint' } };
     }
-    const reject = async (status: number, why: string) => {
-      await this.store.recordPaymentEvent(conn.id, 'rejected', why, {
-        payload_hash,
-      });
-      return { status, body: { error: why } };
-    };
+    // Unauthenticated traffic cannot create durable records. Verified events below retain receipts.
+    const reject = (status: number, why: string) => ({
+      status,
+      body: { error: why },
+    });
     const secret = this.opts.env[conn.body.webhook_secret_env];
     if (!secret) return reject(503, 'webhook_secret_unset');
     const verified = verifyWebhook(signature, raw, secret, nowS);
@@ -281,7 +266,11 @@ export class PaymentService {
         );
       return { status: 200, body: out };
     } catch (e) {
-      if (e instanceof ProcessorUnavailable || !(e instanceof ContractError)) {
+      if (
+        e instanceof ProcessorUnavailable ||
+        !(e instanceof ContractError) ||
+        e.code === 'VERSION_CONFLICT'
+      ) {
         await this.store.recordPaymentEvent(
           conn.id,
           'deferred',

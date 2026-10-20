@@ -1,0 +1,20 @@
+{
+  "base_commit": "1cf6d6332ece2ad36ad22eea50349b447b791c11",
+  "scope": "Final repaired source and regression tests. Final context checks additionally cover UUID canonicalization after the broad run started.",
+  "sha256": {
+    "packages/broker/src/batch.ts": "c0ada7101f6bbdee7113a62ef3cf4559e92c0e4776054de050bda4db890efa77",
+    "packages/broker/src/context.ts": "f47f3edae1f30dc3ef09dd9ab3a25c956bb4f552111bf51da01265fc770ffcd5",
+    "packages/broker/src/payments-service.ts": "b7c41c828f947e8657cefa96bc8702558489bfc5b49a33c267e06805654f9fe3",
+    "packages/db/src/context-store.ts": "5d08decd030da9c3c31575380b0c7e57cb9e8f1e8f38321559a7cfed6f46ac2e",
+    "packages/db/src/migrations.ts": "4be761b2c869f3f2a3422730828a67b0bbde0a098041a86ebbb82b73b3d62968",
+    "packages/db/src/payment-store.ts": "7fac1f132dfa40678ec8d7d177957b881387c407ecf7d05e0142a436ff743f45",
+    "packages/executor/src/execution.ts": "cf0b130f9b3848f8d3c5103f0a18b0f704b6a51094eaab543e6af809122faaa9",
+    "packages/executor/worker/bridge.py": "8e5cb81d326e06fa2d7ec632dab7f228d3b2764d8814e9932562752766005e9c",
+    "tests/src/context-domain.test.ts": "d0514041b317a605955918c41166ecad514e30edaa17fa3ac0e92e49cb13f431",
+    "tests/src/context.test.ts": "bb79481186a94cbbc9da74f03ae157ecca5faf05e0b4139e7fccd00c76e98b56",
+    "tests/src/executor.test.ts": "2913d4e3c4acfa0ce9e4794b7ceb6eb25c20c3e05181c01869dbd243f85f91ca",
+    "tests/src/payments-api.test.ts": "e37a454ba04136ef15b1ffdde52182561bd85bdb77a86c2f5c9e058aaea4e150",
+    "tests/src/payments.test.ts": "d7e02fc14e34f00801f119d084101abdd56422a37edce801343a1ef65b8435ee",
+    "tests/src/storage.test.ts": "ad4aadf1c9e78623148c13ed12226a93721a3d2e62c307c0b4017e1b8f6318a2"
+  }
+}

@@ -2201,6 +2201,18 @@ create trigger reinvestment_portfolio_allocations_immutable before update or del
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 24,
+    name: 'payment_observation_fences_and_batch_file_cleanup',
+    sql: `
+alter table payment_connections add column observation_epoch bigint not null default 0;
+create table context_batch_files (
+ batch_id uuid not null references context_batches(id), file_id text not null,
+ created_at timestamptz not null default clock_timestamp(), deleted_at timestamptz,
+ primary key(batch_id,file_id), check(length(file_id) between 1 and 200)
+);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

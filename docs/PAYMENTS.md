@@ -3,7 +3,10 @@
 October 19 audit (ADR-0034, migration 20): each Stripe account retains one permanent
 connection identity, including after revocation, and each processor connection has
 one funding rail. Existing duplicate identities block migration for reconciliation.
-Processor reads now occur under the financial lock before applying snapshots, and
+
+October 20 repairs (ADR-0040, migration 24): processor reads occur outside financial
+transactions, with observation epochs fencing stale results. Before applying
+snapshots, current connection state is rechecked, and
 each operation rechecks the current credential's account. Non-USD posting, inconsistent
 balance arithmetic and partial-capture access are refused. Stripe histories with
 `has_more` or malformed list metadata are unavailable, never assumed complete.
@@ -62,4 +65,4 @@ The fixture processor lives in the API process memory and is lost on restart. Fo
 - No Stripe call observed: the adapter is checked against a contract double built from the documented object shapes. The Stripe API version is not pinned; the account default applies.
 - No web UI; API and CLI only.
 - No taxes, currency conversion (USD only), subscriptions, partial-refund pricing or customer accounts. `customer_ref` is an opaque studio reference.
-- Rejected webhook deliveries are recorded without rate limiting.
+- Invalid-signature deliveries create no durable records (ADR-0040). Public deployments still need proxy rate limits for inbound traffic.

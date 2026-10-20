@@ -1,5 +1,7 @@
 # Local product execution (T11)
 
+October 20 audit repair (ADR-0040): the runtime QA mount contains only argv/stdin. Expected stdout, exit status and case labels stay outside the sandbox; the bridge rejects legacy/full QA records. This changes its hash and invalidates old execution-profile evidence. See [audit repairs](AUDIT_FIXES_2026-10-20.md).
+
 The owner CLI now manages separate product repositories and executes the reviewed
 `checklist/1` Python standard-library template. Run commands from the studio root.
 This does not add an AI builder, independent QA, a preview server, or study-arm

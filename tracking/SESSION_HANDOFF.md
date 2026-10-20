@@ -1,5 +1,16 @@
 # Session handoff
 
+## Codex audit repairs — October 20, 2026
+
+Use C:/dev/creator_agent going forward, per Jordan. Clean checkout updated to main 1cf6d63; this session's repair patch was moved from OneDrive to codex/audit-boundary-fixes without deleting the old copy. Audit PR #40 is merged. Read docs/AUDIT_FIXES_2026-10-20.md and ADR-0040. Migration 24; next free migration 25 and ADR-0041.
+
+Four findings repaired. QA mount contains only argv/stdin; bridge rejects full/legacy records. Invalid payment signatures create no durable receipt. Processor reads release DB connections, then apply only the latest connection epoch under short financial locks; conflicting webhooks defer with 503. Batch parser limits bytes/lines/records; file IDs journal before use, deletion follows durable terminal reconciliation, and polls retry failed cleanup. Forty-eight-hour provider expiry bounds abandoned files; missing results retain unknown exposure.
+
+Verified: full pnpm check 302 tests / 287 pass / 0 fail / 15 skips; typecheck/format clean. Real WSL QA secrecy 1/1; final context 18/18 and uppercase audit-chain case 1/1; final API/cleanup regressions 3/3. Build/smoke pass; readiness honestly not_ready (exit 3, no inconsistencies). Intermediate failed runs retained and explained in the repair report. Migrations 1–23 checksum-identical; only disposable databases migrated to 24.
+
+No existing studio database migration, real provider call, spending, outreach or activation. Reverify old artifacts after bridge hash changes. The OneDrive copy still contains the unfinished patch and should not be used for further work. Next eligible: U02 candidate review; do not start another milestone automatically.
+
+
 ## Owner decisions 2026-10-20 (October 20, 2026)
 
 Branch `claude/audit-full-qgjinb` from main `fc1e83f`; migration 23, ADR-0039. Next free
