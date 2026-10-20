@@ -83,8 +83,9 @@ in double quotes):
 - Show the upstream (or downstream) lineage of idea "Name".
 - How much did run 1a2b3c4d cost? / What did products "A" and "B" cost together?
 - Which decisions are pending for run 1a2b3c4d?
-- Who changed product 1a2b3c4d in the last 7 days? (today, yesterday, since, before,
-  on, between … and … also work)
+- Who changed product 1a2b3c4d in the last 7 days? (today, yesterday, since, after,
+  before, on, between … and … also work; "since" includes the named day, "after" and
+  "before" do not)
 - What was redacted since 2026-10-01?
 - Model usage for fixture-model-v1 last 30 days.
 

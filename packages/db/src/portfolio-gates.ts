@@ -60,7 +60,11 @@ export async function portfolioState(
       where w.workspace_id=$1 and l.lane='maintenance' and w.run_id is distinct from $2::uuid and w.finished_at is null) as maintenance_due,
     (select count(*) from decision_requests where workspace_id=$1 and status='pending')+
     (select count(*) from artifact_feedback where workspace_id=$1 and status='submitted') as reviews,
-    (select count(*) from workflows where workspace_id=$1 and run_id is distinct from $2::uuid and finished_at is null)+
+    -- Older work keeps its slot and newer work waits. Counting every other unfinished
+    -- workflow would make each run wait on the others, and none would ever lease.
+    (select count(*) from workflows w where w.workspace_id=$1 and w.run_id is distinct from $2::uuid and w.finished_at is null
+      and not exists (select 1 from workflows o where o.workspace_id=$1 and o.run_id=$2::uuid
+        and o.finished_at is null and o.created_at <= w.created_at))+
     (select count(*) from portfolio_jobs where workspace_id=$1 and run_id is distinct from $2::uuid and state in ('dispatching','unknown')) as active,
     (select count(*) from portfolio_health where workspace_id=$1 and state not in ('package_integrity_passed','owner_deferred')) as unhealthy`,
       [ws, runId],
