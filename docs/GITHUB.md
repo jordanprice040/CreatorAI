@@ -1,5 +1,7 @@
 # Scoped GitHub management (X04)
 
+Accepted scope: [register #33–#35](../tracking/OWNER_DECISIONS_2026-10-20.md). No universal three-repository cap: users select access and creation/rate limits. Initial verification is one new private creator-agent- repository, existing repos explicitly selected by immutable ID, owner-approved merges. Exact account/grant remains pending.
+
 X04 lets the studio create private repositories and do routine work in them (branches,
 pushes, issues, pull requests, merges) under the same grants and admission as every
 other action. It never touches a repository it did not create unless the owner lists

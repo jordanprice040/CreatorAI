@@ -1,0 +1,46 @@
+[
+  {
+    "sha256": "766687c91930977918abda9dc719ce4edbcce936753b87cd5af4d265cf8c04e8",
+    "path": "packages/broker/src/public-search.ts"
+  },
+  {
+    "sha256": "470cd327b6b7842ae0ea9e3ff638f6dff57d3022196c9a573092a2e05a7e724d",
+    "path": "packages/broker/src/index.ts"
+  },
+  {
+    "sha256": "8f94340bf3674b3fbbf20447a1ac3815cec27027f37f67a60536c09489f090c9",
+    "path": "packages/contracts/src/budget.ts"
+  },
+  {
+    "sha256": "000a18d647cfdd81de5e2d20cb343b2067557a3399d22742733bc54356c524ef",
+    "path": "packages/db/src/migrations.ts"
+  },
+  {
+    "sha256": "57d5e212aa55f4f1488cd82cbda4492aa60b6684d6edbf16f10e66672ac54613",
+    "path": "packages/domain/src/deployment.ts"
+  },
+  {
+    "sha256": "6fce7cfd0b246f4c6a0e73a7d0a63e74410af7b4cbc87eb4ede264f2a270eea5",
+    "path": "packages/research/src/broker.ts"
+  },
+  {
+    "sha256": "cd33638d819256b85e4d191ae0c47734ebbb7ab19ead8e3a58e77ed50c718057",
+    "path": "apps/api/src/index.ts"
+  },
+  {
+    "sha256": "9ea71a40bb227d5b98f386034bd5864671392a3cdcb17b2c64386750ae199a0c",
+    "path": "tests/src/public-search.test.ts"
+  },
+  {
+    "sha256": "3694a66da6f58e61693b6677db83bc2f18baa85c7ded5ede4dd151135442f950",
+    "path": "tests/src/research-store.test.ts"
+  },
+  {
+    "sha256": "df5846720bafc765fd5d7842a2b3b998da43dd1e830851c8b8d48d0277b45718",
+    "path": "config/readiness.json"
+  },
+  {
+    "sha256": "c6a9f3bc1410630581fb87870de7f88d2e5d3550160367046f6767642be42081",
+    "path": "docs/RESEARCH_RETRIEVAL.md"
+  }
+]

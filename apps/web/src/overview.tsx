@@ -12,6 +12,7 @@ import {
 import { useEffect, useState } from 'react';
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
+import { usePageActive } from './page-drafts.js';
 import {
   Empty,
   STATE_NOTE,
@@ -67,6 +68,7 @@ export function Overview({
     }
     data.reload();
   }
+  const active = usePageActive();
   const d = data.data;
   const o = d?.overview;
   const fixture = workspace.record_mode === 'fixture';
@@ -76,10 +78,10 @@ export function Overview({
   const viewer = workspace.role === 'viewer';
   // While anything runs or waits, refresh every few seconds so state changes show up.
   useEffect(() => {
-    if (live.length === 0) return;
+    if (!active || live.length === 0) return;
     const t = setInterval(data.reload, 4000);
     return () => clearInterval(t);
-  }, [live.length]);
+  }, [active, live.length]);
   return (
     <section className="panel" aria-labelledby="mon-title">
       <div className="decision-head">

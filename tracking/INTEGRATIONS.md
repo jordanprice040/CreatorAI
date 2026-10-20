@@ -1,5 +1,15 @@
 # Integration readiness
 
+October 20 reset layout: rebuilt/installed and checked in native app. Owner-approved
+backed-up schema 24→25 upgrade applied; no provider activated or readiness promoted.
+Evidence: tracking/evidence/reset-layout/result.json.
+
+October 20 draft-navigation repair: shared UI, native executable and unsigned
+installer rebuilt; no integration activated or readiness state promoted. Fixture
+browser checks pass; native interaction pending. See tracking/evidence/page-drafts.
+
+Owner choices are recorded in [the accepted register](OWNER_DECISIONS_2026-10-20.md): local/subscription first; optional paid fallback off; task-scoped research; user-configurable budgets; bounded GitHub; staged distribution; hosted/commerce/advertising activation deferred. This document update promotes no integration readiness or verification state.
+
 October 20, 2026 §2.1 installed desktop (ADR-0041): no external integration activated and no readiness state promoted. The installed app uses owner-installed PostgreSQL 18 binaries as a verified local prerequisite (not bundled, not downloaded) and bundles the build host's Node 22.21.0. Its service child gets no OPENAI_* or provider settings, so live adapters stay unconfigured. Building the NSIS installer let the Tauri CLI fetch its NSIS tools from the official tauri-apps release URLs with hash validation. See docs/DESKTOP_STUDIO.md and tracking/evidence/desktop-2-1.
 
 October 20, 2026 audit repair: the payment and OpenAI batch adapters were hardened locally (observation fences, bounded reads, durable cleanup and expiry). The QA input boundary was verified in the real WSL worker. No live provider/payment call, file deletion, account verification or activation occurred. See docs/AUDIT_FIXES_2026-10-20.md and tracking/evidence/audit-fixes. Existing readiness states are not promoted by these repairs.
@@ -195,3 +205,9 @@ Record verification date, observed target/account identity, versions, and eviden
 ## Local audit publication — 2026-10-19
 
 No external integration activated. Local maintenance diagnostics and cancellation/session fixes are published separately from X08/X09. Earlier local tracking edits are preserved in evidence/local-audit/original-tracking.patch; current entries above remain authoritative.
+
+October 20 fresh studio adoption: local PostgreSQL creator_studio verified at schema 24 with backup/scratch restore and authenticated API persistence checks. Existing development data retained. No external integration readiness state promoted. See docs/LOCAL_STUDIO.md and tracking/evidence/studio-adoption/result.json.
+
+## §2.5 search/retrieval candidate — October 20, 2026
+
+Source search now has a disabled Brave Web Search adapter through ModelBroker and the authenticated source-searches run route. Implemented/fixture/contract verified; live/activation NOT verified. Existing HTTP source fetch retained, with run-cancellation abort and durable adapter exceptions repaired. 34/34 research/broker/API and 12/12 final search/budget checks on disposable PostgreSQL 18, with overlapping suites. Evidence tracking/evidence/research-2-5; setup/remaining qualification docs/RESEARCH_RETRIEVAL.md. Provider price/terms/access not qualified; coding Firecrawl is not a runtime credential. No live query/fetch or paid dispatch. Migration 25 not applied to saved studio. Readiness remains blocked on real account-specific configuration, terms/suitability, local/subscription prerequisites and a bounded live grant. This supersedes the older 'no live search adapter exists' implementation statement only; it does not supersede its lack of live verification.

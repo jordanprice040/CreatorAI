@@ -1,5 +1,58 @@
 # Implementation status
 
+## Reset layout installed and checked natively — October 20, 2026
+
+Rebuilt studio runtime, native release and unsigned NSIS installer; installed per-user
+(exit 0), installed/staged manifest SHA256 matches. Existing app quit gracefully,
+including PostgreSQL. Tauri packaging first failed DNS in sandbox, then passed with
+network-enabled NSIS fetch. Existing checkout migration 25 required explicit owner
+approval (given in chat); app saved pre-migrate-v24-2026-10-20T09-38-55-174Z backup
+(database.dump 430138 bytes plus manifest) and upgraded 24→25 successfully. This
+widens two provider constraints to include brave; no provider activation.
+Updated installed app opened existing real workspace with persisted sign-in. Native
+Monitor and Submit layout inspected: helper strip absent; Reset inside panel beside
+Refresh on Monitor. Native temporary theme retained across Monitor/return; reset
+confirmation opened; Keep fields preserved draft. Temporary text cleared without
+submitting. Confirmed clearing remains browser-verified, not repeated natively.
+Evidence and candidate hashes: tracking/evidence/reset-layout/result.json. No paid
+calls, discovery submission, public release, credential or login preference changes.
+App left running. Broader §2.1 setup/tray/login/restart acceptance remains incomplete;
+next eligible prompt: finish those outstanding §2.1 checks, then §2.2 only if selected.
+
+
+## Reset action layout refinement — October 20, 2026
+
+Removed the draft-explanation strip and placed Reset page fields inside the panel's
+upper-right corner, reserving room beside headings and Refresh. Narrow screens use
+a separate action row inside the panel. Confirmation and retention are unchanged.
+Executed: web TypeScript check, production Vite build, Impeccable detector (no
+findings), 11/11 intercepted fixture-API draft/reset browser checks. Desktop render
+inspected. Existing chunk-size warning remains. Browser harness file-root mismatch
+required passing script code; local server required network-enabled execution.
+The minimal Monitor fixture shows a contract error; live Monitor data is unverified.
+No operational API/provider calls. Installer/native bundle not rebuilt for this edit.
+Next eligible: rebuild/install candidate and finish native runbook §2.1 acceptance;
+§2.2 only when separately selected. Preserve all other uncommitted work.
+
+
+## Page-navigation draft loss repaired — October 20, 2026
+
+Shared web/Tauri UI now retains visited page fields in current-workspace session
+memory, restores sidebar record/query locations, and offers confirmed Reset page
+fields. Hidden Monitor/Runs polling pauses. Workspace/session change and sign-out
+discard retained forms; reload/restart recovery remains planned. Existing submit
+handlers keep their success behavior; invalid submission preserves inputs.
+
+Executed: browser fixture-API regression checks 11/11, TypeScript check, production
+web build, studio resource bundle, native release and unsigned NSIS installer build.
+Rendered confirmation inspected. Evidence and hashes: tracking/evidence/page-drafts.
+No operational data/provider calls or install. The installed app needs this new
+candidate: apps/desktop/src-tauri/target/release/bundle/nsis/Creator Agent_0.1.0_x64-setup.exe.
+Native interaction is pending; initial restricted NSIS download failed, network-enabled
+retry succeeded. Production build retains chunk-size warning. Next eligible: install
+and verify this candidate's drafts plus remaining §2.1 acceptance; §2.2 afterward
+only when selected. This repair does not complete the broader draft/undo roadmap.
+
 ## Completion runbook §2.1 — installed desktop studio (October 20, 2026)
 
 Branch claude/project-thread-b82rw9 from main 54ce751; ADR-0041; no migration (next free: migration 25, ADR-0042). Guide: docs/DESKTOP_STUDIO.md. Evidence: tracking/evidence/desktop-2-1.
@@ -10,6 +63,48 @@ Executed: tsc build and web typecheck; studio service protocol tests 7/7 against
 
 Limitations: screen control was declined, so setup-window clicks, menu sign-in, creating a record in the window, tray/background and login toggles, and Windows restart are NOT executed natively (service-level equivalents pass). The agent shell runs inside the Claude desktop package, whose AppData writes are virtualized, so its install landed in the package's LocalCache: Jordan must install from the setup .exe himself. Paired execution worker identity still in memory (ADR-0028). Unsigned local build; NSIS tools downloaded by the Tauri CLI with hash validation. Bundled Node is the build host's v22.21.0. §2.1 is not complete until Jordan's interactive acceptance passes. Next eligible after that: §2.2 (new request).
 
+
+## Claude handoff prepared — §2.1 (October 20, 2026)
+
+Owner requested a handoff for Claude to implement persistent desktop startup. Copyable prompt and verified starting state: docs/CLAUDE_HANDOFF_2_1.md. Covers fresh studio adoption, production service lifecycle, secure identity, packaging, external dependency ownership, native acceptance and unchosen background/login preferences. Local uncommitted work must be preserved; use this checkout, not a cloud clone. Handoff formatted successfully; no §2.1 implementation, external message, commit or push performed. Next eligible work remains §2.1; §2.2 is outside this handoff's implementation scope.
+
+
+## Milestone 1.2 — fresh studio adopted (October 20, 2026)
+
+Owner authorized a separate fresh studio after the read-only fixture inventory. Candidate 5f7d22443e91f421197b3b0f9b1d3e623afc9edf. Created creator_studio (public, schema 24) on existing Docker PostgreSQL at 127.0.0.1:55433; product root C:/dev/creator_agent/.creator/studio/products. Existing creator_dev (schema 23), old products and OneDrive copy unchanged. No data imported or deleted. Initial real workspace created via authenticated HTTP: Jordan’s Creator Studio. Real labels do not establish live inference.
+
+Executed: direct TypeScript build; all 24 migrations; repeated migration no-op; unauthenticated denial; local sign-in; workspace creation; API restart/readback; PostgreSQL 18 backup and restore into separate creator_studio_restore_20261020 and empty scratch product store; schema/audit/artifact/lineage/budget verification. Evidence tracking/evidence/studio-adoption/result.json. Empty artifact catalog means no affected packages to repackage. Backup and scratch retained privately under .creator/studio. Readiness still not_ready with no register problems; no integration activation. No browser/native interactive acceptance, paid call or public release. Initial pnpm wrapper stalled; direct installed tsc succeeded.
+
+Start with scripts/start-local-studio.ps1; see docs/LOCAL_STUDIO.md. This explicitly selects the fresh target but remains development startup, not installed desktop lifecycle. Milestone 1.2 complete via owner-authorized fresh-start path. Next eligible: COMPLETION_RUNBOOK §2.1; not started automatically.
+
+
+## Milestone 1.2 — read-only saved-data inventory (October 20, 2026)
+
+Owner is open to a fresh studio; this turn authorized read-only inspection. Confirmed Docker creator-agent-local-db-1 healthy, loopback port 55433, database creator_dev, public schema version 23. Its only workspace is "Fixture discovery demonstration" (fixture mode); all 49 entities are fixture-labelled, 3 run controls, 39 usage records all source fixture, 0 studies and 0 catalogued artifact manifests. Current checkout .creator/products contains 40 product directories and 19 package manifests, all 19 with fixture_roles=true. Older OneDrive copy also has products; it was not changed. These observations support a fresh studio without losing implemented code, but do not prove every ancillary file or database row is disposable.
+
+No database/artifact/configuration changes, migration, backup, restore, activation or live inference. Existing development database and files retained. No CREATOR environment configuration was present in this tool process; Compose documentation identifies the development connection, not an owner-confirmed operational deployment. Next eligible: confirm a separately named fresh studio database/product store, initialize schema 24, and execute backup/restore plus application verification appropriate to the fresh target. Milestone 1.2 remains incomplete; no automatic advance to 2.1.
+
+
+## Completion runbook §1.1 — independent repair review (October 20, 2026)
+
+U02 PASS for candidate 5f7d22443e91f421197b3b0f9b1d3e623afc9edf: no blocking findings in the four repaired audit boundaries. Separate review conversation; not blind. Report: docs/audits/U02_REPAIR_REVIEW_2026-10-20.md. All 14 bound source/test hashes match; migrations 1–23 unchanged. Scratch schema 23→24 upgrade, repeat apply, schema gate and record preservation passed. Focused PostgreSQL/contract checks 41/41 and QA secrecy checks 2/2 (including real WSL) passed; build/typecheck passed. Readiness remains not_ready, exit 3, no register inconsistencies. Evidence: tracking/evidence/u02-review.
+
+Application code/configuration and existing tests unchanged. No operational database migration, provider activation, live call, spending or publication. Review-only PostgreSQL stopped. Existing runbook/tracking edits preserved. Next eligible: COMPLETION_RUNBOOK §1.2, requiring the owner's named operational database/artifact store and scoped adoption authority. No automatic milestone advancement; full product remains incomplete.
+
+
+## Completion runbook and desktop/model direction — October 20, 2026
+
+Added docs/COMPLETION_RUNBOOK.md with all five completion groups, owner steps,
+copyable coding prompts and acceptance gates. Jordan requested launch-complete,
+persistent desktop operation, clean model connections, Ollama-first local inference
+and supported subscription-backed Codex/GPT access. These are recorded requirements,
+not implemented features. Existing Tauri shell still requires separately started
+services. Ollama executable exists; ollama list failed with local socket permission
+error, so service/model availability and inference remain unverified. Official
+OpenAI plan/app-server and Ollama docs consulted; eligibility and actual model access
+remain to verify. No runtime code, provider activation, download, inference, spending,
+operational migration or frozen protocol changed. Next existing gate: U02 review;
+then select desktop lifecycle/Ollama work from the runbook. Documentation checks only.
 
 ## Codex audit repairs — October 20, 2026
 
@@ -1121,3 +1216,48 @@ identity/challenges, outbound scoped worker leases, revoke/pause/shutdown, nativ
 source download/editor opening/isolated launch and installer/update acceptance
 remain. Those API/database/shared UI changes are intentionally pending coordination
 with X03/X04. Next eligible prompt: continue X05, not X06.
+
+## Public-release runbook coverage (October 20, 2026)
+
+Owner requested explicit public-release deliverables. Added docs/COMPLETION_RUNBOOK.md §5.2 gates for supported systems/prerequisites, clean-machine install/upgrade/recovery, download and user documentation, license/notices/privacy, and exact-candidate security review/vulnerability response; §5.6 now requires this evidence for public Windows readiness. Private §2.1 acceptance remains distinct. Claude is currently implementing §2.1; that section, its handoff and runtime files were not changed by this documentation task. No release functionality or public publication is claimed. Verification: targeted Markdown formatting and diff review. Next eligible prompt remains the in-progress §2.1; no automatic advancement.
+
+## File upload/download milestones (October 20, 2026)
+
+Owner requested relevant upload/download functionality and workflows in the completion runbook. Added §2.6 storage/transfer lifecycle; §2.7 uploads, attachments and research-source extraction; §2.8 original/source/result downloads and bounded exports; §2.9 browser/native end-to-end acceptance. Group 3 and §5.6 now require file lineage/export evidence; §5.2 documentation is referenced. Includes permissions, provider-sharing grants, supported-type limits, isolation, cancellation/recovery, retention, backup/restore, export redaction and integrity. These are planned milestones, not implemented features or activation authority. Claude's in-progress §2.1 scope/handoff and runtime files were not changed by this task. Next eligible remains §2.1 in progress; no automatic advance. Checks: targeted Markdown formatting and whitespace validation; no runtime tests for this documentation-only change.
+
+## Routing, file tools and usability roadmap (October 20, 2026)
+
+Owner requested refinement of model allocation/optimization, broad file operations/conversion, keyboard navigation and an Obsidian-like relationship map, plus additional useful UX ideas. Added COMPLETION_RUNBOOK §2.10–§2.15 with bounded prompts, existing X01/X02/X03 reuse, independent acceptance gates and delivery priorities. Routing foundations are documented as fixture-verified, not real-model qualification. File capability matrices replace an impossible universal editing/conversion claim. Added autosave/recovery, run/decision center, diffs/restore, reusable templates, quiet notifications, accessibility and task-based usability validation. These are planned scope, not implementation, empirical demand or provider/public activation. Claude's §2.1 runtime scope/handoff remains untouched by this documentation task. Next eligible remains §2.1 in progress; later prompts require selection. Verification: targeted Prettier and diff whitespace checks; no runtime tests for documentation-only changes.
+
+## Undo/redo and navigation continuity plan (October 20, 2026)
+
+Owner requested smooth undo/redo, page Back/Forward and related navigation workflows. Existing ui.tsx route history and planned §2.11/§2.12/§2.14 coverage inspected; added COMPLETION_RUNBOOK §2.16A/B to make unified behavior and acceptance explicit. Covers visible history controls, restoring search/scroll/focus/drafts, breadcrumbs/recent/reopen views, scoped editor and reversible command histories, version conflicts, trash/restore and honest external-action limits. Core navigation/basic editor undo is prioritized in the first useful release; later reversals follow their library features. Documentation only; no runtime or §2.1 handoff changes. Checks: targeted Markdown formatting and whitespace validation. Next eligible remains the selected §2.1 implementation; no automatic advancement.
+
+## Owner decisions recorded — October 20, 2026
+
+Jordan accepted all runbook recommendations with final revised #1/#2/#4/#5/#10/#34. Canonical register: tracking/OWNER_DECISIONS_2026-10-20.md (#1–#52 and RD1–RD10), including accepted deferrals and remaining identity/activation/research gates. Runbook, project/context policy, prompt-library pointer, desktop handoff/guides, routing/GitHub/local-studio guides and integration tracking now reference current choices. Spending config change_rule metadata reconciled with accepted future Settings control; exact $20 values unchanged. No runtime code, provider activation, paid dispatch, publication, pilot start or protocol freeze. Existing config/evidence retains actual-state authority. Claude's newer §2.1 evidence preserved: interactive acceptance remains pending and close-to-quit implementation must be reconciled with owner-selected configurable default tray. Next eligible afterward remains §2.2, requiring selection. Verification: targeted Markdown/JSON formatting, whitespace, local-link and decision-ID coverage checks; no runtime tests for documentation/metadata-only changes.
+
+## Durable draft sign-in boundary clarified — October 20, 2026
+
+Owner confirmed same-user recovery after sign-in, with drafts inaccessible while signed out or under another account. COMPLETION_RUNBOOK §2.16A and owner decision register now explicitly require protected retained drafts, current studio/workspace/record access checks, explicit discard/expiry and negative cross-account/revocation tests. This is planned durable recovery; current session-memory behavior is unchanged. Targeted Markdown formatting/whitespace checks executed. Next work remains native acceptance of the draft candidate and remaining §2.1 gates, then separately selected §2.2.
+
+## App-wide file drop planned — October 20, 2026
+
+Owner requested dropping files anywhere in the app to add them to Sources/Library without leaving the current page. Expanded COMPLETION_RUNBOOK §2.7 and owner register: current-workspace destination overlay, transfer tray, global picker alternative, specific attachment-target precedence, single ingestion/deduplication, draft preservation, workspace binding at drop time and sign-out/access handling. Includes browser/native negative and normal acceptance cases. Planning only; no runtime upload support, provider transmission or activation added. Targeted Markdown formatting and whitespace checks passed. Next work remains candidate native acceptance/remaining §2.1 gates; §2.2 afterward by selection.
+
+## Final UX/UI release gate planned — October 20, 2026
+
+Owner requested a final overall UXD/friction pass after functionality is integrated. Added COMPLETION_RUNBOOK §5.6.1 covering complete browser/native journeys, navigation/draft continuity, running/completed/changed/error feedback, durable receipts, recovery, notification restraint, accessibility and consistency. Requires observed findings, prioritized repairs, post-repair verification, owner walkthrough and exact-candidate evidence; §5.6.2 final acceptance now requires the pass. Deferred functionality is explicitly scoped; existing user-test consent/authorization boundaries preserved. Updated owner register. Documentation only; targeted formatting/whitespace checks passed. Current implementation/acceptance status and next eligible work unchanged.
+
+## Completion runbook §2.5 — evidence retrieval implementation (October 20, 2026)
+
+Implemented a disabled Brave raw-web-search candidate through the existing ModelBroker and authenticated POST runs/:id/source-searches route. Existing HTTP SourceBroker retained after inspection. Search binds query/sent query, policy/response hashes, timestamp and ranked unverified snippets; filters exact approved domains, bounds request/response, never promotes snippets to passages, and conservatively holds uncertain billing (including HTTP 429). Uses existing grant/budget/idempotency/cancel enforcement and local secret-file references. Run/workflow cancellation now aborts source fetches; adapter exceptions become durable failed retrievals. Guide: docs/RESEARCH_RETRIEVAL.md.
+
+Executed: TypeScript build; formatting of changed files; 34/34 research/broker/API checks and 12/12 final search/budget/global-ceiling checks on disposable PostgreSQL 18 at loopback 55439 (overlapping suites). Evidence: tracking/evidence/research-2-5. Initial restricted loopback EACCES and stopped Docker port 55433 ECONNREFUSED retained as environment failures in the evidence README. Existing research API test leaves a handle after its passed subtest; final suite used Node --test-force-exit after test completion. No saved studio database migrated, live provider request, account activation, paid dispatch, desktop rebuild or UI/native acceptance.
+
+Migration 25 adds the Brave provider constraints; coordinate that number with concurrent Claude §2.4 work before applying anywhere durable. No desktop/auth/subscription implementation files touched. Readiness promotes only source-search implementation/fixture/contract; live/activation remain unverified. §2.5 is PARTIAL until account-specific terms/pricing, protected credential, local/subscription prerequisite verification and a recorded bounded live search/fetch grant are available. Next eligible prompt: finish §2.5 live qualification through the actual application; no automatic §2.6.
+
+
+## §2.4 plan clarification — October 20, 2026
+
+Jordan confirmed ChatGPT Plus. Q2 resolved in docs/CODEX_INTEGRATION.md and proposed ADR-0042; plan is owner-reported, connection/eligibility unverified. Shared plan usage must account for Creator Agent and personal Codex use. No other proposed decision accepted, activation authorized or code changed. Next eligible work remains the selected milestones and their documented gates.

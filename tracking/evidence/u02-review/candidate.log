@@ -1,0 +1,1 @@
+PASS: 14 hashes; migrations 1–23 unchanged; 23→24 upgrade; repeat apply; schema gate; existing actor preserved.

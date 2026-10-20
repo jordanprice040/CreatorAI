@@ -2,6 +2,14 @@
 
 Version 3.0 • October 9, 2026 • Owner: Jordan Price, UF Computer Science
 
+October 20 owner update: [accepted runbook decisions](tracking/OWNER_DECISIONS_2026-10-20.md)
+are authoritative for desktop setup/close settings, model recommendations/routing,
+file/UX priorities, user-adjustable spending, pilot scope, GitHub/distribution and
+research direction. Read relevant entries before reopening choices. Accepted design
+is distinct from implemented behavior and activation. The current $20 allowance
+remains; authorized users must be able to change their own product ceiling in
+Settings, including above $20. Agents cannot raise it.
+
 ## Purpose
 
 Creator Agent is a personal AI product studio that discovers real problems, researches them, generates and compares possible responses, develops suitable software, tests it, and manages resulting work in a searchable, auditable catalog. The broader product includes website and Windows desktop access, GitHub management, model/task routing, token optimization, operating budgets, marketing, maintenance, and controlled reinvestment of verified earnings.
@@ -28,7 +36,9 @@ RQ2: Does structured discovery improve evidence support and usefulness compared 
 
 RQ3: Does the system identify cases where it should ask a person, recommend an existing/non-software solution, or decline/defer, and what are the costs of appropriate and unnecessary intervention?
 
-RQ1 implements the October 8 request. RQ2 preserves the earlier discovery comparison. Their final priority and sample size remain decisions for the owner/committee; avoid an unmanageable full factorial experiment by default.
+RQ1 implements the October 8 request and is owner-selected as primary; RQ2 is
+secondary (October 20, RD1). Proposed counts are provisionally accepted under RD7;
+committee agreement, feasibility and exact protocol freeze remain required.
 
 ## What the system must do
 

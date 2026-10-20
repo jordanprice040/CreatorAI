@@ -1,0 +1,216 @@
+TAP version 13
+# Subtest: concurrent reservations cannot overspend an envelope
+ok 1 - concurrent reservations cannot overspend an envelope
+  ---
+  duration_ms: 3015.5305
+  type: 'test'
+  ...
+# Subtest: concurrent parent calls and child carve-outs cannot both take the last budget (S07)
+ok 2 - concurrent parent calls and child carve-outs cannot both take the last budget (S07)
+  ---
+  duration_ms: 1520.5438
+  type: 'test'
+  ...
+# Subtest: in-flight limit bounds concurrency independently of money
+ok 3 - in-flight limit bounds concurrency independently of money
+  ---
+  duration_ms: 1708.3068
+  type: 'test'
+  ...
+# Subtest: a denied call never reaches the provider
+ok 4 - a denied call never reaches the provider
+  ---
+  duration_ms: 1473.6332
+  type: 'test'
+  ...
+# Subtest: late results reconcile without duplicate charge; replays never re-dispatch
+ok 5 - late results reconcile without duplicate charge; replays never re-dispatch
+  ---
+  duration_ms: 1997.9798
+  type: 'test'
+  ...
+# Subtest: concurrent duplicate deliveries dispatch once
+ok 6 - concurrent duplicate deliveries dispatch once
+  ---
+  duration_ms: 1348.4144
+  type: 'test'
+  ...
+# Subtest: rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation
+ok 7 - rate limits release and retry; malformed output is charged; unknown outcomes need owner reconciliation
+  ---
+  duration_ms: 1735.6273
+  type: 'test'
+  ...
+# Subtest: cancellation stops new calls and keeps in-flight exposure held
+ok 8 - cancellation stops new calls and keeps in-flight exposure held
+  ---
+  duration_ms: 1724.6721
+  type: 'test'
+  ...
+# Subtest: a lost worker leaves exposure unknown, not released
+ok 9 - a lost worker leaves exposure unknown, not released
+  ---
+  duration_ms: 1688.9235
+  type: 'test'
+  ...
+# Subtest: child envelopes conserve authority; rollups do not double count; overrun blocks
+ok 10 - child envelopes conserve authority; rollups do not double count; overrun blocks
+  ---
+  duration_ms: 1625.0202
+  type: 'test'
+  ...
+# Subtest: public search: exact approved results, provenance, no snippet promotion and no credential redirect
+ok 11 - public search: exact approved results, provenance, no snippet promotion and no credential redirect
+  ---
+  duration_ms: 16.9531
+  type: 'test'
+  ...
+# Subtest: public search: rate limits, redirects, malformed, oversized and interrupted outcomes stay uncertain
+ok 12 - public search: rate limits, redirects, malformed, oversized and interrupted outcomes stay uncertain
+  ---
+  duration_ms: 3.3107
+  type: 'test'
+  ...
+# Subtest: source-search HTTP route uses durable grants/budgets and idempotency; migration accepts Brave pricing
+ok 13 - source-search HTTP route uses durable grants/budgets and idempotency; migration accepts Brave pricing
+  ---
+  duration_ms: 1811.9724
+  type: 'test'
+  ...
+# PostgreSQL idle client error: terminating connection due to administrator command
+# PostgreSQL idle client error: terminating connection due to administrator command
+# Subtest: the research demonstration runs over HTTP and the CLI against PostgreSQL
+ok 14 - the research demonstration runs over HTTP and the CLI against PostgreSQL
+  ---
+  duration_ms: 3860.9273
+  type: 'test'
+  ...
+# Subtest: source cancellation aborts the socket path and adapter exceptions leave durable failures
+ok 15 - source cancellation aborts the socket path and adapter exceptions leave durable failures
+  ---
+  duration_ms: 1775.664
+  type: 'test'
+  ...
+# Subtest: supporting and non-supporting passages; fabricated quotes are refused
+ok 16 - supporting and non-supporting passages; fabricated quotes are refused
+  ---
+  duration_ms: 1383.1573
+  type: 'test'
+  ...
+# Subtest: reposts form one origin; an independent source contests the claim
+ok 17 - reposts form one origin; an independent source contests the claim
+  ---
+  duration_ms: 1661.3525
+  type: 'test'
+  ...
+# Subtest: a changed source version invalidates earlier support until re-assessed
+ok 18 - a changed source version invalidates earlier support until re-assessed
+  ---
+  duration_ms: 1672.5205
+  type: 'test'
+  ...
+# Subtest: inaccessible and removed sources are labeled, never filled in
+ok 19 - inaccessible and removed sources are labeled, never filled in
+  ---
+  duration_ms: 1595.953
+  type: 'test'
+  ...
+# Subtest: redirects and URLs that reach inward are blocked before any contact
+ok 20 - redirects and URLs that reach inward are blocked before any contact
+  ---
+  duration_ms: 1408.2624
+  type: 'test'
+  ...
+# Subtest: retrieved instructions change nothing: no grants, decisions, policy or extra fetches
+ok 21 - retrieved instructions change nothing: no grants, decisions, policy or extra fetches
+  ---
+  duration_ms: 1401.4049
+  type: 'test'
+  ...
+# Subtest: byte, time, type and retention limits; failures keep no content
+ok 22 - byte, time, type and retention limits; failures keep no content
+  ---
+  duration_ms: 1705.7959
+  type: 'test'
+  ...
+# Subtest: admission, idempotency, run limits and no fixture fallback in real workspaces
+ok 23 - admission, idempotency, run limits and no fixture fallback in real workspaces
+  ---
+  duration_ms: 3881.0302
+  type: 'test'
+  ...
+# Subtest: concurrent fetches of one URL record one source; a lost attempt is closed on sweep
+ok 24 - concurrent fetches of one URL record one source; a lost attempt is closed on sweep
+  ---
+  duration_ms: 1563.2123
+  type: 'test'
+  ...
+# Subtest: only the broker records retrievals, and redaction removes kept text
+ok 25 - only the broker records retrievals, and redaction removes kept text
+  ---
+  duration_ms: 1504.6925
+  type: 'test'
+  ...
+# Subtest: URL policy refuses inward, credentialed and unapproved targets before contact
+ok 26 - URL policy refuses inward, credentialed and unapproved targets before contact
+  ---
+  duration_ms: 6.0493
+  type: 'test'
+  ...
+# Subtest: address blocklist covers private, metadata, mapped and NAT64 forms
+ok 27 - address blocklist covers private, metadata, mapped and NAT64 forms
+  ---
+  duration_ms: 0.4393
+  type: 'test'
+  ...
+# Subtest: extraction keeps locators exact, skips scripts and finds reposts
+ok 28 - extraction keeps locators exact, skips scripts and finds reposts
+  ---
+  duration_ms: 7.5703
+  type: 'test'
+  ...
+# Subtest: quotes must occur verbatim in the stored excerpt
+ok 29 - quotes must occur verbatim in the stored excerpt
+  ---
+  duration_ms: 0.2186
+  type: 'test'
+  ...
+# Subtest: claim evidence counts origins once and names gaps instead of filling them
+ok 30 - claim evidence counts origins once and names gaps instead of filling them
+  ---
+  duration_ms: 1.0746
+  type: 'test'
+  ...
+# Subtest: evidence packets carry retrieved text as data with no authority
+ok 31 - evidence packets carry retrieved text as data with no authority
+  ---
+  duration_ms: 0.2753
+  type: 'test'
+  ...
+# Subtest: live configuration requires an explicit opt-in and approved hosts
+ok 32 - live configuration requires an explicit opt-in and approved hosts
+  ---
+  duration_ms: 3.8945
+  type: 'test'
+  ...
+# Subtest: HTTP adapter deadline covers stalled DNS and ignores late resolution or rejection
+ok 33 - HTTP adapter deadline covers stalled DNS and ignores late resolution or rejection
+  ---
+  duration_ms: 9.0023
+  type: 'test'
+  ...
+# Subtest: HTTP adapter checks DNS answers, pins the address and sends no credentials
+ok 34 - HTTP adapter checks DNS answers, pins the address and sends no credentials
+  ---
+  duration_ms: 126.2784
+  type: 'test'
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 46185.4131

@@ -1,0 +1,42 @@
+{
+  "native_startup": "pass after owner-approved backup and migration 24 to 25",
+  "previous_app_quit": "graceful database stop verified",
+  "recorded_at": "2026-10-20T09:38:41.9678370Z",
+  "installer": "pass after network-enabled NSIS retry",
+  "install_exit_code": 0,
+  "installed_manifest_matches": true,
+  "stage": "pass",
+  "native_layout": "Monitor inspected: reset inside panel beside Refresh; helper strip absent; Submit inspected",
+  "native_build": "pass",
+  "hashes": [
+    {
+      "sha256": "C9BCBC32DBAE3B94C3817A665DD1107418A9C5C159F12E02647F838B92E9E99D",
+      "path": "apps/web/src/page-drafts.tsx"
+    },
+    {
+      "sha256": "27EDF69F3F59FE87EAD0DEB48A7BB25165A4AD70B03AA487C6FD3B75B3D29E36",
+      "path": "apps/web/src/style.css"
+    },
+    {
+      "sha256": "17239487986ED8792F71A210483ABFB5581C0FA3EE789A7F01E7EC8A756E5A58",
+      "path": "apps/desktop/.bundle/studio/bundle-manifest.json"
+    },
+    {
+      "sha256": "84C637984E7B712C3BF8511A95B98BDBE70AE7330D2401476B315D637A3B434C",
+      "path": "apps/desktop/src-tauri/target/release/bundle/nsis/Creator Agent_0.1.0_x64-setup.exe"
+    }
+  ],
+  "native_checks": [
+    "existing workspace and persisted sign-in restored",
+    "unsaved theme survives Monitor and return",
+    "Reset opens confirmation",
+    "Keep fields cancels and preserves draft",
+    "temporary verification text cleared without submission"
+  ],
+  "backup": "pre-migrate-v24-2026-10-20T09-38-55-174Z; database.dump 430138 bytes and backup-manifest.json present",
+  "limitations": [
+    "confirmed reset clearing covered by prior browser checks, not repeated natively",
+    "broader native setup/tray/login/Windows-restart acceptance remains outstanding"
+  ],
+  "app_final_state": "running, Submit page, temporary theme blank"
+}

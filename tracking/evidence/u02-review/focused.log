@@ -1,0 +1,257 @@
+TAP version 13
+# Subtest: cache keys separate every scope and version component
+ok 1 - cache keys separate every scope and version component
+  ---
+  duration_ms: 1.4051
+  type: 'test'
+  ...
+# Subtest: capability states: fixture only in fixture workspaces, verified only in real ones
+ok 2 - capability states: fixture only in fixture workspaces, verified only in real ones
+  ---
+  duration_ms: 0.2194
+  type: 'test'
+  ...
+# Subtest: rendering keeps the pinned prefix identical across tasks; verification catches edits
+ok 3 - rendering keeps the pinned prefix identical across tasks; verification catches edits
+  ---
+  duration_ms: 1.0511
+  type: 'test'
+  ...
+# Subtest: fixture prompt cache: first prefix use writes, the repeat reads; short prefixes are not cached
+ok 4 - fixture prompt cache: first prefix use writes, the repeat reads; short prefixes are not cached
+  ---
+  duration_ms: 1.1625
+  type: 'test'
+  ...
+# Subtest: batch result lines: expiry and request errors are not charged, others are unknown
+ok 5 - batch result lines: expiry and request errors are not charged, others are unknown
+  ---
+  duration_ms: 0.3287
+  type: 'test'
+  ...
+# Subtest: batch status comes from item reservations, not the provider status alone
+ok 6 - batch status comes from item reservations, not the provider status alone
+  ---
+  duration_ms: 0.3188
+  type: 'test'
+  ...
+# Subtest: OpenAI batch adapter (loopback contract): upload, create, poll, output and error files
+ok 7 - OpenAI batch adapter (loopback contract): upload, create, poll, output and error files
+  ---
+  duration_ms: 64.8617
+  type: 'test'
+  ...
+# Subtest: OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output
+ok 8 - OpenAI batch result parsing rejects oversized lines rather than buffering arbitrary output
+  ---
+  duration_ms: 15.4503
+  type: 'test'
+  ...
+# Subtest: OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials
+ok 9 - OpenAI batch file cleanup acknowledges deletion or prior expiry without exposing credentials
+  ---
+  duration_ms: 23.8216
+  type: 'test'
+  ...
+# Subtest: OpenAI batch streaming rejects an oversized body, malformed data and duplicate results
+ok 10 - OpenAI batch streaming rejects an oversized body, malformed data and duplicate results
+  ---
+  duration_ms: 104.7587
+  type: 'test'
+  ...
+# Subtest: X02 index: incremental counts, explicit removals, and record reuse
+ok 11 - X02 index: incremental counts, explicit removals, and record reuse
+  ---
+  duration_ms: 1705.2519
+  type: 'test'
+  ...
+# Subtest: X02 packs: pins and authority survive compaction; lossy and opaque compaction refused
+ok 12 - X02 packs: pins and authority survive compaction; lossy and opaque compaction refused
+  ---
+  duration_ms: 1885.1963
+  type: 'test'
+  ...
+# Subtest: X02 result cache: hits re-admit, dependencies and grants invalidate, scope isolates
+ok 13 - X02 result cache: hits re-admit, dependencies and grants invalidate, scope isolates
+  ---
+  duration_ms: 1823.7724
+  type: 'test'
+  ...
+# Subtest: X02 batches: capability and price checks, partial failure, unknown then late settlement
+ok 14 - X02 batches: capability and price checks, partial failure, unknown then late settlement
+  ---
+  duration_ms: 1826.5717
+  type: 'test'
+  ...
+# Subtest: X02 batches: expiry releases, a real workspace refuses unverified capabilities
+ok 15 - X02 batches: expiry releases, a real workspace refuses unverified capabilities
+  ---
+  duration_ms: 1736.6557
+  type: 'test'
+  ...
+# Subtest: X02 evaluation: quality maintained for the compacted pack, a starved pack fails
+ok 16 - X02 evaluation: quality maintained for the compacted pack, a starved pack fails
+  ---
+  duration_ms: 2070.9834
+  type: 'test'
+  ...
+# Subtest: X02 batch cleanup is durable, retries after restart, and never deletes unresolved results
+ok 17 - X02 batch cleanup is durable, retries after restart, and never deletes unresolved results
+  ---
+  duration_ms: 1838.6277
+  type: 'test'
+  ...
+# Subtest: X02 a delayed failed poll cannot downgrade already reconciled batch results
+ok 18 - X02 a delayed failed poll cannot downgrade already reconciled batch results
+  ---
+  duration_ms: 2216.6522
+  type: 'test'
+  ...
+# Subtest: X07 API and CLI: offer, checkout, inert return page, signed webhook, entitlement and capacity
+ok 19 - X07 API and CLI: offer, checkout, inert return page, signed webhook, entitlement and capacity
+  ---
+  duration_ms: 5614.0438
+  type: 'test'
+  ...
+# Subtest: X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+ok 20 - X07 redirects never grant; duplicate and out-of-order events converge on one ledger; refunds and disputes change access
+  ---
+  duration_ms: 2072.1382
+  type: 'test'
+  ...
+# Subtest: X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+ok 21 - X07 reinvestment: seed, pending and payouts are not profit; partial, concurrent and post-refund allocations cannot create money
+  ---
+  duration_ms: 2264.3068
+  type: 'test'
+  ...
+# Subtest: X07 one processor account and funding balance cannot be registered twice
+ok 22 - X07 one processor account and funding balance cannot be registered twice
+  ---
+  duration_ms: 1627.2002
+  type: 'test'
+  ...
+# Subtest: X07 non-USD processor snapshots cannot enter the USD ledger
+ok 23 - X07 non-USD processor snapshots cannot enter the USD ledger
+  ---
+  duration_ms: 1772.5461
+  type: 'test'
+  ...
+# Subtest: X07 credential account drift cannot book processor state
+ok 24 - X07 credential account drift cannot book processor state
+  ---
+  duration_ms: 1632.3006
+  type: 'test'
+  ...
+# Subtest: X07 fees above sale proceeds settle as a loss, never negative earnings
+ok 25 - X07 fees above sale proceeds settle as a loss, never negative earnings
+  ---
+  duration_ms: 1930.2153
+  type: 'test'
+  ...
+# Subtest: X07 overlapping observations reject an older result without holding financial locks across reads
+ok 26 - X07 overlapping observations reject an older result without holding financial locks across reads
+  ---
+  duration_ms: 1601.7437
+  type: 'test'
+  ...
+# Subtest: X07 invalid webhook signatures never write durable receipts, even with repeated bodies
+ok 27 - X07 invalid webhook signatures never write durable receipts, even with repeated bodies
+  ---
+  duration_ms: 1502.8973
+  type: 'test'
+  ...
+# Subtest: X07 Stripe refuses truncated or malformed loss histories
+ok 28 - X07 Stripe refuses truncated or malformed loss histories
+  ---
+  duration_ms: 23.0207
+  type: 'test'
+  ...
+# Subtest: X07 Stripe test adapter maps processor objects from a contract double
+ok 29 - X07 Stripe test adapter maps processor objects from a contract double
+  ---
+  duration_ms: 5.5956
+  type: 'test'
+  ...
+# Subtest: reinvested earnings stay unallocated until the owner assigns them; a portfolio allocation funds non-maintenance work only, once
+ok 30 - reinvested earnings stay unallocated until the owner assigns them; a portfolio allocation funds non-maintenance work only, once
+  ---
+  duration_ms: 1856.7613
+  type: 'test'
+  ...
+# Subtest: X07 payout and balance reads release locks and recheck revocation before applying
+    # Subtest: payout
+    ok 1 - payout
+      ---
+      duration_ms: 48.6476
+      type: 'test'
+      ...
+    # Subtest: balance
+    ok 2 - balance
+      ---
+      duration_ms: 22.4378
+      type: 'test'
+      ...
+    1..2
+ok 31 - X07 payout and balance reads release locks and recheck revocation before applying
+  ---
+  duration_ms: 1603.9173
+  type: 'test'
+  ...
+# Subtest: X07 a late failed balance read cannot invalidate a newer successful observation
+ok 32 - X07 a late failed balance read cannot invalidate a newer successful observation
+  ---
+  duration_ms: 1517.7257
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 33 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 1692.454
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 34 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 1718.9685
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 35 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 1744.5782
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 36 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 1579.6093
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 37 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 1713.3224
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 38 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 1581.4849
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 39 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 1618.3484
+  type: 'test'
+  ...
+1..39
+# tests 41
+# suites 0
+# pass 41
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 54350.1456

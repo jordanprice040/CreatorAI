@@ -1,5 +1,7 @@
 # Creator Agent — implementation prompt library
 
+Before executing X01/X02/X03/X04/X05 or completion-runbook work, read the relevant entries in [accepted owner decisions](tracking/OWNER_DECISIONS_2026-10-20.md). Settled choices supersede historical prompt defaults; implementation and activation remain separate.
+
 Version 3.0 • October 9, 2026
 
 Use one requested milestone per coding session, or an explicitly authorized sequence. These prompts build the application; they do not start an unrestricted autonomous business. Read AGENTS.md first. T00–T19 prioritize the thesis. X01–X10 retain the broader product. U01–U05 support continuity and review.

@@ -36,6 +36,14 @@ const NO_POLICY_HASH = sha256('no source policy configured');
  * followed or treated as instructions, so a page cannot cause any further action.
  */
 export class SourceBroker {
+  readonly #inflight = new Map<string, Set<AbortController>>();
+  cancelRun(runId: string): number {
+    const active = this.#inflight.get(runId.toLowerCase());
+    if (!active) return 0;
+    for (const controller of active)
+      controller.abort(new Error('run cancelled'));
+    return active.size;
+  }
   constructor(
     private readonly store: ResearchStore,
     private readonly adapters: {
@@ -92,13 +100,37 @@ export class SourceBroker {
     if (begun.kind === 'done') return begun.retrieval;
     if (!adapter || !policy || !verdict?.ok)
       throw new Error('unreachable: admitted fetch without adapter or policy');
-    const finish = await this.run(
-      adapter,
-      policy,
-      verdict.url,
-      verdict.retention,
-      begun.prior,
-    );
+    const controller = new AbortController();
+    const key = runId.toLowerCase();
+    const active = this.#inflight.get(key) ?? new Set<AbortController>();
+    active.add(controller);
+    this.#inflight.set(key, active);
+    let finish: RetrievalFinish;
+    try {
+      finish = await this.run(
+        adapter,
+        policy,
+        verdict.url,
+        verdict.retention,
+        begun.prior,
+        controller,
+      );
+    } catch {
+      finish = {
+        state: 'failed',
+        reason_code: 'adapter_error',
+        explanation: 'The source adapter failed before a usable outcome.',
+        final_url: null,
+        redirects: [],
+        http_status: null,
+        content_type: null,
+        bytes: null,
+        content_hash: null,
+      };
+    } finally {
+      active.delete(controller);
+      if (!active.size) this.#inflight.delete(key);
+    }
     return this.store.finishRetrieval(ctx, begun.retrieval.id, finish);
   }
 
@@ -108,8 +140,8 @@ export class SourceBroker {
     start: URL,
     startRetention: Retention,
     prior: number,
+    controller: AbortController,
   ): Promise<RetrievalFinish> {
-    const controller = new AbortController();
     const timer = setTimeout(
       () => controller.abort(new Error('fetch time limit')),
       policy.timeout_ms,
@@ -147,6 +179,16 @@ export class SourceBroker {
           maxBytes: policy.max_bytes,
           prior,
         });
+        if (
+          controller.signal.aborted &&
+          controller.signal.reason instanceof Error &&
+          controller.signal.reason.message === 'run cancelled'
+        )
+          return stop(
+            'failed',
+            'run_cancelled',
+            'Source retrieval stopped because the run was cancelled.',
+          );
         if (out.kind === 'blocked')
           return stop('blocked', out.reason_code, out.explanation);
         if (out.kind === 'error')

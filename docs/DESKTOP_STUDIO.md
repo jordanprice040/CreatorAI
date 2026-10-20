@@ -1,5 +1,7 @@
 # Installed desktop studio (§2.1)
 
+Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. The implemented close-to-quit default is a reconciliation item; historical evidence below is not evidence of this new default.
+
 October 20, 2026. Design: ADR-0041 in `tracking/DECISIONS.md`. Evidence:
 `tracking/evidence/desktop-2-1/`.
 

@@ -2,6 +2,14 @@
 
 This policy design implements the October 8 feedback. It governs the future application; it does not grant the coding tool additional permissions.
 
+October 20 accepted policy: [owner register #5/#10](../tracking/OWNER_DECISIONS_2026-10-20.md).
+Authorized users may explicitly change overall and narrower product spending limits,
+including above $20; agents cannot raise limits. Enforce every applicable parent
+limit with atomic exposure accounting and audited/versioned changes. Paid fallback
+defaults off; manual enablement binds provider/model/task/privacy scope and caps.
+Honor matching grants without repeated prompts. These are planned settings; the
+current studio retains its $20 configured allowance until an explicit amount change.
+
 ## Separate the kinds of human input
 
 | Kind | Purpose | Example |

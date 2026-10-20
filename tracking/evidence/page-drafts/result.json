@@ -1,0 +1,60 @@
+{
+  "sources": [
+    {
+      "sha256": "806067710e91a633f4346010fdf4266863054f6ee2bb29f11cdcb2dbd2cd5f23",
+      "path": "apps/web/src/page-drafts.tsx"
+    },
+    {
+      "sha256": "a725ca2fa3c1c533a24261bfc1714a095f8ad7bed03ea3339c6a12959769914a",
+      "path": "apps/web/src/main.tsx"
+    },
+    {
+      "sha256": "c259ca595a9c53baa5ce545eb5706ec80b42d57df76ecbdf0523966aa80ce0fc",
+      "path": "apps/web/src/ui.tsx"
+    },
+    {
+      "sha256": "d56906477e67990ffbc81a92922019cc84afeb61f543ab46c92606a87997bf31",
+      "path": "apps/web/src/overview.tsx"
+    },
+    {
+      "sha256": "2a484f0f03d2ec13c2aaa6a7c7cd78a4f7fc3ba66debb1cf41e719f0741f0cb1",
+      "path": "apps/web/src/workflows.tsx"
+    },
+    {
+      "sha256": "95f0e21f22ad14ff901f3452a994615258cc47880621e659dd28b28b3126220d",
+      "path": "scripts/verify-page-drafts.playwright.js"
+    }
+  ],
+  "native_release_build": "pass",
+  "native_interactive_acceptance": "not run",
+  "nsis_installer": "pass after network-enabled tool fetch",
+  "desktop_staging": "pass",
+  "installed_or_activated": "no",
+  "production_web_build": "pass (chunk-size warning)",
+  "checks": [
+    "multiple fields survive page changes",
+    "independent evidence draft",
+    "Back and Forward preserve drafts",
+    "cancel reset preserves draft",
+    "reset affects only current page",
+    "unsubmitted search preserved",
+    "invalid submission keeps fields",
+    "search revision after submitted query",
+    "workspace isolation",
+    "sign-out removes retained forms",
+    "no mutation on navigation/reset"
+  ],
+  "installer": {
+    "sha256": "2934780d8fd417578ed5c72b4f11ca2c9092ea275398662074a68367b49b368f",
+    "path": "apps/desktop/src-tauri/target/release/bundle/nsis/Creator Agent_0.1.0_x64-setup.exe"
+  },
+  "mode": "browser UI with intercepted fixture API",
+  "limitations": [
+    "drafts are session-memory within current workspace; reload/restart/workspace change/sign-out discard them",
+    "installer not installed; native UI verification pending",
+    "whole visited pages retained; future durable draft/version work remains",
+    "earlier browser harness runs hit MCP path/loopback/dialog/reused-page issues; final isolated run passes"
+  ],
+  "typecheck": "pass",
+  "date": "2026-10-20"
+}
