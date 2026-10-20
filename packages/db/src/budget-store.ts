@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { portfolioEnvelopeGate } from './portfolio-gates.js';
+import {
+  ceilingRefusal,
+  readSpendingConfig,
+  runtimeExposure,
+} from './runtime-ceiling.js';
 import type { Pool, PoolClient } from 'pg';
 import {
   BUDGET_POLICY_VERSION,
@@ -156,6 +161,8 @@ export type Finish =
  */
 export class BudgetStore extends OversightStore {
   readonly lateWindowMs: number;
+  /** The owner's overall runtime ceiling (config/spending.json); callers never set it. */
+  spending = readSpendingConfig();
   constructor(pool: Pool, options: { lateWindowMs?: number } = {}) {
     super(pool);
     this.lateWindowMs = options.lateWindowMs ?? LATE_RESULT_WINDOW_MS;
@@ -1077,6 +1084,14 @@ export class BudgetStore extends OversightStore {
           `Maximum exposure ${amount} exceeds the ${available} available in the envelope.`,
           extra,
         );
+      // The owner's overall ceiling on real spending, across every workspace and envelope.
+      if (!fixture) {
+        const over = ceilingRefusal(
+          await runtimeExposure(c, this.spending, { ws, runId }),
+          amount,
+        );
+        if (over) return deny(over.reason_code, over.explanation, extra);
+      }
       // 4–5. Grants, mode, stage gates (T03). The bound amount is the maximum exposure.
       const admission = await this.admitIn(
         c,

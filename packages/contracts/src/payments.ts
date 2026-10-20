@@ -289,12 +289,20 @@ export const AllocateRequestSchema = z.strictObject({
   allow_partial: z.boolean(),
   envelope_name: label,
   max_in_flight: z.number().int().min(1).max(32),
+  /**
+   * `portfolio` makes the new envelope usable by this workspace's portfolio runs (outside the
+   * protected maintenance reserve). Omitted means a standalone budget. Nothing allocates
+   * automatically: earnings stay unallocated capacity until the owner asks (2026-10-20).
+   */
+  target: z.enum(['standalone', 'portfolio']).optional(),
 });
 export const AllocationSchema = z.strictObject({
   id,
   amount_nano_usd: nanoUsd,
   requested_nano_usd: nanoUsd,
   envelope_id: id,
+  // Responses stored before 2026-10-20 have no target; they were all standalone.
+  target: z.enum(['standalone', 'portfolio']).default('standalone'),
   policy_version: version,
   period_start: timestamp,
   uses: z.array(z.strictObject({ tranche_id: id, amount_nano_usd: nanoUsd })),

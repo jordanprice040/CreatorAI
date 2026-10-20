@@ -1,5 +1,25 @@
 # Implementation status
 
+## Owner decisions after the 2026-10-20 audit (October 20, 2026)
+
+Branch claude/audit-full-qgjinb from main fc1e83f; migration 23, ADR-0039,
+docs/OWNER_DECISIONS_2026-10-20.md. Works: a $20 overall runtime ceiling
+(config/spending.json) checked under one lock by every real paid dispatch and every final
+study hold, counting open study attempts at their cap; any unknown-cost call blocks paid
+dispatch. Device pairing has per-visitor and server limits on new and pending requests
+(visitor = salted hash of the socket address, or the proxy-appended X-Forwarded-For entry
+when hosted). Portfolio scheduler attempts and failures are durable, back off, stop a
+workspace after 5 failures until the owner resumes it, and show in /api/health and
+`pnpm cli portfolio`. Reinvestment can be allocated explicitly to a portfolio (non-
+maintenance lanes only); nothing allocates automatically. scripts/move-out-of-onedrive.ps1
+prepares the move out of OneDrive with a tested backup restore.
+
+Executed (cloud Linux, PostgreSQL 16): pnpm check 290 tests, 277 pass, 0 fail, 13 WSL2/
+native skips, format clean (tracking/evidence/owner-decisions-2026-10-20/check.log).
+Not executed: the PowerShell move script (no PowerShell or Docker here); no live call or
+spend. Development, hosting and marketing costs have no paid path in code, so the ceiling
+cannot stop them.
+
 ## Audit 2026-10-20 (full product, T00–X10) fixes (October 20, 2026)
 
 Branch claude/audit-full-qgjinb from main 051a9bb; no migration, no ADR. Report: project

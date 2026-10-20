@@ -181,7 +181,19 @@ export async function portfolioEnvelopeGate(
       [ws, envelopeId],
     )
   ).rows.map((r) => r.id);
-  if (!chain.includes(s.policy.root_envelope_id))
+  // Reinvested earnings the owner explicitly allocated to this portfolio also count as
+  // portfolio funds; they sit outside the root, so never inside the maintenance reserve.
+  if (
+    !chain.includes(s.policy.root_envelope_id) &&
+    !(
+      await c.query(
+        `select 1 from reinvestment_envelopes r
+           join reinvestment_portfolio_allocations p on p.allocation_id = r.allocation_id
+          where p.workspace_id = $1 and r.envelope_id = any($2::uuid[])`,
+        [ws, chain],
+      )
+    ).rowCount
+  )
     return 'portfolio_budget_outside_root';
   const maintenance = chain.includes(s.policy.maintenance_envelope_id);
   if (maintenance !== (s.lane === 'maintenance'))

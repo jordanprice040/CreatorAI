@@ -1,5 +1,43 @@
 # Decision log
 
+## ADR-0039 — Owner decisions after the 2026-10-20 audit: runtime ceiling, pairing limits, scheduler state, portfolio reinvestment, OneDrive move
+
+October 20, 2026. Jordan's decisions on audit items N1, N2, N4, R1 and R2. Built by Claude
+Code on `claude/audit-full-qgjinb` from main `fc1e83f`; migration 23.
+
+Decision: a $20 overall ceiling on new runtime spending (config/spending.json, from
+2026-10-20) is enforced in BudgetStore.prepareAttempt for every non-fixture paid call and
+in StudyStore.holdBudget for final study attempts, under one advisory lock. Exposure is
+settled cost plus held in-flight/unknown exposure plus open final study holds at their cap;
+calls inside an open held attempt are not counted twice. Any unknown-cost paid call blocks
+new paid dispatch. The T15 $20 total stays and sits inside the ceiling. Only a reviewed edit
+of the config raises it; no budget, portfolio or reinvestment path can.
+
+Pairing stays open to start and owner-approved to finish, with limits per visitor (5 new /
+3 pending) below the server's (30 / 15) and the existing five-minute expiry. The visitor is
+a per-process salted SHA-256 of the socket address, or of the last X-Forwarded-For entry in
+hosted mode (the TLS proxy appends it; earlier entries are client-controlled).
+
+The portfolio scheduler records each attempt per workspace and for the sweep, keeps an
+append-only failure history, backs off from 30 s to 30 min and stops a workspace after 5
+consecutive failures until the owner resumes it (audited). Health shows codes only.
+
+Reinvested earnings never fund anything automatically. An explicit allocation with target
+`portfolio` is recorded once per allocation and admitted by the portfolio envelope gate for
+exploration and improvement lanes only, so the maintenance reserve is untouched; tranche
+consumption still prevents spending the same money twice.
+
+The OneDrive move is a script the owner runs: it refuses synced targets and dirty checkouts,
+clones, saves stashes as patches, copies ignored private files with hash checks, verifies
+the database, takes a backup and restores it into a scratch database. It never deletes the
+old checkout. Rejected: auto-detecting and deleting the old folder; storing raw visitor IPs;
+counting fixture amounts against the ceiling.
+
+Consequences: costs outside Creator Agent (development tools, hosting, marketing) cannot be
+blocked by code and stay a manual owner limit. Many distinct addresses can still reach the
+server pairing limit; a hosted proxy needs its own rate limit. The move script has not run
+on Windows yet.
+
 ## ADR-0038 — X10 readiness register, declared-workload benchmark and owner pilot gate
 
 October 19, 2026. Jordan asked for X10 after Codex finished X08/X09. Built by Claude Code on

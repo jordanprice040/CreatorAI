@@ -8,6 +8,16 @@ import {
 } from '@creator/contracts';
 import type { PortfolioStore, CommandContext } from '@creator/db';
 
+function schedulerError(e: unknown) {
+  const raw = e && typeof e === 'object' && 'code' in e ? e.code : null;
+  return {
+    code:
+      typeof raw === 'string' && /^[A-Z0-9_]{1,48}$/.test(raw)
+        ? raw
+        : 'SCHEDULER_FAILED',
+    message: e instanceof Error ? e.message : String(e),
+  };
+}
 export class PortfolioService {
   private timer: ReturnType<typeof setInterval> | null = null;
   private pending: Promise<unknown> | null = null;
@@ -21,7 +31,12 @@ export class PortfolioService {
     this.timer = setInterval(() => {
       if (!this.pending)
         this.pending = this.sweep()
-          .catch(() => undefined)
+          .catch((e: unknown) => {
+            // The state could not even be recorded (database down); say so once per pass.
+            console.error(
+              `Portfolio scheduler could not record its state (${schedulerError(e).code}).`,
+            );
+          })
           .finally(() => {
             this.pending = null;
           });
@@ -33,13 +48,34 @@ export class PortfolioService {
     this.timer = null;
     await this.pending;
   }
-  private async sweep() {
-    for (const p of await this.store.portfolioOwners()) {
+  /**
+   * One scheduler pass. Every attempt and failure is recorded durably; a failing workspace
+   * backs off and, after repeated failures, stops until its owner resumes it.
+   */
+  async sweep() {
+    if (!(await this.store.schedulerMayAttempt('sweep'))) return;
+    let owners: { workspace_id: string; created_by: string }[];
+    try {
+      owners = await this.store.portfolioOwners();
+    } catch (e) {
+      await this.store.recordSchedulerAttempt('sweep', null, schedulerError(e));
+      return;
+    }
+    await this.store.recordSchedulerAttempt('sweep', null, null);
+    for (const p of owners) {
+      if (!(await this.store.schedulerMayAttempt(p.workspace_id))) continue;
+      let error: { code: string; message: string } | null = null;
       try {
         await this.tick({ actorId: p.created_by }, p.workspace_id);
-      } catch {
-        /* Owner revocation or paused/unavailable policy fails closed. */
+      } catch (e) {
+        // Owner revocation or an unavailable policy fails closed, and is now visible.
+        error = schedulerError(e);
       }
+      await this.store.recordSchedulerAttempt(
+        p.workspace_id,
+        p.workspace_id,
+        error,
+      );
     }
   }
   async tick(ctx: CommandContext, ws: string) {
@@ -213,6 +249,12 @@ export async function portfolioRoutes(r: {
         case 'tick':
           parse(z.strictObject({}), await r.body());
           return send(200, await service.tick(ctx, ws), true);
+        case 'scheduler-resume':
+          return send(
+            200,
+            await store.resumePortfolioScheduler(ctx, ws, await r.body()),
+            true,
+          );
         case 'reconcile': {
           const b = parse(PortfolioJobReconcileSchema, await r.body());
           return send(200, await service.reconcile(ctx, ws, b.job_id), true);

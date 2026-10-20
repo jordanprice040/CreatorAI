@@ -1564,6 +1564,20 @@ export class PaymentStore extends DesktopJobStore {
       async (c) => {
         await this.requireOwner(c, ws, ctx.actorId);
         await this.#reinvestLock(c, ws);
+        const portfolio =
+          req.target === 'portfolio'
+            ? (
+                await c.query(
+                  'select version from portfolio_policies where workspace_id=$1',
+                  [ws],
+                )
+              ).rows[0]
+            : null;
+        if (req.target === 'portfolio' && !portfolio)
+          throw fail(
+            'INVALID_TRANSITION',
+            'This workspace has no portfolio policy to allocate to.',
+          );
         await this.#settleLosses(c, ctx, ws);
         const cap = await this.#capacity(c, ws);
         const requested = BigInt(req.amount_nano_usd);
@@ -1641,6 +1655,11 @@ export class PaymentStore extends DesktopJobStore {
         );
         for (const u of uses)
           await this.#useTranche(c, u.tranche_id, u.amount, id, null);
+        if (portfolio)
+          await c.query(
+            'insert into reinvestment_portfolio_allocations (allocation_id, workspace_id, portfolio_policy_version) values ($1,$2,$3)',
+            [id, ws, Number(portfolio.version)],
+          );
         await this.append(c, ctx, {
           workspaceId: ws,
           action: 'reinvestment.allocated',
@@ -1653,6 +1672,7 @@ export class PaymentStore extends DesktopJobStore {
             requested_nano: s(requested),
             binding: cap.binding,
             tranches: uses.length,
+            target: portfolio ? 'portfolio' : 'standalone',
           },
           relatedIds: [envelopeId],
         });
@@ -1661,6 +1681,7 @@ export class PaymentStore extends DesktopJobStore {
           amount_nano_usd: s(amount),
           requested_nano_usd: s(requested),
           envelope_id: envelopeId,
+          target: portfolio ? ('portfolio' as const) : ('standalone' as const),
           policy_version: cap.policy_version!,
           period_start: period_start!,
           uses: uses.map((u) => ({
@@ -1698,6 +1719,8 @@ export class PaymentStore extends DesktopJobStore {
       const { rows } = await c.query(
         `select a.id, a.amount_nano::text, a.requested_nano::text, a.envelope_id,
            a.policy_version, a.period_start, a.created_at,
+           case when exists (select 1 from reinvestment_portfolio_allocations p where p.allocation_id = a.id)
+             then 'portfolio' else 'standalone' end as target,
            coalesce((select json_agg(r.envelope_id order by r.created_at)
              from reinvestment_envelopes r where r.allocation_id = a.id), '[]') as envelopes
          from reinvestment_allocations a where a.workspace_id = $1 order by a.created_at limit 200`,

@@ -358,6 +358,23 @@ export const HealthSchema = z.strictObject({
       retrieval_recovery: MaintenanceJobSchema,
     }),
   }),
+  /** Durable portfolio scheduler state (owner decision 2026-10-20); codes only, no messages. */
+  portfolio_scheduler: z.strictObject({
+    enabled: z.boolean(),
+    state: z.enum([
+      'off',
+      'not_run',
+      'ok',
+      'failing',
+      'stopped',
+      'unavailable',
+    ]),
+    last_attempt_at: z.iso.datetime().nullable(),
+    last_success_at: z.iso.datetime().nullable(),
+    error_code: z.string().max(48).nullable(),
+    failing_scopes: z.number().int().min(0),
+    stopped_scopes: z.number().int().min(0),
+  }),
 });
 export const FixtureResponseSchema = z.strictObject({
   fixture: z.literal(true),

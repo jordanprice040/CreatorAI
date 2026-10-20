@@ -36,6 +36,7 @@ test('real HTTP health/fixture/validation paths enforce shape, scope and bounded
   assert.equal(healthInfo.data_mode, 'fixture');
   assert.equal(healthInfo.maintenance.enabled, false);
   assert.equal(healthInfo.maintenance.degraded, false);
+  assert.equal(healthInfo.portfolio_scheduler.state, 'off'); // off unless the owner turns it on
   assert.deepEqual(Object.keys(healthInfo.maintenance.jobs), [
     'outbox',
     'broker_recovery',

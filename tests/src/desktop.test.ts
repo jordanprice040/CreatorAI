@@ -6,12 +6,13 @@ import {
   ContractError,
   DesktopChallengeRequestSchema,
 } from '@creator/contracts';
-import { DesktopStore } from '@creator/db';
-import { createApi } from '@creator/api';
+import { DesktopStore, PAIRING_LIMITS } from '@creator/db';
+import { createApi, visitorKey } from '@creator/api';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 const proof = () => randomBytes(32).toString('hex');
+const VISITOR = hash('visitor-a');
 const rejects = (code: string, p: Promise<unknown>) =>
   assert.rejects(
     p,
@@ -75,7 +76,7 @@ test('durable one-time pairing: proof binding, concurrent claims, expiry, revoke
     workspace_id: ws,
     capabilities: ['artifact.verify'],
   };
-  const c = await store.beginDesktop(request);
+  const c = await store.beginDesktop(request, VISITOR);
   await rejects(
     'NOT_FOUND',
     store.approveDesktop(
@@ -144,20 +145,20 @@ test('durable one-time pairing: proof binding, concurrent claims, expiry, revoke
   assert.equal(raw.rows[0]?.token_hash, hash(d.token));
   assert.notEqual(raw.rows[0]?.token_hash, d.token);
   const expProof = proof();
-  const expired = await store.beginDesktop({
-    ...request,
-    proof_hash: hash(expProof),
-  });
+  const expired = await store.beginDesktop(
+    { ...request, proof_hash: hash(expProof) },
+    VISITOR,
+  );
   await db.pool.query(
     `update desktop_challenges set expires_at=clock_timestamp()-interval '1 second' where id=$1`,
     [expired.id],
   );
   await rejects('EXPIRED', store.claimDesktop(expired.id, { proof: expProof }));
   const revokedProof = proof();
-  const revoked = await store.beginDesktop({
-    ...request,
-    proof_hash: hash(revokedProof),
-  });
+  const revoked = await store.beginDesktop(
+    { ...request, proof_hash: hash(revokedProof) },
+    VISITOR,
+  );
   await store.approveDesktop(owner, revoked.id, hash(browser.token));
   await store.endSession(browser.token);
   await rejects(
@@ -337,4 +338,99 @@ test('real HTTP desktop sign-in issues a separate revocable session; CSRF and wo
     200,
   );
   await assert.rejects(client.heartbeat(paired.token, 0), /HTTP 401/);
+});
+
+test('pairing limits: one visitor cannot use up the server; expiry frees a pending slot; approval still needs the owner', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new DesktopStore(db.pool);
+  const begin = (visitor: string) =>
+    store.beginDesktop(
+      {
+        kind: 'desktop_login',
+        label: 'Limit test',
+        proof_hash: hash(proof()),
+        workspace_id: null,
+        capabilities: [],
+      },
+      hash(visitor),
+    );
+  const L = PAIRING_LIMITS;
+  assert.ok(
+    L.visitorPending < L.serverPending && L.visitorRecent < L.serverRecent,
+  );
+  // One visitor reaches its pending limit; others are unaffected.
+  const mine = [];
+  for (let i = 0; i < L.visitorPending; i += 1) mine.push(await begin('noisy'));
+  await rejects('LIMIT_EXCEEDED', begin('noisy'));
+  const quiet = await begin('quiet');
+  // An expired request no longer counts as pending, but still counts toward the rate.
+  await db.pool.query(
+    `update desktop_challenges set expires_at=clock_timestamp()-interval '1 second' where id=$1`,
+    [mine[0]!.id],
+  );
+  const recentLeft = L.visitorRecent - L.visitorPending;
+  for (let i = 0; i < recentLeft; i += 1) {
+    await db.pool.query(
+      `update desktop_challenges set expires_at=clock_timestamp()-interval '1 second'
+        where visitor_hash=$1 and expires_at > clock_timestamp()`,
+      [hash('noisy')],
+    );
+    assert.ok(await begin('noisy'));
+  }
+  await db.pool.query(
+    `update desktop_challenges set expires_at=clock_timestamp()-interval '1 second' where visitor_hash=$1`,
+    [hash('noisy')],
+  );
+  await rejects('LIMIT_EXCEEDED', begin('noisy')); // rate, not pending
+  // The overall pending bound holds across many visitors.
+  let opened = 1; // 'quiet'
+  for (let v = 0; opened < L.serverPending; v += 1)
+    for (let i = 0; i < L.visitorPending && opened < L.serverPending; i += 1) {
+      await begin(`crowd-${v}`);
+      opened += 1;
+    }
+  await rejects('LIMIT_EXCEEDED', begin('newcomer'));
+  // Challenges expire five minutes after they open.
+  const { rows } = await db.pool.query(
+    `select max(expires_at - created_at) < interval '5 minutes 1 second' as short from desktop_challenges`,
+  );
+  assert.equal(rows[0].short, true);
+  // Approval requires a signed-in owner session: an unknown session cannot complete it.
+  await rejects(
+    'UNAUTHENTICATED',
+    store.approveDesktop(
+      { actorId: randomUUID() },
+      quiet.id,
+      hash('no-session'),
+    ),
+  );
+  await rejects('INVALID_CONTRACT', store.beginDesktop({}, 'not-a-hash'));
+});
+
+test('the visitor key uses the proxy-appended address only when hosted, and stores a salted hash', () => {
+  const req = (xff: string | undefined, remote: string) =>
+    ({
+      headers: xff === undefined ? {} : { 'x-forwarded-for': xff },
+      socket: { remoteAddress: remote },
+    }) as never;
+  const salt = 's';
+  // A client-supplied first entry cannot change who is counted in hosted mode.
+  assert.equal(
+    visitorKey(req('1.1.1.1, 203.0.113.9', '10.0.0.2'), true, salt),
+    visitorKey(req('9.9.9.9,203.0.113.9', '10.0.0.2'), true, salt),
+  );
+  assert.equal(
+    visitorKey(req('203.0.113.9', '10.0.0.2'), true, salt),
+    hash(`${salt}\n203.0.113.9`),
+  );
+  // Locally, forwarded headers are ignored entirely.
+  assert.equal(
+    visitorKey(req('203.0.113.9', '127.0.0.1'), false, salt),
+    visitorKey(req(undefined, '127.0.0.1'), false, salt),
+  );
+  assert.notEqual(
+    visitorKey(req(undefined, '127.0.0.1'), false, 'other'),
+    visitorKey(req(undefined, '127.0.0.1'), false, salt),
+  );
 });

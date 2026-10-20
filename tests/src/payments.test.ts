@@ -7,7 +7,7 @@ import {
   type PaymentConnection,
 } from '@creator/contracts';
 import { NANO_PER_CENT } from '@creator/domain';
-import { PaymentStore, type CommandContext } from '@creator/db';
+import { PortfolioStore, type CommandContext } from '@creator/db';
 import {
   FixtureProcessor,
   PaymentService,
@@ -15,6 +15,7 @@ import {
 } from '@creator/broker';
 import { freshDatabase } from './pg-harness.js';
 import { verifiedRelease } from './payments-harness.js';
+import { portfolioFixture } from './portfolio-harness.js';
 
 // X07 acceptance on the labelled fixture processor (no live or test-mode Stripe call is made
 // here): duplicate and out-of-order events, redirects, refunds and disputes after
@@ -34,7 +35,8 @@ const c = (cents: number) => BigInt(cents) * NANO_PER_CENT;
 async function setup(t: test.TestContext) {
   const db = await freshDatabase(t);
   if (!db) return null;
-  const store = new PaymentStore(db.pool);
+  // The full store, so portfolio policy and payments meet in one workspace.
+  const store = new PortfolioStore(db.pool);
   for (const [a, kind] of [
     [owner, 'human'],
     [editor, 'human'],
@@ -888,4 +890,146 @@ test('X07 Stripe test adapter maps processor objects from a contract double', as
   });
   assert.equal((await stripe.payout('po_1')).status, 'in_transit');
   assert.ok(calls.every((c) => / \/v1\//.test(c)));
+});
+
+test('reinvested earnings stay unallocated until the owner assigns them; a portfolio allocation funds non-maintenance work only, once', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, service } = s;
+  const p = await portfolioFixture(store, s.db.pool, owner);
+  const ws = p.ws;
+  const { conn, fx } = await s.connected(ws);
+  const { offer } = await s.offer(ws, conn, 10_000);
+  await store.setReinvestmentPolicy(owner, ws, {
+    enabled: true,
+    eligible_bps: 5000,
+    holdback_days: 0,
+    period_days: 30,
+    period_cap_nano_usd: c(20_000).toString(),
+    min_reserve_nano_usd: c(1000).toString(),
+    rationale: 'Fixture policy.',
+  });
+  await store.recordOwnerFunding(owner, ws, {
+    amount_nano_usd: c(50_000).toString(),
+    evidence: 'Fixture seed.',
+  });
+  const rail = await store.registerRail(owner, ws, {
+    label: 'Owner bank',
+    kind: 'owner_attested',
+    connection_id: null,
+  });
+  await store.attestRail(owner, ws, rail.id, {
+    available_nano_usd: c(100_000).toString(),
+    evidence: 'Fixture statement.',
+  });
+  const paid = await s.sale(ws, fx, offer.id, 'cust-1');
+  fx.settle(paid);
+  await service.reconcilePayment(owner, ws, conn.id, paid);
+  const capacity = async () =>
+    BigInt((await store.reinvestmentCapacity(owner, ws)).capacity_nano);
+  const eligible = await capacity();
+  assert.ok(eligible > c(2000));
+  // Running the portfolio does not move earnings: they stay unallocated capacity.
+  await p.resetTick();
+  await store.claimPortfolioJobs(owner, ws);
+  assert.equal(await capacity(), eligible);
+  assert.deepEqual(await store.listAllocations(owner, ws), []);
+
+  const allocate = (cents: number, target?: 'standalone' | 'portfolio') =>
+    store.allocateReinvestment(owner, ws, {
+      amount_nano_usd: c(cents).toString(),
+      allow_partial: false,
+      envelope_name: `Reinvested ${target ?? 'standalone'}`,
+      max_in_flight: 2,
+      ...(target ? { target } : {}),
+    });
+  const standalone = await allocate(1000);
+  const funded = await allocate(1000, 'portfolio');
+  assert.equal(standalone.target, 'standalone');
+  assert.equal(funded.target, 'portfolio');
+  // The same money cannot fund two budgets: capacity fell by exactly what was allocated.
+  assert.equal(await capacity(), eligible - c(2000));
+  const tranches = await store.listTranches(owner, ws);
+  assert.equal(
+    tranches.reduce(
+      (n, x) =>
+        n + BigInt(String((x as Record<string, unknown>).consumed_nano)),
+      0n,
+    ),
+    c(2000),
+  );
+  await rejects(
+    'BUDGET_EXCEEDED',
+    store.allocateReinvestment(owner, ws, {
+      amount_nano_usd: (eligible - c(2000) + 1n).toString(),
+      allow_partial: false,
+      envelope_name: 'Too much',
+      max_in_flight: 2,
+      target: 'portfolio',
+    }),
+  );
+
+  const exploration = await p.run('exploration');
+  const maintenance = await p.run('maintenance');
+  const prepare = (runId: string, envelopeId: string) =>
+    store.prepareAttempt(
+      owner,
+      ws,
+      runId,
+      {
+        envelope_id: envelopeId,
+        action_type: 'model.generate',
+        task_id: null,
+        logical_operation_id: randomUUID(),
+        pricing_snapshot_id: p.pricing.id,
+        data_class: 'synthetic',
+        input: [{ role: 'user', text: 'hello' }],
+        max_output_tokens: 100,
+        output_format: 'text',
+        tool: null,
+        max_attempts: 1,
+        timeout_ms: 5000,
+        justification: 'Reinvestment gate check.',
+      },
+      {
+        provider: 'fixture',
+        model_id: 'fixture-model-v1',
+        adapterAvailable: true,
+        requestHash: 'a'.repeat(64),
+        attempt: 1,
+        timeoutMs: 5000,
+      },
+    );
+  const outcome = async (runId: string, envelopeId: string) => {
+    const r = await prepare(runId, envelopeId);
+    return r.kind === 'reserved' ? 'reserved' : r.reservation.reason_code;
+  };
+  // A standalone allocation is not portfolio money; the portfolio allocation is.
+  assert.equal(
+    await outcome(exploration.id, standalone.envelope_id),
+    'portfolio_budget_outside_root',
+  );
+  assert.equal(await outcome(exploration.id, funded.envelope_id), 'reserved');
+  // Maintenance stays on its protected reserve, never on reinvested money.
+  assert.equal(
+    await outcome(maintenance.id, funded.envelope_id),
+    'portfolio_budget_lane_mismatch',
+  );
+  // A workspace without a portfolio policy cannot take a portfolio allocation.
+  const plain = await s.workspace();
+  await rejects(
+    'INVALID_TRANSITION',
+    store.allocateReinvestment(owner, plain, {
+      amount_nano_usd: c(1).toString(),
+      allow_partial: true,
+      envelope_name: 'No portfolio',
+      max_in_flight: 1,
+      target: 'portfolio',
+    }),
+  );
+  const listed = await store.listAllocations(owner, ws);
+  assert.deepEqual(
+    listed.map((a) => (a as Record<string, unknown>).target),
+    ['standalone', 'portfolio'],
+  );
 });

@@ -34,6 +34,10 @@ export type PortfolioJob = Row & {
   state: string;
   created_by: string;
 };
+/** Scheduler retry bounds (owner decision 2026-10-20): back off, then stop until resumed. */
+export const SCHEDULER_MAX_FAILURES = 5;
+export const SCHEDULER_BASE_BACKOFF_SECONDS = 30;
+export const SCHEDULER_MAX_BACKOFF_SECONDS = 1800;
 export class PortfolioStore extends MarketingStore {
   private async portfolioLock(c: PoolClient, ctx: CommandContext, ws: string) {
     await this.requireOwner(c, ws, ctx.actorId);
@@ -310,8 +314,16 @@ export class PortfolioStore extends MarketingStore {
           [ws],
         )
       ).rows;
+      const scheduler =
+        (
+          await c.query(
+            'select * from portfolio_scheduler_state where scope=$1',
+            [ws],
+          )
+        ).rows[0] ?? null;
       return {
         state,
+        scheduler,
         schedules,
         jobs,
         lanes,
@@ -612,6 +624,130 @@ export class PortfolioStore extends MarketingStore {
       );
       return rows[0];
     });
+  }
+  /**
+   * Whether the scheduler may try this scope now: not stopped after repeated failures and past
+   * its backoff. Scope is 'sweep' (listing workspaces) or a workspace id.
+   */
+  async schedulerMayAttempt(scope: string) {
+    const { rows } = await this.pool.query(
+      `select stopped_at is null and (next_retry_at is null or next_retry_at <= clock_timestamp()) as ok
+         from portfolio_scheduler_state where scope=$1`,
+      [scope],
+    );
+    return rows[0]?.ok ?? true;
+  }
+  /**
+   * Records one scheduler attempt durably. A failure keeps a bounded code and message, backs
+   * off exponentially and, after SCHEDULER_MAX_FAILURES in a row, stops the scope until the
+   * owner resumes it. Success clears the error and the count.
+   */
+  async recordSchedulerAttempt(
+    scope: string,
+    workspaceId: string | null,
+    error: { code: string; message: string } | null,
+  ) {
+    return this.tx(async (c) => {
+      await c.query(
+        `insert into portfolio_scheduler_state(scope, workspace_id) values ($1,$2)
+         on conflict (scope) do nothing`,
+        [scope, workspaceId],
+      );
+      const prev = (
+        await c.query(
+          'select consecutive_failures from portfolio_scheduler_state where scope=$1 for update',
+          [scope],
+        )
+      ).rows[0] as { consecutive_failures: number };
+      if (!error) {
+        await c.query(
+          `update portfolio_scheduler_state set last_attempt_at=clock_timestamp(), last_success_at=clock_timestamp(),
+            last_error_code=null, last_error=null, consecutive_failures=0, next_retry_at=null,
+            updated_at=clock_timestamp() where scope=$1`,
+          [scope],
+        );
+        return;
+      }
+      const failures = Number(prev.consecutive_failures) + 1;
+      // Only a workspace stops; the sweep itself (a database outage, say) just backs off.
+      const stopped =
+        workspaceId !== null && failures >= SCHEDULER_MAX_FAILURES;
+      const backoff = Math.min(
+        SCHEDULER_BASE_BACKOFF_SECONDS * 2 ** (failures - 1),
+        SCHEDULER_MAX_BACKOFF_SECONDS,
+      );
+      const code = /^[A-Z0-9_]{1,48}$/.test(error.code)
+        ? error.code
+        : 'SCHEDULER_FAILED';
+      const message = error.message.slice(0, 500);
+      await c.query(
+        `update portfolio_scheduler_state set last_attempt_at=clock_timestamp(), last_error_code=$2,
+          last_error=$3, consecutive_failures=$4,
+          next_retry_at=clock_timestamp()+make_interval(secs=>$5),
+          stopped_at=case when $6 then coalesce(stopped_at, clock_timestamp()) else stopped_at end,
+          updated_at=clock_timestamp() where scope=$1`,
+        [scope, code, message, failures, backoff, stopped],
+      );
+      await c.query(
+        `insert into portfolio_scheduler_failures(scope, workspace_id, error_code, error, consecutive_failures, stopped)
+         values ($1,$2,$3,$4,$5,$6)`,
+        [scope, workspaceId, code, message, failures, stopped],
+      );
+    });
+  }
+  /** Owner action: clears a stopped or backing-off workspace scope so the scheduler tries again. */
+  async resumePortfolioScheduler(
+    ctx: CommandContext,
+    ws: string,
+    raw: unknown,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const body = parse(PortfolioReasonSchema, raw);
+    return this.tx(async (c) => {
+      await this.portfolioLock(c, ctx, ws);
+      const before = (
+        await c.query(
+          'select * from portfolio_scheduler_state where scope=$1 for update',
+          [ws],
+        )
+      ).rows[0];
+      if (!before) throw fail('NOT_FOUND', 'The scheduler has not run here.');
+      const r = await c.query(
+        `update portfolio_scheduler_state set consecutive_failures=0, next_retry_at=null, stopped_at=null,
+          updated_at=clock_timestamp() where scope=$1 returning *`,
+        [ws],
+      );
+      await this.portfolioEvent(c, ctx, ws, ws, 'scheduler_resumed', {
+        reason: body.reason,
+        consecutive_failures: Number(before.consecutive_failures),
+        was_stopped: before.stopped_at !== null,
+      });
+      return r.rows[0];
+    });
+  }
+  /** Aggregate scheduler state for the public health check: codes and times, no messages. */
+  async schedulerSummary() {
+    const { rows } = await this.pool.query(
+      `select max(last_attempt_at) as last_attempt_at, max(last_success_at) as last_success_at,
+         count(*) filter (where last_error_code is not null)::int as failing,
+         count(*) filter (where stopped_at is not null)::int as stopped,
+         (select last_error_code from portfolio_scheduler_state where last_error_code is not null
+           order by last_attempt_at desc limit 1) as error_code
+       from portfolio_scheduler_state`,
+    );
+    const r = rows[0] as Row;
+    return {
+      last_attempt_at: r.last_attempt_at
+        ? new Date(String(r.last_attempt_at)).toISOString()
+        : null,
+      last_success_at: r.last_success_at
+        ? new Date(String(r.last_success_at)).toISOString()
+        : null,
+      failing_scopes: Number(r.failing),
+      stopped_scopes: Number(r.stopped),
+      error_code: (r.error_code as string | null) ?? null,
+    };
   }
   async portfolioOwners() {
     return (

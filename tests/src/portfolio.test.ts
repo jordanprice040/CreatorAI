@@ -6,7 +6,7 @@ import {
   KnowledgeProposalSchema,
   type KnowledgeProposal,
 } from '@creator/contracts';
-import { PortfolioStore } from '@creator/db';
+import { PortfolioStore, SCHEDULER_MAX_FAILURES } from '@creator/db';
 import { portfolioReason } from '@creator/domain';
 import { FixtureAdapter, ModelBroker } from '@creator/broker';
 import {
@@ -551,4 +551,84 @@ test('X09 reviewed versioned knowledge enriches real workflow task constraints, 
   );
   const outsider = { actorId: randomUUID() };
   await denied(s.store.verifyKnowledge(outsider, s.ws, second.id));
+});
+
+test('scheduler failures are durable, visible and bounded; the owner resumes a stopped workspace', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const state = async () =>
+    (
+      await s.pool.query(
+        'select * from portfolio_scheduler_state where scope=$1',
+        [s.ws],
+      )
+    ).rows[0];
+  await s.resetTick();
+  await s.service.sweep();
+  let row = await state();
+  assert.ok(row.last_success_at);
+  assert.equal(row.last_error_code, null);
+  assert.equal((await s.store.schedulerSummary()).error_code, null);
+  // A workspace whose tick keeps failing (test double for, say, a revoked owner).
+  class Failing extends PortfolioService {
+    override async tick(): Promise<never> {
+      throw new ContractError('ACCESS_DENIED', 'Owner access was revoked.');
+    }
+  }
+  const failing = new Failing(s.store, null as never, null as never);
+  await failing.sweep();
+  row = await state();
+  assert.equal(row.consecutive_failures, 1);
+  assert.equal(row.last_error_code, 'ACCESS_DENIED');
+  assert.equal(row.last_error, 'Owner access was revoked.');
+  assert.ok(new Date(row.next_retry_at).getTime() > Date.now());
+  // During the backoff nothing is attempted.
+  await failing.sweep();
+  assert.equal((await state()).consecutive_failures, 1);
+  const pastBackoff = () =>
+    s.pool.query(
+      "update portfolio_scheduler_state set next_retry_at=clock_timestamp()-interval '1 second' where scope=$1",
+      [s.ws],
+    );
+  for (let i = 2; i <= SCHEDULER_MAX_FAILURES; i += 1) {
+    await pastBackoff();
+    await failing.sweep();
+  }
+  row = await state();
+  assert.equal(row.consecutive_failures, SCHEDULER_MAX_FAILURES);
+  assert.ok(row.stopped_at, 'stops after the bounded number of failures');
+  // Stopped means stopped, even after the backoff.
+  await pastBackoff();
+  await failing.sweep();
+  assert.equal((await state()).consecutive_failures, SCHEDULER_MAX_FAILURES);
+  const history = await s.pool.query(
+    'select stopped from portfolio_scheduler_failures where scope=$1 order by sequence',
+    [s.ws],
+  );
+  assert.deepEqual(
+    history.rows.map((r) => r.stopped),
+    [...Array(SCHEDULER_MAX_FAILURES - 1).fill(false), true],
+  );
+  const summary = await s.store.schedulerSummary();
+  assert.equal(summary.stopped_scopes, 1);
+  assert.equal(summary.error_code, 'ACCESS_DENIED');
+  assert.ok(summary.last_success_at);
+  const inspected = await s.store.inspectPortfolio(s.ctx, s.ws);
+  assert.equal(inspected.scheduler.last_error_code, 'ACCESS_DENIED');
+  // Only the owner resumes; then the next good pass clears the error.
+  await denied(
+    s.store.resumePortfolioScheduler({ actorId: randomUUID() }, s.ws, {
+      reason: 'Not mine.',
+    }),
+  );
+  const resumed = await s.store.resumePortfolioScheduler(s.ctx, s.ws, {
+    reason: 'Owner access restored.',
+  });
+  assert.equal(resumed.stopped_at, null);
+  await s.resetTick();
+  await s.service.sweep();
+  row = await state();
+  assert.equal(row.consecutive_failures, 0);
+  assert.equal(row.last_error_code, null);
+  assert.equal((await s.store.schedulerSummary()).stopped_scopes, 0);
 });

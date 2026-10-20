@@ -2162,6 +2162,45 @@ end $$;
 create trigger knowledge_guard before update or delete on reusable_knowledge for each row execute function creator_knowledge_guard();
 `,
   },
+  {
+    version: 23,
+    name: 'pairing_visitors_scheduler_state_portfolio_reinvestment',
+    sql: `
+-- Owner decisions 2026-10-20. Pairing requests remember a one-way hash of the visitor's
+-- address so one visitor cannot use up the server's pairing allowance.
+alter table desktop_challenges add column visitor_hash char(64);
+create index desktop_challenges_visitor on desktop_challenges(visitor_hash, created_at);
+create index desktop_challenges_created on desktop_challenges(created_at);
+-- Portfolio scheduler: the current state per scope ('sweep' or a workspace id) and an
+-- append-only failure history. Retries are bounded; a stopped scope waits for the owner.
+create table portfolio_scheduler_state (
+ scope text primary key, workspace_id uuid references workspaces(id),
+ last_attempt_at timestamptz, last_success_at timestamptz,
+ last_error_code text, last_error text,
+ consecutive_failures integer not null default 0 check (consecutive_failures >= 0),
+ next_retry_at timestamptz, stopped_at timestamptz,
+ updated_at timestamptz not null default clock_timestamp()
+);
+create table portfolio_scheduler_failures (
+ sequence bigint generated always as identity primary key,
+ scope text not null, workspace_id uuid references workspaces(id),
+ error_code text not null, error text not null, consecutive_failures integer not null,
+ stopped boolean not null, created_at timestamptz not null default clock_timestamp()
+);
+create trigger portfolio_scheduler_failures_immutable before update or delete on portfolio_scheduler_failures
+ for each row execute function creator_reject_change();
+-- Reinvested earnings reach a portfolio only through an owner's explicit allocation to it.
+-- One row per allocation, so the same money cannot be assigned twice.
+create table reinvestment_portfolio_allocations (
+ allocation_id uuid primary key references reinvestment_allocations(id),
+ workspace_id uuid not null references workspaces(id),
+ portfolio_policy_version integer not null,
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger reinvestment_portfolio_allocations_immutable before update or delete on reinvestment_portfolio_allocations
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
