@@ -1,3 +1,14 @@
+## Studio usability pass, round 2 — October 26, 2026
+
+Scores and specs can now freeze the shown specification version in the app: pick the run,
+give a reason, Freeze; when the server asks for an approval the form links the decision and
+re-sends the same request after it is answered (no new authority; same admitted
+spec-freezes route the CLI uses). Walked end to end in the fixture workspace: freeze of v2
+asked for an approval, approved once under Decisions, then froze all four tasks. Writing or
+revising a specification still goes through the CLI/API. Submit a theme explains its two
+entry points and collapses the claim matrix to a tick per claim with role chips only for
+ticked claims (page 4,876px to about 4,100px with one claim ticked); the theme-intent draft
+form itself is unchanged. Checks: typecheck and format pass.
 ## Studio usability pass, round 1 — October 26, 2026
 
 Hands-on walk of every reachable studio flow in the dev studio (Docker PostgreSQL, fixture

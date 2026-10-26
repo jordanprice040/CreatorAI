@@ -182,6 +182,7 @@ export function Submit({
       : 'Use permitted public evidence only.',
   );
   const [roles, setRoles] = useState<Record<string, EvidenceRole[]>>({});
+  const [openClaims, setOpenClaims] = useState<ReadonlySet<string>>(new Set());
   const [excluded, setExcluded] = useState<
     Partial<Record<ResponseType, string>>
   >({});
@@ -337,6 +338,20 @@ export function Submit({
       ? !!model && planBlockers.length === 0
       : !!envelope && !!price);
 
+  /** Attaching a claim opens its role chips; detaching clears whatever roles it had. */
+  function attach(claim: string, on: boolean) {
+    setOpenClaims((s) => {
+      const next = new Set(s);
+      if (on) next.add(claim);
+      else next.delete(claim);
+      return next;
+    });
+    if (!on)
+      setRoles((r) => {
+        const { [claim]: _dropped, ...rest } = r;
+        return rest;
+      });
+  }
   function toggle(claim: string, role: EvidenceRole) {
     setRoles((r) => {
       const cur = r[claim] ?? [];
@@ -429,8 +444,27 @@ export function Submit({
   return (
     <section className="panel" aria-labelledby="sub-title">
       <h2 id="sub-title">Submit a theme</h2>
+      <p>
+        Two ways in: save a rough theme as a draft and plan it later, or fill in
+        the full brief under{' '}
+        <button
+          type="button"
+          className="text"
+          // The address hash holds the route, so scroll instead of linking.
+          // Kept-alive pages can repeat the id, so look inside this page only.
+          onClick={(e) =>
+            e.currentTarget
+              .closest('section')
+              ?.querySelector('#discover')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
+          Discover from existing claims
+        </button>{' '}
+        to start a discovery run now.
+      </p>
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
-      <h3>Discover from existing claims</h3>
+      <h3 id="discover">Discover from existing claims</h3>
       <p>
         A theme becomes a versioned search brief and a discovery run: a locator
         narrows it to affected users and an observable problem, then each
@@ -580,6 +614,10 @@ export function Submit({
 
             <fieldset>
               <legend>Evidence: what each claim bears on</legend>
+              <p className="small">
+                Tick the claims this brief rests on, then mark what each one
+                supports.
+              </p>
               {c.claims.length === 0 ? (
                 <Empty>
                   No claims in this workspace yet. Record claims with source
@@ -590,38 +628,52 @@ export function Submit({
                 <ul className="rows claims-pick">
                   {c.claims.map((cl) => {
                     const ev = c.evidence.get(cl.id);
+                    const attached =
+                      openClaims.has(cl.id) || (roles[cl.id]?.length ?? 0) > 0;
                     return (
                       <li key={cl.id}>
-                        <div>
+                        <label className="claim-attach">
+                          <input
+                            type="checkbox"
+                            checked={attached}
+                            onChange={(e) => attach(cl.id, e.target.checked)}
+                          />
                           <span
                             className={`kind ev-${ev?.status ?? 'insufficient'}`}
                           >
                             {ev ? words(ev.status) : 'unknown'}
                           </span>{' '}
                           {String(cl.body?.statement ?? cl.title)}
-                        </div>
-                        <div
-                          className="chips"
-                          role="group"
-                          aria-label={`What “${cl.title.slice(0, 60)}” bears on`}
-                        >
-                          {EvidenceRoleSchema.options.map((r) => (
-                            <label key={r} className="chip">
-                              <input
-                                type="checkbox"
-                                checked={roles[cl.id]?.includes(r) ?? false}
-                                onChange={() => toggle(cl.id, r)}
-                              />
-                              {ROLE_LABEL[r]}
-                            </label>
-                          ))}
-                        </div>
+                        </label>
+                        {attached && (
+                          <div
+                            className="chips"
+                            role="group"
+                            aria-label={`What “${cl.title.slice(0, 60)}” bears on`}
+                          >
+                            {EvidenceRoleSchema.options.map((r) => (
+                              <label key={r} className="chip">
+                                <input
+                                  type="checkbox"
+                                  checked={roles[cl.id]?.includes(r) ?? false}
+                                  onChange={() => toggle(cl.id, r)}
+                                />
+                                {ROLE_LABEL[r]}
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </li>
                     );
                   })}
                 </ul>
               )}
-              <p className="small">{evidence.length} claims attached (1–30).</p>
+              <p className="small">
+                {evidence.length} claims attached (1–30 needed)
+                {openClaims.size > evidence.length
+                  ? '. A ticked claim counts once you mark what it supports.'
+                  : '.'}
+              </p>
             </fieldset>
 
             <fieldset>

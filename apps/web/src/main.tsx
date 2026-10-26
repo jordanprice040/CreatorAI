@@ -489,7 +489,13 @@ function App() {
         return <Budgets session={s} workspace={workspace} />;
       case 'scores':
         return (
-          <Scoring workspace={workspace} focus={pageRoute.id} onFocus={focus} />
+          <Scoring
+            session={s}
+            workspace={workspace}
+            focus={pageRoute.id}
+            onFocus={focus}
+            open={open}
+          />
         );
       case 'search':
         return (
