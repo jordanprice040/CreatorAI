@@ -524,6 +524,7 @@ export function createApi(
       );
     }
   };
+  const SETTINGS_SPENDING_ROUTE = /^\/api\/settings\/spending$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -531,7 +532,8 @@ export function createApi(
       PAYMENTS_ROUTE.exec(url.pathname) ??
       CONNECTIONS_ROUTE.exec(url.pathname) ??
       MARKETING_ROUTE.exec(url.pathname) ??
-      PORTFOLIO_ROUTE.exec(url.pathname);
+      PORTFOLIO_ROUTE.exec(url.pathname) ??
+      SETTINGS_SPENDING_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -564,6 +566,19 @@ export function createApi(
       respond(res, status, value);
       return true;
     };
+    // The owner's overall runtime ceiling: a deployment setting, changed only by a signed-in
+    // person (ADR-0043). The store checks who may see or change it.
+    if (SETTINGS_SPENDING_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.runtimeCeiling(ctx), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.setRuntimeCeiling(ctx, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown settings route.');
+    }
     if (
       ws &&
       collection &&

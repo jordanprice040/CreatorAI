@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { portfolioEnvelopeGate } from './portfolio-gates.js';
 import {
   ceilingRefusal,
+  currentCeiling,
   readSpendingConfig,
   runtimeExposure,
 } from './runtime-ceiling.js';
@@ -13,6 +14,8 @@ import {
   CreateEnvelopeRequestSchema,
   PricingSnapshotBodySchema,
   ReconcileRequestSchema,
+  RuntimeCeilingSchema,
+  SetRuntimeCeilingRequestSchema,
   UsageSchema,
   parse,
   type Admission,
@@ -23,6 +26,7 @@ import {
   type PricingSnapshot,
   type Provider,
   type Reservation,
+  type RuntimeCeiling,
   type Usage,
 } from '@creator/contracts';
 import {
@@ -297,6 +301,119 @@ export class BudgetStore extends OversightStore {
     );
     if (!rows[0]) throw fail('NOT_FOUND', 'Budget envelope not found.');
     return rows[0] as Row;
+  }
+
+  // ---- Owner's runtime ceiling (Settings, ADR-0043) ----------------------------------------
+
+  /**
+   * The ceiling spans every workspace, so it is a deployment setting: only a signed-in person
+   * who owns at least one workspace may read or change it. Agents and system actors never can.
+   */
+  private async requireCeilingOwner(c: PoolClient, actorId: string) {
+    const { rows } = await c.query<{ kind: string; owner: boolean }>(
+      `select a.kind, exists(select 1 from workspace_members m
+          where m.actor_id = a.id and m.role = 'owner') as owner
+         from actors a where a.id = $1`,
+      [actorId],
+    );
+    const r = rows[0];
+    if (!r || r.kind !== 'human' || !r.owner)
+      throw fail(
+        'ACCESS_DENIED',
+        'Only a person who owns a workspace can view or change the spending ceiling.',
+      );
+  }
+  private async ceilingView(c: PoolClient): Promise<RuntimeCeiling> {
+    const exposure = await runtimeExposure(c, this.spending);
+    const cur = await currentCeiling(c, this.spending);
+    const history = await c.query(
+      `select version, ceiling_nano::text as ceiling, previous_nano::text as previous,
+              reason, actor_id, created_at
+         from runtime_ceiling_changes order by version desc limit 50`,
+    );
+    return parse(RuntimeCeilingSchema, {
+      ceiling_nano_usd: cur.ceiling_nano_usd,
+      source: cur.source,
+      version: cur.version,
+      configured_nano_usd: this.spending.ceiling_nano_usd,
+      counted_since: iso(this.spending.effective_from),
+      exposure_nano_usd: exposure.exposure_nano_usd,
+      unknown_calls: exposure.unknown_calls,
+      history: history.rows.map((r: Row) => ({
+        version: Number(r.version),
+        ceiling_nano_usd: String(r.ceiling),
+        previous_nano_usd: String(r.previous),
+        reason: String(r.reason),
+        actor_id: String(r.actor_id),
+        created_at: iso(r.created_at),
+      })),
+    });
+  }
+  async runtimeCeiling(ctx: CommandContext): Promise<RuntimeCeiling> {
+    ctx = normalize(ctx);
+    return this.tx(async (c) => {
+      await this.requireCeilingOwner(c, ctx.actorId);
+      return this.ceilingView(c);
+    });
+  }
+  /**
+   * Records a new ceiling version. The caller names the version it saw, so two people (or two
+   * tabs) cannot silently overwrite each other; the change, its reason and its audit event
+   * commit together under the same lock every paid dispatch takes to check the ceiling.
+   */
+  async setRuntimeCeiling(
+    ctx: CommandContext,
+    raw: unknown,
+  ): Promise<RuntimeCeiling> {
+    ctx = normalize(ctx);
+    const body = parse(SetRuntimeCeilingRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireCeilingOwner(c, ctx.actorId);
+      await c.query(
+        "select pg_advisory_xact_lock(hashtext('runtime-ceiling'))",
+      );
+      const cur = await currentCeiling(c, this.spending);
+      if (body.expected_version !== cur.version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The ceiling changed since this page loaded it; reload and decide again.',
+        );
+      if (BigInt(body.ceiling_nano_usd) === BigInt(cur.ceiling_nano_usd))
+        throw fail(
+          'INVALID_CONTRACT',
+          'The new ceiling is the same as the current one.',
+        );
+      const version = cur.version + 1;
+      const payload = {
+        version,
+        ceiling_nano: body.ceiling_nano_usd,
+        previous_nano: cur.ceiling_nano_usd,
+        reason: body.reason,
+      };
+      const eventId = await this.append(c, ctx, {
+        workspaceId: null,
+        action: 'spending.ceiling_changed',
+        subjectKind: 'runtime_ceiling',
+        subjectId: '00000000-0000-0000-0000-000000000000',
+        subjectVersion: version,
+        contentHash: canonicalHash(payload),
+        payload,
+      });
+      await c.query(
+        `insert into runtime_ceiling_changes
+           (version, ceiling_nano, previous_nano, reason, actor_id, event_id)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          version,
+          body.ceiling_nano_usd,
+          cur.ceiling_nano_usd,
+          body.reason,
+          ctx.actorId,
+          eventId,
+        ],
+      );
+      return this.ceilingView(c);
+    });
   }
 
   // ---- Pricing ---------------------------------------------------------------------------

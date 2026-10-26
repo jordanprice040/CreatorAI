@@ -2354,6 +2354,23 @@ alter table entities add constraint entities_kind_check check (kind in ('source'
   'humility_review', 'search_brief', 'scorecard', 'theme_intent'));
 `,
   },
+  {
+    version: 30,
+    name: 'runtime_ceiling_changes',
+    sql: `
+create table runtime_ceiling_changes (
+ version integer primary key check (version > 0),
+ ceiling_nano numeric(30,0) not null check (ceiling_nano >= 0),
+ previous_nano numeric(30,0) not null check (previous_nano >= 0),
+ reason text not null check (length(reason) between 1 and 1200),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger runtime_ceiling_changes_immutable before update or delete on runtime_ceiling_changes
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

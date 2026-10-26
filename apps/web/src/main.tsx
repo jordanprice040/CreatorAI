@@ -23,6 +23,7 @@ import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
+import { Settings } from './settings.js';
 import { Marketing } from './marketing.js';
 import { Models } from './models.js';
 import { Portfolio } from './portfolio.js';
@@ -426,6 +427,8 @@ function App() {
         return <Models key={workspace.id} workspace={workspace} session={s} />;
       case 'operations':
         return <Operations />;
+      case 'settings':
+        return <Settings session={s} open={open} />;
       case 'desktop':
         return (
           <DesktopDevices

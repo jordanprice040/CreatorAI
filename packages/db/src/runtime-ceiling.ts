@@ -3,7 +3,8 @@ import type { PoolClient } from 'pg';
 import { z, parse } from '@creator/contracts';
 
 /**
- * The owner's overall ceiling on new runtime spending (config/spending.json, 2026-10-20).
+ * The owner's overall ceiling on new runtime spending (config/spending.json, 2026-10-20;
+ * changed since only by a signed-in person in Settings, ADR-0043).
  * Every paid dispatch in a real workspace reserves through BudgetStore.prepareAttempt, and
  * final study attempts hold their caps through StudyStore.holdBudget; both check this one
  * ceiling under one lock, so no budget, portfolio, reinvestment or study path can pass it.
@@ -34,6 +35,29 @@ export function readSpendingConfig(
   );
 }
 
+/**
+ * The ceiling in force: the latest owner change made in Settings (migration 30), else the
+ * configured value. Read under the runtime-ceiling lock so a change and a dispatch serialize.
+ */
+export async function currentCeiling(c: PoolClient, config: SpendingConfig) {
+  const { rows } = await c.query<{ version: number; ceiling: string }>(
+    `select version, ceiling_nano::text as ceiling from runtime_ceiling_changes
+      order by version desc limit 1`,
+  );
+  const latest = rows[0];
+  return latest
+    ? {
+        ceiling_nano_usd: latest.ceiling,
+        version: Number(latest.version),
+        source: 'settings' as const,
+      }
+    : {
+        ceiling_nano_usd: config.ceiling_nano_usd,
+        version: 0,
+        source: 'config' as const,
+      };
+}
+
 export interface RuntimeExposure {
   ceiling_nano_usd: string;
   exposure_nano_usd: string;
@@ -53,6 +77,7 @@ export async function runtimeExposure(
   scope: { ws: string; runId: string } | null = null,
 ): Promise<RuntimeExposure> {
   await c.query("select pg_advisory_xact_lock(hashtext('runtime-ceiling'))");
+  const ceiling = await currentCeiling(c, config);
   const { rows } = await c.query<{
     exposure: string;
     unknown: number;
@@ -76,7 +101,7 @@ export async function runtimeExposure(
     [config.effective_from, scope?.ws ?? null, scope?.runId ?? null],
   );
   return {
-    ceiling_nano_usd: config.ceiling_nano_usd,
+    ceiling_nano_usd: ceiling.ceiling_nano_usd,
     exposure_nano_usd: rows[0]!.exposure,
     unknown_calls: Number(rows[0]!.unknown),
     covered_by_hold: rows[0]!.covered === true,

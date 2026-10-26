@@ -280,3 +280,41 @@ export const BrokerStatusSchema = z.strictObject({
   }),
   note: z.string(),
 });
+
+/**
+ * The owner's overall ceiling on real runtime spending across every workspace (ADR-0043).
+ * `config/spending.json` holds the reviewed starting value; each change made in Settings is
+ * a new immutable version by a signed-in person, never by an agent or worker.
+ */
+export const RuntimeCeilingChangeSchema = z.strictObject({
+  version: counter.min(1),
+  ceiling_nano_usd: nanoUsd,
+  previous_nano_usd: nanoUsd,
+  reason: note,
+  actor_id: id,
+  created_at: timestamp,
+});
+export type RuntimeCeilingChange = z.infer<typeof RuntimeCeilingChangeSchema>;
+export const RuntimeCeilingSchema = z.strictObject({
+  /** The ceiling in force: the latest change, else the configured value. */
+  ceiling_nano_usd: nanoUsd,
+  source: z.enum(['config', 'settings']),
+  /** 0 until the first change; a change must name the version it replaces. */
+  version: counter,
+  configured_nano_usd: nanoUsd,
+  /** Spending counts from this time (the configured start), whatever the ceiling's version. */
+  counted_since: timestamp,
+  /** Settled cost plus held in-flight and unknown exposure, and open study holds. */
+  exposure_nano_usd: nanoUsd,
+  unknown_calls: counter,
+  history: z.array(RuntimeCeilingChangeSchema).max(50),
+});
+export type RuntimeCeiling = z.infer<typeof RuntimeCeilingSchema>;
+export const SetRuntimeCeilingRequestSchema = z.strictObject({
+  expected_version: counter,
+  ceiling_nano_usd: nanoUsd,
+  reason: note,
+});
+export type SetRuntimeCeilingRequest = z.infer<
+  typeof SetRuntimeCeilingRequestSchema
+>;

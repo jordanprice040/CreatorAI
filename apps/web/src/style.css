@@ -761,6 +761,12 @@ label.claim-attach input {
   width: auto;
   flex: none;
 }
+.ceiling-form {
+  max-width: 520px;
+}
+dl.ceiling {
+  margin: 12px 0 4px;
+}
 .row-actions {
   display: inline-flex;
   flex-wrap: wrap;

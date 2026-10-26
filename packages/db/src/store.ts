@@ -230,6 +230,8 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return 'Revised specification';
     case 'selection.recorded':
       return 'Recorded selection';
+    case 'spending.ceiling_changed':
+      return `Changed the overall spending ceiling from $${amount(p.previous_nano)} to $${amount(p.ceiling_nano)} (version ${String(p.version)})`;
     case 'deployment.environment_claimed':
       return 'Claimed this database for the local deployment';
     case 'workspace.created':
