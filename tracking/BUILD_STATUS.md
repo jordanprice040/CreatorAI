@@ -1,3 +1,14 @@
+## PR #51 review fixes — October 26, 2026
+
+Review of #51: no High; one Medium fixed. GitHub "Ask for a change" now lists only the
+chosen connection's repositories (and only those of active connections), falls back within
+that list, says "This connection has no repositories yet" and won't send without a
+repository. Lows: forms on GitHub and Payments say when a picked connection, run,
+processor or release disappeared instead of switching silently; the deliveries error clears
+on retry; the token expiry is marked required; the Payments ledger note covers owner
+funding and "Usable cash for reinvesting" explains what counts. Not changed: the spec-freeze
+run lookup still reads each problem's selections (there is no selection-by-id route).
+Checks: typecheck, format; checked in the dev studio.
 ## PR #50 review fixes — October 26, 2026
 
 Review of #50 (same model family): #49 fixes hold; three Mediums fixed. GitHub and Payments

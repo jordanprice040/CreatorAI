@@ -202,7 +202,9 @@ export function GitHub({
                   session={session}
                   connections={active}
                   repositories={d.repositories.filter(
-                    (r) => r.status === 'active',
+                    (r) =>
+                      r.status === 'active' &&
+                      active.some((c) => c.id === r.connection_id),
                   )}
                   runs={d.runs}
                   dataClass={fixture ? 'synthetic' : 'public'}
@@ -355,6 +357,7 @@ function ConnectionRow({
             disabled={busy}
             onClick={() =>
               void (async () => {
+                setDeliveriesError('');
                 try {
                   setDeliveries(
                     deliveries
@@ -603,11 +606,12 @@ function AddConnection({
               </div>
               <div>
                 <label htmlFor="ghc-exp">
-                  Token expiry you chose on GitHub
+                  Token expiry you chose on GitHub (required)
                 </label>
                 <input
                   id="ghc-exp"
                   type="datetime-local"
+                  required
                   value={expires}
                   onChange={(e) => setExpires(e.target.value)}
                 />
@@ -774,10 +778,19 @@ function NewOperation({
     : (runs[0]?.run_id ?? '');
   const [kind, setKind] =
     useState<GitHubOperationParams['kind']>('repo_create');
+  // Only the chosen connection's repositories: the server refuses any other.
+  const connRepos = repositories.filter(
+    (r) => r.connection_id === connectionId,
+  );
   const [repoPick, setRepoId] = useState('');
-  const repoId = repositories.some((r) => r.id === repoPick)
+  const repoId = connRepos.some((r) => r.id === repoPick)
     ? repoPick
-    : (repositories[0]?.id ?? '');
+    : (connRepos[0]?.id ?? '');
+  /** A choice the person made that is no longer available, named so the switch isn't silent. */
+  const gone = [
+    connPick && connPick !== connectionId ? 'connection' : null,
+    runPick && runPick !== runId ? 'run' : null,
+  ].filter(Boolean);
   const [f, setF] = useState<Record<string, string>>({});
   const [justification, setJustification] = useState('');
   const [last, setLast] = useState<GitHubOperation | null>(null);
@@ -921,13 +934,22 @@ function NewOperation({
           <option
             key={k}
             value={k}
-            disabled={k !== 'repo_create' && repositories.length === 0}
+            disabled={k !== 'repo_create' && connRepos.length === 0}
           >
             {l}
           </option>
         ))}
       </select>
-      {kind !== 'repo_create' && (
+      {gone.length > 0 && (
+        <p className="small" role="status">
+          The {gone.join(' and ')} you picked is no longer available; the form
+          now uses the first one listed. Check it before asking.
+        </p>
+      )}
+      {kind !== 'repo_create' && connRepos.length === 0 && (
+        <p className="small">This connection has no repositories yet.</p>
+      )}
+      {kind !== 'repo_create' && connRepos.length > 0 && (
         <>
           <label htmlFor="gho-repo">Repository</label>
           <select
@@ -935,7 +957,7 @@ function NewOperation({
             value={repoId}
             onChange={(e) => setRepoId(e.target.value)}
           >
-            {repositories.map((r) => (
+            {connRepos.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.full_name}
               </option>
@@ -1004,7 +1026,13 @@ function NewOperation({
         <button
           className="primary"
           type="submit"
-          disabled={busy || !connectionId || !runId || !justification.trim()}
+          disabled={
+            busy ||
+            !connectionId ||
+            !runId ||
+            !justification.trim() ||
+            (kind !== 'repo_create' && !repoId)
+          }
         >
           Ask for this change
         </button>

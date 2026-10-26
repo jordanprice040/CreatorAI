@@ -298,8 +298,9 @@ export function Payments({
               </dl>
             )}
             <p className="small">
-              A double-entry ledger, recorded from what the processor reports.
-              Corrections are new entries; nothing is edited.
+              A double-entry ledger: payments as the processor reports them,
+              plus funding you record yourself. Corrections are new entries;
+              nothing is edited.
             </p>
 
             <h3>Buyer access</h3>
@@ -350,8 +351,14 @@ export function Payments({
               <dd>{usd(d.capacity.eligible_tranches_nano)}</dd>
               <dt>Surplus after costs</dt>
               <dd>{usd(d.capacity.surplus_nano)}</dd>
-              <dt>Cash available</dt>
-              <dd>{usd(d.capacity.usable_liquidity_nano)}</dd>
+              <dt>Usable cash for reinvesting</dt>
+              <dd>
+                {usd(d.capacity.usable_liquidity_nano)}{' '}
+                <small>
+                  fresh balances of funding sources you set up, less reserve and
+                  commitments; money at the bank counts only through one
+                </small>
+              </dd>
               {BigInt(d.capacity.outstanding_losses_nano) > 0n && (
                 <>
                   <dt>Losses to repay first</dt>
@@ -642,6 +649,10 @@ function AddOffer({
   const artifactId = artifacts.some((a) => a.id === artifactPick)
     ? artifactPick
     : (artifacts[0]?.id ?? '');
+  const gone = [
+    connPick && connPick !== connectionId ? 'processor' : null,
+    artifactPick && artifactPick !== artifactId ? 'release' : null,
+  ].filter(Boolean);
   const [label, setLabel] = useState('');
   const [price, setPrice] = useState('');
   const nano = usdToNano(price);
@@ -719,6 +730,12 @@ function AddOffer({
           />
         </div>
       </div>
+      {gone.length > 0 && (
+        <p className="small" role="status">
+          The {gone.join(' and ')} you picked is no longer available; the form
+          now uses the first one listed. Check it before creating the offer.
+        </p>
+      )}
       {price.trim() && (!nano || !wholeCents) && (
         <p className="error">
           Enter a price in dollars and cents, like 25 or 9.99.
