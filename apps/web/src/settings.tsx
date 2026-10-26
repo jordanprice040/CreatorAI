@@ -1,10 +1,7 @@
-import { useState, type FormEvent } from 'react';
-import {
-  RuntimeCeilingSchema,
-  type RuntimeCeiling,
-  type SessionInfo,
-} from '@creator/contracts';
-import { api, message, when } from './oversight.js';
+import { useEffect, useState, type FormEvent } from 'react';
+import { RuntimeCeilingSchema, type SessionInfo } from '@creator/contracts';
+import { ApiError, api, message, when } from './oversight.js';
+import { usePageActive } from './page-drafts.js';
 import { money } from './budgets.js';
 import { Status, useLoad, type View } from './ui.js';
 
@@ -36,8 +33,19 @@ export function Settings({
     () => api(RuntimeCeilingSchema, 'settings/spending'),
     [],
   );
-  const [shown, setShown] = useState<RuntimeCeiling | null>(null);
-  const c = shown ?? data.data;
+  const c = data.data;
+  // The ceiling can change in another tab or window, so read it again whenever this page is
+  // shown or the window regains focus; a save always shows the server's answer.
+  const active = usePageActive();
+  useEffect(() => {
+    if (active) data.reload();
+  }, [active]);
+  useEffect(() => {
+    if (!active) return;
+    const on = () => data.reload();
+    window.addEventListener('focus', on);
+    return () => window.removeEventListener('focus', on);
+  }, [active]);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [reviewing, setReviewing] = useState(false);
@@ -72,7 +80,7 @@ export function Settings({
           reason: reason.trim(),
         },
       });
-      setShown(updated);
+      data.reload();
       setNotice(
         `Ceiling set to ${money(updated.ceiling_nano_usd, false)}. It applies to the next paid call.`,
       );
@@ -80,7 +88,12 @@ export function Settings({
       setReason('');
       setReviewing(false);
     } catch (err) {
-      setError(message(err));
+      if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
+        data.reload();
+        setError(
+          'The ceiling changed elsewhere while you were deciding. The page now shows the latest; review your change again.',
+        );
+      } else setError(message(err));
       setReviewing(false);
     } finally {
       setBusy(false);

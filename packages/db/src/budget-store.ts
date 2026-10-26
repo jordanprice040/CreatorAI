@@ -320,7 +320,7 @@ export class BudgetStore extends OversightStore {
     if (!r || r.kind !== 'human' || !r.owner)
       throw fail(
         'ACCESS_DENIED',
-        'Only a person who owns a workspace can view or change the spending ceiling.',
+        'Only a person who owns a workspace can view or change the spending ceiling; create a workspace first if you have none.',
       );
   }
   private async ceilingView(c: PoolClient): Promise<RuntimeCeiling> {
@@ -349,6 +349,11 @@ export class BudgetStore extends OversightStore {
       })),
     });
   }
+  /**
+   * Reading takes the same runtime-ceiling lock a paid dispatch takes (inside
+   * runtimeExposure), so the ceiling and exposure shown are one consistent moment. The read is
+   * short, and a dispatch waits for it at most that long.
+   */
   async runtimeCeiling(ctx: CommandContext): Promise<RuntimeCeiling> {
     ctx = normalize(ctx);
     return this.tx(async (c) => {

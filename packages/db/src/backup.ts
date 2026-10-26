@@ -81,6 +81,7 @@ const COUNTED = [
   'study_attempts',
   'artifact_manifests',
   'artifact_feedback',
+  'runtime_ceiling_changes',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */
@@ -117,6 +118,15 @@ type Queryable = Pick<pg.Pool, 'query'>;
 async function counts(pool: Queryable) {
   const out: Record<string, number> = {};
   for (const table of COUNTED) {
+    // A dump taken before a table existed restores without it; that is zero rows, not an error.
+    const exists = await pool.query<{ t: string | null }>(
+      'select to_regclass($1)::text as t',
+      [table],
+    );
+    if (!exists.rows[0]?.t) {
+      out[table] = 0;
+      continue;
+    }
     const { rows } = await pool.query<{ n: number }>(
       `select count(*)::int as n from ${table}`,
     );

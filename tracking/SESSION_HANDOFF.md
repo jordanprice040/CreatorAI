@@ -1,3 +1,19 @@
+## PR #49 review fixes — October 26, 2026
+
+Independent review of #49 (same model family): no High; server-side ceiling confirmed
+sound. Mediums fixed: Settings re-reads the ceiling when shown, on window focus and after
+a save or a version conflict (no stale "Left"); spec freeze uses the run that made the
+spec's selection (found from the problems' selections) and clears an old outcome on each
+attempt. Lows: server caps a ceiling at 24 nano digits (15 whole-dollar digits), backup
+restore verification counts runtime_ceiling_changes (zero when an older dump predates
+it), an unknown workspace in the address reloads the list once before redirecting, the
+no-workspace refusal says to create one, the ceiling read documents its lock, a test title
+corrected. The ceiling stays bound to any human workspace owner (ADR-0043 limit).
+config/spending.json changed only in its change_rule text for ADR-0043; new SHA-256
+1fa35deb2e80bb7d1ffd482ea6d2de3e4b526e6ecfa5427944aafea9d6455ee0 (was 07aa514d...), so a hash difference on upgrade is this edit, not tampering.
+Checks: typecheck, format; runtime-ceiling 6/6 incl. the new bound, web-display 3/3;
+restore test skipped here (needs pg tools). Dev DB ceiling set back to $20 (version 2).
+
 ## GitHub and Payments screens — October 26, 2026
 
 Web pages for the existing X04 and X07 routes (no API, policy or schema change). GitHub:

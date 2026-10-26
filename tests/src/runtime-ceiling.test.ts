@@ -122,7 +122,7 @@ async function setup(t: test.TestContext) {
 const reason = (p: { kind: string; reservation: { reason_code: string } }) =>
   p.kind === 'reserved' ? 'reserved' : p.reservation.reason_code;
 
-test('the config records the owner decision: $20 overall, changed only by a reviewed edit', () => {
+test('the config records the owner decision: $20 overall as the starting value', () => {
   const c = readSpendingConfig();
   assert.equal(c.ceiling_usd, '20.00');
   assert.equal(c.ceiling_nano_usd, '20000000000');
@@ -264,6 +264,14 @@ test('a workspace owner changes the ceiling in Settings; agents, viewers and sta
     });
   }
 
+  // Settings accepts at most 15 whole-dollar digits; the server holds the same bound.
+  await assert.rejects(
+    s.store.setRuntimeCeiling(owner, {
+      ...raise,
+      ceiling_nano_usd: '1' + '0'.repeat(24),
+    }),
+    { code: 'INVALID_CONTRACT' },
+  );
   const raised = await s.store.setRuntimeCeiling(owner, raise);
   assert.equal(raised.source, 'settings');
   assert.equal(raised.version, 1);
