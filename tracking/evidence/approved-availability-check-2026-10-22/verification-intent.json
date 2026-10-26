@@ -1,0 +1,6 @@
+{
+  "grant_id": "082e920d-d3c1-4ab7-8f19-9a19258eab53",
+  "model_id": "gpt-6-astra",
+  "max_new_provider_requests": 1,
+  "no_retry": true
+}

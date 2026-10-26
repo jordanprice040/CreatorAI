@@ -1,0 +1,16 @@
+{
+  "probe": "actual open handler extraction, no React renderer or API",
+  "result": {
+    "after_first": {
+      "dirty": true,
+      "pending": "new",
+      "theme": "UNSAVED"
+    },
+    "after_second": {
+      "dirty": false,
+      "pending": null,
+      "theme": ""
+    }
+  },
+  "issue_reproduced": true
+}

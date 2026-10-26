@@ -1,0 +1,101 @@
+{
+  "state": "required_not_performed",
+  "outputs": [
+    {
+      "case_id": "semantics-v2-design-dev-caption-order",
+      "request_id": "b1d561e6-5032-4045-8d43-538d6dc39b9a",
+      "output_hash": "921c9dd6b365e91d758d85e31a5feb66205e01a2dd39e78803e4807c55d4c3b9",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-design-dev-cable-paths",
+      "request_id": "b665d791-5ede-4d15-aa4b-2acd69ce43a4",
+      "output_hash": "f8312dc9bbf85ded403fe38fefaf6dde13fa17a730e72abe9c86541a5c510f94",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-design-held-ticket-stubs",
+      "request_id": "19f4917d-213e-40ed-8feb-c0d1284690cb",
+      "output_hash": "7a5457b2abb6dfa62be661e4ece3ac7ee4f0017a2e8a24bbe79b3c0f4fee8a40",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-design-held-accessible-script",
+      "request_id": "5e70c9cf-ced3-45c0-ad23-52039e327dd6",
+      "output_hash": "02a908d5160ca1c01506d45ab11d55a621549a334b29e2cf8ba6d808b365e12e",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-design-held-paint-batches",
+      "request_id": "aab1c001-9e3d-4509-9ebd-f0c6cf190a03",
+      "output_hash": "c7179628e8f266678b58d9c23e4dddc053e4fbd3d41de63762f395545faba4b0",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-design-held-fabric-revision",
+      "request_id": "f32305a7-2edf-40fc-b69b-96b74bca96df",
+      "output_hash": "acfd08b39850a5f91f063dda3555b497fecbc77a553fa2183007bddabd9602d5",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-skeptic-dev-multi-proposals",
+      "request_id": "da16b3eb-365a-4890-8bfd-a4d24775d415",
+      "output_hash": "474935dd073ef086b27dcfa22db879534ff16f224331f1539b0758ea3527fcf9",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-skeptic-dev-universal-shortcuts",
+      "request_id": "246f3fee-db5a-4699-b2d0-4df91dd6c89d",
+      "output_hash": "a886b46a4fd823bccac4e66e33025e9f744e862c7fc1cc02d9d5a655b7019e22",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-token-errors",
+      "request_id": "6e9e0025-724b-4414-a723-35b993849e37",
+      "output_hash": "253c56f08a20a0686d5a1b88f76effcecbeff6e46292cfc59e7f4c6925c0d65e",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-weather-access",
+      "request_id": "5030cbf5-4529-4e50-8a37-96a8e24e5f1d",
+      "output_hash": "74827ca4f0f08dd933867ee4b8b37c6649f019eb0dbe02933c97288d6867e191",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-ceramic-tags",
+      "request_id": "f1a5f7ed-85d5-4aff-bf21-67bc172f949e",
+      "output_hash": "73f6367ded4f49beefb247442060323b38e29f2b023aa5c1c8a4f30679ba7ce3",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-roster-injection",
+      "request_id": "02ff52a4-1872-4d47-8bb1-7ab68816b140",
+      "output_hash": "57838e7e5517709155269635f22c12f129f8f4bc9b53057a44a124a190432373",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    }
+  ]
+}

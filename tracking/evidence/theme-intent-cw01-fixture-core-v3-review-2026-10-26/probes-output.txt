@@ -1,0 +1,11 @@
+# PROBE_START_EXIT_BEFORE_CREATION ownership_unavailable PG_CTL_INSTANCE_MISMATCH
+# PROBE_TOJSON_A sql_A STORED_DIFFERS
+# PROBE_TOJSON_B sql_unknown SQL_TOTAL_EXCEEDED
+# PROBE_GETTER_A ownership_unavailable reads=3 stored=NaN
+# PROBE_BIGINT_A sql_A THROWS TypeError: Do not know how to serialize a BigInt
+# PROBE_AFFIRM_AFTER_INTENT blocked ATTESTATION_NOT_FRESH
+# PROBE_TOJSON_FALSEPASS plain=sql_unknown SQL_TOTAL_EXCEEDED | toJSON=sql_B 
+# PROBE_V2_BIGINT state_before=candidate_process_bound result=THROWS TypeError
+# tests 31
+# pass 31
+# fail 0

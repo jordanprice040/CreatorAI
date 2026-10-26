@@ -1,0 +1,578 @@
+[
+  {
+    "case_id": "loc-dev-exhibit-notes",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-dev-exhibit-notes",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-dev-exhibit-notes",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "loc-dev-exhibit-notes",
+    "name": "consequential limitations removed",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty gaps do not establish coverage or fidelity."
+  },
+  {
+    "case_id": "loc-dev-unobserved-noise",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-dev-unobserved-noise",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-dev-unobserved-noise",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "loc-dev-unobserved-noise",
+    "name": "consequential limitations removed",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty gaps do not establish coverage or fidelity."
+  },
+  {
+    "case_id": "loc-held-unit-conflict",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-unit-conflict",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-unit-conflict",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "loc-held-unit-conflict",
+    "name": "consequential limitations removed",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty gaps do not establish coverage or fidelity."
+  },
+  {
+    "case_id": "loc-held-obsolete-layout",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-obsolete-layout",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-obsolete-layout",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "loc-held-obsolete-layout",
+    "name": "consequential limitations removed",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty gaps do not establish coverage or fidelity."
+  },
+  {
+    "case_id": "loc-held-transfer-bins",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-transfer-bins",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-transfer-bins",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "loc-held-transfer-bins",
+    "name": "consequential limitations removed",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty gaps do not establish coverage or fidelity."
+  },
+  {
+    "case_id": "loc-held-source-wrapper",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-source-wrapper",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "loc-held-source-wrapper",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "loc-held-source-wrapper",
+    "name": "consequential limitations removed",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty gaps do not establish coverage or fidelity."
+  },
+  {
+    "case_id": "design-dev-existing-calendar",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-dev-existing-calendar",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-dev-existing-calendar",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-dev-existing-calendar",
+    "name": "synthetic no-originality prose alternative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": "Permitted representation fails exact-null grading; not a passing replacement grade."
+  },
+  {
+    "case_id": "design-dev-offline-text",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-dev-offline-text",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-dev-offline-text",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-dev-offline-text",
+    "name": "synthetic no-originality prose alternative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": "Permitted representation fails exact-null grading; not a passing replacement grade."
+  },
+  {
+    "case_id": "design-held-process-sequence",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-process-sequence",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-process-sequence",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-held-process-sequence",
+    "name": "synthetic no-originality prose alternative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": "Permitted representation fails exact-null grading; not a passing replacement grade."
+  },
+  {
+    "case_id": "design-held-human-priority",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-human-priority",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-human-priority",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-held-human-priority",
+    "name": "synthetic no-originality prose alternative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": "Permitted representation fails exact-null grading; not a passing replacement grade."
+  },
+  {
+    "case_id": "design-held-hybrid-approval",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-hybrid-approval",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-hybrid-approval",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-held-hybrid-approval",
+    "name": "synthetic no-originality prose alternative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": "Permitted representation fails exact-null grading; not a passing replacement grade."
+  },
+  {
+    "case_id": "design-held-two-findings",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-two-findings",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "design-held-two-findings",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-held-two-findings",
+    "name": "synthetic no-originality prose alternative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": "Permitted representation fails exact-null grading; not a passing replacement grade."
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "skeptic-dev-unproven-benefit",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-dev-unproven-benefit",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-dev-unproven-benefit",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "skeptic-held-negative-comparison",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-negative-comparison",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-negative-comparison",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "skeptic-held-prohibited-premise",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-prohibited-premise",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-prohibited-premise",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "skeptic-held-maintenance",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-maintenance",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-maintenance",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "skeptic-held-output-injection",
+    "name": "frozen author gold",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-output-injection",
+    "name": "frozen objective negative",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-output-injection",
+    "name": "frozen false-narrative control",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Automated acceptance does not establish substantive truth."
+  },
+  {
+    "case_id": "design-held-two-findings",
+    "name": "nonempty text ignores two findings",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "No per-finding coverage or agreement/disagreement entailment."
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "name": "duplicate finding moved from P2 to P1",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Global wildcard checks lose proposal/finding association."
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "name": "catalog ref detached from duplicate finding",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Separate existential checks do not bind type, catalog and proposal together."
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "name": "semantics-preserving review permutation",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": null
+  },
+  {
+    "case_id": "skeptic-held-maintenance",
+    "name": "nonempty but unspecified cheaper test",
+    "expected": "accepted",
+    "actual": "accepted",
+    "production_valid": true,
+    "limitation": "Nonempty prose does not establish a bounded disconfirming test."
+  },
+  {
+    "case_id": "design-dev-existing-calendar",
+    "name": "exact preserved live output diagnostic",
+    "expected": "acceptance_check_failed",
+    "actual": "acceptance_check_failed",
+    "production_valid": true,
+    "limitation": null
+  }
+]

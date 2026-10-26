@@ -1,0 +1,112 @@
+{
+  "format": "theme-intent-config-reader-v2-review/1",
+  "prompt": "U02",
+  "requested_by": "Jordan",
+  "reviewer": "Claude (Anthropic), separate project-thread session on Jordan's device",
+  "reviewer_involvement": "Did not author reader v2, tests, repair report, proposal v4, repair verify.mjs or receipt. Same model family as the prior v5 reviewer whose findings are checked; separate session, not blinded, not a different-model-family review.",
+  "independent_review": true,
+  "verdicts": {
+    "fixture_reader_v2": "supported",
+    "basis_for_separately_scoped_operational_adapter": "supported_as_basis_conditional_on_adapter_scope_N1_N4",
+    "proposal_v4_contract": "supported_with_low_findings",
+    "operational_adapter_or_PR01_SH01_inspector_exists": false,
+    "native_acceptance_readiness": "not_ready_blocked",
+    "M3_exact_bundle_standard": "preserved_not_reopened",
+    "full_C54": "partial",
+    "native_acceptance": "unverified",
+    "human_acceptance_H": "unverified"
+  },
+  "findings": {
+    "resolved": [
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6",
+      "F7"
+    ],
+    "open_low": {
+      "N1": "UTF-8 BOM accepted by TextDecoder default; native serde_json 1.0.154 rejects; regression from v1",
+      "N2": "PowerShell stdin encoding unpinned; non-ASCII existing path exit 4 (fails closed)",
+      "N3": "PowerShell executable path derived from inherited SystemRoot (disclosed trust)",
+      "N4": "pg_bin accepts reserved device names and non-canonical spellings",
+      "N5": "key-vector test line 266 tautological; no PathBuf::join emulation in code",
+      "N6": "open-only mutex handle can make a concurrent desktop launch exit as second instance (winsys.rs:45-53); undisclosed"
+    }
+  },
+  "checks": {
+    "rehash_mismatches_vs_repair_receipt": 0,
+    "repair_verifier_check_only": {
+      "args": [],
+      "exit": 0,
+      "output": {
+        "mode": "check_only_no_writes",
+        "prior_frozen_hash_bindings": 72,
+        "mismatches": 0,
+        "windows_fixture_tests_passed": 12,
+        "fixture_tests_failed": 0
+      },
+      "receipt_unchanged": true
+    },
+    "windows_fixture_tests": {
+      "node": "v22.21.0",
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "leftover_fixtures": 0
+    },
+    "reviewer_probes": "probe-output.json; mutants of exact reader bytes in scratch outside repository",
+    "rust_pathbuf_join": "rustc 1.99.1 Windows scratch program; SHA-256 by .NET",
+    "serde_parity": "serde_json 1.0.154 offline scratch build (matches desktop Cargo.lock)",
+    "inconclusive": [
+      "SystemRoot override probe: Node aborts without valid SystemRoot (CSPRNG assertion, exit 134)"
+    ],
+    "linux_runs": 0
+  },
+  "not_done": [
+    "saved studio.json or operational state read",
+    "credentials",
+    "registry/process/port/mutex/event inspection",
+    "launch or sign-in",
+    "helpers/installers/migrations/SQL",
+    "activation/recovery/cleanup",
+    "older receipt-writing verifiers",
+    "retired checkout access"
+  ],
+  "operational_access": false,
+  "provider_calls": 0,
+  "input_sha256": {
+    "scripts/theme-intent-config-reader-fixture-v2.mjs": "dd19a47b0d2fc6b154583f745b72580412e5b27a3cc0f084fa6c84201b0b47a7",
+    "tests/theme-intent-config-reader-fixture-v2.test.mjs": "f3c5dad2bff802438fd84cbb0cff7abe8a116d161438c7c1d0ae4d1d399df8a7",
+    "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2026-10-24.md": "42f447f9156e756bd10a0c7b28f54395fc2ab6d2124be84d84c0eaece1e2566d",
+    "docs/THEME_INTENT_CONFIG_READER_V2_REPAIR_2026-10-24.md": "2d1e59dbe44e492fac630867a58e47cf70f33a411e792569a924508c6dfaf0fe",
+    "tracking/evidence/theme-intent-config-reader-v2-2026-10-24/verify.mjs": "e3d88ea3a2fd9aea8bfc876edd8991974fc52eca2b9593f36fc505dc97412572",
+    "tracking/evidence/theme-intent-config-reader-v2-2026-10-24/repair-receipt.json": "86ed68499c4482eec535943e75b346960645aaeef344d7ecdb5a376edbac247e",
+    "tracking/evidence/theme-intent-config-reader-v2-2026-10-24/tests-initial.tap": "ef1cda5722d262bca2dc5171d24197fe1e0efdfda783ca9dae2cd06ae86107b4",
+    "tracking/evidence/theme-intent-config-reader-v2-2026-10-24/tests-unsandboxed-attempt.tap": "02d72630d8330cca11978fc7d5b433f943a1dae26bc1ab7d680e4d3f6b423bb5",
+    "tracking/evidence/theme-intent-config-reader-v2-2026-10-24/tests-final.tap": "f0d6efb4f7a49c4bd9286c30dab2941070c8c4cab92f47f5f8d9eeaf34a36ecd",
+    "docs/THEME_INTENT_CONFIG_READER_AND_PLAN_V5_REVIEW_2026-10-24.md": "b4c619e8265f777f48d8807cceb73106ad807ee6d54a7d8ca8c5e26eed1bc0f4",
+    "tracking/evidence/theme-intent-config-reader-v5-review-2026-10-24/reviewer-receipt.json": "b9099f479e3d0645c3c6bb6eccb596bb8d8cb0d2217c9629031b7b80adfe2f36",
+    "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V5_2026-10-24.md": "6d27e1281a7faedfebd2d7322bcafbc1c800171430fe899ee86f260763473952",
+    "docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md": "24a82ca8a2b1eddf82e5c4e472b99103b05c6686a4818813aef847854ff0f42b",
+    "apps/desktop/src-tauri/src/main.rs": "33d629aa52b6b219e179514652903b9740cd1e91051a4157465eb813afa0246c",
+    "apps/desktop/src-tauri/src/home.rs": "a8bc8f23a4703b907a9dfde34e22c8f9fd4c18d2a25e9387004bde067875223b",
+    "apps/desktop/src-tauri/src/winsys.rs": "4881b525fb9a58c17ed72e63936c412a144b31f40924d32cea2e98702f95c6d4",
+    "apps/desktop/src-tauri/Cargo.lock": "bad4407a9879b64ebefb595c554f27d29402a37a0b29b683d6d59e6d0410478f",
+    "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+    "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+    "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c"
+  },
+  "output_sha256": {
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/reviewer-tests-windows.tap": "32b112bce69e94f2f2405b7bf10337acb519875a7e1a376ffcdb3946d63ba53d",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/probe.mjs": "3cbf99d22d6684bfeb3c98f2ec3f97787d5bc4214927905612b65423d3a70e18",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/probe-output.json": "b6279c1c6581d6a6abd8dce6f3a2bbba45971fab8804a10b95377fcde1a485c4",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/rust-pathbuf-join.rs": "5ff5ee1d78c230b609954fe19a15430bc61a7389cd519e766dce0449a3b1d85c",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/rust-pathbuf-join-output.txt": "08ca037d2a6a4a1eaccc8eac10ee7cf625e7f2d434a6c3ed9f3f41ea9b92a533",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/serde-parity-main.rs": "8fe76e2c2bd378caf2976189c6f690f2c29ba5557cbef328ad73c9f7f66833ac",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/serde-parity-output.txt": "d13b0bae56ea3719d96b5dd580af4a840fa67339314cecd0dd98dcb69d0878ac",
+    "docs/THEME_INTENT_CONFIG_READER_V2_AND_PROPOSAL_V4_REVIEW_2026-10-25.md": "c703706ede6e273c2b6a3a097b16cbe0b40d7a2731e4d9347616f06991d4864b"
+  },
+  "recorded_at": "2026-10-25T09:14:44.480Z"
+}

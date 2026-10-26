@@ -1,11 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
   ContractError,
   type PlanConnection,
   type PlanTaskClass,
+  type Admission,
 } from '@creator/contracts';
-import { checkOutput } from '@creator/domain';
+import { canonicalHash, checkOutput } from '@creator/domain';
 import type {
   CommandContext,
   ConnectionStore,
@@ -394,7 +395,8 @@ export class PlanConnectionService {
     ws: string,
     r: {
       connection_id: string;
-      purpose: 'task' | 'verification' | 'qualification';
+      purpose:
+        'task' | 'verification' | 'availability_recheck' | 'qualification';
       model_id: string;
       task_class: PlanTaskClass | null;
       data_class: 'synthetic' | 'public' | 'private_approved';
@@ -409,9 +411,16 @@ export class PlanConnectionService {
       input: string;
       logical_operation_id?: string;
       signal?: AbortSignal;
+      workflow?: { task_id: string; lease_token: string; input_hash: string };
+      timeout_ms?: number;
+      max_output_chars?: number;
       score?: (text: string | null, outcome: PlanObservedOutcome) => string;
     },
-  ): Promise<{ request_id: string; outcome: PlanObservedOutcome }> {
+  ): Promise<{
+    request_id: string;
+    outcome: PlanObservedOutcome;
+    admission?: Admission;
+  }> {
     const admitted = await this.deps.store.admitPlanRequest(
       ctx,
       ws,
@@ -430,7 +439,70 @@ export class PlanConnectionService {
         input_chars: r.instructions.length + r.input.length,
       },
       r.qualification_case,
+      r.workflow
+        ? {
+            ...r.workflow,
+            input_hash: canonicalHash({
+              instructions: r.instructions,
+              input: r.input,
+            }),
+          }
+        : undefined,
     );
+    if (admitted.admission)
+      return {
+        request_id: '',
+        admission: admitted.admission,
+        outcome: {
+          kind: 'rejected',
+          reason_code: admitted.admission.reason_code,
+          message: admitted.admission.explanation,
+          response_id: null,
+          output_chars: null,
+          retry_allowed: false,
+        },
+      };
+    if (admitted.replay) {
+      const p = admitted.replay;
+      if (p.state === 'completed' && typeof p.output_text === 'string') {
+        if (
+          createHash('sha256').update(p.output_text).digest('hex') !==
+          p.output_hash
+        )
+          throw new ContractError(
+            'EVIDENCE_MISMATCH',
+            'Stored plan output hash changed.',
+          );
+        return {
+          request_id: admitted.request_id,
+          outcome: {
+            kind: 'completed',
+            text: p.output_text,
+            output_hash: String(p.output_hash),
+            output_chars: Number(p.output_chars),
+            output_tokens:
+              p.output_tokens == null ? null : Number(p.output_tokens),
+            response_id: p.upstream_request_id as string | null,
+          },
+        };
+      }
+      return {
+        request_id: admitted.request_id,
+        outcome: {
+          kind:
+            p.state === 'failed' ||
+            p.state === 'rejected' ||
+            p.state === 'reconciled'
+              ? 'failed'
+              : 'unknown',
+          reason_code: String(p.reason_code ?? 'prior_outcome_unresolved'),
+          message: 'Prior request preserved; no redispatch.',
+          response_id: null,
+          output_chars: null,
+          retry_allowed: false,
+        },
+      };
+    }
     let outcome: PlanObservedOutcome;
     try {
       const { token, connection } = await this.accessToken(
@@ -445,8 +517,14 @@ export class PlanConnectionService {
         model: r.model_id,
         instructions: r.instructions,
         input: r.input,
-        timeout_ms: caps.request_timeout_ms,
-        max_output_chars: caps.max_output_chars,
+        timeout_ms: Math.min(
+          caps.request_timeout_ms,
+          r.timeout_ms ?? caps.request_timeout_ms,
+        ),
+        max_output_chars: Math.min(
+          caps.max_output_chars,
+          r.max_output_chars ?? caps.max_output_chars,
+        ),
         ...(r.signal ? { signal: r.signal } : {}),
         ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
       });
@@ -466,7 +544,9 @@ export class PlanConnectionService {
     }
     const observed: PlanObservation =
       outcome.kind === 'completed'
-        ? {}
+        ? r.workflow
+          ? { workflow_output_text: outcome.text }
+          : {}
         : {
             ...(outcome.eligibility
               ? { eligibility: outcome.eligibility }
@@ -624,6 +704,31 @@ export class PlanConnectionService {
     return {
       request_id: r.request_id,
       verified: r.outcome.kind === 'completed',
+      outcome: summarize(r.outcome),
+    };
+  }
+
+  /** Fresh one-shot availability check; never overwrites established access/qualifications. */
+  async recheckAvailability(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    grant: { id: string; model_id: string },
+  ) {
+    const r = await this.invoke(ctx, ws, {
+      connection_id: id,
+      purpose: 'availability_recheck',
+      model_id: grant.model_id,
+      task_class: null,
+      data_class: 'synthetic',
+      run_id: null,
+      grant_id: grant.id,
+      instructions: VERIFICATION_INSTRUCTIONS,
+      input: VERIFICATION_INPUT,
+    });
+    return {
+      request_id: r.request_id,
+      available: r.outcome.kind === 'completed',
       outcome: summarize(r.outcome),
     };
   }

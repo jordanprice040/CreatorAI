@@ -1,0 +1,31 @@
+{
+  "format": "research14-runner-preparation/1",
+  "prepared_at": "2026-10-22T23:09:37.968Z",
+  "execution_plan_hash": "a96eed07aa0372e55d7880a62b57f6c0f5726b3ea6c559617af3f9119e11469a",
+  "source_bindings": 233,
+  "tests": {
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0
+  },
+  "packet_controls": 54,
+  "build": "tsc -b passed",
+  "powershell_syntax": "passed",
+  "status": "pending_independent_runner_review_and_owner_live_decision",
+  "max_requests": 6,
+  "suite_wall_minutes": 12,
+  "provider_calls": 0,
+  "installed_app_unchanged": true,
+  "run_lock_present": false,
+  "artifact_sha256": {
+    "scripts/discovery-research-core.mjs": "fa8109cf8f9d5b23801ec361b2f5f8da6ae3a4268061727519305c6f72cf01e7",
+    "scripts/check-discovery-research-runner.mjs": "d4330ab185fcb2cf30b08a21c900dec74a10219e24d373b8ddc140f1aea5af2a",
+    "scripts/qualify-discovery-research14.mjs": "70065cbedba845dbd383eea626557b129e8f5759aa47ead3e332f432d88bc2ed",
+    "scripts/qualify-discovery-research14.ps1": "59580f59a1362ef3b7e77d8c2ea6046352b0fb65d7f04bfbe9be5efd24492c3e",
+    "tests/discovery-research-runner.test.mjs": "7c7097764575fc834e29462e89bcc24586a2cb6d31b20e259e7cce540e0bee5d",
+    "tests/src/discovery-research-runner.test.ts": "d67a865640dcf611a12845d957d469588e2f688fbcb9dfd21c38f36db7e3c344",
+    "tracking/evidence/discovery-research14-runner/execution-plan.json": "8c608384241598d4bebd0e1a8f7d342b71b1cb263fe80daba3a16f10637df222",
+    "tracking/evidence/discovery-research14-runner/tests-initial.tap": "5de4a26b8cd710a37d948a61107356904906ed15b51d53beb5fcb513595f63ef",
+    "tracking/evidence/discovery-research14-runner/tests-default-entry.tap": "5437fd3dd5afd8102ae0b412808f041ad249023aba38567c9d1ba9ea21ce415a"
+  }
+}

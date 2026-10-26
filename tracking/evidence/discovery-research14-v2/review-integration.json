@@ -1,0 +1,27 @@
+{
+  "format": "research14-packet-review-integration/1",
+  "integrated_at": "2026-10-22T22:57:41.378Z",
+  "reviews": [
+    {
+      "version": 1,
+      "receipt": "tracking/evidence/discovery-research14-v1-review-2026-10-22/reviewer-receipt.json",
+      "receipt_sha256": "bf40b07cdbf0442355b5c210749bc6d55cfc8f03265c13d974bf65389510c7c2",
+      "status": "partial_additive_packet_correction_required",
+      "artifacts": 237
+    },
+    {
+      "version": 2,
+      "receipt": "tracking/evidence/discovery-research14-v2-review-2026-10-22/reviewer-receipt.json",
+      "receipt_sha256": "ce6a7e00cdf1812672c92fcf8e08ea9cffaec8290afff0be285c35524904dff3",
+      "status": "supported_bounded_offline_packet",
+      "artifacts": 239
+    }
+  ],
+  "verified_hashes": 476,
+  "current_packet": "discovery-research14-v2",
+  "freeze_hash": "c0576b32481fc2f682a71d7506ef10fe4866382d065dbeb45e68d937395142d4",
+  "v1_preserved": true,
+  "provider_calls": 0,
+  "current_live_coverage": "2_of_3",
+  "next_eligible": "Research-only bound runner and exact executable plan preparation/review"
+}

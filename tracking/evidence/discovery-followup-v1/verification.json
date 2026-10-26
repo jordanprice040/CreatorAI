@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-10-22T04:04:20.584Z",
+  "execution_plan_hash": "2dca3f79f5c7c98f88eef2f20a915c8e2a5f71e1f2da8934b9ca6c0dd9110c3e",
+  "static_check_passed": true,
+  "unreviewed_response_rejected_before_secrets": true,
+  "run_lock_created": false,
+  "new_provider_calls": 0,
+  "syntax": {
+    "javascript": true,
+    "powershell": true
+  },
+  "historical_bindings_verified": 231,
+  "staged_resources_verified": 58
+}

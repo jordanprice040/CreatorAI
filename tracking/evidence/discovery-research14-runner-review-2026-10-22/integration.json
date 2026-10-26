@@ -1,0 +1,12 @@
+{
+  "format": "research14-runner-review-integration/1",
+  "integrated_at": "2026-10-22T23:12:11.031Z",
+  "status": "supported_research_runner",
+  "execution_plan_hash": "a96eed07aa0372e55d7880a62b57f6c0f5726b3ea6c559617af3f9119e11469a",
+  "reviewer_receipt_sha256": "dab366b369e91a38e5fc0f69964e33735a3059fa0216cd953ac245c50001309c",
+  "verified_artifacts": 240,
+  "provider_calls": 0,
+  "installation_required": false,
+  "run_lock_present": false,
+  "next_eligible": "Prepare new bounded live authorization, including separately scoped availability check if needed"
+}

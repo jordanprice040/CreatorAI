@@ -1,0 +1,23 @@
+{
+  "date_local": "2026-10-21",
+  "execution_plan_hash": "68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d",
+  "installed": true,
+  "installed_manifest_sha256": "0331d863e67859d0338e4f54560e12a020f16923730b47ed82411743474707d9",
+  "verified_installed_files": 58,
+  "saved_state_unchanged": true,
+  "schema": 27,
+  "counts": {
+    "workflows": 0,
+    "audit_events": 28,
+    "plan_requests": 24
+  },
+  "unresolved": 0,
+  "in_flight": 0,
+  "live_suite_started": false,
+  "new_provider_calls": 0,
+  "remaining_daily_slots": 16,
+  "required_daily_slots": 18,
+  "reason": "Insufficient capacity under unchanged rolling 24-hour cap; no frozen cases dispatched.",
+  "approval_retained": "User authorized exact v5 installation and capacity-gated next step; no repeat approval needed for this unchanged suite when preflight passes.",
+  "next_eligible": "Fresh capacity/active-state check, then existing bounded approved v5 suite only if all gates pass. Do not raise caps, split suite, or create a run lock while blocked."
+}

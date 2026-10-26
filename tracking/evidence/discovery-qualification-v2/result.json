@@ -1,0 +1,27 @@
+{
+  "state": "prepared_only",
+  "at": "2026-10-21T00:19:57.020Z",
+  "execution_plan_hash": "46186bc4952349c040c70e3d39fab47ee0f6677fc5ac6f9894c95223b065b8e0",
+  "freeze_hash": "c2468a2c8dc14e9008529b73712e80e22cc5620d699e2266761ab25090bdaec0",
+  "installer_sha256": "1df0f73eb9ad4fe086f749e72e17de02f004c9941c1de5d0585a182cb3def2a6",
+  "bundle_manifest_sha256": "733837fe38fd84be6479e02ac1115dededd98a7ca99a644d03b31e72b043897c",
+  "source_bindings": 127,
+  "affected_tests": {
+    "passed": 44,
+    "failed": 0,
+    "skipped": 0
+  },
+  "local_scorer_controls": 108,
+  "new_provider_calls": 0,
+  "installed": false,
+  "settings_changed": false,
+  "migration_required": false,
+  "original_failed_run_preserved": true,
+  "staged_service_checks": {
+    "backup_first_upgrade": "passed",
+    "restore_adoption": "passed",
+    "startup_persistence": "failed_PORT_IN_USE_4310_environment_blocker",
+    "new_installed_native_acceptance": false
+  },
+  "offline_preflight_draft_preserved": true
+}

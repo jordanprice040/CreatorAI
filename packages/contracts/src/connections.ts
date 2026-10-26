@@ -184,13 +184,26 @@ export const PlanModelAccessSchema = z.strictObject({
 });
 export type PlanModelAccess = z.infer<typeof PlanModelAccessSchema>;
 
-/** A one-shot owner approval for the live call that verifies one model on one path. */
-export const CreateVerificationGrantRequestSchema = z.strictObject({
-  expected_version: version,
-  model_id: short,
-  path: PlanPathSchema,
-  expires_in_minutes: counter.min(1).max(60),
-});
+/** One-shot approval, bound to initial model access or an explicit availability recheck. */
+export const PlanCheckIntentSchema = z.enum([
+  'model_access',
+  'availability_recheck',
+]);
+export const CreateVerificationGrantRequestSchema = z
+  .strictObject({
+    expected_version: version,
+    model_id: short,
+    path: PlanPathSchema,
+    expires_in_minutes: counter.min(1).max(60),
+    intent: PlanCheckIntentSchema.optional(),
+  })
+  .superRefine((r, ctx) => {
+    if (r.intent === 'availability_recheck' && r.path !== 'responses')
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Availability rechecks use the Responses path.',
+      });
+  });
 export const PlanVerificationGrantSchema = z.strictObject({
   id,
   connection_id: id,
@@ -201,11 +214,13 @@ export const PlanVerificationGrantSchema = z.strictObject({
   expires_at: timestamp,
   created_by: id,
   created_at: timestamp,
+  intent: PlanCheckIntentSchema.optional(),
 });
 export type PlanVerificationGrant = z.infer<typeof PlanVerificationGrantSchema>;
 
 export const PlanPurposeSchema = z.enum([
   'verification',
+  'availability_recheck',
   'qualification',
   'task',
   'codex_build',
@@ -229,9 +244,23 @@ export const PlanAdmissionRequestSchema = z
   .superRefine((r, ctx) => {
     const issue = (message: string) =>
       ctx.addIssue({ code: 'custom', message });
-    if ((r.purpose === 'verification') !== (r.grant_id !== null))
+    if (
+      (r.purpose === 'verification' || r.purpose === 'availability_recheck') !==
+      (r.grant_id !== null)
+    )
       issue(
-        'A verification request names its one-shot grant, and only it does.',
+        'A model-access or availability check names its one-shot grant, and only those checks do.',
+      );
+    if (
+      r.purpose === 'availability_recheck' &&
+      (r.path !== 'responses' ||
+        r.data_class !== 'synthetic' ||
+        r.task_class !== null ||
+        r.run_id !== null ||
+        r.build_id !== null)
+    )
+      issue(
+        'Availability rechecks are synthetic Responses checks, not task or build dispatch.',
       );
     if ((r.purpose === 'qualification') !== (r.qualification_id !== null))
       issue(

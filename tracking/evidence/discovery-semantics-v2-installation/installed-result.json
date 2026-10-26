@@ -1,0 +1,47 @@
+{
+  "format": "semantics-v2-installed-result/1",
+  "recorded_at": "2026-10-22T17:46:51.152Z",
+  "status": "installed_integrity_and_owner_health_verified",
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "execution_plan_hash": "4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c",
+  "installed_role": "r02-discovery/1.4",
+  "installed_resources": 67,
+  "schema": 28,
+  "saved_requests": {
+    "total": 44,
+    "states": {
+      "completed": 42,
+      "failed": 1,
+      "reconciled": 1
+    }
+  },
+  "records_preserved": true,
+  "settings_match_plan": true,
+  "credits": "confirmed_off",
+  "owner_authenticated": true,
+  "service_status": "ok",
+  "usage": {
+    "last_24h_requests": 9,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "remaining_studio_slots": 31,
+  "new_packet_unattempted": true,
+  "provider_available_fresh": false,
+  "static_execution_check": "passed_without_credentials_or_live_calls",
+  "backup_verified": true,
+  "restore_rehearsed": false,
+  "provider_calls": 0,
+  "live_suite_executed": false,
+  "artifact_sha256": {
+    "tracking/evidence/discovery-semantics-v2-installation/installer-outcome.json": "5e0e54525ec563b4b0ab0a8926834425dffd7ba4cad1f963027007913b62c2fa",
+    "tracking/evidence/discovery-semantics-v2-installation/installer.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tracking/evidence/discovery-semantics-v2-installation/installation-receipt.json": "9dd6e2c5d48f3e7ed861dbcae90e9a9cc3b6688eb972b682c64fcfd7e67624e9",
+    "tracking/evidence/discovery-semantics-v2-installation/before.json": "4c45d2aa7f802ff3c09e12abbd95563a0325b3ed0d8d90a365ef4dca793d6d1f",
+    "tracking/evidence/discovery-semantics-v2-installation/after.json": "83e188774aca4b3099fbbd15411787e1dadef3335241e708d83c57567025cb50",
+    "tracking/evidence/discovery-semantics-v2-installation/backup.json": "47790598a2ef6705186a6e7ff0f20fc1c1d1dc8e9207554708d4a9f48348c80b",
+    "tracking/evidence/discovery-semantics-v2-installation/program-rollback.json": "526bfb4c63401b0f9a16d1b340d374c7ec5ba12088adc242ff5b39d0b24c8d00",
+    "tracking/evidence/discovery-semantics-v2-installation/authenticated-readiness-1f3a02c2-411e-4ed6-9167-6d864ea37b21.json": "0b39ff7226c1b775d4b379c7aed0b80c4dbc9a056fe99b5212c495fabf2c09b1"
+  }
+}

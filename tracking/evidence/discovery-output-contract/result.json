@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-21T00:47:04.264Z",
+  "state": "offline_contract_audit_complete",
+  "role_version": "r02-discovery/1.2",
+  "prompt_hash": "01ef4e7c37ab9c6c50abe0d4c3ef25a22484daa8d3d1490672bc60e8007c0f00",
+  "roles": 4,
+  "boundary_mutations": 189,
+  "scope": "Model-facing prompt guidance derived from unchanged validators; no provider-enforced schema capability claimed.",
+  "transport_checks": [
+    {
+      "task_class": "research_synthesis",
+      "fixture_rebinding_only": true,
+      "creation_bytes": 101668,
+      "largest_input_chars": 12173
+    },
+    {
+      "task_class": "candidate_generation",
+      "fixture_rebinding_only": true,
+      "creation_bytes": 83535,
+      "largest_input_chars": 10748
+    },
+    {
+      "task_class": "scoring",
+      "fixture_rebinding_only": true,
+      "creation_bytes": 88740,
+      "largest_input_chars": 10939
+    }
+  ],
+  "source_sha256": {
+    "packages/domain/src/discovery.ts": "b73f969a73c9f97ea03a4d0f03e52b0afd5a9a853a0beb7d941609931ceb8be3",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "tests/src/discovery-output-contract.test.ts": "a8990254045adcb587c49afc915b211d79c50c6dc34575475df6cf7d35231198",
+    "tests/src/discovery-contract-fixtures.ts": "9c9ffd6edf11729afe48c9e77c0fb538d3c23af289565478063052af68b9dcad",
+    "scripts/audit-discovery-output-contract.mjs": "ec369d4afc4a27fd9268dbd9d1a1422d0dabf2c7255876f4bf97c6d2db16ca50"
+  },
+  "proposal_hash": "dac3a3431ddde1e10889b1d8a85544bbd4bf4684182a0d8a8b07526ce8b21f85",
+  "proposed_fresh_cases": 18,
+  "proposal_executable": false,
+  "installed_manifest_sha256": "b59212cfe661723e6a150ca5f1d02658ccb069bbd94dcbb2664f69b26255a048",
+  "new_provider_calls": 0,
+  "installed_changed": false,
+  "settings_changed": false,
+  "prior_manifests_and_locks_preserved": true
+}

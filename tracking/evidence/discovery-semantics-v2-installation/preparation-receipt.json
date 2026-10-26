@@ -1,0 +1,22 @@
+{
+  "format": "semantics-v2-upgrade-preparation/1",
+  "recorded_at": "2026-10-22T17:40:44.144Z",
+  "status": "backed_up_waiting_owner_quit",
+  "schema": 28,
+  "requests": 44,
+  "program_rollback_files": 72,
+  "backup_verified": true,
+  "restore_rehearsed": false,
+  "installed": false,
+  "provider_calls": 0,
+  "app_running_observed_pid": 2672,
+  "artifact_sha256": {
+    "scripts/upgrade-discovery-semantics-v2.mjs": "c58c3e77bf2c8f6a2ee8313de873c85db28079c57dc13e8e60e189b834803308",
+    "scripts/upgrade-discovery-semantics-v2.ps1": "9f8c764d85b45f8aeca5db1d61ca1752cf55900fc2254ebd78cade4a936d9ff8",
+    "scripts/install-discovery-semantics-v2.ps1": "8660942e92dda0f17fc777b63de49cd2cd7db2770b386fd5a1abb83b5a24e3a7",
+    "tracking/evidence/discovery-semantics-v2-installation/before.json": "4c45d2aa7f802ff3c09e12abbd95563a0325b3ed0d8d90a365ef4dca793d6d1f",
+    "tracking/evidence/discovery-semantics-v2-installation/program-rollback.json": "526bfb4c63401b0f9a16d1b340d374c7ec5ba12088adc242ff5b39d0b24c8d00",
+    "tracking/evidence/discovery-semantics-v2-installation/backup.json": "47790598a2ef6705186a6e7ff0f20fc1c1d1dc8e9207554708d4a9f48348c80b",
+    "tracking/evidence/discovery-semantics-v2-installation/prepared.json": "5374660eb8a3457ce682f59319d9080d6b2ac9a92ea2941512b9028397a41085"
+  }
+}

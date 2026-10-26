@@ -1,0 +1,286 @@
+{
+  "at": "2026-10-24T12:34:49.031Z",
+  "schema": 29,
+  "prepared_sha256": "5bb69e60eaae96a503368ef2bd9f7e61c9f40546825b893de4e1d44492ddf0d2",
+  "migration_result_sha256": "d541ee371bd1d84c16eac46a403f86eb7651c1e55428eb2468acb0cebc101b2d",
+  "state": {
+    "observed_at": "2026-10-24T12:34:49.022Z",
+    "schema": 29,
+    "migrations": [
+      {
+        "version": 1,
+        "name": "records_links_audit_outbox",
+        "checksum": "2b85d3c28afb5ce01aca4fd47cf04939076b615de55295cc735ac9eb405452b6"
+      },
+      {
+        "version": 2,
+        "name": "oversight_sessions_decisions_grants",
+        "checksum": "3ff37e1a03c67d2397de334ab7a956ed6f019ec2ef59b22c8e3b5b77a83f55c2"
+      },
+      {
+        "version": 3,
+        "name": "budgets_pricing_reservations_usage",
+        "checksum": "e197001804505f2073b53e41f8e8958fbe654a8b43749c6db2ead36b2cf5fb49"
+      },
+      {
+        "version": 4,
+        "name": "durable_workflows_tasks_leases",
+        "checksum": "f353a58dd8df63ffeeff026590e3ad7bfc77978b545d21401b4ae4bee5e38f4b"
+      },
+      {
+        "version": 5,
+        "name": "sources_passages_claim_support",
+        "checksum": "1c971fd27d103a0f3ad08bb77d632ead8bb2e9dbca4c45a7f4e4bfdc922e0a62"
+      },
+      {
+        "version": 6,
+        "name": "discovery_briefs_rounds",
+        "checksum": "7791fb2bfcdffa7fce6820f416511503444ec31ad9a71776e522e60086f8b04d"
+      },
+      {
+        "version": 7,
+        "name": "scoring_selection_specs",
+        "checksum": "5138ff9f7fb45a65983e6c3f325519fd782dc80e9d1f1ef5c0c874ae84764889"
+      },
+      {
+        "version": 8,
+        "name": "catalog_search",
+        "checksum": "085b9790400e8a2c6b81432dc1b0d3b6b9b6e01c952b667112c13e39cd992cab"
+      },
+      {
+        "version": 9,
+        "name": "isolated_synthetic_studies",
+        "checksum": "29a5664fff3bf35bf979e680f8c88ca9d2c000eba048e3b0b06345336be35921"
+      },
+      {
+        "version": 10,
+        "name": "artifacts_previews_feedback",
+        "checksum": "bb5e2323565328a536f00f90d29a014d1fad6edb2424a7f158db1950e66f19f7"
+      },
+      {
+        "version": 11,
+        "name": "study_builds_and_budget_holds",
+        "checksum": "d74cef6f7b4343a229ff3c48427b5edb59ba93948fede163b527aa9c2287e8fc"
+      },
+      {
+        "version": 12,
+        "name": "model_routing",
+        "checksum": "2ad7f5bf1cb10e2325628ffe9e3d0753256cf7193aa30fa8fe96dcc8d2909c33"
+      },
+      {
+        "version": 13,
+        "name": "context_cache_batches",
+        "checksum": "fa71dc90246b83b4652f94a3cc8171b589afc5a1e1b3d38a4633a775731cc8d4"
+      },
+      {
+        "version": 14,
+        "name": "saved_queries_and_member_removal",
+        "checksum": "4e3dbc023df69350b263c8379df07cf0ff910d060797b2d48076187fa0d878c0"
+      },
+      {
+        "version": 15,
+        "name": "github_scoped_management",
+        "checksum": "e179b4c3281e9833ee74c2903bf221daef02cae63706b99abb4ef79df8a01e65"
+      },
+      {
+        "version": 16,
+        "name": "desktop_pairing_and_signin",
+        "checksum": "5be2c869bd3e213ddda74c43db454baef07bb9cf5d2f159ffe3d825bf197d3a6"
+      },
+      {
+        "version": 17,
+        "name": "bounded_paired_artifact_jobs",
+        "checksum": "ed50e6d6c3e7ffb2ce062cf2f18f7423446a2d8ea51679f71bcec9fdbd3727cd"
+      },
+      {
+        "version": 18,
+        "name": "deployment_identity_and_verifications",
+        "checksum": "6c2700af6007847558d7d2b08b4cc8c241220ae401339e08b6540ad2029ee84c"
+      },
+      {
+        "version": 19,
+        "name": "payments_entitlements_reinvestment",
+        "checksum": "16ae7fa050b8113ed55888ecce74227d4ceaa80166ca5cbe653e179870c1f39b"
+      },
+      {
+        "version": 20,
+        "name": "unique_payment_funding_identity",
+        "checksum": "1a23532e882192675936a571be7fd5dcddd0ae4bb1e0a1399639711e5a983b3d"
+      },
+      {
+        "version": 21,
+        "name": "bounded_fixture_marketing",
+        "checksum": "9009090a73c7e959f2fd995646cbc89108ff83d02bf97dd49cf73fc3efda3398"
+      },
+      {
+        "version": 22,
+        "name": "portfolio_scheduling_and_reviewed_knowledge",
+        "checksum": "5a4d93adab0ce788120c61bdd097690997e8775b066264841c50ceb80c49eb66"
+      },
+      {
+        "version": 23,
+        "name": "pairing_visitors_scheduler_state_portfolio_reinvestment",
+        "checksum": "7e7f9862b5da71b2df5348b752acf6d3e676993b603f65640d59bb7f15983f2e"
+      },
+      {
+        "version": 24,
+        "name": "payment_observation_fences_and_batch_file_cleanup",
+        "checksum": "4606683ae7d4d6a0df432dabc2e38add7b21505df264fef19f7f03b511af8152"
+      },
+      {
+        "version": 25,
+        "name": "public_search_provider",
+        "checksum": "215063889bb30a0eb95eeb0dbf916b2ec16380bf10438c6c48528558075acc07"
+      },
+      {
+        "version": 26,
+        "name": "chatgpt_plan_connections",
+        "checksum": "8ec2e6d695aec8c317864763f248e01b2cce32aed0f1c4b8461e8a112954fcfd"
+      },
+      {
+        "version": 27,
+        "name": "workflow_subscription_resources",
+        "checksum": "18953277a92937633719d6b174ecab603ebee3f600f55ae7f210d74f36b82039"
+      },
+      {
+        "version": 28,
+        "name": "plan_availability_recheck_grants",
+        "checksum": "367d88575dbf1d46ee686c75f002eb2d86672ea6e26ec62adee75e722c304517"
+      },
+      {
+        "version": 29,
+        "name": "theme_intent_drafts",
+        "checksum": "3f3e5ccb7ac2d69b37ea0a291011a2b26b14338583c92ea1302579cb4139708a"
+      }
+    ],
+    "hashes": {
+      "action_admissions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "actors": "acd6bed5dca0207036b0a0db9506dc0fb6797caa21bf3279c147b07de515f729",
+      "artifact_feedback": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "artifact_manifests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "artifact_previews": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "audit_events": "4042d601aa08a52554a49116e23aabff41542278a656d7a2c4995bb367d31863",
+      "auth_sessions": "22f261b243b7b0d0825b475d3df51937e0acc14c333ef82346e55c978248a74c",
+      "budget_envelopes": "8058b67342bc8c0af9778f6af491560ac8375d2ace9317a0053b5c8dc8d6119f",
+      "budget_journal": "6a9a767c3d05de2d0d903a360290a97058965440cc655434faf1fee664479a02",
+      "budget_reservations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "claim_support": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "command_receipts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "consumer_inbox": "a62795831ec31fc5a82996853552327c06edd6519a90de9558d6f3143fe37ebc",
+      "context_batch_files": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_batch_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_batches": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_cache_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_capabilities": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_compactions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_evaluations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_handoffs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_index_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "context_packs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "decision_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deployment_identity": "f485db2710a169a065a7cf6af6f2aac400cbb0b58909ee116657a92fa6b85b49",
+      "deployment_verifications": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "desktop_challenges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "desktop_devices": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "desktop_job_reports": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "desktop_jobs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "earnings_tranches": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "entities": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "entitlements": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "entity_links": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "entity_versions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "finance_commitments": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "finance_entries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "finance_postings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "funding_rails": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "github_connections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "github_operations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "github_pull_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "github_repositories": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "github_reviews": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "github_webhook_deliveries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "grant_versions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "grants": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "history_projection": "cc4d7c2bc96e678dde8e600147e7840e0fc2f48ec1edac0b5b060342bf206675",
+      "knowledge_heads": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "knowledge_regressions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "marketing_campaigns": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "marketing_deliveries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "marketing_fixture_receipts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "marketing_grants": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "marketing_observations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "marketing_suppressions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "oidc_logins": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "outbox": "7c56a478b53074dd6021733b29cbca22ae71274c7cd85f6b2971ae4f997ceaf6",
+      "payment_checkouts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "payment_connections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "payment_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "payment_offers": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "payment_snapshots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "plan_connection_events": "3c3b1ce9af3dbb9728c3c90483a91d9c2d6ced5a4dfce9c28f7c65ae73a7f83c",
+      "plan_connections": "702e441bfc4ba3de80dcca08490e1e9b216be2286fcbf2b326d0370374f8cdfd",
+      "plan_model_access": "2b751e478e56dd945832efd5007d9f9cef6d1ad2562f698c79c5936f1af1f2c3",
+      "plan_qualifications": "ca8ce34e085c595de275e0fc9fd77b86fac219aba7b33d8372c20712a99b1c3a",
+      "plan_requests": "e61f5db3f59c9d6a617bc2a724099179ac3bc5189b1016bd62fb3e605c147043",
+      "plan_verification_grants": "10c5b765acff84a38a6c7ec8b068cbd888d74478b161d5ce78cf165400a675d2",
+      "portfolio_health": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "portfolio_jobs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "portfolio_policies": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "portfolio_run_lanes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "portfolio_scheduler_failures": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "portfolio_scheduler_state": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "portfolio_schedules": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "pricing_snapshots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rail_observations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reinvestment_allocations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reinvestment_envelopes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reinvestment_losses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reinvestment_policies": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reinvestment_portfolio_allocations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_sources": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reusable_knowledge": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_benchmark_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_benchmarks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_outcomes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_policies": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_promotions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "route_registries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "run_controls": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "saved_queries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "selections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_passages": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_retrievals": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "spec_freezes": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "studies": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_attempt_pins": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_attempts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_budget_holds": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_execution_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_grader_material": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "study_graders": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "tranche_uses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "usage_records": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "workflow_knowledge": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "workflow_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "workflows": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "workspace_members": "cb4f648ed9121248a1e3195d6eb837be0db38af9ec474d8a546f5a4274bcef3b",
+      "workspaces": "ff7cd62ed775f3d33e2bf0e36b3b42bf5e17463242465a0813a9c143da143235"
+    },
+    "studio_config_sha256": "fedcbce7bbcd8d1586008ae14de5a37d2407d5ef9082c3b3014f3e0a07060dbe",
+    "protected_files": {
+      "secrets": {
+        "postgres.dpapi": "c952d1128133245a326ba0606115f90488bc1ec15e87ca79f0a4e7d3b0890ecf",
+        "session.dpapi": "c09b53f84f97ab069a5209889ae7bdba9c9971ab41597ca1e70ca1f4402f9a0c"
+      },
+      "plan_credentials": {
+        "c6fe5465-3781-449b-b33d-227f521d798b.secret": "d8a1d64f22ba8b8da835e5d3f0ea6dafc13f61d3331349883e4adc550ed25e67"
+      }
+    },
+    "products": {}
+  },
+  "installed_ui_acceptance": false,
+  "fixture": false
+}

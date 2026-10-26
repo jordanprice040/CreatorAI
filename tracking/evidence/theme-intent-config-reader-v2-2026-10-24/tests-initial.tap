@@ -1,0 +1,104 @@
+TAP version 13
+# Subtest: projection exposes only approved fields; mismatch exposes no values
+ok 1 - projection exposes only approved fields; mismatch exposes no values
+  ---
+  duration_ms: 2.0123
+  type: 'test'
+  ...
+# Subtest: malformed, unsupported, unsafe and unexpected values refuse with redacted errors
+ok 2 - malformed, unsupported, unsafe and unexpected values refuse with redacted errors
+  ---
+  duration_ms: 1.0645
+  type: 'test'
+  ...
+# Subtest: only disposable fixture root can be read, file bytes unchanged
+not ok 3 - only disposable fixture root can be read, file bytes unchanged
+  ---
+  duration_ms: 1279.4752
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\theme-intent-config-reader-fixture-v2.test.mjs:81:1'
+  failureType: 'testCodeFailure'
+  error: 'CONFIG_READER_REFUSED'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    invalid (file:///C:/dev/creator_agent/scripts/theme-intent-config-reader-fixture-v2.mjs:12:9)
+    readFixtureConfig (file:///C:/dev/creator_agent/scripts/theme-intent-config-reader-fixture-v2.mjs:184:5)
+    async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-config-reader-fixture-v2.test.mjs:92:8)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: operational-looking and traversal roots rejected before reading
+ok 4 - operational-looking and traversal roots rejected before reading
+  ---
+  duration_ms: 0.9416
+  type: 'test'
+  ...
+# Subtest: junction fixture root refused
+not ok 5 - junction fixture root refused
+  ---
+  duration_ms: 5.7138
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\theme-intent-config-reader-fixture-v2.test.mjs:115:1'
+  failureType: 'testCodeFailure'
+  error: "EPERM: operation not permitted, symlink 'C:\\dev\\creator_agent\\.verification\\theme-config-reader-v2-TNnTsK' -> 'C:\\dev\\creator_agent\\.verification\\theme-config-reader-v2-TNnTsK-link'"
+  code: 'EPERM'
+  stack: |-
+    async Object.symlink (node:internal/fs/promises:1008:10)
+    async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-config-reader-fixture-v2.test.mjs:120:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: direct invocation has no operational command or echoed argument
+ok 6 - direct invocation has no operational command or echoed argument
+  ---
+  duration_ms: 73.7786
+  type: 'test'
+  ...
+# Subtest: hard-linked config or marker is refused before projection
+not ok 7 - hard-linked config or marker is refused before projection
+  ---
+  duration_ms: 10.8871
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\theme-intent-config-reader-fixture-v2.test.mjs:141:1'
+  failureType: 'testCodeFailure'
+  error: "EPERM: operation not permitted, link 'C:\\dev\\creator_agent\\.verification\\theme-config-reader-v2-LBC6wt\\outside-file' -> 'C:\\dev\\creator_agent\\.verification\\theme-config-reader-v2-tMI0GO\\studio.json'"
+  code: 'EPERM'
+  stack: |-
+    async Object.link (node:internal/fs/promises:1059:10)
+    async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-config-reader-fixture-v2.test.mjs:161:7)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: file and marker symbolic links refused
+ok 8 - file and marker symbolic links refused
+  ---
+  duration_ms: 1620.3696
+  type: 'test'
+  ...
+# Subtest: pg_bin display and Windows path tricks refused
+ok 9 - pg_bin display and Windows path tricks refused
+  ---
+  duration_ms: 1.0504
+  type: 'test'
+  ...
+# Subtest: snapshot checks detect hard-link growth, exact bigint identity and changed size/time
+ok 10 - snapshot checks detect hard-link growth, exact bigint identity and changed size/time
+  ---
+  duration_ms: 0.4858
+  type: 'test'
+  ...
+# Subtest: invalid UTF8 refused even in unprojected fields
+ok 11 - invalid UTF8 refused even in unprojected fields
+  ---
+  duration_ms: 0.2544
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 8
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3094.5205

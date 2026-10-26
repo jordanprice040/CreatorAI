@@ -1,0 +1,19 @@
+{
+  "checked_at": "2026-10-20T12:40:13.114Z",
+  "qualification_id": "db9cc857-cb7b-4651-a0e9-4f74ac00da85",
+  "state": "qualified",
+  "development": {
+    "passed": 2,
+    "total": 2
+  },
+  "held_out": {
+    "passed": 6,
+    "total": 6
+  },
+  "ledger_requests": 8,
+  "raw_outputs_bound_to_ledger": true,
+  "ui_schema_valid": true,
+  "total_requests_last_24h": 9,
+  "unknown": 0,
+  "in_flight": 0
+}

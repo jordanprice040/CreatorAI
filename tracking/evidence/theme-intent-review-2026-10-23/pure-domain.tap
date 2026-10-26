@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: theme preparation needs no evidence or resource setup and cannot carry execution authority
+ok 1 - theme preparation needs no evidence or resource setup and cannot carry execution authority
+  ---
+  duration_ms: 4.1007
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 817.0248

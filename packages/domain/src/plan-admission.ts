@@ -93,11 +93,18 @@ export function admissionBlockers(input: {
       a.model_id === r.model_id && a.path === r.path && a.access === 'verified',
   );
   switch (r.purpose) {
-    case 'verification': {
+    case 'verification':
+    case 'availability_recheck': {
       const g = input.grant;
       if (!g || g.id !== r.grant_id || g.connection_id !== c.id)
         out.push('The one-shot verification approval was not found.');
       else {
+        const intent =
+          r.purpose === 'verification'
+            ? 'model_access'
+            : 'availability_recheck';
+        if ((g.intent ?? 'model_access') !== intent)
+          out.push('The one-shot approval is for another check intent.');
         if (g.model_id !== r.model_id || g.path !== r.path)
           out.push('The verification approval is for another model or path.');
         if (g.used >= g.max_requests)
@@ -105,7 +112,10 @@ export function admissionBlockers(input: {
         if (Date.parse(g.expires_at) <= input.now.getTime())
           out.push('The verification approval has expired.');
       }
-      if (verified) out.push('This model is already verified on this path.');
+      if (r.purpose === 'verification' && verified)
+        out.push('This model is already verified on this path.');
+      if (r.purpose === 'availability_recheck' && !verified)
+        out.push('Verify model access before rechecking availability.');
       break;
     }
     case 'qualification': {

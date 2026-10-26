@@ -1,0 +1,167 @@
+TAP version 13
+# Subtest: v4 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: native layout fails pre-secret with the credential unavailable
+    ok 1 - native layout fails pre-secret with the credential unavailable
+      ---
+      duration_ms: 2183.5296
+      type: 'test'
+      ...
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 2 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 1531.383
+      type: 'test'
+      ...
+    # Subtest: junction ancestors and operational reuse of fixture review are rejected
+    ok 3 - junction ancestors and operational reuse of fixture review are rejected
+      ---
+      duration_ms: 1131.9351
+      type: 'test'
+      ...
+    # Subtest: running qualifications block the real before phase
+    ok 4 - running qualifications block the real before phase
+      ---
+      duration_ms: 7306.7236
+      type: 'test'
+      ...
+    # Subtest: a pre-existing managed cluster is not silently adopted or stopped
+    ok 5 - a pre-existing managed cluster is not silently adopted or stopped
+      ---
+      duration_ms: 4653.474
+      type: 'test'
+      ...
+    # Subtest: partial before death: before-snapshot can release without prepared data or credentials
+    ok 6 - partial before death: before-snapshot can release without prepared data or credentials
+      ---
+      duration_ms: 23538.7903
+      type: 'test'
+      ...
+    # Subtest: partial before death: before-protected-copy can release without prepared data or credentials
+    ok 7 - partial before death: before-protected-copy can release without prepared data or credentials
+      ---
+      duration_ms: 23748.9722
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 8 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 7500.7075
+      type: 'test'
+      ...
+    # Subtest: reusing a session in another evidence directory cannot overwrite its backup
+    ok 9 - reusing a session in another evidence directory cannot overwrite its backup
+      ---
+      duration_ms: 2011.8046
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 10 - expired admission fails before mutation
+      ---
+      duration_ms: 2023.5135
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 11 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 16571.2943
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 12 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 11932.7529
+      type: 'test'
+      ...
+    # Subtest: death during after resumes schema29 forward without rollback or repeated effects
+    ok 13 - death during after resumes schema29 forward without rollback or repeated effects
+      ---
+      duration_ms: 11305.3869
+      type: 'test'
+      ...
+    # Subtest: per-studio lock rejects concurrent actual wrapper runs
+    ok 14 - per-studio lock rejects concurrent actual wrapper runs
+      ---
+      duration_ms: 10049.8848
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 15 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 19829.0419
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 16 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 34453.8598
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 17 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 35608.4076
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 18 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 39497.7815
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 19 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 39396.9284
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-intent has explicit recovery
+    ok 20 - crash-window hard-crash-after-migration-intent has explicit recovery
+      ---
+      duration_ms: 37431.5941
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-result has explicit recovery
+    ok 21 - crash-window hard-crash-after-migration-result has explicit recovery
+      ---
+      duration_ms: 48997.8261
+      type: 'test'
+      ...
+    # Subtest: migration child nonzero is retained and not retried
+    ok 22 - migration child nonzero is retained and not retried
+      ---
+      duration_ms: 38347.1931
+      type: 'test'
+      ...
+    # Subtest: migration child malformed is retained and not retried
+    ok 23 - migration child malformed is retained and not retried
+      ---
+      duration_ms: 39649.7553
+      type: 'test'
+      ...
+    # Subtest: migration child timeout is retained and not retried
+    ok 24 - migration child timeout is retained and not retried
+      ---
+      duration_ms: 41986.6281
+      type: 'test'
+      ...
+    # Subtest: old admission cannot expire post-mutation read-only verification
+    ok 25 - old admission cannot expire post-mutation read-only verification
+      ---
+      duration_ms: 49016.917
+      type: 'test'
+      ...
+    1..25
+ok 1 - v4 real wrapper lifecycle, populated state, admission, faults and recovery
+  ---
+  duration_ms: 558447.0352
+  type: 'test'
+  ...
+1..1
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 558548.1021

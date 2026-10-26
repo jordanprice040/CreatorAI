@@ -32,6 +32,7 @@ import {
   runFixture,
   serviceConfig,
   sourcePolicyHash,
+  prepareThemeResearchPlan,
 } from '@creator/domain';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -115,12 +116,20 @@ function respond(res: ServerResponse, status: number, value: unknown) {
   });
   res.end(JSON.stringify(value));
 }
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(
+  req: IncomingMessage,
+  maxBytes = MAX_BODY,
+): Promise<unknown> {
   if (req.headers['content-type']?.split(';')[0]?.trim() !== 'application/json')
     throw new ContractError('INVALID_CONTRACT', 'Expected application/json.');
-  if (Number(req.headers['content-length'] ?? 0) > MAX_BODY) {
+  const tooLarge = () =>
+    new ContractError(
+      'BODY_TOO_LARGE',
+      `Request exceeds ${maxBytes / 1024} KiB.`,
+    );
+  if (Number(req.headers['content-length'] ?? 0) > maxBytes) {
     req.resume();
-    throw new ContractError('BODY_TOO_LARGE', 'Request exceeds 64 KiB.');
+    throw tooLarge();
   }
   let size = 0;
   const chunks: Buffer[] = [];
@@ -129,8 +138,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
       ? chunk
       : Buffer.from(chunk as string);
     size += buffer.length;
-    if (size > MAX_BODY)
-      throw new ContractError('BODY_TOO_LARGE', 'Request exceeds 64 KiB.');
+    if (size > maxBytes) throw tooLarge();
     chunks.push(buffer);
   }
   try {
@@ -197,7 +205,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -398,6 +406,7 @@ export function createApi(
   const worker =
     store && broker && workerMode === 'on'
       ? new Worker(store, broker, {
+          planService: planService ?? undefined,
           log: (m) => console.error(m),
           ...(env.CREATOR_WORKER_POLL_MS
             ? { pollMs: Number(env.CREATOR_WORKER_POLL_MS) }
@@ -661,7 +670,18 @@ export function createApi(
         item,
         action,
         method,
-        body: () => readJson(req),
+        // Qualification manifests repeat bounded prompts and evidence for each case.
+        // Only this authenticated creation action gets the larger ingress allowance.
+        body: () =>
+          readJson(
+            req,
+            collection === 'plan-connections' &&
+              item &&
+              action === 'qualifications' &&
+              method === 'POST'
+              ? 128 * 1024
+              : MAX_BODY,
+          ),
         send,
       }))
     )
@@ -953,6 +973,15 @@ export function createApi(
     } else if (collection === 'entities' && item) {
       if (method === 'GET' && !action)
         return send(200, await store.getEntity(ctx, ws, item), false);
+      if (method === 'GET' && action === 'research-plan') {
+        const { entity } = await store.getEntity(ctx, ws, item);
+        if (entity.kind !== 'theme_intent' || entity.status !== 'active')
+          throw new ContractError(
+            'INVALID_CONTRACT',
+            'Prepare a plan from an active theme draft.',
+          );
+        return send(200, prepareThemeResearchPlan(entity), false);
+      }
       if (method === 'GET' && action === 'humility-gate')
         return send(200, await store.humilityVerdict(ctx, ws, item), false);
       if (method === 'GET' && action === 'lineage') {

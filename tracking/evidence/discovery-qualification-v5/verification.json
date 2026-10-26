@@ -1,0 +1,15 @@
+{
+  "source_files_verified": 183,
+  "packaged_files_verified": 58,
+  "frozen_versions_verified": 5,
+  "old_locks_preserved": 5,
+  "reconciliation_lock_preserved": true,
+  "installed_unchanged": true,
+  "executed": false,
+  "new_provider_calls": 0,
+  "saved_requests": 24,
+  "remaining_daily_slots_at_preparation": 16,
+  "required_daily_slots": 18,
+  "capacity_gate": "Must pass fresh preflight; do not raise caps",
+  "execution_plan_hash": "68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d"
+}

@@ -1,0 +1,153 @@
+{
+  "root": "C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816827608",
+  "port": 55463,
+  "started_at": "2026-10-24T04:40:27.609Z",
+  "probes": {
+    "p1_external_kill_during_before": {
+      "killed_cli_pid": "37624",
+      "wrapper_exit": 1,
+      "wrapper_stderr_tail": ":54 char:26\r\n+ ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+      "after_kill": {
+        "listening": true,
+        "lock": {
+          "present": true,
+          "pid": 37624,
+          "pid_alive": false,
+          "phase": "before",
+          "session": "probe-b0d862089842"
+        },
+        "prepared": false,
+        "mutex": {
+          "acquired": true,
+          "ms": 536
+        }
+      },
+      "release": {
+        "code": 0,
+        "stdout": "{\"phase\":\"release\",\"passed\":true,\"credentials_read\":false,\"provider_calls\":0,\"fixture\":true}",
+        "listening": false,
+        "lock": {
+          "present": false
+        },
+        "retired": 1,
+        "receipt": {
+          "at": "2026-10-24T04:40:58.604Z",
+          "decision_sha256": "920f0037878a8225e257d409907e7ce7d8b748b82fc0432cecb54e8d7abe9208",
+          "retired_lock_sha256": "a7d71e9d134c0547dcb61c70f143e1dd7566fdb0fe1cdbe6c7c98a0e44dacda6",
+          "retired_lock": "C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816827608\\evidence-probe-b0d862089842\\retired-lock-20e33690-031c-47ea-9ea2-65dbd7eb5836.json",
+          "stopped_owned_cluster": true,
+          "prepared_required": false,
+          "credentials_read": false,
+          "installer_repeated": false,
+          "migration_repeated": false
+        }
+      }
+    },
+    "p2_untagged_restart_competing_cluster": {
+      "killed_cli_pid": "28272",
+      "wrapper_exit": 1,
+      "wrapper_stderr_tail": ":54 char:26\r\n+ ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+      "untagged_restart_refused": true,
+      "refused_tail": "fused; preserve evidence.'}\r\n+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Stale-state rel...serve evidence.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Stale-state release refused; preserve evidence.\r\n \r\n",
+      "listening_after_refusal": true,
+      "lock_after_refusal": {
+        "present": true,
+        "pid": 28272,
+        "pid_alive": false,
+        "phase": "before",
+        "session": "probe-d61dc8d7a1fa"
+      },
+      "release_after_stop": {
+        "code": 0,
+        "listening": false,
+        "lock": {
+          "present": false
+        },
+        "receipt_stopped_owned_cluster": false
+      }
+    },
+    "p3_desktop_relaunch_mid_run": {
+      "wrapper_exit": 1,
+      "stderr_tail": "            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+      "listening": true,
+      "lock": {
+        "present": true,
+        "pid": 1424,
+        "pid_alive": false,
+        "phase": "before",
+        "session": "probe-28715afe8974"
+      },
+      "left_owned_lock_receipt": true,
+      "stopped_receipt": false,
+      "prepared": true,
+      "release_while_desktop_running": {
+        "code": 1,
+        "listening": true,
+        "tail": "     : OperationStopped: (Pre-secret revi...redential read.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Pre-secret review/identity/path/decision checks failed; no credential read.\r\n \r\n"
+      },
+      "release_after_desktop_quit": {
+        "code": 0,
+        "listening": false,
+        "lock": {
+          "present": false
+        }
+      }
+    },
+    "p4_forward_after_external_kill": {
+      "install_code": 0,
+      "migrate_without_switch": {
+        "code": 1,
+        "switch_gate_message": false,
+        "tail": "~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n"
+      },
+      "kill1": {
+        "killed_cli_pid": "35856",
+        "wrapper_exit": 1,
+        "wrapper_stderr_tail": ":54 char:26\r\n+ ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+        "listening": true,
+        "lock": {
+          "present": true,
+          "pid": 35856,
+          "pid_alive": false,
+          "phase": "after",
+          "session": "probe-ed9efc28f7d0"
+        }
+      },
+      "admit_scoped_release": {
+        "code": 1,
+        "tail": "            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+        "listening": false,
+        "lock": {
+          "present": false
+        },
+        "stale_release_receipts": 1
+      },
+      "kill2": {
+        "killed_cli_pid": "14448",
+        "wrapper_exit": 1,
+        "wrapper_stderr_tail": ":54 char:26\r\n+ ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+        "listening": true,
+        "lock": {
+          "present": true,
+          "pid": 14448,
+          "pid_alive": false,
+          "phase": "after",
+          "session": "probe-ed9efc28f7d0"
+        }
+      },
+      "after_resume": {
+        "code": 0,
+        "stdout": "{\"phase\":\"after\",\"passed\":true,\"fixture\":true,\"provider_calls\":0}",
+        "listening": false,
+        "lock": {
+          "present": false
+        },
+        "verifications": 2,
+        "recovery_intents": 0
+      },
+      "effect_hashes_unchanged": true
+    }
+  },
+  "listening_after": false,
+  "ended_at": "2026-10-24T04:43:09.072Z"
+}

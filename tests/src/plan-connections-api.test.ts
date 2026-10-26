@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
+import { BenchmarkManifestSchema } from '@creator/contracts';
+import { request as httpRequest } from 'node:http';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +13,8 @@ import { createApi } from '@creator/api';
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 import { fakePlan } from './plan-fakes.js';
+import { ConnectionStore } from '@creator/db';
+import { randomUUID } from 'node:crypto';
 
 const exec = promisify(execFile);
 
@@ -182,5 +187,162 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
       r.state,
     ]),
     [['verification', 'completed']],
+  );
+  // Exercise current production-bound fixture payloads through HTTP; direct store tests missed
+  // the repeated prompt/packet bytes that cross the ordinary 64 KiB ingress cap.
+  detail = await get(`workspaces/${ws}/plan-connections/${conn.id}`);
+  const updated = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/settings`,
+    {
+      expected_version: detail.connection.version,
+      settings: {
+        ...detail.connection.settings,
+        allowed_task_classes: [
+          'summarization',
+          'specification',
+          'research_synthesis',
+          'candidate_generation',
+          'scoring',
+        ],
+      },
+    },
+  );
+  assert.equal(updated.status, 200);
+  for (const benchmarkVersion of [3, 4, 5])
+    for (const taskClass of [
+      'research_synthesis',
+      'candidate_generation',
+      'scoring',
+    ]) {
+      detail = await get(`workspaces/${ws}/plan-connections/${conn.id}`);
+      const manifest = BenchmarkManifestSchema.parse({
+        ...JSON.parse(
+          readFileSync(
+            new URL(
+              `../../config/connections/benchmarks/discovery-synthetic-v${benchmarkVersion}/${taskClass}.json`,
+              import.meta.url,
+            ),
+            'utf8',
+          ),
+        ),
+        fixture: true,
+      });
+      const body = {
+        expected_version: detail.connection.version,
+        model_id: 'fixture-plan-model',
+        manifest,
+        min_held_out_cases: 4,
+        floor: { numerator: 1, denominator: 1 },
+      };
+      assert.ok(Buffer.byteLength(JSON.stringify(body)) > 65536);
+      assert.ok(Buffer.byteLength(JSON.stringify(body)) <= 128 * 1024);
+      assert.ok(
+        manifest.cases.every(
+          (c) => c.input.reduce((n, m) => n + m.text.length, 0) <= 24000,
+        ),
+      );
+      const qualificationPath = `workspaces/${ws}/plan-connections/${conn.id}/qualifications`;
+      const created =
+        taskClass === 'research_synthesis'
+          ? await new Promise<{ status: number; body: any }>(
+              (resolve, reject) => {
+                const text = JSON.stringify(body);
+                const req = httpRequest(
+                  `${base}/${qualificationPath}`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...auth.write,
+                      'Transfer-Encoding': 'chunked',
+                    },
+                  },
+                  (res) => {
+                    let raw = '';
+                    res.on('data', (c) => (raw += c));
+                    res.on('end', () =>
+                      resolve({
+                        status: res.statusCode!,
+                        body: JSON.parse(raw),
+                      }),
+                    );
+                  },
+                );
+                req.on('error', reject);
+                req.write(text.slice(0, 35000));
+                req.end(text.slice(35000));
+              },
+            )
+          : await post(qualificationPath, body);
+      assert.equal(created.status, 201, JSON.stringify(created.body));
+      assert.equal(created.body.state, 'running');
+      // End this zero-dispatch fixture qualification before creating the next
+      // version for the same model/class; preserve production single-active admission.
+      await new ConnectionStore(db.pool).finishPlanQualification(
+        {
+          actorId: (await get('auth/session')).actor_id,
+          correlationId: randomUUID(),
+        },
+        ws,
+        created.body.id,
+      );
+    }
+  const route = `workspaces/${ws}/plan-connections/${conn.id}/qualifications`;
+  const tooBig = await post(route, { padding: 'x'.repeat(128 * 1024) });
+  assert.equal(tooBig.status, 413);
+  const ordinary = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/settings`,
+    { padding: 'x'.repeat(65536) },
+  );
+  assert.equal(ordinary.status, 413, 'unrelated actions keep the 64 KiB cap');
+  const unauth = await fetch(`${base}/${route}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ padding: 'x'.repeat(70000) }),
+  });
+  assert.equal(
+    unauth.status,
+    401,
+    'larger ingress allowance does not bypass sign-in',
+  );
+  const chunked = await new Promise<number | 'ECONNRESET'>(
+    (resolve, reject) => {
+      const req = httpRequest(
+        `${base}/${route}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...auth.write,
+            'Transfer-Encoding': 'chunked',
+          },
+        },
+        (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode!));
+        },
+      );
+      req.on('error', (e) => {
+        if ((e as NodeJS.ErrnoException).code === 'ECONNRESET')
+          resolve('ECONNRESET');
+        else reject(e);
+      });
+      req.write('{"padding":"' + 'x'.repeat(70000));
+      req.end('x'.repeat(70000) + '"}');
+    },
+  );
+  assert.ok(
+    chunked === 413 || chunked === 'ECONNRESET',
+    'oversized chunked body is rejected or its stream is closed',
+  );
+  assert.equal(
+    (await fetch(`${base}/health`)).status,
+    200,
+    'server remains healthy after oversized streaming input',
+  );
+  assert.equal(
+    fake.responseRequests.length,
+    1,
+    'manifest creation and rejection send no inference requests',
   );
 });

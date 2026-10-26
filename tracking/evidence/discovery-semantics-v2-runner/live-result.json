@@ -1,0 +1,72 @@
+{
+  "format": "semantics-v2-live-result/1",
+  "recorded_at": "2026-10-22T18:05:02.648Z",
+  "authorization_plan_hash": "1fd2ee8f8925af3e31ec7265b25c087e0b6dd021ca1c2183bf946eafc3b1af6f",
+  "execution_plan_hash": "4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c",
+  "status": "operational_contract_qualified_substantive_review_pending",
+  "suite_requests": 12,
+  "availability_requests": 1,
+  "total_new_provider_requests": 13,
+  "retries": 0,
+  "suite_all_completed_and_accepted": true,
+  "qualifications": [
+    {
+      "id": "c70edb6d-a9e1-44ba-8158-358fff49ab13",
+      "task_class": "candidate_generation",
+      "state": "qualified",
+      "development": {
+        "total": 2,
+        "passed": 2
+      },
+      "held_out": {
+        "total": 4,
+        "passed": 4
+      },
+      "manifest_hash": "b3917017220748fcb192f593be866040ae9013230fcf54dc065bd5b403c08e74"
+    },
+    {
+      "id": "4e7b382b-a09e-44d3-805c-47f11bf526ed",
+      "task_class": "scoring",
+      "state": "qualified",
+      "development": {
+        "total": 2,
+        "passed": 2
+      },
+      "held_out": {
+        "total": 4,
+        "passed": 4
+      },
+      "manifest_hash": "d4031d225e3666c49bf6f820d693736c7410d156b2f6835d5bc36a0d20535576"
+    }
+  ],
+  "saved_requests": 57,
+  "request_states": {
+    "completed": 55,
+    "reconciled": 1,
+    "failed": 1
+  },
+  "old44_records_preserved": true,
+  "active": 0,
+  "unknown": 0,
+  "remaining_studio_slots": 18,
+  "credits": "confirmed_off",
+  "settings_unchanged": true,
+  "all_locks_preserved": true,
+  "substantive_review": "required_not_performed",
+  "provider_calls_in_reconciliation": 0,
+  "artifact_sha256": {
+    "tracking/evidence/discovery-semantics-v2-live-authorization/owner-decision.json": "b38d2433b2b1cc6b5f8cdf3af257d66973610ed3bbd9e399d50f07cabfbc71fa",
+    "tracking/evidence/discovery-semantics-v2-live-authorization/operation.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tracking/evidence/discovery-semantics-v2-live-authorization/availability/operation.lock": "be57826fc993694f7ae47e1c3deb27d2d05ac807bbaf080cf3f77498b0635dd0",
+    "tracking/evidence/discovery-semantics-v2-live-authorization/availability/result.json": "8b91d354ecebc0f2e5bac7e582703203293424ce08cc42a24f127ed9653c40fd",
+    "tracking/evidence/discovery-semantics-v2-live-authorization/availability/grant.json": "0dc4da97ada461647805c71c18f752656211ec351feca7bf99cb932327758ce9",
+    "tracking/evidence/discovery-semantics-v2-runner/run.lock": "39e8e6c9220654ae5359295ea52b006c051a5f7484b716d0e5609b9b49956604",
+    "tracking/evidence/discovery-semantics-v2-runner/execution-intent.json": "b0b5733d413b429f96c8981d3addb508fdbb60b65bf57bb6af5c022105c42ab1",
+    "tracking/evidence/discovery-semantics-v2-runner/raw-results.json": "ce351a4778e3cfa46683efb6d9e13cbed4965a8df0ce404a5b6c0671afd6313a",
+    "tracking/evidence/discovery-semantics-v2-runner/execution-outcome.json": "b16d16390a20e9cbdc58624968539fb1a929c779aec47fe6b6f3de246165c518",
+    "tracking/evidence/discovery-semantics-v2-runner/decisions.json": "9335d9f8c555343d2af1c552b602f264eb476e7dc21e38813cd08e1ed9fa9472",
+    "tracking/evidence/discovery-semantics-v2-runner/substantive-review.json": "80f34f3d9e4d2afaa97d23fa10e79722349b60369bfcb3b980f88efb4960cc34",
+    "tracking/evidence/discovery-semantics-v2-runner/full-record-reconciliation.json": "df67794ba6d8d6afadf2b004923f2410dc1e24bba7ea1457168aed1229f6ffd1",
+    "tracking/evidence/discovery-semantics-v2-installation/authenticated-readiness-6e9a5233-25dd-4dfd-a4fb-8000abbc6d66.json": "dfff1d8616a9273656f5a48f04887430d7a6ed57022e4a7527b689bf02ebd297"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "implementation_artifacts_verified": 26,
+  "legacy_contracts_verified_unchanged": [
+    "packages/contracts/dist/discovery.js",
+    "packages/contracts/dist/research.js",
+    "packages/contracts/dist/selection.js",
+    "packages/contracts/dist/study.js",
+    "packages/contracts/src/discovery.ts"
+  ],
+  "metadata_format_observed": "passed",
+  "metadata_format_issue": "format is passed, not a schema/version identifier; not used as acceptance authority",
+  "pure_domain_tests": 1,
+  "actual_handler_input_loss_reproduced": true,
+  "no_database_or_network_access": true
+}

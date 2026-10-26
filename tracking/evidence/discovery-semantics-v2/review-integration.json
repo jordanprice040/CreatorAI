@@ -1,0 +1,27 @@
+{
+  "format": "discovery-semantics-review-integration/1",
+  "integrated_at": "2026-10-22T17:15:36.173Z",
+  "reviews": [
+    {
+      "version": 1,
+      "receipt": "tracking/evidence/discovery-semantics-v1-review-2026-10-22/reviewer-receipt.json",
+      "receipt_sha256": "be2dc89059ad23362881bfbc269945dc85342b30a1738a614fe69ff95cd48463",
+      "status": "partial_additive_repair_required",
+      "verified_hashes": 19
+    },
+    {
+      "version": 2,
+      "receipt": "tracking/evidence/discovery-semantics-v2-review-2026-10-22/reviewer-receipt.json",
+      "receipt_sha256": "8ea158b8c8ad9c3dcf423ee957c6461c64ea502bcf6e8d3f027cb6b44266dcc0",
+      "status": "supported_bounded_offline_packet",
+      "verified_hashes": 22
+    }
+  ],
+  "verified_hashes": 41,
+  "current_packet": "discovery-semantics-v2",
+  "v1_preserved": true,
+  "provider_calls": 0,
+  "installed_binding": false,
+  "execution_plan_ready": false,
+  "next_eligible": "Exact distributable packaging and supported installation/execution binding"
+}

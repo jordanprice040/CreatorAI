@@ -1,0 +1,24 @@
+{
+  "format": "theme-intent-helper-v2-test-observations/1",
+  "fixture": true,
+  "root": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792805317469",
+  "observed": [
+    "blocked review presecret",
+    "before populated snapshot/lifecycle",
+    "all successful phases via PowerShell/candidate",
+    "populated coordinated recovery",
+    "after-admission recovery",
+    "after-installer recovery",
+    "after-migration-intent recovery",
+    "after-migration-child recovery",
+    "hard-crash-after-migration-intent recovery",
+    "child nonzero",
+    "child malformed",
+    "child timeout",
+    "aged verification and interrupted protected recovery"
+  ],
+  "listening_after": false,
+  "fixture_installer": true,
+  "nsis_executed": false,
+  "operational_state_accessed": false
+}

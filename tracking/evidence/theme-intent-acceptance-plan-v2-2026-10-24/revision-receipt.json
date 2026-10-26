@@ -1,0 +1,60 @@
+{
+  "format": "theme-intent-installed-acceptance-plan-revision/2",
+  "status": "document_revised_independent_review_required_execution_blocked",
+  "recorded_at": "2026-10-24T11:31:52.082Z",
+  "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "proposed_helper_map_source": "tracking/evidence/theme-intent-upgrade-helper-v4-2026-10-24/repair-receipt.json",
+  "proposed_helper_receipt_sha256": "d08df8225de5a5300c572208b19bc5afcbd1e660b90300587000ca106574ec11",
+  "artifact_sha256": {
+    "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V2_2026-10-24.md": "754a9873965c6d223fae3126d6d1b8cf8fbddb913190d9c93c7543615e67c592",
+    "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_REVIEW_2026-10-24.md": "d19d673378acb196191bd6203e4248cc0c1b7a16bcbfc201e787f644ef8c6463",
+    "apps/web/src/theme-intent.tsx": "4909dbf8b96b8ca54ac3590d6eed09c7fbf1b4d1ba4499766d663c48818c08de",
+    "apps/web/src/catalog.tsx": "2dbe35fcd42bab34894f59d66ebe9f70db1e4ff0f1d30339547f800b9c77d043",
+    "apps/web/src/activity.tsx": "e18d2652c4243e7292669050bdf67fe9ab604c850eecd1727c244dd4693cdfd7",
+    "apps/web/src/budgets.tsx": "b35007e6c9314086e23c6988ab45b68f5b5f880de01f0ccb204a53b46d58c389",
+    "apps/web/src/operations.tsx": "e153ae7898ed5f90bb69edd7e2d3428127e3932506691f6389dc7a7fa07fd999",
+    "scripts/theme-intent-upgrade-v4.mjs": "9d0d32dd9547556b866a68365f303883a066534404369984a53036c6a4700bca",
+    "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+    "tracking/evidence/theme-intent-acceptance-plan-v2-2026-10-24/preserved-inputs.json": "6085c1cf1b2b3c8606bcef367286ffa31c61919a82d5dc5f535ad8deeb494670"
+  },
+  "checks": {
+    "original_plan_review_and_v4_receipt_unchanged": true,
+    "v4_artifacts_unchanged": 168,
+    "checklist_case_identifiers_present": true,
+    "source_inspection": "UI visibility, content-hash binding, actual v4 verification fields, native startup/worker boundaries",
+    "markdown_format": "passed"
+  },
+  "review_disposition": {
+    "A0": "Pre-launch native-layout exact-helper receipt and timeline",
+    "A1": "Unexpected control state and GUI migration stop",
+    "A2": "Worker/startup bookkeeping categories with limited observation",
+    "A3": "UI-only, whole-database and exhaustive zero dispatch explicitly unverified",
+    "A4": "Two-record visible ledger and empty baseline",
+    "A5": "Plan rendering means declaration wiring, not dispatch measurement",
+    "A6": "Explicit Quit/relaunch and no-op-save version/activity checks",
+    "A7": "Last-click pending target and deliberate Resume B again",
+    "A8": "Retain by default; no executable archival path",
+    "A9": "Separate installer outcomes and scoped read-only registry/shortcut observations",
+    "A10": "F/I/R/N/H separately; Jordan statement alone establishes human acceptance",
+    "A11": "Named workspace, owner/editor and explicit mutation scope",
+    "A12": "Dispatch/exposure/control/auth/unexplained-state stop rules",
+    "A13": "Current v3 failure/v4 candidate status and separate identity fields"
+  },
+  "independent_review": false,
+  "acceptance_tests_executed": 0,
+  "helpers_executed": 0,
+  "operational_access": false,
+  "provider_calls": 0,
+  "workflows_activated": 0,
+  "retired_checkout_accessed": false,
+  "limitations": [
+    "No UI control identified for disabling worker or observing live scheduler-off state; unknown runtime scheduling still blocks execution",
+    "No raw content-hash or whole-database post-UI equality observation",
+    "No exhaustive zero-dispatch certification",
+    "Helper review and operational/install/pre-launch/session gates remain",
+    "Real NSIS/registry/shortcuts/native UI/human acceptance unexecuted"
+  ],
+  "next": "Independent exact-v2 checklist review alongside resulting reviewed helper identity",
+  "full_C54": "partial"
+}

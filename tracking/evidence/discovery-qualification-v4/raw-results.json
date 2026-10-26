@@ -1,0 +1,92 @@
+[
+  {
+    "task_class": "research_synthesis",
+    "case_id": "loc-dev-audio-digests",
+    "split": "development",
+    "signal": "accepted",
+    "request_id": "0197e81d-da37-495d-9982-a8c664ab870e",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\n  \"problem_statement\": \"Within the simulation, museum staff recorded audio-guide faults as counts of three and five in one observer's notes, then copied those notes into two digests (C1). This supports a bounded concern about reported faults, not a verified count of eight distinct faults or a quantified recurring failure rate. Unknown dates, device identities and overlap prevent assessing recurrence; severity and causes are also unassessed (C2). The need remains exploratory, and these synthetic records do not establish real-world need, customer validation or benefit.\",\n  \"affected_users\": \"Simulated museum staff recording audio-guide faults (C1). Effects on visitors or other users are not documented.\",\n  \"observable_problem\": \"One observer's notes report counts of three and five audio-guide faults; two digests copy those records rather than independently corroborating them (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Unknown: counts of three and five lack dates, total uses and overlap information, so neither distinct fault totals nor a recurrence rate can be established (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [\n    {\n      \"description\": \"Staff log faults in observer notes that are copied into two digests. This is an observed reporting practice, not evidence of a repair or effective operational workaround.\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"alternatives\": [\n    {\n      \"description\": \"Defer tool selection and first clarify dates, device identities, total uses and record overlap through human review. This is a proposed evidence-gathering step, not an observed or tested alternative; current alternatives are unassessed.\",\n      \"claim_refs\": [\"C2\"]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"C1 and C2 describe fault reports and evidence limitations, not a supported transferable mechanism between evidence assessment and community operations. A cross-field intervention would be speculative.\",\n  \"evidence_strength\": \"exploratory\",\n  \"gaps\": [\n    \"All available evidence is author-created simulation; it establishes no real-world need, customer validation or intervention benefit.\",\n    \"One observer's notes and two copied digests constitute one origin, not independent corroboration (C1, C2).\",\n    \"Dates, device identities and overlap are unknown; counts cannot safely be summed or used to establish recurrence (C2).\",\n    \"Total uses are unknown, preventing calculation of faults per use; no measured baseline outcome is available (C2).\",\n    \"Severity, causes and visitor impact are unassessed; operational urgency cannot be determined (C2).\",\n    \"Current alternatives and repair workarounds are unassessed; the supplied catalog is empty and no external search is available.\",\n    \"Only supplied synthetic statements are accessible. Defer software recommendation pending clarified incident records and assessment of maintenance or other non-software responses.\"\n  ]\n}",
+      "output_chars": 3023,
+      "output_tokens": 638,
+      "response_id": "resp_0ad01cedf60a4abf016ad85e67a4d087d185a6fa6efc8468a2",
+      "output_hash": "9fcb00527dffc144bd4777bb56c4a1e6a968041f6b5666076cefed2c4a6f53e6"
+    }
+  },
+  {
+    "task_class": "research_synthesis",
+    "case_id": "loc-dev-kiln-logs",
+    "split": "development",
+    "signal": "accepted",
+    "request_id": "e9aafc11-46d1-4c26-a4e8-96a59a3a7923",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\n  \"problem_statement\": \"Within the supplied simulation, kiln bookings experience recurring delays: two independently authored logs each record four delayed bookings out of twenty over matching stated weeks using the same delay definition (C1). Disjoint booking identifiers and independent recording support corroboration within this bounded scope; no material contrary observation is supplied (C2). The observed need is well supported within the simulation, but causes, broader prevalence and intervention benefit remain untested (C3). This does not establish real-world need or customer validation.\",\n  \"affected_users\": \"Simulated kiln-booking participants whose bookings are delayed; participant roles, numbers of unique people and downstream impacts are not specified (C1).\",\n  \"observable_problem\": \"Each of two independent simulated logs records 4 delayed bookings among 20 bookings over matching stated weeks, with a shared delay definition (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"4 of 20 bookings (20%) in each log during matching stated weeks; exact dates and recurrence beyond those windows are not provided (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\n      \"C1\",\n      \"C2\",\n      \"C3\"\n    ]\n  },\n  \"workarounds\": [],\n  \"alternatives\": [],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"No supplied claim supports a transferable mechanism between evidence assessment and community operations. Corroborated delay counts establish an observed pattern, not an intervention mechanism (C1–C3).\",\n  \"evidence_strength\": \"well_supported\",\n  \"gaps\": [\n    \"All observations are author-created synthetic statements. Independent origins are stipulated within the simulation, not independently verified real-world sources (C1, C2).\",\n    \"Only supplied statements are accessible, not underlying booking records. Exact dates and the operational delay threshold are not reproduced, although matching windows and definitions are asserted (C1, C2).\",\n    \"Delay duration, consequences, participant priorities and acceptable delay rates are unknown; severity cannot be assessed (C1–C3).\",\n    \"Causes and wider generalization remain untested. No material contrary observation is supplied within the bounded simulation (C2, C3).\",\n    \"No actual workaround, existing tool or alternative is described. Claim-role labels do not establish these facts; no catalog evidence or external search is available.\",\n    \"No software benefit or cross-field intervention mechanism is supported. Defer intervention selection pending causal evidence and comparison with existing tools, operational changes and human review (C3).\",\n    \"Delayed bookings divided by total bookings is an available baseline measure, not a measured intervention outcome. No tests or customer validation are supplied (C1, C3).\"\n  ]\n}",
+      "output_chars": 2850,
+      "output_tokens": 584,
+      "response_id": "resp_0c002bb49cfe3bd4016ad85e7d85c487d1a8b101400cec42da",
+      "output_hash": "61d17801f17d828d5839908ae669cdf534bbe1dd651f0f422c8d07439482d49c"
+    }
+  },
+  {
+    "task_class": "research_synthesis",
+    "case_id": "loc-held-seed-units",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "d53f5680-ce81-4435-b5d2-6fe05fceaceb",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\n  \"problem_statement\": \"Within the simulation, a seed bank's report counts eight delayed lots, but its copied summary counts eight delayed individual envelopes (C1). Units and observation windows differ without a mapping, so the records cannot establish a common delay count (C2). This supports an exploratory reporting-comparability problem, not a quantified recurring delay problem. Recurrence and operational consequences are unmeasured; the synthetic records do not establish real-world need.\",\n  \"affected_users\": \"Simulated seed-bank participants using the original report and copied summary; specific roles and numbers affected are not supplied (C1).\",\n  \"observable_problem\": \"The original report and copied summary use different counting units and observation windows, preventing a comparable delay count (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Recurrence is unknown. Eight lots and eight envelopes are not interchangeable counts, and the observation windows cannot be aligned from the supplied evidence (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [\n    {\n      \"description\": \"A copied summary exists, but it reports envelopes rather than lots; it is not shown to resolve the reporting problem (C1, C2).\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"alternatives\": [\n    {\n      \"description\": \"Prefer human reconciliation before automation: establish lot-to-envelope relationships and observation windows, or retain separately labeled counts when reconciliation is impossible. This is a proposed response, not an observed practice.\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"No supplied claim supports a transferable mechanism between evidence assessment and community operations. The packet establishes incompatible records, not the feasibility or benefit of a cross-field intervention (C1, C2).\",\n  \"evidence_strength\": \"exploratory\",\n  \"gaps\": [\n    \"C1 and C2 are single-author synthetic observations; the copied summary is not independent corroboration. Internal support does not establish real-world need, customer validation or benefit.\",\n    \"No unit mapping or aligned observation windows are available. A common delay count, delay rate or trend cannot be calculated (C2).\",\n    \"Recurrence, delay duration, operational consequences and affected participant counts are not measured; urgency remains unknown (C1, C2).\",\n    \"Only supplied statements are accessible. Underlying records and metadata are absent, preventing reconciliation or a baseline measure of reporting accuracy.\",\n    \"The catalog is empty and no existing tool evaluations are supplied. No external search or tests were performed; software benefit and a transferable mechanism remain unsupported.\",\n    \"Defer intervention selection pending unit definitions, observation windows and source-record reconciliation. Evidence of repeated mismatches and their costs would change the recommendation.\"\n  ]\n}",
+      "output_chars": 3035,
+      "output_tokens": 620,
+      "response_id": "resp_082d6461e3cd0f90016ad85e91c3bc87d1a6bebe7c4db1561d",
+      "output_hash": "4f81b5622cbba3d03d80f30e53ba7614a7f6d097f106743ef7826decb8ed1586"
+    }
+  },
+  {
+    "task_class": "research_synthesis",
+    "case_id": "loc-held-ferry-procedure",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "1aacc4ac-00c6-4992-954f-370c97f56c05",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\n  \"problem_statement\": \"Historical ferry boarding queueing is described only under a retired procedure (C1). The replacement procedure has no current queue observations, so a recurring present-day problem cannot be established (C2). Defer intervention selection pending current observations; the supplied simulation does not establish real-world need or benefit.\",\n  \"affected_users\": \"Simulated ferry boarding participants under the retired procedure; who, if anyone, experiences queueing under the replacement procedure is unknown (C1, C2).\",\n  \"observable_problem\": \"Queueing was reported under the retired boarding procedure, but current queue occurrence, duration and recurrence are unobserved (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Unknown for the replacement procedure; the obsolete report cannot establish current frequency (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [],\n  \"alternatives\": [\n    {\n      \"description\": \"Defer software selection. If separately authorized, obtain current boarding observations under the replacement procedure before deciding whether operational changes or tools are needed.\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"C1 and C2 provide no supported transferable mechanism between evidence assessment and community operations; they establish only that historical evidence cannot characterize the replacement procedure.\",\n  \"evidence_strength\": \"insufficient\",\n  \"gaps\": [\n    \"C1 and C2 are author-created synthetic statements, not retrieved sources or real-world validation; independent corroboration is not established.\",\n    \"Both claims require rechecking and have stale supporting passages. No usable current observation supports a recurring need.\",\n    \"Current affected users, queue frequency, waiting duration and severity are unknown; historical queueing cannot be generalized across the procedure change (C1, C2).\",\n    \"No current workarounds, existing tool capabilities or tool gaps are documented. The replacement procedure is not evidence of improvement or failure (C2).\",\n    \"Only supplied statements are accessible; no catalog alternatives or external search evidence are available.\",\n    \"A future assessment could measure queue occurrence per boarding session and waiting duration, but neither baseline nor results are supplied. Current observations could change the deferral recommendation.\"\n  ]\n}",
+      "output_chars": 2500,
+      "output_tokens": 501,
+      "response_id": "resp_065bc30068fe9f16016ad85ea70ae487d1ac25bc6205100306",
+      "output_hash": "5766c504d6a7f279d92567fc8df05e946f6fedcd96866e1555a085f7407c8623"
+    }
+  },
+  {
+    "task_class": "research_synthesis",
+    "case_id": "loc-held-token-transfer",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "1a2697a5-8c73-4eb3-8d82-b2afcfd95e2a",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\n  \"problem_statement\": \"Within the author-created simulation, a tool library reports checkout tokens being returned to the wrong hooks (C1). This is a plausible identification or destination-matching problem, but its cause, recurrence rate and operational consequences are unknown. The single-author evidence supports exploration, not an independently corroborated need or a software recommendation.\",\n  \"affected_users\": \"Simulated tool-library participants returning checkout tokens; staff involvement or burden is not measured (C1).\",\n  \"observable_problem\": \"Checkout tokens are returned to hooks other than their intended destinations (C1); no error count or total number of returns is supplied.\",\n  \"urgency\": {\n    \"frequency\": \"Multiple observations are reported, but neither counts, observation period nor return volume is supplied; recurrence rate is unknown (C1).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\"]\n  },\n  \"workarounds\": [],\n  \"alternatives\": [\n    {\n      \"description\": \"Consider a non-software paired-label procedure: put matching visible identifiers on checkout tokens and their intended hooks. This adapts the luggage procedure, not a documented tool-library workaround or validated solution.\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": {\n    \"from_field\": \"luggage identification\",\n    \"to_field\": \"tool returns\",\n    \"transferred_mechanism\": \"Transfer visible paired identifiers and destination matching: give each checkout token and its intended hook the same visible identifier so a participant can match the pair before returning the token (C2).\",\n    \"why_it_transfers\": \"Both procedures involve matching an identified item to a designated destination. This could help if ambiguous identification contributes to wrong-hook returns, but the cause is unknown and the transfer has not been tested (C1, C2).\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"cross_field_absent_reason\": null,\n  \"evidence_strength\": \"exploratory\",\n  \"gaps\": [\n    \"All evidence is author-created and synthetic; it establishes no real-world need, customer validation or benefit. Single-author observations do not provide independent corroboration (C1, C2).\",\n    \"Counts, observation duration, return volume and operational consequences are absent; frequency and severity cannot be established (C1).\",\n    \"The cause of misplaced tokens is unknown. Paired identifiers may not address the actual cause, and transfer effectiveness remains untested (C2).\",\n    \"No current tool-library workaround, existing-tool assessment or catalog alternative is supplied. Available evidence cannot establish a gap requiring software.\",\n    \"Only supplied synthetic statements are accessible; no return-level dataset is supplied. A future permitted assessment could measure wrong-hook returns divided by total returns, but no baseline exists.\",\n    \"Defer software recommendation. Further investigation would need observed return context, current labeling practices and error counts to distinguish an identification problem from other causes.\"\n  ]\n}",
+      "output_chars": 3093,
+      "output_tokens": 626,
+      "response_id": "resp_0f4c5bed08fd53e4016ad85eb9307c87d191a0c2b97c82d9f4",
+      "output_hash": "4fa4bc982d48ac36b5b94621381817372254d2ab136851bc10cad4762d9fd542"
+    }
+  },
+  {
+    "task_class": "research_synthesis",
+    "case_id": "loc-held-rehearsal-wrapper",
+    "split": "held_out",
+    "signal": "provider_error",
+    "request_id": "50fcd841-85c1-4abd-9591-e18655538a2f",
+    "outcome": {
+      "kind": "unknown",
+      "reason_code": "timeout",
+      "message": "timeout",
+      "response_id": "resp_0306953cb8a7ff12016ad85ed6ed9c87d1a478817473f4ca98",
+      "output_chars": 1653,
+      "retry_allowed": false
+    }
+  }
+]

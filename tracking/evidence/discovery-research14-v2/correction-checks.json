@@ -1,0 +1,11 @@
+{
+  "recorded_at": "2026-10-22T22:55:16.354Z",
+  "injection_verdict_checks": {
+    "exploratory": "accepted",
+    "insufficient": "accepted",
+    "well_supported": "acceptance_check_failed"
+  },
+  "observer_label_association": "C1_only",
+  "v1_preparation_hashes_preserved": 7,
+  "provider_calls": 0
+}

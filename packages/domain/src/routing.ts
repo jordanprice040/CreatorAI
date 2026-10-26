@@ -6,6 +6,7 @@ import {
   RegistryModelSchema,
   PricingSnapshotBodySchema,
 } from '@creator/contracts';
+import { checkDiscoveryOutput } from './discovery.js';
 import { canonicalHash } from './rules.js';
 import type {
   ArmSummary,
@@ -209,6 +210,88 @@ export function checkOutput(
         ? 'schema_invalid'
         : 'provider_error';
   switch (check.kind) {
+    case 'discovery_contract': {
+      if (canonicalHash(check.packet) !== check.context.packet_hash)
+        return 'acceptance_check_failed';
+      const validated = checkDiscoveryOutput(
+        check.task_kind,
+        output.json,
+        check.packet,
+        check.context,
+      );
+      if (!validated.ok)
+        return validated.problem === 'does not match the output schema'
+          ? 'schema_invalid'
+          : 'acceptance_check_failed';
+      if ((output.json as { fixture?: boolean }).fixture === true)
+        return 'acceptance_check_failed';
+      const valuesAt = (value: unknown, path: string[]): unknown[] => {
+        if (!path.length) return [value];
+        const [key, ...rest] = path;
+        if (key === '*')
+          return Array.isArray(value)
+            ? value.flatMap((v) => valuesAt(v, rest))
+            : [];
+        if (!value || typeof value !== 'object' || !Object.hasOwn(value, key!))
+          return [];
+        return valuesAt((value as Record<string, unknown>)[key!], rest);
+      };
+      const same = (a: unknown, b: unknown) =>
+        JSON.stringify(a) === JSON.stringify(b);
+      return check.assertions.every((a) => {
+        let target: unknown = output.json;
+        if (a.select) {
+          if (check.task_kind !== 'skeptic') return false;
+          const reviews = (
+            output.json as {
+              reviews: {
+                proposal: string;
+                findings: {
+                  type: string;
+                  catalog_ref: string | null;
+                  claim_refs: string[];
+                }[];
+              }[];
+            }
+          ).reviews;
+          const selected = reviews.filter(
+            (r) => r.proposal === a.select!.proposal,
+          );
+          if (selected.length !== 1) return false;
+          target = selected[0];
+          const f = a.select.finding;
+          if (f) {
+            const findings = selected[0]!.findings.filter(
+              (r) =>
+                r.type === f.type &&
+                (f.catalog_ref === undefined ||
+                  r.catalog_ref === f.catalog_ref) &&
+                (f.claim_ref === undefined ||
+                  r.claim_refs.includes(f.claim_ref)),
+            );
+            // Ambiguity must not silently choose the first matching finding.
+            if (findings.length !== 1) return false;
+            target = findings[0];
+          }
+        }
+        const found = valuesAt(target, a.path);
+        if (!found.length) return false;
+        if (a.op === 'nonempty')
+          return found.every((v) =>
+            typeof v === 'string'
+              ? !!v.trim()
+              : Array.isArray(v) && v.length > 0,
+          );
+        if (a.op === 'equals') return found.every((v) => same(v, a.value));
+        if (a.op === 'one_of')
+          return found.every((v) => a.values!.some((x) => same(x, v)));
+        return found.some((v) =>
+          Array.isArray(v) ? v.some((x) => same(x, a.value)) : same(v, a.value),
+        );
+      })
+        ? 'accepted'
+        : 'acceptance_check_failed';
+    }
     case 'json_keys': {
       const j = output.json;
       if (j === null || typeof j !== 'object' || Array.isArray(j))

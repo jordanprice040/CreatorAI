@@ -1,0 +1,71 @@
+{
+  "format": "discovery-followup-v2-live-result/1",
+  "recorded_at": "2026-10-22T05:05:48.682Z",
+  "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+  "status": "stopped_at_first_scoring_development_failure",
+  "suite_requests": 7,
+  "availability_refresh_requests": 1,
+  "provider_completed_suite_requests": 7,
+  "accepted_suite_outputs": 6,
+  "retries": 0,
+  "candidate_generation": {
+    "id": "55ee7dc0-5f27-412a-82f5-8fa2676e38ee",
+    "task_class": "candidate_generation",
+    "model_id": "gpt-6-astra",
+    "state": "qualified",
+    "manifest_hash": "1bcf12f4f8a5f007563c3103ed4e3ddf358d7ee93775ea6a3e881395a5dc7f58"
+  },
+  "candidate_generation_counts": {
+    "development": {
+      "passed": 2,
+      "total": 2
+    },
+    "held_out": {
+      "passed": 4,
+      "total": 4
+    }
+  },
+  "scoring": {
+    "id": "e01bb3cb-e2f2-4030-9373-18a3521e46d1",
+    "task_class": "scoring",
+    "model_id": "gpt-6-astra",
+    "state": "failed",
+    "manifest_hash": "3e55a79b91497a2db0da660360a962ef75e6090c6a6f1958a06223821dad6e98"
+  },
+  "scoring_attempted": 1,
+  "scoring_unattempted": 5,
+  "failed_assertion_indexes": [
+    4,
+    8
+  ],
+  "substantive_review": "required_not_performed",
+  "credits": "confirmed_off",
+  "settings_match_plan": true,
+  "saved_requests": {
+    "total": 44,
+    "states": {
+      "completed": 42,
+      "failed": 1,
+      "reconciled": 1
+    }
+  },
+  "usage": {
+    "last_24h_requests": 33,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "remaining_studio_slots": 7,
+  "run_lock_preserved": true,
+  "automatic_next_milestone": false,
+  "artifact_sha256": {
+    "tracking/evidence/discovery-followup-v2/raw-results.json": "eb5fdd2936a0bad069fead99f09329ded691fb032079a85fe84e0b9f8f5f1c02",
+    "tracking/evidence/discovery-followup-v2/stopped.json": "7d9abacc4adfa628833e4af8d1dd6f0963b133a1a5aa7e0642a7bba1680b09e3",
+    "tracking/evidence/discovery-followup-v2/run.lock": "b0c9bd5f93ac9d162f4fd51084805e6e17e584fdcff761a07b3bf5def054c5af",
+    "tracking/evidence/discovery-followup-v2/failed-case-diagnosis.json": "846793de5fd33041ea9c503df1c7fbabbb1bfa717449632ef1bcefbf4995c5a5",
+    "tracking/evidence/discovery-followup-v2/owner-execution-decision.json": "620f53f4d5b8589f2ec58bc7162a18c40a4c95262c8916cbdc43bf0008b5cc93",
+    "tracking/evidence/discovery-followup-v2/owner-refresh-decision.json": "b276a3a3a96541fe11bfb3852a5b974804a6a32435a596e8c38cff9788fa37f3",
+    "tracking/evidence/followup-v2-availability-refresh/result.json": "8fbeff97536390551496ff105c738c4159766bb9f64a7c84eb17983f4ee0b3af",
+    "tracking/evidence/discovery-followup-v2/authenticated-readiness-041e0c94-e2b4-4f2a-b44d-783a6dda264c.json": "feeec92b6784dc72a07c51c0800ed1a7ac49ddbf7aea978dc2e502722fe73e68"
+  }
+}

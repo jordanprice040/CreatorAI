@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-21T00:07:07.380Z",
+  "state": "offline_review_complete_v2_design_only",
+  "new_provider_calls": 0,
+  "original_plan_hash": "de5297fdbd86635a6301cf6a53147cebec4bcf467d77dabbfa56132dc16346b4",
+  "original_manifest_bytes_unchanged": true,
+  "source_bindings_verified": 117,
+  "original_run_lock_preserved": true,
+  "strict_confidence_cases": [
+    "dev-transfer",
+    "held-source-instruction"
+  ],
+  "production_contract_passed": true,
+  "original_frozen_signal": "acceptance_check_failed",
+  "original_outcome_unchanged": true,
+  "diagnostic": "Label scope is ambiguous; review does not retroactively qualify the response.",
+  "proposal_hash": "db5e4d5f007ee5891da6763200421791b1ec1759056767d3e8200bff5897525c",
+  "proposed_cases": 18,
+  "live_execution_authorized": false
+}

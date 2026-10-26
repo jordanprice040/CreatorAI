@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-22T04:08:16.773Z",
+  "local_health": "unreachable",
+  "error_code": "EACCES",
+  "authenticated_quota_checked": false,
+  "provider_availability": "not_observed",
+  "provider_calls": 0
+}

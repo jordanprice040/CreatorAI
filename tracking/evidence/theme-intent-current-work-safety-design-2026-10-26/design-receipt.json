@@ -1,0 +1,40 @@
+{
+  "format": "theme-intent-current-work-safety-design/1",
+  "date": "2026-10-26",
+  "author": "Codex; authored reconciliation/amendments; not independent review",
+  "status": "conditional_database_only_inspection_design_operationally_deferred",
+  "design_sha256": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "input_snapshot_sha256": "4a30e192d4d32ab9877a6451395fe50fbdf8cfd6c287d54c758e6edb3bded207",
+  "preserved_input_count": 330,
+  "preservation_mismatches": [],
+  "directly_matched_package_review_inputs": {
+    "packages/broker/src/plan-service.ts": "2380ba801298d3ecc9d5061aba352d4623d084cf167ede98dad2a450c23ae4a8",
+    "apps/api/src/index.ts": "ba03f87729b2ac377370dceb61bb2f03b345f79786995f75d89402a3142edc78",
+    "apps/api/src/studio.ts": "490756ec1af4dc7a907ff0634a55b40861fa76069da26c17a08cce081957488f",
+    ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88"
+  },
+  "local_links": 4,
+  "checks": [
+    "Repository static source/bundle inspection",
+    "Direct SHA256 package-map comparison",
+    "Input preservation rehash",
+    "New-document formatting/local-link/whitespace"
+  ],
+  "not_run": [
+    "Tests",
+    "Historical verifiers",
+    "Operational reads",
+    "SQL or credentials",
+    "Launch or sign-in",
+    "Implementation",
+    "Helpers/install/migration/recovery"
+  ],
+  "limitations": [
+    "Snapshot captured after reading inputs, before authoring",
+    "Other source is navigation aid unless independently bound",
+    "No current operational or native state observed",
+    "Producer exclusion unknown; no acceptance admission",
+    "Initial failed path searches and one PowerShell parse-only command error corrected; no checks implied by failures"
+  ],
+  "next": "Independent repository-only design review; no implementation/execution"
+}

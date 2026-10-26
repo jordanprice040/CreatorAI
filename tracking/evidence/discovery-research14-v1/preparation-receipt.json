@@ -1,0 +1,21 @@
+{
+  "format": "research14-packet-preparation/1",
+  "recorded_at": "2026-10-22T22:51:20.108Z",
+  "freeze_hash": "8aead115a755b6581627e34900f1ef58e2a4c0e26f6daf490e50f9791eb3da67",
+  "cases": 6,
+  "controls": 54,
+  "substantive_criteria": 18,
+  "installed_candidate_unchanged": true,
+  "independent_review": "pending",
+  "executable_plan": false,
+  "provider_calls": 0,
+  "artifact_sha256": {
+    "scripts/prepare-discovery-research14-v1.mjs": "50954d180350e8449d2f80d37404c22f4b4e4d942d672977f65eb9e107bf2850",
+    "scripts/check-discovery-research14-v1.mjs": "2c0fc3527fe1d15576157ed54bb3b7f846810678289c20fd5ba338bb799ec20f",
+    "docs/DISCOVERY_RESEARCH14_V1.md": "3d10ca8dfba5fb2606bc821d10054a5dab74c375bf9a991abb654babf910c057",
+    "tracking/evidence/discovery-research14-v1/freeze.json": "f67fbf5e907b9119caa13ca87430b73c0dcf5784e4ec2e056710aecb32eaac12",
+    "tracking/evidence/discovery-research14-v1/review-plan.json": "e65b4a5b7432a9b3baaf66de3390aef877210ca59fbd3be5c17070d5af0e727b",
+    "tracking/evidence/discovery-research14-v1/validation-result.json": "a7d6222a50dd224f17eb0509472b86f04c6948c316137f08292fd6725b791480",
+    "tracking/evidence/discovery-research14-v1/preparation-result.json": "4183ad75bc15dbfba2853f1916ca264b0e54d8eb19cd211605d7eb4677d3ae2e"
+  }
+}

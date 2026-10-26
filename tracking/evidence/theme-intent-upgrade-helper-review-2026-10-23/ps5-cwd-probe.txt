@@ -1,0 +1,5 @@
+PS location      : C:\dev\creator_agent
+.NET CurrentDir  : C:\Users\jorda\AppData\Local\Temp
+GetFullPath(rel) : C:\Users\jorda\AppData\Local\Temp\.verification\theme-intent-artifacts-2026-10-23\Creator Agent_0.1.0_x64-setup.exe
+Test-Path that   : False
+node cwd         : C:\dev\creator_agent

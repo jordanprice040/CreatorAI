@@ -1,0 +1,54 @@
+{
+  "state": "required_not_performed",
+  "qualification_scope": "automated_operational_contract_only",
+  "outputs": [
+    {
+      "case_id": "loc-dev-audio-digests",
+      "request_id": "0197e81d-da37-495d-9982-a8c664ab870e",
+      "output_hash": "9fcb00527dffc144bd4777bb56c4a1e6a968041f6b5666076cefed2c4a6f53e6",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "loc-dev-kiln-logs",
+      "request_id": "e9aafc11-46d1-4c26-a4e8-96a59a3a7923",
+      "output_hash": "61d17801f17d828d5839908ae669cdf534bbe1dd651f0f422c8d07439482d49c",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "loc-held-seed-units",
+      "request_id": "d53f5680-ce81-4435-b5d2-6fe05fceaceb",
+      "output_hash": "4f81b5622cbba3d03d80f30e53ba7614a7f6d097f106743ef7826decb8ed1586",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "loc-held-ferry-procedure",
+      "request_id": "1aacc4ac-00c6-4992-954f-370c97f56c05",
+      "output_hash": "5766c504d6a7f279d92567fc8df05e946f6fedcd96866e1555a085f7407c8623",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "loc-held-token-transfer",
+      "request_id": "1a2697a5-8c73-4eb3-8d82-b2afcfd95e2a",
+      "output_hash": "4fa4bc982d48ac36b5b94621381817372254d2ab136851bc10cad4762d9fd542",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "loc-held-rehearsal-wrapper",
+      "request_id": "50fcd841-85c1-4abd-9591-e18655538a2f",
+      "output_hash": null,
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    }
+  ]
+}

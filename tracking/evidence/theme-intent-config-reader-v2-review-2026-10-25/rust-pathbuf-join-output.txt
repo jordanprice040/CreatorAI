@@ -1,0 +1,8 @@
+C:\Users\jorda\AppData\Local	c:\users\jorda\appdata\local\com.creatoragent.studio
+C:\Users\jorda\AppData\Local\	c:\users\jorda\appdata\local\com.creatoragent.studio
+C:\Users\jorda\AppData\Local\\	c:\users\jorda\appdata\local\\com.creatoragent.studio
+C:\Users\jorda\AppData\Local/	c:\users\jorda\appdata\local/com.creatoragent.studio
+C:/Users/jorda/AppData/Local	c:/users/jorda/appdata/local\com.creatoragent.studio
+C:\	c:\com.creatoragent.studio
+C:	c:com.creatoragent.studio
+c:\users\JORDA\appdata\local	c:\users\jorda\appdata\local\com.creatoragent.studio

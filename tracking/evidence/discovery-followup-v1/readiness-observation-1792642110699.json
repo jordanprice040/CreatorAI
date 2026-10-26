@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-22T04:08:30.698Z",
+  "local_health": "request_failed",
+  "error_code": "ECONNREFUSED",
+  "authenticated_quota_checked": false,
+  "provider_availability": "not_observed",
+  "provider_calls": 0
+}

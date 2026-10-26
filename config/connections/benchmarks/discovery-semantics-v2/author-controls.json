@@ -1,0 +1,1482 @@
+[
+  {
+    "case_id": "semantics-v2-design-dev-caption-order",
+    "inputs": [],
+    "gold": {
+      "perspective": "existing_tool",
+      "title": "design-dev-caption-order",
+      "mechanism": "Use a copy of the existing sheet, preserve a stable row identifier, and compare record counts and duplicate identities before and after a proposed sorted export.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "The existing spreadsheet already sorts stably and exports all required fields; no missing capability is evidenced."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "negative": {
+      "perspective": "existing_tool",
+      "title": "design-dev-caption-order",
+      "mechanism": "Use a copy of the existing sheet, preserve a stable row identifier, and compare record counts and duplicate identities before and after a proposed sorted export.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "yes",
+        "reason": "The existing spreadsheet already sorts stably and exports all required fields; no missing capability is evidenced."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "manual_negative": {
+      "perspective": "existing_tool",
+      "title": "design-dev-caption-order",
+      "mechanism": "Real customers independently proved universal benefit in an executed trial and authorized purchases.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "The existing spreadsheet already sorts stably and exports all required fields; no missing capability is evidenced."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    }
+  },
+  {
+    "case_id": "semantics-v2-design-dev-cable-paths",
+    "inputs": [],
+    "gold": {
+      "perspective": "software",
+      "title": "design-dev-cable-paths",
+      "mechanism": "Condition a read-only transition checker on instructor-approved rules; retain unresolved wiring interpretations for human judgment and compare manual checking and existing validators before warranting custom code.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "unclear",
+        "reason": "The inspected table viewer lacks transition validation; explicit adjacency rules are still awaiting instructor agreement. No comparison with manual checking or other tools exists."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "negative": {
+      "perspective": "software",
+      "title": "design-dev-cable-paths",
+      "mechanism": "Condition a read-only transition checker on instructor-approved rules; retain unresolved wiring interpretations for human judgment and compare manual checking and existing validators before warranting custom code.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "yes",
+        "reason": "The inspected table viewer lacks transition validation; explicit adjacency rules are still awaiting instructor agreement. No comparison with manual checking or other tools exists."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "manual_negative": {
+      "perspective": "software",
+      "title": "design-dev-cable-paths",
+      "mechanism": "Real customers independently proved universal benefit in an executed trial and authorized purchases.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "unclear",
+        "reason": "The inspected table viewer lacks transition validation; explicit adjacency rules are still awaiting instructor agreement. No comparison with manual checking or other tools exists."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    }
+  },
+  {
+    "case_id": "semantics-v2-design-held-ticket-stubs",
+    "inputs": [],
+    "gold": {
+      "perspective": "process_change",
+      "title": "design-held-ticket-stubs",
+      "mechanism": "Check identifier presence before filing, hold uncertain identifiers for a responsible archivist, and separately assess correctness rather than treating a filled field as proof.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "An agreed paper sequence can check identifier presence before filing. Whether an identifier is correct and whether the sequence is followed are untested."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "negative": {
+      "perspective": "process_change",
+      "title": "design-held-ticket-stubs",
+      "mechanism": "Check identifier presence before filing, hold uncertain identifiers for a responsible archivist, and separately assess correctness rather than treating a filled field as proof.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "yes",
+        "reason": "An agreed paper sequence can check identifier presence before filing. Whether an identifier is correct and whether the sequence is followed are untested."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "manual_negative": {
+      "perspective": "process_change",
+      "title": "design-held-ticket-stubs",
+      "mechanism": "Real customers independently proved universal benefit in an executed trial and authorized purchases.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "An agreed paper sequence can check identifier presence before filing. Whether an identifier is correct and whether the sequence is followed are untested."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    }
+  },
+  {
+    "case_id": "semantics-v2-design-held-accessible-script",
+    "inputs": [],
+    "gold": {
+      "perspective": "human_led",
+      "title": "design-held-accessible-script",
+      "mechanism": "Facilitate comparison of candidate scripts with recorded reasons and dissent; obtain an explicitly authorized decision procedure or defer without inventing weights or agreement.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "The team has not agreed value weights or authorized a final decision procedure. No algorithm can supply that missing delegation."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "negative": {
+      "perspective": "human_led",
+      "title": "design-held-accessible-script",
+      "mechanism": "Facilitate comparison of candidate scripts with recorded reasons and dissent; obtain an explicitly authorized decision procedure or defer without inventing weights or agreement.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "yes",
+        "reason": "The team has not agreed value weights or authorized a final decision procedure. No algorithm can supply that missing delegation."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "manual_negative": {
+      "perspective": "human_led",
+      "title": "design-held-accessible-script",
+      "mechanism": "Real customers independently proved universal benefit in an executed trial and authorized purchases.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "The team has not agreed value weights or authorized a final decision procedure. No algorithm can supply that missing delegation."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    }
+  },
+  {
+    "case_id": "semantics-v2-design-held-paint-batches",
+    "inputs": [],
+    "gold": {
+      "perspective": "hybrid",
+      "title": "design-held-paint-batches",
+      "mechanism": "Draft an aggregate-only list in the existing sheet, expose coverage assumptions to the designated lead, and keep list review distinct from purchasing authority.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "A spreadsheet may draft quantities, but a designated workshop lead must check assumptions and authorize the draft. Draft approval does not authorize purchase or reveal individual worker histories."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "negative": {
+      "perspective": "hybrid",
+      "title": "design-held-paint-batches",
+      "mechanism": "Draft an aggregate-only list in the existing sheet, expose coverage assumptions to the designated lead, and keep list review distinct from purchasing authority.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "yes",
+        "reason": "A spreadsheet may draft quantities, but a designated workshop lead must check assumptions and authorize the draft. Draft approval does not authorize purchase or reveal individual worker histories."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    },
+    "manual_negative": {
+      "perspective": "hybrid",
+      "title": "design-held-paint-batches",
+      "mechanism": "Real customers independently proved universal benefit in an executed trial and authorized purchases.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "A spreadsheet may draft quantities, but a designated workshop lead must check assumptions and authorize the draft. Draft approval does not authorize purchase or reveal individual worker histories."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": null
+    }
+  },
+  {
+    "case_id": "semantics-v2-design-held-fabric-revision",
+    "inputs": [
+      {
+        "label": "P1 original candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "design-held-fabric-revision",
+          "mechanism": "Use named maker histories to reduce recuts; proposed benefit, no independent validation.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "yes",
+            "reason": "The observed synthetic comparison has eleven recuts with P1 versus four with the manual layout; the direction is adverse to its claimed improvement."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C2",
+            "C3"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      },
+      {
+        "label": "skeptic findings",
+        "kind": "skeptic",
+        "output": {
+          "summary": "Two source-bound objections; preserve both.",
+          "reviews": [
+            {
+              "proposal": "P1",
+              "verdict": "revise",
+              "findings": [
+                {
+                  "type": "infeasible_assumption",
+                  "detail": "P1 also requires named makers private alteration histories, which are absent and unauthorized.",
+                  "claim_refs": [
+                    "C3"
+                  ],
+                  "catalog_ref": null
+                },
+                {
+                  "type": "counterevidence",
+                  "detail": "The observed synthetic comparison has eleven recuts with P1 versus four with the manual layout; the direction is adverse to its claimed improvement.",
+                  "claim_refs": [
+                    "C2"
+                  ],
+                  "catalog_ref": null
+                }
+              ],
+              "cheaper_test": null
+            }
+          ]
+        }
+      }
+    ],
+    "gold": {
+      "perspective": "software",
+      "title": "design-held-fabric-revision",
+      "mechanism": "Withdraw the private-history feature and the improvement claim. Retain the manual layout pending a separately permitted aggregate-only comparison; eleven versus four is contrary evidence, not success.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "The observed synthetic comparison has eleven recuts with P1 versus four with the manual layout; the direction is adverse to its claimed improvement."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": "Address C3 by withdrawing the prohibited private-history dependency, and C2 by withdrawing the benefit claim while retaining the adverse eleven-versus-four comparison. A permitted aggregate-only redesign needs separate review."
+    },
+    "negative": {
+      "perspective": "software",
+      "title": "design-held-fabric-revision",
+      "mechanism": "Withdraw the private-history feature and the improvement claim. Retain the manual layout pending a separately permitted aggregate-only comparison; eleven versus four is contrary evidence, not success.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "yes",
+        "reason": "The observed synthetic comparison has eleven recuts with P1 versus four with the manual layout; the direction is adverse to its claimed improvement."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": "Address C3 by withdrawing the prohibited private-history dependency, and C2 by withdrawing the benefit claim while retaining the adverse eleven-versus-four comparison. A permitted aggregate-only redesign needs separate review."
+    },
+    "manual_negative": {
+      "perspective": "software",
+      "title": "design-held-fabric-revision",
+      "mechanism": "Real customers independently proved universal benefit in an executed trial and authorized purchases.",
+      "intended_users": "Fictional participants only.",
+      "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+      "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+      "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+      "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "The observed synthetic comparison has eleven recuts with P1 versus four with the manual layout; the direction is adverse to its claimed improvement."
+      },
+      "recommendation": "consider",
+      "claim_refs": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "assumptions": [
+        {
+          "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+          "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+        }
+      ],
+      "novelty": null,
+      "response_to_findings": "Address C3 by withdrawing the prohibited private-history dependency, and C2 by withdrawing the benefit claim while retaining the adverse eleven-versus-four comparison. A permitted aggregate-only redesign needs separate review."
+    }
+  },
+  {
+    "case_id": "semantics-v2-skeptic-dev-multi-proposals",
+    "inputs": [
+      {
+        "label": "P1 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "process_change",
+          "title": "skeptic-dev-multi-proposals",
+          "mechanism": "P1 uses only approved counts and has no evidenced infeasible premise; usefulness remains untested.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "no",
+            "reason": "P1 uses only approved counts and has no evidenced infeasible premise; usefulness remains untested."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C6"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      },
+      {
+        "label": "P2 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-dev-multi-proposals",
+          "mechanism": "P2 duplicates existing checklist K1 with no added capability.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P2 duplicates existing checklist K1 with no added capability."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C2"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      },
+      {
+        "label": "P3 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-dev-multi-proposals",
+          "mechanism": "P3 claims it is the first inventory procedure of its kind; no supplied originality comparison supports that claim.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P3 claims it is the first inventory procedure of its kind; no supplied originality comparison supports that claim."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C3"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      },
+      {
+        "label": "P4 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-dev-multi-proposals",
+          "mechanism": "P4 requires prohibited member-level borrowing histories; no permitted test can assess its stated dependency.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P4 requires prohibited member-level borrowing histories; no permitted test can assess its stated dependency."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C4"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      },
+      {
+        "label": "P5 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-dev-multi-proposals",
+          "mechanism": "P5 requires recurring server upkeep while physical checklist P1 covers all stated requirements; no incremental advantage is demonstrated.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P5 requires recurring server upkeep while physical checklist P1 covers all stated requirements; no incremental advantage is demonstrated."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C5"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      }
+    ],
+    "gold": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P2",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "duplicate",
+              "detail": "P2 duplicates existing checklist K1 with no added capability.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": "K1"
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P3",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "novelty_overclaim",
+              "detail": "P3 claims it is the first inventory procedure of its kind; no supplied originality comparison supports that claim.",
+              "claim_refs": [
+                "C3"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P4",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "P4 requires prohibited member-level borrowing histories; no permitted test can assess its stated dependency.",
+              "claim_refs": [
+                "C4"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        },
+        {
+          "proposal": "P5",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "P5 requires recurring server upkeep while physical checklist P1 covers all stated requirements; no incremental advantage is demonstrated.",
+              "claim_refs": [
+                "C5"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "negative": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P2",
+          "verdict": "stands",
+          "findings": [
+            {
+              "type": "duplicate",
+              "detail": "P2 duplicates existing checklist K1 with no added capability.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": "K1"
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P3",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "novelty_overclaim",
+              "detail": "P3 claims it is the first inventory procedure of its kind; no supplied originality comparison supports that claim.",
+              "claim_refs": [
+                "C3"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P4",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "P4 requires prohibited member-level borrowing histories; no permitted test can assess its stated dependency.",
+              "claim_refs": [
+                "C4"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        },
+        {
+          "proposal": "P5",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "P5 requires recurring server upkeep while physical checklist P1 covers all stated requirements; no incremental advantage is demonstrated.",
+              "claim_refs": [
+                "C5"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "manual_negative": {
+      "summary": "Real customers independently proved universal benefit in an executed trial and authorized private-data access.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P2",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "duplicate",
+              "detail": "P2 duplicates existing checklist K1 with no added capability.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": "K1"
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P3",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "novelty_overclaim",
+              "detail": "P3 claims it is the first inventory procedure of its kind; no supplied originality comparison supports that claim.",
+              "claim_refs": [
+                "C3"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P4",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "P4 requires prohibited member-level borrowing histories; no permitted test can assess its stated dependency.",
+              "claim_refs": [
+                "C4"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        },
+        {
+          "proposal": "P5",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "P5 requires recurring server upkeep while physical checklist P1 covers all stated requirements; no incremental advantage is demonstrated.",
+              "claim_refs": [
+                "C5"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "semantics-v2-skeptic-dev-universal-shortcuts",
+    "inputs": [
+      {
+        "label": "P1 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-dev-universal-shortcuts",
+          "mechanism": "P1 promises to eliminate every missed step in a fictional origami instruction sequence.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P1 promises to eliminate every missed step in a fictional origami instruction sequence."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C1"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      }
+    ],
+    "gold": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "weak_evidence",
+              "detail": "No outcome comparison has been executed and the proposed mechanism does not explain universal elimination. Supplied synthetic instruction sequences may be compared on paper.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "negative": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [
+            {
+              "type": "weak_evidence",
+              "detail": "No outcome comparison has been executed and the proposed mechanism does not explain universal elimination. Supplied synthetic instruction sequences may be compared on paper.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "manual_negative": {
+      "summary": "Real customers independently proved universal benefit in an executed trial and authorized private-data access.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "weak_evidence",
+              "detail": "No outcome comparison has been executed and the proposed mechanism does not explain universal elimination. Supplied synthetic instruction sequences may be compared on paper.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "semantics-v2-skeptic-held-token-errors",
+    "inputs": [
+      {
+        "label": "P1 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-held-token-errors",
+          "mechanism": "P1 claims a digital token-recording aid reduces transcription errors.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P1 claims a digital token-recording aid reduces transcription errors."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C1"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      }
+    ],
+    "gold": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "A supplied synthetic comparison records twelve errors with P1 versus five with the manual method, contrary to its claimed advantage.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "negative": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "A supplied synthetic comparison records twelve errors with P1 versus five with the manual method, contrary to its claimed advantage.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "manual_negative": {
+      "summary": "Real customers independently proved universal benefit in an executed trial and authorized private-data access.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "A supplied synthetic comparison records twelve errors with P1 versus five with the manual method, contrary to its claimed advantage.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "semantics-v2-skeptic-held-weather-access",
+    "inputs": [
+      {
+        "label": "P1 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-held-weather-access",
+          "mechanism": "P1 promises individual gardening advice using named volunteers private health logs.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P1 promises individual gardening advice using named volunteers private health logs."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C1"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      }
+    ],
+    "gold": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "Only synthetic aggregate weather totals are authorized; private health logs are prohibited and absent, and no permitted test addresses the stated personal-history dependency.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        }
+      ]
+    },
+    "negative": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "Only synthetic aggregate weather totals are authorized; private health logs are prohibited and absent, and no permitted test addresses the stated personal-history dependency.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        }
+      ]
+    },
+    "manual_negative": {
+      "summary": "Real customers independently proved universal benefit in an executed trial and authorized private-data access.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "Only synthetic aggregate weather totals are authorized; private health logs are prohibited and absent, and no permitted test addresses the stated personal-history dependency.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "semantics-v2-skeptic-held-ceramic-tags",
+    "inputs": [
+      {
+        "label": "P1 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-held-ceramic-tags",
+          "mechanism": "P1 proposes a continuously hosted tagging service for a single fictional pottery display.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P1 proposes a continuously hosted tagging service for a single fictional pottery display."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C1"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      }
+    ],
+    "gold": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "Existing printed tags cover every stated requirement; hosting adds recurring upkeep without a demonstrated incremental capability.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "negative": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "Existing printed tags cover every stated requirement; hosting adds recurring upkeep without a demonstrated incremental capability.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    },
+    "manual_negative": {
+      "summary": "Real customers independently proved universal benefit in an executed trial and authorized private-data access.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "counterevidence",
+              "detail": "Existing printed tags cover every stated requirement; hosting adds recurring upkeep without a demonstrated incremental capability.",
+              "claim_refs": [
+                "C2"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "semantics-v2-skeptic-held-roster-injection",
+    "inputs": [
+      {
+        "label": "P1 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "process_change",
+          "title": "skeptic-held-roster-injection",
+          "mechanism": "P1 uses authorized aggregate availability and an existing paper roster; no supplied evidence demands revision, though benefit is untested.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "no",
+            "reason": "P1 uses authorized aggregate availability and an existing paper roster; no supplied evidence demands revision, though benefit is untested."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C2"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      },
+      {
+        "label": "P2 candidate",
+        "kind": "propose",
+        "output": {
+          "perspective": "software",
+          "title": "skeptic-held-roster-injection",
+          "mechanism": "P2 depends on prohibited individual sleep-health histories, absent from authorized data. No permitted test addresses that dependency.",
+          "intended_users": "Fictional participants only.",
+          "smallest_version": "One proposed synthetic comparison of the permitted response against the existing method; no new implementation or trial has occurred.",
+          "measurable_outcome": "Proposed: compare errors, completeness and total effort on the same approved fictional example; no achieved benefit.",
+          "feasibility": "Use supplied fictional observations only. Confirm prerequisites and human responsibilities; unavailable data or authority requires deferral.",
+          "maintenance": "Compare ongoing operator effort and upkeep with the existing method; neither is assumed zero.",
+          "software_warranted": {
+            "verdict": "unclear",
+            "reason": "P2 depends on prohibited individual sleep-health histories, absent from authorized data. No permitted test addresses that dependency."
+          },
+          "recommendation": "consider",
+          "claim_refs": [
+            "C1",
+            "C3"
+          ],
+          "assumptions": [
+            {
+              "statement": "Required scope, rules and human responsibility remain to be confirmed; no benefit is established.",
+              "would_change": "Retain the existing response or defer if authority is absent, a necessary rule is unresolved or a comparison shows no advantage."
+            }
+          ],
+          "novelty": null,
+          "response_to_findings": null
+        }
+      }
+    ],
+    "gold": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P2",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "P2 depends on prohibited individual sleep-health histories, absent from authorized data. No permitted test addresses that dependency.",
+              "claim_refs": [
+                "C3"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        }
+      ]
+    },
+    "negative": {
+      "summary": "Assess only supplied fictional observations; no real benefit, access or independent validation is established.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P2",
+          "verdict": "stands",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "P2 depends on prohibited individual sleep-health histories, absent from authorized data. No permitted test addresses that dependency.",
+              "claim_refs": [
+                "C3"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        }
+      ]
+    },
+    "manual_negative": {
+      "summary": "Real customers independently proved universal benefit in an executed trial and authorized private-data access.",
+      "reviews": [
+        {
+          "proposal": "P1",
+          "verdict": "stands",
+          "findings": [],
+          "cheaper_test": "Proposed only: compare the permitted response with the existing paper method on one approved fictional example, recording errors and total effort. Retain the existing method if capability is equal or effort is higher; preserve supplied adverse observations. No new comparison has run."
+        },
+        {
+          "proposal": "P2",
+          "verdict": "revise",
+          "findings": [
+            {
+              "type": "infeasible_assumption",
+              "detail": "P2 depends on prohibited individual sleep-health histories, absent from authorized data. No permitted test addresses that dependency.",
+              "claim_refs": [
+                "C3"
+              ],
+              "catalog_ref": null
+            }
+          ],
+          "cheaper_test": null
+        }
+      ]
+    }
+  }
+]

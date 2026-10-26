@@ -1,0 +1,36 @@
+{
+  "manifest_sha256": "524562818d3310ceb718538203caa2a80d3e3f052b87e0edf97256c7a2cb1344",
+  "manifest_canonical_hash": "72809de002696f07d9574c3ec474596d4847afc8fe5904281150e8bdff5fea15",
+  "model_id": "gpt-6-astra",
+  "max_new_requests": 8,
+  "min_held_out_cases": 6,
+  "floor": {
+    "numerator": 1,
+    "denominator": 1
+  },
+  "retries": 0,
+  "started_at": "2026-10-20T12:38:48.405Z",
+  "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+  "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+  "settings_hash": "1bfab1b610b53849dadc536a712ffc0b97387686a742740aad4098a53d7351a0",
+  "caps": {
+    "responses": {
+      "max_requests_per_run": 10,
+      "request_timeout_ms": 120000,
+      "max_output_chars": 16000,
+      "max_input_chars": 24000
+    },
+    "codex": {
+      "max_builds_per_day": 2,
+      "max_turns_per_build": 1,
+      "max_model_requests_per_build": 25,
+      "build_timeout_ms": 600000
+    },
+    "shared": {
+      "max_model_requests_per_day": 40,
+      "max_in_flight": 1
+    }
+  },
+  "requests_before": 1,
+  "authorization": "Jordan requested preparation and execution of this next qualification step in the current chat; eight synthetic calls, no retries or paid fallback."
+}

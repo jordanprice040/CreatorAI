@@ -1,0 +1,28 @@
+{
+  "format": "discovery-finding-semantics-proposal/1",
+  "prepared_at": "2026-10-22T16:55:57.037Z",
+  "status": "proposed_not_implemented",
+  "recommended_role_version": "r02-discovery/1.4",
+  "role_version_activated": false,
+  "wire_schema_change": false,
+  "authoritative_test_field": "reviews[].cheaper_test",
+  "novelty_scope": "originality_or_distinctiveness",
+  "unsupported_benefit_finding": "weak_evidence",
+  "verified_live_artifacts": 8,
+  "verified_preserved_review_source_artifacts": 28,
+  "historical_results_changed": false,
+  "provider_calls": 0,
+  "runtime_changes": false,
+  "artifact_sha256": {
+    "docs/DISCOVERY_FINDING_SEMANTICS_PROPOSAL_2026-10-22.md": "f868b09c6ad2850185b330eeabbd97eb9a471b7466a0b811b1ac9f8953ecf4d0",
+    "docs/DISCOVERY_FOLLOWUP_V2_OUTPUT_REVIEW_2026-10-22.md": "025bd4c44ea7ac24ce2eed938006a02d77bf632cffd0dd5f565710823eb3491c",
+    "packages/domain/src/discovery.ts": "fbf1db36e60f860a38b00f719d295cb5357afbd386d12c19496f3493637cfbec",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "agents/ROLE_PROMPTS.md": "be862e48708b5c2daefdef8846c1fc05e1ded2807d25897ce5f524a465af38c1",
+    "tracking/evidence/discovery-followup-v2/failed-case-diagnosis.json": "846793de5fd33041ea9c503df1c7fbabbb1bfa717449632ef1bcefbf4995c5a5",
+    "tracking/evidence/discovery-followup-v2/run.lock": "b0c9bd5f93ac9d162f4fd51084805e6e17e584fdcff761a07b3bf5def054c5af",
+    "tracking/evidence/discovery-followup-v2/live-result.json": "ec58ddf108c2dda24d55a6d7a1af39f3af4ae59c0437394a761c38e3b07efac1",
+    "config/connections/benchmarks/discovery-followup-v1/scoring.json": "979fddb67ef0873951068efa302453549af35aee14a865ae86b24a153e62a369",
+    "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json": "9a667ca547a2bdcc77eb600de6356c6452e8a58db4e20ee0158f400a529e0863"
+  }
+}

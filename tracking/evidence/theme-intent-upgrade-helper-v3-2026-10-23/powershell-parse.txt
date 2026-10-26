@@ -1,0 +1,1 @@
+Five v3 PowerShell files parse successfully.

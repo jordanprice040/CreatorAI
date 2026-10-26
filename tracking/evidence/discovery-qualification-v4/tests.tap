@@ -1,0 +1,301 @@
+TAP version 13
+# Subtest: identity-bound finding and asymmetric verdict survive review/finding permutations
+ok 1 - identity-bound finding and asymmetric verdict survive review/finding permutations
+  ---
+  duration_ms: 5.1311
+  type: 'test'
+  ...
+# Subtest: valid references on the wrong proposal or detached finding cannot satisfy association
+ok 2 - valid references on the wrong proposal or detached finding cannot satisfy association
+  ---
+  duration_ms: 1.0084
+  type: 'test'
+  ...
+# Subtest: missing or ambiguous selected finding fails; duplicate/omitted proposal fails production checks
+ok 3 - missing or ambiguous selected finding fails; duplicate/omitted proposal fails production checks
+  ---
+  duration_ms: 1.3827
+  type: 'test'
+  ...
+# Subtest: null catalog selection and justified disagreement do not require a duplicate finding
+ok 4 - null catalog selection and justified disagreement do not require a duplicate finding
+  ---
+  duration_ms: 1.408
+  type: 'test'
+  ...
+# Subtest: selector schema rejects unsupported identities, refs, task kinds and extra keys
+ok 5 - selector schema rejects unsupported identities, refs, task kinds and extra keys
+  ---
+  duration_ms: 4.489
+  type: 'test'
+  ...
+# Subtest: legacy wildcard grading and exact preserved failed output retain their original decisions
+ok 6 - legacy wildcard grading and exact preserved failed output retain their original decisions
+  ---
+  duration_ms: 4.6209
+  type: 'test'
+  ...
+# Subtest: role1.3 serializes explicit field meanings across all task kinds without changing output schemas
+ok 7 - role1.3 serializes explicit field meanings across all task kinds without changing output schemas
+  ---
+  duration_ms: 5.6442
+  type: 'test'
+  ...
+# Subtest: locate: prompt includes strict complete schema and boundary mutations are rejected
+ok 8 - locate: prompt includes strict complete schema and boundary mutations are rejected
+  ---
+  duration_ms: 28.3166
+  type: 'test'
+  ...
+# 70 nested type/length/count/enum/reference boundary mutations rejected
+# Subtest: propose: prompt includes strict complete schema and boundary mutations are rejected
+ok 9 - propose: prompt includes strict complete schema and boundary mutations are rejected
+  ---
+  duration_ms: 8.7113
+  type: 'test'
+  ...
+# 45 nested type/length/count/enum/reference boundary mutations rejected
+# Subtest: revise: prompt includes strict complete schema and boundary mutations are rejected
+ok 10 - revise: prompt includes strict complete schema and boundary mutations are rejected
+  ---
+  duration_ms: 3.9406
+  type: 'test'
+  ...
+# 48 nested type/length/count/enum/reference boundary mutations rejected
+# Subtest: skeptic: prompt includes strict complete schema and boundary mutations are rejected
+ok 11 - skeptic: prompt includes strict complete schema and boundary mutations are rejected
+  ---
+  duration_ms: 6.6648
+  type: 'test'
+  ...
+# 26 nested type/length/count/enum/reference boundary mutations rejected
+# Subtest: relational checks remain deterministic beyond the generated JSON Schema
+ok 12 - relational checks remain deterministic beyond the generated JSON Schema
+  ---
+  duration_ms: 14.0445
+  type: 'test'
+  ...
+# Subtest: retained failed output is still invalid and historical evidence is unchanged
+ok 13 - retained failed output is still invalid and historical evidence is unchanged
+  ---
+  duration_ms: 1.6772
+  type: 'test'
+  ...
+# Subtest: historical v2 research_synthesis: frozen transport and original decision controls remain intact
+ok 14 - historical v2 research_synthesis: frozen transport and original decision controls remain intact
+  ---
+  duration_ms: 25.9268
+  type: 'test'
+  ...
+# Subtest: historical v2 candidate_generation: frozen transport and original decision controls remain intact
+ok 15 - historical v2 candidate_generation: frozen transport and original decision controls remain intact
+  ---
+  duration_ms: 10.3578
+  type: 'test'
+  ...
+# Subtest: historical v2 scoring: frozen transport and original decision controls remain intact
+ok 16 - historical v2 scoring: frozen transport and original decision controls remain intact
+  ---
+  duration_ms: 8.8366
+  type: 'test'
+  ...
+# Subtest: v2 anchors reject unsupported confidence but allow corroboration within explicitly simulated scope
+ok 17 - v2 anchors reject unsupported confidence but allow corroboration within explicitly simulated scope
+  ---
+  duration_ms: 2.6303
+  type: 'test'
+  ...
+# Subtest: substantive review remains necessary: schema-valid invented narrative is not certified by enum/reference checks
+ok 18 - substantive review remains necessary: schema-valid invented narrative is not certified by enum/reference checks
+  ---
+  duration_ms: 2.011
+  type: 'test'
+  ...
+# Subtest: v3 research_synthesis: exact production inputs, frozen grades and disclosed semantic limits
+ok 19 - v3 research_synthesis: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 30.1877
+  type: 'test'
+  ...
+# Subtest: v3 candidate_generation: exact production inputs, frozen grades and disclosed semantic limits
+ok 20 - v3 candidate_generation: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 11.2355
+  type: 'test'
+  ...
+# Subtest: v3 scoring: exact production inputs, frozen grades and disclosed semantic limits
+ok 21 - v3 scoring: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 8.753
+  type: 'test'
+  ...
+# Subtest: v3 covers revision, five-way review and fresh cases without rewriting historical evidence
+ok 22 - v3 covers revision, five-way review and fresh cases without rewriting historical evidence
+  ---
+  duration_ms: 9.2429
+  type: 'test'
+  ...
+# Subtest: v4 research_synthesis: exact production inputs, frozen grades and disclosed semantic limits
+ok 23 - v4 research_synthesis: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 42.6546
+  type: 'test'
+  ...
+# Subtest: v4 candidate_generation: exact production inputs, frozen grades and disclosed semantic limits
+ok 24 - v4 candidate_generation: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 14.6698
+  type: 'test'
+  ...
+# Subtest: v4 scoring: exact production inputs, frozen grades and disclosed semantic limits
+ok 25 - v4 scoring: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 12.0388
+  type: 'test'
+  ...
+# Subtest: v4 covers revision, five-way review and fresh cases without rewriting historical evidence
+ok 26 - v4 covers revision, five-way review and fresh cases without rewriting historical evidence
+  ---
+  duration_ms: 13.1805
+  type: 'test'
+  ...
+# Subtest: research_synthesis: historical v1 cases retain frozen transport and original schema/decision grading
+ok 27 - research_synthesis: historical v1 cases retain frozen transport and original schema/decision grading
+  ---
+  duration_ms: 15.2485
+  type: 'test'
+  ...
+# Subtest: candidate_generation: historical v1 cases retain frozen transport and original schema/decision grading
+ok 28 - candidate_generation: historical v1 cases retain frozen transport and original schema/decision grading
+  ---
+  duration_ms: 6.6431
+  type: 'test'
+  ...
+# Subtest: scoring: historical v1 cases retain frozen transport and original schema/decision grading
+ok 29 - scoring: historical v1 cases retain frozen transport and original schema/decision grading
+  ---
+  duration_ms: 5.8284
+  type: 'test'
+  ...
+# Subtest: fresh skeptic cases are order-independent but reject misplaced, detached and ambiguous findings
+ok 30 - fresh skeptic cases are order-independent but reject misplaced, detached and ambiguous findings
+  ---
+  duration_ms: 14.0639
+  type: 'test'
+  ...
+# Subtest: explicit novelty serialization rejects prose denial while allowing other wording and conditional software verdicts
+ok 31 - explicit novelty serialization rejects prose denial while allowing other wording and conditional software verdicts
+  ---
+  duration_ms: 9.4817
+  type: 'test'
+  ...
+# Subtest: revision coverage and narrative entailment remain disclosed substantive review requirements
+ok 32 - revision coverage and narrative entailment remain disclosed substantive review requirements
+  ---
+  duration_ms: 10.9238
+  type: 'test'
+  ...
+# Subtest: plan connection API and CLI: create, block, sign in, confirm credits, accept caps, verify once
+not ok 33 - plan connection API and CLI: create, block, sign in, confirm credits, accept caps, verify once
+  ---
+  duration_ms: 5177.4814
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\dist\\plan-connections-api.test.js:17:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    {"error":{"code":"DUPLICATE","message":"A qualification for this model and task class is already running.","details":[]}}
+    
+    409 !== 201
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 201
+  actual: 409
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/dist/plan-connections-api.test.js:189:20)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+ok 34 - subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+  ---
+  duration_ms: 2784.935
+  type: 'test'
+  ...
+# Subtest: subscription workflow replay survives restart without redispatch, binds input
+ok 35 - subscription workflow replay survives restart without redispatch, binds input
+  ---
+  duration_ms: 2709.102
+  type: 'test'
+  ...
+# Subtest: subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+ok 36 - subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+  ---
+  duration_ms: 2163.253
+  type: 'test'
+  ...
+# Subtest: unknown subscription requests hold work without retry and explicit reconciliation releases the task
+ok 37 - unknown subscription requests hold work without retry and explicit reconciliation releases the task
+  ---
+  duration_ms: 2047.3932
+  type: 'test'
+  ...
+# Subtest: missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+ok 38 - missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+  ---
+  duration_ms: 2180.8134
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+ok 39 - authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+  ---
+  duration_ms: 3270.4205
+  type: 'test'
+  ...
+# Subtest: cancellation during credential lookup cannot start a later provider request
+ok 40 - cancellation during credential lookup cannot start a later provider request
+  ---
+  duration_ms: 0.7925
+  type: 'test'
+  ...
+# Subtest: typed API resources preserve the existing budgeted discovery path
+ok 41 - typed API resources preserve the existing budgeted discovery path
+  ---
+  duration_ms: 2456.3771
+  type: 'test'
+  ...
+# Subtest: a qualified task name with stale role-prompt evidence cannot unlock discovery
+ok 42 - a qualified task name with stale role-prompt evidence cannot unlock discovery
+  ---
+  duration_ms: 2242.4609
+  type: 'test'
+  ...
+# Subtest: historical v1 qualification cannot unlock the revised role contract
+ok 43 - historical v1 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 2138.2528
+  type: 'test'
+  ...
+# Subtest: historical v2 qualification cannot unlock the revised role contract
+ok 44 - historical v2 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 1895.8305
+  type: 'test'
+  ...
+# Subtest: historical v3 qualification cannot unlock the revised role contract
+ok 45 - historical v3 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 1967.7503
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 44
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 34558.8781

@@ -149,6 +149,29 @@ export type TaskContext = z.infer<typeof TaskContextSchema>;
  * T07: start a discovery run from a pinned search brief and chosen claim evidence. Every
  * response type is either assigned to a designer or excluded with a reason.
  */
+export const WorkflowResourceSetupSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('api'),
+    envelope_id: id,
+    pricing_snapshot_id: id,
+  }),
+  z.strictObject({
+    kind: z.literal('subscription'),
+    connection_id: id,
+    model_id: short,
+    settings_hash: hash,
+    max_output_chars: counter.min(100).max(100000),
+  }),
+  z.strictObject({ kind: z.literal('local'), model_id: short }),
+]);
+export type WorkflowResourceSetup = z.infer<typeof WorkflowResourceSetupSchema>;
+export const DISCOVERY_TASK_CLASSES = {
+  locate: 'research_synthesis',
+  propose: 'candidate_generation',
+  revise: 'candidate_generation',
+  skeptic: 'scoring',
+} as const;
+
 export const StartDiscoveryRequestSchema = z
   .strictObject({
     brief: TargetRefSchema,
@@ -167,12 +190,24 @@ export const StartDiscoveryRequestSchema = z
       .max(3),
     max_revisions: counter.max(2),
     max_age_days: counter.min(1).max(3650).default(180),
-    envelope_id: id,
-    pricing_snapshot_id: id,
+    envelope_id: id.nullable().optional(),
+    pricing_snapshot_id: id.nullable().optional(),
+    resource_setup: WorkflowResourceSetupSchema.optional(),
     data_class: DataClassSchema,
     limits: WorkflowLimitsSchema,
   })
   .superRefine((r, ctx) => {
+    if (!r.resource_setup && (!r.envelope_id || !r.pricing_snapshot_id))
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Choose resource setup or legacy API budget/pricing.',
+      });
+    if (r.resource_setup && (r.envelope_id || r.pricing_snapshot_id))
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'Use either typed resource setup or legacy budget/pricing, not both.',
+      });
     const named = [...r.perspectives, ...r.excluded.map((e) => e.perspective)];
     if (new Set(named).size !== named.length)
       ctx.addIssue({
@@ -318,8 +353,9 @@ export const WorkflowSchema = z.strictObject({
   constraints: z.array(short),
   perspectives: z.array(short),
   limits: WorkflowLimitsSchema,
-  envelope_id: id,
-  pricing_snapshot_id: id,
+  envelope_id: id.nullable(),
+  pricing_snapshot_id: id.nullable(),
+  resource_setup: WorkflowResourceSetupSchema.optional(),
   data_class: DataClassSchema,
   state: WorkflowStateSchema,
   reason: short,
@@ -338,5 +374,12 @@ export const WorkflowDetailSchema = z.strictObject({
   tasks: z.array(WorkflowTaskSchema),
   usage: WorkflowUsageSchema,
   reservations: z.array(ReservationSchema),
+  subscription_usage: z
+    .strictObject({
+      requests: counter,
+      in_flight: counter,
+      unresolved: counter,
+    })
+    .optional(),
 });
 export type WorkflowDetail = z.infer<typeof WorkflowDetailSchema>;

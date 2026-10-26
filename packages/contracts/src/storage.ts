@@ -15,6 +15,7 @@ import { LinkRelationSchema } from './records.js';
 import { AssumptionBodySchema, HumilityBodySchema } from './oversight.js';
 import { RetentionSchema } from './research.js';
 import { SearchBriefBodySchema } from './discovery.js';
+import { ThemeIntentBodySchema } from './intake.js';
 import { ScorecardBodySchema, SpecBodySchema } from './selection.js';
 
 // Persistent record bodies (T02). Bodies hold references and hashes; source content and
@@ -39,6 +40,7 @@ export const StoredKindSchema = z.enum([
   'humility_review',
   'search_brief',
   'scorecard',
+  'theme_intent',
 ]);
 export type StoredKind = z.infer<typeof StoredKindSchema>;
 export const RecordModeSchema = z.enum(['fixture', 'real']);
@@ -154,6 +156,7 @@ export const StoredBodySchemas = {
   humility_review: HumilityBodySchema,
   search_brief: SearchBriefBodySchema,
   scorecard: ScorecardBodySchema,
+  theme_intent: ThemeIntentBodySchema,
 } as const satisfies Record<StoredKind, z.ZodType>;
 export const lifecycleField: Partial<
   Record<StoredKind, { field: string; initial: string }>

@@ -18,13 +18,13 @@ The thesis examines the quality and limitations of that process. Producing many 
 
 ## Established direction and latest feedback
 
-| Source | Requirement carried forward |
-| --- | --- |
-| Earlier product discussions and September 8 plans | Multi-agent discovery-to-product system; web/desktop catalog; inspect/test/download; provenance; budgets; model and token efficiency; GitHub; marketing and reinvestment |
-| Dorley meeting, September 14 | Give the locator a concrete search brief; explore intersections between fields; use NAE Grand Challenge themes as possible starting points; assess urgency and software influence; rank ideas with an explicit method |
-| September 19 overview and September 29 committee guide | Evidence-based discovery, source quality, competing alternatives, scoring anchors, uncertainty, controlled comparisons, one bounded prototype, human oversight and a searchable record |
-| September 29 proposed timeline | Weekly deliverables; committee check-ins approximately every two weeks; final feedback before defense; protect writing/evaluation time |
-| Committee feedback reported October 8 | Compare autonomous AI, human-in-the-loop AI, and human-only work on the same problems; allow context-sensitive requests for human input/approval; support agent humility and non-code or human-led responses |
+| Source                                                 | Requirement carried forward                                                                                                                                                                                           |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Earlier product discussions and September 8 plans      | Multi-agent discovery-to-product system; web/desktop catalog; inspect/test/download; provenance; budgets; model and token efficiency; GitHub; marketing and reinvestment                                              |
+| Dorley meeting, September 14                           | Give the locator a concrete search brief; explore intersections between fields; use NAE Grand Challenge themes as possible starting points; assess urgency and software influence; rank ideas with an explicit method |
+| September 19 overview and September 29 committee guide | Evidence-based discovery, source quality, competing alternatives, scoring anchors, uncertainty, controlled comparisons, one bounded prototype, human oversight and a searchable record                                |
+| September 29 proposed timeline                         | Weekly deliverables; committee check-ins approximately every two weeks; final feedback before defense; protect writing/evaluation time                                                                                |
+| Committee feedback reported October 8                  | Compare autonomous AI, human-in-the-loop AI, and human-only work on the same problems; allow context-sensitive requests for human input/approval; support agent humility and non-code or human-led responses          |
 
 Chair: Emmanuel J. Dorley; internal member: Rong Zhang; external member: Duncan Purves. Committee membership is context, not an instruction to contact anyone.
 
@@ -95,7 +95,16 @@ Freeze evaluation prompts, rubric, resource limits, data access, versions, and a
 
 ## Current status and boundaries
 
-This kit was authored from project documents and reported feedback; the target application repository was not supplied or inspected. No feature is marked implemented. Earlier local-agent work may be reusable but must be verified from files.
+The kit-creation statement that no repository had been inspected is superseded.
+The application now has an implemented local web/Windows studio, durable records,
+bounded workflows and isolated product paths, with differing fixture, contract,
+native and live evidence. October 20 plan access and a narrow synthetic structured-
+summary qualification succeeded; this does not verify live discovery, search or
+code-building roles. See [current reconciled status](docs/CURRENT_STATUS.md) for
+candidate identity, evidence scope, remaining blockers and next eligible prompt.
+Accepted chat/theme-free/billing-aware workflow additions C52–C54 are planned.
+Historical tracking entries describe their original candidate and time; later
+verified entries supersede conflicting status claims without rewriting history.
 
 The separate CIS4914 C++ market-data system is not Creator Agent. Its strategy engine, database choices, PRs, and November 19 presentation are not requirements or deadlines for this thesis.
 

@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-20",
+  "scope": "runbook 2.19A first slice, source/contract acceptance only",
+  "source_commit": "590aba3c3e5a0bd6710f2162d41f3cec9f39d807",
+  "source_dirty": true,
+  "migration": 27,
+  "migration_applied_to": "disposable test databases only",
+  "checks": {
+    "project_typescript": "pass",
+    "web_typescript": "pass",
+    "affected_suites": {
+      "passed": 46,
+      "failed": 0,
+      "skipped": 0,
+      "file": "tests.tap"
+    },
+    "final_focused_suites": {
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0,
+      "file": "final-admission-tests.tap"
+    },
+    "browser": {
+      "passed": 7,
+      "api_interception": true,
+      "mutations": 0,
+      "native": false
+    },
+    "targeted_format": "pass",
+    "diff_whitespace": "pass"
+  },
+  "limitations": [
+    "No new real provider requests or model task qualifications",
+    "No operational migration, desktop rebuild/install, account settings change or pilot activation",
+    "Local inference, theme-to-evidence intake, draft-only submission, native search and wider lifecycle remain separate",
+    "Pilot manual-schedule/task-account gate incompatibilities unchanged"
+  ],
+  "source_sha256": {
+    "apps/api/src/index.ts": "93f13d4a53a73bd1c1a106b3a7a6afeeda8c226b5a9be23e69104cd8e0bc035d",
+    "apps/web/src/submit.tsx": "5634d3c7281fdcd196b873a491b929809de278b3f4c5dd0687bf464fc77a6ca2",
+    "apps/web/src/workflows.tsx": "e67b056d545a09776260056c057ccb6cd90a3ec5e57607a4bf2171f2afaf6094",
+    "packages/contracts/src/orchestration.ts": "0c32f1219a62b99e67584abab1180335af306379127904555f51840decf14985",
+    "packages/db/src/migrations.ts": "c9068d4ee1cc2d3eaefd1d7a7e97023de7bbd8752be1510402e9df034a2766e5",
+    "packages/db/src/connection-store.ts": "cbfc2c4c736b2ca4c3507c1aaec03033ec7066604ac1a79812d4a3a2f91f1b88",
+    "packages/db/src/discovery-store.ts": "af9458c11a23f992aeed970fcd7c8e3f8e4cb388ef3b99f3b9b1056faf4ff8b9",
+    "packages/db/src/workflow-store.ts": "251a9737732a9fc58c1e59c237c5f06b2921ddd81ccad87643e51d5892eed69b",
+    "packages/broker/src/plan-responses.ts": "1adb1e548ace84b42e83f4f1bf77070812208c3deeedc4cd226e1ad0e8c511af",
+    "packages/broker/src/plan-service.ts": "f34da26a667f1fd737542a738eaa731f60e930d5476169c75dc468c452269156",
+    "packages/orchestrator/src/main.ts": "d68e5d52cc12538f73a5374455b2bcbd3aae659a3fb7530b47c57878af777690",
+    "packages/orchestrator/src/worker.ts": "001306f5b5291fae5e5cafb653403412a13d1b420f2c05cf54166598d4729d7b",
+    "tests/src/subscription-workflow.test.ts": "cf272b7efbd2d8eacaa09bf58b2feb09ac108a4763d1cfefc881d03bf0b8fe95",
+    "scripts/verify-subscription-setup.playwright.js": "3420a63e3e163057e06cf1fbb29c41d0ec8bc44d2c6eb56e3ca8680485e586b9"
+  }
+}

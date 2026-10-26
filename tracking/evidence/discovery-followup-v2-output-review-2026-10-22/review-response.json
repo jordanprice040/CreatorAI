@@ -1,0 +1,625 @@
+{
+  "format": "discovery-followup-v2-output-model-review/1",
+  "reviewer": "/root/separate_discovery_review",
+  "reviewer_type": "model",
+  "prior_authoring_or_implementation_involvement": false,
+  "independence_explanation": "Separate model reviewer previously reviewed packet/binding and availability repair but did not implement them. Not blinded or independent human rating. Read saved output/diagnosis; potential same-family and prior packet familiarity disclosed.",
+  "status": "completed_for_all_seven_executed_outputs",
+  "overall_result": "partial",
+  "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+  "cases": [
+    {
+      "case_id": "followup-design-dev-map-index",
+      "task_class": "candidate_generation",
+      "split": "development",
+      "request_id": "7db8f847-489c-4aac-a049-e787a7cbc3d5",
+      "output_hash": "0ada48116bd1d51786869abbb9418e23777e1626aac6999aa51a03660750758b",
+      "packet_hash": "3f5b0e8f51ab3b76da8e368e73d5eda3980fd149658ad1961a48ac821842d989",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "accepted",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Prefer the fully capable installed editor, preserve occurrences and distinguish a proposed export check from a completed artifact.",
+          "result": "supported",
+          "explanation": "Uses the capable installed editor, preserves duplicate occurrences, and calls export comparisons proposed rather than performed.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/0/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/0/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): measurable_outcome"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "C1 supplies the index need; C2 complete existing capability. Missing actual entries/editor access remain explicit.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/0/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/0/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): software_warranted"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "No completed export, customer approval or access is asserted; synthetic scope and proposed zero-discrepancy target remain distinct.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/0/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/0/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): intended_users",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): measurable_outcome",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/0/outcome/text (parsed): assumptions"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "accepted"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-dev-grid-seams",
+      "task_class": "candidate_generation",
+      "split": "development",
+      "request_id": "0758b0c3-1fab-4f7b-898a-b9400faccfd9",
+      "output_hash": "ab8a256ce7bbca33d0cf8cb9b103cb0b31d4191c8e540bfe79442da6fbacd12d",
+      "packet_hash": "6297c50298b0be1c1bf3d6822a3fbdbcbcecc0c2d663a0fadb5dbe48a5031d88",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "accepted",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Treat one viewer gap as conditional, preserve legitimate motif ambiguity and compare total effort before warranting a custom checker.",
+          "result": "supported",
+          "explanation": "Custom checking is conditional on agreed edge rules; legitimate interpretation stays with humans. Total setup/review effort and manual/existing alternatives are compared.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/1/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/1/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): software_warranted",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): assumptions"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "C2 establishes only one viewer gap, not benefit. Rectangular adjacency is labeled proposed and would change with topology.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/1/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/1/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): assumptions[2]"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "No implementation/test/deployment claimed. Proposed read-only local scope excludes network/file modification.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/1/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/1/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/1/outcome/text (parsed): measurable_outcome"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "accepted"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-seed-envelopes",
+      "task_class": "candidate_generation",
+      "split": "held_out",
+      "request_id": "a5ff07c1-1df6-4ac7-872c-edefb60f63dc",
+      "output_hash": "e7e657ce000ca31e08efef2801c1862aa216a9b9116f6b8992c38a54fab4aa0f",
+      "packet_hash": "9c7db4a5997c8a58cd85c580d96dd0dc76a9f0ec7a2a10859a97dd8b09167d74",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "accepted",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Specify check-before-seal order and human handling of unknown identification; do not equate complete annotations with correct identification.",
+          "result": "supported",
+          "explanation": "The exact frozen checklist requires human handling of unknown identification, not a specified credential. The mechanism assigns missing-information resolution to a simulated desk participant rather than guessing; assumptions[1] requires reliable identification evidence if correctness is needed. Annotation presence is explicitly separate from correctness. The overview's stronger qualified-human phrasing is not silently substituted as a new frozen criterion.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/2/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/2/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): assumptions[1]"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "C1/C2 sequencing and untested correctness/adherence remain intact. Hold-area and 20+20 mock design are labeled proposed extensions, not supplied observations.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/2/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/2/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): smallest_version"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "The mock comparison is future work; no trial or approval is claimed and actual botanical correctness is not inferred from annotations.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/2/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/2/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/2/outcome/text (parsed): measurable_outcome"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "accepted"
+        }
+      ],
+      "findings": [],
+      "notes": [
+        {
+          "severity": "P3",
+          "type": "prospective_clarity_only",
+          "source_locator": "docs/DISCOVERY_FOLLOWUP_V1.md coverage row seed-envelopes",
+          "output_locator": "raw-results.json#/2/outcome/text (parsed) mechanism; assumptions[1]",
+          "quote": "A simulated desk participant resolves missing information rather than guessing the seed type.",
+          "explanation": "Could explicitly name a qualified identifier prospectively; current frozen checklist only asks human handling, which is supplied."
+        }
+      ]
+    },
+    {
+      "case_id": "followup-design-held-translation-choice",
+      "task_class": "candidate_generation",
+      "split": "held_out",
+      "request_id": "1a79f1cd-c292-4d7e-8cb4-4ab7abf9d4cd",
+      "output_hash": "f3e61eebf19f1f9540020023c58a1f1b51c7655a422b186c0b2bd68e5d41e886",
+      "packet_hash": "7a134d2677372e72a811838cb3b30e136d92f955b8f3ccde25b878bd4063b2a7",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "accepted",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Retain members final value authority, dissent and explicit procedural consent; do not invent weights or consensus.",
+          "result": "supported",
+          "explanation": "Preserves fidelity/rhythm disagreement, explicit member authorization, dissent and deferral; no invented weights or consensus.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/3/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/3/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/3/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/3/outcome/text (parsed): smallest_version"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "C1/C2 support unresolved values, not a facilitator-selected translation. Missing excerpts/expertise/consent and effect uncertainty remain explicit.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/3/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/3/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/3/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/3/outcome/text (parsed): assumptions"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "No meeting, comparison or selection claimed; future authorized procedure is separate from current paper proposal.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/3/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/3/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/3/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/3/outcome/text (parsed): measurable_outcome"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "accepted"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-prop-tallies",
+      "task_class": "candidate_generation",
+      "split": "held_out",
+      "request_id": "e117353a-9b64-44ac-9d1c-175a1d19b1f1",
+      "output_hash": "b0362f5ef3fa04d84892e112b523c5570f753e1d5a7cbef7441e9f8e6cc298e2",
+      "packet_hash": "543ee72870fe01c229efae8f939c00729c882fe3e399c99280cb22c1b911fe10",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "accepted",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Use only aggregate totals, require designated-lead review and keep draft approval separate from purchase authority.",
+          "result": "supported",
+          "explanation": "Uses aggregate-only draft plus designated-lead checking, explicitly separates review from purchase and leaves order quantities undetermined. Paper-first is within the checklist; existing sheet access is not invented.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/4/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/4/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): software_warranted"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "C1/C2 ground aggregate scope and lead authority. Missing totals/stock/rules are retained rather than fabricated.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/4/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/4/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): assumptions"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "Template is unpopulated, synthetic and proposed; no purchases, approval, software build or measured benefit asserted.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/4/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/4/check/packet/claims/1/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/4/outcome/text (parsed): measurable_outcome"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "accepted"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-kiln-revision",
+      "task_class": "candidate_generation",
+      "split": "held_out",
+      "request_id": "e5f5d405-e47e-4093-ba1f-d71f01e8dcf1",
+      "output_hash": "a25e3615fb0c14d388d27ed9d85e2b7317fe41940bed251b37baecf717d7ef6d",
+      "packet_hash": "ac16bae715646633c22a007fba87ffc5884d59d9d2d77f6c7d797830609b9d48",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "accepted",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Address both unauthorized maker-history access and seven-versus-two adverse corrections; withdraw the unsupported function without inventing access or reversing the comparison.",
+          "result": "supported",
+          "explanation": "Withdraws private-history mechanism and benefit claim, reverses build warrant, and preserves adverse seven-versus-two correction direction.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/1/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/2/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): mechanism",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): response_to_findings",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): software_warranted"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "C2 supplies unauthorized/unavailable histories; C3 supplies synthetic counterevidence, retained with absent denominators/rules and no real-world inference.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/1/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/2/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): measurable_outcome",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): assumptions"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "No new comparison or operational kiln advice/deployment claimed; future aggregate review remains separately permitted and qualified-human-gated.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/1/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json#/cases/5/check/packet/claims/2/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): smallest_version",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): feasibility",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/5/outcome/text (parsed): response_to_findings"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "accepted"
+        },
+        {
+          "index": 5,
+          "signal": "accepted"
+        },
+        {
+          "index": 6,
+          "signal": "accepted"
+        },
+        {
+          "index": 7,
+          "signal": "accepted"
+        }
+      ],
+      "findings": []
+    },
+    {
+      "case_id": "followup-skeptic-dev-room-bookings",
+      "task_class": "scoring",
+      "split": "development",
+      "request_id": "420ac88f-b950-475d-a28b-b5bb0c55f4a0",
+      "output_hash": "f428a90444e6b9fe672f86ace42cf1d9a63aca798f49984add21feb5737f4397",
+      "packet_hash": "db052103b400c1918b3c9631ac9afb62c10e6b2e1b9e86d58875ac9224d195d9",
+      "candidate_hash": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+      "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+      "contract_signal": "acceptance_check_failed",
+      "production_schema_valid": true,
+      "result": "supported",
+      "checklist_results": [
+        {
+          "criterion": "Keep P1 separate; bind K1 duplicate to P2, unsupported benefit to P3, unavailable recordings to P4 and hosting burden to P5.",
+          "result": "supported",
+          "explanation": "P1 stands separately; P2 duplicate binds K1/C2; P3 unsupported guarantee binds C3; P4 unauthorized recordings binds C4; P5 hosting burden binds C5. Typed assertion failures remain separately preserved.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/1/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/2/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/3/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/4/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/5/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): reviews[0..4]"
+          ]
+        },
+        {
+          "criterion": "Trace consequential statements to supplied passages and retain uncertainty, contrary evidence and synthetic scope.",
+          "result": "supported",
+          "explanation": "Consequential critiques trace to C1..C6 and K1 without invented contrary outcomes. Aggregate conflict measurability is framed uncertain. P3 weak_evidence and P5 counterevidence are substantively defensible labels despite frozen alternatives.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/1/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/2/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/3/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/4/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/5/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): summary",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): reviews[2].findings",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): reviews[4].findings"
+          ]
+        },
+        {
+          "criterion": "No invented tests, customers, approvals or access. Proposed checks are not observed results.",
+          "result": "supported",
+          "explanation": "All work remains synthetic; no comparison, authority, hidden data or adoption claimed. P4 cheaper_test:null is explained by unavailable permitted test.",
+          "source_locators": [
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/0/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/1/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/2/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/3/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/4/passages/0/quote",
+            "config/connections/benchmarks/discovery-followup-v1/scoring.json#/cases/0/check/packet/claims/5/passages/0/quote"
+          ],
+          "output_locators": [
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): summary",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): reviews[3].findings",
+            "tracking/evidence/discovery-followup-v2/raw-results.json#/6/outcome/text (parsed): reviews[0..4].cheaper_test"
+          ]
+        }
+      ],
+      "assertion_replay": [
+        {
+          "index": 0,
+          "signal": "accepted"
+        },
+        {
+          "index": 1,
+          "signal": "accepted"
+        },
+        {
+          "index": 2,
+          "signal": "accepted"
+        },
+        {
+          "index": 3,
+          "signal": "accepted"
+        },
+        {
+          "index": 4,
+          "signal": "acceptance_check_failed"
+        },
+        {
+          "index": 5,
+          "signal": "accepted"
+        },
+        {
+          "index": 6,
+          "signal": "accepted"
+        },
+        {
+          "index": 7,
+          "signal": "accepted"
+        },
+        {
+          "index": 8,
+          "signal": "acceptance_check_failed"
+        }
+      ],
+      "findings": [
+        {
+          "id": "R2",
+          "severity": "P2",
+          "resolved": false,
+          "summary": "Frozen taxonomy/representation expectation is narrower than supplied prompt definitions; historical failure remains."
+        }
+      ]
+    }
+  ],
+  "unattempted_cases": 5,
+  "historical_grades_changed": false,
+  "live_calls": 0
+}

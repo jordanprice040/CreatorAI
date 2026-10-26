@@ -1,0 +1,53 @@
+{
+  "observed_at": "2026-10-26T04:09:34.2915107+00:00",
+  "scope": "User-authorized items 1-6 targeted preliminary inspection, not PR-01/SH-01",
+  "environment": [
+    {
+      "scope": "Process",
+      "localappdata": "C:\\Users\\jorda\\AppData\\Local\\Packages\\sandbox.{e4edcf96-8804-4ead-8ba7-93a646a68cb4}\\AC",
+      "creator_studio_home_present": false,
+      "creator_studio_home_nonempty": false
+    },
+    {
+      "scope": "User",
+      "localappdata": null,
+      "creator_studio_home_present": false,
+      "creator_studio_home_nonempty": false
+    },
+    {
+      "scope": "Machine",
+      "localappdata": null,
+      "creator_studio_home_present": false,
+      "creator_studio_home_nonempty": false
+    }
+  ],
+  "tools": [
+    {
+      "path": "C:\\Program Files\\PostgreSQL\\18\\bin\\pg_ctl.exe",
+      "status": "candidate_file_observed_not_config_binding",
+      "sha256": "329daca106cab8f02abe15b3a2ea9d833c60f94995d57a54161c218a940f9193",
+      "length": 133120,
+      "file_version": "18.6",
+      "product_version": "18.6",
+      "company": "PostgreSQL Global Development Group",
+      "product": "PostgreSQL",
+      "provenance": "Exact candidate location named in repository postgres.rs; no configured pg_bin or distribution authenticity established",
+      "executed": false
+    },
+    {
+      "path": "C:\\Program Files\\PostgreSQL\\18\\bin\\postgres.exe",
+      "status": "candidate_file_observed_not_config_binding",
+      "sha256": "8b8bf5d400487159e3e117053d3f5a89fad0c740b310a3ac69e5720ce4f818e1",
+      "length": 10266624,
+      "file_version": "18.6",
+      "product_version": "18.6",
+      "company": "PostgreSQL Global Development Group",
+      "product": "PostgreSQL",
+      "provenance": "Exact candidate location named in repository postgres.rs; no configured pg_bin or distribution authenticity established",
+      "executed": false
+    }
+  ],
+  "config_read": false,
+  "launch": false,
+  "all_launch_paths_confirmed": false
+}

@@ -1,0 +1,20 @@
+{
+  "applied": [
+    28
+  ],
+  "backup": {
+    "dir": "C:\\Users\\jorda\\AppData\\Local\\com.creatoragent.studio\\backups\\pre-migrate-v27-2026-10-22T04-41-27-739Z",
+    "format": "creator-premigration/1",
+    "created_at": "2026-10-22T04:41:28.315Z",
+    "schema_from": 27,
+    "schema_to": 28,
+    "database": {
+      "file": "database.dump",
+      "sha256": "4ad25518bc204f002192e9d5edd7988c49ce769017d14d03d2fdc15519beacdd",
+      "bytes": 513324
+    }
+  },
+  "from": 27,
+  "to": 28,
+  "backup_hash_verified": true
+}

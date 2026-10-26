@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-22T04:58:45.203Z",
+  "actor": "owner",
+  "decision": "approved",
+  "user_message": "yes i approve that",
+  "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+  "scope": {
+    "max_requests": 12,
+    "sequential": true,
+    "retries": 0,
+    "max_wall_minutes": 24,
+    "credits": "confirmed_off",
+    "fresh_preflight_required": true,
+    "availability_refresh_authorized": false
+  }
+}

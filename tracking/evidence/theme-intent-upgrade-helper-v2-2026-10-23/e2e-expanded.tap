@@ -1,0 +1,86 @@
+TAP version 13
+# Subtest: v2 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 1 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 1991.772
+      type: 'test'
+      ...
+    # Subtest: junction ancestors and operational reuse of fixture review are rejected
+    ok 2 - junction ancestors and operational reuse of fixture review are rejected
+      ---
+      duration_ms: 1180.8953
+      type: 'test'
+      ...
+    # Subtest: running qualifications block the real before phase
+    ok 3 - running qualifications block the real before phase
+      ---
+      duration_ms: 7169.371
+      type: 'test'
+      ...
+    # Subtest: a pre-existing managed cluster is not silently adopted or stopped
+    ok 4 - a pre-existing managed cluster is not silently adopted or stopped
+      ---
+      duration_ms: 5102.7918
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 5 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 7712.9563
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 6 - expired admission fails before mutation
+      ---
+      duration_ms: 2798.6126
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 7 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 18408.3586
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 8 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 13887.6329
+      type: 'test'
+      ...
+    # Subtest: per-studio lock rejects concurrent actual wrapper runs
+    ok 9 - per-studio lock rejects concurrent actual wrapper runs
+      ---
+      duration_ms: 12165.2042
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 10 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 17326.4976
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 11 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 42496.6583
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 12 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 44925.3996
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 13 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 40429.318
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 14 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 41119.315
+      type: 'test'
+      ...

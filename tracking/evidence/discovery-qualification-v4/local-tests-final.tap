@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: v4 research_synthesis: exact production inputs, frozen grades and disclosed semantic limits
+ok 1 - v4 research_synthesis: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 33.2961
+  type: 'test'
+  ...
+# Subtest: v4 candidate_generation: exact production inputs, frozen grades and disclosed semantic limits
+ok 2 - v4 candidate_generation: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 14.8038
+  type: 'test'
+  ...
+# Subtest: v4 scoring: exact production inputs, frozen grades and disclosed semantic limits
+ok 3 - v4 scoring: exact production inputs, frozen grades and disclosed semantic limits
+  ---
+  duration_ms: 10.4872
+  type: 'test'
+  ...
+# Subtest: v4 covers revision, five-way review and fresh cases without rewriting historical evidence
+ok 4 - v4 covers revision, five-way review and fresh cases without rewriting historical evidence
+  ---
+  duration_ms: 16.4682
+  type: 'test'
+  ...
+# Subtest: fresh skeptic cases are order-independent but reject misplaced, detached and ambiguous findings
+ok 5 - fresh skeptic cases are order-independent but reject misplaced, detached and ambiguous findings
+  ---
+  duration_ms: 19.1096
+  type: 'test'
+  ...
+# Subtest: explicit novelty serialization rejects prose denial while allowing other wording and conditional software verdicts
+ok 6 - explicit novelty serialization rejects prose denial while allowing other wording and conditional software verdicts
+  ---
+  duration_ms: 10.8885
+  type: 'test'
+  ...
+# Subtest: revision coverage and narrative entailment remain disclosed substantive review requirements
+ok 7 - revision coverage and narrative entailment remain disclosed substantive review requirements
+  ---
+  duration_ms: 11.4571
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 494.6269

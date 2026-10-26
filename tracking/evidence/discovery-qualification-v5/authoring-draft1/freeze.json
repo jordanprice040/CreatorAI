@@ -1,0 +1,62 @@
+{
+  "format": "discovery-qualification-plan/5",
+  "status": "frozen_offline_not_authorized_or_executed",
+  "prepared_at": "2026-10-21T07:05:50.554Z",
+  "proposal_hash": "8baf41c9dcaf6dfa0a4f59a2a6420a45ef2a9a89c71ff3d6bc63c1f6df6fb972",
+  "role_version": "r02-discovery/1.3",
+  "prompt_hash": "024648aca2bf927cff58d166ab957ddaecf47b2608d4bc9f0decd9b3561faf77",
+  "model_id": "gpt-6-astra",
+  "cases": 18,
+  "local_scorer_checks": 144,
+  "files": [
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v5/research_synthesis.json",
+      "task_class": "research_synthesis",
+      "sha256": "dbd16bd3acc717fea4208245cc2738e5af7f98c65d257554a0ad0732b82d7f6e",
+      "canonical_hash": "6e1a43c63434db4b563193d54da111fc7ffb6410cdbde5132da8df917da52d92"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v5/candidate_generation.json",
+      "task_class": "candidate_generation",
+      "sha256": "e60c4adc1a9db42912ff0a51776b3ad5cca7f13957ee9de6ec8a3d7e5d84fcac",
+      "canonical_hash": "ca8ee29397c8380405e8d950b9d5499da777308fb1d375b274ab2cd527567d02"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v5/scoring.json",
+      "task_class": "scoring",
+      "sha256": "ea222f016b38383d3a521db397faa266ea7998d6ffbadd41ecc819dd05b0ab6b",
+      "canonical_hash": "c5ef70abf6a780fa27550ccf72462d2a0e2fe5841501d19746ae57b24504466f"
+    }
+  ],
+  "controls_sha256": "518b5fa16df2c9ff67f8b0f7b9a9146069409cba1667edc19b37f789e5c611e1",
+  "limits": {
+    "max_new_requests": 18,
+    "retries": 0,
+    "max_concurrency": 1,
+    "max_request_ms": 120000,
+    "max_wall_ms": 2160000,
+    "max_output_chars": 16000,
+    "max_input_chars": 24000,
+    "new_metered_spend_nano_usd": "0",
+    "settings_expansion": false
+  },
+  "transport": [
+    {
+      "task_class": "research_synthesis",
+      "creation_bytes": 106202,
+      "max_input_chars": 14064
+    },
+    {
+      "task_class": "candidate_generation",
+      "creation_bytes": 92691,
+      "max_input_chars": 13135
+    },
+    {
+      "task_class": "scoring",
+      "creation_bytes": 108642,
+      "max_input_chars": 18382
+    }
+  ],
+  "manual_review_required": true,
+  "prior_failed_results_preserved": true
+}

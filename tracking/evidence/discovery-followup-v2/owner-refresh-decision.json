@@ -1,0 +1,9 @@
+{
+  "recorded_at": "2026-10-22T05:01:02.252Z",
+  "user_message": "yes I approve that",
+  "decision": "approved",
+  "proposal": "availability-refresh-proposal.json",
+  "max_new_provider_requests": 1,
+  "retries": 0,
+  "continue_approved_suite_if_gates_pass": true
+}

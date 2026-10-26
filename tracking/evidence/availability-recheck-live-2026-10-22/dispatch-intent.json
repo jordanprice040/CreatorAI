@@ -1,0 +1,8 @@
+{
+  "grant_id": "4232244c-8d65-4cd6-9615-45ca54da2f32",
+  "model_id": "gpt-6-astra",
+  "purpose": "availability_recheck",
+  "max_requests": 1,
+  "retry": false,
+  "owner_authorization": "Start with that next step, and I approve you testing again with that"
+}

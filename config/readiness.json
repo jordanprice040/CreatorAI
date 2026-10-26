@@ -1,6 +1,6 @@
 {
   "schema": "readiness/1",
-  "as_of": "2026-10-19",
+  "as_of": "2026-10-20",
   "states_mean": {
     "implemented": "code for the capability exists on main",
     "fixture": "exercised end to end with fixture adapters on real PostgreSQL",
@@ -27,7 +27,7 @@
         "tracking/evidence/t19",
         "docs/ARTIFACTS_AND_PREVIEW.md"
       ],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
     },
     {
       "id": "C02",
@@ -42,7 +42,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C03",
@@ -57,7 +57,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C04",
@@ -72,7 +72,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t08"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C05",
@@ -117,7 +117,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C08",
@@ -132,7 +132,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
     },
     {
       "id": "C09",
@@ -162,7 +162,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t03", "tracking/evidence/t08"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C11",
@@ -177,7 +177,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t03", "tracking/evidence/t07"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C12",
@@ -377,7 +377,7 @@
       },
       "required": ["implemented", "fixture", "live", "native"],
       "evidence": ["tracking/evidence/t12"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. Builder and reviewer roles have only run as fixed synthetic roles."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. Builder and reviewer roles have only run as fixed synthetic roles."
     },
     {
       "id": "C24",
@@ -595,7 +595,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["docs/MODEL_ROUTING.md", "tracking/evidence/x01"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C38",
@@ -610,7 +610,7 @@
       },
       "required": ["implemented", "fixture", "contract", "live"],
       "evidence": ["docs/CONTEXT_AND_CACHING.md", "tracking/evidence/x02"],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant. Caching, batch and compaction stay documented for gpt-6-astra."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. Caching, batch and compaction stay documented for gpt-6-astra."
     },
     {
       "id": "C39",
@@ -813,6 +813,62 @@
       "required": ["implemented", "fixture"],
       "evidence": ["docs/X10_ACCEPTANCE.md", "tracking/evidence/x10/bench"],
       "blocked_on": null
+    },
+    {
+      "id": "C52",
+      "title": "Central studio chat",
+      "states": {
+        "implemented": "not_verified",
+        "fixture": "not_verified",
+        "contract": "not_verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_verified"
+      },
+      "required": ["implemented", "live", "native"],
+      "evidence": [
+        "docs/COMPLETION_RUNBOOK.md",
+        "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md"
+      ],
+      "blocked_on": "Owner-accepted planning only (\u00a72.17); implementation and exact-candidate acceptance remain outstanding."
+    },
+    {
+      "id": "C53",
+      "title": "Theme-free problem discovery",
+      "states": {
+        "implemented": "not_verified",
+        "fixture": "not_verified",
+        "contract": "not_verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_verified"
+      },
+      "required": ["implemented", "live", "native"],
+      "evidence": [
+        "docs/COMPLETION_RUNBOOK.md",
+        "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md"
+      ],
+      "blocked_on": "Owner-accepted planning only (\u00a72.18); implementation and exact-candidate acceptance remain outstanding."
+    },
+    {
+      "id": "C54",
+      "title": "Billing-aware intake and complete in-app workflow",
+      "states": {
+        "implemented": "not_verified",
+        "fixture": "not_verified",
+        "contract": "not_verified",
+        "live": "not_verified",
+        "activated": "not_verified",
+        "native": "not_verified"
+      },
+      "required": ["implemented", "live", "native"],
+      "evidence": [
+        "docs/COMPLETION_RUNBOOK.md",
+        "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md",
+        "docs/SUBSCRIPTION_DISCOVERY.md",
+        "tracking/evidence/subscription-workflow"
+      ],
+      "blocked_on": "First resource/plan-workflow bridge is implemented and locally contract/browser checked (migration 27), not installed or live-qualified. Simple theme-to-evidence intake and complete in-app lifecycle remain outstanding; no C54 completion or live/native promotion."
     }
   ],
   "integrations": [
@@ -833,7 +889,7 @@
         "config/provider-availability.json",
         "docs/AUDIT_FIXES_2026-10-20.md"
       ],
-      "blocked_on": "No live model call has been made: gpt-6-astra stays documented until Jordan verifies an accessible model id, key and grant."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "source-fetch",

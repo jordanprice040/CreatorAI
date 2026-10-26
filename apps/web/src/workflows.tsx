@@ -381,12 +381,21 @@ export function Workflows({
                   </li>
                 ))}
               </ul>
-              <p className="small">
-                {detail.usage.attempts} calls · charged{' '}
-                {money(detail.usage.incurred, wf.fixture)} · in flight{' '}
-                {money(detail.usage.reserved, wf.fixture)} · unknown (held){' '}
-                {money(detail.usage.unknown, wf.fixture)}
-              </p>
+              {detail.subscription_usage ? (
+                <p className="small">
+                  {detail.subscription_usage.requests} subscription requests ·{' '}
+                  {detail.subscription_usage.in_flight} in flight ·{' '}
+                  {detail.subscription_usage.unresolved} unresolved. No API
+                  money envelope is used; quota is shared with other plan use.
+                </p>
+              ) : (
+                <p className="small">
+                  {detail.usage.attempts} calls · charged{' '}
+                  {money(detail.usage.incurred, wf.fixture)} · in flight{' '}
+                  {money(detail.usage.reserved, wf.fixture)} · unknown (held){' '}
+                  {money(detail.usage.unknown, wf.fixture)}
+                </p>
+              )}
               {wf.result && (
                 <>
                   <h3>Result: {words(wf.result.outcome)}</h3>

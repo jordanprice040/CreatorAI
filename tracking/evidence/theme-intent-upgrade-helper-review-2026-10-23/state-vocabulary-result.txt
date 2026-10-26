@@ -1,0 +1,6 @@
+Executed 2026-10-23 on the disposable PG18 cluster (127.0.0.1:55451, synthetic DB built from migrations 1-28).
+All twelve quiescence queries in theme-intent-upgrade-core.mjs:185-220 are valid against real schema28 and are
+conservative for their tables (terminal-set or active-set lists match the CHECK constraints).
+Not covered by quiescence: plan_qualifications.state='running'; run_controls.state='active';
+payment_checkouts.state='open'; decision_requests.status='pending'; context_evaluations.state='pending'.
+(Any concurrent row change is still caught later by the full-table fingerprint comparison.)

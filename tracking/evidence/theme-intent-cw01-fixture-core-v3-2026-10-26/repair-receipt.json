@@ -1,0 +1,114 @@
+{
+ "format": "theme-intent-cw01-fixture-core-v3-repair/1",
+ "date": "2026-10-26",
+ "prompt": "U03 repair of the v2 re-review Low conditions R-1 to R-3",
+ "authorization": "Jordan's approved fix-and-review loop (message cmsg_01Ekfs9asX2KK8f8YWsvsDtFKZCTkAXN7kCaNfRZnCWHpD)",
+ "author": "Claude (Anthropic model family), same session as the v1 review and v2 repair; independent re-review required",
+ "status": "repair_verified_locally_independent_review_pending",
+ "independent_review": false,
+ "operational": false,
+ "report": {
+  "path": "docs/THEME_INTENT_CW01_FIXTURE_CORE_V3_REPAIR_2026-10-26.md",
+  "sha256": "f9bb8839d5e4f264058f7d88d66423bc808995ede5ac371de41d30ba75048597"
+ },
+ "answers_review": {
+  "path": "docs/THEME_INTENT_CW01_FIXTURE_CORE_V2_REVIEW_2026-10-26.md",
+  "sha256": "8f4b3efb03d21111891861b0991a814a759f58eb3f5a18b2b0d321da9a4284aa"
+ },
+ "new_files_sha256": {
+  "scripts/theme-intent-cw01-core-fixture-v3.mjs": "4f61cbaf0f32c10f6d7d78917cc091e0ecefb7e19339bb262482f9ff7e815aa2",
+  "tests/theme-intent-cw01-core-fixture-v3.test.mjs": "ecb7e95df0da7376d1e5eb6e07da07280f2154a4dbd98da371d09c289861c37c",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v3-2026-10-26/tests-final.tap": "2780a4cd388ac98a7a3fbc5694e537c07de83ed9c1d0a0555dd75e33744bada1",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v3-2026-10-26/mutation-check.mjs": "1cce51f83c3e695436c7792c2168a0b5f14caf81662f7ffb3858ca8ba449d233",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v3-2026-10-26/mutation-results.json": "1ad776fe13140e5473a5bb39cc4e5cb6154a50bee6b36f6245053a70ecc6e39b"
+ },
+ "versions": {
+  "core": "cw01-fixture-core/3",
+  "receipt_format": "theme-intent-cw01-fixture-receipt/3",
+  "sql_asset": "cw01-observer-sql/2 (unchanged)"
+ },
+ "dispositions": {
+  "R-1": "repaired: pg_ctl creation minus affirmed_at_ms <= 120000 ms (repair's choice; Jordan to confirm)",
+  "R-2": "repaired: stop launch exit_ft required at or after creation; stopped observation at or after exit",
+  "R-3": "repaired: sql_A/sql_B context holds deep-frozen snapshot copies"
+ },
+ "decision_for_jordan": "Confirm or change the 120 s attestation-to-spawn bound",
+ "preserved_sha256_verified_unchanged": {
+  "scripts/theme-intent-cw01-core-fixture.mjs": "b8b9eb5db59afdf3725717bf9a723c808e66b4ca399624d20fa8f4afe1730662",
+  "tests/theme-intent-cw01-core-fixture.test.mjs": "5e0b615cdeb4d1c953531c60b6a0829002904636a83119e65d8d975a06939dda",
+  "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+  "docs/THEME_INTENT_CW01_FIXTURE_CORE_IMPLEMENTATION_2026-10-26.md": "9a3a119409d9a69f0d6eca0a710bff43652ab660df7c5458a6ea678780e127e4",
+  "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/implementation-receipt.json": "1788d54b0ddefd79cf3a08bfedf8a5c3627d18b2c139b33d895d05a3565ab63f",
+  "docs/THEME_INTENT_CW01_FIXTURE_CORE_REVIEW_2026-10-26.md": "d4d05a86005198a115af258e42108b6833a2e6d130073d7e0bf058fe24cc2c04",
+  "tracking/evidence/theme-intent-cw01-fixture-core-review-2026-10-26/reviewer-receipt.json": "bf677643274ad6c15a92fa3a308a15a161d4c4249ba0c1a05c2e7fcce92fe90d",
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/design-receipt.json": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/input-snapshot.json": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196",
+  "tracking/evidence/theme-intent-cw01-implementation-design-review-2026-10-26/reviewer-receipt.json": "90b6a2673dab3296f48715b07665b68a592bb1c38fb3ae5ee18ed4be85a61680",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/repair-receipt.json": "ce15033fe705e15161920e6fb6ab8444b41085bed72c44ec57a309a409ebaa9f",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/input-snapshot.json": "ba937675f5f47d085a1b6ebd0b292c5cda35d4f3fc989f8cdb13eb9529852c99",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md": "d762803241fe4d85a39e9645019121c0c8683a34b99dfb511b19813265c8de58",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-review-2026-10-26/reviewer-receipt.json": "31327193bf6347d9881a92b7e506b3768eec59f750aa7795a01db81774764614",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md": "a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md": "6ae7554e4df508e849e51c2f3d5a64ad1d0ae478930d491569d1298fbad89a05",
+  "scripts/theme-intent-cw01-core-fixture-v2.mjs": "f72b9ea1cc37fbb20ad57efdca24cbd6bd2a007c39a1aa3d99602101fac0a1de",
+  "tests/theme-intent-cw01-core-fixture-v2.test.mjs": "3309e8103c2b6e964d78c8cca35b37fc4476415bc7daf2f46f95c8185c27624c",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v2-2026-10-26/tests-final.tap": "1247b5bc67a5245be053a411fcc049745763840274c212eabaa15477990dd651",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v2-2026-10-26/mutation-check.mjs": "3ffa3bf9798107ccc379370a0a7f72e3cf5338e00e47c5b188af96452f3906c1",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v2-2026-10-26/mutation-results.json": "964dd6de583300c58ba337c7c9010c24e8134f393662bccc2eec431dbfed1d61",
+  "docs/THEME_INTENT_CW01_FIXTURE_CORE_V2_REPAIR_2026-10-26.md": "2f765ae4cc5f809a25a9499cf00166d7ba987b5d79d46c7aa17ff1f00696a810",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v2-2026-10-26/repair-receipt.json": "77bd6755f1b1b7df0f4a1365fb574630f1e26bcf22ea8f7df6caa4967691f8b8",
+  "docs/THEME_INTENT_CW01_FIXTURE_CORE_V2_REVIEW_2026-10-26.md": "8f4b3efb03d21111891861b0991a814a759f58eb3f5a18b2b0d321da9a4284aa",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v2-review-2026-10-26/reviewer-receipt.json": "c8f6b30d8f43ab7b5fd5e609663e171a36f8791b0f04d6d82686da3556481744"
+ },
+ "preserved_mismatches": [],
+ "tracking_changes": {
+  "tracking/BUILD_STATUS.md": {
+   "before": "d8dfd326d7f6ad92e72d84e924be1e812ce10cee14e3a667daf4609041693b77",
+   "after": "10104ae9e0dc19cf9bff90911df59f12fa520f4712ec6e90f6f28d1bf50c2c7a",
+   "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+  },
+  "tracking/SESSION_HANDOFF.md": {
+   "before": "999d16bf6bfac1757d79e0a7c9ab9458278f756c6164d6f4c72fd177a9136b73",
+   "after": "dc5a782ae58ac7806d74aa8dfe0412f2894c01f8a65164abce070907c09de120",
+   "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+  },
+  "not_applicable": [
+   "tracking/DECISIONS.md (no new decision)",
+   "tracking/INTEGRATIONS.md (no integration activated)"
+  ]
+ },
+ "checks": {
+  "node_version": "v22.21.0",
+  "tests": 24,
+  "pass": 24,
+  "fail": 0,
+  "mutation_baseline": "pass",
+  "mutants": 33,
+  "mutants_killed": 33,
+  "carried_test_fixture_changed": "v2 F2 stop-spawn freshness case now moves exit_ft with creation_ft (R-2 rejects exit before creation)",
+  "prettier_check_new_mjs": "clean"
+ },
+ "not_run": [
+  "SQL asset or any SQL",
+  "Credentials",
+  "Operational config/environment/registry/process/port/object/pidfile reads",
+  "Cluster/app start or stop",
+  "Launch or sign-in",
+  "Helpers/install/migration/recovery",
+  "Activation or dispatch",
+  "Unrelated tests or verifiers",
+  "pnpm scripts",
+  "Retired OneDrive checkout access"
+ ],
+ "status_preserved": "M3 unchanged and not reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled; CW-01 not operational",
+ "next": "Independent re-review per the report's prompt"
+}

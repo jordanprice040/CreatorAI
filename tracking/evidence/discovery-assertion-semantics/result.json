@@ -1,0 +1,19 @@
+{
+  "date_local": "2026-10-21",
+  "mode": "offline_author_diagnostics_only",
+  "cases": 18,
+  "task_kinds": [
+    "locate",
+    "propose",
+    "revise",
+    "skeptic"
+  ],
+  "assertions": 71,
+  "probes_executed": 72,
+  "expected_results_matched": 72,
+  "all_bindings_unchanged": true,
+  "new_provider_calls": 0,
+  "runtime_changes": false,
+  "historical_grades_changed": false,
+  "limitation": "Synthetic mutations and author-visible controls diagnose scorer behavior, not independent model performance. Semantic judgments still require qualified independent review."
+}

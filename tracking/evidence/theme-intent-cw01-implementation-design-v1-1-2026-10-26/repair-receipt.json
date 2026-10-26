@@ -1,0 +1,59 @@
+{
+  "format": "theme-intent-cw01-implementation-design-v1.1/1",
+  "date": "2026-10-26",
+  "authorization": "Jordan yes to additive repository-only note addressing M1/M2 and four Lows",
+  "author": "Codex; original implementation-design author, not independent review",
+  "status": "proposed_repairs_independent_review_pending",
+  "note_sha256": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+  "input_snapshot_sha256": "ba937675f5f47d085a1b6ebd0b292c5cda35d4f3fc989f8cdb13eb9529852c99",
+  "preserved_input_count": 348,
+  "preservation_mismatches": [],
+  "local_links": 4,
+  "scope": [
+    "M1 host address comparison NULL rejection",
+    "M2 W1 pidfile/process-chain/SQL instance ownership",
+    "L1 COMSPEC/working-directory/path trust",
+    "L2 inner80s outer90s process handles NUL no kill-on-close",
+    "L3 NULL backend_type counts A/B",
+    "L4 signal files/effective recovery/preload/archive checks",
+    "I-a to I-f dispositions"
+  ],
+  "checks": [
+    "Repository review/source reading",
+    "Direct prior 343 input rehash plus new input snapshot",
+    "Official PostgreSQL and Microsoft documentation/source reads",
+    "New-note formatting/local-link/whitespace checks"
+  ],
+  "official_sources": [
+    "https://www.postgresql.org/docs/18/functions-net.html",
+    "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/bin/pg_ctl/pg_ctl.c",
+    "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/utils/pidfile.h",
+    "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/postmaster/postmaster.c",
+    "https://www.postgresql.org/docs/18/functions-info.html",
+    "https://www.postgresql.org/docs/18/functions-admin.html",
+    "https://www.postgresql.org/docs/18/runtime-config-client.html",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes",
+    "https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32w"
+  ],
+  "source_date": "2026-10-26",
+  "not_run": [
+    "Implementation",
+    "Tests or historical verifiers",
+    "Operational config/environment/registry/process/ports/objects",
+    "Pidfile contents",
+    "SQL or credentials",
+    "Cluster/app start or stop",
+    "Sign-in",
+    "Helpers/install/migration/recovery",
+    "Activation"
+  ],
+  "limitations": [
+    "Snapshot after inspection before authoring",
+    "Upstream sources do not identify installed binary bytes",
+    "Process parent/creation/clock adapter unimplemented and unqualified",
+    "No attestation filled; prior unknown remains",
+    "Design support pending independent review; no operational grant"
+  ],
+  "next": "Independent repository-only exact additive-note review; no implementation or operational action"
+}

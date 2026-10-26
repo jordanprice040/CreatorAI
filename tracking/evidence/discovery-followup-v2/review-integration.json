@@ -1,0 +1,12 @@
+{
+  "format": "discovery-followup-v2-review-integration/1",
+  "created_at": "2026-10-22T04:56:10.600Z",
+  "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+  "reviewer_receipt": "tracking/evidence/discovery-followup-v2-review-2026-10-22/reviewer-receipt.json",
+  "reviewer_receipt_sha256": "655481d18685b5f358c1cae9937bbab4448fd90e2dec86f613bded0821bb19a3",
+  "review_status": "prospective_binding_supported_execution_decision_and_preflight_pending",
+  "verified_artifact_count": 261,
+  "owner_execution_decision": "pending",
+  "provider_calls": 0,
+  "run_lock_present": false
+}

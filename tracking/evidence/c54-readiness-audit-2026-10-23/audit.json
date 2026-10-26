@@ -1,0 +1,124 @@
+{
+  "format": "c54-offline-readiness-audit/1",
+  "created_at": "2026-10-23T04:12:09.617Z",
+  "scope": "source inspection, saved evidence and four offline boundary probes; not UI/live acceptance",
+  "source_commit": "590aba3c3e5a0bd6710f2162d41f3cec9f39d807",
+  "source_dirty": true,
+  "probes": {
+    "empty_claim_discovery_rejected_only_at_evidence": true,
+    "attached_claim_discovery_shape_accepted": true,
+    "theme_only_incomplete_brief_rejected": true,
+    "native_search_tools_absent_in_current_plan_request": true
+  },
+  "historical_subscription_test_bindings": [
+    {
+      "path": "apps/api/src/index.ts",
+      "matches_current": false
+    },
+    {
+      "path": "apps/web/src/submit.tsx",
+      "matches_current": true
+    },
+    {
+      "path": "apps/web/src/workflows.tsx",
+      "matches_current": true
+    },
+    {
+      "path": "packages/contracts/src/orchestration.ts",
+      "matches_current": true
+    },
+    {
+      "path": "packages/db/src/migrations.ts",
+      "matches_current": false
+    },
+    {
+      "path": "packages/db/src/connection-store.ts",
+      "matches_current": false
+    },
+    {
+      "path": "packages/db/src/discovery-store.ts",
+      "matches_current": true
+    },
+    {
+      "path": "packages/db/src/workflow-store.ts",
+      "matches_current": true
+    },
+    {
+      "path": "packages/broker/src/plan-responses.ts",
+      "matches_current": false
+    },
+    {
+      "path": "packages/broker/src/plan-service.ts",
+      "matches_current": false
+    },
+    {
+      "path": "packages/orchestrator/src/main.ts",
+      "matches_current": true
+    },
+    {
+      "path": "packages/orchestrator/src/worker.ts",
+      "matches_current": true
+    },
+    {
+      "path": "tests/src/subscription-workflow.test.ts",
+      "matches_current": false
+    },
+    {
+      "path": "scripts/verify-subscription-setup.playwright.js",
+      "matches_current": true
+    }
+  ],
+  "operational_role_coverage": "3/3",
+  "C54": "partial",
+  "remaining": [
+    "durable theme-only draft and research-intake stage",
+    "permitted source collection to first supported claims",
+    "effective parent/workspace/pilot limits and sharing presentation",
+    "current in-app spec/build/package/revision actions",
+    "exact-candidate live UI acceptance plus owner walkthrough"
+  ],
+  "next_eligible": "Implement a bounded durable theme-intent draft and research-plan preparation slice through domain/API/UI, without dispatch; preserve existing evidence-first discovery contract and frozen studies",
+  "provider_calls": 0,
+  "network_calls": 0,
+  "database_access": false,
+  "credentials_access": false,
+  "application_changed": false,
+  "source_sha256": {
+    "scripts/audit-c54-readiness.mjs": "6a1ce58e2decd3e8a007690938e1cb0ef71d401d41642817cd11aff2effce993",
+    "context/REQUIREMENTS.md": "99ce805352699cf8c622298e1e9ef13ececa6966cddaca45e8035987387442bc",
+    "config/readiness.json": "cb927b91d5f8f1e8375fe38eb7055baf293b8a5cbeaa2f333bd27a6bdd29802e",
+    "config/owner-pilot.defaults.json": "ce574c74ba2191ac0c2f17ea9a5e0d466170fa93f8abe636ff2d33999fd43a83",
+    "apps/web/src/submit.tsx": "5634d3c7281fdcd196b873a491b929809de278b3f4c5dd0687bf464fc77a6ca2",
+    "apps/web/src/page-drafts.tsx": "c9bcbc32dbae3b94c3817a665dd1107418a9c5c159f12e02647f838b92e9e99d",
+    "apps/web/src/selection.tsx": "adcec158f1b6f7f6b28ed90cea38bc25f2e595cf3968522ebea99316e2b2e5e1",
+    "apps/web/src/gallery.tsx": "755c9083bac879ecfc687104da3a76ddd45bbab97cb063096cadb70b562b6ce7",
+    "apps/web/src/evidence.tsx": "54b78b7e9610728f5349c630de786ec9884ecffe5eb8529224fd8cb87ad91dfc",
+    "apps/web/src/workflows.tsx": "e67b056d545a09776260056c057ccb6cd90a3ec5e57607a4bf2171f2afaf6094",
+    "apps/api/src/index.ts": "8282966c51be4dbb548c4d216e50e1dad183a724cf4851c88a3e09fffa9bd462",
+    "apps/api/src/artifacts.ts": "a8990a92a512979c87d864defa955f2f6564203c0a7ff3b8590594647ffc37b5",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "packages/contracts/src/orchestration.ts": "0c32f1219a62b99e67584abab1180335af306379127904555f51840decf14985",
+    "packages/contracts/dist/discovery.js": "41c90f7f0ccb5bcc1440710c3435f13c3a353edf7cc8366efdf80e83a9ee92af",
+    "packages/contracts/dist/orchestration.js": "d97a6439dba6172a47dc24c24442dcb5e3f379d5c7aa3191609c72fe89dc70e6",
+    "packages/db/src/discovery-store.ts": "af9458c11a23f992aeed970fcd7c8e3f8e4cb388ef3b99f3b9b1056faf4ff8b9",
+    "packages/db/src/connection-store.ts": "5d5e0f04f09329f0d10c8e6a1a068821a2395a55f914a53e8c4d50e564079506",
+    "packages/db/src/workflow-store.ts": "251a9737732a9fc58c1e59c237c5f06b2921ddd81ccad87643e51d5892eed69b",
+    "packages/broker/src/plan-responses.ts": "b6f877644bc824e90217f6386b84d044e1d3a68175e0c7d83317464c77acab64",
+    "packages/broker/dist/plan-responses.js": "dfcac3918c37665b462afba73a741bebbe4ca98ba4004508c38762288ff71bd0",
+    "packages/orchestrator/src/worker.ts": "001306f5b5291fae5e5cafb653403412a13d1b420f2c05cf54166598d4729d7b",
+    "packages/orchestrator/src/main.ts": "d68e5d52cc12538f73a5374455b2bcbd3aae659a3fb7530b47c57878af777690",
+    "packages/research/src/broker.ts": "6fce7cfd0b246f4c6a0e73a7d0a63e74410af7b4cbc87eb4ede264f2a270eea5",
+    "packages/research/src/adapters.ts": "032bb77afae5a23a71f640b9cd971afdb0cd7b21d66c6377957d484d5277a28a",
+    "packages/executor/src/artifacts.ts": "eecf08243a0017cd59c7c32c0eaca7b10653c81c66164719ac82bfeaadb2b0be",
+    "packages/db/src/artifact-store.ts": "c841aa299bd01be652e7795565a6e452fa225befff312cd19d814de27a9d1518",
+    "tests/src/subscription-workflow.test.ts": "6ac25ed721a8d46175c7b07ba8c2d94f7a5e3380782f41f6892af692eceac292",
+    "tests/src/research-store.test.ts": "3694a66da6f58e61693b6677db83bc2f18baa85c7ded5ede4dd151135442f950",
+    "tests/src/research.test.ts": "6a0233c286054fa77c2b92c9cb7c997fe49b3153488b2c6c5708a6528a396587",
+    "tests/src/artifact-api.test.ts": "d474ce52af0fd1336a7150ab7f28fc47090870aca674d24beb926ddd870c475f",
+    "tracking/evidence/subscription-workflow/result.json": "14d0bae047262a64dd8b1f3dc10d42a5ec73b306c852968b657279af37253336",
+    "tracking/evidence/discovery-research14-runner/operational-coverage.json": "046f27496d847aef86a7c822516931d00554a8420710c39baf999f27b8576d26",
+    "tracking/evidence/discovery-research14-output-review-2026-10-23/reviewer-receipt.json": "0dd0c383576f15f85a26743c67c89ad21912674dddddb7f5adad29affbb9934e",
+    "tracking/evidence/discovery-semantics-v2-output-review-2026-10-22/reviewer-receipt.json": "ebbfc0eeeca10f2940db2f6748616d6cf2a5c0c90f356be0cd68d2db62f0c71a",
+    "tracking/evidence/discovery-research14-runner/full-record-reconciliation.json": "41e2b4753e075ba1885865df796306ebaf1b3205aa83c79ff9cd1f0dd769dbff"
+  }
+}

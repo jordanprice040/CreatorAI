@@ -1,5 +1,12 @@
 # Model connections: ChatGPT plan and the Codex builder (§2.2 / §2.4)
 
+October 20 live update: owner sign-in and one gpt-6-astra direct verification succeeded.
+The owner-authorized initial summarization qualification also passed (2/2 development,
+6/6 held-out, eight new plan requests). This is limited to synthetic structured event
+summaries. See [scope, commands and receipts](PLAN_SUMMARIZATION_QUALIFICATION.md).
+Specification/code-build qualification and broader readiness remain separate; the
+historical implementation status below predates this live check.
+
 Status on 2026-10-20: **implemented and contract-verified; not activated.** Nothing has
 signed in, registered a client, installed Codex on Jordan's machine or called a model.
 Design and owner answers: [CODEX_INTEGRATION.md](CODEX_INTEGRATION.md). Decision:

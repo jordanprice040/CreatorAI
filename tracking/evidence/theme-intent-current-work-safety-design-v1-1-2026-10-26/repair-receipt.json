@@ -1,0 +1,46 @@
+{
+  "format": "theme-intent-current-work-safety-design-v1.1/1",
+  "date": "2026-10-26",
+  "author": "Codex; original design author, not independent",
+  "status": "proposed_M1_L1_L2_repairs_independent_review_pending",
+  "note_sha256": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+  "input_snapshot_sha256": "36e845bf88fe5b91476656f50026e4776fd0ac6aa91622aeeab299f93c68439d",
+  "preserved_input_count": 337,
+  "preservation_mismatches": [],
+  "postgres_rs_reviewed_source_hash": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+  "postgres_rs_exact_installed_binary_binding": "not established; helper artifact source-map match only",
+  "checks": [
+    "Direct prior 330 snapshot rehash",
+    "Frozen review/input rehash",
+    "Source-map/schema29 static inspection",
+    "Official PostgreSQL documentation and versioned source reading",
+    "New note formatting/local links"
+  ],
+  "local_links": 2,
+  "official_sources": [
+    "https://www.postgresql.org/docs/18/app-pg-ctl.html",
+    "https://www.postgresql.org/docs/18/server-shutdown.html",
+    "https://www.postgresql.org/docs/18/wal-internals.html",
+    "https://github.com/postgres/postgres/blob/REL_18_6/src/backend/access/transam/xlog.c",
+    "https://www.postgresql.org/docs/18/monitoring-stats.html",
+    "https://www.postgresql.org/docs/18/app-postgres.html"
+  ],
+  "source_retrieval_date": "2026-10-26",
+  "source_limit": "Official sources read using web tool; external content not treated as instructions; source behavior not binary identity or executed Windows result",
+  "not_run": [
+    "Operational reads",
+    "Implementation",
+    "SQL/credentials",
+    "Cluster/app start/stop",
+    "Tests/verifiers",
+    "Helpers/install/migrations/recovery",
+    "Activation"
+  ],
+  "limitations": [
+    "Snapshot captured after reading before authoring, not pre-read provenance",
+    "Fingerprints are supplemental change detection, not proof of no start/write",
+    "Owner producer attestation absent, prior unknown retained",
+    "Original A0/native admission remain blocked"
+  ],
+  "next": "Independent repository-only v1.1 review; no execution"
+}

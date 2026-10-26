@@ -1,0 +1,8 @@
+{
+  "workspace": "98e83b94-56f8-49e9-9a6c-5a8af161d158",
+  "other_workspace": "827ca3a0-f045-44bc-bfa6-16cd6e076b4b",
+  "api_port": 4318,
+  "web_port": 5188,
+  "database": "creator_theme_ui_20261023",
+  "mode": "isolated_test_database_real_API_no_providers"
+}

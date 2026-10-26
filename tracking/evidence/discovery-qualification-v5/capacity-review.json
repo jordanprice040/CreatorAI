@@ -1,0 +1,6 @@
+{
+  "additional_slots_needed": 2,
+  "earliest_capacity_utc": "2026-10-21T12:38:48.515Z",
+  "earliest_capacity_local": "Wednesday, October 21, 2026 at 8:38:48 AM EDT",
+  "assumption": "No additional requests; estimate from current request timestamps. Fresh API/DB preflight remains authoritative. No automatic wakeup scheduled."
+}

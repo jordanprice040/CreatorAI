@@ -1,0 +1,39 @@
+{
+  "status": "partial",
+  "reviewer_type": "model",
+  "prior_implementation_involvement": false,
+  "findings": [
+    {
+      "id": "TI-01",
+      "severity": "P2",
+      "status": "open",
+      "category": "input_preservation",
+      "file": "apps/web/src/theme-intent.tsx",
+      "line": 72,
+      "title": "An ordinary second open bypasses the discard confirmation",
+      "reproduction": [
+        "Enter unsaved draft text.",
+        "Click New theme draft (or Resume/Reload): confirmation appears and text remains.",
+        "Without selecting Discard, click ordinary New theme draft again (or another Resume/Reload)."
+      ],
+      "actual": "pending is non-null, so dirty && pending === null is false; open proceeds and replaces form then clears dirty.",
+      "expected": "Every ordinary open must preserve dirty form unless the user explicitly confirms discard.",
+      "evidence": [
+        "tracking/evidence/theme-intent-review-2026-10-23/probe-open.mjs",
+        "tracking/evidence/theme-intent-review-2026-10-23/probe-open-result.json",
+        "tracking/evidence/theme-intent-review-2026-10-23/parent-browser-reproduction.json"
+      ],
+      "test_gap": "Existing browser sequence exercises Keep then explicit Discard, but not another ordinary navigation while confirmation remains visible.",
+      "recommended_repair": "Separate guarded requestOpen from explicit discard-confirmed load (or pass an explicit discard authorization only from confirmation). Keep every ordinary navigation guarded independent of pending; clear/rebind pending state on save/open as appropriate. Add a focused regression for repeated ordinary New and alternate Resume/Reload while pending."
+    },
+    {
+      "id": "TI-02",
+      "severity": "low",
+      "status": "metadata_only",
+      "file": "tracking/evidence/theme-intent-implementation-2026-10-23/implementation-receipt.json",
+      "title": "Receipt format is overwritten with passed",
+      "actual": "format=\"passed\"; original immutable receipt retained and all 26 artifact hashes verify.",
+      "recommended_repair": "Use separate format/version and formatting_check fields in a prospective supplemental receipt; do not mutate the original evidence."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format": "finding-semantics-review-integration/1",
+  "integrated_at": "2026-10-22T17:03:51.283Z",
+  "reviewer_receipt_sha256": "1ea42fe4b8033fd972024646da1f39a87f27e3e9fe700176ae7678c6705c392f",
+  "verified_artifact_count": 39,
+  "status": "supported_bounded_local_implementation",
+  "role_version": "r02-discovery/1.4",
+  "prompt_hash": "c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8",
+  "resolved_finding": "R1 default test discovery repaired and independently checked",
+  "provider_calls": 0,
+  "installation": false,
+  "next_eligible": "Prepare prospective new evaluation packet and exact candidate binding"
+}

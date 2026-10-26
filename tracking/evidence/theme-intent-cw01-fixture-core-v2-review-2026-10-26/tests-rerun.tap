@@ -1,0 +1,136 @@
+TAP version 13
+# Subtest: successor SQL asset: exact hash, M1/R3/L3/L4/I-a content, read-only allowlist
+ok 1 - successor SQL asset: exact hash, M1/R3/L3/L4/I-a content, read-only allowlist
+  ---
+  duration_ms: 2.5798
+  type: 'test'
+  ...
+# Subtest: successor preserves every original statement line except the M1 correction; original bytes unchanged
+ok 2 - successor preserves every original statement line except the M1 correction; original bytes unchanged
+  ---
+  duration_ms: 0.8879
+  type: 'test'
+  ...
+# Subtest: complete fixture sequence stays fixture-labeled and never satisfies an operational gate
+ok 3 - complete fixture sequence stays fixture-labeled and never satisfies an operational gate
+  ---
+  duration_ms: 4.2737
+  type: 'test'
+  ...
+# Subtest: fixture-to-operational promotion is refused however the receipt is relabeled
+ok 4 - fixture-to-operational promotion is refused however the receipt is relabeled
+  ---
+  duration_ms: 1.7238
+  type: 'test'
+  ...
+# Subtest: missing operational bindings, grants and reviews are blockers; no default fills them
+ok 5 - missing operational bindings, grants and reviews are blockers; no default fills them
+  ---
+  duration_ms: 0.5043
+  type: 'test'
+  ...
+# Subtest: changed SQL asset or manifest version is refused at admission and in evidence
+ok 6 - changed SQL asset or manifest version is refused at admission and in evidence
+  ---
+  duration_ms: 2.7494
+  type: 'test'
+  ...
+# Subtest: N4 spelling and CMD-safe path rules refuse rather than normalize
+ok 7 - N4 spelling and CMD-safe path rules refuse rather than normalize
+  ---
+  duration_ms: 0.3084
+  type: 'test'
+  ...
+# Subtest: R1 AutoRun: present, unavailable, unknown, missing, wrong view/scope and stale evidence block start
+ok 8 - R1 AutoRun: present, unavailable, unknown, missing, wrong view/scope and stale evidence block start
+  ---
+  duration_ms: 6.1335
+  type: 'test'
+  ...
+# Subtest: R2 process chain: reused PIDs, lifetime containment, probe shell and downward walk give no ownership
+ok 9 - R2 process chain: reused PIDs, lifetime containment, probe shell and downward walk give no ownership
+  ---
+  duration_ms: 5.6726
+  type: 'test'
+  ...
+# Subtest: W1 pidfile: Windows layout, line 7 empty, ready status and N4 directory spelling
+ok 10 - W1 pidfile: Windows layout, line 7 empty, ready status and N4 directory spelling
+  ---
+  duration_ms: 5.18
+  type: 'test'
+  ...
+# Subtest: R3: SQL backend must be a child of the owned postmaster; times alone are not the link
+ok 11 - R3: SQL backend must be a child of the owned postmaster; times alone are not the link
+  ---
+  duration_ms: 3.7622
+  type: 'test'
+  ...
+# Subtest: SQL A identity, recovery, NULL activity types and unavailable counts never pass
+ok 12 - SQL A identity, recovery, NULL activity types and unavailable counts never pass
+  ---
+  duration_ms: 8.7714
+  type: 'test'
+  ...
+# Subtest: work present or boundary divergence invalidates clearance without authorizing a sweep
+ok 13 - work present or boundary divergence invalidates clearance without authorizing a sweep
+  ---
+  duration_ms: 3.2787
+  type: 'test'
+  ...
+# Subtest: B must be a fresh transaction on the same connection; foreign access/adoption forbids stop
+ok 14 - B must be a fresh transaction on the same connection; foreign access/adoption forbids stop
+  ---
+  duration_ms: 6.6838
+  type: 'test'
+  ...
+# Subtest: timeouts and nonzero outcomes are unknown; retry, escalation and adoption are always refused
+ok 15 - timeouts and nonzero outcomes are unknown; retry, escalation and adoption are always refused
+  ---
+  duration_ms: 5.2248
+  type: 'test'
+  ...
+# Subtest: preflight never adopts a running or unknown cluster; signal files block
+ok 16 - preflight never adopts a running or unknown cluster; signal files block
+  ---
+  duration_ms: 1.4048
+  type: 'test'
+  ...
+# Subtest: attestation and job context: missing, incomplete, copied, stale or nested blocks start
+ok 17 - attestation and job context: missing, incomplete, copied, stale or nested blocks start
+  ---
+  duration_ms: 3.3948
+  type: 'test'
+  ...
+# Subtest: core module is pure: only node:crypto, no I/O, clock, environment or process access
+ok 18 - core module is pure: only node:crypto, no I/O, clock, environment or process access
+  ---
+  duration_ms: 0.9144
+  type: 'test'
+  ...
+# Subtest: v2 F1: asserted or unlabeled start/stop outcomes and mismatched launch handles are never a pass
+ok 19 - v2 F1: asserted or unlabeled start/stop outcomes and mismatched launch handles are never a pass
+  ---
+  duration_ms: 4.7903
+  type: 'test'
+  ...
+# Subtest: v2 F2: outer deadline and pre-spawn freshness are measured to the actual pg_ctl spawn
+ok 20 - v2 F2: outer deadline and pre-spawn freshness are measured to the actual pg_ctl spawn
+  ---
+  duration_ms: 7.4033
+  type: 'test'
+  ...
+# Subtest: v2 F3: the run holds a frozen, digest-bound request snapshot
+ok 21 - v2 F3: the run holds a frozen, digest-bound request snapshot
+  ---
+  duration_ms: 1.4492
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 157.208

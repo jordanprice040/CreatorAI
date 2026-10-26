@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "results": {
+    "M1": {
+      "v1": {
+        "fixture": true,
+        "status": "unknown",
+        "reason": "INCOMPLETE_OBSERVATION"
+      },
+      "v2": {
+        "fixture": true,
+        "status": "blocked",
+        "reason": "LAUNCH_DURING_SAMPLING"
+      }
+    },
+    "M2": {
+      "v1": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      },
+      "v2": {
+        "fixture": true,
+        "status": "unknown",
+        "reason": "PLANNED_QUIT_NOT_ESTABLISHED"
+      }
+    },
+    "M3": {
+      "v1": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      },
+      "v2": {
+        "fixture": true,
+        "status": "unknown",
+        "reason": "CONTRADICTORY_POSTGRES_OBSERVATION"
+      }
+    }
+  }
+}

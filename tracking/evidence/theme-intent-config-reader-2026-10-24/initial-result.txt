@@ -1,0 +1,3 @@
+First fixture test run: 5 passed, 1 failed. Junction creation was refused by the
+sandbox with EPERM before reader execution. This is a failed environmental setup,
+not a passing reparse-point check. Original tool output retained in conversation.

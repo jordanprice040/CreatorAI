@@ -1,0 +1,100 @@
+{
+  "root": "C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816685719",
+  "port": 55463,
+  "started_at": "2026-10-24T04:38:05.719Z",
+  "probes": {
+    "p1_external_kill_during_before": {
+      "killed_cli_pid": "35864",
+      "wrapper_exit": 1,
+      "wrapper_stderr_tail": ":54 char:26\r\n+ ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+      "after_kill": {
+        "listening": true,
+        "lock": {
+          "present": true,
+          "pid": 35864,
+          "pid_alive": false,
+          "phase": "before",
+          "session": "probe-e85752944800"
+        },
+        "prepared": false,
+        "mutex": {
+          "acquired": true,
+          "ms": 512
+        }
+      },
+      "release": {
+        "code": 0,
+        "stdout": "{\"phase\":\"release\",\"passed\":true,\"credentials_read\":false,\"provider_calls\":0,\"fixture\":true}",
+        "listening": false,
+        "lock": {
+          "present": false
+        },
+        "retired": 1,
+        "receipt": {
+          "at": "2026-10-24T04:38:39.267Z",
+          "decision_sha256": "77218bd8bcc44fcb51ac8f50c66490fc1cd46d4e0cae7a853f1a91676a85d725",
+          "retired_lock_sha256": "bb179548d80504b4ed3d69ba427935759d49f57769015f73d1463c957d426815",
+          "retired_lock": "C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816685719\\evidence-probe-e85752944800\\retired-lock-a4b68cba-be86-4229-a4b1-ba8a4abd0d1c.json",
+          "stopped_owned_cluster": true,
+          "prepared_required": false,
+          "credentials_read": false,
+          "installer_repeated": false,
+          "migration_repeated": false
+        }
+      }
+    },
+    "p2_untagged_restart_competing_cluster": {
+      "killed_cli_pid": "34060",
+      "wrapper_exit": 1,
+      "wrapper_stderr_tail": ":54 char:26\r\n+ ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+      "untagged_restart_refused": true,
+      "refused_tail": "fused; preserve evidence.'}\r\n+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Stale-state rel...serve evidence.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Stale-state release refused; preserve evidence.\r\n \r\n",
+      "listening_after_refusal": true,
+      "lock_after_refusal": {
+        "present": true,
+        "pid": 34060,
+        "pid_alive": false,
+        "phase": "before",
+        "session": "probe-3a5ce22c72c6"
+      },
+      "release_after_stop": {
+        "code": 0,
+        "listening": false,
+        "lock": {
+          "present": false
+        },
+        "receipt_stopped_owned_cluster": false
+      }
+    },
+    "p3_desktop_relaunch_mid_run": {
+      "wrapper_exit": 1,
+      "stderr_tail": "            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.\r\n \r\n",
+      "listening": true,
+      "lock": {
+        "present": true,
+        "pid": 35188,
+        "pid_alive": false,
+        "phase": "before",
+        "session": "probe-60baba729b61"
+      },
+      "left_owned_lock_receipt": true,
+      "stopped_receipt": false,
+      "prepared": true,
+      "release_while_desktop_running": {
+        "code": 1,
+        "listening": true,
+        "tail": "     : OperationStopped: (Pre-secret revi...redential read.:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : Pre-secret review/identity/path/decision checks failed; no credential read.\r\n \r\n"
+      },
+      "release_after_desktop_quit": {
+        "code": 0,
+        "listening": false,
+        "lock": {
+          "present": false
+        }
+      }
+    }
+  },
+  "error": "Error: ENOENT: no such file or directory, open 'C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816685719\\home\\theme-intent-v3.lock'\n    at async open (node:internal/fs/promises:641:25)\n    at async readFile (node:internal/fs/promises:1245:14)\n    at async read (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v3-core.mjs:35:45)\n    at async staleDecision (file:///C:/dev/creator_agent/tracking/evidence/theme-intent-upgrade-helper-v3-review-2026-10-24/probe-external-kill.mjs:89:58)\n    at async file:///C:/dev/creator_agent/tracking/evidence/theme-intent-upgrade-helper-v3-review-2026-10-24/probe-external-kill.mjs:214:25",
+  "listening_after": false,
+  "ended_at": "2026-10-24T04:40:11.975Z"
+}

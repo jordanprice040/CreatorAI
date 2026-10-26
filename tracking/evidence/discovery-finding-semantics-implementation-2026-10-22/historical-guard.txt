@@ -1,0 +1,21 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ '024648aca2bf927cff58d166ab957ddaecf47b2608d4bc9f0decd9b3561faf77'
+- 'c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8'
+
+    at checkFollowup (file:///C:/dev/creator_agent/scripts/check-discovery-followup-v2.mjs:67:10)
+    at async file:///C:/dev/creator_agent/scripts/qualify-discovery-followup-v2.mjs:19:37 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '024648aca2bf927cff58d166ab957ddaecf47b2608d4bc9f0decd9b3561faf77',
+  expected: 'c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.21.0

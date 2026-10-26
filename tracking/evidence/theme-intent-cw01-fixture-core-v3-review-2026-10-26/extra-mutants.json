@@ -1,0 +1,11 @@
+{
+ "baseline_unmutated": "pass",
+ "r1_bound_plus_1ms": "killed(1)",
+ "r1_bound_minus_1ms": "killed(1)",
+ "r1_ctx_not_recorded": "killed(1)",
+ "r2_drop_order_only": "killed(1)",
+ "r2_drop_null_only": "SURVIVED",
+ "r2_revert_to_spawn": "killed(1)",
+ "r3_shallow_copy_A": "killed(1)",
+ "r3_unfrozen_copy_B": "SURVIVED"
+}

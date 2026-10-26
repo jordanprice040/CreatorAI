@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-21T00:36:25.265Z",
+  "reviewer": "Codex coding-agent author review",
+  "independent": false,
+  "request_id": "c6a314e6-9496-418f-912a-c3d36c4cdd1f",
+  "output_hash": "28f346c146e013f23ca0b0007b821ab882c49f170d1972fd7a661d322bd3f542",
+  "candidate_manifest_sha256": "b59212cfe661723e6a150ca5f1d02658ccb069bbd94dcbb2664f69b26255a048",
+  "automated_contract": "failed_schema_invalid",
+  "findings": [
+    {
+      "field": "affected_users",
+      "expected": "string",
+      "actual": "array"
+    },
+    {
+      "field": "gaps",
+      "expected": "at most8 entries",
+      "actual": 10
+    }
+  ],
+  "substantive_observations": [
+    "Exploratory confidence and single-author evidence limitation retained.",
+    "Counts three and four not summed as seven distinct losses.",
+    "Transfer mechanism labeled untested; no real-world validation claimed."
+  ],
+  "disposition": "Do not qualify. Preserve outcome and investigate model-facing contract completeness; no retry."
+}

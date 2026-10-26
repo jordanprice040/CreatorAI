@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-10-22T17:12:24.143Z",
+  "proposal_reason_associations_verified": 11,
+  "single_scoring_perspectives": "software",
+  "conditional_build_verdicts": [
+    "no",
+    "unclear"
+  ],
+  "preserved_v1_preparation_artifacts": 7,
+  "controls": 108,
+  "provider_calls": 0
+}

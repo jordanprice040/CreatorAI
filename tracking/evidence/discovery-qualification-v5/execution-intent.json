@@ -1,0 +1,11 @@
+{
+  "approved_plan_hash": "1c6e4e8bfe17a3936394094c219c8edb4b69cc17102a71a097741914b5521077",
+  "original_execution_plan_hash": "68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d",
+  "capacity_authorization_hash": "19c60ab6762bc631bbb012c8651c304723ced25e2324a64da4ec730139a34a1d",
+  "started_at": "2026-10-21T07:25:31.482Z",
+  "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+  "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+  "model_id": "gpt-6-astra",
+  "max_new_requests": 18,
+  "retries": 0
+}

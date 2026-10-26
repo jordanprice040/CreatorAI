@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: projection exposes only approved fields; mismatch exposes no values
+ok 1 - projection exposes only approved fields; mismatch exposes no values
+  ---
+  duration_ms: 2.2589
+  type: 'test'
+  ...
+# Subtest: malformed, unsupported, unsafe and unexpected values refuse with redacted errors
+ok 2 - malformed, unsupported, unsafe and unexpected values refuse with redacted errors
+  ---
+  duration_ms: 1.1443
+  type: 'test'
+  ...
+# Subtest: only disposable fixture root can be read, file bytes unchanged
+ok 3 - only disposable fixture root can be read, file bytes unchanged
+  ---
+  duration_ms: 1921.8536
+  type: 'test'
+  ...
+# Subtest: operational-looking and traversal roots rejected before reading
+ok 4 - operational-looking and traversal roots rejected before reading
+  ---
+  duration_ms: 0.5093
+  type: 'test'
+  ...
+# Subtest: junction fixture root refused
+ok 5 - junction fixture root refused
+  ---
+  duration_ms: 3.5216
+  type: 'test'
+  ...
+# Subtest: direct invocation has no operational command or echoed argument
+ok 6 - direct invocation has no operational command or echoed argument
+  ---
+  duration_ms: 56.4098
+  type: 'test'
+  ...
+# Subtest: hard-linked config or marker is refused before projection
+ok 7 - hard-linked config or marker is refused before projection
+  ---
+  duration_ms: 1702.8178
+  type: 'test'
+  ...
+# Subtest: file and marker symbolic links refused
+ok 8 - file and marker symbolic links refused
+  ---
+  duration_ms: 1121.5536
+  type: 'test'
+  ...
+# Subtest: pg_bin display and Windows path tricks refused
+ok 9 - pg_bin display and Windows path tricks refused
+  ---
+  duration_ms: 0.8919
+  type: 'test'
+  ...
+# Subtest: snapshot checks detect hard-link growth, exact bigint identity and changed size/time
+ok 10 - snapshot checks detect hard-link growth, exact bigint identity and changed size/time
+  ---
+  duration_ms: 0.4743
+  type: 'test'
+  ...
+# Subtest: invalid UTF8 refused even in unprojected fields
+ok 11 - invalid UTF8 refused even in unprojected fields
+  ---
+  duration_ms: 0.2313
+  type: 'test'
+  ...
+# Subtest: documented exact desktop key input vectors distinguish slash spellings
+ok 12 - documented exact desktop key input vectors distinguish slash spellings
+  ---
+  duration_ms: 0.1637
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4884.38

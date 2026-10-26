@@ -1,0 +1,56 @@
+{
+  "observed_at": "2026-10-22T04:15:42.558Z",
+  "health": {
+    "status": 200,
+    "body": {
+      "schema_version": "1.0",
+      "status": "ok",
+      "service": "creator-agent-api",
+      "data_mode": "fixture",
+      "provider": "deterministic-fixture-v1",
+      "live_enabled": false,
+      "live": {
+        "model": "not_configured",
+        "sources": "off"
+      },
+      "persistent": true,
+      "storage": "postgresql",
+      "maintenance": {
+        "enabled": true,
+        "degraded": false,
+        "jobs": {
+          "outbox": {
+            "last_success_at": "2026-10-22T04:15:41.946Z",
+            "last_failure_at": null,
+            "error_code": null
+          },
+          "broker_recovery": {
+            "last_success_at": "2026-10-22T04:15:28.943Z",
+            "last_failure_at": null,
+            "error_code": null
+          },
+          "retrieval_recovery": {
+            "last_success_at": "2026-10-22T04:15:28.849Z",
+            "last_failure_at": null,
+            "error_code": null
+          }
+        }
+      },
+      "portfolio_scheduler": {
+        "enabled": false,
+        "state": "off",
+        "last_attempt_at": null,
+        "last_success_at": null,
+        "error_code": null,
+        "failing_scopes": 0,
+        "stopped_scopes": 0
+      }
+    }
+  },
+  "authenticated": false,
+  "owner_session_file_present": false,
+  "supervisor_report": "running; stored sign-in expired or revoked and removed",
+  "provider_calls": 0,
+  "quota_checked": false,
+  "settings_mutated": false
+}

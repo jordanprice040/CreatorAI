@@ -1,0 +1,39 @@
+{
+  "schema": "owner-pilot-planning-defaults/1",
+  "status": "draft_not_activated",
+  "source": "tracking/OWNER_DECISIONS_2026-10-20.md #25\u2013#32",
+  "duration_days": 7,
+  "timezone": "America/New_York",
+  "budget_nano_usd": "0",
+  "schedules": [],
+  "platforms": ["windows-desktop", "wsl2-worker"],
+  "max_consecutive_failures": 3,
+  "max_owner_intervention_minutes": 120,
+  "max_model_jobs": 1,
+  "max_builds": 1,
+  "max_run_wall_seconds": 1800,
+  "stop_on_unknown_cost": true,
+  "stop_on_no_qualified_route": true,
+  "permitted": [
+    "private research",
+    "alternatives",
+    "isolated build/review",
+    "file workflows",
+    "exports"
+  ],
+  "excluded": [
+    "publication",
+    "outbound messages",
+    "payments",
+    "ads",
+    "unrelated repositories"
+  ],
+  "unresolved": [
+    "exact start/end",
+    "candidate-bound approval",
+    "enabled qualified account identities",
+    "hardware RAM/VRAM limits",
+    "readiness gate support for manual schedules and subscription/local routes"
+  ],
+  "note": "Planning companion only. config/owner-pilot.json remains authoritative and not_started; no runtime consumer or activation introduced."
+}

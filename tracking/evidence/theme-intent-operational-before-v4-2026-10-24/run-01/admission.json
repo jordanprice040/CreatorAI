@@ -1,0 +1,8 @@
+{
+  "format": "theme-intent-upgrade-admission/4",
+  "at": "2026-10-24T12:34:42.485Z",
+  "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "prepared_sha256": "5bb69e60eaae96a503368ef2bd9f7e61c9f40546825b893de4e1d44492ddf0d2",
+  "approval_sha256": "1f53e66447b0e50aa93a6b389875addaa7ed47cd63f771497e98be324594fb6b"
+}

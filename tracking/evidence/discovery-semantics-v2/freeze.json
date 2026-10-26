@@ -1,0 +1,75 @@
+{
+  "format": "discovery-semantics-freeze/1",
+  "created_at": "2026-10-22T17:11:48.293Z",
+  "status": "offline_prepared_no_execution_authority",
+  "role_version": "r02-discovery/1.4",
+  "prompt_hash": "c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8",
+  "candidate_identity_kind": "local-source-and-compiled-candidate/1",
+  "candidate_hash": "f6cce6ffd9b5fa76370cd40c56e3c72c008c980f8835491b31804182516b5289",
+  "source_sha256": {
+    "packages/domain/src/discovery.ts": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+    "packages/domain/dist/discovery.js": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+    "packages/domain/src/routing.ts": "da5c96824fad9c9f41a68922cfe79686ae021354843e6d7e4f75577b8097f18b",
+    "packages/domain/dist/routing.js": "40854c6ab3d55bebd4604362fa088e8f625484eaef4f471c7909098cc317e1e8",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "packages/contracts/dist/discovery.js": "41c90f7f0ccb5bcc1440710c3435f13c3a353edf7cc8366efdf80e83a9ee92af",
+    "packages/contracts/src/routing.ts": "3c23f1e50db37224c37f378f376c6d0f8a72e2fd152262115b36b238893a9dd4",
+    "packages/contracts/dist/routing.js": "de707524006de1cf27fc41c31b64541ec40ce13313873560d497821e7560a076",
+    "agents/ROLE_PROMPTS.md": "1fe5be5bb3a14bd21db5e27aef3b59b6bc8bd18f0948425ed06f4a9142c9c84f",
+    "scripts/discovery-followup-core.mjs": "6aad5eadb05c63a17716f7333caacd8fc2d7dbdebe1bbfa54e71ec807bfe2717",
+    "scripts/prepare-discovery-semantics-v2.mjs": "c7883141eb8ec1a6187edbf6c8cf13588eefbdcceac8492dd6fc342c97b610f8",
+    "tracking/evidence/discovery-finding-semantics-review-2026-10-22/reviewer-receipt.json": "1ea42fe4b8033fd972024646da1f39a87f27e3e9fe700176ae7678c6705c392f",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/default-entry-integration.json": "52b2d2a43827b5ce7db717b4625c9446a8eb117ed447610e296038cabdab3cc3"
+  },
+  "files": [
+    {
+      "path": "config/connections/benchmarks/discovery-semantics-v2/candidate_generation.json",
+      "sha256": "3c65e41e0509493e768387b8907def935b83eb7c6a625342910bd3b96ba8efb9",
+      "manifest_hash": "b3917017220748fcb192f593be866040ae9013230fcf54dc065bd5b403c08e74",
+      "task_class": "candidate_generation"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-semantics-v2/scoring.json",
+      "sha256": "06dc62303c1262e24b5de967043967ecf37df4c8d19775d67594efcb2dfe5b0a",
+      "manifest_hash": "d4031d225e3666c49bf6f820d693736c7410d156b2f6835d5bc36a0d20535576",
+      "task_class": "scoring"
+    }
+  ],
+  "controls_path": "config/connections/benchmarks/discovery-semantics-v2/author-controls.json",
+  "controls_sha256": "6b9dc6a9c5825dfaceba429a3d84ddceef06319c608d2dfbb3f1bddb3c8e907f",
+  "review_plan_sha256": "424375ab934fc346298a59ba975d3c4bc2c24a11e22b028049d1e478a1c949e3",
+  "local_controls": 108,
+  "transport": [
+    {
+      "task_class": "candidate_generation",
+      "creation_bytes": 90126,
+      "max_input_chars": 12854
+    },
+    {
+      "task_class": "scoring",
+      "creation_bytes": 120340,
+      "max_input_chars": 21284
+    }
+  ],
+  "limits": {
+    "max_new_requests": 12,
+    "retries": 0,
+    "max_concurrency": 1,
+    "max_request_ms": 120000,
+    "max_wall_ms": 1440000,
+    "max_output_chars": 16000,
+    "max_input_chars": 24000,
+    "new_metered_spend_nano_usd": "0",
+    "settings_expansion": false
+  },
+  "held_out_floor": {
+    "cases_per_class": 4,
+    "numerator": 1,
+    "denominator": 1
+  },
+  "installed_candidate_bound": false,
+  "execution_plan_ready": false,
+  "independent_review_required": true,
+  "owner_live_decision_required": true,
+  "historical_live_result_sha256": "ec58ddf108c2dda24d55a6d7a1af39f3af4ae59c0437394a761c38e3b07efac1"
+}

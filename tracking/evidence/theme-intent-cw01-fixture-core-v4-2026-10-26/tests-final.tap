@@ -1,0 +1,166 @@
+TAP version 13
+# Subtest: successor SQL asset: exact hash, M1/R3/L3/L4/I-a content, read-only allowlist
+ok 1 - successor SQL asset: exact hash, M1/R3/L3/L4/I-a content, read-only allowlist
+  ---
+  duration_ms: 3.1153
+  type: 'test'
+  ...
+# Subtest: successor preserves every original statement line except the M1 correction; original bytes unchanged
+ok 2 - successor preserves every original statement line except the M1 correction; original bytes unchanged
+  ---
+  duration_ms: 0.8702
+  type: 'test'
+  ...
+# Subtest: complete fixture sequence stays fixture-labeled and never satisfies an operational gate
+ok 3 - complete fixture sequence stays fixture-labeled and never satisfies an operational gate
+  ---
+  duration_ms: 4.5675
+  type: 'test'
+  ...
+# Subtest: fixture-to-operational promotion is refused however the receipt is relabeled
+ok 4 - fixture-to-operational promotion is refused however the receipt is relabeled
+  ---
+  duration_ms: 1.8772
+  type: 'test'
+  ...
+# Subtest: missing operational bindings, grants and reviews are blockers; no default fills them
+ok 5 - missing operational bindings, grants and reviews are blockers; no default fills them
+  ---
+  duration_ms: 0.5141
+  type: 'test'
+  ...
+# Subtest: changed SQL asset or manifest version is refused at admission and in evidence
+ok 6 - changed SQL asset or manifest version is refused at admission and in evidence
+  ---
+  duration_ms: 4.0918
+  type: 'test'
+  ...
+# Subtest: N4 spelling and CMD-safe path rules refuse rather than normalize
+ok 7 - N4 spelling and CMD-safe path rules refuse rather than normalize
+  ---
+  duration_ms: 0.3686
+  type: 'test'
+  ...
+# Subtest: R1 AutoRun: present, unavailable, unknown, missing, wrong view/scope and stale evidence block start
+ok 8 - R1 AutoRun: present, unavailable, unknown, missing, wrong view/scope and stale evidence block start
+  ---
+  duration_ms: 5.7747
+  type: 'test'
+  ...
+# Subtest: R2 process chain: reused PIDs, lifetime containment, probe shell and downward walk give no ownership
+ok 9 - R2 process chain: reused PIDs, lifetime containment, probe shell and downward walk give no ownership
+  ---
+  duration_ms: 7.2936
+  type: 'test'
+  ...
+# Subtest: W1 pidfile: Windows layout, line 7 empty, ready status and N4 directory spelling
+ok 10 - W1 pidfile: Windows layout, line 7 empty, ready status and N4 directory spelling
+  ---
+  duration_ms: 4.0138
+  type: 'test'
+  ...
+# Subtest: R3: SQL backend must be a child of the owned postmaster; times alone are not the link
+ok 11 - R3: SQL backend must be a child of the owned postmaster; times alone are not the link
+  ---
+  duration_ms: 3.6437
+  type: 'test'
+  ...
+# Subtest: SQL A identity, recovery, NULL activity types and unavailable counts never pass
+ok 12 - SQL A identity, recovery, NULL activity types and unavailable counts never pass
+  ---
+  duration_ms: 8.3608
+  type: 'test'
+  ...
+# Subtest: work present or boundary divergence invalidates clearance without authorizing a sweep
+ok 13 - work present or boundary divergence invalidates clearance without authorizing a sweep
+  ---
+  duration_ms: 2.4045
+  type: 'test'
+  ...
+# Subtest: B must be a fresh transaction on the same connection; foreign access/adoption forbids stop
+ok 14 - B must be a fresh transaction on the same connection; foreign access/adoption forbids stop
+  ---
+  duration_ms: 8.0413
+  type: 'test'
+  ...
+# Subtest: timeouts and nonzero outcomes are unknown; retry, escalation and adoption are always refused
+ok 15 - timeouts and nonzero outcomes are unknown; retry, escalation and adoption are always refused
+  ---
+  duration_ms: 6.493
+  type: 'test'
+  ...
+# Subtest: preflight never adopts a running or unknown cluster; signal files block
+ok 16 - preflight never adopts a running or unknown cluster; signal files block
+  ---
+  duration_ms: 1.3877
+  type: 'test'
+  ...
+# Subtest: attestation and job context: missing, incomplete, copied, stale or nested blocks start
+ok 17 - attestation and job context: missing, incomplete, copied, stale or nested blocks start
+  ---
+  duration_ms: 3.1438
+  type: 'test'
+  ...
+# Subtest: core module is pure: only node:crypto, no I/O, clock, environment or process access
+ok 18 - core module is pure: only node:crypto, no I/O, clock, environment or process access
+  ---
+  duration_ms: 0.7971
+  type: 'test'
+  ...
+# Subtest: v2 F1: asserted or unlabeled start/stop outcomes and mismatched launch handles are never a pass
+ok 19 - v2 F1: asserted or unlabeled start/stop outcomes and mismatched launch handles are never a pass
+  ---
+  duration_ms: 4.9478
+  type: 'test'
+  ...
+# Subtest: v2 F2: outer deadline and pre-spawn freshness are measured to the actual pg_ctl spawn
+ok 20 - v2 F2: outer deadline and pre-spawn freshness are measured to the actual pg_ctl spawn
+  ---
+  duration_ms: 7.3661
+  type: 'test'
+  ...
+# Subtest: v2 F3: the run holds a frozen, digest-bound request snapshot
+ok 21 - v2 F3: the run holds a frozen, digest-bound request snapshot
+  ---
+  duration_ms: 1.373
+  type: 'test'
+  ...
+# Subtest: v3 R-1: the owner attestation is at most 120 s older than the measured spawn
+ok 22 - v3 R-1: the owner attestation is at most 120 s older than the measured spawn
+  ---
+  duration_ms: 0.9559
+  type: 'test'
+  ...
+# Subtest: v3 R-2: the stop launch handle must show its exit, and stopped state follows that exit
+ok 23 - v3 R-2: the stop launch handle must show its exit, and stopped state follows that exit
+  ---
+  duration_ms: 2.4876
+  type: 'test'
+  ...
+# Subtest: v3 R-3: accepted SQL evidence is held as a deep-frozen copy
+ok 24 - v3 R-3: accepted SQL evidence is held as a deep-frozen copy
+  ---
+  duration_ms: 0.5906
+  type: 'test'
+  ...
+# Subtest: v4 L-1: evidence is copied before it is checked, so toJSON cannot swap values
+ok 25 - v4 L-1: evidence is copied before it is checked, so toJSON cannot swap values
+  ---
+  duration_ms: 0.7311
+  type: 'test'
+  ...
+# Subtest: v4 I-1/I-2: B is held frozen; non-JSON evidence fails closed without throwing
+ok 26 - v4 I-1/I-2: B is held frozen; non-JSON evidence fails closed without throwing
+  ---
+  duration_ms: 0.9345
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 168.24

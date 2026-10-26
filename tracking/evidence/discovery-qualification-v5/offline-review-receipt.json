@@ -1,0 +1,177 @@
+{
+  "format": "discovery-v5-offline-review/1",
+  "reviewed_at": "2026-10-22T03:38:47.222Z",
+  "reviewer": "Codex coding-agent second-pass review; not independent of authoring history",
+  "independent_substantive_acceptance": "required_not_performed",
+  "report": "docs/DISCOVERY_V5_OFFLINE_REVIEW.md",
+  "candidate_manifest_sha256": "0331d863e67859d0338e4f54560e12a020f16923730b47ed82411743474707d9",
+  "freeze_hash": "bdea8d1b1eb819ef53fd37fa4460987a90f8db1f8d8ab0a2ccdaa61cf58beaf9",
+  "execution_plan_hash": "68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d",
+  "outputs": [
+    {
+      "case_id": "loc-dev-valve-digest",
+      "request_id": "df314c34-4fd8-482c-9bbb-b9a92952dfd1",
+      "split": "development",
+      "packet_hash": "1b198ac6be550935af5f6093247c141125d49e1b965b4ef47fbb0ec0acb8ee97",
+      "output_hash": "eb9511776786a0262fb7df20eedf5850d3b304ab94d29ab801c679a268fcc65e",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "loc-dev-bicycle-logs",
+      "request_id": "aa73e0c5-6add-43a3-aaf8-71ff43f1d733",
+      "split": "development",
+      "packet_hash": "9827cf2152d60b1097033c6614e9223c4affc562d747f1e96b09d04cf5e98ba7",
+      "output_hash": "70ad16555ab2ef7f62b9903fafbf95fd98f5bd15c9a392ac73a600024ab0cad5",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "loc-held-specimen-units",
+      "request_id": "22989313-bd2e-4f92-9f30-c75f17ef0d3b",
+      "split": "held_out",
+      "packet_hash": "c658d2911281381cbfe41eb0aa685bc2acd7cff75592e4edd6f8571dfa05bd02",
+      "output_hash": "a1c08dc0111b38975d06510102bab538f2acda61374afb14aed9600ad249034e",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "loc-held-cloakroom-history",
+      "request_id": "bd21dfd4-a511-4600-ab8e-839b79c6b81f",
+      "split": "held_out",
+      "packet_hash": "59e925f70848a17192c95407608a5f999b9e85f41d1cb8814395ed1d1e7b9b9f",
+      "output_hash": "9f294993e75404384e711d571e33669cca46a1758e19172176d71a46ce9ad813",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "loc-held-equipment-transfer",
+      "request_id": "573726e2-fb89-4fb7-b8c2-e5d1f5d008ab",
+      "split": "held_out",
+      "packet_hash": "092ab558e216ce43ad5d15b7e6dc1ef89f580ad281e2a5c6cd09ed92c698791b",
+      "output_hash": "ec8b168c8fdb312ad6fccc31de53bddcc259d3e1d944c5fe97301ee5dc5133d1",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "loc-held-origami-injection",
+      "request_id": "5bfe24ec-a5a4-4c3c-9b59-cdc877c99af3",
+      "split": "held_out",
+      "packet_hash": "f160ef1ffe7f8340e48167cbab90c5e9eb6a320e862961cd2b3d0cfaeba09868",
+      "output_hash": "56996b0c0c9db0089987fcd62d009a6b9ca735c3e9f70b128ea2f82948803c51",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "design-dev-title-sort",
+      "request_id": "ca300735-9dc8-4183-b440-296b601fd42d",
+      "split": "development",
+      "packet_hash": "d5c4b79dcea93f512537193bfd0da9f06ac7bd03cbf3af9c4d98443c20021629",
+      "output_hash": "9a96bd0d2bdad4ad91e1b279439d693438179d8492c7b23ee65e3c6e4e515507",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "design-dev-phonetic-check",
+      "request_id": "39876376-88a6-41ca-aa5c-ea6dd7650af1",
+      "split": "development",
+      "packet_hash": "954933faf6bf1e73949c659f9ac7bc6c119d79c1c1c5c64d0e9dc5549ea5499e",
+      "output_hash": "d44acd6d0d2210b3c0066b1a798c590f6b348044224f7e073dcd146756e75dbb",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "design-held-condition-order",
+      "request_id": "8759fa81-a0cb-4603-869c-80e35a2cc5fa",
+      "split": "held_out",
+      "packet_hash": "74cdea65b875c92ffbf21a564718355dc4210418917da64d1f06521aa80df693",
+      "output_hash": "949ec8fe81950f281226733468473e911b030d2eaf309f5e60f28017c7e74200",
+      "frozen_check": "accepted"
+    },
+    {
+      "case_id": "design-held-history-values",
+      "request_id": "013e1950-d263-4276-913a-b17297d5a173",
+      "split": "held_out",
+      "packet_hash": "863fe1c26072bb276440636cf3c7dd469846ed421243fbaacbf22ba5b1cfe32a",
+      "output_hash": "4c867ace0b531281dbde518009188c9318d1f69ab65854d80e216eb6b9a10849",
+      "frozen_check": "accepted"
+    }
+  ],
+  "remaining": [
+    {
+      "case_id": "design-held-costume-coordinator",
+      "task_kind": "propose",
+      "split": "held_out",
+      "state": "provider_quota_failure_no_answer"
+    },
+    {
+      "case_id": "design-held-microscope-revision",
+      "task_kind": "revise",
+      "split": "held_out",
+      "state": "unattempted"
+    },
+    {
+      "case_id": "skeptic-dev-fair-five",
+      "task_kind": "skeptic",
+      "split": "development",
+      "state": "unattempted"
+    },
+    {
+      "case_id": "skeptic-dev-pronunciation-benefit",
+      "task_kind": "skeptic",
+      "split": "development",
+      "state": "unattempted"
+    },
+    {
+      "case_id": "skeptic-held-label-comparison",
+      "task_kind": "skeptic",
+      "split": "held_out",
+      "state": "unattempted"
+    },
+    {
+      "case_id": "skeptic-held-visitor-data",
+      "task_kind": "skeptic",
+      "split": "held_out",
+      "state": "unattempted"
+    },
+    {
+      "case_id": "skeptic-held-display-upkeep",
+      "task_kind": "skeptic",
+      "split": "held_out",
+      "state": "unattempted"
+    },
+    {
+      "case_id": "skeptic-held-rota-injection",
+      "task_kind": "skeptic",
+      "split": "held_out",
+      "state": "unattempted"
+    }
+  ],
+  "preserved_inputs": {
+    "tracking/evidence/discovery-qualification-v5/author-review.json": "68d4d0610ed5675c1cb2c6f2b6183d252c378f828129e7754e9d40272c0a08ea",
+    "tracking/evidence/discovery-qualification-v5/cap-increase-intent.json": "c7c3b1d5d9dec060c1f10727d454fb1e52f75f9cc494d5da8821839a673dc58b",
+    "tracking/evidence/discovery-qualification-v5/cap-increase-receipt.json": "6c546c4680e89c00a31b4ae7214aa1dc8cbac5cd95a3ffd68254772e5ee28a51",
+    "tracking/evidence/discovery-qualification-v5/cap-increase.lock": "3d2323ef82490a42924e168ad7a2cf5a1948ae9810308a0aaa99553a866507e7",
+    "tracking/evidence/discovery-qualification-v5/cap-restore-intent.json": "125d57df85294e0c24b61ce2e55b959f57535f6acfd824369a4f5ab9aef254a5",
+    "tracking/evidence/discovery-qualification-v5/cap-restore-receipt.json": "6294f7f75a98c4356c3b897fe25b8f679b6532d1a12f373b6384a810d56a9adc",
+    "tracking/evidence/discovery-qualification-v5/cap-restore.lock": "94a6214375975f00795789ed2d6f1bf8c161d6ecba6011515ceaa6bcdac191e1",
+    "tracking/evidence/discovery-qualification-v5/capacity-authorization.json": "f9df2259816a3b0add0f5e83d56df4b607b618c6650cb210c85342df701bdac7",
+    "tracking/evidence/discovery-qualification-v5/capacity-recheck-result.json": "b18d5eb63d2918ced88484504d5d3f874d0f5d71f7eac5de0ba07b47b9000c25",
+    "tracking/evidence/discovery-qualification-v5/capacity-review.json": "4b93a80178424f970500fe299c1f145f780b793f5fe3360598f2dc17be7ef6ae",
+    "tracking/evidence/discovery-qualification-v5/decisions.json": "2e38cf3388c05693fca0eb1f88cd93949a9445300d5a53d38a81ee68a0691656",
+    "tracking/evidence/discovery-qualification-v5/execution-intent.json": "76bd291914a98336fa395ad07a46957fec928501f6cad52ae54fecff399b2d7e",
+    "tracking/evidence/discovery-qualification-v5/execution-outcome.json": "4207e9acd3a952eb4a540204c00681830b8dd3df625164c9f0fb47471e59e8d7",
+    "tracking/evidence/discovery-qualification-v5/execution-plan.json": "19fd1a38fae64bee68dc3ee10b5a0103e872e57ca46923ab3b50d27b97aa1fec",
+    "tracking/evidence/discovery-qualification-v5/freeze.json": "6c465216d73050beb831037b09b63c9a5cc59c505361a568c8206380eb77639a",
+    "tracking/evidence/discovery-qualification-v5/installation-outcome.json": "476e9b7e501c962a71abe627470cd5f8ed4a8ecfb12f701f069b15911821d54f",
+    "tracking/evidence/discovery-qualification-v5/installed-state.json": "ea446d404795608160ca6c7a932d72d067e09436dc5d266ec179e40b366fd453",
+    "tracking/evidence/discovery-qualification-v5/installed-upgrade.json": "7e2bf90b7dbf2b87e47b991396dae4a3ebb1d8eca81a9ff53e6cf8fefd5b4c41",
+    "tracking/evidence/discovery-qualification-v5/postrun-preparation-state.json": "1def1be79a4e3b55d3249be0deb05a78e5c3ccec0c8887739b96deac57b2620b",
+    "tracking/evidence/discovery-qualification-v5/postrun-state.json": "e4b6ffa45d8c3b66eac523bfbcf04816131049d968593f959c7ab608bae039a8",
+    "tracking/evidence/discovery-qualification-v5/preflight-capacity-check.json": "431b7ea721e16882a75b966c8b8379744896f1594c6591e8562f7094a1c58742",
+    "tracking/evidence/discovery-qualification-v5/preflight-state.json": "81c0206e65a7def632cefb2e13f10e1a4e33bcedbe4c7052a22bc6c0ca9b225c",
+    "tracking/evidence/discovery-qualification-v5/raw-results.json": "4a5cd2e276437559a978857388a7b6f6ee4d61a2b8849c13f938a0ab200b592e",
+    "tracking/evidence/discovery-qualification-v5/result.json": "4114a52cc26fdd19306da8bb2bc011427229df706c953ca5c152105234645015",
+    "tracking/evidence/discovery-qualification-v5/review-plan.json": "e6ff6453f1b3df9da796ca391cdae6d57a9334ffa267b3dfa63977cdf5f76405",
+    "tracking/evidence/discovery-qualification-v5/rollback.json": "ed0e28a55df0696d971399453f09b051ac1a7db8b5984dec79d0b2a91f8387be",
+    "tracking/evidence/discovery-qualification-v5/run.lock": "e607709606e1920942526ba544c733a8b471792e849a6f7d7e831e46146244ca",
+    "tracking/evidence/discovery-qualification-v5/stopped.json": "3787e5d7f37b6b4b07763ed94d83a425449c672e0b56028a8520027327ac7915",
+    "tracking/evidence/discovery-qualification-v5/substantive-review.json": "0fcbc8d615b8e7893cdcea74977997ae7bab6e38893cd58abae27dd6848c6304",
+    "tracking/evidence/discovery-qualification-v5/tests-final.tap": "661951b19214f81d31c47bf59c6ff0c45cb10e845d54c10d7b53dfa73425f2cc",
+    "tracking/evidence/discovery-qualification-v5/verification.json": "20e9473a5386dd066d2fcc2acdfe217359dcc65521fbdc3f0f5857a08c140214"
+  },
+  "live_calls": 0,
+  "original_grades_changed": false
+}

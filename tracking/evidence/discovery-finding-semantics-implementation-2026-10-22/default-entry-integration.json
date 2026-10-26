@@ -1,0 +1,23 @@
+{
+  "format": "finding-semantics-default-test-integration/1",
+  "recorded_at": "2026-10-22T17:02:36.433Z",
+  "issue": "Standalone ten-test calibration omitted by normal compiled test glob",
+  "repair": "Compiled tests/src entry imports the shared calibration without copying tests",
+  "default_command_unchanged": true,
+  "build": "tsc -b passed",
+  "tests": {
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0
+  },
+  "provider_calls": 0,
+  "runtime_changes": false,
+  "artifact_sha256": {
+    "tests/src/discovery-finding-semantics.test.ts": "bfa1068736cdcfbc67d976256ba6b90f56861dced20b4009ca98bfecf0f1aef9",
+    "tests/dist/discovery-finding-semantics.test.js": "b525e9af06e6fb22544596d9247c273d3875e302331120be565477ad645c40eb",
+    "tests/discovery-finding-semantics.test.mjs": "990402c3a42ddf6dff80c01cd2f304ef65c869d8aa6c40d2f2c1b5c19accb1f6",
+    "package.json": "7649ee460b4d59445945afbc1fe41ea34b1063213dc21a5a7bbdb1ddffd64db9",
+    "tests/tsconfig.json": "2f591e6e0d3cf62e85170ab0cadbeddb30f5aa5709a80d0515f8471167dcaca3",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/tests-default-entry.tap": "82580a7a6edb9c658f9793ffceeea989bec9f671886b5511a87ac0f0b48f7548"
+  }
+}

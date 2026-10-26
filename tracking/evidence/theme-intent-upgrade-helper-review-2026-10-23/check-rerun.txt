@@ -1,0 +1,2 @@
+Exact package/plan/review and all runtime bytes verified; no operational access.
+exit=0

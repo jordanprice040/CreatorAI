@@ -1,0 +1,6 @@
+{
+  "at": "2026-10-22T05:04:50.312Z",
+  "reason": "Stopped at followup-skeptic-dev-room-bookings: completed/acceptance_check_failed; no retry.",
+  "no_retry": true,
+  "run_lock_acquired": true
+}

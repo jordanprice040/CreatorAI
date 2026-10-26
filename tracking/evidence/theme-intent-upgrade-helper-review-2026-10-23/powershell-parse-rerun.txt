@@ -1,0 +1,2 @@
+scripts/upgrade-theme-intent.ps1 parse errors: 0
+scripts/install-theme-intent.ps1 parse errors: 0

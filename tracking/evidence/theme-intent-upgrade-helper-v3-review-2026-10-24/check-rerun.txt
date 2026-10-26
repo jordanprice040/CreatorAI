@@ -1,0 +1,2 @@
+Exact frozen candidate/plan/package verified; no operational access.
+exit 0

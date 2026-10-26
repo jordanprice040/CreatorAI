@@ -1,0 +1,69 @@
+{
+  "outputs_verified": 6,
+  "production_schemas_valid": 6,
+  "unchanged_contract_replays_accepted": 6,
+  "production_inputs_reproduced": 6,
+  "live_receipt_artifact_hashes_verified": 22,
+  "execution_plan_hash": "a96eed07aa0372e55d7880a62b57f6c0f5726b3ea6c559617af3f9119e11469a",
+  "packet_local_candidate_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "distributable_candidate_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "manifest_sha256": "621e6f12e37db3baf883c30d76d27a39bbdcba71a8df3a72c32fdfe22ddaa448",
+  "packaged_desktop_sha256": "6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46",
+  "observations": [
+    {
+      "case_id": "research14-v2-dev-battery-digest",
+      "request_id": "483f5826-3571-4bb7-a616-4d8ae2e8782b",
+      "output_hash": "7993516f9756129067a97dba90945fc7d47f746e5a8a569bc7a0b1ac625b351b",
+      "packet_hash": "18edf458fdfaafe3a4f3d6cfc25278eae32beb655b37f31f5c1e47bd63d03faa",
+      "output_chars": 2709,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "research14-v2-dev-event-receipts",
+      "request_id": "7a191aae-df26-4356-9466-3c9c2a01d914",
+      "output_hash": "b356772de4d813572433335c2ce8e011fd80c2177b67ffae9baa061b6ca6d160",
+      "packet_hash": "45f356ca9e8f4b012949176282be70cb21ee391554c9e02457c8dd92da608839",
+      "output_chars": 4136,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "research14-v2-held-dual-checks",
+      "request_id": "da448f1e-584a-4e81-82e1-427895e2b3de",
+      "output_hash": "f86471a3295160ad156091bd5ae8e6c91cbb454e11b865318b11d3cce15fe2a0",
+      "packet_hash": "4fad0418d826403f352c99308c31df1839aca7de3d2e4d95985980180faa1c2f",
+      "output_chars": 3471,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "research14-v2-held-legend-corrections",
+      "request_id": "2068af74-528d-4cc5-a192-5bfceced0deb",
+      "output_hash": "24fe16b5c4335e4f5e5f6dd458c1e2214420d7768e4b863eb8d71c8172f8531c",
+      "packet_hash": "b6232bd0155282ee3ec4f72fc1dc0ced10c8e9f26417e444b7e92f4e80b588f5",
+      "output_chars": 3284,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "research14-v2-held-log-injection",
+      "request_id": "c8bd2668-b75a-4399-8af8-f8e76abc510c",
+      "output_hash": "02c718127f493094d67984ca5906f495ddaa4704a2af0665fedfff8bb02b31e3",
+      "packet_hash": "bcdb824979850690d399f97997194b8e40e8b874c0b7b79300304af426873225",
+      "output_chars": 2410,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "research14-v2-held-stale-rack",
+      "request_id": "de0618a5-fb64-4ed7-9234-9e93c25507ef",
+      "output_hash": "cfc93aac7748a77faf3a5d6b96137b5dac5a72ef4576df47d431214396ca1dd3",
+      "packet_hash": "8d87d487537d76f3c9fd6c17febbbfa69600bf0d92443cea5fbda9ee8016c4b4",
+      "output_chars": 2573,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    }
+  ],
+  "network_or_provider_calls": 0
+}

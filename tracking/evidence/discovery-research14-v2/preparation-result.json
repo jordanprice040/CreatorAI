@@ -1,0 +1,10 @@
+{
+  "state": "offline_prepared",
+  "freeze_hash": "c0576b32481fc2f682a71d7506ef10fe4866382d065dbeb45e68d937395142d4",
+  "cases": 6,
+  "controls": 54,
+  "creation_bytes": 102468,
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "provider_calls": 0,
+  "execution_plan_ready": false
+}

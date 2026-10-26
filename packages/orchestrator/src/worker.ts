@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import {
   ContractError,
+  DISCOVERY_TASK_CLASSES,
   type BrokerCallResult,
   type TaskKind,
 } from '@creator/contracts';
-import { discoveryRoleInput, roleInput } from '@creator/domain';
+import { canonicalHash, discoveryRoleInput, roleInput } from '@creator/domain';
 import {
   ORCHESTRATOR_ACTOR_ID,
   isDiscoveryKind,
@@ -14,9 +15,10 @@ import {
   type TaskOutcome,
   type WorkflowStore,
 } from '@creator/db';
-import type { ModelBroker } from '@creator/broker';
+import type { ModelBroker, PlanConnectionService } from '@creator/broker';
 
 export interface WorkerOptions {
+  planService?: PlanConnectionService | undefined;
   /** Shown on leases and in history; unique per process. */
   workerId?: string;
   leaseMs?: number;
@@ -35,6 +37,8 @@ export interface WorkerOptions {
  */
 export class Worker {
   readonly id: string;
+  readonly #planControllers = new Map<string, AbortController>();
+  readonly optionsPlanService: PlanConnectionService | undefined;
   readonly #running = new Map<string, Promise<void>>();
   readonly #ctx: CommandContext = { actorId: ORCHESTRATOR_ACTOR_ID };
   readonly #leaseMs: number;
@@ -54,6 +58,7 @@ export class Worker {
     private readonly broker: ModelBroker,
     options: WorkerOptions = {},
   ) {
+    this.optionsPlanService = options.planService;
     this.id = options.workerId ?? `worker-${randomUUID().slice(0, 8)}`;
     this.#leaseMs = options.leaseMs ?? 30_000;
     this.#heartbeatMs = options.heartbeatMs ?? Math.floor(this.#leaseMs / 3);
@@ -126,8 +131,14 @@ export class Worker {
       this.store
         .heartbeat(task.id, lease.token, this.#leaseMs)
         .then(({ held, cancel }) => {
-          if (!held) lost = true;
-          if (cancel) this.broker.cancelRun(lease.runId);
+          if (!held) {
+            lost = true;
+            this.#planControllers.get(lease.runId)?.abort();
+          }
+          if (cancel) {
+            this.broker.cancelRun(lease.runId);
+            this.#planControllers.get(lease.runId)?.abort();
+          }
         })
         .catch(() => undefined);
     }, this.#heartbeatMs);
@@ -158,6 +169,115 @@ export class Worker {
         throw new Error(
           `task ${task.id} has a context this worker cannot render`,
         );
+      if (lease.resourceSetup?.kind === 'subscription') {
+        if (!this.optionsPlanService) {
+          await this.store.commitTask(this.#ctx, task.id, lease.token, {
+            state: 'failed',
+            reason: 'subscription_dispatch_not_configured',
+          });
+          return;
+        }
+        const setup = lease.resourceSetup;
+        const abort = new AbortController();
+        this.#planControllers.set(lease.runId, abort);
+        try {
+          const instructions = input
+            .filter((m) => m.role !== 'user')
+            .map((m) => m.text)
+            .join('\n');
+          const userInput = JSON.stringify(
+            input.filter((m) => m.role === 'user'),
+          );
+          const response = await this.optionsPlanService.invoke(
+            this.#ctx,
+            lease.workspaceId,
+            {
+              connection_id: setup.connection_id,
+              model_id: setup.model_id,
+              purpose: 'task',
+              task_class:
+                DISCOVERY_TASK_CLASSES[
+                  task.kind as keyof typeof DISCOVERY_TASK_CLASSES
+                ],
+              data_class: lease.dataClass,
+              run_id: lease.runId,
+              logical_operation_id: task.logical_operation_id,
+              instructions,
+              input: userInput,
+              workflow: {
+                task_id: task.id,
+                lease_token: lease.token,
+                input_hash: canonicalHash(input),
+              },
+              timeout_ms: Math.max(
+                1,
+                Math.min(
+                  lease.limits.call_timeout_ms,
+                  Date.parse(lease.deadlineAt) - Date.now(),
+                ),
+              ),
+              max_output_chars: setup.max_output_chars,
+              signal: abort.signal,
+            },
+          );
+          let outcome: TaskOutcome;
+          if (response.admission)
+            outcome = response.admission.decision_id
+              ? {
+                  state: 'waiting_human',
+                  reason: response.admission.reason_code,
+                  decisionId: response.admission.decision_id,
+                }
+              : { state: 'failed', reason: response.admission.reason_code };
+          else if (response.outcome.kind === 'completed') {
+            let json: unknown;
+            try {
+              json = JSON.parse(response.outcome.text);
+            } catch {
+              json = null;
+            }
+            const output = validateOutput(
+              task.kind,
+              json,
+              discovery
+                ? { packet: discovery.packet, context: discovery.context }
+                : undefined,
+            );
+            outcome = output
+              ? { state: 'succeeded', reason: 'succeeded', output }
+              : { state: 'failed', reason: 'invalid_output' };
+          } else
+            outcome = {
+              state:
+                response.outcome.kind === 'unknown' ? 'reconciling' : 'failed',
+              reason: response.outcome.reason_code,
+            };
+          if (!this.frozen)
+            await this.store.commitTask(
+              this.#ctx,
+              task.id,
+              lease.token,
+              outcome,
+            );
+        } catch (e) {
+          if (
+            e instanceof ContractError &&
+            e.code !== 'LEASE_LOST' &&
+            !this.frozen
+          )
+            await this.store.commitTask(this.#ctx, task.id, lease.token, {
+              state: 'failed',
+              reason: `${e.code}: ${e.details.join('; ') || e.message}`.slice(
+                0,
+                300,
+              ),
+            });
+          else throw e;
+        } finally {
+          this.#planControllers.delete(lease.runId);
+        }
+        return;
+      }
       const result = await this.broker.call(
         this.#ctx,
         lease.workspaceId,

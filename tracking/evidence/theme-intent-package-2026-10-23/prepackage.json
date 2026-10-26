@@ -1,0 +1,15 @@
+{
+  "format": "theme-intent-prepackage/1",
+  "observed_at": "2026-10-23T04:58:40.428Z",
+  "review_artifacts_verified": 17,
+  "previous_archived_resources": 67,
+  "previous_installer_sha256": "57cc5d923ba9ef62d052f788fd0e38c77c124d8b2d9e4b596cf7cb700affed27",
+  "previous_native_sha256": "6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46",
+  "previous_manifest_sha256": "621e6f12e37db3baf883c30d76d27a39bbdcba71a8df3a72c32fdfe22ddaa448",
+  "installed_predecessor_bytes_match": true,
+  "staging_target": "C:\\dev\\creator_agent\\apps\\desktop\\.bundle\\studio",
+  "native_target": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\release",
+  "provider_calls": 0,
+  "credentials_access": false,
+  "operational_database_access": false
+}

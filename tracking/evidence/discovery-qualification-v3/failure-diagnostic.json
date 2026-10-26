@@ -1,0 +1,96 @@
+{
+  "case_id": "design-dev-existing-calendar",
+  "request_id": "4df814b9-35af-4bb0-b8a9-b3a911341fdd",
+  "output_hash": "e6c8999f056ddf8ea85ffa9d461626718f63a40f6028c5259066deceb9190c86",
+  "production_validation": {
+    "ok": true,
+    "output": {
+      "perspective": "existing_tool",
+      "title": "Use the installed calendar for weekly room reminders",
+      "mechanism": "Configure the installed calendar's recurring reminders for the language circle's weekly meeting, including the room in the event details. Recurrence avoids recreating reminders each week. C1 establishes the reminder need; C2 states that the installed calendar covers every stated requirement. This supports configuration of an existing tool rather than a new build, but does not establish that reminders have been configured or received.",
+      "intended_users": "The simulated language circle's organizer and participants who need weekly room reminders.",
+      "smallest_version": "An authorized organizer creates one weekly recurring calendar event with the confirmed meeting time, room, intended recipients and reminder timing. Before relying on the series, the organizer checks the event details and confirms that a scheduled reminder is visible or received through the intended calendar workflow. No integration, custom application or new purchase is proposed.",
+      "measurable_outcome": "For the next four scheduled meetings, record how many had a reminder with the correct room at the agreed time; proposed target: 4 of 4. Baseline and actual results are unknown.",
+      "feasibility": "C2 supports capability fit, although no calendar product name or independently inspected documentation is supplied. Setup needs the weekly schedule, room, recipients, reminder timing and an authorized organizer. These details must be confirmed before configuration. The supplied evidence is synthetic only; no setup, delivery test or real-world validation has been performed. This assignment supports a recommendation, not deployment or collection of participant data.",
+      "maintenance": "The organizer updates room or schedule changes, handles cancelled meetings and keeps recipients current. Review the recurring series when arrangements change; no custom code requires maintenance.",
+      "software_warranted": {
+        "verdict": "no",
+        "reason": "New software is not warranted: C2 explicitly says the installed calendar's recurring reminders cover every stated requirement, with no evidenced capability gap. Existing calendar software is appropriate. Reconsider only if an actual configuration or delivery check reveals an unmet requirement."
+      },
+      "recommendation": "recommend",
+      "claim_refs": [
+        "C1",
+        "C2"
+      ],
+      "assumptions": [
+        {
+          "statement": "An authorized organizer can configure the installed calendar and maintain the event.",
+          "would_change": "If access or ownership is missing, resolve calendar permissions or assign an owner before implementation rather than building a replacement."
+        },
+        {
+          "statement": "The schedule, room and intended reminder recipients can be confirmed.",
+          "would_change": "If these details are unresolved, defer configuration until the organizer confirms them."
+        },
+        {
+          "statement": "The documented reminder capability works in the participants' intended calendar workflow.",
+          "would_change": "If a delivery check fails, investigate settings and access first; reassess tool fit only if a genuine unmet requirement remains."
+        }
+      ],
+      "novelty": "Routine use of an existing calendar feature; no originality or demonstrated impact is claimed.",
+      "response_to_findings": null
+    }
+  },
+  "assertions": [
+    {
+      "assertion": {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "existing_tool"
+      },
+      "signal": "accepted"
+    },
+    {
+      "assertion": {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2"
+      },
+      "signal": "accepted"
+    },
+    {
+      "assertion": {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null
+      },
+      "signal": "acceptance_check_failed"
+    },
+    {
+      "assertion": {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty"
+      },
+      "signal": "accepted"
+    },
+    {
+      "assertion": {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "equals",
+        "value": "no"
+      },
+      "signal": "accepted"
+    }
+  ],
+  "novelty": "Routine use of an existing calendar feature; no originality or demonstrated impact is claimed."
+}

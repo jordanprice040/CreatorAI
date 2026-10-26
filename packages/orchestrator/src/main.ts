@@ -5,11 +5,13 @@ import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
   processEnvironment,
-  SelectionStore,
+  ConnectionStore,
 } from '@creator/db';
 import { deploymentConfig } from '@creator/domain';
 import {
   FixtureAdapter,
+  PlanConnectionService,
+  planVaultFromEnv,
   ModelBroker,
   liveAdapterFromEnv,
 } from '@creator/broker';
@@ -36,12 +38,16 @@ await ops.claimEnvironment(
   { actorId: OPERATIONS_ACTOR_ID },
   deployment.environment,
 );
-const store = new SelectionStore(pool);
+const store = new ConnectionStore(pool);
 const broker = new ModelBroker(store, {
   fixture: new FixtureAdapter(),
   live: liveAdapterFromEnv(env),
 });
 const worker = new Worker(store, broker, {
+  planService: new PlanConnectionService({
+    store,
+    vault: planVaultFromEnv(env),
+  }),
   log: (m) => console.log(m),
   ...(env.CREATOR_WORKER_POLL_MS
     ? { pollMs: Number(env.CREATOR_WORKER_POLL_MS) }

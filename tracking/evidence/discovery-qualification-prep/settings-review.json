@@ -1,0 +1,79 @@
+{
+  "basis": "Last recorded settings hash from the completed summary qualification; require current API equality before changing anything.",
+  "before_hash": "1bfab1b610b53849dadc536a712ffc0b97387686a742740aad4098a53d7351a0",
+  "after_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+  "before": {
+    "format": "chatgpt-plan-settings/1",
+    "plan_type": "plus",
+    "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
+    "allowed_data_classes": [
+      "synthetic",
+      "public"
+    ],
+    "allowed_task_classes": [
+      "summarization",
+      "specification"
+    ],
+    "caps": {
+      "responses": {
+        "max_requests_per_run": 10,
+        "request_timeout_ms": 120000,
+        "max_output_chars": 16000,
+        "max_input_chars": 24000
+      },
+      "codex": {
+        "max_builds_per_day": 2,
+        "max_turns_per_build": 1,
+        "max_model_requests_per_build": 25,
+        "build_timeout_ms": 600000
+      },
+      "shared": {
+        "max_model_requests_per_day": 40,
+        "max_in_flight": 1
+      }
+    }
+  },
+  "after": {
+    "format": "chatgpt-plan-settings/1",
+    "plan_type": "plus",
+    "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
+    "allowed_data_classes": [
+      "synthetic",
+      "public"
+    ],
+    "allowed_task_classes": [
+      "summarization",
+      "specification",
+      "research_synthesis",
+      "candidate_generation",
+      "scoring"
+    ],
+    "caps": {
+      "responses": {
+        "max_requests_per_run": 10,
+        "request_timeout_ms": 120000,
+        "max_output_chars": 16000,
+        "max_input_chars": 24000
+      },
+      "codex": {
+        "max_builds_per_day": 2,
+        "max_turns_per_build": 1,
+        "max_model_requests_per_build": 25,
+        "build_timeout_ms": 600000
+      },
+      "shared": {
+        "max_model_requests_per_day": 40,
+        "max_in_flight": 1
+      }
+    }
+  },
+  "only_changed_field": "allowed_task_classes",
+  "new_permissions": [
+    "research_synthesis",
+    "candidate_generation",
+    "scoring"
+  ],
+  "cap_changes": false,
+  "data_sharing_changes": false,
+  "paid_fallback": false
+}

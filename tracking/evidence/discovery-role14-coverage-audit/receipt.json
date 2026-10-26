@@ -1,0 +1,15 @@
+{
+  "format": "discovery-role14-coverage-audit-receipt/1",
+  "recorded_at": "2026-10-22T22:47:08.688Z",
+  "current_classes": 2,
+  "required_classes": 3,
+  "remaining": "research_synthesis current exact-role evidence",
+  "offline_compiled_filter_negative_controls": 4,
+  "provider_calls": 0,
+  "production_changes": false,
+  "artifact_sha256": {
+    "tracking/evidence/discovery-role14-coverage-audit/coverage.json": "ce6e5812f4a155e469de32b9d55cff2b7ccca0c046c0be902f06b8c80065e326",
+    "tracking/evidence/discovery-role14-coverage-audit/compiled-filter.js": "6e71012f58d9423255dca1111bc5a2e77232bf8bd0e64f0ad1f44ad67bfe44f3",
+    "docs/DISCOVERY_ROLE14_COVERAGE_AUDIT_2026-10-22.md": "225f81809ba846c825fe4d6397a639969b77622f99dafd937be83b355034268f"
+  }
+}

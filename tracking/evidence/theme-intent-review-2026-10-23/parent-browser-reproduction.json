@@ -1,0 +1,22 @@
+{
+  "format": "theme-intent-review-browser-reproduction/1",
+  "observed_at": "2026-10-23T04:35:02.037Z",
+  "finding": "TI-01",
+  "mode": "retained isolated test browser page; services stopped; no requests needed",
+  "source": "apps/web/src/theme-intent.tsx",
+  "source_sha256": "ed304936f1974bdd08f50a44bfbd6b9dbef61fa2ceea96241b719781222b203a",
+  "steps": [
+    "Enter unsaved Context text",
+    "Click ordinary New theme draft",
+    "Observe Unsaved theme edits group and retained text",
+    "Click ordinary New theme draft again without pressing Discard"
+  ],
+  "observed": {
+    "first_click_preserved": true,
+    "second_ordinary_click_discarded_without_confirmation": true
+  },
+  "reproduced": true,
+  "implementation_artifact_hashes_verified": 26,
+  "provider_calls": 0,
+  "production_changed": false
+}

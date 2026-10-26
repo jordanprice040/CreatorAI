@@ -1,0 +1,117 @@
+{
+  "observed_at": "2026-10-22T04:22:09.193Z",
+  "version": 20,
+  "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+  "quota": {
+    "state": "exhausted",
+    "reason_code": "subscription_sharing_usage_limit_exceeded",
+    "observed_at": "2026-10-21T07:29:59.386Z"
+  },
+  "credits": "confirmed_off",
+  "caps": {
+    "responses": {
+      "max_requests_per_run": 10,
+      "request_timeout_ms": 120000,
+      "max_output_chars": 16000,
+      "max_input_chars": 24000
+    },
+    "codex": {
+      "max_builds_per_day": 2,
+      "max_turns_per_build": 1,
+      "max_model_requests_per_build": 25,
+      "build_timeout_ms": 600000
+    },
+    "shared": {
+      "max_model_requests_per_day": 40,
+      "max_in_flight": 1
+    }
+  },
+  "usage": {
+    "last_24h_requests": 24,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "blockers": [
+    "The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage."
+  ],
+  "qualifications": [
+    {
+      "id": "b90d89e8-cb58-46b3-80c5-4a58af019ad0",
+      "state": "failed",
+      "manifest_hash": "ca8ee29397c8380405e8d950b9d5499da777308fb1d375b274ab2cd527567d02"
+    },
+    {
+      "id": "ff7ae4f1-117f-4773-be46-b39f3c18ff53",
+      "state": "qualified",
+      "manifest_hash": "6e1a43c63434db4b563193d54da111fc7ffb6410cdbde5132da8df917da52d92"
+    },
+    {
+      "id": "887288bb-ce7f-4edb-b11f-7f1494b146e3",
+      "state": "failed",
+      "manifest_hash": "f63a4a7f50ef0089287ffbf9b7f5a84518ff50ecf3c5162a69c13f2a9088b6d7"
+    },
+    {
+      "id": "4e6a8cad-a777-44d9-bf05-aa728545701f",
+      "state": "failed",
+      "manifest_hash": "de03794b65d9572ae889f3110f48aef225715df11496168c4324ee8755ef7cda"
+    },
+    {
+      "id": "463406b6-898e-421f-8c03-391a21b020e1",
+      "state": "qualified",
+      "manifest_hash": "20a7ff225f43c863f608eef44d386ce33889a9614aa8260149694f335e4b4651"
+    },
+    {
+      "id": "9586ebfb-adf8-4550-8c95-9a011744f2a1",
+      "state": "failed",
+      "manifest_hash": "2ce652f648c463ea1bc349733ebb2c4a8b894c2484d8993d6e4cfd14a8fd92f8"
+    },
+    {
+      "id": "bfdbcf34-dcd2-49bf-9afa-7ac401020429",
+      "state": "failed",
+      "manifest_hash": "30b92cd090f98bdbb97f1461ea22c3a40f9234dcae723b512e33b550d849616e"
+    },
+    {
+      "id": "db9cc857-cb7b-4651-a0e9-4f74ac00da85",
+      "state": "qualified",
+      "manifest_hash": "72809de002696f07d9574c3ec474596d4847afc8fe5904281150e8bdff5fea15"
+    }
+  ],
+  "request_ids": [
+    "7fe8f598-e299-4e55-9fdf-8d47c79a9cde",
+    "013e1950-d263-4276-913a-b17297d5a173",
+    "8759fa81-a0cb-4603-869c-80e35a2cc5fa",
+    "39876376-88a6-41ca-aa5c-ea6dd7650af1",
+    "ca300735-9dc8-4183-b440-296b601fd42d",
+    "5bfe24ec-a5a4-4c3c-9b59-cdc877c99af3",
+    "573726e2-fb89-4fb7-b8c2-e5d1f5d008ab",
+    "bd21dfd4-a511-4600-ab8e-839b79c6b81f",
+    "22989313-bd2e-4f92-9f30-c75f17ef0d3b",
+    "aa73e0c5-6add-43a3-aaf8-71ff43f1d733",
+    "df314c34-4fd8-482c-9bbb-b9a92952dfd1",
+    "50fcd841-85c1-4abd-9591-e18655538a2f",
+    "1a2697a5-8c73-4eb3-8d82-b2afcfd95e2a",
+    "1aacc4ac-00c6-4992-954f-370c97f56c05",
+    "d53f5680-ce81-4435-b5d2-6fe05fceaceb",
+    "e9aafc11-46d1-4c26-a4e8-96a59a3a7923",
+    "0197e81d-da37-495d-9982-a8c664ab870e",
+    "4df814b9-35af-4bb0-b8a9-b3a911341fdd",
+    "32dcb913-18fc-490a-a9ef-a0fdcadf1302",
+    "be7461f0-d259-4bd5-b66d-009eabf6abe7",
+    "6488657f-e219-482e-a9ed-e24648615e74",
+    "310f14d9-871d-48bb-ac00-5001d2b1004f",
+    "7b7f14af-3582-4250-bb90-3cdde8481c91",
+    "0459b641-aa8c-4938-85a2-2486d1d77a5e",
+    "c6a314e6-9496-418f-912a-c3d36c4cdd1f",
+    "4f35a154-0210-4b40-b092-5bfd56a76503",
+    "a3e1647a-733d-4f26-b91b-81c20bc29d12",
+    "6827fdee-ada0-4f7c-ba0c-e42a2d13d097",
+    "2c086d2f-03ca-42af-8e0b-ade0829a5f37",
+    "1c75cd16-79d7-4b39-a952-5c2b6a726f7a",
+    "1b8c48e7-e3ae-407b-be03-6bcd176a3864",
+    "6cd26b78-817b-457f-8cf6-40949e82667e",
+    "3a6cfbce-ea10-4412-82fa-2b3c3af5aa52",
+    "09186e4e-42b0-48a1-9afc-28b8a906c8d9",
+    "6f887269-7809-43e9-8acf-5692983dbe3b"
+  ]
+}

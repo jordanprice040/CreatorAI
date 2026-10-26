@@ -1,0 +1,25 @@
+{
+  "format": "research14-live-full-record-reconciliation/1",
+  "verified_at": "2026-10-23T04:01:07.643Z",
+  "mode": "read_only_sql",
+  "saved_requests": 64,
+  "request_states": {
+    "completed": 62,
+    "reconciled": 1,
+    "failed": 1
+  },
+  "new_requests": 7,
+  "prior_semantics_requests": 13,
+  "suite_requests": 6,
+  "availability_requests": 1,
+  "all_new_requests_completed": true,
+  "old44_requests_unchanged": true,
+  "baseline_grants_access_qualifications_unchanged": true,
+  "prior_semantics_requests_still_completed": true,
+  "new_availability_grant_used_once": true,
+  "settings_credits_unchanged": true,
+  "active": 0,
+  "unknown": 0,
+  "provider_calls": 0,
+  "api_history_page_limit_observed": 50
+}

@@ -1,0 +1,16 @@
+{
+  "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+  "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+  "model_id": "gpt-6-astra",
+  "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+  "max_new_provider_requests": 1,
+  "quota_observation_reset": true,
+  "grant_path": "responses",
+  "grant_expiry_minutes": 10,
+  "max_request_ms": 120000,
+  "max_output_chars": 16000,
+  "retries": 0,
+  "new_metered_spend_nano_usd": "0",
+  "qualification_dispatch": false,
+  "authorization": "Owner approved the exact one-request recovery scope after DISCOVERY_STARTUP_READINESS_2026-10-22.md; user: I approve that."
+}

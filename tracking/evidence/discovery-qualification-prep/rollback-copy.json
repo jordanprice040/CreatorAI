@@ -1,0 +1,9 @@
+{
+  "installed_manifest_sha256": "97720440cd44a24f5f95d371706257742d24ea3e6620607f2e3691d3f01a13eb",
+  "rollback_manifest_sha256": "97720440cd44a24f5f95d371706257742d24ea3e6620607f2e3691d3f01a13eb",
+  "installed_exe_sha256": "cd5059cc7cd694abf5803a8364824c1b1ded38b4c6dce7dad50ede4cf50f1871",
+  "rollback_exe_sha256": "cd5059cc7cd694abf5803a8364824c1b1ded38b4c6dce7dad50ede4cf50f1871",
+  "path": "C:\\dev\\creator_agent\\.verification\\discovery-upgrade-rollback",
+  "personal_data_or_credentials_copied": false,
+  "note": "Program/runtime resources only; no com.creatoragent.studio data directory copied. Saved database still requires its own pre-migration backup."
+}

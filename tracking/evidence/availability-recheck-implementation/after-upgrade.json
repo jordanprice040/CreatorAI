@@ -1,0 +1,27 @@
+{
+  "schema": 28,
+  "requests": 35,
+  "request_records_hash": "be017e9e4101802d35285885292d161a5ef155b8effd1ccfa2497d9eb2a5aaee",
+  "grants_hash_without_new_intent": "555c9f4d6796971abb1c2f06cc470b29b357cf44f55a896d60e14fa51f5d3d24",
+  "model_access_hash": "2b751e478e56dd945832efd5007d9f9cef6d1ad2562f698c79c5936f1af1f2c3",
+  "qualifications_hash": "3b9219402a1747f628017e44f468c1335e6eb70759688c296f873a81a9b02cdf",
+  "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+  "quota": {
+    "state": "unknown",
+    "observed_at": null,
+    "reason_code": null
+  },
+  "credits": {
+    "state": "confirmed_off",
+    "checked_on": "2026-10-20",
+    "confirmed_at": "2026-10-20T08:09:31.214467-04:00",
+    "confirmed_by": "00000000-0000-4000-8000-000000000001"
+  },
+  "intents": [
+    {
+      "intent": "model_access",
+      "n": 2
+    }
+  ],
+  "records_preserved": true
+}

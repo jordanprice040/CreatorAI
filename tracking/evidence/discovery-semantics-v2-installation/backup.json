@@ -1,0 +1,57 @@
+{
+  "database": {
+    "format": "creator-backup/1",
+    "created_at": "2026-10-22T17:39:08.475Z",
+    "schema_version": 28,
+    "database": {
+      "file": "database.dump",
+      "sha256": "a48ec4121a79db7d7eacbeefe4687590ade729667d18ee8441f2da4e6e179578",
+      "bytes": 529445
+    },
+    "products": [],
+    "counts": {
+      "entities": 0,
+      "entity_links": 0,
+      "audit_events": 46,
+      "decision_requests": 0,
+      "budget_envelopes": 1,
+      "budget_reservations": 0,
+      "workflows": 0,
+      "research_sources": 0,
+      "spec_freezes": 0,
+      "study_attempts": 0,
+      "artifact_manifests": 0,
+      "artifact_feedback": 0
+    },
+    "totals": {
+      "lineage": {
+        "links": 0,
+        "active": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "budget": {
+        "envelopes": 1,
+        "cap_nano": "5000000000",
+        "allocated_nano": "0",
+        "reserved_nano": "0",
+        "unknown_nano": "0",
+        "incurred_nano": "0",
+        "journal_entries": 1,
+        "reservations": 0,
+        "reservations_incurred_nano": "0"
+      }
+    }
+  },
+  "dir": "C:\\Users\\jorda\\AppData\\Local\\com.creatoragent.studio\\backups\\discovery-semantics-v2-database",
+  "database_hash_verified": true,
+  "product_hashes_verified": true,
+  "home_dir": "C:\\Users\\jorda\\AppData\\Local\\com.creatoragent.studio\\backups\\discovery-semantics-v2-home",
+  "home_files": {
+    "plan-credentials\\c6fe5465-3781-449b-b33d-227f521d798b.secret": "b61711fa3e22101df90bcc3368330cbb3fbe8210ec7546af1972dcd0e59cdc89",
+    "secrets\\postgres.dpapi": "c952d1128133245a326ba0606115f90488bc1ec15e87ca79f0a4e7d3b0890ecf",
+    "secrets\\session.dpapi": "c09b53f84f97ab069a5209889ae7bdba9c9971ab41597ca1e70ca1f4402f9a0c",
+    "studio.json": "fedcbce7bbcd8d1586008ae14de5a37d2407d5ef9082c3b3014f3e0a07060dbe"
+  },
+  "program_rollback_verified": true,
+  "restore_rehearsed": false
+}

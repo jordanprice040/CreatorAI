@@ -1,0 +1,18 @@
+{
+  "format": "theme-intent-review-integration/1",
+  "integrated_at": "2026-10-23T04:36:58.178Z",
+  "status": "partial",
+  "reviewer_receipt_sha256": "cfe4f4040b84ce595a95cfabc02c0e8c7f0ea00202350200f494ec874a659500",
+  "verified_artifacts": 41,
+  "material_findings": [
+    "TI-01"
+  ],
+  "minor_metadata_findings": [
+    "TI-02"
+  ],
+  "parent_browser_reproduced_TI01": true,
+  "provider_calls": 0,
+  "production_changed": false,
+  "packaging_supported": false,
+  "next_eligible": "U03 guarded-open repair, focused repeated-navigation regression, supplemental corrected receipt metadata; then exact-candidate review"
+}

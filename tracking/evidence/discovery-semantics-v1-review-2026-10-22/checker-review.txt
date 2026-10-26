@@ -1,0 +1,1 @@
+{"state":"offline_packet_checks_passed","cases":12,"controls":108,"source_bindings":13,"candidate_hash":"801007c2c9a2f17768dd12a3655de39db6dc335aaf4bcdc24a76534d9663fe1e","freeze_hash":"92635f76d187a51c3f356847f65d13d48dbdc31235feda8b31efe5841f2f5b59","provider_calls":0,"live_execution_ready":false}

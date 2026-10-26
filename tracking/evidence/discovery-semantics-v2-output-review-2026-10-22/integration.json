@@ -1,0 +1,14 @@
+{
+  "format": "semantics-v2-output-review-integration/1",
+  "integrated_at": "2026-10-22T18:12:14.590Z",
+  "reviewer_receipt_sha256": "ebbfc0eeeca10f2940db2f6748616d6cf2a5c0c90f356be0cd68d2db62f0c71a",
+  "verified_artifacts": 32,
+  "outputs": 12,
+  "supported_judgments": 36,
+  "scope": "Nonblinded separate model review of exact author-visible synthetic outputs",
+  "historical_grades_and_placeholder_unchanged": true,
+  "human_acceptance": false,
+  "full_discovery_complete": false,
+  "provider_calls": 0,
+  "next_eligible": "Audit remaining candidate/version-bound discovery evidence, particularly older research-role qualification"
+}

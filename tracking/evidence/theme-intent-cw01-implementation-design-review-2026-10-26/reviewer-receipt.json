@@ -1,0 +1,181 @@
+{
+ "format": "theme-intent-cw01-implementation-design-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the CW-01 design, governing design or v1.1 note (Codex). Prior design and v1.1 reviews by other Claude sessions (same model family) set F2/I1-I3 conditions this design implements; not blinded. No external review service.",
+ "reviewed_design": {
+  "path": "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md",
+  "sha256": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252"
+ },
+ "reviewed_design_receipt_sha256": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+ "reviewed_input_snapshot_sha256": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+ "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+ "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md",
+  "sha256": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196"
+ },
+ "verdicts": {
+  "design_support": "partial_bounded_repair_required",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked"
+ },
+ "findings": [
+  {
+   "id": "M1",
+   "severity": "medium",
+   "locator": "design line 157",
+   "summary": "inet_server_addr()::text renders 127.0.0.1/32 (PG18 functions-net text(inet)), so address_ok is always false; fail-closed but pass unreachable",
+   "repair": "host(inet_server_addr())='127.0.0.1' or inet comparison; NULL fails"
+  },
+  {
+   "id": "M2",
+   "severity": "medium",
+   "locator": "design lines 60-62, 78-81, 265",
+   "summary": "Windows pg_ctl returns CMD.EXE PID (pg_ctl.c:572) and -w accepts any recent pidfile with pid>0 and standby status (617-633); ownership evidence unspecified",
+   "repair": "Name ownership evidence: bounded postmaster.pid line read, image/parent binding, pg_postmaster_start_time after start intent, pg_is_in_recovery false; mismatch = ownership_unavailable, no stop"
+  },
+  {
+   "id": "L1",
+   "severity": "low",
+   "locator": "design lines 78-85",
+   "summary": "pg_ctl itself uses CMD.EXE via COMSPEC or bare CMD (516-519) through CreateProcessAsUser with inherited env/handles (1844); bare name searched in app dir and cwd first (Microsoft CreateProcess docs); paths embedded in CMD line",
+   "repair": "Pin COMSPEC to N3-bound system cmd.exe, approved cwd, refuse CMD metacharacters in cluster/log paths"
+  },
+  {
+   "id": "L2",
+   "severity": "low",
+   "locator": "design lines 87-91",
+   "summary": "Supervisor 90 s deadline coincides with pg_ctl -t 90; inherited pipes keep EOF from arriving while server runs; kill-on-close job would include postmaster (1846-1886)",
+   "repair": "pg_ctl -t below supervisor deadline; completion = process exit via handle; output to file/NUL; no kill-on-close job or tree kill"
+  },
+  {
+   "id": "L3",
+   "severity": "low",
+   "locator": "design lines 189-193, 234-238",
+   "summary": "NULL backend_type rows (bgworker lookup failure pgstatfuncs.c:581-587; restricted rows 650-662) are excluded from all three activity counts",
+   "repair": "Count backend_type IS NULL must be zero or total equals category sum, in A and B"
+  },
+  {
+   "id": "L4",
+   "severity": "low",
+   "locator": "design lines 44, 185-188, 258",
+   "summary": "No post-start detect-only check of recovery/preload/archive settings; recovery.signal/standby.signal absence not in pre-start boundary",
+   "repair": "Add pg_is_in_recovery, preload/archive/max_wal_senders effective-setting comparison; add signal-file absence to boundary contract"
+  }
+ ],
+ "informational": [
+  "I-a client cancel opens a second connection; rely on statement_timeout or admit explicitly; transaction_timeout backstop",
+  "I-b PG18 io workers (default 3) and transient autovacuum/parallel workers need range semantics in background allowlist",
+  "I-c schema29 has no RLS; superuser need is pg_stat_activity visibility (pgstatfuncs.c:37)",
+  "I-d data_directory spelling compare under N4 rule",
+  "I-e name pg_wal archive_status and summaries subdirectories",
+  "I-f cross-reference collector template v1.1 note (unreviewed here), owner-side route for port/pg_bin (template L3) and OneDrive rule (template L2)"
+ ],
+ "binding_checks": {
+  "design_and_snapshot_match_receipt": true,
+  "snapshot_entries": 343,
+  "snapshot_mismatches": [],
+  "start_argv_matches_v1_1_review_F2": true,
+  "stop_argv_matches_note_L2": true,
+  "f1_locators_cited": true,
+  "schema29_predicates": "14 relations and all state values verified in bundle; context_batches partial terminal per 36273; no RLS in bundle"
+ },
+ "official_sources_retrieved_2026_10_26": {
+  "sha256": {
+   "docs/18/functions-net.html": "a549ecad69b788e5f224bbfa784a4fc49fd40898f20c6f58617b26b9e390772d",
+   "docs/18/datatype-net-types.html": "0eca4839d59344c6687a858b62d79999a5c775c017a83a11f1b2512347a433fd",
+   "docs/18/monitoring-stats.html": "f3f090064901c5a90e3c47c88c67134029fd51d71c27901f941009d87e9697c9",
+   "docs/18/runtime-config-client.html": "59d5ea3cf4ae33b916d76d298bc89e13d0d0fed33d4767a2cd9a8d31fcb0d736",
+   "docs/18/runtime-config-resource.html": "8c3cd7e16e7e14b0f3748289a5228a09c484412df03f53c293aa87ac026e8e88",
+   "docs/18/app-pg-ctl.html": "7b1dabcadae19863eb3af2e0b715b6403043df82f755e144b4df1622f050827e",
+   "REL_18_6/src/bin/pg_ctl/pg_ctl.c": "41cfc7187149b0c810524d644e80eb5c1ca41ab86fc99bca8833118ef0a5fea0",
+   "REL_18_6/src/backend/utils/adt/pgstatfuncs.c": "13b973bf102a5fc37016485f3f1dc82406848e0f7fa3523d537dc5755fb5c43a",
+   "REL_18_6/configure.ac": "fd3c68ae628f6d65dab78aa7dec05c711833017349d7a50391b7e93b9f927aa1",
+   "learn.microsoft.com createprocessw": "766a40275b961e456c8a3f2987fb987c197513dcb5eb7b7eb668a4b8971bbf03"
+  },
+  "version_check": "REL_18_6 configure.ac AC_INIT 18.6"
+ },
+ "inputs_sha256_before": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "d5ba366edad00844a2857e083d0fd29e007a078923744eb5e74d17f3ff8b8615",
+  "tracking/SESSION_HANDOFF.md": "b39031c5ca6df70957f831dcc641c0937c021f19f35f01a75eb20a3b88ab98c3",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/design-receipt.json": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/input-snapshot.json": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_REVIEW_2026-10-26.md": "17f12f8cd8b931c60eccfd059f4cbb5e0f541afcdc84c9bf533f5d8691cdd7d1",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md": "6ae7554e4df508e849e51c2f3d5a64ad1d0ae478930d491569d1298fbad89a05",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-review-2026-10-26/reviewer-receipt.json": "ee77da203ceee6f2bade5cdb1dedf83583bdd66ef0864c5dcc2c091b36b9379f",
+  ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "apps/desktop/src-tauri/src/postgres.rs": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+  "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_REVIEW_2026-10-25.md": "58a49abf21cf2f6f0604f8b3f714cee0783c123b34ea8735d4865b324c65c9db",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39",
+  "docs/THEME_INTENT_CONFIG_READER_V2_AND_PROPOSAL_V4_REVIEW_2026-10-25.md": "c703706ede6e273c2b6a3a097b16cbe0b40d7a2731e4d9347616f06991d4864b"
+ },
+ "inputs_sha256_after": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "96a1d36980eca0c2ecf5855c34bedc593fc0ec608a823b206e91106cdbb33288",
+  "tracking/SESSION_HANDOFF.md": "dae5fa39a8896fd3347df736e24df72f85fb275fc4cb5c59e42c0123b8711ce6",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/design-receipt.json": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/input-snapshot.json": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_REVIEW_2026-10-26.md": "17f12f8cd8b931c60eccfd059f4cbb5e0f541afcdc84c9bf533f5d8691cdd7d1",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md": "6ae7554e4df508e849e51c2f3d5a64ad1d0ae478930d491569d1298fbad89a05",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-review-2026-10-26/reviewer-receipt.json": "ee77da203ceee6f2bade5cdb1dedf83583bdd66ef0864c5dcc2c091b36b9379f",
+  ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "apps/desktop/src-tauri/src/postgres.rs": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+  "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_REVIEW_2026-10-25.md": "58a49abf21cf2f6f0604f8b3f714cee0783c123b34ea8735d4865b324c65c9db",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39",
+  "docs/THEME_INTENT_CONFIG_READER_V2_AND_PROPOSAL_V4_REVIEW_2026-10-25.md": "c703706ede6e273c2b6a3a097b16cbe0b40d7a2731e4d9347616f06991d4864b"
+ },
+ "intentional_changes": {
+  "tracking/BUILD_STATUS.md": "one section prepended (CRLF, matching adjacent section); prior bytes verified as exact suffix",
+  "tracking/SESSION_HANDOFF.md": "one section prepended (CRLF); prior bytes verified as exact suffix"
+ },
+ "unintended_changes": [],
+ "new_files": [
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md",
+  "tracking/evidence/theme-intent-cw01-implementation-design-review-2026-10-26/reviewer-receipt.json"
+ ],
+ "checks": [
+  "Static repository and bundle text reading (grep/sed)",
+  "Direct SHA-256 of 19 inputs before/after",
+  "Rehash of 343 design snapshot entries",
+  "Read-only fetch of PostgreSQL 18 docs, REL_18_6 source and Microsoft CreateProcess docs",
+  "Tracking prepend suffix check"
+ ],
+ "not_run": [
+  "Implementation",
+  "Tests",
+  "Historical verifiers",
+  "Imports or module evaluation",
+  "SQL or credentials",
+  "Cluster start/stop",
+  "Launch, sign-in or quit",
+  "Operational config/environment/registry/process/port reads",
+  "Helpers/install/migration/recovery",
+  "Activation",
+  "Retired OneDrive checkout access",
+  "External review service"
+ ],
+ "limitations": [
+  "Upstream PostgreSQL docs/source describe 18.6, not the owner's installed binaries",
+  "L2 inherited-pipe behavior inferred from source (bInheritHandles TRUE), not executed",
+  "Collector template v1.1 note read only for cross-reference, not reviewed",
+  "No current operational or native state observed",
+  "Owner attestation absent; other-producer access remains unknown"
+ ],
+ "status_preserved": "M3 unchanged and not reopened; native acceptance blocked; original A0 blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled",
+ "next": "On Jordan's choice: additive repository-only CW-01 implementation design v1.1 note repairing M1/M2 and L1-L4 (prompt in review) or defer; no implementation or execution"
+}

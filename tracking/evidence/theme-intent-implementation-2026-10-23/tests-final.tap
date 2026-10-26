@@ -1,0 +1,178 @@
+TAP version 13
+# Subtest: search briefs: Grand Challenge seeds must be narrowed and the two fields must differ
+ok 1 - search briefs: Grand Challenge seeds must be narrowed and the two fields must differ
+  ---
+  duration_ms: 4.0429
+  type: 'test'
+  ...
+# Subtest: start requests name every response type and include a non-software option
+ok 2 - start requests name every response type and include a non-software option
+  ---
+  duration_ms: 3.7687
+  type: 'test'
+  ...
+# Subtest: sufficiency depends on current problem evidence; other gaps are named
+ok 3 - sufficiency depends on current problem evidence; other gaps are named
+  ---
+  duration_ms: 0.4001
+  type: 'test'
+  ...
+# Subtest: duplicates are found by deterministic word overlap with the catalog
+ok 4 - duplicates are found by deterministic word overlap with the catalog
+  ---
+  duration_ms: 0.8345
+  type: 'test'
+  ...
+# Subtest: answers are checked against the packet, the brief fields and the task
+ok 5 - answers are checked against the packet, the brief fields and the task
+  ---
+  duration_ms: 7.2078
+  type: 'test'
+  ...
+# Subtest: the coordinator runs locator, independent proposals, skeptic and bounded revision in order
+ok 6 - the coordinator runs locator, independent proposals, skeptic and bounded revision in order
+  ---
+  duration_ms: 1.7088
+  type: 'test'
+  ...
+# Subtest: independence problems are reported when a first proposal could read another answer
+ok 7 - independence problems are reported when a first proposal could read another answer
+  ---
+  duration_ms: 1.5098
+  type: 'test'
+  ...
+# Subtest: migrations apply once, refuse edited history, and gate an unmigrated schema
+ok 8 - migrations apply once, refuse edited history, and gate an unmigrated schema
+  ---
+  duration_ms: 1848.0589
+  type: 'test'
+  ...
+# Subtest: many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+ok 9 - many-to-many lineage: one product from two ideas, one idea with two descendants, task to artifact
+  ---
+  duration_ms: 1225.5182
+  type: 'test'
+  ...
+# Subtest: optimistic versions reject stale and concurrent writes; corrections append instead of editing
+ok 10 - optimistic versions reject stale and concurrent writes; corrections append instead of editing
+  ---
+  duration_ms: 1301.3492
+  type: 'test'
+  ...
+# Subtest: access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+ok 11 - access scopes: non-members cannot see, viewers cannot write, cross-workspace links fail in code and schema
+  ---
+  duration_ms: 1212.7525
+  type: 'test'
+  ...
+# Subtest: outbox projection is idempotent under duplicate and concurrent delivery
+ok 12 - outbox projection is idempotent under duplicate and concurrent delivery
+  ---
+  duration_ms: 1258.6856
+  type: 'test'
+  ...
+# Subtest: idempotency keys replay one create and reject a changed request
+ok 13 - idempotency keys replay one create and reject a changed request
+  ---
+  duration_ms: 1164.2457
+  type: 'test'
+  ...
+# Subtest: redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+ok 14 - redaction leaves a non-sensitive tombstone; links, hashes and audit chain survive; tampering is detected
+  ---
+  duration_ms: 1190.8581
+  type: 'test'
+  ...
+# Subtest: subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+ok 15 - subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+  ---
+  duration_ms: 2257.8494
+  type: 'test'
+  ...
+# Subtest: subscription workflow replay survives restart without redispatch, binds input
+ok 16 - subscription workflow replay survives restart without redispatch, binds input
+  ---
+  duration_ms: 2136.6809
+  type: 'test'
+  ...
+# Subtest: subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+ok 17 - subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+  ---
+  duration_ms: 1584.2985
+  type: 'test'
+  ...
+# Subtest: unknown subscription requests hold work without retry and explicit reconciliation releases the task
+ok 18 - unknown subscription requests hold work without retry and explicit reconciliation releases the task
+  ---
+  duration_ms: 1662.7015
+  type: 'test'
+  ...
+# Subtest: missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+ok 19 - missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+  ---
+  duration_ms: 1878.2296
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+ok 20 - authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+  ---
+  duration_ms: 2371.4472
+  type: 'test'
+  ...
+# Subtest: cancellation during credential lookup cannot start a later provider request
+ok 21 - cancellation during credential lookup cannot start a later provider request
+  ---
+  duration_ms: 0.5311
+  type: 'test'
+  ...
+# Subtest: typed API resources preserve the existing budgeted discovery path
+ok 22 - typed API resources preserve the existing budgeted discovery path
+  ---
+  duration_ms: 1982.2625
+  type: 'test'
+  ...
+# Subtest: a qualified task name with stale role-prompt evidence cannot unlock discovery
+ok 23 - a qualified task name with stale role-prompt evidence cannot unlock discovery
+  ---
+  duration_ms: 1648.2224
+  type: 'test'
+  ...
+# Subtest: historical v1 qualification cannot unlock the revised role contract
+ok 24 - historical v1 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 1719.4829
+  type: 'test'
+  ...
+# Subtest: historical v2 qualification cannot unlock the revised role contract
+ok 25 - historical v2 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 1598.9356
+  type: 'test'
+  ...
+# Subtest: historical v3 qualification cannot unlock the revised role contract
+ok 26 - historical v3 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 1589.5516
+  type: 'test'
+  ...
+# Subtest: theme preparation needs no evidence or resource setup and cannot carry execution authority
+ok 27 - theme preparation needs no evidence or resource setup and cannot carry execution authority
+  ---
+  duration_ms: 5.1675
+  type: 'test'
+  ...
+# Subtest: theme drafts persist through real HTTP restart, reject stale/cross-workspace writes, and create no executable work
+ok 28 - theme drafts persist through real HTTP restart, reject stale/cross-workspace writes, and create no executable work
+  ---
+  duration_ms: 1464.3771
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 33136.8977

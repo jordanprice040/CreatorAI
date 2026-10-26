@@ -1,0 +1,14 @@
+{
+ "shell_running": "killed(1)",
+ "autorun_unavailable": "killed(1)",
+ "autorun_unknown": "killed(1)",
+ "b_parent": "killed(1)",
+ "job_unknown": "killed(1)",
+ "connection": "killed(1)",
+ "pgctl_instance": "killed(1)",
+ "null_type": "killed(1)",
+ "line7": "killed(1)",
+ "gate": "killed(1)",
+ "terminal": "killed(7)",
+ "sql_hash": "killed(1)"
+}

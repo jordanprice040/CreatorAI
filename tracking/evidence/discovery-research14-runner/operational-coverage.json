@@ -1,0 +1,32 @@
+{
+  "format": "research14-live-operational-coverage/1",
+  "verified_at": "2026-10-23T04:01:30.450Z",
+  "compiled_filter_sha256": "02670bd60b8bba49a42d9f6df9b2cae2085eaf0c062bc5025ce37c1227ce84a6",
+  "role_version": "r02-discovery/1.4",
+  "prompt_hash": "c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8",
+  "eligible_classes": [
+    {
+      "task_class": "research_synthesis",
+      "qualification_id": "a2e439d2-7ff8-43c9-8d70-2b510c6a861d",
+      "state": "qualified",
+      "manifest_hash": "217d5875898dc37e60f14e590db7509c16712fe4d1f70c8f96ee44ba27be8e1f"
+    },
+    {
+      "task_class": "candidate_generation",
+      "qualification_id": "c70edb6d-a9e1-44ba-8158-358fff49ab13",
+      "state": "qualified",
+      "manifest_hash": "b3917017220748fcb192f593be866040ae9013230fcf54dc065bd5b403c08e74"
+    },
+    {
+      "task_class": "scoring",
+      "qualification_id": "4e7b382b-a09e-44d3-805c-47f11bf526ed",
+      "state": "qualified",
+      "manifest_hash": "d4031d225e3666c49bf6f820d693736c7410d156b2f6835d5bc36a0d20535576"
+    }
+  ],
+  "operational_coverage": "3/3",
+  "research_outputs": 6,
+  "research_substantive_review": "required_not_performed",
+  "human_acceptance": false,
+  "provider_calls": 0
+}

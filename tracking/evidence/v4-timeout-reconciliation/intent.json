@@ -1,0 +1,8 @@
+{
+  "owner_authorization": "Continue with the next step, following the explicit ran-without-usable-result/failed-qualification proposal",
+  "request_id": "50fcd841-85c1-4abd-9591-e18655538a2f",
+  "qualification_id": "887288bb-ce7f-4edb-b11f-7f1494b146e3",
+  "outcome": "ran",
+  "note": "Partial response activity was observed before timeout. No complete result/hash was recovered. This records activity only, not success, acceptance or permission to retry.",
+  "new_provider_calls": 0
+}

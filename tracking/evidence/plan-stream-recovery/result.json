@@ -1,0 +1,36 @@
+{
+  "date_local": "2026-10-21",
+  "tests": {
+    "passed": 36,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typecheck": "passed",
+  "reproduced_before_fix": [
+    "CRLF completion was unknown instead of completed",
+    "Completed-event fallback exceeded output cap but was completed",
+    "did_not_run reconciliation accepted despite observed output"
+  ],
+  "fixes": [
+    "incremental LF/CRLF/CR normalization across byte/chunk boundaries",
+    "output cap enforced on completed-event fallback",
+    "atomic observed-output contradiction guard for owner reconciliation"
+  ],
+  "not_reproduced": "Exact upstream cause of live v4 timeout; no retained wire trace or complete output",
+  "installed_manifest_sha256": "115b6c885e88ed226bfd1677d24a8627ec609aec7ad1108f9f16566cca2440c1",
+  "installed_unchanged": true,
+  "saved_request_unchanged": true,
+  "saved_counts_unchanged": true,
+  "unresolved": 1,
+  "in_flight": 0,
+  "new_provider_calls": 0,
+  "owner_reconciliation_performed": false,
+  "locks_preserved": 5,
+  "source_sha256": {
+    "packages/broker/src/plan-responses.ts": "b6f877644bc824e90217f6386b84d044e1d3a68175e0c7d83317464c77acab64",
+    "packages/db/src/connection-store.ts": "ab03d07ee5674a10b6bb94425b6563ab296c14824e5aeae48003d2c68990431c",
+    "tests/src/plan-stream-recovery.test.ts": "57692ce7c7f3997c8133a16236ec702826d318f7570080c0071e0d6bb33b9889",
+    "tests/src/plan-connections.test.ts": "f4f564b3bc85c6497a3a73c00ef337f456544e037cb8eeef4b82c7dcac8b6e62"
+  },
+  "next_eligible": "Review concrete owner reconciliation ran without usable result and failed qualification closure; separately prepare repair candidate and prospective live proposal. No retry or automatic installation."
+}

@@ -1,0 +1,169 @@
+{
+  "created_at": "2026-10-22T05:05:08.801Z",
+  "mode": "offline_saved_output_replay",
+  "case_id": "followup-skeptic-dev-room-bookings",
+  "request_id": "420ac88f-b950-475d-a28b-b5bb0c55f4a0",
+  "output_hash": "f428a90444e6b9fe672f86ace42cf1d9a63aca798f49984add21feb5737f4397",
+  "checks": [
+    {
+      "index": 0,
+      "assertion": {
+        "select": {
+          "proposal": "P1"
+        },
+        "path": [
+          "verdict"
+        ],
+        "op": "equals",
+        "value": "stands"
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 1,
+      "assertion": {
+        "select": {
+          "proposal": "P2"
+        },
+        "path": [
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ]
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 2,
+      "assertion": {
+        "select": {
+          "proposal": "P2",
+          "finding": {
+            "type": "duplicate",
+            "catalog_ref": "K1",
+            "claim_ref": "C2"
+          }
+        },
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2"
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 3,
+      "assertion": {
+        "select": {
+          "proposal": "P3"
+        },
+        "path": [
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ]
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 4,
+      "assertion": {
+        "select": {
+          "proposal": "P3",
+          "finding": {
+            "type": "novelty_overclaim",
+            "catalog_ref": null,
+            "claim_ref": "C3"
+          }
+        },
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C3"
+      },
+      "result": "acceptance_check_failed"
+    },
+    {
+      "index": 5,
+      "assertion": {
+        "select": {
+          "proposal": "P4"
+        },
+        "path": [
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ]
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 6,
+      "assertion": {
+        "select": {
+          "proposal": "P4",
+          "finding": {
+            "type": "infeasible_assumption",
+            "catalog_ref": null,
+            "claim_ref": "C4"
+          }
+        },
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C4"
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 7,
+      "assertion": {
+        "select": {
+          "proposal": "P5"
+        },
+        "path": [
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ]
+      },
+      "result": "accepted"
+    },
+    {
+      "index": 8,
+      "assertion": {
+        "select": {
+          "proposal": "P5",
+          "finding": {
+            "type": "cheaper_test",
+            "catalog_ref": null,
+            "claim_ref": "C5"
+          }
+        },
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C5"
+      },
+      "result": "acceptance_check_failed"
+    }
+  ],
+  "criteria_changed": false,
+  "provider_calls": 0
+}

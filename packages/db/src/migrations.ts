@@ -2305,6 +2305,55 @@ create trigger plan_connection_events_immutable before update or delete on plan_
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 27,
+    name: 'workflow_subscription_resources',
+    sql: `
+alter table workflows alter column envelope_id drop not null;
+alter table workflows alter column pricing_snapshot_id drop not null;
+alter table workflows add column resource_setup jsonb;
+alter table workflows add constraint workflows_resource_shape check (
+ coalesce((resource_setup is null and envelope_id is not null and pricing_snapshot_id is not null)
+ or (resource_setup->>'kind' = 'api' and envelope_id is not null and pricing_snapshot_id is not null)
+ or (resource_setup->>'kind' = 'subscription' and envelope_id is null and pricing_snapshot_id is null), false)
+);
+create function creator_workflow_resources_fixed() returns trigger language plpgsql as $$
+begin
+ if new.resource_setup is distinct from old.resource_setup then
+  raise exception 'workflow resource setup is immutable' using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+create trigger workflows_resources_fixed before update on workflows
+ for each row execute function creator_workflow_resources_fixed();
+alter table plan_requests add column workflow_task_id uuid references workflow_tasks(id);
+alter table plan_requests add column input_hash char(64);
+alter table plan_requests add column output_text text;
+create unique index plan_requests_workflow_task on plan_requests(workflow_task_id) where workflow_task_id is not null;
+`,
+  },
+  {
+    version: 28,
+    name: 'plan_availability_recheck_grants',
+    sql: `
+alter table plan_verification_grants add column intent text not null default 'model_access'
+ check (intent in ('model_access','availability_recheck'));
+alter table plan_requests drop constraint plan_requests_purpose_check;
+alter table plan_requests add constraint plan_requests_purpose_check
+ check (purpose in ('verification','availability_recheck','qualification','task','codex_build'));
+`,
+  },
+  {
+    version: 29,
+    name: 'theme_intent_drafts',
+    sql: `
+alter table entities drop constraint entities_kind_check;
+alter table entities add constraint entities_kind_check check (kind in ('source',
+  'claim', 'problem', 'idea', 'alternative', 'assessment', 'product',
+  'specification', 'run', 'task', 'decision', 'grant', 'artifact', 'assumption',
+  'humility_review', 'search_brief', 'scorecard', 'theme_intent'));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

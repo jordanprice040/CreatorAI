@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-23T03:26:10.369Z",
+  "message": "fetch failed",
+  "endpoint_attempted": false,
+  "retry": false,
+  "instruction": "Preserve lock; only read-only inspection/reconciliation next."
+}

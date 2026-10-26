@@ -1,0 +1,14 @@
+{
+  "frozen_at": "2026-10-20T12:38:09.246Z",
+  "manifest_sha256": "524562818d3310ceb718538203caa2a80d3e3f052b87e0edf97256c7a2cb1344",
+  "manifest_canonical_hash": "72809de002696f07d9574c3ec474596d4847afc8fe5904281150e8bdff5fea15",
+  "model_id": "gpt-6-astra",
+  "max_new_requests": 8,
+  "min_held_out_cases": 6,
+  "floor": {
+    "numerator": 1,
+    "denominator": 1
+  },
+  "retries": 0,
+  "local_checks": 40
+}

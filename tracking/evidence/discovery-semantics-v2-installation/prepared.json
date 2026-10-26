@@ -1,0 +1,10 @@
+{
+  "prepared_at": "2026-10-22T17:39:08.520Z",
+  "installation_plan_hash": "01c84b292084bd989383d541a259cff2f9001cace7155e600b66b9389cfdc464",
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "backup_verified": true,
+  "program_rollback_files": 72,
+  "requests": 44,
+  "provider_calls": 0,
+  "installed": false
+}

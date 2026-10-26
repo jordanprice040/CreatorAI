@@ -1,0 +1,8 @@
+{
+ "passed": true,
+ "dump_ms": 382,
+ "restore_error": null,
+ "tables_compared": 114,
+ "restored_functions": 30,
+ "restored_triggers": 92
+}

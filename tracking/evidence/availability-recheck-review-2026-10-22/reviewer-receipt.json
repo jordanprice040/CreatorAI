@@ -1,0 +1,54 @@
+{
+  "format": "availability-recheck-model-review/1",
+  "created_at": "2026-10-22T04:35:45.588Z",
+  "reviewer": "/root/separate_discovery_review",
+  "reviewer_type": "model",
+  "implementation_involvement": false,
+  "status": "bounded_implementation_supported_live_pending",
+  "artifacts": {
+    "packages/contracts/src/connections.ts": "12cd938b95736b8d0c21db9f52fc98249e75d502ea027100495b2ff757dcc718",
+    "packages/domain/src/plan-admission.ts": "363e09b449b55a4e1a64dc3861c249eb42242797c010c265b55ddfe93fd2a885",
+    "packages/db/src/connection-store.ts": "5d5e0f04f09329f0d10c8e6a1a068821a2395a55f914a53e8c4d50e564079506",
+    "packages/db/src/migrations.ts": "e99ac85315f19e1048d235a651a2118c3f948e463b89cacd052a85db672d58ee",
+    "packages/broker/src/plan-service.ts": "2380ba801298d3ecc9d5061aba352d4623d084cf167ede98dad2a450c23ae4a8",
+    "apps/api/src/connections.ts": "5688449ba6facb2727a185c159e76dec11e80aa0a1451bd7d2738a2b285dbbe3",
+    "apps/web/src/models.tsx": "8099cf6870f0d4b6f94cbaa1e0495450ff1c82501f2631906f2a7bf098ef11ba",
+    "tests/src/plan-availability.test.ts": "42923995f53bd5f4499019494ad86d0d54b42babd74771880c0879883026a20d",
+    "apps/cli/src/index.ts": "31e906c287f9e832102e7ef897c2c151871f384ac14e7e9a5bb8b8fe9c908bc9",
+    "packages/broker/src/plan-responses.ts": "b6f877644bc824e90217f6386b84d044e1d3a68175e0c7d83317464c77acab64",
+    "tracking/evidence/availability-recheck-implementation/availability-tests.tap": "eeb44c5227b1a535dccdbf6853511d3ca7ae910967a3119b4787c67cc659d1cd",
+    "tracking/evidence/availability-recheck-implementation/tests-final.tap": "286a1f70c9b2d41496ab619fec24a33da33f994870f652f04293ca03fe1ba3c2",
+    "docs/APPROVED_AVAILABILITY_CHECK_RESULT_2026-10-22.md": "eb018f68ba11963398cd21e3d44ebc808a139a64db1c8e1d19c7615e6d2d9329",
+    "docs/AVAILABILITY_RECHECK_REVIEW_2026-10-22.md": "2060277e451fc09a66eb28b10e9be3ab9b0340350978d126b6fa82ed1c049206"
+  },
+  "commands_executed": [
+    {
+      "command": "node --test --test-name-pattern=\"availability check contract\" tests/dist/plan-availability.test.js",
+      "result": "1 passed; pure contract only"
+    },
+    {
+      "command": "git diff --check -- <eight reviewed repair files>",
+      "result": "passed"
+    }
+  ],
+  "recorded_tests_inspected": {
+    "availability": 2,
+    "final": 29,
+    "failed": 0,
+    "skipped": 0,
+    "executed_by_this_reviewer": false
+  },
+  "findings": [
+    {
+      "severity": "P3",
+      "location": "apps/web/src/models.tsx:423",
+      "summary": "Optional display/retirement of bound grant after attempted dispatch; server prevents duplicate spend.",
+      "blocking": false
+    }
+  ],
+  "live_calls": 0,
+  "saved_studio_access": false,
+  "service_launches": 0,
+  "source_mutations": false,
+  "frozen_evidence_mutations": false
+}

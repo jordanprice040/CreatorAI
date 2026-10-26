@@ -1,0 +1,207 @@
+{
+  "format": "discovery-role14-evidence-coverage/1",
+  "audited_at": "2026-10-22T22:46:01.859Z",
+  "mode": "offline_exact_compiled_filter_replay_no_database",
+  "role_version": "r02-discovery/1.4",
+  "prompt_hash": "c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8",
+  "filter_source": "packages/db/dist/connection-store.js",
+  "filter_sha256": "6b94b3700471c4888b85f393d5f3919f96b337aa8068677fb3ac4d2421862f3a",
+  "coverage": [
+    {
+      "task_class": "research_synthesis",
+      "qualification_id": "ff7ae4f1-117f-4773-be46-b39f3c18ff53",
+      "saved_state": "qualified",
+      "development": {
+        "total": 2,
+        "passed": 2
+      },
+      "held_out": {
+        "total": 4,
+        "passed": 4
+      },
+      "manifest_hash": "6e1a43c63434db4b563193d54da111fc7ffb6410cdbde5132da8df917da52d92",
+      "eligible_under_exact_current_compiled_filter": false,
+      "reviewed_outputs": 6,
+      "review_scope": "separate_nonblinded_model_review_of_author_visible_synthetic_outputs",
+      "comparisons": [
+        {
+          "case_id": "loc-dev-valve-digest",
+          "saved_role_version": "r02-discovery/1.3",
+          "exact_current_system": false,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "loc-dev-bicycle-logs",
+          "saved_role_version": "r02-discovery/1.3",
+          "exact_current_system": false,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "loc-held-specimen-units",
+          "saved_role_version": "r02-discovery/1.3",
+          "exact_current_system": false,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "loc-held-cloakroom-history",
+          "saved_role_version": "r02-discovery/1.3",
+          "exact_current_system": false,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "loc-held-equipment-transfer",
+          "saved_role_version": "r02-discovery/1.3",
+          "exact_current_system": false,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "loc-held-origami-injection",
+          "saved_role_version": "r02-discovery/1.3",
+          "exact_current_system": false,
+          "equal_after_version_marker_only": true
+        }
+      ]
+    },
+    {
+      "task_class": "candidate_generation",
+      "qualification_id": "c70edb6d-a9e1-44ba-8158-358fff49ab13",
+      "saved_state": "qualified",
+      "development": {
+        "total": 2,
+        "passed": 2
+      },
+      "held_out": {
+        "total": 4,
+        "passed": 4
+      },
+      "manifest_hash": "b3917017220748fcb192f593be866040ae9013230fcf54dc065bd5b403c08e74",
+      "eligible_under_exact_current_compiled_filter": true,
+      "reviewed_outputs": 6,
+      "review_scope": "separate_nonblinded_model_review_of_author_visible_synthetic_outputs",
+      "comparisons": [
+        {
+          "case_id": "semantics-v2-design-dev-caption-order",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-design-dev-cable-paths",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-design-held-ticket-stubs",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-design-held-accessible-script",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-design-held-paint-batches",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-design-held-fabric-revision",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        }
+      ]
+    },
+    {
+      "task_class": "scoring",
+      "qualification_id": "4e7b382b-a09e-44d3-805c-47f11bf526ed",
+      "saved_state": "qualified",
+      "development": {
+        "total": 2,
+        "passed": 2
+      },
+      "held_out": {
+        "total": 4,
+        "passed": 4
+      },
+      "manifest_hash": "d4031d225e3666c49bf6f820d693736c7410d156b2f6835d5bc36a0d20535576",
+      "eligible_under_exact_current_compiled_filter": true,
+      "reviewed_outputs": 6,
+      "review_scope": "separate_nonblinded_model_review_of_author_visible_synthetic_outputs",
+      "comparisons": [
+        {
+          "case_id": "semantics-v2-skeptic-dev-multi-proposals",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-skeptic-dev-universal-shortcuts",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-skeptic-held-token-errors",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-skeptic-held-weather-access",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-skeptic-held-ceramic-tags",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        },
+        {
+          "case_id": "semantics-v2-skeptic-held-roster-injection",
+          "saved_role_version": "r02-discovery/1.4",
+          "exact_current_system": true,
+          "equal_after_version_marker_only": true
+        }
+      ]
+    }
+  ],
+  "current_qualified_classes": 2,
+  "required_discovery_classes": 3,
+  "all_three_eligible": false,
+  "negative_controls_passed": 4,
+  "production_gate_bypass_found": false,
+  "production_repair_required": false,
+  "remaining_qualification": "Fresh research_synthesis locator evidence under exact current role/system/candidate binding",
+  "remaining_product_acceptance": [
+    "Real-workspace theme with no existing claims reaches cited comparison through current qualified routes",
+    "Evidence collection/search/data-sharing authority and effective limits",
+    "Supported build/export/revision and owner acceptance through in-app flow"
+  ],
+  "provider_calls": 0,
+  "workflow_started": false,
+  "old_results_changed": false,
+  "artifact_sha256": {
+    "packages/db/dist/connection-store.js": "02670bd60b8bba49a42d9f6df9b2cae2085eaf0c062bc5025ce37c1227ce84a6",
+    "packages/db/src/connection-store.ts": "5d5e0f04f09329f0d10c8e6a1a068821a2395a55f914a53e8c4d50e564079506",
+    "packages/domain/src/plan-admission.ts": "363e09b449b55a4e1a64dc3861c249eb42242797c010c265b55ddfe93fd2a885",
+    "packages/domain/src/discovery.ts": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+    "packages/domain/dist/discovery.js": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+    "context/REQUIREMENTS.md": "99ce805352699cf8c622298e1e9ef13ececa6966cddaca45e8035987387442bc",
+    "scripts/audit-discovery-role14-coverage.mjs": "3f1cce517a1e92a2ee8ebfc89188d95f4cbe1d33eff8351bbf1161ac2e0daf1a",
+    "config/connections/benchmarks/discovery-synthetic-v5/research_synthesis.json": "dbd16bd3acc717fea4208245cc2738e5af7f98c65d257554a0ad0732b82d7f6e",
+    "tracking/evidence/discovery-qualification-v5/decisions.json": "2e38cf3388c05693fca0eb1f88cd93949a9445300d5a53d38a81ee68a0691656",
+    "tracking/evidence/discovery-qualification-v5/raw-results.json": "4a5cd2e276437559a978857388a7b6f6ee4d61a2b8849c13f938a0ab200b592e",
+    "tracking/evidence/discovery-separate-review-2026-10-22/v5-review-response.json": "41b40f9a74eb87e5d0c597a695e4b166be9379df16e4dafb74d22c2de3c42bed",
+    "tracking/evidence/discovery-semantics-v2-runner/live-result.json": "08e608393b4615d98b366e9b9259bc5157c46557526adee03f4f752cae82ab0f",
+    "tracking/evidence/discovery-semantics-v2-output-review-2026-10-22/review-response.json": "66f77d456ecb8a3a55ccf24f1a0ab661cacea5a557cfe48eacc662a3f5c6b7b6",
+    "tests/src/subscription-workflow.test.ts": "6ac25ed721a8d46175c7b07ba8c2d94f7a5e3380782f41f6892af692eceac292"
+  }
+}

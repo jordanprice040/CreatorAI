@@ -1,0 +1,185 @@
+{
+ "format": "theme-intent-current-work-safety-design-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the design or any reviewed theme-intent document (Codex-authored). Earlier Claude sessions in this project reviewed parts of this chain; not independent of that review lineage; not blinded. No external review service.",
+ "reviewed_design": {
+  "path": "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md",
+  "sha256": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa"
+ },
+ "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+ "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+ "review_report": {
+  "path": "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_REVIEW_2026-10-26.md",
+  "sha256": "17f12f8cd8b931c60eccfd059f4cbb5e0f541afcdc84c9bf533f5d8691cdd7d1"
+ },
+ "verdicts": {
+  "design_support": "partial_supported_with_bounded_repairs",
+  "smallest_path": "conditional_database_only_inspection_retained",
+  "operational_native_readiness": "not_ready_blocked"
+ },
+ "findings": [
+  {
+   "id": "M1",
+   "severity": "medium",
+   "locator": "design: Admission and binding (Producer exclusion paragraph); Effects/bounds (Validity is causal paragraph)",
+   "summary": "Producer exclusion and stop-to-launch validity lack a concrete evidence basis; no reachable pass condition",
+   "repair": "Additive v1.1: W1/W2/W3 split; pre-stop backend recheck and bound listener/credential boundary; pg_control/pg_wal/postmaster.pid continuity across owned stop and fresh PR-01; enumerated owner attestation for same-account automation or defer"
+  },
+  {
+   "id": "L1",
+   "severity": "low",
+   "locator": "design workflow_tasks predicate; scripts/theme-intent-upgrade-v4-core.mjs:525; bundle studio.mjs 23205-23206, 23227",
+   "summary": "Terminal needs_human tasks counted as nonterminal (fail-closed)",
+   "repair": "Use finished_at IS NULL or explicit five nonterminal states; note deliberate divergence from helper"
+  },
+  {
+   "id": "L2",
+   "severity": "low",
+   "locator": "design Effects/bounds 'normal stop'; bound studio.rs:412; unbound postgres.rs:191, winsys.rs:42",
+   "summary": "Stop mode and foreign-backend/desktop-adoption handling before owned stop unspecified",
+   "repair": "Pre-stop recheck; do not stop with foreign backends, mark invalid and stop for follow-up; name pg_ctl mode/deadline; optional same-session instance-key guard labeled partial"
+  }
+ ],
+ "informational": [
+  "I1 studio.rs package-bound (31b0dac592aa42bcdfc43cbc75f663ff63d3e965aef36a285242b381e1f09fa7)",
+  "I2 state deliberate omission of payment/finance open states and pending decisions",
+  "I3 pg_stat_activity not MVCC; observation-time wording suffices",
+  "I4 single-user postgres alternative worth assessing, not required"
+ ],
+ "binding_checks": {
+  "design_and_snapshot_hashes_match_design_receipt": true,
+  "snapshot_entries": 330,
+  "snapshot_mismatches_after_review": [],
+  "package_map_matches": {
+   "studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+   "apps/api/src/index.ts": true,
+   "apps/api/src/studio.ts": true,
+   "packages/broker/src/plan-service.ts": true,
+   "apps/desktop/src-tauri/src/studio.rs": true
+  },
+  "unbound_navigation_aids": [
+   "apps/desktop/src-tauri/src/postgres.rs",
+   "apps/desktop/src-tauri/src/main.rs",
+   "apps/desktop/src-tauri/src/winsys.rs",
+   "packages/broker/src/broker.ts",
+   "packages/db/src/budget-store.ts",
+   "current dirty packages/orchestrator/src/worker.ts, packages/db/src/workflow-store.ts, packages/db/src/migrations.ts"
+  ]
+ },
+ "inputs_sha256_before": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "835aba98688ece1416a5933b829b0518b1d6735dceff479b79242364018c688b",
+  "tracking/SESSION_HANDOFF.md": "12613606f9dcf71b48574178074e45551e1f17c8b9d3b50b5abd0d78587bf5e7",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/input-snapshot.json": "4a30e192d4d32ab9877a6451395fe50fbdf8cfd6c287d54c758e6edb3bded207",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/design-receipt.json": "8a21c170466aeedd99e48b4083f5323e1f40c32dc7f75a3e77360e9a71a0921d",
+  "docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_2026-10-26.md": "555a54faa9f5f33efbb912dd5170e3794577fa18a3bdd6716e07755aed55ad8d",
+  "docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_REVIEW_2026-10-26.md": "e494e3e232c95b743ca2591835249d68b3ba7e2f8593aef8ba395b7f6575e479",
+  "tracking/evidence/theme-intent-post-launch-amendment-v2-review-2026-10-26/reviewer-receipt.json": "2b68db6c0bdc68b61d8483aac06d276d7b8ec41c5d62d32961b870bfdb9c9c54",
+  "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V5_2026-10-24.md": "6d27e1281a7faedfebd2d7322bcafbc1c800171430fe899ee86f260763473952",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2026-10-24.md": "42f447f9156e756bd10a0c7b28f54395fc2ab6d2124be84d84c0eaece1e2566d",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_1_NOTE_2026-10-25.md": "486b6d66cc1e21c0300d993b540d547379b80a24f86c0e58a14e19aa8920cc45",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2_NOTE_2026-10-25.md": "f0cbfb9d8332866f16ed3fdede655df0ab2c0154d69cb2b9f7a6bc5b54fb911f",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_3_NOTE_2026-10-25.md": "57ea5ce91796a354a3551e3711b785207c80ef327ea0f7d562ab6919edf08dda",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_4_NOTE_2026-10-25.md": "8e16285877661423961979d436661f5d4d1787832e24f0076163d6a4dac5b618",
+  "docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md": "24a82ca8a2b1eddf82e5c4e472b99103b05c6686a4818813aef847854ff0f42b",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/INSPECTION.md": "cb8061808670b0cb89781a8de7dfcba4d4a1581280292e3b23c54b0aec7f9222",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_LAUNCH_CLARIFICATION.md": "d6cf2227753c41446769ac0ccfce9b220960cb768b6c6ab1f5d40c708e09f293",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_QUIT_AND_HISTORY_CLARIFICATION.md": "d54e8d6666dd77f56f7c2603f2b1cc34820b5161865f6b8941fedd6600c309dc",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_REPLIES_AND_LAUNCH.md": "9e6c55cc5fea1d9c915e5ce89155b6696513ce4c8fb5e9047458f74a59900519",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/environment-and-tool-candidates.json": "0d170b97406515da7e56e61675dd01ca43b3d964390c368d68955ad2cfa9306c",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/host-environment.json": "0acc617792e8359b5ad1d9834cc4aefe009a986bf09ca462122187b60d124518",
+  ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "apps/api/src/index.ts": "ba03f87729b2ac377370dceb61bb2f03b345f79786995f75d89402a3142edc78",
+  "apps/api/src/studio.ts": "490756ec1af4dc7a907ff0634a55b40861fa76069da26c17a08cce081957488f",
+  "apps/desktop/src-tauri/src/studio.rs": "31b0dac592aa42bcdfc43cbc75f663ff63d3e965aef36a285242b381e1f09fa7",
+  "packages/broker/src/plan-service.ts": "2380ba801298d3ecc9d5061aba352d4623d084cf167ede98dad2a450c23ae4a8",
+  "packages/broker/src/broker.ts": "f594c77b90a7397dafcf2926158100ea177a17170a0b34bde1274768e4305f59",
+  "packages/orchestrator/src/worker.ts": "001306f5b5291fae5e5cafb653403412a13d1b420f2c05cf54166598d4729d7b",
+  "packages/db/src/workflow-store.ts": "251a9737732a9fc58c1e59c237c5f06b2921ddd81ccad87643e51d5892eed69b",
+  "packages/db/src/migrations.ts": "9675e9bf7b37a755da3f28c1a00062a546e347f79f0c8bd174d509bf90cd00c1",
+  "packages/db/src/budget-store.ts": "61e140e9bc922db392a88b93df37e7f2019039d71e2c208f187de813732a25db",
+  "packages/db/src/research-store.ts": "9e568417a759cfe66dc0e8d76957a00916faf43f7f85b41fcac5c7eb020dc141",
+  "packages/db/src/store.ts": "2b7a51e87d5148054814fc2559eb68b828a3b15fe33137ac008472a6382f2501",
+  "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+  "docs/THEME_INTENT_PACKAGE_REVIEW_2026-10-23.md": "cd7c8211026eb4e3c878977c70d85ab7b6eaf78b88ca74f70ad782cdcb61f793",
+  "tracking/evidence/theme-intent-package-review-2026-10-23/reviewer-receipt.json": "7fe4b2859090af3988ed21d56025a5735b47d0f0696ec32cb3c75420701c38b3"
+ },
+ "inputs_sha256_after": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "c770c2ca9f669c1e4ddca2d5a65dfe9a3c51acbbb61bdde64b64d246a6ee9f82",
+  "tracking/SESSION_HANDOFF.md": "3f7d15f3a063d381dbfc486b4f0ab47627a7569236a4c9c990f2a5800b4f79fb",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/input-snapshot.json": "4a30e192d4d32ab9877a6451395fe50fbdf8cfd6c287d54c758e6edb3bded207",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/design-receipt.json": "8a21c170466aeedd99e48b4083f5323e1f40c32dc7f75a3e77360e9a71a0921d",
+  "docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_2026-10-26.md": "555a54faa9f5f33efbb912dd5170e3794577fa18a3bdd6716e07755aed55ad8d",
+  "docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_REVIEW_2026-10-26.md": "e494e3e232c95b743ca2591835249d68b3ba7e2f8593aef8ba395b7f6575e479",
+  "tracking/evidence/theme-intent-post-launch-amendment-v2-review-2026-10-26/reviewer-receipt.json": "2b68db6c0bdc68b61d8483aac06d276d7b8ec41c5d62d32961b870bfdb9c9c54",
+  "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V5_2026-10-24.md": "6d27e1281a7faedfebd2d7322bcafbc1c800171430fe899ee86f260763473952",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2026-10-24.md": "42f447f9156e756bd10a0c7b28f54395fc2ab6d2124be84d84c0eaece1e2566d",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_1_NOTE_2026-10-25.md": "486b6d66cc1e21c0300d993b540d547379b80a24f86c0e58a14e19aa8920cc45",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2_NOTE_2026-10-25.md": "f0cbfb9d8332866f16ed3fdede655df0ab2c0154d69cb2b9f7a6bc5b54fb911f",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_3_NOTE_2026-10-25.md": "57ea5ce91796a354a3551e3711b785207c80ef327ea0f7d562ab6919edf08dda",
+  "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_4_NOTE_2026-10-25.md": "8e16285877661423961979d436661f5d4d1787832e24f0076163d6a4dac5b618",
+  "docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md": "24a82ca8a2b1eddf82e5c4e472b99103b05c6686a4818813aef847854ff0f42b",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/INSPECTION.md": "cb8061808670b0cb89781a8de7dfcba4d4a1581280292e3b23c54b0aec7f9222",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_LAUNCH_CLARIFICATION.md": "d6cf2227753c41446769ac0ccfce9b220960cb768b6c6ab1f5d40c708e09f293",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_QUIT_AND_HISTORY_CLARIFICATION.md": "d54e8d6666dd77f56f7c2603f2b1cc34820b5161865f6b8941fedd6600c309dc",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_REPLIES_AND_LAUNCH.md": "9e6c55cc5fea1d9c915e5ce89155b6696513ce4c8fb5e9047458f74a59900519",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/environment-and-tool-candidates.json": "0d170b97406515da7e56e61675dd01ca43b3d964390c368d68955ad2cfa9306c",
+  "tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/host-environment.json": "0acc617792e8359b5ad1d9834cc4aefe009a986bf09ca462122187b60d124518",
+  ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "apps/api/src/index.ts": "ba03f87729b2ac377370dceb61bb2f03b345f79786995f75d89402a3142edc78",
+  "apps/api/src/studio.ts": "490756ec1af4dc7a907ff0634a55b40861fa76069da26c17a08cce081957488f",
+  "apps/desktop/src-tauri/src/studio.rs": "31b0dac592aa42bcdfc43cbc75f663ff63d3e965aef36a285242b381e1f09fa7",
+  "packages/broker/src/plan-service.ts": "2380ba801298d3ecc9d5061aba352d4623d084cf167ede98dad2a450c23ae4a8",
+  "packages/broker/src/broker.ts": "f594c77b90a7397dafcf2926158100ea177a17170a0b34bde1274768e4305f59",
+  "packages/orchestrator/src/worker.ts": "001306f5b5291fae5e5cafb653403412a13d1b420f2c05cf54166598d4729d7b",
+  "packages/db/src/workflow-store.ts": "251a9737732a9fc58c1e59c237c5f06b2921ddd81ccad87643e51d5892eed69b",
+  "packages/db/src/migrations.ts": "9675e9bf7b37a755da3f28c1a00062a546e347f79f0c8bd174d509bf90cd00c1",
+  "packages/db/src/budget-store.ts": "61e140e9bc922db392a88b93df37e7f2019039d71e2c208f187de813732a25db",
+  "packages/db/src/research-store.ts": "9e568417a759cfe66dc0e8d76957a00916faf43f7f85b41fcac5c7eb020dc141",
+  "packages/db/src/store.ts": "2b7a51e87d5148054814fc2559eb68b828a3b15fe33137ac008472a6382f2501",
+  "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+  "docs/THEME_INTENT_PACKAGE_REVIEW_2026-10-23.md": "cd7c8211026eb4e3c878977c70d85ab7b6eaf78b88ca74f70ad782cdcb61f793",
+  "tracking/evidence/theme-intent-package-review-2026-10-23/reviewer-receipt.json": "7fe4b2859090af3988ed21d56025a5735b47d0f0696ec32cb3c75420701c38b3"
+ },
+ "intentional_changes": {
+  "tracking/BUILD_STATUS.md": "one section prepended; prior bytes verified as exact suffix",
+  "tracking/SESSION_HANDOFF.md": "one section prepended; prior bytes verified as exact suffix"
+ },
+ "unintended_changes": [],
+ "checks": [
+  "Static repository and bundle text reading (grep/sed)",
+  "Direct SHA-256 of 39 reviewed inputs before/after",
+  "Rehash of 330 design snapshot entries",
+  "Package reviewer map comparison",
+  "Tracking prepend suffix check"
+ ],
+ "not_run": [
+  "Tests",
+  "Historical verifiers",
+  "Imports or module evaluation",
+  "SQL or credentials",
+  "Cluster start/stop",
+  "Launch, sign-in or quit",
+  "Operational config/environment/registry/process/port reads",
+  "Helpers/install/migration/recovery",
+  "Retired OneDrive checkout access",
+  "External review service"
+ ],
+ "limitations": [
+  "PostgreSQL 18 behavior claims (pg_control rewrite on start, pg_ctl stop modes, single-user lock handling) are reviewer knowledge, not verified against official docs in this session",
+  "Not an exhaustive audit of every provider path",
+  "No current operational or native state observed",
+  "Owner reports are owner evidence only"
+ ],
+ "status_preserved": "M3 unchanged; native acceptance blocked; original A0 blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled",
+ "next": "Additive repository-only v1.1 note resolving M1/L1/L2 and disposing I1-I4, then independent review; no implementation or execution"
+}

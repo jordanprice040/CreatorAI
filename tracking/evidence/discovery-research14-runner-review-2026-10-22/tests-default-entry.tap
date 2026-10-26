@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: actual binding gate rejects drift, weakened bounds and scope
+ok 1 - actual binding gate rejects drift, weakened bounds and scope
+  ---
+  duration_ms: 12.611
+  type: 'test'
+  ...
+# Subtest: actual source gate refuses changed hashes
+ok 2 - actual source gate refuses changed hashes
+  ---
+  duration_ms: 4.0496
+  type: 'test'
+  ...
+# Subtest: runner review must bind exact plan and every source hash
+ok 3 - runner review must bind exact plan and every source hash
+  ---
+  duration_ms: 2.0818
+  type: 'test'
+  ...
+# Subtest: installation evidence required; stale candidate, active/unknown, missing backup and changed records rejected
+ok 4 - installation evidence required; stale candidate, active/unknown, missing backup and changed records rejected
+  ---
+  duration_ms: 0.6807
+  type: 'test'
+  ...
+# Subtest: live admission function rejects stale/future/unknown availability, credits, settings and capacity
+ok 5 - live admission function rejects stale/future/unknown availability, credits, settings and capacity
+  ---
+  duration_ms: 1.2446
+  type: 'test'
+  ...
+# Subtest: actual runner control loop enforces 6 sequential attempts and intent-before-delivery
+ok 6 - actual runner control loop enforces 6 sequential attempts and intent-before-delivery
+  ---
+  duration_ms: 1.325
+  type: 'test'
+  ...
+# Subtest: first failed/provider_error preserves outcome and prevents retry/next class
+ok 7 - first failed/provider_error preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.5427
+  type: 'test'
+  ...
+# Subtest: first unknown/timeout preserves outcome and prevents retry/next class
+ok 8 - first unknown/timeout preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.2373
+  type: 'test'
+  ...
+# Subtest: first rejected/refused preserves outcome and prevents retry/next class
+ok 9 - first rejected/refused preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.4788
+  type: 'test'
+  ...
+# Subtest: first completed/acceptance_check_failed preserves outcome and prevents retry/next class
+ok 10 - first completed/acceptance_check_failed preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.4931
+  type: 'test'
+  ...
+# Subtest: first failed/subscription_sharing_usage_limit_exceeded preserves outcome and prevents retry/next class
+ok 11 - first failed/subscription_sharing_usage_limit_exceeded preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.1895
+  type: 'test'
+  ...
+# Subtest: delivery exception is not retried and does not close an uncertain qualification
+ok 12 - delivery exception is not retried and does not close an uncertain qualification
+  ---
+  duration_ms: 0.1889
+  type: 'test'
+  ...
+# Subtest: durable-intent failure refuses delivery
+ok 13 - durable-intent failure refuses delivery
+  ---
+  duration_ms: 0.1721
+  type: 'test'
+  ...
+# Subtest: cancellation before start or after first result prevents further delivery
+ok 14 - cancellation before start or after first result prevents further delivery
+  ---
+  duration_ms: 0.5032
+  type: 'test'
+  ...
+# Subtest: global deadline includes prior overhead and clamps remaining request time
+ok 15 - global deadline includes prior overhead and clamps remaining request time
+  ---
+  duration_ms: 0.3343
+  type: 'test'
+  ...
+# Subtest: hard request cap prevents any seventh request even with extra input
+ok 16 - hard request cap prevents any seventh request even with extra input
+  ---
+  duration_ms: 0.3084
+  type: 'test'
+  ...
+# Subtest: real PowerShell wrapper rejects wrong home and missing installation before secret lookup
+ok 17 - real PowerShell wrapper rejects wrong home and missing installation before secret lookup
+  ---
+  duration_ms: 2015.4822
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3153.027

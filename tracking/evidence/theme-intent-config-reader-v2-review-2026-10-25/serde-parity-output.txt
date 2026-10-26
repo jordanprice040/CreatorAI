@@ -1,0 +1,4 @@
+base: accepted
+bom: rejected
+duplicate_port: rejected
+exponent_port: rejected

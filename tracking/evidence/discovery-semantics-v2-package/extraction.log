@@ -1,0 +1,22 @@
+
+7-Zip 22.01 (x64) : Copyright (c) 1999-2022 Igor Pavlov : 2022-07-15
+
+Scanning the drive for archives:
+1 file, 25180478 bytes (25 MiB)
+
+Extracting archive: C:\dev\creator_agent\apps\desktop\src-tauri\target\release\bundle\nsis\Creator Agent_0.1.0_x64-setup.exe
+--
+Path = C:\dev\creator_agent\apps\desktop\src-tauri\target\release\bundle\nsis\Creator Agent_0.1.0_x64-setup.exe
+Type = Nsis
+Physical Size = 25180478
+Method = LZMA:23
+Solid = +
+Headers Size = 88442
+Embedded Stub Size = 52736
+SubType = NSIS-3 Unicode BadCmd=13
+
+Everything is Ok
+
+Files: 74
+Size:       102805840
+Compressed: 25180478

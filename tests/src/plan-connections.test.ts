@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   CREDITS_OFF_STATEMENT,
   ContractError,
+  PlanConnectionSchema,
   type ErrorCode,
   type PlanConnection,
 } from '@creator/contracts';
@@ -478,6 +479,13 @@ test('a real workspace connection refuses loopback endpoints and uses the offici
   assert.match(c.ext_agent_host_id, /^urn:uuid:/);
 });
 
+test('credits confirmation remains readable by the UI after reloading', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.ready();
+  PlanConnectionSchema.parse(await s.current());
+});
+
 test('sign-in, credits, caps, verification and qualification are separate recorded states', async (t) => {
   const s = await setup(t, {
     responses: [
@@ -730,6 +738,20 @@ test('one request at a time: a concurrent admission is refused while one is in f
   });
   const d = await s.store.planConnectionDetail(owner, s.ws.id, c.id);
   assert.equal(d.usage.unresolved, 1);
+  await s.db.pool.query('update plan_requests set output_chars=7 where id=$1', [
+    left.value.request_id,
+  ]);
+  await assert.rejects(
+    s.store.reconcilePlanRequest(owner, s.ws.id, c.id, left.value.request_id, {
+      expected_version: d.connection.version,
+      outcome: 'did_not_run',
+      note: 'Cannot contradict observed output.',
+    }),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_TRANSITION' &&
+      /observed output/.test(e.message),
+  );
   const other =
     results.findIndex((r) => r.status === 'rejected') === 0 ? g1 : g2;
   await rejects('ACCESS_DENIED', admit(other.id, other.model_id), /reconcile/);
@@ -745,6 +767,44 @@ test('one request at a time: a concurrent admission is refused while one is in f
     },
   );
   assert.ok(await admit(other.id, other.model_id));
+});
+
+test('unknown duplicate refuses redispatch and retains durable observations', async (t) => {
+  const s = await setup(t, { responses: [{ kind: 'cut', text: 'partial' }] });
+  if (!s) return;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await s.store.createPlanVerificationGrant(
+    owner,
+    s.ws.id,
+    c.id,
+    {
+      expected_version: c.version,
+      model_id: 'm',
+      path: 'responses',
+      expires_in_minutes: 5,
+    },
+  );
+  const request = {
+    connection_id: c.id,
+    logical_operation_id: randomUUID(),
+    purpose: 'verification' as const,
+    model_id: 'm',
+    task_class: null,
+    data_class: 'synthetic' as const,
+    run_id: null,
+    grant_id: grant.id,
+    instructions: 'fixture',
+    input: 'fixture',
+  };
+  const first = await s.service.invoke(owner, s.ws.id, request);
+  await rejects('DUPLICATE', s.service.invoke(owner, s.ws.id, request));
+  assert.equal(first.outcome.kind, 'unknown');
+  const [saved] = await s.store.planRequests(owner, s.ws.id, c.id);
+  assert.equal(saved!.state, 'unknown');
+  assert.equal(saved!.upstream_request_id, first.outcome.response_id);
+  assert.equal(saved!.output_chars, 7);
+  assert.equal(s.fake.responseRequests.length, 1);
 });
 
 test('a terminal refresh error requires a new sign-in and keeps the registration', async (t) => {
@@ -805,4 +865,75 @@ test('a sign-in that grants no plan usage scope is recorded but admits nothing',
       await s.store.planConnectionDetail(owner, s.ws.id, s.conn.id)
     ).blockers.some((b) => /plan usage/i.test(b)),
   );
+});
+
+test('production discovery-contract qualification grades role outputs through the plan service using loopback only', async (t) => {
+  const manifest = read(
+    'config/connections/benchmarks/discovery-synthetic-v3/research_synthesis.json',
+  ) as import('@creator/contracts').BenchmarkManifest;
+  const controls = read(
+    'config/connections/benchmarks/discovery-synthetic-v3/author-controls.json',
+  ) as { task_class: string; case_id: string; gold: unknown }[];
+  const s = await setup(t, {
+    responses: [
+      { kind: 'text', text: 'ok' },
+      ...manifest.cases.map((c) => ({
+        kind: 'text' as const,
+        text: JSON.stringify(
+          controls.find(
+            (x) =>
+              x.task_class === manifest.task_class && x.case_id === c.case_id,
+          )!.gold,
+        ),
+      })),
+    ],
+  });
+  if (!s) return;
+  await s.signIn();
+  let conn = await s.ready();
+  conn = await s.store.updatePlanSettings(owner, s.ws.id, conn.id, {
+    expected_version: conn.version,
+    settings: {
+      ...conn.settings,
+      allowed_task_classes: [
+        ...conn.settings.allowed_task_classes,
+        'research_synthesis',
+      ],
+    },
+  });
+  conn = await s.store.acceptPlanCaps(owner, s.ws.id, conn.id, {
+    expected_version: conn.version,
+    settings_hash: conn.settings_hash,
+  });
+  const grant = await s.store.createPlanVerificationGrant(
+    owner,
+    s.ws.id,
+    conn.id,
+    {
+      expected_version: conn.version,
+      model_id: 'm',
+      path: 'responses',
+      expires_in_minutes: 5,
+    },
+  );
+  await s.service.verifyModel(owner, s.ws.id, conn.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  conn = (await s.store.planConnectionDetail(owner, s.ws.id, conn.id))
+    .connection;
+  const q = await s.store.startPlanQualification(owner, s.ws.id, conn.id, {
+    expected_version: conn.version,
+    model_id: 'm',
+    manifest: { ...manifest, fixture: true },
+    min_held_out_cases: 4,
+    floor: { numerator: 1, denominator: 1 },
+  });
+  const result = await s.service.runQualification(owner, s.ws.id, q.id);
+  assert.equal(result.state, 'decided');
+  if (result.state === 'decided') {
+    assert.equal(result.qualification.state, 'qualified');
+    assert.equal(result.qualification.held_out.passed, 4);
+  }
+  assert.equal(s.fake.responseRequests.length, 7);
 });

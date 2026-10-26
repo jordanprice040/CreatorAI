@@ -1,0 +1,13 @@
+{
+  "format": "theme-intent-owner-before-authorization/1",
+  "owner_decision": "I authorize you to continue with the operational before preparation",
+  "provenance": "Jordan, current chat user message, 2026-10-24",
+  "scope": "Reviewed v3 before preparation only: verified schema-28 snapshot, protected/products backups and matching program rollback copy; managed database start/stop for this phase",
+  "install_authorized": false,
+  "migration_authorized": false,
+  "provider_calls_authorized": false,
+  "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "session_id": "operational-before-20261024-01",
+  "recorded_at": "2026-10-24T10:55:52.4777723Z"
+}

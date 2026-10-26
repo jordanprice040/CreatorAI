@@ -1,0 +1,184 @@
+TAP version 13
+# Subtest: research_synthesis: six frozen cases use production transport, enforce source/schema/semantic checks and conceal labels
+ok 1 - research_synthesis: six frozen cases use production transport, enforce source/schema/semantic checks and conceal labels
+  ---
+  duration_ms: 10.1779
+  type: 'test'
+  ...
+# Subtest: candidate_generation: six frozen cases use production transport, enforce source/schema/semantic checks and conceal labels
+ok 2 - candidate_generation: six frozen cases use production transport, enforce source/schema/semantic checks and conceal labels
+  ---
+  duration_ms: 6.8677
+  type: 'test'
+  ...
+# Subtest: scoring: six frozen cases use production transport, enforce source/schema/semantic checks and conceal labels
+ok 3 - scoring: six frozen cases use production transport, enforce source/schema/semantic checks and conceal labels
+  ---
+  duration_ms: 5.5327
+  type: 'test'
+  ...
+# Subtest: proposed plan settings parse and keep code_build, private data and credits out
+ok 4 - proposed plan settings parse and keep code_build, private data and credits out
+  ---
+  duration_ms: 2.0829
+  type: 'test'
+  ...
+# Subtest: plan request body follows the preview limits and the error codes map to states
+ok 5 - plan request body follows the preview limits and the error codes map to states
+  ---
+  duration_ms: 0.3425
+  type: 'test'
+  ...
+# Subtest: only official endpoints are accepted for real connections
+ok 6 - only official endpoints are accepted for real connections
+  ---
+  duration_ms: 0.6729
+  type: 'test'
+  ...
+# Subtest: first registration uses the dynamic client with the name hint; later ones do not
+ok 7 - first registration uses the dynamic client with the name hint; later ones do not
+  ---
+  duration_ms: 1.5208
+  type: 'test'
+  ...
+# Subtest: loopback callback refuses a wrong state and a different client id
+ok 8 - loopback callback refuses a wrong state and a different client id
+  ---
+  duration_ms: 55.8552
+  type: 'test'
+  ...
+# Subtest: ID tokens are checked for nonce and audience
+ok 9 - ID tokens are checked for nonce and audience
+  ---
+  duration_ms: 145.4116
+  type: 'test'
+  ...
+# Subtest: the Responses stream counts only response.completed and enforces the output cap
+ok 10 - the Responses stream counts only response.completed and enforces the output cap
+  ---
+  duration_ms: 78.0764
+  type: 'test'
+  ...
+# Subtest: pure admission keeps sign-in, credits, caps, model access and qualification separate
+ok 11 - pure admission keeps sign-in, credits, caps, model access and qualification separate
+  ---
+  duration_ms: 1.8571
+  type: 'test'
+  ...
+# Subtest: no vault means no sign-in, and file-dev is never chosen implicitly
+ok 12 - no vault means no sign-in, and file-dev is never chosen implicitly
+  ---
+  duration_ms: 0.452
+  type: 'test'
+  ...
+# Subtest: a real workspace connection refuses loopback endpoints and uses the official hosts
+ok 13 - a real workspace connection refuses loopback endpoints and uses the official hosts
+  ---
+  duration_ms: 1993.89
+  type: 'test'
+  ...
+# Subtest: credits confirmation remains readable by the UI after reloading
+ok 14 - credits confirmation remains readable by the UI after reloading
+  ---
+  duration_ms: 1871.3549
+  type: 'test'
+  ...
+# Subtest: sign-in, credits, caps, verification and qualification are separate recorded states
+ok 15 - sign-in, credits, caps, verification and qualification are separate recorded states
+  ---
+  duration_ms: 1968.7886
+  type: 'test'
+  ...
+# Subtest: provider refusals are recorded as eligibility and quota states and stop admission
+ok 16 - provider refusals are recorded as eligibility and quota states and stop admission
+  ---
+  duration_ms: 1927.2035
+  type: 'test'
+  ...
+# Subtest: one request at a time: a concurrent admission is refused while one is in flight
+ok 17 - one request at a time: a concurrent admission is refused while one is in flight
+  ---
+  duration_ms: 1927.3383
+  type: 'test'
+  ...
+# Subtest: a terminal refresh error requires a new sign-in and keeps the registration
+ok 18 - a terminal refresh error requires a new sign-in and keeps the registration
+  ---
+  duration_ms: 1845.7299
+  type: 'test'
+  ...
+# Subtest: refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+ok 19 - refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+  ---
+  duration_ms: 1746.6786
+  type: 'test'
+  ...
+# Subtest: a sign-in that grants no plan usage scope is recorded but admits nothing
+ok 20 - a sign-in that grants no plan usage scope is recorded but admits nothing
+  ---
+  duration_ms: 2058.3639
+  type: 'test'
+  ...
+# Subtest: production discovery-contract qualification grades role outputs through the plan service using loopback only
+ok 21 - production discovery-contract qualification grades role outputs through the plan service using loopback only
+  ---
+  duration_ms: 3094.1912
+  type: 'test'
+  ...
+# Subtest: subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+ok 22 - subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+  ---
+  duration_ms: 3901.956
+  type: 'test'
+  ...
+# Subtest: subscription workflow replay survives restart without redispatch, binds input
+ok 23 - subscription workflow replay survives restart without redispatch, binds input
+  ---
+  duration_ms: 2748.8889
+  type: 'test'
+  ...
+# Subtest: subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+ok 24 - subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+  ---
+  duration_ms: 2154.1028
+  type: 'test'
+  ...
+# Subtest: unknown subscription requests hold work without retry and explicit reconciliation releases the task
+ok 25 - unknown subscription requests hold work without retry and explicit reconciliation releases the task
+  ---
+  duration_ms: 2533.6449
+  type: 'test'
+  ...
+# Subtest: missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+ok 26 - missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+  ---
+  duration_ms: 2530.8147
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+ok 27 - authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+  ---
+  duration_ms: 3995.9464
+  type: 'test'
+  ...
+# Subtest: cancellation during credential lookup cannot start a later provider request
+ok 28 - cancellation during credential lookup cannot start a later provider request
+  ---
+  duration_ms: 0.5183
+  type: 'test'
+  ...
+# Subtest: typed API resources preserve the existing budgeted discovery path
+ok 29 - typed API resources preserve the existing budgeted discovery path
+  ---
+  duration_ms: 4261.6616
+  type: 'test'
+  ...
+1..29
+# tests 29
+# suites 0
+# pass 29
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43298.3958

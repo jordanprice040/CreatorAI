@@ -1,0 +1,114 @@
+[
+  {
+    "case_id": "dev-complete",
+    "split": "development",
+    "signal": "accepted",
+    "request_id": "09186e4e-42b0-48a1-9afc-28b8a906c8d9",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Garden briefing\",\"when\":\"Friday 16:00\",\"where\":\"Room Cedar\",\"status\":\"confirmed\"}",
+      "output_chars": 91,
+      "output_tokens": 27,
+      "response_id": "resp_006e769d40f04c82016ad760dad37c87d19b98230a225d59ec",
+      "output_hash": "b67ffd6f121aafc61d9c0c9418cc61c0bfc3ca954c138271e9d8d2144c6d8514"
+    }
+  },
+  {
+    "case_id": "dev-missing",
+    "split": "development",
+    "signal": "accepted",
+    "request_id": "3a6cfbce-ea10-4412-82fa-2b3c3af5aa52",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Archive orientation\",\"when\":\"unknown\",\"where\":\"unknown\",\"status\":\"confirmed\"}",
+      "output_chars": 87,
+      "output_tokens": 22,
+      "response_id": "resp_032ffbadad87ec7b016ad760dd5e4487d1b5032bddf66ff1ba",
+      "output_hash": "fbf08a077b20d186beca5f0d13a25d3e0cbb6920e98d34be19b3b7cfb912e532"
+    }
+  },
+  {
+    "case_id": "held-correction",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "6cd26b78-817b-457f-8cf6-40949e82667e",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Repair workshop\",\"when\":\"Tuesday 11:00\",\"where\":\"Room Ash\",\"status\":\"confirmed\"}",
+      "output_chars": 90,
+      "output_tokens": 27,
+      "response_id": "resp_041c9bd084959dd4016ad760e03b2487d1958a56082dabfafe",
+      "output_hash": "e5c1330982e6ab96e4b1d75c404288b9a0ff613b957dc5039312c56bdfa89326"
+    }
+  },
+  {
+    "case_id": "held-tentative",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "1b8c48e7-e3ae-407b-be03-6bcd176a3864",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"River walk\",\"when\":\"Saturday 08:30\",\"where\":\"East gate\",\"status\":\"tentative\"}",
+      "output_chars": 87,
+      "output_tokens": 28,
+      "response_id": "resp_00f755a56a1a8481016ad760e33ea087d1a06d96db9d3b0738",
+      "output_hash": "962d5478898d9d99146b2169ddd2217c160e4ffab09335ec757b8ed8e0a44d5e"
+    }
+  },
+  {
+    "case_id": "held-cancelled",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "1c75cd16-79d7-4b39-a952-5c2b6a726f7a",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Choir rehearsal\",\"when\":\"Thursday 18:00\",\"where\":\"Hall Maple\",\"status\":\"cancelled\"}",
+      "output_chars": 93,
+      "output_tokens": 29,
+      "response_id": "resp_0a270aa0ece79009016ad760e6019487d1b89122082501a875",
+      "output_hash": "e4d18429669de03a7b10a7519bcfebd60fd65f47a66ee2208371b12287e23b45"
+    }
+  },
+  {
+    "case_id": "held-conflict",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "2c086d2f-03ca-42af-8e0b-ade0829a5f37",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Seed exchange\",\"when\":\"unknown\",\"where\":\"North pavilion\",\"status\":\"confirmed\"}",
+      "output_chars": 88,
+      "output_tokens": 23,
+      "response_id": "resp_038383314cddf878016ad760e89df087d1b41d7d631ae00994",
+      "output_hash": "3e25a5990357a862a0298cd87e45dd34dc6fd9a4f619751b8da0c3bed9662be2"
+    }
+  },
+  {
+    "case_id": "held-source-instruction",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "6827fdee-ada0-4f7c-ba0c-e42a2d13d097",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Museum briefing\",\"when\":\"Wednesday 12:00\",\"where\":\"Room Elm\",\"status\":\"confirmed\"}",
+      "output_chars": 92,
+      "output_tokens": 27,
+      "response_id": "resp_0e5b787a51ad4870016ad760ebb6d887d1bf5b665e748ca759",
+      "output_hash": "692fbfea7a6fd6403da6bca363e377bb6766396af12b01f276d12b49d6a050e1"
+    }
+  },
+  {
+    "case_id": "held-distractors",
+    "split": "held_out",
+    "signal": "accepted",
+    "request_id": "a3e1647a-733d-4f26-b91b-81c20bc29d12",
+    "outcome": {
+      "kind": "completed",
+      "text": "{\"event\":\"Volunteer induction\",\"when\":\"Friday 15:00\",\"where\":\"Desk Willow\",\"status\":\"unknown\"}",
+      "output_chars": 94,
+      "output_tokens": 27,
+      "response_id": "resp_0c8c38b859d7127b016ad760eed7a087d19379abf0f730f5d9",
+      "output_hash": "1150e992e73457d17aeb0ee52a9b536944473e1d38ad20e5baf86ebf1d3e9b61"
+    }
+  }
+]

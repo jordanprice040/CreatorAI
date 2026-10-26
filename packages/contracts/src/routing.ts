@@ -7,6 +7,12 @@ import {
   nanoUsd,
   version,
 } from './primitives.js';
+import {
+  EvidencePacketSchema,
+  DiscoveryTaskContextSchema,
+  DiscoveryTaskKindSchema,
+  FindingTypeSchema,
+} from './discovery.js';
 import { DataClassSchema } from './oversight.js';
 import { MeteredActionSchema, ProviderSchema } from './budget.js';
 
@@ -325,7 +331,96 @@ export const EscalateRouteRequestSchema = z.strictObject({
 
 // Held-out benchmark. Expected values are written before any result and the manifest hash
 // binds every result, so criteria and labels cannot move after results are seen.
+const BenchmarkAssertionSchema = z
+  .strictObject({
+    // Opt-in identity binding; omitted on every historical assertion.
+    select: z
+      .strictObject({
+        proposal: z.string().regex(/^P[1-5]$/),
+        finding: z
+          .strictObject({
+            type: FindingTypeSchema,
+            catalog_ref: z
+              .string()
+              .regex(/^K[1-9][0-9]?$/)
+              .nullable()
+              .optional(),
+            claim_ref: z
+              .string()
+              .regex(/^C[1-9][0-9]?$/)
+              .optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+    path: z.array(z.string().min(1).max(80)).min(1).max(8),
+    op: z.enum(['equals', 'one_of', 'includes', 'nonempty']),
+    value: z
+      .union([z.string().max(200), z.boolean(), z.number().finite(), z.null()])
+      .optional(),
+    values: z
+      .array(
+        z.union([
+          z.string().max(200),
+          z.boolean(),
+          z.number().finite(),
+          z.null(),
+        ]),
+      )
+      .min(1)
+      .max(10)
+      .optional(),
+  })
+  .superRefine((a, ctx) => {
+    if ((a.op === 'equals' || a.op === 'includes') && a.value === undefined)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'This assertion needs a value.',
+      });
+    if (a.op === 'one_of' && !a.values)
+      ctx.addIssue({ code: 'custom', message: 'one_of needs values.' });
+  });
 export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
+  z
+    .strictObject({
+      kind: z.literal('discovery_contract'),
+      task_kind: DiscoveryTaskKindSchema,
+      packet: EvidencePacketSchema,
+      context: DiscoveryTaskContextSchema,
+      assertions: z.array(BenchmarkAssertionSchema).min(1).max(20),
+    })
+    .superRefine((c, ctx) => {
+      for (const a of c.assertions) {
+        if (!a.select) continue;
+        if (c.task_kind !== 'skeptic')
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Identity selection requires a skeptic task.',
+          });
+        const labels = c.context.inputs
+          .filter((i) => i.kind === 'propose' || i.kind === 'revise')
+          .map((i) => i.label.split(' ')[0]);
+        if (labels.filter((p) => p === a.select!.proposal).length !== 1)
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Selection requires one supplied proposal identity.',
+          });
+        const f = a.select.finding;
+        if (f?.claim_ref && !c.packet.claims.some((r) => r.ref === f.claim_ref))
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Selected claim is not in the packet.',
+          });
+        if (
+          f?.catalog_ref &&
+          !c.packet.catalog.some((r) => r.ref === f.catalog_ref)
+        )
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Selected catalog entry is not in the packet.',
+          });
+      }
+    }),
   z.strictObject({
     kind: z.literal('json_keys'),
     keys: z.array(short).min(1).max(20),
@@ -364,6 +459,20 @@ export const BenchmarkManifestSchema = z
     provenance: note,
   })
   .superRefine((b, ctx) => {
+    for (const c of b.cases)
+      if (c.check.kind === 'discovery_contract') {
+        const required =
+          c.check.task_kind === 'locate'
+            ? 'research_synthesis'
+            : c.check.task_kind === 'skeptic'
+              ? 'scoring'
+              : 'candidate_generation';
+        if (b.task_class !== required || c.output_format !== 'json')
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Discovery check task class/output format mismatch.',
+          });
+      }
     const ids = b.cases.map((c) => c.case_id);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: 'custom', message: 'Case ids must be unique.' });

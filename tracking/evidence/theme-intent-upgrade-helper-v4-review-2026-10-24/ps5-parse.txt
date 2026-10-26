@@ -1,0 +1,6 @@
+5.1.26100.9711
+scripts/upgrade-theme-intent-v4.ps1 errors=0
+scripts/install-theme-intent-v4.ps1 errors=0
+scripts/recover-theme-intent-v4.ps1 errors=0
+scripts/theme-intent-upgrade-v4-mutex.ps1 errors=0
+tests/fixtures/theme-intent-v4-installer.ps1 errors=0

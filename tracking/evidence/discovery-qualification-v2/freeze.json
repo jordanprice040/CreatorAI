@@ -1,0 +1,45 @@
+{
+  "format": "discovery-qualification-plan/2",
+  "status": "frozen_offline_not_authorized_or_executed",
+  "prepared_at": "2026-10-21T00:15:14.421Z",
+  "proposal_hash": "db5e4d5f007ee5891da6763200421791b1ec1759056767d3e8200bff5897525c",
+  "role_version": "r02-discovery/1.1",
+  "prompt_hash": "6211f86a0b13b196cc63ffbec02cf02f6d4be9fe31f4f311c01ddffeca9e500e",
+  "model_id": "gpt-6-astra",
+  "cases": 18,
+  "local_scorer_checks": 108,
+  "files": [
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v2/research_synthesis.json",
+      "task_class": "research_synthesis",
+      "sha256": "546ddd9dd2c6186c6eae0d3e943bbda529159b8f9832b3bd38840abd75808650",
+      "canonical_hash": "2ce652f648c463ea1bc349733ebb2c4a8b894c2484d8993d6e4cfd14a8fd92f8"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v2/candidate_generation.json",
+      "task_class": "candidate_generation",
+      "sha256": "1f428d5566e423138a57777bed5ab243db4e58980758bb631aad434f6e9475a2",
+      "canonical_hash": "0332f4be27076a92f4318cab72dd3be88f189960fea0f709c30472becdd437c3"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v2/scoring.json",
+      "task_class": "scoring",
+      "sha256": "2e754d2981d381520561d8f55c22bf025f34137d8fb80926222b7141aa4ca38e",
+      "canonical_hash": "6d6a644d01c233c86f8fa348c28df8e43514885c89a511bedbbb7ed9e2a205ad"
+    }
+  ],
+  "controls_sha256": "a8641d7c8c1a3f1cf518676bc4fffb794c3a20c6fb5ea16d2ee98762f07ed67b",
+  "limits": {
+    "max_new_requests": 18,
+    "retries": 0,
+    "max_concurrency": 1,
+    "max_request_ms": 120000,
+    "max_wall_ms": 2160000,
+    "max_output_chars": 16000,
+    "max_input_chars": 24000,
+    "new_metered_spend_nano_usd": "0",
+    "settings_expansion": false
+  },
+  "manual_review_required": true,
+  "original_failed_result_preserved": true
+}

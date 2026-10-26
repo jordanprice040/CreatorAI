@@ -1,0 +1,306 @@
+{
+  "owner_authorization": "I approve you adding more slots to do the testing",
+  "before": {
+    "connection": {
+      "id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+      "fixture": false,
+      "kind": "chatgpt_plan",
+      "label": "ChatGPT plan",
+      "version": 14,
+      "settings": {
+        "format": "chatgpt-plan-settings/1",
+        "plan_type": "plus",
+        "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
+        "allowed_data_classes": [
+          "synthetic",
+          "public"
+        ],
+        "allowed_task_classes": [
+          "summarization",
+          "specification",
+          "research_synthesis",
+          "candidate_generation",
+          "scoring"
+        ],
+        "caps": {
+          "responses": {
+            "max_requests_per_run": 10,
+            "request_timeout_ms": 120000,
+            "max_output_chars": 16000,
+            "max_input_chars": 24000
+          },
+          "codex": {
+            "max_builds_per_day": 2,
+            "max_turns_per_build": 1,
+            "max_model_requests_per_build": 25,
+            "build_timeout_ms": 600000
+          },
+          "shared": {
+            "max_model_requests_per_day": 40,
+            "max_in_flight": 1
+          }
+        }
+      },
+      "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+      "caps_accepted_at": "2026-10-21T00:00:07.872Z",
+      "ext_agent_host_id": "urn:uuid:36dd4851-7381-48e4-9655-885cd9b11419",
+      "sign_in": {
+        "state": "signed_in",
+        "issued_client_id": "oaiapp_XW3Y7HYXkvECPDbYQEVRJkhCh",
+        "account_label": "jordanprice@ufl.edu",
+        "scopes": [
+          "chatgpt.tokens.use.direct",
+          "email",
+          "offline_access",
+          "openid",
+          "profile",
+          "resource.invoke"
+        ],
+        "plan_usage_granted": true,
+        "verified_at": "2026-10-20T12:28:39.370Z",
+        "access_expires_at": "2026-10-21T07:08:49.795Z"
+      },
+      "credits": {
+        "state": "confirmed_off",
+        "checked_on": "2026-10-20",
+        "confirmed_at": "2026-10-20T12:09:31.214Z",
+        "confirmed_by": "00000000-0000-4000-8000-000000000001"
+      },
+      "eligibility": {
+        "state": "eligible",
+        "reason_code": null,
+        "upstream_request_id": "resp_0f4c5bed08fd53e4016ad85eb9307c87d191a0c2b97c82d9f4",
+        "observed_at": "2026-10-21T06:42:21.789Z"
+      },
+      "quota": {
+        "state": "available",
+        "reason_code": null,
+        "observed_at": "2026-10-21T06:42:21.789Z"
+      },
+      "status_reason": null,
+      "created_at": "2026-10-20T12:00:36.029Z",
+      "updated_at": "2026-10-21T07:00:15.908Z"
+    },
+    "model_access": [
+      {
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "path": "responses",
+        "access": "verified",
+        "reason_code": null,
+        "request_id": "6f887269-7809-43e9-8acf-5692983dbe3b",
+        "verified_at": "2026-10-20T12:32:50.851Z"
+      }
+    ],
+    "qualifications": [
+      {
+        "id": "887288bb-ce7f-4edb-b11f-7f1494b146e3",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "f63a4a7f50ef0089287ffbf9b7f5a84518ff50ecf3c5162a69c13f2a9088b6d7",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 2,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 3,
+          "total": 4
+        },
+        "reason": "3/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T06:40:37.271Z",
+        "decided_at": "2026-10-21T07:00:15.962Z"
+      },
+      {
+        "id": "4e6a8cad-a777-44d9-bf05-aa728545701f",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "candidate_generation",
+        "manifest_hash": "de03794b65d9572ae889f3110f48aef225715df11496168c4324ee8755ef7cda",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 0,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 0,
+          "total": 4
+        },
+        "reason": "0/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T06:10:51.630Z",
+        "decided_at": "2026-10-21T06:11:12.934Z"
+      },
+      {
+        "id": "463406b6-898e-421f-8c03-391a21b020e1",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "20a7ff225f43c863f608eef44d386ce33889a9614aa8260149694f335e4b4651",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "qualified",
+        "development": {
+          "passed": 2,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 4,
+          "total": 4
+        },
+        "reason": "4/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T06:08:47.279Z",
+        "decided_at": "2026-10-21T06:10:51.577Z"
+      },
+      {
+        "id": "9586ebfb-adf8-4550-8c95-9a011744f2a1",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "2ce652f648c463ea1bc349733ebb2c4a8b894c2484d8993d6e4cfd14a8fd92f8",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 0,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 0,
+          "total": 4
+        },
+        "reason": "0/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T00:34:50.261Z",
+        "decided_at": "2026-10-21T00:35:18.790Z"
+      },
+      {
+        "id": "bfdbcf34-dcd2-49bf-9afa-7ac401020429",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "30b92cd090f98bdbb97f1461ea22c3a40f9234dcae723b512e33b550d849616e",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 0,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 0,
+          "total": 4
+        },
+        "reason": "0/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T00:00:14.097Z",
+        "decided_at": "2026-10-21T00:00:42.110Z"
+      },
+      {
+        "id": "db9cc857-cb7b-4651-a0e9-4f74ac00da85",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "summarization",
+        "manifest_hash": "72809de002696f07d9574c3ec474596d4847afc8fe5904281150e8bdff5fea15",
+        "min_held_out_cases": 6,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "qualified",
+        "development": {
+          "passed": 2,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 6,
+          "total": 6
+        },
+        "reason": "6/6 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-20T12:38:48.418Z",
+        "decided_at": "2026-10-20T12:39:11.413Z"
+      }
+    ],
+    "grants": [
+      {
+        "id": "eec35947-f314-448c-b033-168c44524945",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "path": "responses",
+        "max_requests": 1,
+        "used": 1,
+        "expires_at": "2026-10-20T13:02:25.741Z",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-20T12:32:25.741Z"
+      }
+    ],
+    "usage": {
+      "last_24h_requests": 24,
+      "last_24h_codex_builds": 0,
+      "in_flight": 0,
+      "unresolved": 0
+    },
+    "blockers": []
+  },
+  "proposed_settings": {
+    "format": "chatgpt-plan-settings/1",
+    "plan_type": "plus",
+    "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
+    "allowed_data_classes": [
+      "synthetic",
+      "public"
+    ],
+    "allowed_task_classes": [
+      "summarization",
+      "specification",
+      "research_synthesis",
+      "candidate_generation",
+      "scoring"
+    ],
+    "caps": {
+      "responses": {
+        "max_requests_per_run": 10,
+        "request_timeout_ms": 120000,
+        "max_output_chars": 16000,
+        "max_input_chars": 24000
+      },
+      "codex": {
+        "max_builds_per_day": 2,
+        "max_turns_per_build": 1,
+        "max_model_requests_per_build": 25,
+        "build_timeout_ms": 600000
+      },
+      "shared": {
+        "max_model_requests_per_day": 42,
+        "max_in_flight": 1
+      }
+    }
+  },
+  "proposed_hash": "8f453458ee32682d7713aa1d5384c8a0863c90a61e1be80bd9d0681c5c7f3fdc",
+  "temporary": true,
+  "restore_daily_cap": 40
+}
