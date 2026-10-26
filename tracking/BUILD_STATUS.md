@@ -1,3 +1,13 @@
+## PR #52 review fixes — October 26, 2026
+
+Review of #52: the #51 Medium is fixed (reproduced in the browser); one pre-existing
+Medium fixed: "Create an offer" lists only verified, current releases, and the "package a
+verified build first" hint shows when there are none. Lows: a disappeared repository is
+named too, with is/are grammar; operation fields hide when the connection has no
+repositories; each managed repository names its connection or says it was revoked; the
+usable-cash note lists everything it subtracts and that funding sources are added on the
+command line; add-connection and create-offer forms close and reset after success so a
+double click can't add twice. Checks: typecheck, format; checked in the dev studio.
 ## PR #51 review fixes — October 26, 2026
 
 Review of #51: no High; one Medium fixed. GitHub "Ask for a change" now lists only the

@@ -74,6 +74,8 @@ export function GitHub({
   const [notice, setNotice] = useState('');
   const [attention, setAttention] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Bumped after an add succeeds: the form remounts closed and empty, so it can't add twice. */
+  const [added, setAdded] = useState(0);
   const act: Act = async (work) => {
     setBusy(true);
     setError('');
@@ -151,9 +153,10 @@ export function GitHub({
               </ul>
             )}
             {!viewer && (
-              <details className="gh-add">
+              <details className="gh-add" key={`add-${added}`}>
                 <summary>Add a connection</summary>
                 <AddConnection
+                  done={() => setAdded((n) => n + 1)}
                   base={base}
                   session={session}
                   fixture={fixture}
@@ -185,7 +188,17 @@ export function GitHub({
                       {r.origin === 'created'
                         ? 'created by the studio'
                         : 'listed by you'}{' '}
-                      · default branch {r.default_branch}
+                      · default branch {r.default_branch} ·{' '}
+                      {(() => {
+                        const c = d.connections.find(
+                          (x) => x.id === r.connection_id,
+                        );
+                        return !c
+                          ? 'connection unknown'
+                          : c.status === 'revoked'
+                            ? `connection ${c.body.label} revoked, so nothing more is done here`
+                            : `through ${c.body.label}`;
+                      })()}
                       {r.status_reason ? ` · ${r.status_reason}` : ''}
                     </small>
                   </li>
@@ -450,12 +463,14 @@ function ConnectionRow({
 }
 
 function AddConnection({
+  done,
   base,
   session,
   fixture,
   busy,
   act,
 }: {
+  done: () => void;
   base: string;
   session: SessionInfo;
   fixture: boolean;
@@ -527,6 +542,7 @@ function AddConnection({
           body,
         },
       );
+      done();
       return `${c.body.label} added. Verify it before asking for changes.`;
     });
   }
@@ -790,7 +806,11 @@ function NewOperation({
   const gone = [
     connPick && connPick !== connectionId ? 'connection' : null,
     runPick && runPick !== runId ? 'run' : null,
+    kind !== 'repo_create' && repoPick && repoPick !== repoId
+      ? 'repository'
+      : null,
   ].filter(Boolean);
+  const noRepo = kind !== 'repo_create' && connRepos.length === 0;
   const [f, setF] = useState<Record<string, string>>({});
   const [justification, setJustification] = useState('');
   const [last, setLast] = useState<GitHubOperation | null>(null);
@@ -942,8 +962,9 @@ function NewOperation({
       </select>
       {gone.length > 0 && (
         <p className="small" role="status">
-          The {gone.join(' and ')} you picked is no longer available; the form
-          now uses the first one listed. Check it before asking.
+          The {gone.join(' and ')} you picked {gone.length > 1 ? 'are' : 'is'}{' '}
+          no longer available; the form now uses the first one listed. Check
+          before asking.
         </p>
       )}
       {kind !== 'repo_create' && connRepos.length === 0 && (
@@ -974,13 +995,13 @@ function NewOperation({
           {field('description', 'Description (optional)')}
         </>
       )}
-      {kind === 'branch_create' && (
+      {kind === 'branch_create' && !noRepo && (
         <>
           {field('branch', 'New branch (must use the branch prefix)')}
           {field('from_sha', 'Start from commit (40-character SHA)')}
         </>
       )}
-      {kind === 'push' && (
+      {kind === 'push' && !noRepo && (
         <>
           {field('branch', 'Branch')}
           {field('product_id', 'Product record id')}
@@ -991,7 +1012,7 @@ function NewOperation({
           )}
         </>
       )}
-      {(kind === 'issue_create' || kind === 'pr_open') && (
+      {(kind === 'issue_create' || kind === 'pr_open') && !noRepo && (
         <>
           {kind === 'pr_open' && field('head', 'From branch')}
           {kind === 'pr_open' && field('base', 'Into branch')}
@@ -999,7 +1020,7 @@ function NewOperation({
           {field('body', 'Description', { area: true })}
         </>
       )}
-      {kind === 'pr_merge' && (
+      {kind === 'pr_merge' && !noRepo && (
         <>
           {field('pr', 'Pull request number')}
           {field('head_sha', 'Reviewed head commit (SHA)')}
