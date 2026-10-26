@@ -1,3 +1,33 @@
+## Spending ceiling in Settings; round 1 review fixes — October 26, 2026
+
+Jordan asked for Settings (user-adjustable spending ceiling), GitHub and Payments screens in
+this pass. Settings is done (ADR-0043, migration 30): a signed-in workspace owner can raise
+or lower the overall runtime ceiling with a reason; each change is an immutable versioned
+row plus a spending.ceiling_changed audit event under the runtime-ceiling lock, with a
+version check against stale pages; agents/system actors are refused; config/spending.json
+stays the $20 starting value and no amount was changed. Walked in the dev studio on the
+Docker dev database only (raised to $25 there to exercise the flow; the installed app was
+not touched). Tests: runtime-ceiling 6/6 (new owner/agent/stranger/version/lowering/
+immutability test), storage (schema 30), web-display, catalog and budget suites pass.
+Round 1 independent review (same model family): one Medium, fixed: environment-claim
+history now names the actual environment. Lows fixed: condition-specific Stop text, twin
+workspace labels carry an id prefix, Scores keeps a pick made while counts load, Studies
+auto-open never overrides a pick or a workspace switch, Budgets says "N in flight now · at
+most M at once", an address without a workspace opens the starting workspace. Accepted as
+is: up to 20 comparison reads to choose the default problem (a count endpoint can follow);
+older history rows keep raw nano amounts.
+Next: re-review of these commits; then GitHub and Payments screens.
+## Studio usability pass, round 2 — October 26, 2026
+
+Scores and specs can now freeze the shown specification version in the app: pick the run,
+give a reason, Freeze; when the server asks for an approval the form links the decision and
+re-sends the same request after it is answered (no new authority; same admitted
+spec-freezes route the CLI uses). Walked end to end in the fixture workspace: freeze of v2
+asked for an approval, approved once under Decisions, then froze all four tasks. Writing or
+revising a specification still goes through the CLI/API. Submit a theme explains its two
+entry points and collapses the claim matrix to a tick per claim with role chips only for
+ticked claims (page 4,876px to about 4,100px with one claim ticked); the theme-intent draft
+form itself is unchanged. Checks: typecheck and format pass.
 ## Studio usability pass, round 1 — October 26, 2026
 
 Hands-on walk of every reachable studio flow in the dev studio (Docker PostgreSQL, fixture

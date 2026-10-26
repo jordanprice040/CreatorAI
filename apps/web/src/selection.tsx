@@ -1,19 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
+  FreezeOutcomeSchema,
+  RunControlSchema,
   SelectionReportSchema,
   SelectionSchema,
   SpecStatusSchema,
   StoredEntitySchema,
   z,
+  type FreezeOutcome,
   type RubricRanking,
   type Selection,
   type SelectionReport,
+  type SessionInfo,
   type SpecStatus,
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { alternativeCounts, clip, problemLabel, richestProblem } from './ui.js';
+import {
+  alternativeCounts,
+  clip,
+  problemLabel,
+  richestProblem,
+  useLoad,
+  type View,
+} from './ui.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',
@@ -135,24 +146,175 @@ export function Ranking({
 }
 
 /**
- * Read-only view of rankings, selections and specifications. Scores are computed from the
- * current scorecards; selecting and freezing are admitted actions done through the CLI/API,
- * and their approvals appear in Human decisions.
+ * Freezes the shown specification version under a run. Freezing is an admitted action: the
+ * server may ask for an approval first, which is answered under Decisions; the request is
+ * then sent again unchanged. Nothing here grants the approval itself.
+ */
+function FreezeSpec({
+  base,
+  session,
+  spec,
+  dataClass,
+  open,
+  frozen,
+}: {
+  base: string;
+  session: SessionInfo;
+  spec: SpecStatus;
+  dataClass: 'synthetic' | 'public';
+  open: (view: View, id?: string) => void;
+  frozen: () => void;
+}) {
+  const runs = useLoad(
+    async () =>
+      (await api(z.array(RunControlSchema), `${base}/runs`)).filter(
+        (r) => r.state === 'active',
+      ),
+    [base],
+  );
+  const [runId, setRunId] = useState('');
+  const [justification, setJustification] = useState('');
+  const [outcome, setOutcome] = useState<FreezeOutcome | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!runId && runs.data?.[0]) setRunId(runs.data[0].run_id);
+  }, [runs.data]);
+  async function freeze(e?: FormEvent) {
+    e?.preventDefault();
+    if (!runId || !justification.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api(
+        FreezeOutcomeSchema,
+        `${base}/runs/${runId}/spec-freezes`,
+        {
+          csrf: session.csrf_token,
+          body: {
+            spec: { id: spec.spec.id, version: spec.spec.version },
+            justification: justification.trim(),
+            data_class: dataClass,
+          },
+        },
+      );
+      setOutcome(r);
+      if (r.status === 'frozen') frozen();
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="freeze" onSubmit={(e) => void freeze(e)}>
+      <h4>Freeze v{spec.spec.version}</h4>
+      <p className="small">
+        A frozen version fixes the tasks and acceptance checks a build is held
+        to. Later edits make a new version and show which tasks changed.
+      </p>
+      <label htmlFor="frz-run">Record under run</label>
+      <select
+        id="frz-run"
+        value={runId}
+        onChange={(e) => setRunId(e.target.value)}
+      >
+        {runs.data?.length === 0 && <option value="">No active runs</option>}
+        {runs.data?.map((r) => (
+          <option key={r.run_id} value={r.run_id}>
+            {words(r.autonomy_mode)} run {r.run_id.slice(0, 8)}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="frz-why">Why this version is ready</label>
+      <textarea
+        id="frz-why"
+        rows={2}
+        maxLength={1000}
+        value={justification}
+        onChange={(e) => setJustification(e.target.value)}
+      />
+      <div className="actions">
+        <button
+          className="primary"
+          type="submit"
+          disabled={busy || !runId || !justification.trim()}
+        >
+          {busy ? 'Freezing…' : 'Freeze this version'}
+        </button>
+      </div>
+      <div aria-live="polite">
+        {outcome?.status === 'frozen' && (
+          <p className="notice ok">
+            Frozen. The tasks above now show as frozen.
+          </p>
+        )}
+        {outcome?.status === 'needs_human' && (
+          <div className="notice">
+            <strong>Waiting for your approval.</strong>{' '}
+            <span>{outcome.admission.explanation}</span>{' '}
+            {outcome.admission.decision_id && (
+              <button
+                className="secondary"
+                type="button"
+                onClick={() =>
+                  open('decisions', outcome.admission.decision_id!)
+                }
+              >
+                Open the decision
+              </button>
+            )}{' '}
+            <button
+              className="secondary strong"
+              type="button"
+              disabled={busy}
+              onClick={() => void freeze()}
+            >
+              I approved it: freeze again
+            </button>
+          </div>
+        )}
+        {(outcome?.status === 'denied' || outcome?.status === 'deferred') && (
+          <p className="error">
+            {words(outcome.status)} ({words(outcome.admission.reason_code)}):{' '}
+            {outcome.admission.explanation}
+          </p>
+        )}
+        {(error || runs.error) && (
+          <p className="error" role="alert">
+            {error || runs.error}
+          </p>
+        )}
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Rankings, selections and specifications. Scores are computed from the current
+ * scorecards; a selection is recorded under Compare and decide, and a specification
+ * version can be frozen here. Approvals for either appear under Decisions.
  */
 export function Scoring({
+  session,
   workspace: current,
   focus,
   onFocus,
+  open,
 }: {
+  session: SessionInfo;
   workspace: Workspace;
   /** The problem whose report is shown, kept in the page address. */
   focus: string;
   onFocus: (problemId: string) => void;
+  open: (view: View, id?: string) => void;
 }) {
   const workspace = current.id;
   const [problems, setProblems] = useState<StoredEntity[]>([]);
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const problem = focus;
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
   const setProblem = (u: string | ((c: string) => string)) =>
     onFocus(typeof u === 'function' ? u(focus) : u);
   const [alternatives, setAlternatives] = useState<StoredEntity[]>([]);
@@ -179,9 +341,11 @@ export function Scoring({
       setCounts(c);
       setAlternatives(a);
       setSpecs(s.filter((x) => x.body?.format === 'spec/1'));
-      setProblem((cur) =>
-        active.some((x) => x.id === cur) ? cur : richestProblem(active, c),
-      );
+      // Read the address now, not when the load started: a pick made while the counts
+      // were loading must not be replaced by the default.
+      const cur = focusRef.current;
+      if (!active.some((x) => x.id === cur))
+        setProblem(richestProblem(active, c));
     } catch (e) {
       setError(message(e));
     }
@@ -233,9 +397,8 @@ export function Scoring({
         Scores are transparent prioritization aids from reviewers&apos; 1–5
         ratings, not probabilities or measured impact. Unknown ratings are never
         averaged away. Ethics, access and the humility review are gates that no
-        score can clear. Record a selection under Compare and decide; freeze a
-        specification through the CLI (<code>pnpm cli spec-freeze</code>).
-        Approvals appear under Decisions.
+        score can clear. Record a selection under Compare and decide, then
+        freeze its specification here. Approvals appear under Decisions.
       </p>
       <div className="filters">
         <label htmlFor="sel-problem" className="inline">
@@ -384,6 +547,20 @@ export function Scoring({
               Cannot freeze now: {spec.blockers.join(' ')}
             </p>
           )}
+          {!spec.frozen_current &&
+            spec.blockers.length === 0 &&
+            spec.problems.length === 0 &&
+            current.role !== 'viewer' && (
+              <FreezeSpec
+                key={`${spec.spec.id}:${spec.spec.version}`}
+                base={base}
+                session={session}
+                spec={spec}
+                dataClass={fixture ? 'synthetic' : 'public'}
+                open={open}
+                frozen={() => void openSpec(spec.spec.id)}
+              />
+            )}
         </div>
       )}
       {error && (

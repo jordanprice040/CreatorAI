@@ -90,3 +90,19 @@ test('problem pickers prefer a problem with options and clip labels at words', a
     'Answered decision: approve_once',
   );
 });
+
+test('dollar amounts typed in Settings become exact nano-USD', async () => {
+  const { usdToNano } = await load<{
+    usdToNano: (text: string) => string | null;
+  }>('settings.tsx', {
+    './oversight.js': {},
+    './budgets.js': {},
+    './ui.js': {},
+  });
+  assert.equal(usdToNano('20'), '20000000000');
+  assert.equal(usdToNano('$12.5'), '12500000000');
+  assert.equal(usdToNano(' 0.000000001 '), '1');
+  assert.equal(usdToNano('0'), '0');
+  for (const bad of ['', '-1', '1e3', '1.0000000001', '12,50', 'abc'])
+    assert.equal(usdToNano(bad), null, bad);
+});

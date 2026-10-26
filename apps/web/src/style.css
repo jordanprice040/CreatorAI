@@ -739,6 +739,34 @@ main > .panel.records:first-child {
     max-width: none;
   }
 }
+.freeze {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  max-width: 560px;
+}
+.freeze h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+label.claim-attach {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-weight: 400;
+  cursor: pointer;
+}
+label.claim-attach input {
+  width: auto;
+  flex: none;
+}
+.ceiling-form {
+  max-width: 520px;
+}
+dl.ceiling {
+  margin: 12px 0 4px;
+}
 .row-actions {
   display: inline-flex;
   flex-wrap: wrap;

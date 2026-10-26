@@ -222,6 +222,90 @@ test('an open final study attempt counts at its full cap; its own calls are not 
   }
 });
 
+test('a workspace owner changes the ceiling in Settings; agents, viewers and stale pages cannot', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const a = await s.workspace('real');
+  const runA = await a.run();
+  for (let i = 0; i < 3; i += 1)
+    assert.equal(reason(await a.prepare(runA)), 'reserved');
+  assert.equal(reason(await a.prepare(runA)), 'runtime_ceiling');
+
+  const before = await s.store.runtimeCeiling(owner);
+  assert.equal(before.source, 'config');
+  assert.equal(before.version, 0);
+  assert.equal(before.ceiling_nano_usd, String(EXPOSURE * 3n));
+  assert.equal(before.exposure_nano_usd, String(EXPOSURE * 3n));
+
+  // An agent, and a person who owns no workspace, can neither read nor change it.
+  const agent: CommandContext = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: agent.actorId,
+    kind: 'agent',
+    display_name: 'Worker agent',
+  });
+  const stranger: CommandContext = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: stranger.actorId,
+    kind: 'human',
+    display_name: 'Not an owner',
+  });
+  const raise = {
+    expected_version: 0,
+    ceiling_nano_usd: String(EXPOSURE * 5n),
+    reason: 'Owner raised the limit for the pilot.',
+  };
+  for (const who of [agent, stranger]) {
+    await assert.rejects(s.store.runtimeCeiling(who), {
+      code: 'ACCESS_DENIED',
+    });
+    await assert.rejects(s.store.setRuntimeCeiling(who, raise), {
+      code: 'ACCESS_DENIED',
+    });
+  }
+
+  const raised = await s.store.setRuntimeCeiling(owner, raise);
+  assert.equal(raised.source, 'settings');
+  assert.equal(raised.version, 1);
+  assert.equal(raised.ceiling_nano_usd, String(EXPOSURE * 5n));
+  assert.equal(raised.history[0]?.previous_nano_usd, String(EXPOSURE * 3n));
+  // The raise takes effect for the very next dispatch.
+  assert.equal(reason(await a.prepare(runA)), 'reserved');
+
+  // A page that loaded version 0 cannot overwrite version 1, and a no-op is refused.
+  await assert.rejects(s.store.setRuntimeCeiling(owner, raise), {
+    code: 'VERSION_CONFLICT',
+  });
+  await assert.rejects(
+    s.store.setRuntimeCeiling(owner, { ...raise, expected_version: 1 }),
+    { code: 'INVALID_CONTRACT' },
+  );
+  // Lowering below what is already counted stops new dispatch but changes no history.
+  const lowered = await s.store.setRuntimeCeiling(owner, {
+    expected_version: 1,
+    ceiling_nano_usd: String(EXPOSURE),
+    reason: 'Owner paused new spending.',
+  });
+  assert.equal(lowered.version, 2);
+  assert.equal(reason(await a.prepare(runA)), 'runtime_ceiling');
+
+  const events = await s.db.pool.query(
+    "select actor_id, subject_version from audit_events where action = 'spending.ceiling_changed' order by sequence",
+  );
+  assert.deepEqual(
+    events.rows.map((r) => [r.actor_id, r.subject_version]),
+    [
+      [owner.actorId, 1],
+      [owner.actorId, 2],
+    ],
+  );
+  await assert.rejects(
+    s.db.pool.query(
+      'update runtime_ceiling_changes set ceiling_nano = 0 where version = 1',
+    ),
+  );
+});
+
 test('the refusal rule: unknown costs first, then what is left', () => {
   const e = {
     ceiling_nano_usd: '100',

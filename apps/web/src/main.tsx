@@ -23,6 +23,7 @@ import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
+import { Settings } from './settings.js';
 import { Marketing } from './marketing.js';
 import { Models } from './models.js';
 import { Portfolio } from './portfolio.js';
@@ -212,7 +213,8 @@ function workspaceLabel(w: Workspace, all: Workspace[]) {
   });
   return [
     w.name,
-    ...(twin ? [created] : []),
+    // The id prefix still tells twins apart when they were created the same minute.
+    ...(twin ? [`${created} (${w.id.slice(0, 4)})`] : []),
     w.record_mode === 'fixture' ? 'fixture' : 'real',
     ...(w.role !== 'owner' ? [w.role] : []),
   ].join(' · ');
@@ -356,6 +358,12 @@ function App() {
   useEffect(() => {
     if (workspace) rememberWorkspace(workspace.id);
   }, [workspace?.id]);
+  // An address without a known workspace (edited by hand, or an old link) opens the usual
+  // starting workspace instead of the "no workspace yet" page.
+  useEffect(() => {
+    if (workspaces && workspaces.length > 0 && !workspace)
+      go({ ws: startingWorkspace(workspaces), id: '' }, true);
+  }, [workspaces, route.ws]);
   const names = useActors(workspace?.id ?? '');
   const open = (view: View, id?: string, q?: string) =>
     go({
@@ -426,6 +434,8 @@ function App() {
         return <Models key={workspace.id} workspace={workspace} session={s} />;
       case 'operations':
         return <Operations />;
+      case 'settings':
+        return <Settings session={s} open={open} />;
       case 'desktop':
         return (
           <DesktopDevices
@@ -489,7 +499,13 @@ function App() {
         return <Budgets session={s} workspace={workspace} />;
       case 'scores':
         return (
-          <Scoring workspace={workspace} focus={pageRoute.id} onFocus={focus} />
+          <Scoring
+            session={s}
+            workspace={workspace}
+            focus={pageRoute.id}
+            onFocus={focus}
+            open={open}
+          />
         );
       case 'search':
         return (

@@ -293,7 +293,8 @@ export function Budgets({
                 </div>
                 <Bar e={e} />
                 <p className="small">
-                  {e.in_flight} of {e.max_in_flight} calls in flight
+                  {e.in_flight} in flight now · at most {e.max_in_flight} at
+                  once
                   {e.run_id ? ` · run ${e.run_id.slice(0, 8)}` : ''}
                   {e.ends_at
                     ? ` · ${when(e.starts_at!)} – ${when(e.ends_at)}`

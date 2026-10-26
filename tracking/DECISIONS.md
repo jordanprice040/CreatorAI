@@ -1,5 +1,23 @@
 # Decision log
 
+## ADR-0043 — Owner-set runtime spending ceiling in Settings (accepted October 26, 2026)
+
+Implements owner decision #10's overall ceiling (tracking/OWNER_DECISIONS_2026-10-20.md);
+Jordan asked for it in this pass on 2026-10-26. `config/spending.json` keeps the reviewed
+starting value ($20, counted from 2026-10-20). A signed-in person who owns at least one
+workspace may set a new overall ceiling in Settings, higher or lower, with a reason. Each
+change is an immutable row in `runtime_ceiling_changes` (migration 30) plus a
+`spending.ceiling_changed` audit event in the same transaction, taken under the same
+advisory lock every paid dispatch uses to check the ceiling, and must name the version it
+replaces (stale pages get VERSION_CONFLICT). The latest change is the ceiling in force;
+with none, the configured value applies. Changing the ceiling never resets what counts
+against it. Agents, system actors and workers have no route to it: the store refuses any
+actor that is not a human workspace owner, and only browser sessions reach the API route.
+Limits: the ceiling is deployment-wide, so in a multi-user hosted deployment any human
+workspace owner can change it; per-user, provider, model, run and task limits and recurring
+limits from #10 remain future work. No amount was changed by this work; the $20 ceiling stays
+until Jordan changes it in the app.
+
 ## CW-01 console undertaking limit widened to any console host (provisional) — October 26, 2026
 
 Jordan: "For now the limit can cover any console host." This supersedes the wording of the

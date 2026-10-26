@@ -85,7 +85,7 @@ test('migrations apply once, refuse edited history, and gate an unmigrated schem
   const db = await freshDatabase(t);
   if (!db) return;
   assert.deepEqual(await migrate(db.pool), []);
-  assert.equal(await assertSchemaCurrent(db.pool), 29);
+  assert.equal(await assertSchemaCurrent(db.pool), 30);
   await db.pool.query(
     `update schema_migrations set checksum = repeat('0', 64) where version = 1`,
   );
