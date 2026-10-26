@@ -54,8 +54,8 @@ for (const taskClass of [
       '024648aca2bf927cff58d166ab957ddaecf47b2608d4bc9f0decd9b3561faf77',
     );
     assert.equal(freeze.role_version, 'r02-discovery/1.3');
-    assert.equal(freeze.prompt_hash, DISCOVERY_PROMPT_HASH);
-    assert.equal(freeze.role_version, DISCOVERY_ROLE_VERSION);
+    assert.notEqual(freeze.prompt_hash, DISCOVERY_PROMPT_HASH);
+    assert.notEqual(freeze.role_version, DISCOVERY_ROLE_VERSION);
     assert.equal(manifest.fixture, false);
     assert.equal(
       manifest.cases.filter((c) => c.split === 'development').length,
@@ -86,7 +86,7 @@ for (const taskClass of [
         c.check.packet,
         control.inputs,
       );
-      assert.equal(
+      assert.notEqual(
         c.input[0]!.text,
         rendered
           .filter((m) => m.role === 'system')

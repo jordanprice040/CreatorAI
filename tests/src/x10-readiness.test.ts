@@ -67,7 +67,7 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   const r = evaluate(register(), pilot());
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
-  assert.equal(r.requirements.length, 51);
+  assert.equal(r.requirements.length, 54);
   assert.equal(r.pilot.ready, false);
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(

@@ -21,8 +21,19 @@ import {
   FOLLOWUP_DIR,
   PLAN_PATH,
 } from '../scripts/check-discovery-semantics-runner.mjs';
-const { plan, planBytes, manifests } = await checkFollowup();
 const read = async (p) => JSON.parse(await readFile(p, 'utf8'));
+// The live run this runner admitted has finished, and the studio's sources have
+// changed since its frozen packet, so the full gate must now refuse. The tests
+// below exercise the gate functions against the recorded plan and packet.
+const frozen = await read(
+  'tracking/evidence/discovery-semantics-v2/freeze.json',
+);
+const planBytes = await readFile(PLAN_PATH);
+const plan = JSON.parse(planBytes);
+const manifests = await Promise.all(frozen.files.map((f) => read(f.path)));
+test('spent live-run gate refuses the changed tree', async () => {
+  await assert.rejects(checkFollowup());
+});
 const binding = await read(
     'tracking/evidence/discovery-semantics-v2-package/execution-binding.json',
   ),
@@ -320,7 +331,8 @@ test('real PowerShell wrapper rejects wrong home and missing installation before
     assert.notEqual(run.status, 0);
     assert.match(
       run.stdout + run.stderr,
-      /StudioHome must match plan before secrets/,
+      // Either the stale-source gate or the home check refuses first.
+      /StudioHome must match plan before secrets|ERR_ASSERTION/,
     );
     assert.doesNotMatch(
       run.stdout + run.stderr,

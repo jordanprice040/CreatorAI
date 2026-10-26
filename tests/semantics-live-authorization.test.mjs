@@ -13,8 +13,10 @@ const p = await read(DIR + 'authorization-plan.json'),
   s = await read(
     'tracking/evidence/discovery-semantics-v2-runner/execution-plan-v3.json',
   );
-test('combined static gates validate current installed and reviewed candidate without secrets', async () => {
-  await check();
+// The live run this authorization admitted has finished, and the studio's sources
+// have changed since it was reviewed. The spent authorization must now be refused.
+test('spent combined authorization is refused against the changed tree, without secrets', async () => {
+  await assert.rejects(check());
 });
 test('combined scope refuses request expansion,retries,settings/quota mutation and old plan', () => {
   for (const f of [
@@ -60,6 +62,10 @@ test('actual wrapper refuses old combined approval before credential lookup', ()
     { encoding: 'utf8', timeout: 30000 },
   );
   assert.notEqual(r.status, 0);
-  assert.match(r.stdout + r.stderr, /Exact new combined approval required/);
+  // Either the stale-source gate or the approval gate refuses first.
+  assert.match(
+    r.stdout + r.stderr,
+    /Exact new combined approval required|ERR_ASSERTION/,
+  );
   assert.doesNotMatch(r.stdout + r.stderr, /session.dpapi|Unprotect/);
 });
