@@ -450,15 +450,26 @@ export class PaymentStore extends DesktopJobStore {
           'INVALID_CONTRACT',
           'Prices are a positive whole number of cents.',
         );
+      // Current as Gallery computes it: the latest build of its spec, for the spec's current
+      // version. A replaced release is not offered for sale (2026-10-26 review).
       const { rows: m } = await c.query(
-        `select product_id, manifest_sha256, state from artifact_manifests
-         where workspace_id = $1 and id = $2`,
+        `select a.product_id, a.manifest_sha256, a.state,
+           (e.version = a.spec_version and not exists (
+             select 1 from artifact_manifests b where b.workspace_id = a.workspace_id
+               and b.spec_id = a.spec_id and b.created_at > a.created_at)) as current
+         from artifact_manifests a join entities e on e.id = a.spec_id
+         where a.workspace_id = $1 and a.id = $2`,
         [ws, uuid(req.artifact_id)],
       );
       const manifest = m[0] as Row | undefined;
       if (!manifest) throw fail('NOT_FOUND', 'Release (artifact) not found.');
       if (manifest.state !== 'verified')
         throw fail('MISSING_EVIDENCE', 'Only a verified release can be sold.');
+      if (manifest.current !== true)
+        throw fail(
+          'INVALID_TRANSITION',
+          'This release has been replaced by a newer build or spec version; sell the current one.',
+        );
       if (manifest.manifest_sha256 !== req.manifest_sha256)
         throw fail(
           'EVIDENCE_MISMATCH',

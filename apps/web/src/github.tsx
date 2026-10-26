@@ -174,35 +174,41 @@ export function GitHub({
               </Empty>
             ) : (
               <ul className="rows">
-                {d.repositories.map((r) => (
-                  <li key={r.id}>
-                    <strong>{r.full_name}</strong>{' '}
-                    <span
-                      className={`badge ${r.status === 'active' ? 'ok' : 'bad'}`}
-                    >
-                      {words(r.status)}
-                    </span>
-                    <small>
-                      {' '}
-                      ·{' '}
-                      {r.origin === 'created'
-                        ? 'created by the studio'
-                        : 'listed by you'}{' '}
-                      · default branch {r.default_branch} ·{' '}
-                      {(() => {
-                        const c = d.connections.find(
-                          (x) => x.id === r.connection_id,
-                        );
-                        return !c
-                          ? 'connection unknown'
-                          : c.status === 'revoked'
-                            ? `connection ${c.body.label} revoked, so nothing more is done here`
-                            : `through ${c.body.label}`;
-                      })()}
-                      {r.status_reason ? ` · ${r.status_reason}` : ''}
-                    </small>
-                  </li>
-                ))}
+                {d.repositories.map((r) => {
+                  // A repository whose connection was revoked can't be used, whatever GitHub says.
+                  const revoked =
+                    d.connections.find((x) => x.id === r.connection_id)
+                      ?.status === 'revoked';
+                  return (
+                    <li key={r.id}>
+                      <strong>{r.full_name}</strong>{' '}
+                      <span
+                        className={`badge ${r.status === 'active' && !revoked ? 'ok' : 'bad'}`}
+                      >
+                        {revoked ? 'connection revoked' : words(r.status)}
+                      </span>
+                      <small>
+                        {' '}
+                        ·{' '}
+                        {r.origin === 'created'
+                          ? 'created by the studio'
+                          : 'listed by you'}{' '}
+                        · default branch {r.default_branch} ·{' '}
+                        {(() => {
+                          const c = d.connections.find(
+                            (x) => x.id === r.connection_id,
+                          );
+                          return !c
+                            ? 'connection unknown'
+                            : c.status === 'revoked'
+                              ? `connection ${c.body.label} revoked, so nothing more is done here`
+                              : `through ${c.body.label}`;
+                        })()}
+                        {r.status_reason ? ` · ${r.status_reason}` : ''}
+                      </small>
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -806,7 +812,10 @@ function NewOperation({
   const gone = [
     connPick && connPick !== connectionId ? 'connection' : null,
     runPick && runPick !== runId ? 'run' : null,
-    kind !== 'repo_create' && repoPick && repoPick !== repoId
+    kind !== 'repo_create' &&
+    repoPick &&
+    repoPick !== repoId &&
+    connRepos.length > 0
       ? 'repository'
       : null,
   ].filter(Boolean);
@@ -917,7 +926,11 @@ function NewOperation({
           <select
             id="gho-conn"
             value={connectionId}
-            onChange={(e) => setConnectionId(e.target.value)}
+            onChange={(e) => {
+              // A repository picked under another connection doesn't carry over.
+              setConnectionId(e.target.value);
+              setRepoId('');
+            }}
           >
             {connections.map((c) => (
               <option key={c.id} value={c.id}>

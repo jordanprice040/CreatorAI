@@ -1,3 +1,17 @@
+## Usability pass closed; final Lows — October 26, 2026
+
+Review of #53: no Medium or higher on GitHub, Payments, Settings or Scores, so the
+fix-and-review loop Jordan set is complete. Folded in its Lows: the server refuses an offer
+for a replaced release (not the latest build of its spec, or built for an older spec
+version), matching Gallery's "current"; the Payments hint says when a verified build exists
+but isn't current; the two Payments add forms reset independently; a repository whose
+connection was revoked shows "connection revoked"; changing the connection clears the
+repository pick and the disappearance note only fires when there is a replacement. Checks:
+typecheck, format, payments + web-display 19/19. No dedicated test yet for the replaced-
+release refusal (needs two builds of one spec).
+Open items outside this pass: payments checkout/rails/reinvestment policy and allocation
+are still CLI-only; ADR-0043 per-user and narrower limits; desktop shell and live
+integrations not exercised.
 ## PR #52 review fixes — October 26, 2026
 
 Review of #52: the #51 Medium is fixed (reproduced in the browser); one pre-existing

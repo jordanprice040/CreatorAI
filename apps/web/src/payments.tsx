@@ -142,7 +142,8 @@ export function Payments({
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   /** Bumped after an add succeeds: the forms remount closed and empty, so they can't add twice. */
-  const [added, setAdded] = useState(0);
+  const [connAdded, setConnAdded] = useState(0);
+  const [offerAdded, setOfferAdded] = useState(0);
   const act = async (work: () => Promise<string>) => {
     setBusy(true);
     setError('');
@@ -214,10 +215,10 @@ export function Payments({
               </ul>
             )}
             {fixture && !viewer && (
-              <details className="gh-add" key={`conn-${added}`}>
+              <details className="gh-add" key={`conn-${connAdded}`}>
                 <summary>Add a processor connection</summary>
                 <AddConnection
-                  done={() => setAdded((n) => n + 1)}
+                  done={() => setConnAdded((n) => n + 1)}
                   base={base}
                   session={session}
                   busy={busy}
@@ -267,18 +268,19 @@ export function Payments({
               d.connections.some((c) => c.status === 'active') &&
               (verified.length === 0 ? (
                 <p className="small">
-                  To sell something, package a verified build first; it then
-                  appears in{' '}
+                  {d.artifacts.some((a) => a.state === 'verified')
+                    ? 'Only the current release of a spec can be sold; package its latest build, which then appears in '
+                    : 'To sell something, package a verified build first; it then appears in '}
                   <button className="text" onClick={() => open('gallery')}>
                     Gallery
                   </button>
                   .
                 </p>
               ) : (
-                <details className="gh-add" key={`offer-${added}`}>
+                <details className="gh-add" key={`offer-${offerAdded}`}>
                   <summary>Create an offer</summary>
                   <AddOffer
-                    done={() => setAdded((n) => n + 1)}
+                    done={() => setOfferAdded((n) => n + 1)}
                     base={base}
                     session={session}
                     connections={d.connections.filter(
