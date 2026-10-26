@@ -107,3 +107,18 @@ test('dollar amounts typed in Settings become exact nano-USD', async () => {
   for (const bad of ['', '-1', '1e3', '1.0000000001', '12,50', 'abc'])
     assert.equal(usdToNano(bad), null, bad);
 });
+
+test('payments show credit accounts as positive amounts of what they name', async () => {
+  const { asShown } = await load<{
+    asShown: (account: string, nano: string) => string;
+  }>('payments.tsx', {
+    './oversight.js': {},
+    './budgets.js': {},
+    './settings.js': {},
+    './ui.js': {},
+  });
+  assert.equal(asShown('revenue', '-25000000000'), '25000000000');
+  assert.equal(asShown('owner_funding', '-5000000000'), '5000000000');
+  assert.equal(asShown('bank', '5000000000'), '5000000000');
+  assert.equal(asShown('refunds', '1000000000'), '1000000000');
+});

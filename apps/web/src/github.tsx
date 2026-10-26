@@ -287,6 +287,7 @@ function ConnectionRow({
   const [deliveries, setDeliveries] = useState<
     z.infer<typeof GitHubDeliverySchema>[] | null
   >(null);
+  const [deliveriesError, setDeliveriesError] = useState('');
   const b = c.body;
   const ok = c.status === 'active';
   return (
@@ -363,8 +364,8 @@ function ConnectionRow({
                           `${base}/github-connections/${c.id}/deliveries`,
                         ),
                   );
-                } catch {
-                  setDeliveries([]);
+                } catch (err) {
+                  setDeliveriesError(message(err));
                 }
               })()
             }
@@ -381,9 +382,15 @@ function ConnectionRow({
             </button>
           ) : (
             <span className="confirm-inline" role="group" aria-label="Revoke">
+              Revoke {b.label} for good? It can&apos;t be verified or used
+              again; repositories stay listed, but nothing more is done in them
+              through it.
+              <label className="inline" htmlFor={`revoke-${c.id}`}>
+                Why
+              </label>
               <input
-                aria-label="Why revoke"
-                placeholder="Why"
+                id={`revoke-${c.id}`}
+                autoFocus
                 value={reason}
                 maxLength={500}
                 onChange={(e) => setReason(e.target.value)}
@@ -417,6 +424,11 @@ function ConnectionRow({
             </span>
           )}
         </div>
+      )}
+      {deliveriesError && (
+        <p className="error" role="alert">
+          Couldn&apos;t load deliveries: {deliveriesError}
+        </p>
       )}
       {deliveries && (
         <ul className="rows">
@@ -714,7 +726,13 @@ function AddConnection({
         <button
           className="primary"
           type="submit"
-          disabled={busy || !label.trim() || !login.trim() || !ownerId.trim()}
+          disabled={
+            busy ||
+            !label.trim() ||
+            !login.trim() ||
+            !ownerId.trim() ||
+            (!fixture && credKind === 'fine_grained_pat' && !expires)
+          }
         >
           Add connection
         </button>
@@ -744,11 +762,22 @@ function NewOperation({
   act: Act;
   open: (view: View, id?: string) => void;
 }) {
-  const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
-  const [runId, setRunId] = useState(runs[0]?.run_id ?? '');
+  // Lists change under a mounted form (a repository created, a connection revoked), so each
+  // choice falls back to the first valid option rather than keeping a stale or empty id.
+  const [connPick, setConnectionId] = useState('');
+  const connectionId = connections.some((c) => c.id === connPick)
+    ? connPick
+    : (connections[0]?.id ?? '');
+  const [runPick, setRunId] = useState('');
+  const runId = runs.some((r) => r.run_id === runPick)
+    ? runPick
+    : (runs[0]?.run_id ?? '');
   const [kind, setKind] =
     useState<GitHubOperationParams['kind']>('repo_create');
-  const [repoId, setRepoId] = useState(repositories[0]?.id ?? '');
+  const [repoPick, setRepoId] = useState('');
+  const repoId = repositories.some((r) => r.id === repoPick)
+    ? repoPick
+    : (repositories[0]?.id ?? '');
   const [f, setF] = useState<Record<string, string>>({});
   const [justification, setJustification] = useState('');
   const [last, setLast] = useState<GitHubOperation | null>(null);
@@ -1054,7 +1083,10 @@ function RecordReview({
   busy: boolean;
   act: Act;
 }) {
-  const [repoId, setRepoId] = useState(repositories[0]?.id ?? '');
+  const [repoPick, setRepoId] = useState('');
+  const repoId = repositories.some((r) => r.id === repoPick)
+    ? repoPick
+    : (repositories[0]?.id ?? '');
   const [pr, setPr] = useState('');
   const [sha, setSha] = useState('');
   const [verdict, setVerdict] = useState<'approve' | 'request_changes'>(
