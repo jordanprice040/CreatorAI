@@ -1,0 +1,102 @@
+{
+ "format": "theme-intent-cw01-operational-adapter-design-v1-1-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent re-review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the reviewed note, the design, the first review or any input. Same model family as the author and prior reviewer; not blinded. No external review service.",
+ "reviewed_note": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_NOTE_2026-10-26.md",
+  "sha256": "0c314c1c0ee1de954b8dba6f8398c68adbeb4cd3ef9fa5b0e3055a57cb90c02e",
+  "bytes": 15324,
+  "commit": "34c45a2",
+  "branch": "claude/project-thread-7gwqdm",
+  "pr": 47
+ },
+ "inputs_verified": {
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_2026-10-26.md": "97258c082105e92e1bc684aaa19b669ba9058b6767e007ff2c9f6f4525c6031e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md": "3cbfe9cf65b752a86985edc0fb4d46fd1239bea8169ccc6f438c5324b1314c3f",
+  "tracking/evidence/theme-intent-cw01-operational-adapter-design-review-2026-10-26/reviewer-receipt.json": "b2d13f6f60d23d36565cc45bb8c7511ab88e8e0a87ac54d8d170d5c28fbcd88e",
+  "scripts/theme-intent-cw01-core-fixture-v4.mjs": "ce3c4ad7c66d4f15bd695519f1db05940142f5e57a372b52c4781b1abf2507bb",
+  "tests/theme-intent-cw01-core-fixture-v4.test.mjs": "666ce597daea82ca236df32833624a70fdc6262a75da410a1ec3311d4fe77149",
+  "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+  "apps/desktop/src-tauri/src/secret.rs": "743959d2a1c175ae8cc6bdecb655c3c3bf1ae2213e484b6beda197851fa864e1"
+ },
+ "inputs_match": "8/8 including the note",
+ "byte_unchanged_check": "git diff 25e39e4 34c45a2 lists no change to the design, v4 core, v4 tests, SQL asset v2 or secret.rs",
+ "local_dependency_sources": {
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/connection-parameters.js": "6b6548f99acba3502663a17a180582ba8e1f1725aa9d94b5f47cac19dcb6211b",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/crypto/sasl.js": "99f1a2607fe2a29f1c4dd1aaf43dec0fc2b5de8755de72b39d3aa8c575bd6a71",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/client.js": "ad6aa93c26b0bf26db1f2ebe74216212790a04c41af5585c63760f9fa8322a32",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/index.js": "read, not hashed (NODE_PG_FORCE_NATIVE at line 41)"
+ },
+ "repository_documents_read": [
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md (I-f)",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md"
+ ],
+ "external_sources_sha256": {
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/bin/pg_ctl/pg_ctl.c": "41cfc7187149b0c810524d644e80eb5c1ca41ab86fc99bca8833118ef0a5fea0",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/port/path.c": "8be73709534d5cff769c34d4117eb45d61f016f3d9716e2e3d433d280feaeb42",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/common/exec.c": "b39dfdb5574510a25441da87c413ea4c4df90188e5666c2d218345e05cc70831",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/init/miscinit.c": "54bdb859c143a6c70d86067ccf2e124f59aa0852e5705bb653652e41a60af39a",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/main/main.c": "fb2cab36f9fc3186ad86fe87233570b0d62bdda2a66d26d91f904789e914f36d",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/misc/guc.c": "3021d40bb4e920a56fbc5e9452e32903a7364d7ce0aece65be70aa3c34c1274e",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/postmaster/launch_backend.c": "35eda8c96f36a0097ffec7710647fb3cd76f0446d180e5156757426a3cd2d84a",
+  "https://raw.githubusercontent.com/libuv/libuv/v1.x/src/win/process.c (fetched 2026-10-26)": "4b9975bde42483f8915dff79c3d2a6f2da58374ac4dbad0983be0bb94442c8fe"
+ },
+ "external_sources_match_first_review": "6/6 shared files identical to the first review's receipt",
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_REVIEW_2026-10-26.md",
+  "sha256": "48ee48352a1945f8f2e771bdb0d498e878fa3ed350cf2fdac937e9cdbf4274de",
+  "bytes": 19604
+ },
+ "verdicts": {
+  "design_support": "supported_with_conditions_two_new_medium_five_new_low",
+  "ic_and_getter_limit": "not_yet_core_properties_requires_G1_G3",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked",
+  "m3": "unchanged_not_reopened",
+  "attestation_bound_120s": "confirmed_by_jordan_unchanged",
+  "significant_issues_remain": true
+ },
+ "prior_findings": {
+  "F1": "resolved (Low G6 added)",
+  "F2": "resolved (Info I-a)",
+  "F3": "resolved for pg_ctl/postgres/cmd images and helper residual (Low G5 added)",
+  "F4": "resolved",
+  "F5": "resolved, no pgpass path remains (Low G7 added)",
+  "F6": "resolved (Info I-b)",
+  "F7": "partly resolved (Medium G1, G2; Low G3, G4)",
+  "I-1": "resolved", "I-2": "resolved, wording per I-c", "I-3": "resolved", "I-4": "resolved",
+  "I-5": "resolved in intent, routing per G4", "I-6": "resolved", "I-7": "no change", "I-8": "resolved"
+ },
+ "findings": [
+  {"id": "G1", "severity": "medium", "summary": "single {channel, bytes} input refuses v4 composite events (start_intent, start_outcome) and supervisor fields (at_ms, mode) have no channel; every real run refused or object assembly returns"},
+  {"id": "G2", "severity": "medium", "summary": "attestation channel names the collector record, contradicting frozen v1.1 I-f's separate fresh six-item W1-W3 undertaking (fails checkAttestation freshness); owner_affirmation stamped by channel with no owner authentication"},
+  {"id": "G3", "severity": "low", "summary": "wrapper is still a caller object; require own data properties, ArrayBuffer.isView, slice-copy before parse and digest"},
+  {"id": "G4", "severity": "low", "summary": "secret frame type not in-band and not routed away from step; core must refuse and never digest it"},
+  {"id": "G5", "severity": "low", "summary": "postgres.exe lock released before observer backend CreateProcess (launch_backend.c); backend image unhashed; pg_bin DLLs uncovered"},
+  {"id": "G6", "severity": "low", "summary": "detached helper outlives supervisor crash; exit on stdin EOF with no further action"},
+  {"id": "G7", "severity": "low", "summary": "pg stores the password string on the client (client.js:286); state lifetime, end client promptly"}
+ ],
+ "informational": [
+  "I-a data_directory in postgresql.conf overrides -D (guc.c); fails closed",
+  "I-b environment allowlist; NODE_PG_FORCE_NATIVE fails closed only because pg-native is absent; NODE_OPTIONS; complete resolved-parameter list",
+  "I-c I-2 safety rests on creation-time ordering, not liveness",
+  "I-d another account's PostgreSQL service makes preflight unavailable",
+  "I-e trust HBA means password function never runs; pin HBA method",
+  "I-f Rust stdout buffer not zeroed; write secret frame with WriteFile"
+ ],
+ "not_done": [
+  "Windows API calls",
+  "registry/process/pidfile/port/credential reads",
+  "SQL",
+  "cluster/app actions",
+  "launch",
+  "sign-in",
+  "builds/tests/pnpm/Prettier",
+  "tracking edits",
+  "commit/push",
+  "retired OneDrive checkout"
+ ],
+ "authority": "none granted"
+}

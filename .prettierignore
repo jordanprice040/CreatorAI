@@ -113,3 +113,4 @@ scripts/record-v5-quota-stop.mjs
 scripts/run-followup-v2-availability-refresh.mjs
 tests/discovery-finding-semantics.test.mjs
 docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md
+docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_REVIEW_2026-10-26.md

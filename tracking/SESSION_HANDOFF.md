@@ -1,3 +1,21 @@
+## CW-01 operational adapter design v1.2 note written — October 26, 2026
+
+CW-01 operational adapter design v1.1 re-review (2026-10-26): SUPPORTED WITH CONDITIONS;
+F1-F6 resolved, F7 partial; new Medium G1, G2, Low G3-G7; implementation not started;
+native NOT READY. Review docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_REVIEW_2026-10-26.md
+(48ee4835...74de); receipt tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-1-review-2026-10-26/
+reviewer-receipt.json (c1debc77...ee31).
+v1.2 note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_NOTE_2026-10-26.md
+(a3d64af4...0c8a), repository-only and unreviewed, answers G1-G7 and I-a to I-f: multipart
+{parts} input with fixed per-event schema and a supervisor channel (G1); separate
+owner_undertaking channel hash-linked to the collector record, console-collected and
+labeled unauthenticated, residual for Jordan to accept or reject (G2); descriptor-only
+wrapper reads and one byte copy (G3); typed frames, secret never reaches the core (G4);
+postgres image locked through disconnect and pg_bin ACL binding (G5); helper exits on
+supervisor loss, orphaned_run_needs_owner terminal (G6); password lives with the client,
+ended after sql_B (G7). Design and v1.1 note unchanged; nothing implemented or executed.
+Next eligible: v1.2 note re-review in a fresh thread.
+
 ## CW-01 operational adapter design v1.1 note written — October 26, 2026
 
 Additive note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_NOTE_2026-10-26.md
