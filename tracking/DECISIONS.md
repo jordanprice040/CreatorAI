@@ -1,5 +1,17 @@
 # Decision log
 
+## CW-01 console undertaking limit widened to any console host (provisional) — October 26, 2026
+
+Jordan: "For now the limit can cover any console host." This supersedes the wording of the
+earlier entry below ("shows human presence"). Per the CW-01 adapter design v1.3 note (J1),
+the undertaking is collected through an interactive-console check run by the supervisor
+(Node tty API, per-run console challenge). Any process able to host or drive a console,
+including an agent's terminal tool, could supply it; the author is not authenticated, and
+receipts say so. The acceptance is provisional ("for now") and can be withdrawn; an
+authenticated owner path would replace it. It grants no undertaking, implementation,
+operational read, SQL, credential, cluster start/stop, launch or native-session authority,
+and no model may run the undertaking step or type it. M3 unchanged and not reopened.
+
 ## CW-01 unauthenticated console undertaking accepted as a known limit — October 26, 2026
 
 Jordan accepted ("I am okay accepting that as a known limit") the residual raised by the
