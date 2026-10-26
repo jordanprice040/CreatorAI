@@ -312,7 +312,8 @@ export const RuntimeCeilingSchema = z.strictObject({
 export type RuntimeCeiling = z.infer<typeof RuntimeCeilingSchema>;
 export const SetRuntimeCeilingRequestSchema = z.strictObject({
   expected_version: counter,
-  ceiling_nano_usd: nanoUsd,
+  /** At most 15 whole-dollar digits (under a quadrillion dollars), as Settings accepts. */
+  ceiling_nano_usd: nanoUsd.regex(/^(0|[1-9][0-9]{0,23})$/),
   reason: note,
 });
 export type SetRuntimeCeilingRequest = z.infer<

@@ -98,6 +98,7 @@ test('dollar amounts typed in Settings become exact nano-USD', async () => {
     './oversight.js': {},
     './budgets.js': {},
     './ui.js': {},
+    './page-drafts.js': {},
   });
   assert.equal(usdToNano('20'), '20000000000');
   assert.equal(usdToNano('$12.5'), '12500000000');

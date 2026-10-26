@@ -63,6 +63,6 @@ The fixture processor lives in the API process memory and is lost on restart. Fo
 
 - No live mode, live keys, live webhook endpoints or payouts to real accounts.
 - No Stripe call observed: the adapter is checked against a contract double built from the documented object shapes. The Stripe API version is not pinned; the account default applies.
-- No web UI; API and CLI only.
+- The web studio's Payments page (October 26, 2026) covers processor connections (add, verify, revoke), offers (create, archive), ledger balances, buyer access and reinvestment capacity. Checkout, rails, commitments, owner funding, reinvestment policy and allocation remain API/CLI only.
 - No taxes, currency conversion (USD only), subscriptions, partial-refund pricing or customer accounts. `customer_ref` is an opaque studio reference.
 - Invalid-signature deliveries create no durable records (ADR-0040). Public deployments still need proxy rate limits for inbound traffic.

@@ -150,4 +150,5 @@ No live verification; releases, repository deletion, settings, secrets and branc
 protection are not implemented (the adapter has no endpoint for them). Production
 secrets and workflow changes stay separately controlled. Reconciling an issue or pull
 request matches by title or head branch, so a look-alike created by hand in the same
-minute would be adopted. No web UI.
+minute would be adopted. The web studio's GitHub page (October 26, 2026) covers connections, verify,
+revoke, deliveries, repositories, operations, reconcile and reviews through the same routes.

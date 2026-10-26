@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   FixtureResponseSchema,
@@ -24,6 +24,8 @@ import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
 import { Settings } from './settings.js';
+import { GitHub } from './github.js';
+import { Payments } from './payments.js';
 import { Marketing } from './marketing.js';
 import { Models } from './models.js';
 import { Portfolio } from './portfolio.js';
@@ -360,9 +362,15 @@ function App() {
   }, [workspace?.id]);
   // An address without a known workspace (edited by hand, or an old link) opens the usual
   // starting workspace instead of the "no workspace yet" page.
+  // A workspace created a moment ago may not be in the cached list yet, so an unknown id
+  // reloads the list once; loadWorkspaces then redirects only if it is still unknown.
+  const rechecked = useRef('');
   useEffect(() => {
-    if (workspaces && workspaces.length > 0 && !workspace)
-      go({ ws: startingWorkspace(workspaces), id: '' }, true);
+    if (!workspaces || workspaces.length === 0 || workspace) return;
+    if (route.ws && rechecked.current !== route.ws) {
+      rechecked.current = route.ws;
+      void loadWorkspaces();
+    } else go({ ws: startingWorkspace(workspaces), id: '' }, true);
   }, [workspaces, route.ws]);
   const names = useActors(workspace?.id ?? '');
   const open = (view: View, id?: string, q?: string) =>
@@ -436,6 +444,24 @@ function App() {
         return <Operations />;
       case 'settings':
         return <Settings session={s} open={open} />;
+      case 'payments':
+        return (
+          <Payments
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            open={open}
+          />
+        );
+      case 'github':
+        return (
+          <GitHub
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            open={open}
+          />
+        );
       case 'desktop':
         return (
           <DesktopDevices
