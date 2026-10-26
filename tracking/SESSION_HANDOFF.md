@@ -1,3 +1,20 @@
+## Studio work committed (PR #46); CW-01 operational adapter design written — October 26, 2026
+
+Committed the uncommitted work from October 20-26 on branch claude/project-thread-7gwqdm
+and opened PR #46 (six commits). Hash-bound files were kept byte-exact: 101 listed in
+.prettierignore, 121 CRLF/mixed-ending files marked -text in .gitattributes. .codex/config.toml
+left uncommitted (local path only). Checks: tsc -b pass; prettier check pass; CW-01 v4
+tests 26/26. Some historical-state script tests fail on hash drift of later-edited files
+(recorded in the PR); compiled suite had 16 local failures, not triaged.
+Wrote docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_2026-10-26.md (97258c08...031e),
+repository-only and unreviewed: native helper (Rust, hash-bound) with AutoRun existence,
+job, preflight, launch, W1 pidfile, process-chain, DPAPI credential and W2 adapters; SQL
+observer on asset v2; framed JSON evidence boundary closing I-C and the getter limit;
+manifest bindings and nine per-scope grants; core v5 changes specified, not built.
+Nothing operational read or executed. M3 unchanged and not reopened; operational/native
+readiness NOT READY. Next eligible: independent repository-only review of the adapter
+design in a separate thread.
+
 ## CW-01 fixture core v4 independently supported; 120 s bound owner-confirmed — October 26, 2026
 
 v4 re-review (docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REVIEW_2026-10-26.md, 2d4ab765...c3e8):
