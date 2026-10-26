@@ -1,0 +1,21 @@
+{
+  "format": "discovery-semantics-preparation/1",
+  "recorded_at": "2026-10-22T17:08:26.949Z",
+  "packet_freeze_hash": "92635f76d187a51c3f356847f65d13d48dbdc31235feda8b31efe5841f2f5b59",
+  "local_candidate_hash": "801007c2c9a2f17768dd12a3655de39db6dc335aaf4bcdc24a76534d9663fe1e",
+  "cases": 12,
+  "offline_controls": 108,
+  "independent_review": "pending",
+  "installed_binding": "not_prepared",
+  "live_execution_authority": false,
+  "provider_calls": 0,
+  "artifact_sha256": {
+    "scripts/prepare-discovery-semantics-v1.mjs": "7aba62f8500b1227bb8881002a4a933c52ccd65710355930ce0edc0898cc937d",
+    "scripts/check-discovery-semantics-v1.mjs": "d9f0a26e4b513b29f77c785d895d7742c53a62d61d649042ddeb34777ce286e2",
+    "docs/DISCOVERY_SEMANTICS_V1.md": "76a52dd0f6172f71635ad8d762be52bc2ccd7d5f72d93b64de469a33131ccf84",
+    "tracking/evidence/discovery-semantics-v1/freeze.json": "525b189216b04ba5f8282630c4fd46b92e23ac04cc5c8954e3742baa9ef7c932",
+    "tracking/evidence/discovery-semantics-v1/review-plan.json": "fb5a790d257faffcf4787aa2c5c0759ddbacfbd099d0ce733fe3d4cb66041420",
+    "tracking/evidence/discovery-semantics-v1/validation-result.json": "4f2e57e533ac9ca8fe98f5905f5a672cadad63d5957881bf7f559bc3126d15de",
+    "tracking/evidence/discovery-semantics-v1/preparation-result.json": "2cbbe4d04e550d45137cc54adfeb6897e0f2bd530786f75b3d1709a87f99db80"
+  }
+}

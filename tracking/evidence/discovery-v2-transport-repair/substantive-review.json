@@ -1,0 +1,14 @@
+{
+  "state": "required_not_performed",
+  "qualification_scope": "automated_operational_contract_only",
+  "outputs": [
+    {
+      "case_id": "loc-dev-maintenance",
+      "request_id": "c6a314e6-9496-418f-912a-c3d36c4cdd1f",
+      "output_hash": "28f346c146e013f23ca0b0007b821ab882c49f170d1972fd7a661d322bd3f542",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    }
+  ]
+}

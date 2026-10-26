@@ -1,0 +1,211 @@
+{
+  "files": [
+    {
+      "sha256": "33444cb7f4326fd1e9c0adb81ee8d9aff55b8c3be05901d2c0db2ff5d636bdbe",
+      "path": "creator-desktop.exe"
+    },
+    {
+      "sha256": "733837fe38fd84be6479e02ac1115dededd98a7ca99a644d03b31e72b043897c",
+      "path": "studio\\bundle-manifest.json"
+    },
+    {
+      "sha256": "b0375b7768d8aa470916a7f785368f093d31dee5349e89c7aba9db3572662472",
+      "path": "studio\\config\\evaluation.json"
+    },
+    {
+      "sha256": "ce574c74ba2191ac0c2f17ea9a5e0d466170fa93f8abe636ff2d33999fd43a83",
+      "path": "studio\\config\\owner-pilot.defaults.json"
+    },
+    {
+      "sha256": "e14645ba96c537db582ae08b830cafa557abd04f9450e65cbee48ce0ba4e5e6e",
+      "path": "studio\\config\\owner-pilot.json"
+    },
+    {
+      "sha256": "84df06273704d8efb5637b020f578ecf607e38e1fef79f2d5a369b7700103b71",
+      "path": "studio\\config\\provider-availability.json"
+    },
+    {
+      "sha256": "cb927b91d5f8f1e8375fe38eb7055baf293b8a5cbeaa2f333bd27a6bdd29802e",
+      "path": "studio\\config\\readiness.json"
+    },
+    {
+      "sha256": "07aa514dcf2c5a694024180019e12284602e12035c73f62b99ccccb4f464df04",
+      "path": "studio\\config\\spending.json"
+    },
+    {
+      "sha256": "4aaf576dce3f6bbc4d5df697b5aacb3159796119d62ab4ad8227e822cde4a28c",
+      "path": "studio\\config\\connections\\chatgpt-plan.json"
+    },
+    {
+      "sha256": "524562818d3310ceb718538203caa2a80d3e3f052b87e0edf97256c7a2cb1344",
+      "path": "studio\\config\\connections\\benchmarks\\summarization-synthetic-v1.json"
+    },
+    {
+      "sha256": "47e58f1bbab79337567e26966603b807c1c997a3a32ec6104c39eb02490869d4",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v1\\author-controls.json"
+    },
+    {
+      "sha256": "706606291e7667469130af2a180515ff2efe436748351efe1ba401946599819f",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v1\\candidate_generation.json"
+    },
+    {
+      "sha256": "3da8210db68e8004863fd3e4509c113b9822ad1b106a58c2f8dd5c062a944cff",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v1\\proposed-settings.json"
+    },
+    {
+      "sha256": "decb661fe2e400394323c74f3759d7167e8701b78903200931c87f630d830350",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v1\\research_synthesis.json"
+    },
+    {
+      "sha256": "44ad6db9a414fd3f2026238fa67603f9e8ccf839dfa44bc2f0c0e8095b7feb2a",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v1\\scoring.json"
+    },
+    {
+      "sha256": "a8641d7c8c1a3f1cf518676bc4fffb794c3a20c6fb5ea16d2ee98762f07ed67b",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v2\\author-controls.json"
+    },
+    {
+      "sha256": "1f428d5566e423138a57777bed5ab243db4e58980758bb631aad434f6e9475a2",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v2\\candidate_generation.json"
+    },
+    {
+      "sha256": "92edac2317602526ca83a31be23147d1a4cd4c2a7efe314cc847f63693946be1",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v2\\proposal.json"
+    },
+    {
+      "sha256": "546ddd9dd2c6186c6eae0d3e943bbda529159b8f9832b3bd38840abd75808650",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v2\\research_synthesis.json"
+    },
+    {
+      "sha256": "2e754d2981d381520561d8f55c22bf025f34137d8fb80926222b7141aa4ca38e",
+      "path": "studio\\config\\connections\\benchmarks\\discovery-synthetic-v2\\scoring.json"
+    },
+    {
+      "sha256": "a87a7cada6ef230b142b6b9c6bf6df666c50d2aa70406787024ca26249caaa3a",
+      "path": "studio\\config\\context\\provider-capabilities.fixture.json"
+    },
+    {
+      "sha256": "5bde60c1509d09b565a502b2dfef4adab7672836cb9ea79edf48d4c839b7f68b",
+      "path": "studio\\config\\context\\provider-capabilities.json"
+    },
+    {
+      "sha256": "b0246c9176a8c1ddf7eb0c011a430ca37efc02ecfdca3856c936ca78fbb03580",
+      "path": "studio\\config\\operations\\alerts.json"
+    },
+    {
+      "sha256": "93f414fc6ff20d2e66a9751e29e91527015754064a08afa8e711dffb9dbbe0c4",
+      "path": "studio\\config\\operations\\retention.json"
+    },
+    {
+      "sha256": "4470c8be7bff7fdee69c80a60f3e9e3f2fb3dadfeba52424b645afc52d8ddf0b",
+      "path": "studio\\config\\pricing\\fixture-bargain-v1.json"
+    },
+    {
+      "sha256": "158b01cf4d99c19a6130d3c27aecdc675d77f47a2ec3b63879fe2d8b7492d4f8",
+      "path": "studio\\config\\pricing\\fixture-context-v1-batch.json"
+    },
+    {
+      "sha256": "188ef96ccf1cfdd105cfa4bd126f8e10662b416bd66fad7b92ec4d9b56485429",
+      "path": "studio\\config\\pricing\\fixture-context-v1.json"
+    },
+    {
+      "sha256": "fbef7d47278aca40ae549fe1680a31827b83368025306f5cd46807037af59d0d",
+      "path": "studio\\config\\pricing\\fixture-economy-v1.json"
+    },
+    {
+      "sha256": "50ae3fb30832f1655ea50c271a7911eeb40f2580acfdd9a0bb35a7c9fca0d3e1",
+      "path": "studio\\config\\pricing\\fixture-embed-v1.json"
+    },
+    {
+      "sha256": "f801154a3ef64c38b4a3284d7aa85826b9ed6fc2cfcc38ea3e868a56b0cc65cf",
+      "path": "studio\\config\\pricing\\fixture-lossy-v1.json"
+    },
+    {
+      "sha256": "21a9f28479b2643b5b11d530ab7b73d7908baa2a46defbbb00e5463197e85b7b",
+      "path": "studio\\config\\pricing\\fixture-model-v1.json"
+    },
+    {
+      "sha256": "7a26d0d13d089d45af7b625657104e878c5f310416c1573f73bdc45a5a74cd30",
+      "path": "studio\\config\\pricing\\openai-gpt-6-astra-batch.json"
+    },
+    {
+      "sha256": "32aa4e8162ed24cbafd3bd229ef3fd4fcd7ec0455caef79e18bf970e664cccad",
+      "path": "studio\\config\\pricing\\openai-gpt-6-astra.json"
+    },
+    {
+      "sha256": "fe7be47544d8a47040c8fba9712c49305d7c307228165fe97fe0a3bcdef559e1",
+      "path": "studio\\config\\routing\\benchmark.fixture.json"
+    },
+    {
+      "sha256": "e502634ef856aa112c61f61c85aadcdde971aee4c3b3c555ec87d64c9cbb4628",
+      "path": "studio\\config\\routing\\model-registry.fixture.json"
+    },
+    {
+      "sha256": "b02aab27b2c720c297c52925b86f04c4fe7fe169fd8ceb0e81b0f2d43bf699f4",
+      "path": "studio\\config\\routing\\model-registry.json"
+    },
+    {
+      "sha256": "ce66c2268039e786b195c5284e562e18baf6750d5ab089ad2a65218bc5cbf774",
+      "path": "studio\\config\\search\\semantic-models.json"
+    },
+    {
+      "sha256": "47cd67453da180a39cdf5daedb89862667b8e627e60c116607874633450cd30d",
+      "path": "studio\\node\\node.exe"
+    },
+    {
+      "sha256": "3627f62fee498a07cf7f0bfdf047441f2c2d0e351a75cea91a1b10884d468748",
+      "path": "studio\\service\\app\\dist\\studio.mjs"
+    },
+    {
+      "sha256": "8e5cb81d326e06fa2d7ec632dab7f228d3b2764d8814e9932562752766005e9c",
+      "path": "studio\\service\\app\\worker\\bridge.py"
+    },
+    {
+      "sha256": "c0f7d2c7159ca3cb9ddeb136474ab0704066d8af96451a25fb62e23215039f30",
+      "path": "studio\\service\\app\\worker\\recipe.py"
+    },
+    {
+      "sha256": "b8ffb99b0f45f933741f225746aab3c8f613fceb97d5d6b5108f330911192b77",
+      "path": "studio\\web\\index.html"
+    },
+    {
+      "sha256": "1931e4c664a59acf93a89754a57d40714d8bbc880c6b5ce62be4cf5e8043c98d",
+      "path": "studio\\web\\theme-boot.js"
+    },
+    {
+      "sha256": "3d326dd3e30808a7b24e5978e9e89eb94a4a018039f4a43341393a325a525f2c",
+      "path": "studio\\web\\assets\\index-A2NIv_ou.js"
+    },
+    {
+      "sha256": "34335d79b80d3bb027ee82fa873093e878258b9172a50c32aa71eb0bbd6f4f9b",
+      "path": "studio\\web\\assets\\index-B-vxVc3Z.js"
+    },
+    {
+      "sha256": "e4c42bb115a2536d4dba2ce920bb2d4100ed4266a06bbcf88658ccb72633db4a",
+      "path": "studio\\web\\assets\\index-B0cs_tyS.js"
+    },
+    {
+      "sha256": "9b64b9db825a90fd54043e12530fab968cfb86be25fbc25b7210bc92895a9156",
+      "path": "studio\\web\\assets\\index-BJEWay-6.css"
+    },
+    {
+      "sha256": "43545e0ecf43845f816a5a22b5021f55913071072eae89b447e04b4c409259f0",
+      "path": "studio\\web\\assets\\index-BlAuljP0.css"
+    },
+    {
+      "sha256": "416068d9c5d8ebf58d9c4eeb5cc7955b47590da98ca19867bd99219df328bdf8",
+      "path": "studio\\web\\assets\\index-BZnX-_rR.js"
+    },
+    {
+      "sha256": "b86cf13d2cef69c2871d5b274d2df156f49772ee072e19582f3c0fb757d11109",
+      "path": "studio\\web\\assets\\index-ddnLrlDe.js"
+    },
+    {
+      "sha256": "666e9e6740ddae9b1ab779ba5d81132e3d812a97654965aeb7b1f20a2a81da57",
+      "path": "studio\\web\\assets\\index-DlDER59Y.js"
+    }
+  ],
+  "destination": "C:/dev/creator_agent/.verification/discovery-transport-program-rollback",
+  "scope": "Program files only; no personal studio data or credentials",
+  "at": "2026-10-21T00:34:12.7850061Z"
+}

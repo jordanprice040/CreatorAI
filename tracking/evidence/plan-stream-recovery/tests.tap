@@ -1,0 +1,226 @@
+TAP version 13
+# Subtest: plan connection API and CLI: create, block, sign in, confirm credits, accept caps, verify once
+ok 1 - plan connection API and CLI: create, block, sign in, confirm credits, accept caps, verify once
+  ---
+  duration_ms: 6349.4514
+  type: 'test'
+  ...
+# Subtest: proposed plan settings parse and keep code_build, private data and credits out
+ok 2 - proposed plan settings parse and keep code_build, private data and credits out
+  ---
+  duration_ms: 1.4111
+  type: 'test'
+  ...
+# Subtest: plan request body follows the preview limits and the error codes map to states
+ok 3 - plan request body follows the preview limits and the error codes map to states
+  ---
+  duration_ms: 0.2335
+  type: 'test'
+  ...
+# Subtest: only official endpoints are accepted for real connections
+ok 4 - only official endpoints are accepted for real connections
+  ---
+  duration_ms: 0.4062
+  type: 'test'
+  ...
+# Subtest: first registration uses the dynamic client with the name hint; later ones do not
+ok 5 - first registration uses the dynamic client with the name hint; later ones do not
+  ---
+  duration_ms: 0.7599
+  type: 'test'
+  ...
+# Subtest: loopback callback refuses a wrong state and a different client id
+ok 6 - loopback callback refuses a wrong state and a different client id
+  ---
+  duration_ms: 33.2454
+  type: 'test'
+  ...
+# Subtest: ID tokens are checked for nonce and audience
+ok 7 - ID tokens are checked for nonce and audience
+  ---
+  duration_ms: 74.4987
+  type: 'test'
+  ...
+# Subtest: the Responses stream counts only response.completed and enforces the output cap
+ok 8 - the Responses stream counts only response.completed and enforces the output cap
+  ---
+  duration_ms: 90.146
+  type: 'test'
+  ...
+# Subtest: pure admission keeps sign-in, credits, caps, model access and qualification separate
+ok 9 - pure admission keeps sign-in, credits, caps, model access and qualification separate
+  ---
+  duration_ms: 0.8931
+  type: 'test'
+  ...
+# Subtest: no vault means no sign-in, and file-dev is never chosen implicitly
+ok 10 - no vault means no sign-in, and file-dev is never chosen implicitly
+  ---
+  duration_ms: 0.1576
+  type: 'test'
+  ...
+# Subtest: a real workspace connection refuses loopback endpoints and uses the official hosts
+ok 11 - a real workspace connection refuses loopback endpoints and uses the official hosts
+  ---
+  duration_ms: 1828.2327
+  type: 'test'
+  ...
+# Subtest: credits confirmation remains readable by the UI after reloading
+ok 12 - credits confirmation remains readable by the UI after reloading
+  ---
+  duration_ms: 1767.4602
+  type: 'test'
+  ...
+# Subtest: sign-in, credits, caps, verification and qualification are separate recorded states
+ok 13 - sign-in, credits, caps, verification and qualification are separate recorded states
+  ---
+  duration_ms: 1990.8458
+  type: 'test'
+  ...
+# Subtest: provider refusals are recorded as eligibility and quota states and stop admission
+ok 14 - provider refusals are recorded as eligibility and quota states and stop admission
+  ---
+  duration_ms: 1787.3813
+  type: 'test'
+  ...
+# Subtest: one request at a time: a concurrent admission is refused while one is in flight
+ok 15 - one request at a time: a concurrent admission is refused while one is in flight
+  ---
+  duration_ms: 1914.1072
+  type: 'test'
+  ...
+# Subtest: unknown duplicate refuses redispatch and retains durable observations
+ok 16 - unknown duplicate refuses redispatch and retains durable observations
+  ---
+  duration_ms: 1822.4194
+  type: 'test'
+  ...
+# Subtest: a terminal refresh error requires a new sign-in and keeps the registration
+ok 17 - a terminal refresh error requires a new sign-in and keeps the registration
+  ---
+  duration_ms: 1630.6679
+  type: 'test'
+  ...
+# Subtest: refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+ok 18 - refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+  ---
+  duration_ms: 1739.1578
+  type: 'test'
+  ...
+# Subtest: a sign-in that grants no plan usage scope is recorded but admits nothing
+ok 19 - a sign-in that grants no plan usage scope is recorded but admits nothing
+  ---
+  duration_ms: 1811.6727
+  type: 'test'
+  ...
+# Subtest: production discovery-contract qualification grades role outputs through the plan service using loopback only
+ok 20 - production discovery-contract qualification grades role outputs through the plan service using loopback only
+  ---
+  duration_ms: 2031.9295
+  type: 'test'
+  ...
+# Subtest: completion survives LF, CRLF, CR and arbitrary byte boundaries
+ok 21 - completion survives LF, CRLF, CR and arbitrary byte boundaries
+  ---
+  duration_ms: 35.511
+  type: 'test'
+  ...
+# Subtest: completed-event fallback cannot bypass the local output cap
+ok 22 - completed-event fallback cannot bypass the local output cap
+  ---
+  duration_ms: 5.7202
+  type: 'test'
+  ...
+# Subtest: truncated stream stays unknown and preserves observed response identity and character count
+ok 23 - truncated stream stays unknown and preserves observed response identity and character count
+  ---
+  duration_ms: 5.2654
+  type: 'test'
+  ...
+# Subtest: real stalled HTTP stream times out once and keeps partial evidence without retry
+ok 24 - real stalled HTTP stream times out once and keeps partial evidence without retry
+  ---
+  duration_ms: 272.0859
+  type: 'test'
+  ...
+# Subtest: subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+ok 25 - subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+  ---
+  duration_ms: 3736.4808
+  type: 'test'
+  ...
+# Subtest: subscription workflow replay survives restart without redispatch, binds input
+ok 26 - subscription workflow replay survives restart without redispatch, binds input
+  ---
+  duration_ms: 3365.9878
+  type: 'test'
+  ...
+# Subtest: subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+ok 27 - subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+  ---
+  duration_ms: 2418.3912
+  type: 'test'
+  ...
+# Subtest: unknown subscription requests hold work without retry and explicit reconciliation releases the task
+ok 28 - unknown subscription requests hold work without retry and explicit reconciliation releases the task
+  ---
+  duration_ms: 2316.8127
+  type: 'test'
+  ...
+# Subtest: missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+ok 29 - missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+  ---
+  duration_ms: 2782.7162
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+ok 30 - authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+  ---
+  duration_ms: 3381.1774
+  type: 'test'
+  ...
+# Subtest: cancellation during credential lookup cannot start a later provider request
+ok 31 - cancellation during credential lookup cannot start a later provider request
+  ---
+  duration_ms: 0.6386
+  type: 'test'
+  ...
+# Subtest: typed API resources preserve the existing budgeted discovery path
+ok 32 - typed API resources preserve the existing budgeted discovery path
+  ---
+  duration_ms: 3049.4012
+  type: 'test'
+  ...
+# Subtest: a qualified task name with stale role-prompt evidence cannot unlock discovery
+ok 33 - a qualified task name with stale role-prompt evidence cannot unlock discovery
+  ---
+  duration_ms: 1972.1886
+  type: 'test'
+  ...
+# Subtest: historical v1 qualification cannot unlock the revised role contract
+ok 34 - historical v1 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 2432.7373
+  type: 'test'
+  ...
+# Subtest: historical v2 qualification cannot unlock the revised role contract
+ok 35 - historical v2 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 2220.0241
+  type: 'test'
+  ...
+# Subtest: historical v3 qualification cannot unlock the revised role contract
+ok 36 - historical v3 qualification cannot unlock the revised role contract
+  ---
+  duration_ms: 2287.1646
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 58404.0438

@@ -1,0 +1,20 @@
+{
+  "recorded_at": "2026-10-20T12:41:12.106Z",
+  "source_commit": "590aba3c3e5a0bd6710f2162d41f3cec9f39d807",
+  "source_dirty": true,
+  "node": "v22.21.0",
+  "manifest_unchanged_after_results": true,
+  "repeated_run_refused_before_credentials_or_dispatch": true,
+  "sha256": {
+    "config/connections/benchmarks/summarization-synthetic-v1.json": "524562818d3310ceb718538203caa2a80d3e3f052b87e0edf97256c7a2cb1344",
+    "scripts/qualify-plan-summarization.mjs": "38a9bb89c11a92b917d94650671d075ff309b6749f3356eee750ef05330e2e80",
+    "scripts/qualify-plan-summarization.ps1": "798bf3fb15f514b56a50672cb8bd86237f1888db97bb9fe12ecd28407cfff71e",
+    "packages/broker/dist/plan-service.js": "7b143f73be1e2177c972e2cc83f12307bf464b41a76ba20b11dc6aba05c58963",
+    "packages/broker/dist/plan-responses.js": "e1fcb522ab3857ada2d3886125117301390c8c818c81bd669f3cd6adbae4059b",
+    "packages/broker/dist/plan-vault.js": "229e5871d27244a9995148847bd0ed589c28cfad76ddace76e99dac1647e4e6a",
+    "packages/db/dist/connection-store.js": "4a38ad26452abebc62296d91151bd52ae15318bd1630e1dd1ea5ab2f752a6883",
+    "packages/domain/dist/routing.js": "7f2624483765519c6ddcebb020bc6cf7b2d72fa7e3f61e40ac48251e7e733032",
+    "tracking/evidence/plan-summary-v1/raw-results.json": "812447f8383355751981fd244f2eb757afdf986e792d255005c5cb3f1b584476",
+    "tracking/evidence/plan-summary-v1/result.json": "f64d0b36e618f2cb24e617177c4323005e4e5943ce9fd4e442a04f0874fa086e"
+  }
+}

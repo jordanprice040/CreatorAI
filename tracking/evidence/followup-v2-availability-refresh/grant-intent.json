@@ -1,0 +1,7 @@
+{
+  "expected_version": 23,
+  "model_id": "gpt-6-astra",
+  "path": "responses",
+  "expires_in_minutes": 10,
+  "intent": "availability_recheck"
+}

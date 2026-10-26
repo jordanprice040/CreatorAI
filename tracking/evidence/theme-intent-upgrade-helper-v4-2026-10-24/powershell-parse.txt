@@ -1,0 +1,5 @@
+scripts/upgrade-theme-intent-v4.ps1 parsed
+scripts/install-theme-intent-v4.ps1 parsed
+scripts/recover-theme-intent-v4.ps1 parsed
+scripts/theme-intent-upgrade-v4-mutex.ps1 parsed
+tests/fixtures/theme-intent-v4-installer.ps1 parsed

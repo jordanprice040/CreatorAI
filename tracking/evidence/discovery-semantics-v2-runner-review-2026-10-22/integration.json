@@ -1,0 +1,11 @@
+{
+  "format": "semantics-bound-runner-review-integration/1",
+  "integrated_at": "2026-10-22T17:34:18.728Z",
+  "status": "supported_bound_runner",
+  "execution_plan_hash": "4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c",
+  "reviewer_receipt_sha256": "07986f1717c828acd088d2298ebf4d9e265c5fcf9816bedb940e6c1ac9a0e6e9",
+  "verified_artifacts": 240,
+  "installation": false,
+  "provider_calls": 0,
+  "run_lock_present": false
+}

@@ -1,0 +1,30 @@
+TAP version 13
+# Subtest: installed studio: new studio, serve, sign in, record survives quit and relaunch
+not ok 1 - installed studio: new studio, serve, sign in, record survives quit and relaunch
+  ---
+  duration_ms: 62438.3493
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\dist\\studio-service.test.js:169:1'
+  failureType: 'testCodeFailure'
+  error: 'no ready event; got [{"event":"error","code":"PORT_IN_USE","port":4310,"message":"Port 4310 is already in use by another program."}]; log '
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Timeout._onTimeout (file:///C:/dev/creator_agent/tests/dist/studio-service.test.js:51:49)
+    listOnTimeout (node:internal/timers:588:17)
+    process.processTimers (node:internal/timers:523:7)
+  ...
+# Subtest: upgrade takes a verified backup first, then migrates under the lock
+ok 2 - upgrade takes a verified backup first, then migrates under the lock
+  ---
+  duration_ms: 2505.4878
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 65567.213

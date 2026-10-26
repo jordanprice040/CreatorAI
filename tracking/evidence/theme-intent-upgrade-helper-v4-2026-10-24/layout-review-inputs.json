@@ -1,0 +1,13 @@
+{
+  "format": "theme-intent-native-layout-review-inputs/1",
+  "recorded_at": "2026-10-24T11:07:05.844Z",
+  "scope": "Supplementary inspected/reproduced inputs, not a claim that they are in the runtime helper map",
+  "sha256": {
+    "apps/desktop/src-tauri/src/home.rs": "a8bc8f23a4703b907a9dfde34e22c8f9fd4c18d2a25e9387004bde067875223b",
+    "apps/desktop/src-tauri/src/postgres.rs": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+    "scripts/theme-intent-upgrade-v3-core.mjs": "17b14d677351a23a5ae8d9e0fb685c3b7c5fdf71be197baf59fc151c88b60e85",
+    "tracking/evidence/theme-intent-operational-before-2026-10-24/attempt-result.json": "9d0cb54c5aecf92e54498e0d92770b2fda46e0347662bef017c2f577a8227bd0"
+  },
+  "self_review_independent": false,
+  "review_conclusion": "Normalized core/CLI diff limited to shared nested PGDATA and pre-secret layout gate; nested fixture independently initialized, stale token lookup/binding/release and recovery callers checked. Deferred v3 low findings retained."
+}

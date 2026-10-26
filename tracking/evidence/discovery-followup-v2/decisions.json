@@ -1,0 +1,27 @@
+[
+  {
+    "id": "55ee7dc0-5f27-412a-82f5-8fa2676e38ee",
+    "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+    "model_id": "gpt-6-astra",
+    "task_class": "candidate_generation",
+    "manifest_hash": "1bcf12f4f8a5f007563c3103ed4e3ddf358d7ee93775ea6a3e881395a5dc7f58",
+    "min_held_out_cases": 4,
+    "floor": {
+      "numerator": 1,
+      "denominator": 1
+    },
+    "state": "qualified",
+    "development": {
+      "total": 2,
+      "passed": 2
+    },
+    "held_out": {
+      "total": 4,
+      "passed": 4
+    },
+    "reason": "4/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+    "created_by": "00000000-0000-4000-8000-000000000001",
+    "created_at": "2026-10-22T05:01:23.031Z",
+    "decided_at": "2026-10-22T05:04:20.266Z"
+  }
+]

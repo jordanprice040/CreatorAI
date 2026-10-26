@@ -1,0 +1,52 @@
+{
+  "format": "discovery-qualification-plan/1",
+  "prepared_at": "2026-10-20T23:40:56.433Z",
+  "model_id": "gpt-6-astra",
+  "status": "prepared_not_authorized_or_executed",
+  "task_classes": [
+    "research_synthesis",
+    "candidate_generation",
+    "scoring"
+  ],
+  "max_new_requests": 18,
+  "min_held_out_cases_per_class": 4,
+  "floor": {
+    "numerator": 1,
+    "denominator": 1
+  },
+  "retries": 0,
+  "max_concurrency": 1,
+  "max_request_ms": 120000,
+  "max_output_chars": 16000,
+  "max_input_chars": 24000,
+  "max_wall_ms": 2160000,
+  "new_metered_spend_nano_usd": "0",
+  "credits": "must_remain_confirmed_off",
+  "role_version": "r02-discovery/1.0",
+  "prompt_hash": "2d52acb883206732e902bd4ef52536391b2fe3a84ae2cd8715dadeb7e7af1275",
+  "local_scorer_checks": 90,
+  "files": [
+    {
+      "task_class": "research_synthesis",
+      "path": "config/connections/benchmarks/discovery-synthetic-v1/research_synthesis.json",
+      "sha256": "decb661fe2e400394323c74f3759d7167e8701b78903200931c87f630d830350",
+      "canonical_hash": "30b92cd090f98bdbb97f1461ea22c3a40f9234dcae723b512e33b550d849616e"
+    },
+    {
+      "task_class": "candidate_generation",
+      "path": "config/connections/benchmarks/discovery-synthetic-v1/candidate_generation.json",
+      "sha256": "706606291e7667469130af2a180515ff2efe436748351efe1ba401946599819f",
+      "canonical_hash": "578b7097f6333c20cecbdf798fcdc947072184435b773f575ae045f0f93b2b82"
+    },
+    {
+      "task_class": "scoring",
+      "path": "config/connections/benchmarks/discovery-synthetic-v1/scoring.json",
+      "sha256": "44ad6db9a414fd3f2026238fa67603f9e8ccf839dfa44bc2f0c0e8095b7feb2a",
+      "canonical_hash": "eed8e983cfc848f5f74e2e335b779fb1b67b7ea74d3d87a16494f6f23e2ecba6"
+    }
+  ],
+  "proposed_settings_hash": "f0a5b0eea64be75bcee3aff9fb423262d19f4f560598e0a60fdd6dd9e6540e68",
+  "original_settings_hash": "1d40a31b517cb1d45019d5ce56871f053e618bb4ef2393884e97e4dc4fac727f",
+  "limit_changes": false,
+  "labels": "Author-visible synthetic control outputs; target receives only input; not independent graders or thesis holdouts."
+}

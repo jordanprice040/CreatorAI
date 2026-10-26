@@ -1,0 +1,99 @@
+{
+  "hardlink_studio.json": {
+    "nlink": "2",
+    "exact": "refused:CONFIG_READER_REFUSED",
+    "no_preopen_nlink": "refused:CONFIG_READER_REFUSED",
+    "no_nlink_at_all": "projected_not_operationally_verified"
+  },
+  "hardlink_SYNTHETIC_FIXTURE_ONLY": {
+    "nlink": "2",
+    "exact": "refused:CONFIG_READER_REFUSED",
+    "no_preopen_nlink": "refused:CONFIG_READER_REFUSED",
+    "no_nlink_at_all": "projected_not_operationally_verified"
+  },
+  "junction_root": {
+    "lstat_is_symlink": true,
+    "exact": "refused:CONFIG_READER_REFUSED",
+    "attribute_query_only": "refused:CONFIG_READER_REFUSED"
+  },
+  "file_symlink_studio.json": {
+    "exact": "refused:CONFIG_READER_REFUSED",
+    "attribute_query_only": "refused:CONFIG_READER_REFUSED"
+  },
+  "file_symlink_SYNTHETIC_FIXTURE_ONLY": {
+    "exact": "refused:CONFIG_READER_REFUSED",
+    "attribute_query_only": "refused:CONFIG_READER_REFUSED"
+  },
+  "positive_control_attribute_only": "projected_not_operationally_verified",
+  "positive_control_exact": "projected_not_operationally_verified",
+  "windows_identity_nonzero": {
+    "ino": true,
+    "dev": true,
+    "ctimeNs": true
+  },
+  "powershell": {
+    "plain": {
+      "status": 0,
+      "stdout": "clear",
+      "error": null,
+      "ms": 278
+    },
+    "junction": {
+      "status": 3,
+      "stdout": "",
+      "error": null,
+      "ms": 283
+    },
+    "missing": {
+      "status": 4,
+      "stdout": "",
+      "error": null,
+      "ms": 290
+    },
+    "non_ascii_existing": {
+      "status": 4,
+      "stdout": "",
+      "error": null,
+      "ms": 282
+    },
+    "metacharacters_existing": {
+      "status": 0,
+      "stdout": "clear",
+      "error": null,
+      "ms": 275
+    },
+    "empty_array": {
+      "status": 0,
+      "stdout": "clear",
+      "error": null,
+      "ms": 253
+    }
+  },
+  "systemroot_override_nonexistent": "",
+  "pg_bin": {
+    "C:/NUL/bin": "projected_not_operationally_verified",
+    "C:/x/CON": "projected_not_operationally_verified",
+    "C:/x/com1.txt": "projected_not_operationally_verified",
+    "C:\\a/b\\c": "projected_not_operationally_verified",
+    "C:/%TEMP%/bin": "projected_not_operationally_verified",
+    "C:/ bin": "projected_not_operationally_verified",
+    "C:/PROGRA~1/bin": "projected_not_operationally_verified",
+    "c:/x": "projected_not_operationally_verified",
+    "C:/x\\": "refused"
+  },
+  "parse": {
+    "native_valid_null_pg_bin": "refused",
+    "missing_products_root": "projected_not_operationally_verified",
+    "duplicate_port": "projected_not_operationally_verified",
+    "exponent_port": "projected_not_operationally_verified",
+    "bom": "projected_not_operationally_verified",
+    "uppercase_hash": "refused"
+  },
+  "error_shape": {
+    "message": "CONFIG_READER_REFUSED",
+    "cause": null,
+    "own_keys": [],
+    "sentinel_in_stack": false
+  },
+  "scratch_fixtures_left": 0
+}

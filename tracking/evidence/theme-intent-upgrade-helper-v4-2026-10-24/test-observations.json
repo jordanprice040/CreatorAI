@@ -1,0 +1,30 @@
+{
+  "format": "theme-intent-helper-v4-test-observations/1",
+  "fixture": true,
+  "root": "C:\\dev\\creator_agent\\.verification\\theme-helper-v4-1792840348382",
+  "observed": [
+    "native layout presecret failure with unavailable DPAPI",
+    "blocked review presecret",
+    "partial before released before-snapshot",
+    "partial before released before-protected-copy",
+    "before populated snapshot/lifecycle",
+    "all successful phases via PowerShell/candidate",
+    "after death resumed forward",
+    "populated coordinated recovery",
+    "after-admission recovery",
+    "after-installer recovery",
+    "after-migration-intent recovery",
+    "after-migration-child recovery",
+    "hard-crash-after-migration-intent recovery",
+    "post-result death verified forward",
+    "hard-crash-after-migration-result recovery",
+    "child nonzero",
+    "child malformed",
+    "child timeout",
+    "aged verification and interrupted protected recovery"
+  ],
+  "listening_after": false,
+  "fixture_installer": true,
+  "nsis_executed": false,
+  "operational_access": false
+}

@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-22T04:42:46.609Z",
+  "installer_sha256": "9cfacf012273627828da5a47d8834a9517ed0b3d7b9d467c907ca543752504f3",
+  "build_output_desktop_sha256": "ce0592b769ccd64f17ef030ec95f2672c17dff0837efb8f23eab0ca040aa5570",
+  "packaged_desktop_sha256": "2d007429953fab03eb0adf7131b13158282920a66a9b01b9ce62704aef858652",
+  "installed_desktop_sha256": "2d007429953fab03eb0adf7131b13158282920a66a9b01b9ce62704aef858652",
+  "packaged_installed_equal": true,
+  "reason": "NSIS payload executable differs from loose build output; exact installer extraction verifies installed bytes. Original plan preserved.",
+  "installed_bundle_manifest_sha256": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7"
+}

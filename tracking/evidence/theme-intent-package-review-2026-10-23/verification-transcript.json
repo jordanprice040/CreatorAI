@@ -1,0 +1,15 @@
+{
+  "candidate_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "source_bindings_verified": 265,
+  "archived_and_extracted_resources_verified": 142,
+  "manifest_sha256": "5b38b43e6153202073b03f49db66e3a0a0fb01e36364d2d3bab9d9b6ba54eba6",
+  "installer_sha256": "3af2712caeccc3d4519b732964948270b8647dd023be6b6159614889be6d834b",
+  "packaged_native_sha256": "510b09c31d6ea2f00b65b97239345329a13835a63521262caa1a6223e8988ca9",
+  "ui_exact_source_and_packaged_guard_verified": true,
+  "prior_migrations_unchanged": 28,
+  "new_migration": 29,
+  "role_parity_references_verified": 11,
+  "declarative_only": true,
+  "provider_or_service_or_database_or_install_actions": 0
+}

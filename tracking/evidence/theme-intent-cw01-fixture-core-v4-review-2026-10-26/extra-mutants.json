@@ -1,0 +1,9 @@
+{
+ "baseline_unmutated": "pass",
+ "x_catch_rethrows": "killed(1)",
+ "x_handler_gets_input": "killed(3)",
+ "x_digest_input_last": "killed(2)",
+ "x_refuse_digest_input": "SURVIVED",
+ "x_prior_format_v3_dropped": "SURVIVED",
+ "x_store_unfrozen_B": "killed(1)"
+}

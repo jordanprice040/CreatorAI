@@ -1,0 +1,5 @@
+5.1.26100.9711
+scripts/upgrade-theme-intent-v2.ps1 errors=0
+scripts/install-theme-intent-v2.ps1 errors=0
+scripts/recover-theme-intent-v2.ps1 errors=0
+tests/fixtures/theme-intent-v2-installer.ps1 errors=0

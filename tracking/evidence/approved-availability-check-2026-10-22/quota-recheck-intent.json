@@ -1,0 +1,8 @@
+{
+  "expected_version": 20,
+  "previous_quota": {
+    "state": "exhausted",
+    "reason_code": "subscription_sharing_usage_limit_exceeded",
+    "observed_at": "2026-10-21T07:29:59.386Z"
+  }
+}

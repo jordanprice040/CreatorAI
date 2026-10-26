@@ -1,0 +1,22 @@
+{
+  "reviewer": "/root/separate_discovery_review",
+  "finding": {
+    "id": "R1",
+    "severity": "P2",
+    "status": "reported_pending_repair",
+    "reproduction": "PowerShell wrapper validates review only, then calls Read-StudioSecret for session/postgres before --run validates supplied InstallationReceipt and StudioHome; invalid receipt/home needlessly crosses secret-access gate.",
+    "recommendation": "Validate static home/installation receipt and installed-byte identity before wrapper DPAPI calls; negative CLI/wrapper-order checks."
+  },
+  "artifact_sha256": {
+    "scripts/qualify-discovery-semantics-v2.mjs": "2a334ca26126260c963753d68ffb2683facc154894762e63d7c84e7ae1ed8659",
+    "scripts/qualify-discovery-semantics-v2.ps1": "7928ac5b2a2098b2e3114ed1e9d5a8a549444010a2c4b4fc29524d6715957b59",
+    "tracking/evidence/discovery-semantics-v2-runner/execution-plan.json": "7ccbb3c26efe952ac73a10439dea7902df23f596646570080ad7c6be92c8b81e"
+  },
+  "tests_independently_executed": {
+    "default_entry_passed": 16,
+    "failed": 0,
+    "skipped": 0
+  },
+  "provider_calls": 0,
+  "credential_reads": 0
+}

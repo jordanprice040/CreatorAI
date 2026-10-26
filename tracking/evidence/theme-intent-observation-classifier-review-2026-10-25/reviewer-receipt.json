@@ -1,0 +1,122 @@
+{
+  "format": "theme-intent-observation-classifier-review/1",
+  "prompt": "U02",
+  "requested_by": "Jordan",
+  "reviewer": "Claude (Anthropic), separate project-thread session on Jordan's device",
+  "reviewer_involvement": "Did not author the classifier, its tests, classifier report, v4.1 note, verify.mjs or implementation receipt. The milestone implements a next-step prompt written by a separate Claude review thread; same model family, separate session, not blinded, not a different-model-family review.",
+  "independent_review": true,
+  "overall": "partial",
+  "verdicts": {
+    "classification_core": "partial_M1_M2_M3_open",
+    "v4_1_contract_note": "supported_with_low_findings",
+    "operational_collector_exists": false,
+    "native_acceptance_readiness": "not_ready_blocked",
+    "PR01_false_pass_found": false,
+    "SH01_false_pass_found": true,
+    "M3_exact_bundle_decision": "preserved_not_reopened",
+    "reader_N1_N4": "out_of_scope_unchanged",
+    "full_C54": "partial",
+    "native_acceptance": "unverified",
+    "human_acceptance_H": "unverified"
+  },
+  "findings": {
+    "M1": "Medium: launch incident downgraded to unknown (unavailable sample, prior unavailable, overrun, spacing, over-cap) or to blocked PRELAUNCH_ACTIVITY",
+    "M2": "Medium: SH-01 passes without recorded running state, planned Quit or bound Quit request time",
+    "M3": "Medium: contradictory SH-01 sample (pg_ctl 0, zero postgres processes) treated as activity, later pair passes",
+    "L1": "Low: map functions not connected to samples; key_bound not tied to key16; map outputs unlabeled",
+    "L2": "Low: admits OneDrive-component LOCALAPPDATA that native check_home refuses",
+    "L3": "Low: N6 contract lacks post-final-sample attestation; show-event handle effect undisclosed",
+    "L4": "Low: distinct v4 gates folded into identity_matches; no unexpected-lease or same-session field",
+    "L5": "Low: verifier purity regex and TAP substring guards are weak",
+    "resolved": [
+      "N5",
+      "N6 disclosure"
+    ]
+  },
+  "checks_executed": {
+    "rehash_receipt_bound_inputs_matched": 16,
+    "rehash_mismatches": 0,
+    "new_verifier_check_only": {
+      "args": [],
+      "exit": 0,
+      "prior_frozen_hash_bindings": 76,
+      "mismatches": 0,
+      "note": "reads recorded TAP; does not execute tests"
+    },
+    "fixture_tests_executed_by_reviewer": {
+      "command": "node --test tests/theme-intent-observation-classifier-fixture.test.mjs",
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "node": "v22.21.0",
+      "platform": "Windows 11"
+    },
+    "reviewer_pure_probes": [
+      "P1a",
+      "P1b",
+      "P1c",
+      "P1d",
+      "P1e",
+      "P1f",
+      "P1g",
+      "P2",
+      "P2b",
+      "P3",
+      "P4",
+      "P4b",
+      "P4c",
+      "P5",
+      "P6",
+      "P7a-f"
+    ],
+    "string_only_key_recomputation": {
+      "admitted": "d8c7860557013e56",
+      "double_trailing": "681853bc5104874f",
+      "mixed_trailing": "cf2a5fe779f2e38c",
+      "forward_slash_localappdata": "b552bb84152dcde0",
+      "plan_root": "93553bda48f70dd2"
+    },
+    "rust_rebuilt_or_rerun": false,
+    "older_verifiers_run": false,
+    "record_mode_used": false
+  },
+  "operational_access": false,
+  "saved_studio_config_read": false,
+  "credentials_accessed": false,
+  "registry_process_port_mutex_event_queries": 0,
+  "launches": 0,
+  "provider_calls": 0,
+  "workflows_activated": 0,
+  "repairs_implemented": false,
+  "retired_checkout_accessed": false,
+  "input_sha256": {
+    "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+    "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+    "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+    "tracking/BUILD_STATUS.md": "fe5806f160018c33d98ad0d68637a8e7acdbac496dc418612fac3f06e5cd57c0",
+    "tracking/SESSION_HANDOFF.md": "e4f14d4cf4144ddb26b1e90318a280d6953e477d61adada84010f100a3070261",
+    "docs/THEME_INTENT_OBSERVATION_CLASSIFIER_2026-10-25.md": "f1b91df416e2faa44a97143e9720b5130dec7a2ee6882269b43da101d1b0ef1c",
+    "scripts/theme-intent-observation-classifier-fixture.mjs": "adcd6a801edb604f74a955e57fbaf9ab4377abb264fef79ca3b46cca89505842",
+    "tests/theme-intent-observation-classifier-fixture.test.mjs": "a1b28b6a2c2b135e3c2589cf3c7c1db0f2d31b8857a16f3548996ecd056b1d9a",
+    "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_1_NOTE_2026-10-25.md": "486b6d66cc1e21c0300d993b540d547379b80a24f86c0e58a14e19aa8920cc45",
+    "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2026-10-24.md": "42f447f9156e756bd10a0c7b28f54395fc2ab6d2124be84d84c0eaece1e2566d",
+    "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V5_2026-10-24.md": "6d27e1281a7faedfebd2d7322bcafbc1c800171430fe899ee86f260763473952",
+    "docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md": "24a82ca8a2b1eddf82e5c4e472b99103b05c6686a4818813aef847854ff0f42b",
+    "docs/THEME_INTENT_CONFIG_READER_V2_AND_PROPOSAL_V4_REVIEW_2026-10-25.md": "c703706ede6e273c2b6a3a097b16cbe0b40d7a2731e4d9347616f06991d4864b",
+    "tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/reviewer-receipt.json": "45145b70945997666b78e5f8dceb172d6c39834474e732a8463c9cbe0a66571f",
+    "tracking/evidence/theme-intent-observation-classifier-2026-10-25/implementation-receipt.json": "8167532c1e58e615e1ed8eaef0ae378eaf18825235cb267532423f4563bc8262",
+    "tracking/evidence/theme-intent-observation-classifier-2026-10-25/tests.tap": "c600173ec0acb808022a56dbed60cca46fbb62daf4bcedd8d9cafef55780c184",
+    "tracking/evidence/theme-intent-observation-classifier-2026-10-25/verify.mjs": "d811d19ff0c9f30fb46c53df4302c0bacef67d34c25e056e3ef2ea0103bb4807",
+    "apps/desktop/src-tauri/src/main.rs": "33d629aa52b6b219e179514652903b9740cd1e91051a4157465eb813afa0246c",
+    "apps/desktop/src-tauri/src/home.rs": "a8bc8f23a4703b907a9dfde34e22c8f9fd4c18d2a25e9387004bde067875223b",
+    "apps/desktop/src-tauri/src/winsys.rs": "4881b525fb9a58c17ed72e63936c412a144b31f40924d32cea2e98702f95c6d4"
+  },
+  "tracking_hashes_are_pre_update": [
+    "tracking/BUILD_STATUS.md",
+    "tracking/SESSION_HANDOFF.md"
+  ],
+  "report_sha256": {
+    "docs/THEME_INTENT_OBSERVATION_CLASSIFIER_REVIEW_2026-10-25.md": "b9e113227104306f1da6d87657d8fa4d032872681b6f25250a1f4c20de7fbc86"
+  },
+  "recorded_at": "2026-10-25T10:11:04.367Z"
+}

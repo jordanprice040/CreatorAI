@@ -1,0 +1,33 @@
+{
+  "prepared_at": "2026-10-22T04:51:51.874Z",
+  "state": "prepared_pending_exact_owner_approval_and_fresh_preflight",
+  "execution_plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+  "packet_freeze_hash": "55da91cabef9163692508132e936b9a2e5df9815f071ca93642db0cd091f2266",
+  "source_bindings": 259,
+  "installed_resources_verified": 61,
+  "desktop_payload_verified": true,
+  "offline_tests": {
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0
+  },
+  "local_controls": 108,
+  "transport": [
+    {
+      "task_class": "candidate_generation",
+      "creation_bytes": 93537,
+      "max_input_chars": 13468
+    },
+    {
+      "task_class": "scoring",
+      "creation_bytes": 111689,
+      "max_input_chars": 19695
+    }
+  ],
+  "original_packet_and_criteria_unchanged": true,
+  "original_plans_preserved": true,
+  "target_outputs_created": 0,
+  "provider_calls": 0,
+  "installation_performed": false,
+  "settings_changed": false
+}

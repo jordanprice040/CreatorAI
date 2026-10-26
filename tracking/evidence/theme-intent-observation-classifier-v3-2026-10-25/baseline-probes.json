@@ -1,0 +1,65 @@
+{
+  "fixture": true,
+  "results": {
+    "R1": {
+      "v2": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      },
+      "v3": {
+        "fixture": true,
+        "status": "blocked",
+        "reason": "RESTART_AFTER_STOPPED_SAMPLE"
+      }
+    },
+    "R2": {
+      "v2": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      },
+      "v3": {
+        "fixture": true,
+        "status": "blocked",
+        "reason": "RESTART_AFTER_STOPPED_SAMPLE"
+      }
+    },
+    "R3": {
+      "v2": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      },
+      "v3": {
+        "fixture": true,
+        "status": "blocked",
+        "reason": "RESTART_AFTER_STOPPED_SAMPLE"
+      }
+    },
+    "R4": {
+      "v2": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      },
+      "v3": {
+        "fixture": true,
+        "status": "pass",
+        "reason": "TWO_CONSECUTIVE_STOPPED_SAMPLES"
+      }
+    },
+    "N1": {
+      "v2": {
+        "fixture": true,
+        "status": "unknown",
+        "reason": "CONTRADICTORY_POSTGRES_OBSERVATION"
+      },
+      "v3": {
+        "fixture": true,
+        "status": "blocked",
+        "reason": "LAUNCH_NOT_EXCLUDED"
+      }
+    }
+  }
+}

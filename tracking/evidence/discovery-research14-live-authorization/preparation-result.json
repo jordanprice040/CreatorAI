@@ -1,0 +1,26 @@
+{
+  "format": "research14-live-authorization-preparation/1",
+  "prepared_at": "2026-10-23T03:05:06.438Z",
+  "authorization_plan_hash": "581dd0e6e30b3626a80a0657a6e169d5e11b9e6361a3c2c721a04919db7e8286",
+  "status": "pending_separate_review_and_new_exact_owner_decision",
+  "source_bindings": 229,
+  "max_provider_requests": 7,
+  "tests_standalone": {
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+  },
+  "tests_compiled": {
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typescript_build": "passed",
+  "powershell_parser": "passed",
+  "static_execution_gate": "passed",
+  "provider_calls": 0,
+  "credential_access": false,
+  "application_changed": false,
+  "operation_lock_created": false,
+  "runner_lock_created": false
+}

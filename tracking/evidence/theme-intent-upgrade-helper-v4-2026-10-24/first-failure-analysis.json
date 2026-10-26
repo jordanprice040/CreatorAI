@@ -1,0 +1,9 @@
+{
+  "first_run": "23 pass, 3 fail including parent; 2 failed scenarios",
+  "setup_failure": "New pre-secret test executed before studio.json was initialized; fix test setup without weakening assertions",
+  "recovery_failure": "EPERM renaming fixture program immediately after successful fixture predecessor copy; exact directory now renames normally",
+  "root_cause_of_EPERM": "Unconfirmed transient Windows file handle/permission refusal; do not attribute to antivirus without evidence",
+  "recovery_gate_weakened": false,
+  "production_retry_added": false,
+  "first_run_evidence_preserved": true
+}

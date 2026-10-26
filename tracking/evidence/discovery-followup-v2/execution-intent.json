@@ -1,0 +1,7 @@
+{
+  "plan_hash": "22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2",
+  "review_sha256": "41b40f9a74eb87e5d0c597a695e4b166be9379df16e4dafb74d22c2de3c42bed",
+  "started_at": "2026-10-22T05:01:22.997Z",
+  "max_new_requests": 12,
+  "retries": 0
+}

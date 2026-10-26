@@ -1,0 +1,11 @@
+--- unbound ApprovalFile
+{"argv":["before","ev dir","--presecret"],"stdin":null}
+--- empty-string ApprovalFile
+{"argv":["before","ev dir","--presecret"],"stdin":null}
+--- approval with embedded quote
+{"argv":["admit","ev","ab c.json --presecret"],"stdin":null}
+--- non-ASCII password via pipe (OutputEncoding=US-ASCII)
+{"argv":["x","--stdin"],"stdin":"{\"password\":\"p????s\"}\r\n"}
+--- native failure under Stop; LASTEXITCODE check reached?
+{"argv":["--fail"],"stdin":null}
+LASTEXITCODE=3 (script continued)

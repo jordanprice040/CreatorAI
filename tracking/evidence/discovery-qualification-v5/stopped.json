@@ -1,0 +1,6 @@
+{
+  "at": "2026-10-21T07:29:59.412Z",
+  "attempted": 11,
+  "qualification_id": "b90d89e8-cb58-46b3-80c5-4a58af019ad0",
+  "message": "Qualification stopped at first unsuccessful case; no retry or other task class started."
+}

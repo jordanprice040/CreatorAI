@@ -1,0 +1,10 @@
+        Info Looking up installed tauri packages to check mismatched versions...
+   Compiling creator-desktop v0.1.0 (C:\dev\creator_agent\apps\desktop\src-tauri)
+    Finished `release` profile [optimized] target(s) in 29.13s
+       Built application at: C:\dev\creator_agent\apps\desktop\src-tauri\target\release\creator-desktop.exe
+        Info Patching C:\dev\creator_agent\apps\desktop\src-tauri\target\release\creator-desktop.exe with bundle type information: nsis
+        Info Target: x64
+     Running makensis to produce C:\dev\creator_agent\apps\desktop\src-tauri\target\release\bundle\nsis\Creator Agent_0.1.0_x64-setup.exe
+    Finished 1 bundle at:
+        C:\dev\creator_agent\apps\desktop\src-tauri\target\release\bundle\nsis\Creator Agent_0.1.0_x64-setup.exe (24.01 MiB)
+

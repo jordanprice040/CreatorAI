@@ -1,0 +1,46 @@
+{
+  "format": "theme-intent-upgrade-independent-review/1",
+  "status": "blocked_changes_required",
+  "reviewed_at": "2026-10-23",
+  "reviewer_type": "model",
+  "reviewer": "U02 separate model reviewer",
+  "prior_implementation_involvement": false,
+  "human_acceptance": false,
+  "installation_approval": false,
+  "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "helper_sha256": {
+    "scripts/theme-intent-upgrade-core.mjs": "3583df84bcf081c679b354aaccedb32753f39e583c75f581790deae0ec1bdf5b",
+    "scripts/upgrade-theme-intent.mjs": "c836d8d47ff8e43d917a7687d046e9064e3d7d097ab3b8b0806f3af7da0c8362",
+    "scripts/upgrade-theme-intent.ps1": "b75e8ad37222ee42c35b53790684c2d3a88e927101ad5b0624cd6afb7d697965",
+    "scripts/install-theme-intent.ps1": "91b791f7dccc75144271c410fe275a19488ee281cbe44cd5e44e083e3cf20e47"
+  },
+  "verdict_next_preparation_step": "blocked",
+  "findings": [
+    { "id": "H1", "severity": "high", "summary": "Managed PostgreSQL is stopped by desktop Quit; helper requires Quit and a reachable DB but never starts/stops the cluster", "refs": ["scripts/upgrade-theme-intent.mjs:85-121", "apps/desktop/src-tauri/src/studio.rs:866-893"] },
+    { "id": "H2", "severity": "high", "summary": "DPAPI/plan-credential copies, full dump, products and program copied into unconstrained EvidenceDir; tracking/evidence is not gitignored", "refs": ["scripts/upgrade-theme-intent.mjs:68-69", "scripts/upgrade-theme-intent.mjs:141-166"] },
+    { "id": "M1", "severity": "medium", "summary": "before phase decrypts credential and copies protected material without independent-review gate", "refs": ["scripts/upgrade-theme-intent.mjs:74-83", "scripts/upgrade-theme-intent.ps1:9-16"] },
+    { "id": "M2", "severity": "medium", "summary": "15-minute freshness gates migrate/after; delay after mutation leaves no executable verification path", "refs": ["scripts/upgrade-theme-intent.mjs:76", "scripts/upgrade-theme-intent.mjs:82", "scripts/upgrade-theme-intent.mjs:127", "scripts/upgrade-theme-intent.mjs:208"] },
+    { "id": "M3", "severity": "medium", "summary": "GetFullPath resolves installer against .NET CWD, not Set-Location; admission consumed before failure", "refs": ["scripts/install-theme-intent.ps1:9-12"] },
+    { "id": "M4", "severity": "medium", "summary": "Coordinated rollback and lock-state recovery are prose only and unrehearsed", "refs": ["docs/THEME_INTENT_UPGRADE_HELPER_2026-10-23.md:83-99"] },
+    { "id": "M5", "severity": "medium", "summary": "Tests never execute helper phases or the PowerShell wrapper; two completion claims exceed evidence", "refs": ["tests/theme-intent-upgrade.test.mjs", "docs/THEME_INTENT_UPGRADE_HELPER_2026-10-23.md:110-116"] },
+    { "id": "L1-L8", "severity": "low", "summary": "Snapshot binding, pooled transaction, quiescence gaps, unbound installer outcome/stderr/timeout, dependency binding, receipt format overwrite, PS5 argument notes, per-directory locks", "refs": ["docs/THEME_INTENT_UPGRADE_HELPER_REVIEW_2026-10-23.md"] }
+  ],
+  "executed_checks": [
+    "implementation receipt hashes: 16/16 artifacts and 4/4 helpers match",
+    "node scripts/upgrade-theme-intent.mjs --check: exit 0",
+    "Windows PowerShell 5.1 parse: 0 errors in both scripts",
+    "PS5 argument/encoding/working-directory probes",
+    "junction/path containment probe (scratch only)",
+    "disposable PG18 cluster 127.0.0.1:55451 (scratchpad initdb, synthetic data): official tests 10/10; real candidate studio.mjs migrate probe; schema28 dump/restore probe; state vocabulary probe; cluster stopped"
+  ],
+  "operational_configuration_accessed": false,
+  "operational_credentials_accessed": false,
+  "operational_database_accessed": false,
+  "implementation_files_modified": false,
+  "provider_calls": 0,
+  "workflows_activated": 0,
+  "installed": false,
+  "operational_migration": false,
+  "full_C54": "partial"
+}

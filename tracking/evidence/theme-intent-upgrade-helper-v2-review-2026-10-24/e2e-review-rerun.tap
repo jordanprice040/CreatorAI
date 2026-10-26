@@ -1,0 +1,138 @@
+TAP version 13
+# Subtest: v2 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 1 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 1809.3869
+      type: 'test'
+      ...
+    # Subtest: junction ancestors and operational reuse of fixture review are rejected
+    ok 2 - junction ancestors and operational reuse of fixture review are rejected
+      ---
+      duration_ms: 1174.2118
+      type: 'test'
+      ...
+    # Subtest: running qualifications block the real before phase
+    ok 3 - running qualifications block the real before phase
+      ---
+      duration_ms: 8070.9639
+      type: 'test'
+      ...
+    # Subtest: a pre-existing managed cluster is not silently adopted or stopped
+    ok 4 - a pre-existing managed cluster is not silently adopted or stopped
+      ---
+      duration_ms: 5693.8907
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 5 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 8439.4564
+      type: 'test'
+      ...
+    # Subtest: reusing a session in another evidence directory cannot overwrite its backup
+    ok 6 - reusing a session in another evidence directory cannot overwrite its backup
+      ---
+      duration_ms: 2799.537
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 7 - expired admission fails before mutation
+      ---
+      duration_ms: 2940.028
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 8 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 20104.5999
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 9 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 12547.5327
+      type: 'test'
+      ...
+    # Subtest: per-studio lock rejects concurrent actual wrapper runs
+    ok 10 - per-studio lock rejects concurrent actual wrapper runs
+      ---
+      duration_ms: 9687.6811
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 11 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 20010.8315
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 12 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 37883.7887
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 13 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 38823.9875
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 14 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 38392.3291
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 15 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 38904.9225
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-intent has explicit recovery
+    ok 16 - crash-window hard-crash-after-migration-intent has explicit recovery
+      ---
+      duration_ms: 36020.0105
+      type: 'test'
+      ...
+    # Subtest: migration child nonzero is retained and not retried
+    ok 17 - migration child nonzero is retained and not retried
+      ---
+      duration_ms: 56498.2285
+      type: 'test'
+      ...
+    # Subtest: migration child malformed is retained and not retried
+    ok 18 - migration child malformed is retained and not retried
+      ---
+      duration_ms: 58132.4521
+      type: 'test'
+      ...
+    # Subtest: migration child timeout is retained and not retried
+    ok 19 - migration child timeout is retained and not retried
+      ---
+      duration_ms: 54178.6314
+      type: 'test'
+      ...
+    # Subtest: old admission cannot expire post-mutation read-only verification
+    ok 20 - old admission cannot expire post-mutation read-only verification
+      ---
+      duration_ms: 51997.4662
+      type: 'test'
+      ...
+    1..20
+ok 1 - v2 real wrapper lifecycle, populated state, admission, faults and recovery
+  ---
+  duration_ms: 514338.7302
+  type: 'test'
+  ...
+1..1
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 514442.0924
+exit 0

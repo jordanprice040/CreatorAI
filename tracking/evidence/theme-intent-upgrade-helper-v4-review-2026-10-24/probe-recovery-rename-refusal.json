@@ -1,0 +1,52 @@
+{
+  "format": "theme-intent-v4-review-rename-probe/1",
+  "root": "C:\\dev\\creator_agent\\.verification\\theme-v4-review-rename-1792841969754",
+  "port": 55457,
+  "steps": {
+    "forward_install": {
+      "schema29_verified": true
+    },
+    "recovery_1": {
+      "exit_code": 1,
+      "eperm_rename_at_installer_step": true,
+      "stack_line_735": true,
+      "wrapper_message": true,
+      "listening_after": false,
+      "lease_after": false,
+      "left_owned_lock_marker": false,
+      "recovery_intent": true,
+      "recovery_installer_receipt": true,
+      "recovery_result": false,
+      "config_unchanged": true,
+      "secrets_unchanged": true,
+      "quarantine_is_target_program": true,
+      "replacement_present": true,
+      "generated_absent": true,
+      "install_dir_is_predecessor_installer_output": true,
+      "orphan_restore_databases": 1
+    },
+    "recovery_2": {
+      "exit_code": 0,
+      "stderr_tail": "",
+      "restored_entities": 1,
+      "restored_schema": 28,
+      "schema": 28,
+      "program_verified": true,
+      "config_points_to_restored": true,
+      "install_dir_is_predecessor": true,
+      "secrets_restored": true,
+      "listening_after": false,
+      "lease_after": false,
+      "leftover_siblings": [
+        "program.theme-intent-failed-2c88de4eed9b",
+        "program.theme-intent-failed-6b2a07fd5aec",
+        "program.theme-intent-installer-6b2a07fd5aec",
+        "program.theme-intent-restored-2c88de4eed9b"
+      ]
+    }
+  },
+  "error": null,
+  "listening_after": false,
+  "removing_root": true,
+  "root_removed": true
+}

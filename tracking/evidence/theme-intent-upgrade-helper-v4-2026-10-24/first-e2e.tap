@@ -1,0 +1,288 @@
+TAP version 13
+# Subtest: v4 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: native layout fails pre-secret with the credential unavailable
+    not ok 1 - native layout fails pre-secret with the credential unavailable
+      ---
+      duration_ms: 2090.6455
+      type: 'test'
+      location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v4.test.mjs:407:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /postgres.*data/s. Input:
+        
+        'node:internal/fs/promises:641\r\n' +
+          '  return new FileHandle(await PromisePrototypeThen(\r\n' +
+          '                        ^\r\n' +
+          '\r\n' +
+          "Error: ENOENT: no such file or directory, open 'C:\\dev\\creator_agent\\.verification\\theme-helper-v4-1792839654440\\home\\studio.json'\r\n" +
+          '    at async open (node:internal/fs/promises:641:25)\r\n' +
+          '    at async readFile (node:internal/fs/promises:1245:14)\r\n' +
+          '    at async read (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4-core.mjs:35:45)\r\n' +
+          '    at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:86:13 {\r\n' +
+          '  errno: -4058,\r\n' +
+          "  code: 'ENOENT',\r\n" +
+          "  syscall: 'open',\r\n" +
+          "  path: 'C:\\\\dev\\\\creator_agent\\\\.verification\\\\theme-helper-v4-1792839654440\\\\home\\\\studio.json'\r\n" +
+          '}\r\n' +
+          '\r\n' +
+          'Node.js v22.21.0\r\n' +
+          'Pre-secret review/identity/path/decision checks failed; no credential read.\r\n' +
+          'At C:\\dev\\creator_agent\\scripts\\upgrade-theme-intent-v4.ps1:36 char:26\r\n' +
+          "+ ... CODE -ne 0){throw 'Pre-secret review/identity/path/decision checks fa ...\r\n" +
+          '+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n' +
+          '    + CategoryInfo          : OperationStopped: (Pre-secret revi...redential read.:String) [], RuntimeException\r\n' +
+          '    + FullyQualifiedErrorId : Pre-secret review/identity/path/decision checks failed; no credential read.\r\n' +
+          ' \r\n'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual: |-
+        node:internal/fs/promises:641
+          return new FileHandle(await PromisePrototypeThen(
+                                ^
+        
+        Error: ENOENT: no such file or directory, open 'C:\dev\creator_agent\.verification\theme-helper-v4-1792839654440\home\studio.json'
+            at async open (node:internal/fs/promises:641:25)
+            at async readFile (node:internal/fs/promises:1245:14)
+            at async read (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4-core.mjs:35:45)
+            at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:86:13 {
+          errno: -4058,
+          code: 'ENOENT',
+          syscall: 'open',
+          path: 'C:\\dev\\creator_agent\\.verification\\theme-helper-v4-1792839654440\\home\\studio.json'
+        }
+        
+        Node.js v22.21.0
+        Pre-secret review/identity/path/decision checks failed; no credential read.
+        At C:\dev\creator_agent\scripts\upgrade-theme-intent-v4.ps1:36 char:26
+        + ... CODE -ne 0){throw 'Pre-secret review/identity/path/decision checks fa ...
+        +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            + CategoryInfo          : OperationStopped: (Pre-secret revi...redential read.:String) [], RuntimeException
+            + FullyQualifiedErrorId : Pre-secret review/identity/path/decision checks failed; no credential read.
+         
+        
+      operator: 'match'
+      stack: |-
+        TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v4.test.mjs:422:20)
+        process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v4.test.mjs:407:7)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 2 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 1479.3176
+      type: 'test'
+      ...
+    # Subtest: junction ancestors and operational reuse of fixture review are rejected
+    ok 3 - junction ancestors and operational reuse of fixture review are rejected
+      ---
+      duration_ms: 1049.696
+      type: 'test'
+      ...
+    # Subtest: running qualifications block the real before phase
+    ok 4 - running qualifications block the real before phase
+      ---
+      duration_ms: 6902.2497
+      type: 'test'
+      ...
+    # Subtest: a pre-existing managed cluster is not silently adopted or stopped
+    ok 5 - a pre-existing managed cluster is not silently adopted or stopped
+      ---
+      duration_ms: 4578.3409
+      type: 'test'
+      ...
+    # Subtest: partial before death: before-snapshot can release without prepared data or credentials
+    ok 6 - partial before death: before-snapshot can release without prepared data or credentials
+      ---
+      duration_ms: 21740.1552
+      type: 'test'
+      ...
+    # Subtest: partial before death: before-protected-copy can release without prepared data or credentials
+    ok 7 - partial before death: before-protected-copy can release without prepared data or credentials
+      ---
+      duration_ms: 23176.9414
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 8 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 7231.2092
+      type: 'test'
+      ...
+    # Subtest: reusing a session in another evidence directory cannot overwrite its backup
+    ok 9 - reusing a session in another evidence directory cannot overwrite its backup
+      ---
+      duration_ms: 2017.3967
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 10 - expired admission fails before mutation
+      ---
+      duration_ms: 2095.3964
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 11 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 16698.5244
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 12 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 11745.6106
+      type: 'test'
+      ...
+    # Subtest: death during after resumes schema29 forward without rollback or repeated effects
+    ok 13 - death during after resumes schema29 forward without rollback or repeated effects
+      ---
+      duration_ms: 12208.5196
+      type: 'test'
+      ...
+    # Subtest: per-studio lock rejects concurrent actual wrapper runs
+    ok 14 - per-studio lock rejects concurrent actual wrapper runs
+      ---
+      duration_ms: 9729.4148
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 15 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 21024.5542
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 16 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 36098.5757
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 17 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 34288.054
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 18 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 34002.212
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 19 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 35381.6383
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-intent has explicit recovery
+    ok 20 - crash-window hard-crash-after-migration-intent has explicit recovery
+      ---
+      duration_ms: 31554.7559
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-result has explicit recovery
+    ok 21 - crash-window hard-crash-after-migration-result has explicit recovery
+      ---
+      duration_ms: 44155.7652
+      type: 'test'
+      ...
+    # Subtest: migration child nonzero is retained and not retried
+    ok 22 - migration child nonzero is retained and not retried
+      ---
+      duration_ms: 36055.3784
+      type: 'test'
+      ...
+    # Subtest: migration child malformed is retained and not retried
+    ok 23 - migration child malformed is retained and not retried
+      ---
+      duration_ms: 41811.9111
+      type: 'test'
+      ...
+    # Subtest: migration child timeout is retained and not retried
+    ok 24 - migration child timeout is retained and not retried
+      ---
+      duration_ms: 36919.6565
+      type: 'test'
+      ...
+    # Subtest: old admission cannot expire post-mutation read-only verification
+    not ok 25 - old admission cannot expire post-mutation read-only verification
+      ---
+      duration_ms: 45657.0002
+      type: 'test'
+      location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v4.test.mjs:847:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        node:internal/fs/promises:786
+          return await PromisePrototypeThen(
+                 ^
+        
+        Error: EPERM: operation not permitted, rename 'C:\dev\creator_agent\.verification\theme-helper-v4-1792839654440\program' -> 'C:\dev\creator_agent\.verification\theme-helper-v4-1792839654440\program.theme-intent-installer-ea96a444cd5a'
+            at async rename (node:internal/fs/promises:786:10)
+            at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:735:13
+            at async managed (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4-core.mjs:437:12)
+            at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:463:5
+            at async studioGuard (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4-core.mjs:675:12)
+            at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:224:1 {
+          errno: -4048,
+          code: 'EPERM',
+          syscall: 'rename',
+          path: 'C:\\dev\\creator_agent\\.verification\\theme-helper-v4-1792839654440\\program',
+          dest: 'C:\\dev\\creator_agent\\.verification\\theme-helper-v4-1792839654440\\program.theme-intent-installer-ea96a444cd5a'
+        }
+        
+        Node.js v22.21.0
+        Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.
+        At C:\dev\creator_agent\scripts\upgrade-theme-intent-v4.ps1:54 char:26
+        + ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...
+        +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException
+            + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.
+         
+        
+        
+        1 !== 0
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 0
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        async rename (node:internal/fs/promises:786:10)
+        async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:735:13
+        async managed (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4-core.mjs:437:12)
+        async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:463:5
+        async studioGuard (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4-core.mjs:675:12)
+        async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v4.mjs:224:1 {
+        recover (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v4.test.mjs:324:10)
+        process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v4.test.mjs:868:11)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v4.test.mjs:847:7)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    1..25
+not ok 1 - v4 real wrapper lifecycle, populated state, admission, faults and recovery
+  ---
+  duration_ms: 528626.4124
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v4.test.mjs:333:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 26
+# suites 0
+# pass 23
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 528709.5848

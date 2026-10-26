@@ -1,0 +1,19 @@
+{
+  "format": "v5-owner-capacity-amendment/1",
+  "owner_authorization": "I approve you adding more slots to do the testing",
+  "original_execution_plan_hash": "68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d",
+  "permitted_delta": {
+    "old_daily_cap": 40,
+    "new_daily_cap": 42
+  },
+  "new_settings_hash": "8f453458ee32682d7713aa1d5384c8a0863c90a61e1be80bd9d0681c5c7f3fdc",
+  "restore_daily_cap": 40,
+  "max_new_requests": 18,
+  "retries": 0,
+  "timeout_ms": 120000,
+  "max_wall_ms": 2160000,
+  "new_metered_spend_nano_usd": "0",
+  "credits_unchanged": "confirmed_off",
+  "runner_sha256": "57bcd0d8a6039c6c2ead21078457714b54cafb0ec2db3b16d5299c0e23eae3cd",
+  "note": "Only daily capacity changes. Same installed candidate/frozen cases/scorer/failure stop. Restore40 after bounded attempt; no change to permissions, credits or provider quota."
+}

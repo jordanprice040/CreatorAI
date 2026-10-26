@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-20",
+  "source_commit": "590aba3c3e5a0bd6710f2162d41f3cec9f39d807",
+  "source_dirty": true,
+  "reproductions": {
+    "saved_connection_ui_schema": "failed: credits.confirmed_at Invalid ISO datetime; passes after database adapter normalization",
+    "installed_minimal_path_dpapi": "failed: spawn powershell.exe ENOENT; passes after using absolute Windows PowerShell path"
+  },
+  "verification": {
+    "connection_api_cli_tests": { "passed": 18, "failed": 0, "skipped": 0 },
+    "native_dpapi_test": { "passed": 1, "failed": 0, "skipped": 0 },
+    "intercepted_browser_checks": {
+      "passed": 5,
+      "operational_api_used": false
+    },
+    "typescript": "passed",
+    "targeted_source_format": "passed",
+    "diff_check": "passed",
+    "studio_native_installer_build": "passed",
+    "installer_exit": 0,
+    "installed_bundle_matches_staged": true,
+    "native_restart_after_successful_signin": "not repeated",
+    "separate_process_saved_credential_read": "passed; no credentials printed"
+  },
+  "bundle_manifest_sha256": "97720440cd44a24f5f95d371706257742d24ea3e6620607f2e3691d3f01a13eb",
+  "installer_sha256": "6a0c21679311da98cb5d29bc973874f5dffa6f9bb6a56165e1455e0674758b7c",
+  "live_observation": {
+    "sign_in_state": "signed_in",
+    "attempt_state": "completed",
+    "finished_at": "2026-10-20T12:28:39.401Z",
+    "plan_usage_granted": true,
+    "owner_confirmed_signed_in": true,
+    "model_requests_last_24h": 0,
+    "old_duplicate_registrations_modified": false,
+    "model_access_verified": false
+  },
+  "limitations": [
+    "Failed earlier registrations retained no local client IDs or tokens; their ChatGPT settings entries cannot be revoked through the saved new connection.",
+    "Vite retains existing large-chunk warning.",
+    "Initial sandbox network and rename failures were environmental; relevant checks passed outside those restrictions."
+  ]
+}

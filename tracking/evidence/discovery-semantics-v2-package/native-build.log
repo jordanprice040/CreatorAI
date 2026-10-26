@@ -1,0 +1,9 @@
+        Info Looking up installed tauri packages to check mismatched versions...
+   Compiling creator-desktop v0.1.0 (C:\dev\creator_agent\apps\desktop\src-tauri)
+    Finished `release` profile [optimized] target(s) in 48.43s
+       Built application at: C:\dev\creator_agent\apps\desktop\src-tauri\target\release\creator-desktop.exe
+        Info Patching C:\dev\creator_agent\apps\desktop\src-tauri\target\release\creator-desktop.exe with bundle type information: nsis
+        Info Verifying NSIS package
+ Downloading https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip
+failed to bundle project: `io: No such host is known. (os error 11001)`
+       Error failed to bundle project: `io: No such host is known. (os error 11001)`

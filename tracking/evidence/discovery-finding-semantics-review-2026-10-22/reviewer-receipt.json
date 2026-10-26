@@ -1,0 +1,87 @@
+{
+  "format": "finding-semantics-separate-model-review/1",
+  "created_at": "2026-10-22T17:03:21.557Z",
+  "reviewer": "/root/separate_discovery_review",
+  "reviewer_type": "model",
+  "prior_implementation_involvement": false,
+  "prior_review_involvement": "Earlier packet/binding and exact-output reviews; not blinded or human rating",
+  "status": "supported_bounded_local_implementation",
+  "role_version": "r02-discovery/1.4",
+  "prompt_hash": "c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8",
+  "artifact_sha256": {
+    "docs/DISCOVERY_FINDING_SEMANTICS_REVIEW_2026-10-22.md": "87245476e6bda6ac4f1ce8354804906c2f67d426855280820eac01857b19c923",
+    "docs/DISCOVERY_FINDING_SEMANTICS_PROPOSAL_2026-10-22.md": "f868b09c6ad2850185b330eeabbd97eb9a471b7466a0b811b1ac9f8953ecf4d0",
+    "docs/DISCOVERY_FINDING_SEMANTICS_IMPLEMENTATION_2026-10-22.md": "e9539b03ec0a77a910ec7de6fa8320eb9cbf85a3357efdda8b62f7ddcbe4d713",
+    "packages/domain/src/discovery.ts": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+    "packages/domain/dist/discovery.js": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+    "packages/domain/src/routing.ts": "da5c96824fad9c9f41a68922cfe79686ae021354843e6d7e4f75577b8097f18b",
+    "packages/domain/dist/routing.js": "40854c6ab3d55bebd4604362fa088e8f625484eaef4f471c7909098cc317e1e8",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "packages/contracts/dist/discovery.js": "41c90f7f0ccb5bcc1440710c3435f13c3a353edf7cc8366efdf80e83a9ee92af",
+    "agents/ROLE_PROMPTS.md": "1fe5be5bb3a14bd21db5e27aef3b59b6bc8bd18f0948425ed06f4a9142c9c84f",
+    "tests/discovery-finding-semantics.test.mjs": "990402c3a42ddf6dff80c01cd2f304ef65c869d8aa6c40d2f2c1b5c19accb1f6",
+    "tests/src/discovery-finding-semantics.test.ts": "bfa1068736cdcfbc67d976256ba6b90f56861dced20b4009ca98bfecf0f1aef9",
+    "tests/dist/discovery-finding-semantics.test.js": "b525e9af06e6fb22544596d9247c273d3875e302331120be565477ad645c40eb",
+    "tests/src/discovery-identity-assertions.test.ts": "9d469d27d5943726677c255aca3054fc9e42d803fe99428a343ac8c4d8417aaa",
+    "tests/dist/discovery-identity-assertions.test.js": "c0ae7098228e37fa5bfa0d3c57435bff7dc4795d2f085413c16a3208fde62d1f",
+    "tests/src/discovery-output-contract.test.ts": "a5478a6ca3496bcf3daf703b4be6f9156ac8ffcc92264edef7b0bdb344ac290b",
+    "tests/dist/discovery-output-contract.test.js": "794157bb8d433b913147ba8855bcb009177b955257cf74742445c75f9dd1bd67",
+    "tests/src/discovery-contract-fixtures.ts": "9c9ffd6edf11729afe48c9e77c0fb538d3c23af289565478063052af68b9dcad",
+    "package.json": "7649ee460b4d59445945afbc1fe41ea34b1063213dc21a5a7bbdb1ddffd64db9",
+    "tests/tsconfig.json": "2f591e6e0d3cf62e85170ab0cadbeddb30f5aa5709a80d0515f8471167dcaca3",
+    "tracking/evidence/discovery-followup-v2/execution-plan.json": "96f9c233f30f77d1610fccf50cd4d609804935fc19b2ecd6de7f03b23bb23ca0",
+    "tracking/evidence/discovery-followup-v2/live-result.json": "ec58ddf108c2dda24d55a6d7a1af39f3af4ae59c0437394a761c38e3b07efac1",
+    "tracking/evidence/discovery-followup-v1/freeze.json": "0a7066de0fc1f3917693fbca9a2702e7ca1b8a74651922e1e972859aec218549",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/result.json": "b015cc486fe5def1b812d1ea3417a5068c15133bee51f7cb3ede64fbdccca999",
+    "tracking/evidence/discovery-finding-semantics-review-2026-10-22/tests-review.tap": "b4bfacbe277d5eded79ccb9f22e9aee853cf96ef5c10a162d512f07f9a19854b",
+    "tracking/evidence/discovery-finding-semantics-review-2026-10-22/tests-default-entry-review.tap": "7c14200dd955bf8e363d7a9013e413f156ca822b99284dfbe7a6a8f74b42c44e",
+    "tracking/evidence/discovery-finding-semantics-review-2026-10-22/historical-guard.txt": "682d0f42c2733904332ebf6a440c3a03f6c52b2b9e00d5a480051edacaa23800",
+    "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json": "9a667ca547a2bdcc77eb600de6356c6452e8a58db4e20ee0158f400a529e0863",
+    "config/connections/benchmarks/discovery-followup-v1/scoring.json": "979fddb67ef0873951068efa302453549af35aee14a865ae86b24a153e62a369",
+    "tracking/evidence/discovery-followup-v2/raw-results.json": "eb5fdd2936a0bad069fead99f09329ded691fb032079a85fe84e0b9f8f5f1c02",
+    "tracking/evidence/discovery-followup-v2/stopped.json": "7d9abacc4adfa628833e4af8d1dd6f0963b133a1a5aa7e0642a7bba1680b09e3",
+    "tracking/evidence/discovery-followup-v2/run.lock": "b0c9bd5f93ac9d162f4fd51084805e6e17e584fdcff761a07b3bf5def054c5af",
+    "tracking/evidence/discovery-followup-v2/failed-case-diagnosis.json": "846793de5fd33041ea9c503df1c7fbabbb1bfa717449632ef1bcefbf4995c5a5",
+    "tracking/evidence/discovery-followup-v2/owner-execution-decision.json": "620f53f4d5b8589f2ec58bc7162a18c40a4c95262c8916cbdc43bf0008b5cc93",
+    "tracking/evidence/discovery-followup-v2/owner-refresh-decision.json": "b276a3a3a96541fe11bfb3852a5b974804a6a32435a596e8c38cff9788fa37f3",
+    "tracking/evidence/followup-v2-availability-refresh/result.json": "8fbeff97536390551496ff105c738c4159766bb9f64a7c84eb17983f4ee0b3af",
+    "tracking/evidence/discovery-followup-v2/authenticated-readiness-041e0c94-e2b4-4f2a-b44d-783a6dda264c.json": "feeec92b6784dc72a07c51c0800ed1a7ac49ddbf7aea978dc2e502722fe73e68",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/tests-final.tap": "6cab89b5f0cafc2cea2d724fd9c4a20825f0f20075f1d3176c2c5905a530da18",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/historical-guard.txt": "682d0f42c2733904332ebf6a440c3a03f6c52b2b9e00d5a480051edacaa23800"
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "P2",
+      "summary": "New semantic calibration omitted by normal compiled test entry",
+      "resolved": true,
+      "resolution": "Added source/compiled wrapper; independently ran default compiled entry plus existing suites23passed0skipped"
+    }
+  ],
+  "commands": [
+    {
+      "command": "node --test tests/discovery-finding-semantics.test.mjs tests/dist/discovery-identity-assertions.test.js tests/dist/discovery-output-contract.test.js",
+      "result": "23passed0failed0skipped"
+    },
+    {
+      "command": "node --test tests/dist/discovery-finding-semantics.test.js tests/dist/discovery-identity-assertions.test.js tests/dist/discovery-output-contract.test.js",
+      "result": "23passed0failed0skipped"
+    },
+    {
+      "command": "node scripts/qualify-discovery-followup-v2.mjs --check",
+      "result": "Expected rejection at frozen versus current prompt hash; no calls"
+    },
+    {
+      "command": "Inline Node exact-role/hash and old plan schema/selector/history/implementation-receipt hash assertions",
+      "result": "passed;8 historical artifacts and9 implementation bindings"
+    }
+  ],
+  "full_default_suite_run": false,
+  "build_independently_rerun": false,
+  "model_behavior_validated": false,
+  "human_acceptance": false,
+  "provider_calls": 0,
+  "network_access": false,
+  "studio_or_credentials_access": false,
+  "source_or_frozen_mutations": false
+}

@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-24T12:35:23.6131403Z",
+  "pg_ctl_status": 3,
+  "listener_count": 0,
+  "lease_count": 0,
+  "desktop_or_runtime_worker_process_count": 0,
+  "passed": true
+}

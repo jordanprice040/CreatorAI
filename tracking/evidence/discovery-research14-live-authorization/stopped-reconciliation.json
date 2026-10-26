@@ -1,0 +1,21 @@
+{
+  "format": "research14-pre-dispatch-stop/1",
+  "verified_at": "2026-10-23T03:27:03.420Z",
+  "authorization_plan_hash": "581dd0e6e30b3626a80a0657a6e169d5e11b9e6361a3c2c721a04919db7e8286",
+  "status": "stopped_local_api_unavailable_before_dispatch",
+  "local_api_error": "ECONNREFUSED 127.0.0.1:4310",
+  "provider_endpoint_attempted": false,
+  "provider_requests_dispatched": 0,
+  "grant_created": false,
+  "suite_started": false,
+  "retry": false,
+  "locks_preserved": true,
+  "verification": "Local stop receipt and absence of grant/dispatch/suite artifacts; no database reconciliation while service unavailable",
+  "artifact_sha256": {
+    "tracking/evidence/discovery-research14-live-authorization/owner-decision.json": "9a1e7247585b70aea08d4e39b7b07b493d9ac1fdc716b5d70199e3a179dacc72",
+    "tracking/evidence/discovery-research14-live-authorization/operation.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tracking/evidence/discovery-research14-live-authorization/availability/operation.lock": "ed3c7ab01175ddc27116c82964f7bb8271794cd70d1649da5a8d12b26cd43486",
+    "tracking/evidence/discovery-research14-live-authorization/availability/stopped.json": "8e0c233ed1f13a55e6052b719575ac820dbc91d84953a4507651abd503e1fcb3"
+  },
+  "next_eligible": "Restore local application readiness without provider calls; then prepare a new reviewed authorization rather than replaying this locked plan"
+}

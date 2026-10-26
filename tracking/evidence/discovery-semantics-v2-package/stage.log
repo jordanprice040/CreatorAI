@@ -1,0 +1,10 @@
+[bundle] compiling TypeScript
+[bundle] type-checking and building the production UI
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[bundle] bundling the studio service
+[bundle] staging runtime, worker bridge, configuration and UI
+[bundle] staged 67 files from 590aba3c3e5a (uncommitted changes) with Node v22.21.0

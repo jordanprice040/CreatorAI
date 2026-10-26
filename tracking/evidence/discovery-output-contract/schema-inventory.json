@@ -1,0 +1,823 @@
+[
+  {
+    "kind": "locate",
+    "path": "$",
+    "type": "object",
+    "required": [
+      "problem_statement",
+      "affected_users",
+      "observable_problem",
+      "urgency",
+      "workarounds",
+      "alternatives",
+      "software_hypothesis",
+      "cross_field",
+      "cross_field_absent_reason",
+      "evidence_strength",
+      "gaps"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "locate",
+    "path": "$.problem_statement",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "locate",
+    "path": "$.affected_users",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.observable_problem",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.urgency",
+    "type": "object",
+    "required": [
+      "frequency",
+      "severity",
+      "claim_refs"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "locate",
+    "path": "$.urgency.frequency",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.urgency.severity",
+    "type": "string",
+    "enum": [
+      "low",
+      "medium",
+      "high",
+      "unknown"
+    ]
+  },
+  {
+    "kind": "locate",
+    "path": "$.urgency.claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.urgency.claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "locate",
+    "path": "$.workarounds",
+    "maxItems": 8,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.workarounds[]",
+    "type": "object",
+    "required": [
+      "description",
+      "claim_refs"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "locate",
+    "path": "$.workarounds[].description",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.workarounds[].claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.workarounds[].claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "locate",
+    "path": "$.alternatives",
+    "maxItems": 8,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.alternatives[]",
+    "type": "object",
+    "required": [
+      "description",
+      "claim_refs"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "locate",
+    "path": "$.alternatives[].description",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.alternatives[].claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.alternatives[].claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis"
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis|object",
+    "type": "object",
+    "required": [
+      "hypothesis",
+      "measurable_outcome",
+      "claim_refs"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis|object.hypothesis",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis|object.measurable_outcome",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis|object.claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis|object.claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "locate",
+    "path": "$.software_hypothesis|null",
+    "type": "null"
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field"
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object",
+    "type": "object",
+    "required": [
+      "from_field",
+      "to_field",
+      "transferred_mechanism",
+      "why_it_transfers",
+      "claim_refs"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object.from_field",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object.to_field",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object.transferred_mechanism",
+    "type": "string",
+    "minLength": 30,
+    "maxLength": 800
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object.why_it_transfers",
+    "type": "string",
+    "minLength": 30,
+    "maxLength": 800
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object.claim_refs",
+    "minItems": 1,
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|object.claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field|null",
+    "type": "null"
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field_absent_reason"
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field_absent_reason|string",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "locate",
+    "path": "$.cross_field_absent_reason|null",
+    "type": "null"
+  },
+  {
+    "kind": "locate",
+    "path": "$.evidence_strength",
+    "type": "string",
+    "enum": [
+      "well_supported",
+      "exploratory",
+      "insufficient"
+    ]
+  },
+  {
+    "kind": "locate",
+    "path": "$.gaps",
+    "maxItems": 8,
+    "type": "array"
+  },
+  {
+    "kind": "locate",
+    "path": "$.gaps[]",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$",
+    "type": "object",
+    "required": [
+      "perspective",
+      "title",
+      "mechanism",
+      "intended_users",
+      "smallest_version",
+      "measurable_outcome",
+      "feasibility",
+      "maintenance",
+      "software_warranted",
+      "recommendation",
+      "claim_refs",
+      "assumptions",
+      "novelty",
+      "response_to_findings"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "propose",
+    "path": "$.perspective",
+    "type": "string",
+    "enum": [
+      "software",
+      "existing_tool",
+      "process_change",
+      "human_led",
+      "hybrid"
+    ]
+  },
+  {
+    "kind": "propose",
+    "path": "$.title",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 200
+  },
+  {
+    "kind": "propose",
+    "path": "$.mechanism",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "propose",
+    "path": "$.intended_users",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$.smallest_version",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "propose",
+    "path": "$.measurable_outcome",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$.feasibility",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "propose",
+    "path": "$.maintenance",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$.software_warranted",
+    "type": "object",
+    "required": [
+      "verdict",
+      "reason"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "propose",
+    "path": "$.software_warranted.verdict",
+    "type": "string",
+    "enum": [
+      "yes",
+      "no",
+      "unclear"
+    ]
+  },
+  {
+    "kind": "propose",
+    "path": "$.software_warranted.reason",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "propose",
+    "path": "$.recommendation",
+    "type": "string",
+    "enum": [
+      "recommend",
+      "consider",
+      "not_recommended"
+    ]
+  },
+  {
+    "kind": "propose",
+    "path": "$.claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "propose",
+    "path": "$.claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "propose",
+    "path": "$.assumptions",
+    "maxItems": 6,
+    "type": "array"
+  },
+  {
+    "kind": "propose",
+    "path": "$.assumptions[]",
+    "type": "object",
+    "required": [
+      "statement",
+      "would_change"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "propose",
+    "path": "$.assumptions[].statement",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$.assumptions[].would_change",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$.novelty"
+  },
+  {
+    "kind": "propose",
+    "path": "$.novelty|string",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "propose",
+    "path": "$.novelty|null",
+    "type": "null"
+  },
+  {
+    "kind": "propose",
+    "path": "$.response_to_findings"
+  },
+  {
+    "kind": "propose",
+    "path": "$.response_to_findings|string",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "propose",
+    "path": "$.response_to_findings|null",
+    "type": "null"
+  },
+  {
+    "kind": "revise",
+    "path": "$",
+    "type": "object",
+    "required": [
+      "perspective",
+      "title",
+      "mechanism",
+      "intended_users",
+      "smallest_version",
+      "measurable_outcome",
+      "feasibility",
+      "maintenance",
+      "software_warranted",
+      "recommendation",
+      "claim_refs",
+      "assumptions",
+      "novelty",
+      "response_to_findings"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "revise",
+    "path": "$.perspective",
+    "type": "string",
+    "enum": [
+      "software",
+      "existing_tool",
+      "process_change",
+      "human_led",
+      "hybrid"
+    ]
+  },
+  {
+    "kind": "revise",
+    "path": "$.title",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 200
+  },
+  {
+    "kind": "revise",
+    "path": "$.mechanism",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "revise",
+    "path": "$.intended_users",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "revise",
+    "path": "$.smallest_version",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "revise",
+    "path": "$.measurable_outcome",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "revise",
+    "path": "$.feasibility",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "revise",
+    "path": "$.maintenance",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "revise",
+    "path": "$.software_warranted",
+    "type": "object",
+    "required": [
+      "verdict",
+      "reason"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "revise",
+    "path": "$.software_warranted.verdict",
+    "type": "string",
+    "enum": [
+      "yes",
+      "no",
+      "unclear"
+    ]
+  },
+  {
+    "kind": "revise",
+    "path": "$.software_warranted.reason",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "revise",
+    "path": "$.recommendation",
+    "type": "string",
+    "enum": [
+      "recommend",
+      "consider",
+      "not_recommended"
+    ]
+  },
+  {
+    "kind": "revise",
+    "path": "$.claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "revise",
+    "path": "$.claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "revise",
+    "path": "$.assumptions",
+    "maxItems": 6,
+    "type": "array"
+  },
+  {
+    "kind": "revise",
+    "path": "$.assumptions[]",
+    "type": "object",
+    "required": [
+      "statement",
+      "would_change"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "revise",
+    "path": "$.assumptions[].statement",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "revise",
+    "path": "$.assumptions[].would_change",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "revise",
+    "path": "$.novelty"
+  },
+  {
+    "kind": "revise",
+    "path": "$.novelty|string",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "revise",
+    "path": "$.novelty|null",
+    "type": "null"
+  },
+  {
+    "kind": "revise",
+    "path": "$.response_to_findings"
+  },
+  {
+    "kind": "revise",
+    "path": "$.response_to_findings|string",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "revise",
+    "path": "$.response_to_findings|null",
+    "type": "null"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$",
+    "type": "object",
+    "required": [
+      "summary",
+      "reviews"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.summary",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews",
+    "minItems": 1,
+    "maxItems": 5,
+    "type": "array"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[]",
+    "type": "object",
+    "required": [
+      "proposal",
+      "verdict",
+      "findings",
+      "cheaper_test"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].proposal",
+    "type": "string",
+    "pattern": "^P[1-5]$"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].verdict",
+    "type": "string",
+    "enum": [
+      "stands",
+      "revise",
+      "reject"
+    ]
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings",
+    "maxItems": 8,
+    "type": "array"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[]",
+    "type": "object",
+    "required": [
+      "type",
+      "detail",
+      "claim_refs",
+      "catalog_ref"
+    ],
+    "additionalProperties": false
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].type",
+    "type": "string",
+    "enum": [
+      "counterevidence",
+      "duplicate",
+      "infeasible_assumption",
+      "novelty_overclaim",
+      "weak_evidence",
+      "cheaper_test",
+      "other"
+    ]
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].detail",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1200
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].claim_refs",
+    "maxItems": 30,
+    "type": "array"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].claim_refs[]",
+    "type": "string",
+    "pattern": "^C[1-9][0-9]?$"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].catalog_ref"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].catalog_ref|string",
+    "type": "string",
+    "pattern": "^K[1-9][0-9]?$"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].findings[].catalog_ref|null",
+    "type": "null"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].cheaper_test"
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].cheaper_test|string",
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 300
+  },
+  {
+    "kind": "skeptic",
+    "path": "$.reviews[].cheaper_test|null",
+    "type": "null"
+  }
+]

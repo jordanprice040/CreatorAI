@@ -1,0 +1,172 @@
+{
+ "format": "theme-intent-cw01-implementation-design-v1.1-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the CW-01 design or v1.1 note (Codex). The frozen design review whose M1/M2/L1-L4 this note repairs was by another Claude session (same model family); not blinded. No external review service.",
+ "reviewed_note": {
+  "path": "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md",
+  "sha256": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81"
+ },
+ "reviewed_repair_receipt_sha256": "ce15033fe705e15161920e6fb6ab8444b41085bed72c44ec57a309a409ebaa9f",
+ "reviewed_input_snapshot_sha256": "ba937675f5f47d085a1b6ebd0b292c5cda35d4f3fc989f8cdb13eb9529852c99",
+ "frozen_design_sha256": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+ "frozen_review_sha256": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196",
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md",
+  "sha256": "d762803241fe4d85a39e9645019121c0c8683a34b99dfb511b19813265c8de58"
+ },
+ "verdicts": {
+  "design_support": "supported_at_design_scope_with_three_lows",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked"
+ },
+ "prior_findings_disposition": {
+  "M1": "resolved",
+  "M2": "resolved_in_substance_R2_R3_tighten",
+  "L1": "partly_resolved_R1",
+  "L2": "resolved",
+  "L3": "resolved",
+  "L4": "resolved",
+  "I-a_to_I-f": "supported"
+ },
+ "findings": [
+  {
+   "id": "R1",
+   "severity": "low",
+   "locator": "note L1",
+   "summary": "pg_ctl's shell command uses /C without /D (pg_ctl.c:556-561) and its postgres -V probe runs via pgwin32_popen/_popen (pg_ctl.c:952; exec.c:330,360; port.h:365-368; system.c:108); Microsoft cmd docs: without /d HKLM/HKCU Command Processor AutoRun executes first; can alter postmaster environment and spawn children; not fail-closed",
+   "repair": "Detect-only existence check of both AutoRun values with its own grant; present/unavailable blocks; no value text emitted; never modify; pin System32 cmd.exe or also check Wow6432Node"
+  },
+  {
+   "id": "R2",
+   "severity": "low",
+   "locator": "note M2 retained-handle/creation-ordering text",
+   "summary": "Microsoft documents PID validity only until termination, not non-reuse while a handle is open; PROCESSENTRY32W parent is a PID; lower-bound ordering alone does not exclude post-exit PID reuse; version-probe shell makes downward search ambiguous",
+   "repair": "GetProcessTimes containment on retained handles (shell created within pg_ctl lifetime; postmaster created after shell while shell running) and upward walk from pidfile PID"
+  },
+  {
+   "id": "R3",
+   "severity": "low",
+   "locator": "note M2 SQL confirmation",
+   "summary": "SQL session tied to bound postmaster only by time intervals and data-directory lock; Windows PostgreSQL sets no address-reuse option (pqcomm.c:550-582) so port exclusivity is not a basis",
+   "repair": "Mandatory direct link: pg_backend_pid() parent equals bound postmaster under R2 predicate, or listener owner PID equals bound postmaster; times supporting only"
+  }
+ ],
+ "informational": [
+  "I1 QueryInformationJobObject(NULL) reports only the immediate job when nested; start only outside any job unless all enclosing policies established",
+  "I2 pidfile line 7 empty on Windows (pidfile.h; win32_shmem.c none); line 2 spelling under N4 without normalization",
+  "I3 PgStartTime set once (postmaster.c:1372); crash-restart detection relies on same-connection B failing",
+  "I4 session/local preload settings are per-session evidence",
+  "I5 Toolhelp reads all process names in memory; upward handle walk minimizes unrelated reads"
+ ],
+ "binding_checks": {
+  "note_and_snapshot_match_receipt": true,
+  "snapshot_entries": 348,
+  "snapshot_mismatches": [],
+  "snapshot_missing": [],
+  "frozen_design_unchanged": true,
+  "frozen_review_unchanged": true,
+  "note_local_links_resolve": 4
+ },
+ "official_sources_retrieved_2026_10_26": {
+  "sha256": {
+   "REL_18_6/src/bin/pg_ctl/pg_ctl.c": "41cfc7187149b0c810524d644e80eb5c1ca41ab86fc99bca8833118ef0a5fea0",
+   "REL_18_6/src/include/utils/pidfile.h": "2c3aef4411087700eefece926f66f863f8a31ef05f71c73da7e038778e9420ce",
+   "REL_18_6/src/backend/postmaster/postmaster.c": "467a6d6deb8f31d1fa599b854511207923a252f02b7d5cbcc878caece577eefb",
+   "REL_18_6/src/backend/utils/init/miscinit.c": "54bdb859c143a6c70d86067ccf2e124f59aa0852e5705bb653652e41a60af39a",
+   "REL_18_6/src/backend/utils/adt/network.c": "dd2538756b6fd1c620e674bb1f57e59f04abee9e7bb91137b4429ca98bbadbf0",
+   "REL_18_6/src/backend/utils/adt/pgstatfuncs.c": "13b973bf102a5fc37016485f3f1dc82406848e0f7fa3523d537dc5755fb5c43a",
+   "REL_18_6/src/common/exec.c": "b39dfdb5574510a25441da87c413ea4c4df90188e5666c2d218345e05cc70831",
+   "REL_18_6/src/include/port.h": "55ef139daf6b07b22c4dd84638312ba698b71867a08f2695b06b477b8fd3a202",
+   "REL_18_6/src/port/system.c": "1a88cbd281712c09133eae72bae6d18a2c8f663a5d94b8d13212638e30591ec0",
+   "REL_18_6/src/backend/port/win32_shmem.c": "a48fce58896574143d59682a02f11bc65ec61c83ec9fb00d1aecb634d6ef4bd2",
+   "REL_18_6/src/backend/libpq/pqcomm.c": "fdd95211ead0c7c729e53a1bc8599588c40b666e9924354907d101a515a25dd0",
+   "docs/18/functions-net.html": "a549ecad69b788e5f224bbfa784a4fc49fd40898f20c6f58617b26b9e390772d",
+   "docs/18/functions-info.html": "44644879b7cee2106199d3606a73f75482a4a18532a679899e761894ccd9e329",
+   "docs/18/functions-admin.html": "12fb7d5e0f768887248412db3122c446287bbd614bb404e7e56950096c71869b",
+   "docs/18/runtime-config-client.html": "59d5ea3cf4ae33b916d76d298bc89e13d0d0fed33d4767a2cd9a8d31fcb0d736",
+   "learn.microsoft.com windows-commands/cmd": "00792abd509c273be3fbf3735797168957edd3d4a47f78e5b71c091485ce6e39",
+   "learn.microsoft.com c-runtime popen-wpopen": "071ef8b668f698db18744867fdb1650821432b5243069de059dfe08c7d18f10a",
+   "learn.microsoft.com process-handles-and-identifiers": "fa5338226396ccde42627ece8f46c6330744982919267b9886034447026eb728",
+   "learn.microsoft.com ns-tlhelp32-processentry32w": "4b7288dd2b242d59a81ff2fdccd1472b140ef20eb9bd456a76d61f1d5babd615",
+   "learn.microsoft.com nf-processthreadsapi-getprocesstimes": "9e7e6a47233d9a3f109c0a5d1745c35954ad3a756e06404818e5ce6d22a29c62",
+   "learn.microsoft.com nf-jobapi2-queryinformationjobobject": "03eae595c764aba281a9eb135d38f0e5d8af32786ae73c5a1b6d811a6390afa9"
+  },
+  "version_check": "REL_18_6 configure.ac AC_INIT 18.6",
+  "note": "Microsoft pages are rendered HTML; hashes identify the retrieved bytes only"
+ },
+ "inputs_sha256_before": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "eb7ee0603b538a36ac193ea6d31854a507472cd243a8d264a0c6d1ecf868fe71",
+  "tracking/SESSION_HANDOFF.md": "2635c96d9321ee15de60fc3681571e87d66fa432a77ea2532ab46abb4f7d6d0d",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/repair-receipt.json": "ce15033fe705e15161920e6fb6ab8444b41085bed72c44ec57a309a409ebaa9f",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/input-snapshot.json": "ba937675f5f47d085a1b6ebd0b292c5cda35d4f3fc989f8cdb13eb9529852c99",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/design-receipt.json": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/input-snapshot.json": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196",
+  "tracking/evidence/theme-intent-cw01-implementation-design-review-2026-10-26/reviewer-receipt.json": "90b6a2673dab3296f48715b07665b68a592bb1c38fb3ae5ee18ed4be85a61680",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md": "a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39"
+ },
+ "inputs_sha256_after": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "596d7df6a207d4425643d2011f155f96cb1605e357a569278f18585bbf25ec25",
+  "tracking/SESSION_HANDOFF.md": "b6962b0091a0f0e2d218119375aa687f802b6479076822675577dfc9d18bfe0f",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/repair-receipt.json": "ce15033fe705e15161920e6fb6ab8444b41085bed72c44ec57a309a409ebaa9f",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/input-snapshot.json": "ba937675f5f47d085a1b6ebd0b292c5cda35d4f3fc989f8cdb13eb9529852c99",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/design-receipt.json": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+  "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/input-snapshot.json": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196",
+  "tracking/evidence/theme-intent-cw01-implementation-design-review-2026-10-26/reviewer-receipt.json": "90b6a2673dab3296f48715b07665b68a592bb1c38fb3ae5ee18ed4be85a61680",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md": "a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39"
+ },
+ "intentional_changes": {
+  "tracking/BUILD_STATUS.md": "one section prepended (CRLF, matching adjacent section); prior bytes verified as exact suffix",
+  "tracking/SESSION_HANDOFF.md": "one section prepended (CRLF, matching adjacent section); prior bytes verified as exact suffix"
+ },
+ "unintended_changes": [],
+ "new_files": [
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md",
+  "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-review-2026-10-26/reviewer-receipt.json"
+ ],
+ "checks": [
+  "Static repository text reading",
+  "Direct SHA-256 of 15 inputs before/after",
+  "Rehash of 348 note snapshot entries",
+  "Read-only fetch of REL_18_6 source, PostgreSQL 18 docs and Microsoft docs",
+  "Tracking prepend suffix check"
+ ],
+ "not_run": [
+  "Implementation",
+  "Tests",
+  "Historical verifiers",
+  "Imports or module evaluation",
+  "SQL or credentials",
+  "Pidfile, registry, process, port or other operational reads",
+  "Cluster start/stop",
+  "Launch, sign-in or quit",
+  "Helpers/install/migration/recovery",
+  "Activation",
+  "Retired OneDrive checkout access",
+  "External review service"
+ ],
+ "limitations": [
+  "Upstream sources describe PostgreSQL 18.6, not the owner's installed binaries",
+  "AutoRun and process-chain behavior inferred from source and docs, not executed",
+  "Collector template v1.1 note not reviewed here",
+  "No current operational or native state observed",
+  "Owner attestation absent; other-producer access remains unknown"
+ ],
+ "status_preserved": "M3 unchanged and not reopened; native acceptance blocked; original A0 blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled",
+ "next": "On Jordan's selection: additive v1.2 note closing R1-R3, carry R1-R3 into a later separately authorized implementation design, or defer; no implementation or execution"
+}

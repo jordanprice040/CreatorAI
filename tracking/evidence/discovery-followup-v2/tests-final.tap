@@ -1,0 +1,112 @@
+TAP version 13
+# Subtest: schema-28 execution binding refuses stale schema, changed candidate, scope or weakened limits
+ok 1 - schema-28 execution binding refuses stale schema, changed candidate, scope or weakened limits
+  ---
+  duration_ms: 148.6802
+  type: 'test'
+  ...
+# Subtest: changed source bytes are rejected by the actual runtime binding gate
+ok 2 - changed source bytes are rejected by the actual runtime binding gate
+  ---
+  duration_ms: 208.6127
+  type: 'test'
+  ...
+# Subtest: historical execution rejects repaired source while packet bytes remain frozen
+ok 3 - historical execution rejects repaired source while packet bytes remain frozen
+  ---
+  duration_ms: 178.1239
+  type: 'test'
+  ...
+# Subtest: 12 fresh exact production packets retain all positive/negative controls and disclosed semantic limits
+ok 4 - 12 fresh exact production packets retain all positive/negative controls and disclosed semantic limits
+  ---
+  duration_ms: 29.4879
+  type: 'test'
+  ...
+# Subtest: two-finding revision and identity swaps cannot masquerade as correct automatic evidence
+ok 5 - two-finding revision and identity swaps cannot masquerade as correct automatic evidence
+  ---
+  duration_ms: 1.3342
+  type: 'test'
+  ...
+# Subtest: actual runner control loop enforces 12 sequential attempts and intent-before-delivery
+ok 6 - actual runner control loop enforces 12 sequential attempts and intent-before-delivery
+  ---
+  duration_ms: 1.2061
+  type: 'test'
+  ...
+# Subtest: first failed/provider_error preserves outcome and prevents retry/next class
+ok 7 - first failed/provider_error preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.3136
+  type: 'test'
+  ...
+# Subtest: first unknown/timeout preserves outcome and prevents retry/next class
+ok 8 - first unknown/timeout preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.1271
+  type: 'test'
+  ...
+# Subtest: first rejected/refused preserves outcome and prevents retry/next class
+ok 9 - first rejected/refused preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.3857
+  type: 'test'
+  ...
+# Subtest: first completed/acceptance_check_failed preserves outcome and prevents retry/next class
+ok 10 - first completed/acceptance_check_failed preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.3955
+  type: 'test'
+  ...
+# Subtest: first failed/subscription_sharing_usage_limit_exceeded preserves outcome and prevents retry/next class
+ok 11 - first failed/subscription_sharing_usage_limit_exceeded preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.1753
+  type: 'test'
+  ...
+# Subtest: delivery exception is not retried and does not close an uncertain qualification
+ok 12 - delivery exception is not retried and does not close an uncertain qualification
+  ---
+  duration_ms: 0.1714
+  type: 'test'
+  ...
+# Subtest: durable-intent failure refuses delivery
+ok 13 - durable-intent failure refuses delivery
+  ---
+  duration_ms: 0.1277
+  type: 'test'
+  ...
+# Subtest: cancellation before start or after first result prevents further delivery
+ok 14 - cancellation before start or after first result prevents further delivery
+  ---
+  duration_ms: 0.4181
+  type: 'test'
+  ...
+# Subtest: global deadline includes prior overhead and clamps remaining request time
+ok 15 - global deadline includes prior overhead and clamps remaining request time
+  ---
+  duration_ms: 0.264
+  type: 'test'
+  ...
+# Subtest: hard request cap prevents any thirteenth request even with extra input
+ok 16 - hard request cap prevents any thirteenth request even with extra input
+  ---
+  duration_ms: 0.3727
+  type: 'test'
+  ...
+# Subtest: separate review gate rejects unreviewed, wrong binding, author involvement and unsupported criteria
+ok 17 - separate review gate rejects unreviewed, wrong binding, author involvement and unsupported criteria
+  ---
+  duration_ms: 27.7461
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1091.0507

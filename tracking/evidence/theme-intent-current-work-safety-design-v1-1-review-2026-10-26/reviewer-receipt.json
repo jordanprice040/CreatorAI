@@ -1,0 +1,166 @@
+{
+ "format": "theme-intent-current-work-safety-design-v1.1-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the design or v1.1 note (Codex). The repaired findings and repair shape came from a prior Claude session (same model family); this review partly evaluates repairs its own model family proposed; not blinded. Records two corrections to that prior review (postgres.rs binding; pg_control-on-every-start premise). No external review service.",
+ "reviewed_note": {
+  "path": "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md",
+  "sha256": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5"
+ },
+ "reviewed_repair_receipt_sha256": "46b3b1f1193fbddf5a3533a26947b39bc34deaee2b0e8688365e0188dd3b28ce",
+ "frozen_design_sha256": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+ "frozen_prior_review_sha256": "17f12f8cd8b931c60eccfd059f4cbb5e0f541afcdc84c9bf533f5d8691cdd7d1",
+ "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+ "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+ "review_report": {
+  "path": "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md",
+  "sha256": "6ae7554e4df508e849e51c2f3d5a64ad1d0ae478930d491569d1298fbad89a05"
+ },
+ "verdicts": {
+  "design_scope_resolution": "supported",
+  "m1": "resolved_threat_bounded",
+  "l1": "resolved",
+  "l2": "resolved",
+  "i1_i4": "disposed",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked"
+ },
+ "findings": [
+  {
+   "id": "F1",
+   "severity": "low",
+   "locator": "note Official PostgreSQL verification, xlog.c bullet",
+   "summary": "REL_18_6 xlog.c locators 5798-5805 and 6816 point at ResetUnloggedRelations and LogCheckpointEnd; actual production transition 6195-6214 (StartupXLOG), shutdown-checkpoint control update 7290-7309 (CreateCheckPoint)",
+   "disposition": "Corrected in this review; behavior description accurate; no note revision required"
+  },
+  {
+   "id": "F2",
+   "severity": "low",
+   "locator": "note W1 listener evidence; design one owned start; bound postgres.rs:158-171",
+   "summary": "CW-01 start invocation unpinned; without -p/-c listen_addresses the cluster uses unbound config values (command-line overrides postgresql.conf/ALTER SYSTEM)",
+   "disposition": "Fail-closed; binding condition for CW-01 implementation review: hash-bound pg_ctl start with manifest port, listen_addresses=127.0.0.1, -w -t 90, observe effective listener"
+  }
+ ],
+ "informational": [
+  "I1 W1 count form: cluster-wide client backend excluding own pid plus separate walsender zero count; background workers against startup boundary",
+  "I2 observer privilege: initdb bootstrap role is superuser but CW-01 actor unbound; keep unavailable rule",
+  "I3 attestation record binding into CW-01 receipt with currentness immediately before W1 and post-W3 confirmation",
+  "I4 desktop adoption race (postgres.rs:146-150) surfaces as smart-stop timeout -> unknown; transient client residual remains attestation-covered"
+ ],
+ "binding_checks": {
+  "note_and_snapshot_match_repair_receipt": true,
+  "snapshot_entries": 337,
+  "snapshot_mismatches": [],
+  "original_330_identical_subset": true,
+  "postgres_rs_in_package_reviewer_map": false,
+  "postgres_rs_in_v4_helper_review_map": "tracking/evidence/theme-intent-upgrade-helper-v4-review-2026-10-24/reviewer-receipt.json:186",
+  "postgres_rs_commits": [
+   "efe6627"
+  ],
+  "studio_rs_in_package_reviewer_map": true,
+  "bundle_studio_mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "schema29_workflow_tasks": "studio.mjs 23205-23206 enum, 23227 terminal/finished_at check; later alters 23476-23482 do not touch state check"
+ },
+ "official_sources_retrieved_2026_10_26": {
+  "base_docs": "https://www.postgresql.org/docs/18/",
+  "base_source": "https://raw.githubusercontent.com/postgres/postgres/",
+  "sha256": {
+   "app-pg-ctl.html": "7b1dabcadae19863eb3af2e0b715b6403043df82f755e144b4df1622f050827e",
+   "app-postgres.html": "b299284de9161f55c862c69e2393a281cb604aa76d54bb1041de761eeff6a86d",
+   "config-setting.html": "2a90d0d11e58a22baf34b069caa1092b28bf99dd474e3c641b4e3516a6b79097",
+   "monitoring-stats.html": "f3f090064901c5a90e3c47c88c67134029fd51d71c27901f941009d87e9697c9",
+   "runtime-config-connection.html": "87c0f150e537a268c92caf9c64e1cca1328ff69765f692c8128b22e1a7e68622",
+   "server-shutdown.html": "fbcfe6de0de43b81652a87828f67009f4bc1e7864e34efdd78ef8b7cac30708e",
+   "wal-internals.html": "67491f5f1a80d062c36b32b0cf51a7f57b6e3a758fa8f9ae796f770e5c09580f",
+   "REL_18_6/src/backend/access/transam/xlog.c": "f2eab090d0107573b74c684eb44b6af560e00de8d7a0a2365ccb751e0df88ab1",
+   "REL_18_6/src/backend/utils/activity/backend_status.c": "5ae2973ca1f4debe3ecd912786886d534dd5ea5c579b34736cfc317aa4a3feed",
+   "REL_18_6/src/backend/utils/activity/pgstat.c": "04c6c33c899c82182c41b9c413e5ef654911ec60fcec714dafb7f68cb6a816cd"
+  },
+  "version_check": "REL_18_6 configure.ac AC_INIT 18.6"
+ },
+ "inputs_sha256_before": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "52be5c1341b3daf48b822a201508ee07b38018bce92c49eabe98a18a4e813a8c",
+  "tracking/SESSION_HANDOFF.md": "3b37d7ba071e086291cd753f455b20f9f57c59508aec9d4623a6508e21330a7f",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_REVIEW_2026-10-26.md": "17f12f8cd8b931c60eccfd059f4cbb5e0f541afcdc84c9bf533f5d8691cdd7d1",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/design-receipt.json": "8a21c170466aeedd99e48b4083f5323e1f40c32dc7f75a3e77360e9a71a0921d",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/input-snapshot.json": "4a30e192d4d32ab9877a6451395fe50fbdf8cfd6c287d54c758e6edb3bded207",
+  "tracking/evidence/theme-intent-current-work-safety-design-review-2026-10-26/reviewer-receipt.json": "f52880c7db57cc25a82fee30d86f98d1e5b325512893394e65f34ba29fa0d360",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-2026-10-26/repair-receipt.json": "46b3b1f1193fbddf5a3533a26947b39bc34deaee2b0e8688365e0188dd3b28ce",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-2026-10-26/input-snapshot.json": "36e845bf88fe5b91476656f50026e4776fd0ac6aa91622aeeab299f93c68439d",
+  ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "apps/desktop/src-tauri/src/postgres.rs": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+  "apps/desktop/src-tauri/src/studio.rs": "31b0dac592aa42bcdfc43cbc75f663ff63d3e965aef36a285242b381e1f09fa7",
+  "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+  "tracking/evidence/theme-intent-package-review-2026-10-23/reviewer-receipt.json": "7fe4b2859090af3988ed21d56025a5735b47d0f0696ec32cb3c75420701c38b3",
+  "tracking/evidence/theme-intent-upgrade-helper-v4-review-2026-10-24/reviewer-receipt.json": "b887e5d4bce0abb03e99f73b5a32589d8228aae09f63e3f9310c4526bf94391c",
+  "docs/THEME_INTENT_UPGRADE_HELPER_V4_REVIEW_2026-10-24.md": "7571da3b17de884d5ca969f58c7b54108e34ac122808fd3539c0f46f72621e4f"
+ },
+ "inputs_sha256_after": {
+  "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+  "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+  "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+  "tracking/BUILD_STATUS.md": "012f3229aed65ba68b09ce8b5c8da842ff3f8490d5a1b08646bd9ed29fc3696b",
+  "tracking/SESSION_HANDOFF.md": "f4e673c48931b10a8c32c11d555abecaa2cffe7c2ef8d5c0a3e91d93e4226e87",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_REVIEW_2026-10-26.md": "17f12f8cd8b931c60eccfd059f4cbb5e0f541afcdc84c9bf533f5d8691cdd7d1",
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/design-receipt.json": "8a21c170466aeedd99e48b4083f5323e1f40c32dc7f75a3e77360e9a71a0921d",
+  "tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/input-snapshot.json": "4a30e192d4d32ab9877a6451395fe50fbdf8cfd6c287d54c758e6edb3bded207",
+  "tracking/evidence/theme-intent-current-work-safety-design-review-2026-10-26/reviewer-receipt.json": "f52880c7db57cc25a82fee30d86f98d1e5b325512893394e65f34ba29fa0d360",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-2026-10-26/repair-receipt.json": "46b3b1f1193fbddf5a3533a26947b39bc34deaee2b0e8688365e0188dd3b28ce",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-2026-10-26/input-snapshot.json": "36e845bf88fe5b91476656f50026e4776fd0ac6aa91622aeeab299f93c68439d",
+  ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+  "apps/desktop/src-tauri/src/postgres.rs": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+  "apps/desktop/src-tauri/src/studio.rs": "31b0dac592aa42bcdfc43cbc75f663ff63d3e965aef36a285242b381e1f09fa7",
+  "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+  "tracking/evidence/theme-intent-package-review-2026-10-23/reviewer-receipt.json": "7fe4b2859090af3988ed21d56025a5735b47d0f0696ec32cb3c75420701c38b3",
+  "tracking/evidence/theme-intent-upgrade-helper-v4-review-2026-10-24/reviewer-receipt.json": "b887e5d4bce0abb03e99f73b5a32589d8228aae09f63e3f9310c4526bf94391c",
+  "docs/THEME_INTENT_UPGRADE_HELPER_V4_REVIEW_2026-10-24.md": "7571da3b17de884d5ca969f58c7b54108e34ac122808fd3539c0f46f72621e4f"
+ },
+ "intentional_changes": {
+  "tracking/BUILD_STATUS.md": "one section prepended; prior bytes verified as exact suffix",
+  "tracking/SESSION_HANDOFF.md": "one section prepended; prior bytes verified as exact suffix"
+ },
+ "unintended_changes": [],
+ "new_files": [
+  "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md",
+  "tracking/evidence/theme-intent-current-work-safety-design-v1-1-review-2026-10-26/reviewer-receipt.json"
+ ],
+ "checks": [
+  "Static repository and bundle text reading (grep/sed)",
+  "Direct SHA-256 of 20 reviewed inputs before/after",
+  "Rehash of 337 v1.1 snapshot entries",
+  "Package and v4 helper review map comparison",
+  "Read-only fetch and reading of official PostgreSQL 18 docs and REL_18_6 source",
+  "Tracking prepend suffix check"
+ ],
+ "not_run": [
+  "Implementation",
+  "Tests",
+  "Historical verifiers",
+  "Imports or module evaluation",
+  "SQL or credentials",
+  "Cluster start/stop",
+  "Launch, sign-in or quit",
+  "Operational config/environment/registry/process/port reads",
+  "Helpers/install/migration/recovery",
+  "Activation",
+  "Retired OneDrive checkout access",
+  "External review service"
+ ],
+ "limitations": [
+  "Upstream PostgreSQL docs/source describe 18.6 behavior, not the owner's installed binaries",
+  "Source maps bind reviewed source, not compiled native executable",
+  "Not an exhaustive audit of every provider path",
+  "No current operational or native state observed",
+  "Owner attestation absent; other-producer access remains unknown"
+ ],
+ "status_preserved": "M3 unchanged and not reopened; native acceptance blocked; original A0 blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled",
+ "next": "On Jordan's choice: repository-only CW-01 implementation design (exact prompt in review) or defer; no implementation or execution"
+}

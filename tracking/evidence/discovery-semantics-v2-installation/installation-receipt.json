@@ -1,0 +1,16 @@
+{
+  "status": "verified_records_preserved",
+  "verified_at": "2026-10-22T17:45:10.501Z",
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "installation_plan_hash": "01c84b292084bd989383d541a259cff2f9001cace7155e600b66b9389cfdc464",
+  "installed_manifest_sha256": "621e6f12e37db3baf883c30d76d27a39bbdcba71a8df3a72c32fdfe22ddaa448",
+  "installed_desktop_sha256": "6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46",
+  "schema": 28,
+  "records_unchanged": true,
+  "settings_unchanged": true,
+  "credits": "confirmed_off",
+  "active_requests": 0,
+  "unknown_requests": 0,
+  "backup_verified": true,
+  "provider_calls": 0
+}

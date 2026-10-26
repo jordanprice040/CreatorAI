@@ -1,0 +1,61 @@
+{
+  "state": "required_not_performed",
+  "outputs": [
+    {
+      "case_id": "followup-design-dev-map-index",
+      "request_id": "7db8f847-489c-4aac-a049-e787a7cbc3d5",
+      "output_hash": "0ada48116bd1d51786869abbb9418e23777e1626aac6999aa51a03660750758b",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-dev-grid-seams",
+      "request_id": "0758b0c3-1fab-4f7b-898a-b9400faccfd9",
+      "output_hash": "ab8a256ce7bbca33d0cf8cb9b103cb0b31d4191c8e540bfe79442da6fbacd12d",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-seed-envelopes",
+      "request_id": "a5ff07c1-1df6-4ac7-872c-edefb60f63dc",
+      "output_hash": "e7e657ce000ca31e08efef2801c1862aa216a9b9116f6b8992c38a54fab4aa0f",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-translation-choice",
+      "request_id": "1a79f1cd-c292-4d7e-8cb4-4ab7abf9d4cd",
+      "output_hash": "f3e61eebf19f1f9540020023c58a1f1b51c7655a422b186c0b2bd68e5d41e886",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-prop-tallies",
+      "request_id": "e117353a-9b64-44ac-9d1c-175a1d19b1f1",
+      "output_hash": "b0362f5ef3fa04d84892e112b523c5570f753e1d5a7cbef7441e9f8e6cc298e2",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "followup-design-held-kiln-revision",
+      "request_id": "e5f5d405-e47e-4093-ba1f-d71f01e8dcf1",
+      "output_hash": "a25e3615fb0c14d388d27ed9d85e2b7317fe41940bed251b37baecf717d7ef6d",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "followup-skeptic-dev-room-bookings",
+      "request_id": "420ac88f-b950-475d-a28b-b5bb0c55f4a0",
+      "output_hash": "f428a90444e6b9fe672f86ace42cf1d9a63aca798f49984add21feb5737f4397",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    }
+  ]
+}

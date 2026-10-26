@@ -1,0 +1,53 @@
+{
+  "reviewer": "/root/separate_discovery_review",
+  "reviewer_type": "model",
+  "prior_implementation_involvement": false,
+  "prior_review_involvement": "role1.4 and predecessor outputs/bindings",
+  "status": "partial_additive_repair_required",
+  "artifact_sha256": {
+    "docs/DISCOVERY_SEMANTICS_V1_REVIEW_2026-10-22.md": "24c49831113721e1e63ad92200a7297b70731a3bb54bc147da9f4144406885ca",
+    "tracking/evidence/discovery-semantics-v1-review-2026-10-22/gold-review.json": "1a1abce33ce8d9cf11a100b463216d068e90267dd518da2286067b479d941b32",
+    "tracking/evidence/discovery-semantics-v1-review-2026-10-22/adversarial-checks.mjs": "4e96a5c8929c45d91f98a5d621b65fee345ca15df5ab16192d2bce42f2215312",
+    "tracking/evidence/discovery-semantics-v1-review-2026-10-22/adversarial-results.txt": "71d18d10a68b0b7475a265a8edb090752416525df13768e31d84199a4eb85bdb",
+    "tracking/evidence/discovery-semantics-v1-review-2026-10-22/checker-review.txt": "4f2e57e533ac9ca8fe98f5905f5a672cadad63d5957881bf7f559bc3126d15de",
+    "scripts/prepare-discovery-semantics-v1.mjs": "7aba62f8500b1227bb8881002a4a933c52ccd65710355930ce0edc0898cc937d",
+    "scripts/check-discovery-semantics-v1.mjs": "d9f0a26e4b513b29f77c785d895d7742c53a62d61d649042ddeb34777ce286e2",
+    "docs/DISCOVERY_SEMANTICS_V1.md": "76a52dd0f6172f71635ad8d762be52bc2ccd7d5f72d93b64de469a33131ccf84",
+    "packages/domain/src/discovery.ts": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+    "packages/domain/dist/discovery.js": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+    "packages/domain/src/routing.ts": "da5c96824fad9c9f41a68922cfe79686ae021354843e6d7e4f75577b8097f18b",
+    "packages/domain/dist/routing.js": "40854c6ab3d55bebd4604362fa088e8f625484eaef4f471c7909098cc317e1e8",
+    "config/connections/benchmarks/discovery-semantics-v1/candidate_generation.json": "e1135f370dbace56efbd8c12d891b3b126e05098650515fbce09fc93ecc50a70",
+    "config/connections/benchmarks/discovery-semantics-v1/scoring.json": "349d34dfded3fe46dd59a6e31e61310fccb3c94a69cf3485c46fc4390666eb87",
+    "config/connections/benchmarks/discovery-semantics-v1/author-controls.json": "fa84ec07c51e0aa5e0cd4f0dc818f02b10728bc5882e3ebc2250c01bcef7b122",
+    "tracking/evidence/discovery-semantics-v1/freeze.json": "525b189216b04ba5f8282630c4fd46b92e23ac04cc5c8954e3742baa9ef7c932",
+    "tracking/evidence/discovery-semantics-v1/review-plan.json": "fb5a790d257faffcf4787aa2c5c0759ddbacfbd099d0ce733fe3d4cb66041420",
+    "tracking/evidence/discovery-semantics-v1/preparation-result.json": "2cbbe4d04e550d45137cc54adfeb6897e0f2bd530786f75b3d1709a87f99db80",
+    "tracking/evidence/discovery-semantics-v1/preparation-receipt.json": "326b072fb7ef369adf81483ed72504aa56d1f9e4f95c15f4f890b516f054645e"
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "P2",
+      "resolved": false
+    },
+    {
+      "id": "R2",
+      "severity": "P3",
+      "resolved": false
+    },
+    {
+      "id": "R3",
+      "severity": "P2",
+      "resolved": false
+    }
+  ],
+  "commands_executed": [
+    "node scripts/check-discovery-semantics-v1.mjs",
+    "node tracking/evidence/discovery-semantics-v1-review-2026-10-22/adversarial-checks.mjs"
+  ],
+  "golds_reviewed": 12,
+  "checklist_items_reviewed": 36,
+  "network_or_provider_calls": 0,
+  "source_or_frozen_mutations": false
+}

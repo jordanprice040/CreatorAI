@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: 12 fresh exact production packets retain all positive/negative controls and disclosed semantic limits
+ok 1 - 12 fresh exact production packets retain all positive/negative controls and disclosed semantic limits
+  ---
+  duration_ms: 30.4609
+  type: 'test'
+  ...
+# Subtest: two-finding revision and identity swaps cannot masquerade as correct automatic evidence
+ok 2 - two-finding revision and identity swaps cannot masquerade as correct automatic evidence
+  ---
+  duration_ms: 1.3082
+  type: 'test'
+  ...
+# Subtest: actual runner control loop enforces 12 sequential attempts and intent-before-delivery
+ok 3 - actual runner control loop enforces 12 sequential attempts and intent-before-delivery
+  ---
+  duration_ms: 1.5125
+  type: 'test'
+  ...
+# Subtest: first failed/provider_error preserves outcome and prevents retry/next class
+ok 4 - first failed/provider_error preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.6636
+  type: 'test'
+  ...
+# Subtest: first unknown/timeout preserves outcome and prevents retry/next class
+ok 5 - first unknown/timeout preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.2169
+  type: 'test'
+  ...
+# Subtest: first rejected/refused preserves outcome and prevents retry/next class
+ok 6 - first rejected/refused preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.1837
+  type: 'test'
+  ...
+# Subtest: first completed/acceptance_check_failed preserves outcome and prevents retry/next class
+ok 7 - first completed/acceptance_check_failed preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.1745
+  type: 'test'
+  ...
+# Subtest: first failed/subscription_sharing_usage_limit_exceeded preserves outcome and prevents retry/next class
+ok 8 - first failed/subscription_sharing_usage_limit_exceeded preserves outcome and prevents retry/next class
+  ---
+  duration_ms: 0.1727
+  type: 'test'
+  ...
+# Subtest: delivery exception is not retried and does not close an uncertain qualification
+ok 9 - delivery exception is not retried and does not close an uncertain qualification
+  ---
+  duration_ms: 0.3773
+  type: 'test'
+  ...
+# Subtest: durable-intent failure refuses delivery
+ok 10 - durable-intent failure refuses delivery
+  ---
+  duration_ms: 0.4256
+  type: 'test'
+  ...
+# Subtest: cancellation before start or after first result prevents further delivery
+ok 11 - cancellation before start or after first result prevents further delivery
+  ---
+  duration_ms: 0.9274
+  type: 'test'
+  ...
+# Subtest: global deadline includes prior overhead and clamps remaining request time
+ok 12 - global deadline includes prior overhead and clamps remaining request time
+  ---
+  duration_ms: 0.4256
+  type: 'test'
+  ...
+# Subtest: hard request cap prevents any thirteenth request even with extra input
+ok 13 - hard request cap prevents any thirteenth request even with extra input
+  ---
+  duration_ms: 0.8481
+  type: 'test'
+  ...
+# Subtest: separate review gate rejects unreviewed, wrong binding, author involvement and unsupported criteria
+ok 14 - separate review gate rejects unreviewed, wrong binding, author involvement and unsupported criteria
+  ---
+  duration_ms: 35.6715
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 860.5738

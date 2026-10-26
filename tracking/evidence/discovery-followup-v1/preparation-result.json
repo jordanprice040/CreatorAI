@@ -1,0 +1,33 @@
+{
+  "prepared_at": "2026-10-22T04:01:46.440Z",
+  "state": "prepared_pending_separate_review_provider_availability_and_exact_approval",
+  "freeze_hash": "55da91cabef9163692508132e936b9a2e5df9815f071ca93642db0cd091f2266",
+  "execution_plan_hash": "2dca3f79f5c7c98f88eef2f20a915c8e2a5f71e1f2da8934b9ca6c0dd9110c3e",
+  "source_bindings": 231,
+  "staged_resources_verified": 58,
+  "installed_resources_checked_now": false,
+  "affected_tests": {
+    "pass": 14,
+    "fail": 0,
+    "skipped": 0,
+    "type": "offline_contract_and_injected_adapter_control_loop"
+  },
+  "local_controls": 108,
+  "transport": [
+    {
+      "task_class": "candidate_generation",
+      "creation_bytes": 93537,
+      "max_input_chars": 13468
+    },
+    {
+      "task_class": "scoring",
+      "creation_bytes": 111689,
+      "max_input_chars": 19695
+    }
+  ],
+  "live_calls": 0,
+  "installation_performed": false,
+  "settings_changed": false,
+  "historical_evidence_preserved": true,
+  "independent_substantive_review": "required_not_performed"
+}

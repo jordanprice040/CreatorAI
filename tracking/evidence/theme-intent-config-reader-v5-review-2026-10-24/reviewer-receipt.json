@@ -1,0 +1,371 @@
+{
+  "format": "theme-intent-config-reader-v5-review/1",
+  "prompt": "U02",
+  "reviewed_at": "2026-10-24T13:41:00.194Z",
+  "reviewer": "Claude (Anthropic), separate project thread; did not author reader, tests, v5, proposal v3 or M3 decision (Codex did); exact-v3/v4 reviews by other Claude threads; separate-session, not blinded, same model family",
+  "verdict": {
+    "overall": "partial_changes_required",
+    "fixture_reader": "partial (F1 medium: hard-link confinement)",
+    "operational_adapter_readiness": "not_ready_does_not_exist",
+    "pr01_sh01_implementation": "does_not_exist; contract partial (F2 medium: desktop key input unbound)",
+    "native_acceptance": "not_executed_blocked",
+    "m3_preservation": "supported",
+    "full_C54": "partial"
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "medium",
+      "summary": "readFixtureConfig does not check nlink; a hard link to a file outside the fixture root is projected with fixture:true",
+      "evidence": "probe P1"
+    },
+    {
+      "id": "F2",
+      "severity": "medium",
+      "summary": "desktop key input string unbound; plan forward-slash spelling yields a different key than PathBuf::join backslash spelling",
+      "evidence": "home.rs:124-128, main.rs:155-164, installation-plan.json studio_home"
+    },
+    {
+      "id": "F3",
+      "severity": "low",
+      "summary": "reader accepts inputs native serde loader refuses (duplicate keys, invalid UTF-8, missing required fields, exponent port)",
+      "evidence": "probes P6, P7, P9, P12; home.rs:9-35"
+    },
+    {
+      "id": "F4",
+      "severity": "low",
+      "summary": "pg_bin accepts bidi, DEL, trailing space, extra colon, empty segments",
+      "evidence": "probes P10a-e"
+    },
+    {
+      "id": "F5",
+      "severity": "low",
+      "summary": "change guards untested; Windows ino as Number; non-symlink reparse points undetected; same-user races disclosed limit",
+      "evidence": "reader:96-117; tests"
+    },
+    {
+      "id": "F6",
+      "severity": "low",
+      "summary": "proposal v3 body (lines 39, 48, 56-58, 76) contradicts S1-S4 addendum without precedence; v5:82 cites proposal v2",
+      "evidence": "proposal v3, v5"
+    },
+    {
+      "id": "F7",
+      "severity": "low",
+      "summary": "launch-path attestation omits Startup folder, HKLM Run, RunOnce, scheduled tasks",
+      "evidence": "proposal v3:142-148; winsys.rs:94-124"
+    }
+  ],
+  "checks": {
+    "v5_verifier_check_only": {
+      "args": "none",
+      "output": {
+        "mode": "check_only_no_writes",
+        "preserved_review_inputs": 36,
+        "mismatches": 0,
+        "fixture_tests_passed": 6,
+        "fixture_tests_failed": 0
+      },
+      "exit": 0,
+      "receipt_unchanged": true,
+      "record_flag_used": false,
+      "older_verifiers_run": false
+    },
+    "fixture_tests": {
+      "location": "scratch copy outside repository (exact bytes)",
+      "platform": "device Linux VM, node v22.23.4",
+      "passed": 6,
+      "failed": 0,
+      "note": "junction test is a plain symlink on Linux; Windows junction pass rests on author TAP"
+    },
+    "reviewer_probes": {
+      "probe_sha256": "107774741df4e2fa89279c9b9159660de1c05c0e2c86764fb3cc591eb711d143",
+      "results": {
+        "P1_hardlink_nlink": 3,
+        "P1_hardlink_outside_root": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/pg/bin",
+          "config_hash_matches": true
+        },
+        "P2_studio_json_symlink": "refused:CONFIG_READER_REFUSED",
+        "P3_marker_symlink": "refused:CONFIG_READER_REFUSED",
+        "P4_studio_json_directory": "refused:CONFIG_READER_REFUSED",
+        "P5_nested_root": "refused:CONFIG_READER_REFUSED",
+        "P6_duplicate_port_last_wins": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/pg/bin",
+          "config_hash_matches": true
+        },
+        "P7_invalid_utf8": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/pg/bin",
+          "config_hash_matches": true
+        },
+        "P8_bom": "refused:CONFIG_READER_REFUSED",
+        "P9_missing_native_required_fields": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/pg/bin",
+          "config_hash_matches": true
+        },
+        "P10a_bidi": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/‮bin",
+          "config_hash_matches": true
+        },
+        "P10b_trailing_space": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/bin ",
+          "config_hash_matches": true
+        },
+        "P10c_ads_colon": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/bin:stream",
+          "config_hash_matches": true
+        },
+        "P10d_del_0x7f": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/bin",
+          "config_hash_matches": true
+        },
+        "P10e_empty_segment": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C://fixture//bin",
+          "config_hash_matches": true
+        },
+        "P11_proto_key": "refused:CONFIG_READER_REFUSED",
+        "P12_exponent_port": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/pg/bin",
+          "config_hash_matches": true
+        },
+        "P13a_exact_32768": {
+          "fixture": true,
+          "status": "projected_not_operationally_verified",
+          "database": {
+            "mode": "managed",
+            "port": 55455
+          },
+          "pg_bin": "C:/fixture/pg/bin",
+          "config_hash_matches": true
+        },
+        "P13b_32769": "refused:CONFIG_READER_REFUSED",
+        "P14_array_hash": {
+          "fixture": true,
+          "status": "blocked",
+          "config_hash_matches": false
+        },
+        "P15_uppercase_hash": "refused:CONFIG_READER_REFUSED",
+        "P16_error_fields": {
+          "message": "CONFIG_READER_REFUSED",
+          "cause": null,
+          "keys": [],
+          "stack_has_sentinel": false
+        }
+      }
+    },
+    "cross_check_against_v5_receipt": [
+      {
+        "path": "tracking/evidence/theme-intent-acceptance-v4-review-2026-10-24/reviewer-receipt.json",
+        "equal": true
+      },
+      {
+        "path": "docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md",
+        "equal": true
+      },
+      {
+        "path": "tracking/evidence/theme-intent-package-2026-10-23/installation-plan.json",
+        "equal": true
+      },
+      {
+        "path": ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs",
+        "equal": true
+      },
+      {
+        "path": ".verification/theme-intent-artifacts-2026-10-23/studio/bundle-manifest.json",
+        "equal": true
+      },
+      {
+        "path": "apps/desktop/src-tauri/src/main.rs",
+        "equal": true
+      },
+      {
+        "path": "apps/desktop/src-tauri/src/studio.rs",
+        "equal": true
+      },
+      {
+        "path": "apps/desktop/src-tauri/src/home.rs",
+        "equal": true
+      },
+      {
+        "path": "apps/desktop/src-tauri/src/winsys.rs",
+        "equal": true
+      },
+      {
+        "path": "apps/desktop/src-tauri/src/postgres.rs",
+        "equal": true
+      },
+      {
+        "path": "apps/api/src/studio.ts",
+        "equal": true
+      },
+      {
+        "path": "scripts/theme-intent-upgrade-v4-core.mjs",
+        "equal": true
+      },
+      {
+        "path": "scripts/theme-intent-upgrade-v4-mutex.ps1",
+        "equal": true
+      },
+      {
+        "path": "PROJECT_CONTEXT.md",
+        "equal": true
+      },
+      {
+        "path": "PROMPT_LIBRARY.md",
+        "equal": true
+      },
+      {
+        "path": "AGENTS.md",
+        "equal": true
+      },
+      {
+        "path": "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V4_REVIEW_2026-10-24.md",
+        "equal": true
+      },
+      {
+        "path": "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V5_2026-10-24.md",
+        "equal": true
+      },
+      {
+        "path": "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V3_2026-10-24.md",
+        "equal": true
+      },
+      {
+        "path": "docs/THEME_INTENT_CONFIG_READER_PREPARATION_2026-10-24.md",
+        "equal": true
+      },
+      {
+        "path": "scripts/theme-intent-config-reader-fixture.mjs",
+        "equal": true
+      },
+      {
+        "path": "tests/theme-intent-config-reader-fixture.test.mjs",
+        "equal": true
+      },
+      {
+        "path": "tracking/evidence/theme-intent-config-reader-2026-10-24/tests-final.tap",
+        "equal": true
+      },
+      {
+        "path": "tracking/evidence/theme-intent-config-reader-2026-10-24/initial-result.txt",
+        "equal": true
+      },
+      {
+        "path": "tracking/evidence/theme-intent-acceptance-plan-v5-2026-10-24/verify.mjs",
+        "equal": true
+      }
+    ]
+  },
+  "excluded_preupdate_tracking": [
+    {
+      "path": "tracking/BUILD_STATUS.md",
+      "preupdate_sha256": "e34db5bfb4a5b200cee7e7c7babce202e88b4d2fbd31476c8a16c0d5b40f05f9",
+      "reason": "updated by this review after hashing"
+    },
+    {
+      "path": "tracking/SESSION_HANDOFF.md",
+      "preupdate_sha256": "182c69ead8a850f2f18573e874d8951922b02bdf905a5c5d85a25240b9e592ec",
+      "reason": "updated by this review after hashing"
+    }
+  ],
+  "not_done": [
+    "studio.json or operational state read",
+    "credentials",
+    "registry/process/port/mutex/event inspection",
+    "launch/sign-in",
+    "helpers/installers/migrations/SQL",
+    "activation/recovery/cleanup",
+    "retired checkout access",
+    "--record"
+  ],
+  "authority_granted": false,
+  "input_sha256": {
+    "scripts/theme-intent-config-reader-fixture.mjs": "6f22955b35d77728060a6dbc80a52b5354d58566f4597c2406ce9740f2fe0ac8",
+    "tests/theme-intent-config-reader-fixture.test.mjs": "300a86b6e5e82548a7c7598f54ffc60ef0f57556897b6c7be1e4bf1ab34df916",
+    "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V5_2026-10-24.md": "6d27e1281a7faedfebd2d7322bcafbc1c800171430fe899ee86f260763473952",
+    "docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V3_2026-10-24.md": "ea9a4a5ccb478677922705526494873b2b5fca29fc6f60fcabf67e283b198a5a",
+    "docs/THEME_INTENT_CONFIG_READER_PREPARATION_2026-10-24.md": "96aba84cfc5ec020943dc407873997a2f77487b8c1b246e1bb60c10a119df0da",
+    "docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md": "24a82ca8a2b1eddf82e5c4e472b99103b05c6686a4818813aef847854ff0f42b",
+    "tracking/evidence/theme-intent-acceptance-plan-v5-2026-10-24/revision-receipt.json": "d873cb991efad1afff69d8f0b117f15e04e3e2f9c105c33fecb8bd889b5d54b5",
+    "tracking/evidence/theme-intent-acceptance-plan-v5-2026-10-24/verify.mjs": "64197247e0c51692e02d2e180f4ee6e80a2e8a86155ba34786258c6828509602",
+    "tracking/evidence/theme-intent-config-reader-2026-10-24/tests-final.tap": "c45cefa6cc6eef8fad007950a15a9e5d6ae07eec25aebb4b54dbbe45c13d1b95",
+    "tracking/evidence/theme-intent-config-reader-2026-10-24/initial-result.txt": "dfa044949f00edecf470beef7b29458ca06bff5f6372fda652810aea446c6521",
+    "docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V4_REVIEW_2026-10-24.md": "37000f1660e65695b97c90549645604c6174f856053da2b963953b392c17eeb5",
+    "tracking/evidence/theme-intent-acceptance-v4-review-2026-10-24/reviewer-receipt.json": "a6c6115a0235ca1bf729365e15608f17cf70b52eee167c935b16a594fecef1ec",
+    "apps/desktop/src-tauri/src/main.rs": "33d629aa52b6b219e179514652903b9740cd1e91051a4157465eb813afa0246c",
+    "apps/desktop/src-tauri/src/home.rs": "a8bc8f23a4703b907a9dfde34e22c8f9fd4c18d2a25e9387004bde067875223b",
+    "apps/desktop/src-tauri/src/winsys.rs": "4881b525fb9a58c17ed72e63936c412a144b31f40924d32cea2e98702f95c6d4",
+    "apps/desktop/src-tauri/src/studio.rs": "31b0dac592aa42bcdfc43cbc75f663ff63d3e965aef36a285242b381e1f09fa7",
+    "apps/desktop/src-tauri/src/postgres.rs": "109615f43ac15fb8b7959844e09b6682c9f234e8b57b37456dd978386963b88b",
+    "apps/api/src/studio.ts": "490756ec1af4dc7a907ff0634a55b40861fa76069da26c17a08cce081957488f",
+    ".verification/theme-intent-artifacts-2026-10-23/studio/bundle-manifest.json": "5b38b43e6153202073b03f49db66e3a0a0fb01e36364d2d3bab9d9b6ba54eba6",
+    ".verification/theme-intent-artifacts-2026-10-23/studio/service/app/dist/studio.mjs": "9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88",
+    "tracking/evidence/theme-intent-package-2026-10-23/installation-plan.json": "20c6162bd2207877ab989e99238c0f5787567ae7793b6e26904fa33a8ea14295",
+    "scripts/theme-intent-upgrade-v4-core.mjs": "bd2e0105d1e5afbc284c32ebc05ad3464917ff5d83624db4a4b2650485e123c7",
+    "scripts/theme-intent-upgrade-v4-mutex.ps1": "7a1ddc016f776a001f8cf332bf85c4999298b073e72e756b7ff1e8d04f820a1f",
+    "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+    "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+    "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+    "docs/THEME_INTENT_CONFIG_READER_AND_PLAN_V5_REVIEW_2026-10-24.md": "b4c619e8265f777f48d8807cceb73106ad807ee6d54a7d8ca8c5e26eed1bc0f4"
+  }
+}

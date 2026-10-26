@@ -1,0 +1,18 @@
+{
+  "format": "theme-intent-repair-review-integration/1",
+  "integrated_at": "2026-10-23T04:47:05.081Z",
+  "status": "supported_repair",
+  "reviewer_receipt_sha256": "7324fc8a06a6b78fd997e60cfe12c9e87a2940e0cc4228156b47a0d060907b00",
+  "verified_artifacts": 17,
+  "closed_findings": [
+    "TI-01"
+  ],
+  "prospectively_corrected_metadata": [
+    "TI-02"
+  ],
+  "checkout_source_changed": true,
+  "operational_app_changed": false,
+  "verification_web_server_stopped": true,
+  "provider_calls": 0,
+  "next_eligible": "Bounded exact candidate/package/install preparation; no automatic installation or activation"
+}

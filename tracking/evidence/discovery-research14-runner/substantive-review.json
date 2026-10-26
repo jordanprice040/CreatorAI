@@ -1,0 +1,53 @@
+{
+  "state": "required_not_performed",
+  "outputs": [
+    {
+      "case_id": "research14-v2-dev-battery-digest",
+      "request_id": "483f5826-3571-4bb7-a616-4d8ae2e8782b",
+      "output_hash": "7993516f9756129067a97dba90945fc7d47f746e5a8a569bc7a0b1ac625b351b",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "research14-v2-dev-event-receipts",
+      "request_id": "7a191aae-df26-4356-9466-3c9c2a01d914",
+      "output_hash": "b356772de4d813572433335c2ce8e011fd80c2177b67ffae9baa061b6ca6d160",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "research14-v2-held-dual-checks",
+      "request_id": "da448f1e-584a-4e81-82e1-427895e2b3de",
+      "output_hash": "f86471a3295160ad156091bd5ae8e6c91cbb454e11b865318b11d3cce15fe2a0",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "research14-v2-held-legend-corrections",
+      "request_id": "2068af74-528d-4cc5-a192-5bfceced0deb",
+      "output_hash": "24fe16b5c4335e4f5e5f6dd458c1e2214420d7768e4b863eb8d71c8172f8531c",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "research14-v2-held-log-injection",
+      "request_id": "c8bd2668-b75a-4399-8af8-f8e76abc510c",
+      "output_hash": "02c718127f493094d67984ca5906f495ddaa4704a2af0665fedfff8bb02b31e3",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    },
+    {
+      "case_id": "research14-v2-held-stale-rack",
+      "request_id": "de0618a5-fb64-4ed7-9234-9e93c25507ef",
+      "output_hash": "cfc93aac7748a77faf3a5d6b96137b5dac5a72ef4576df47d431214396ca1dd3",
+      "reviewer": null,
+      "result": "not_reviewed",
+      "findings": []
+    }
+  ]
+}

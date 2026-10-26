@@ -1,0 +1,197 @@
+{
+  "at": "2026-10-24T11:34:07.003Z",
+  "execute": false,
+  "total_bytes": 39019502518,
+  "results": [
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792803661619",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 144379552,
+      "files": 1052,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792803740615",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 176088853,
+      "files": 1947,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792803815899",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 2874738019,
+      "files": 17197,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792804436268",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence (interrupted run, no summary, no postmaster.pid)",
+      "status": "dry-run",
+      "bytes": 2491973494,
+      "files": 12520,
+      "links": 1
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792804947316",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 2976345113,
+      "files": 17272,
+      "links": 1
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792805317469",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 4905560763,
+      "files": 23107,
+      "links": 1
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v2-1792808079636",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 4905503928,
+      "files": 23106,
+      "links": 1
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v3-1792809917958",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 5556457345,
+      "files": 25406,
+      "links": 1
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-helper-v3-1792815865601",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic fixture root of a superseded helper; inactive; no receipt hashes or plans reference its contents; failures captured in tracked TAP/evidence",
+      "status": "dry-run",
+      "bytes": 5557265778,
+      "files": 25406,
+      "links": 1
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-v2-review-probe-1792808608951",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic reviewer probe root; inactive; tracked probe JSON/script retain the result",
+      "status": "dry-run",
+      "bytes": 175697005,
+      "files": 1949,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816685719",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic reviewer probe root; inactive; tracked probe JSON/script retain the result",
+      "status": "dry-run",
+      "bytes": 469600134,
+      "files": 2139,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\.verification",
+      "path": "C:\\dev\\creator_agent\\.verification\\theme-v3-review-probe-1792816827608",
+      "class": "disposable synthetic test environment",
+      "reason": "TEST_ONLY synthetic reviewer probe root; inactive; tracked probe JSON/script retain the result",
+      "status": "dry-run",
+      "bytes": 469669705,
+      "files": 2152,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\debug\\deps",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 3109161906,
+      "files": 1747,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\debug\\build",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 572811331,
+      "files": 1253,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\debug\\incremental",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 2829693438,
+      "files": 2755,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\debug\\.fingerprint",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 618714,
+      "files": 2807,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\release\\deps",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 1519373692,
+      "files": 1123,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\release\\build",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 284200361,
+      "files": 1035,
+      "links": 0
+    },
+    {
+      "root": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target",
+      "path": "C:\\dev\\creator_agent\\apps\\desktop\\src-tauri\\target\\release\\.fingerprint",
+      "class": "reproducible build cache",
+      "reason": "cargo intermediate output; rebuilt by cargo build; no review, plan or script references it",
+      "status": "dry-run",
+      "bytes": 363387,
+      "files": 1720,
+      "links": 0
+    }
+  ]
+}

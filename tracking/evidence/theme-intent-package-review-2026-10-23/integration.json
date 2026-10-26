@@ -1,0 +1,13 @@
+{
+  "format": "theme-intent-package-review-integration/1",
+  "integrated_at": "2026-10-23T05:08:24.186Z",
+  "status": "supported_exact_package_and_declarative_plan",
+  "reviewer_receipt_sha256": "7fe4b2859090af3988ed21d56025a5735b47d0f0696ec32cb3c75420701c38b3",
+  "verified_artifacts": 424,
+  "candidate_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "provider_calls": 0,
+  "installation_executed": false,
+  "operational_database_access": false,
+  "next_eligible": "Implement and review schema29-aware executable upgrade helper/static preflight before fresh backup/readiness and new exact owner installation decision"
+}

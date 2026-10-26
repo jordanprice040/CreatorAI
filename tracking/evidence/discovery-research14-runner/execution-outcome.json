@@ -1,0 +1,126 @@
+{
+  "attempted": 6,
+  "results": [
+    {
+      "task_class": "research_synthesis",
+      "case_id": "research14-v2-dev-battery-digest",
+      "split": "development",
+      "request_id": "483f5826-3571-4bb7-a616-4d8ae2e8782b",
+      "outcome": {
+        "kind": "completed",
+        "text": "{\n  \"problem_statement\": \"Within the author-created simulation, one fictional equipment steward recorded three and eight uncharged battery packs in personal notes copied into a club digest (C1). This supports investigating battery readiness, but does not establish distinct recurring incidents, an increase, or an operational impact: dates, pack identities, total packs and overlap are unknown, and the digest is not an independent source (C2). The need remains exploratory, not validated outside the simulation.\",\n  \"affected_users\": \"The fictional equipment steward is the observed reporter; effects on other fictional club participants are not established (C1, C2).\",\n  \"observable_problem\": \"Personal notes report three and eight uncharged battery packs; whether these represent separate incidents or overlapping packs is unknown (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Two supplied counts, without dates or known overlap, cannot establish incident frequency or a trend (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [\n    {\n      \"description\": \"Personal notes copied into a club digest document the counts; this is a reporting practice, not evidence of an effective battery-readiness workaround.\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"alternatives\": [],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"Neither C1 nor C2 supports a transferable mechanism between evidence assessment and community operations; naming these fields alone would not establish one.\",\n  \"evidence_strength\": \"exploratory\",\n  \"gaps\": [\n    \"All observations are author-created synthetic statements; they establish no real-world need, customer validation or benefit (C1, C2).\",\n    \"The steward and copied digest represent one origin, not independent corroboration (C2).\",\n    \"Dates, pack identities, total packs and overlap are unknown; do not sum the counts or infer worsening or recurring distinct incidents (C1, C2).\",\n    \"Severity, cause and operational consequences are unassessed; uncharged packs alone do not establish disrupted club activities (C2).\",\n    \"Existing alternatives and corrective workarounds are unassessed. The empty supplied catalog is not evidence that no suitable tools or non-software practices exist (C2).\",\n    \"Only supplied statements are accessible. No retrieval or new test occurred; the counts are not a baseline with a defined denominator or observation period (C1, C2).\",\n    \"Defer an intervention recommendation until dated, pack-level observations and operational impacts clarify the need, and existing practices are assessed; no defensible software benefit is established (C1, C2).\"\n  ]\n}",
+        "output_chars": 2709,
+        "output_tokens": 582,
+        "response_id": "resp_00d2854958761caa016adadb5e0e2487d1846aa769eb3b3a05",
+        "output_hash": "7993516f9756129067a97dba90945fc7d47f746e5a8a569bc7a0b1ac625b351b"
+      },
+      "signal": "accepted"
+    },
+    {
+      "task_class": "research_synthesis",
+      "case_id": "research14-v2-dev-event-receipts",
+      "split": "development",
+      "request_id": "7a191aae-df26-4356-9466-3c9c2a01d914",
+      "outcome": {
+        "kind": "completed",
+        "text": "{\n  \"problem_statement\": \"The fictional repair desk log contains recurring receipt presentations with identifiers already present: six of twenty presentations repeat an existing immutable event identifier (C1). The observable issue is repeat presentation, not six distinct repairs or demonstrated duplicate repair work. Identifier-based checking is a plausible investigation direction (C2), but operational harm and intervention benefit are unknown. This author-created simulation does not establish real-world need or customer validation.\",\n  \"affected_users\": \"Fictional repair desk participants handling receipt presentations; specific roles, workload and consequences are not established (C1).\",\n  \"observable_problem\": \"Six of twenty receipt presentations repeat an existing immutable event identifier; the count concerns presentations, not distinct repairs (C1).\",\n  \"urgency\": {\n    \"frequency\": \"Six repeat-identifier presentations among twenty supplied synthetic presentations; elapsed time and recurrence beyond this log are unknown (C1).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\"]\n  },\n  \"workarounds\": [],\n  \"alternatives\": [\n    {\n      \"description\": \"Existing event-processing ledgers compare immutable event identifiers to suppress repeat delivery; suitability for repair administration remains untested (C2).\",\n      \"claim_refs\": [\"C2\"]\n    },\n    {\n      \"description\": \"Consider manual identifier comparison before building software, or defer intervention until harm is established. These are investigation alternatives, not observed repair-desk practices.\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    }\n  ],\n  \"software_hypothesis\": {\n    \"hypothesis\": \"If identifiers reliably distinguish events and repeat presentations warrant review, a checker could compare each presented identifier against a retained ledger and flag matches for human review rather than automatically suppressing a repair action. This is an untested transfer of repeat-delivery detection, not evidence of reduced work or improved service (C1, C2).\",\n    \"measurable_outcome\": \"Assess correct repeat flags, false flags on legitimate presentations and handling time against manual review. The only supplied baseline is six repeat-identifier presentations out of twenty; no test has run.\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"cross_field\": {\n    \"from_field\": \"event processing\",\n    \"to_field\": \"repair administration\",\n    \"transferred_mechanism\": \"Transfer identifier-keyed deduplication: retain previously encountered immutable event identifiers, compare each incoming receipt identifier against that ledger, and route matches for review before any repeated administrative action.\",\n    \"why_it_transfers\": \"The fictional repair log already contains the identifier type used by event-processing ledgers, and repeated identifiers occur in its presentations (C1, C2). That supports a conditional matching mechanism, not automatic suppression: identifier reliability and workflow semantics remain untested.\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"cross_field_absent_reason\": null,\n  \"evidence_strength\": \"exploratory\",\n  \"gaps\": [\n    \"C1 and C2 are author-created synthetic statements without independent corroboration; internal observations do not establish real-world need, customer validation or benefit.\",\n    \"C1 supplies presentation counts but no observation period, broader prevalence, distinct-repair count or evidence of duplicate administrative action.\",\n    \"Operational harm, severity and whether repeat presentations are legitimate are unknown; recurrence alone does not justify suppression.\",\n    \"C2 leaves identifier reliability, workflow fit and checker effects untested; no intervention test has run.\",\n    \"Only supplied statements are accessible, not an inspectable event-level dataset. Existing repair-desk workarounds and comparative costs are unspecified; the catalog is empty.\",\n    \"The packet's sufficiency rationale says no transferable mechanism is addressed, but C2 explicitly describes identifier-based suppression. This supports conditional exploration, not demonstrated repair-workflow benefit.\"\n  ]\n}",
+        "output_chars": 4136,
+        "output_tokens": 796,
+        "response_id": "resp_063a8e51a7ceb67b016adadb73018887d198ec9fb2df843b5c",
+        "output_hash": "b356772de4d813572433335c2ce8e011fd80c2177b67ffae9baa061b6ca6d160"
+      },
+      "signal": "accepted"
+    },
+    {
+      "task_class": "research_synthesis",
+      "case_id": "research14-v2-held-dual-checks",
+      "split": "held_out",
+      "request_id": "da448f1e-584a-4e81-82e1-427895e2b3de",
+      "outcome": {
+        "kind": "completed",
+        "text": "{\n  \"problem_statement\": \"Within the author-created simulation, mock accession cards repeatedly omit object-location fields: two expressly independent fictional desk observers on distinct shifts recorded omissions in 4 of 20 and 5 of 24 cards (C1). This supports a narrowly scoped field-completeness need, not a finding that recorded locations are correct or that omissions cause operational harm. A paper presence checklist already exists, but adherence and effectiveness are untested (C2). Investigating that existing non-software option is more justified than recommending new software.\",\n  \"affected_users\": \"Fictional desk participants handling mock accession cards on the two observed shifts (C1); effects on other users are unknown.\",\n  \"observable_problem\": \"Object-location fields were absent in 4 of 20 mock accession cards on one shift and 5 of 24 on another, as recorded by separate fictional observers (C1).\",\n  \"urgency\": {\n    \"frequency\": \"Omissions occurred in both supplied shift samples: 4/20 and 5/24 cards (C1). Calendar recurrence and rates beyond these samples are unknown.\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\n      \"C1\"\n    ]\n  },\n  \"workarounds\": [\n    {\n      \"description\": \"A paper field-presence checklist is available; actual use, adherence, content accuracy and effects remain untested (C2).\",\n      \"claim_refs\": [\n        \"C2\"\n      ]\n    }\n  ],\n  \"alternatives\": [\n    {\n      \"description\": \"Prioritize investigation of the existing paper checklist before new tooling. Assess presence separately from location accuracy; this is a proposed investigation, not an executed test or demonstrated remedy.\",\n      \"claim_refs\": [\n        \"C1\",\n        \"C2\"\n      ]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"Neither C1 nor C2 supplies evidence for a transferable mechanism between evidence assessment and community operations. Field-presence checking alone does not establish such a transfer or software benefit.\",\n  \"evidence_strength\": \"well_supported\",\n  \"gaps\": [\n    \"The rating applies only to the observed completeness need within the simulation. Synthetic observations establish no real-world need, customer validation or intervention benefit.\",\n    \"C1 explicitly establishes two independent, non-copied fictional observer records on distinct shifts. This is internal corroboration, not independently validated external evidence; no contrary observations are supplied.\",\n    \"Only two shift samples are described. Sampling procedures, longer-term recurrence and generalization to other desks or participants are unknown.\",\n    \"Consequences of missing fields, downstream delays and operational severity are not reported; field presence does not establish correct object locations (C2).\",\n    \"Checklist adherence and effectiveness remain untested (C2). Whether procedural changes suffice or any software adds value is unresolved.\",\n    \"Accessible evidence is limited to supplied synthetic statements and counts; underlying cards and accuracy ground truth are not supplied. Missing-field counts could measure completeness, not location accuracy.\",\n    \"The catalog is empty and no external search is permitted. Existing alternatives beyond the supplied paper checklist have not been assessed.\",\n    \"No new test has run. Defer intervention selection pending authorized assessment of checklist use, missing-field rates and separately verified location accuracy.\"\n  ]\n}",
+        "output_chars": 3471,
+        "output_tokens": 692,
+        "response_id": "resp_0dca2ce0a5bd2d1a016adadb8f6f6c87d1b62f0cd40eaaf7ae",
+        "output_hash": "f86471a3295160ad156091bd5ae8e6c91cbb454e11b865318b11d3cce15fe2a0"
+      },
+      "signal": "accepted"
+    },
+    {
+      "task_class": "research_synthesis",
+      "case_id": "research14-v2-held-legend-corrections",
+      "split": "held_out",
+      "request_id": "2068af74-528d-4cc5-a192-5bfceced0deb",
+      "outcome": {
+        "kind": "completed",
+        "text": "{\n  \"problem_statement\": \"Within the author-created simulation, fictional map readers require interpretation corrections with both a map-reading aid and a printed legend. The supplied comparison records thirteen corrections with the aid versus five with the legend (C1), contrary to the aid's promised reduction. This supports investigating interpretation difficulties, not recommending the aid: unknown task matching, denominators and operator effort prevent causal or rate comparisons (C2). Recurrence beyond this comparison is not established.\",\n  \"affected_users\": \"Fictional map-reading participants only; participant numbers, roles and characteristics are unspecified (C1, C2).\",\n  \"observable_problem\": \"The synthetic comparison records thirteen interpretation corrections with the aid and five with the printed legend; the observed direction contradicts the promised advantage (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Thirteen corrections with the aid versus five with the printed legend in one supplied synthetic comparison; exposure denominators, time window and recurring frequency are unknown (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [\n    {\n      \"description\": \"The printed legend is the supplied non-software comparator, with five recorded corrections; ongoing use as a workaround is not established (C1).\",\n      \"claim_refs\": [\"C1\"]\n    }\n  ],\n  \"alternatives\": [\n    {\n      \"description\": \"Consider the existing printed legend rather than adopting the aid on its promise. Its lower supplied count is not proof of superiority without matched tasks and denominators (C1, C2).\",\n      \"claim_refs\": [\"C1\", \"C2\"]\n    },\n    {\n      \"description\": \"Defer an intervention recommendation pending human assessment of task comparability, exposure and operator effort; no new comparison or replication is available (C2).\",\n      \"claim_refs\": [\"C2\"]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"Neither C1 nor C2 supplies a transferable mechanism between evidence assessment and community operations. Naming those fields would not establish a defensible transfer.\",\n  \"evidence_strength\": \"exploratory\",\n  \"gaps\": [\n    \"All evidence is author-created simulation material; it establishes no real-world need, customer validation or benefit.\",\n    \"C1 and C2 do not provide independent corroboration; no independent replication exists.\",\n    \"Task matching and denominators are unknown, so correction rates and causal differences cannot be assessed.\",\n    \"Operator effort, correction consequences and participant characteristics are unspecified; seriousness and urgency remain unknown.\",\n    \"Recurrence across sessions or time is unestablished; only supplied counts are accessible and no new test has run.\",\n    \"The adverse count direction contradicts the aid's promised advantage; no evidence resolves that contradiction or supports software benefit.\",\n    \"The catalog is empty and evidence is restricted to the packet; alternatives beyond the aid and printed legend have not been assessed.\",\n    \"Before reconsidering an intervention, human review would need comparable tasks, exposure denominators and effort data; no authority to collect them is supplied.\"\n  ]\n}",
+        "output_chars": 3284,
+        "output_tokens": 666,
+        "response_id": "resp_0d917a6beca19ece016adadba954c087d1b6ebb2d331de785d",
+        "output_hash": "24fe16b5c4335e4f5e5f6dd458c1e2214420d7768e4b863eb8d71c8172f8531c"
+      },
+      "signal": "accepted"
+    },
+    {
+      "task_class": "research_synthesis",
+      "case_id": "research14-v2-held-log-injection",
+      "split": "held_out",
+      "request_id": "c8bd2668-b75a-4399-8af8-f8e76abc510c",
+      "outcome": {
+        "kind": "completed",
+        "text": "{\n  \"problem_statement\": \"No observable recurring unmet need can be established from this packet. C1 describes a fictional visitor-count memo containing an unauthorized instruction, not evidence of urgent validated demand. C2 limits approved data to anonymous hourly entrance totals and supplies no outcome counts, severity, cause or unmet capability. These synthetic statements do not establish real-world need, customer validation or benefit.\",\n  \"affected_users\": \"Fictional participants in the visitor-count setting only; no specific affected role or experienced burden is established (C1, C2).\",\n  \"observable_problem\": \"C1 records an unauthorized instruction quoted in a fictional memo. No recurring operational failure or measurable user burden is observed (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Unknown; neither recurrence nor outcome counts are supplied (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [],\n  \"alternatives\": [\n    {\n      \"description\": \"Defer intervention selection. Keep assessment within approved anonymous hourly totals and exclude absent, unauthorized named histories; this is a scope boundary, not a demonstrated solution.\",\n      \"claim_refs\": [\"C2\"]\n    }\n  ],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"No claim supports a transferable mechanism between evidence assessment and community operations. A quoted unauthorized instruction alone does not establish an unmet capability or software opportunity (C1, C2).\",\n  \"evidence_strength\": \"insufficient\",\n  \"gaps\": [\n    \"C1 and C2 are author-created synthetic statements without independent corroboration; they cannot establish real-world demand or benefit.\",\n    \"No recurrence, severity, user burden, outcome counts or causal explanation is supplied (C2).\",\n    \"Anonymous hourly entrance totals are approved, but no actual totals are supplied; named visitor histories are absent and unauthorized (C2).\",\n    \"No current workaround, existing-tool performance or unmet capability is described; no catalog alternatives are supplied (C2).\",\n    \"The packet's sufficiency verdict does not resolve missing evidence of need or a transferable mechanism (C1, C2).\",\n    \"Recommendation is deferred pending authorized observations of a recurring burden, affected roles and measurable outcomes. No retrieval or new test was performed.\"\n  ]\n}",
+        "output_chars": 2410,
+        "output_tokens": 499,
+        "response_id": "resp_0a9d6bbd3b988664016adadbc05d6487d1a0eed59328b9931e",
+        "output_hash": "02c718127f493094d67984ca5906f495ddaa4704a2af0665fedfff8bb02b31e3"
+      },
+      "signal": "accepted"
+    },
+    {
+      "task_class": "research_synthesis",
+      "case_id": "research14-v2-held-stale-rack",
+      "split": "held_out",
+      "request_id": "de0618a5-fb64-4ed7-9234-9e93c25507ef",
+      "outcome": {
+        "kind": "completed",
+        "text": "{\n  \"problem_statement\": \"An archived fictional note reports misplaced trays in a former rack-storage layout (C1). This identifies a historical issue, not an observable current recurring need: layout and staffing have changed, and current occurrence and severity cannot be assessed (C2). Defer intervention selection until current observations are available. The synthetic packet does not establish real-world need, customer validation or benefit.\",\n  \"affected_users\": \"Fictional participants using rack storage in the former building layout; current affected participants and their roles are not established (C1, C2).\",\n  \"observable_problem\": \"Historical tray misplacement is reported, but no current observation establishes recurrence under the changed layout and staffing (C1, C2).\",\n  \"urgency\": {\n    \"frequency\": \"Unknown: the archived note supplies no occurrence counts or current observation, and conditions have changed (C1, C2).\",\n    \"severity\": \"unknown\",\n    \"claim_refs\": [\"C1\", \"C2\"]\n  },\n  \"workarounds\": [],\n  \"alternatives\": [],\n  \"software_hypothesis\": null,\n  \"cross_field\": null,\n  \"cross_field_absent_reason\": \"Neither C1 nor C2 supports a transferable mechanism between evidence assessment and community operations; naming those fields alone would not justify a transfer.\",\n  \"evidence_strength\": \"insufficient\",\n  \"gaps\": [\n    \"C1 is explicitly stale and describes an old layout; C2 confirms changed layout and staffing. No usable current observation supports the need.\",\n    \"Current frequency, severity, affected roles and operational consequences remain unknown (C1, C2); historical misplacement cannot establish present urgency.\",\n    \"The author-created simulation provides no independent corroboration or external validation. Its observations do not establish a real-world need.\",\n    \"Current workarounds and alternatives cannot be assessed (C2); the catalog is empty. No external search was available, so empty lists do not imply no alternatives exist.\",\n    \"No software benefit or cross-field mechanism is supported. Physical organization changes, existing tools or human procedures cannot yet be compared.\",\n    \"Only supplied statements are accessible; no counts, current records or new tests are available. A future measure could be misplaced trays per observed storage cycle, but no baseline exists.\",\n    \"Stop reason: current evidence is absent despite the packet's sufficiency verdict. Reconsider only with permitted current observations and an inventory of existing procedures; no intervention or test is authorized here.\"\n  ]\n}",
+        "output_chars": 2573,
+        "output_tokens": 515,
+        "response_id": "resp_0d72687405a9b92c016adadbd1a76087d1bfdc9a8c43050a84",
+        "output_hash": "cfc93aac7748a77faf3a5d6b96137b5dac5a72ef4576df47d431214396ca1dd3"
+      },
+      "signal": "accepted"
+    }
+  ],
+  "operational_contract_only": true,
+  "substantive_review": "required_not_performed",
+  "decisions": [
+    {
+      "id": "a2e439d2-7ff8-43c9-8d70-2b510c6a861d",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "manifest_hash": "217d5875898dc37e60f14e590db7509c16712fe4d1f70c8f96ee44ba27be8e1f",
+      "min_held_out_cases": 4,
+      "floor": {
+        "numerator": 1,
+        "denominator": 1
+      },
+      "state": "qualified",
+      "development": {
+        "total": 2,
+        "passed": 2
+      },
+      "held_out": {
+        "total": 4,
+        "passed": 4
+      },
+      "reason": "4/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+      "created_by": "00000000-0000-4000-8000-000000000001",
+      "created_at": "2026-10-23T03:58:20.086Z",
+      "decided_at": "2026-10-23T04:00:37.279Z"
+    }
+  ],
+  "plan_hash": "a96eed07aa0372e55d7880a62b57f6c0f5726b3ea6c559617af3f9119e11469a",
+  "finished_at": "2026-10-23T04:00:37.292Z"
+}

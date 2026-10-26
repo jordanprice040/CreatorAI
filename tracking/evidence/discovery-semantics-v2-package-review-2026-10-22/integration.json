@@ -1,0 +1,12 @@
+{
+  "format": "semantics-v2-package-review-integration/1",
+  "integrated_at": "2026-10-22T17:26:24.212Z",
+  "status": "supported_exact_package_and_declarative_bindings",
+  "reviewer_receipt_sha256": "849b090600ac19aa3b691567540317f47ca14d526a6a4ce5531f4aa9d25c11b8",
+  "verified_artifacts": 370,
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "installation_executed": false,
+  "dispatch_ready": false,
+  "provider_calls": 0,
+  "next_eligible": "Implement and independently review the bound runner; supported local upgrade remains a separate gate"
+}

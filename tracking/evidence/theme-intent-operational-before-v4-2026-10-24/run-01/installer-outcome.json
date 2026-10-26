@@ -1,0 +1,11 @@
+{
+  "completed_at": "2026-10-24T12:34:45.802Z",
+  "admission_sha256": "9843d7770da462086781acf46f95ff317bc723ffe6eee967c2d11e393834184d",
+  "installer_sha256": "3af2712caeccc3d4519b732964948270b8647dd023be6b6159614889be6d834b",
+  "installer_intent_sha256": "159fd3c3d349bae3ccd04d48c83b37a7ae93832d2bdd7e437d0a924fe8818c39",
+  "exit_code": 0,
+  "code": 0,
+  "timed_out": false,
+  "stdout_sha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+  "stderr_sha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+}

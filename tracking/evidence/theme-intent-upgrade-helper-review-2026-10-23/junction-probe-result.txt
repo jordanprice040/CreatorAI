@@ -1,0 +1,12 @@
+Executed 2026-10-23 against scratch directories only (PowerShell New-Item -ItemType Junction).
+files(root containing junction) REJECTED: Links forbidden
+files(root itself is a junction) REJECTED: Directory required
+copyVerified(root with junction) REJECTED: Links forbidden
+child "a/./b" -> C:\r\a\b
+child "a//b" -> C:\r\a\b
+child "." REJECTED
+child "x/.." REJECTED
+child "a/.." REJECTED
+child "CON" -> C:\r\CON          (reserved device name accepted; only reachable via hash-verified manifests)
+child "a/b\u0000" -> C:\r\a\b\0  (NUL accepted by child(); fs calls would then throw)
+Ancestors of the inspected roots are not checked for reparse points.

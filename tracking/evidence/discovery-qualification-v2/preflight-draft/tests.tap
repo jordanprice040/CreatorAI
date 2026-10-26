@@ -1,0 +1,274 @@
+TAP version 13
+# Subtest: v2 research_synthesis: frozen production transport and meaningful decision controls
+ok 1 - v2 research_synthesis: frozen production transport and meaningful decision controls
+  ---
+  duration_ms: 25.0985
+  type: 'test'
+  ...
+# Subtest: v2 candidate_generation: frozen production transport and meaningful decision controls
+ok 2 - v2 candidate_generation: frozen production transport and meaningful decision controls
+  ---
+  duration_ms: 13.2677
+  type: 'test'
+  ...
+# Subtest: v2 scoring: frozen production transport and meaningful decision controls
+ok 3 - v2 scoring: frozen production transport and meaningful decision controls
+  ---
+  duration_ms: 8.0294
+  type: 'test'
+  ...
+# Subtest: v2 anchors reject unsupported confidence but allow corroboration within explicitly simulated scope
+ok 4 - v2 anchors reject unsupported confidence but allow corroboration within explicitly simulated scope
+  ---
+  duration_ms: 4.2175
+  type: 'test'
+  ...
+# Subtest: substantive review remains necessary: schema-valid invented narrative is not certified by enum/reference checks
+ok 5 - substantive review remains necessary: schema-valid invented narrative is not certified by enum/reference checks
+  ---
+  duration_ms: 2.8475
+  type: 'test'
+  ...
+# Subtest: research_synthesis: historical v1 cases retain frozen transport and original schema/decision grading
+ok 6 - research_synthesis: historical v1 cases retain frozen transport and original schema/decision grading
+  ---
+  duration_ms: 16.7443
+  type: 'test'
+  ...
+# Subtest: candidate_generation: historical v1 cases retain frozen transport and original schema/decision grading
+ok 7 - candidate_generation: historical v1 cases retain frozen transport and original schema/decision grading
+  ---
+  duration_ms: 8.6964
+  type: 'test'
+  ...
+# Subtest: scoring: historical v1 cases retain frozen transport and original schema/decision grading
+ok 8 - scoring: historical v1 cases retain frozen transport and original schema/decision grading
+  ---
+  duration_ms: 6.0734
+  type: 'test'
+  ...
+# Subtest: software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+ok 9 - software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+  ---
+  duration_ms: 2377.6814
+  type: 'test'
+  ...
+# Subtest: justified existing-tool choice: software is not recommended when an existing tool covers the need
+ok 10 - justified existing-tool choice: software is not recommended when an existing tool covers the need
+  ---
+  duration_ms: 2269.1589
+  type: 'test'
+  ...
+# Subtest: insufficient evidence stops after the locator and proposes nothing
+ok 11 - insufficient evidence stops after the locator and proposes nothing
+  ---
+  duration_ms: 1614.3112
+  type: 'test'
+  ...
+# Subtest: answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+ok 12 - answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+  ---
+  duration_ms: 2160.1731
+  type: 'test'
+  ...
+# Subtest: the revision limit is enforced and unresolved objections are kept as dissent
+ok 13 - the revision limit is enforced and unresolved objections are kept as dissent
+  ---
+  duration_ms: 2340.5603
+  type: 'test'
+  ...
+# Subtest: start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+ok 14 - start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+  ---
+  duration_ms: 1554.9737
+  type: 'test'
+  ...
+# Subtest: proposed plan settings parse and keep code_build, private data and credits out
+ok 15 - proposed plan settings parse and keep code_build, private data and credits out
+  ---
+  duration_ms: 1.2387
+  type: 'test'
+  ...
+# Subtest: plan request body follows the preview limits and the error codes map to states
+ok 16 - plan request body follows the preview limits and the error codes map to states
+  ---
+  duration_ms: 0.2134
+  type: 'test'
+  ...
+# Subtest: only official endpoints are accepted for real connections
+ok 17 - only official endpoints are accepted for real connections
+  ---
+  duration_ms: 0.4562
+  type: 'test'
+  ...
+# Subtest: first registration uses the dynamic client with the name hint; later ones do not
+ok 18 - first registration uses the dynamic client with the name hint; later ones do not
+  ---
+  duration_ms: 0.6967
+  type: 'test'
+  ...
+# Subtest: loopback callback refuses a wrong state and a different client id
+ok 19 - loopback callback refuses a wrong state and a different client id
+  ---
+  duration_ms: 30.2628
+  type: 'test'
+  ...
+# Subtest: ID tokens are checked for nonce and audience
+ok 20 - ID tokens are checked for nonce and audience
+  ---
+  duration_ms: 45.028
+  type: 'test'
+  ...
+# Subtest: the Responses stream counts only response.completed and enforces the output cap
+ok 21 - the Responses stream counts only response.completed and enforces the output cap
+  ---
+  duration_ms: 58.9719
+  type: 'test'
+  ...
+# Subtest: pure admission keeps sign-in, credits, caps, model access and qualification separate
+ok 22 - pure admission keeps sign-in, credits, caps, model access and qualification separate
+  ---
+  duration_ms: 0.7763
+  type: 'test'
+  ...
+# Subtest: no vault means no sign-in, and file-dev is never chosen implicitly
+ok 23 - no vault means no sign-in, and file-dev is never chosen implicitly
+  ---
+  duration_ms: 0.1592
+  type: 'test'
+  ...
+# Subtest: a real workspace connection refuses loopback endpoints and uses the official hosts
+ok 24 - a real workspace connection refuses loopback endpoints and uses the official hosts
+  ---
+  duration_ms: 1676.9708
+  type: 'test'
+  ...
+# Subtest: credits confirmation remains readable by the UI after reloading
+ok 25 - credits confirmation remains readable by the UI after reloading
+  ---
+  duration_ms: 1584.0466
+  type: 'test'
+  ...
+# Subtest: sign-in, credits, caps, verification and qualification are separate recorded states
+ok 26 - sign-in, credits, caps, verification and qualification are separate recorded states
+  ---
+  duration_ms: 1648.9558
+  type: 'test'
+  ...
+# Subtest: provider refusals are recorded as eligibility and quota states and stop admission
+ok 27 - provider refusals are recorded as eligibility and quota states and stop admission
+  ---
+  duration_ms: 1699.2267
+  type: 'test'
+  ...
+# Subtest: one request at a time: a concurrent admission is refused while one is in flight
+ok 28 - one request at a time: a concurrent admission is refused while one is in flight
+  ---
+  duration_ms: 2058.4149
+  type: 'test'
+  ...
+# Subtest: a terminal refresh error requires a new sign-in and keeps the registration
+ok 29 - a terminal refresh error requires a new sign-in and keeps the registration
+  ---
+  duration_ms: 1827.981
+  type: 'test'
+  ...
+# Subtest: refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+ok 30 - refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+  ---
+  duration_ms: 1861.3778
+  type: 'test'
+  ...
+# Subtest: a sign-in that grants no plan usage scope is recorded but admits nothing
+ok 31 - a sign-in that grants no plan usage scope is recorded but admits nothing
+  ---
+  duration_ms: 1704.2297
+  type: 'test'
+  ...
+# Subtest: production discovery-contract qualification grades role outputs through the plan service using loopback only
+ok 32 - production discovery-contract qualification grades role outputs through the plan service using loopback only
+  ---
+  duration_ms: 1968.0471
+  type: 'test'
+  ...
+# Subtest: X01 routing gate: versions recorded, bad routes fail, unreliable route refused, promotion and rollback
+ok 33 - X01 routing gate: versions recorded, bad routes fail, unreliable route refused, promotion and rollback
+  ---
+  duration_ms: 4006.5577
+  type: 'test'
+  ...
+# Subtest: a real workspace refuses fixture models and unverified reference models
+ok 34 - a real workspace refuses fixture models and unverified reference models
+  ---
+  duration_ms: 1591.2107
+  type: 'test'
+  ...
+# Subtest: subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+ok 35 - subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+  ---
+  duration_ms: 2653.4123
+  type: 'test'
+  ...
+# Subtest: subscription workflow replay survives restart without redispatch, binds input
+ok 36 - subscription workflow replay survives restart without redispatch, binds input
+  ---
+  duration_ms: 2610.1826
+  type: 'test'
+  ...
+# Subtest: subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+ok 37 - subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+  ---
+  duration_ms: 2306.8777
+  type: 'test'
+  ...
+# Subtest: unknown subscription requests hold work without retry and explicit reconciliation releases the task
+ok 38 - unknown subscription requests hold work without retry and explicit reconciliation releases the task
+  ---
+  duration_ms: 2195.3404
+  type: 'test'
+  ...
+# Subtest: missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+ok 39 - missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+  ---
+  duration_ms: 2715.2439
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+ok 40 - authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+  ---
+  duration_ms: 3441.8799
+  type: 'test'
+  ...
+# Subtest: cancellation during credential lookup cannot start a later provider request
+ok 41 - cancellation during credential lookup cannot start a later provider request
+  ---
+  duration_ms: 0.756
+  type: 'test'
+  ...
+# Subtest: typed API resources preserve the existing budgeted discovery path
+ok 42 - typed API resources preserve the existing budgeted discovery path
+  ---
+  duration_ms: 3180.6884
+  type: 'test'
+  ...
+# Subtest: a qualified task name with stale role-prompt evidence cannot unlock discovery
+ok 43 - a qualified task name with stale role-prompt evidence cannot unlock discovery
+  ---
+  duration_ms: 2380.2845
+  type: 'test'
+  ...
+# Subtest: historical v1 qualification cannot unlock the revised operational rubric
+ok 44 - historical v1 qualification cannot unlock the revised operational rubric
+  ---
+  duration_ms: 2326.1321
+  type: 'test'
+  ...
+1..44
+# tests 44
+# suites 0
+# pass 44
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 61085.7649

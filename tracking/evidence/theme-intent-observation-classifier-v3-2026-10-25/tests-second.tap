@@ -1,0 +1,140 @@
+TAP version 13
+# Subtest: join emulation matches Rust-executed admitted vectors including real trailing-separator branch
+ok 1 - join emulation matches Rust-executed admitted vectors including real trailing-separator branch
+  ---
+  duration_ms: 2.3299
+  type: 'test'
+  ...
+# Subtest: Rust-executed double-backslash and forward-slash cases are unavailable, never alternative keys
+ok 2 - Rust-executed double-backslash and forward-slash cases are unavailable, never alternative keys
+  ---
+  duration_ms: 0.2375
+  type: 'test'
+  ...
+# Subtest: open result not-found is absent only with bound key; errors including wrong type stay unavailable
+ok 3 - open result not-found is absent only with bound key; errors including wrong type stay unavailable
+  ---
+  duration_ms: 0.1453
+  type: 'test'
+  ...
+# Subtest: Run existence is type-agnostic with only file-not-found absent
+ok 4 - Run existence is type-agnostic with only file-not-found absent
+  ---
+  duration_ms: 0.127
+  type: 'test'
+  ...
+# Subtest: every required binding, count and availability matters; unavailable never means zero
+ok 5 - every required binding, count and availability matters; unavailable never means zero
+  ---
+  duration_ms: 0.7152
+  type: 'test'
+  ...
+# Subtest: PR01 stopped pair needs spacing, complete evidence, identical binding and bounded fresh end
+ok 6 - PR01 stopped pair needs spacing, complete evidence, identical binding and bounded fresh end
+  ---
+  duration_ms: 0.42
+  type: 'test'
+  ...
+# Subtest: SH01 can observe ordinary shutdown activity then stopped pair, but no deadline extension
+not ok 7 - SH01 can observe ordinary shutdown activity then stopped pair, but no deadline extension
+  ---
+  duration_ms: 1.6488
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\theme-intent-observation-classifier-fixture-v3.test.mjs:183:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'blocked'
+    - 'pending'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'pending'
+  actual: 'blocked'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-observation-classifier-fixture-v3.test.mjs:203:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: launch/unknown launch during sampling blocks, independent of stopped counts
+ok 8 - launch/unknown launch during sampling blocks, independent of stopped counts
+  ---
+  duration_ms: 0.2091
+  type: 'test'
+  ...
+# Subtest: malformed and reordered windows are redacted unknown results
+ok 9 - malformed and reordered windows are redacted unknown results
+  ---
+  duration_ms: 0.3882
+  type: 'test'
+  ...
+# Subtest: unknown injected fields and error payloads never appear in outputs
+ok 10 - unknown injected fields and error payloads never appear in outputs
+  ---
+  duration_ms: 0.4788
+  type: 'test'
+  ...
+# Subtest: M1 explicit launch wins over incomplete sample and every earlier rejection (P1a,P1c-P1g)
+ok 11 - M1 explicit launch wins over incomplete sample and every earlier rejection (P1a,P1c-P1g)
+  ---
+  duration_ms: 0.4315
+  type: 'test'
+  ...
+# Subtest: M2 SH01 requires recorded running, planned Quit, and exact request origin (P3)
+ok 12 - M2 SH01 requires recorded running, planned Quit, and exact request origin (P3)
+  ---
+  duration_ms: 0.1878
+  type: 'test'
+  ...
+# Subtest: M3 contradictory postgres observation invalidates either whole window, never ordinary activity (P2)
+ok 13 - M3 contradictory postgres observation invalidates either whole window, never ordinary activity (P2)
+  ---
+  duration_ms: 0.1785
+  type: 'test'
+  ...
+# Subtest: L2 native-refused OneDrive components are unavailable (P4)
+ok 14 - L2 native-refused OneDrive components are unavailable (P4)
+  ---
+  duration_ms: 0.1195
+  type: 'test'
+  ...
+# Subtest: L3 window attestation covers intervals and post-final handle closure
+ok 15 - L3 window attestation covers intervals and post-final handle closure
+  ---
+  duration_ms: 0.1206
+  type: 'test'
+  ...
+# Subtest: M4 observed restart permanently blocks SH01 (R1-R3); earlier shutdown activity remains allowed (R4)
+ok 16 - M4 observed restart permanently blocks SH01 (R1-R3); earlier shutdown activity remains allowed (R4)
+  ---
+  duration_ms: 0.1803
+  type: 'test'
+  ...
+# Subtest: L6 uncertain whole-window launch exclusion wins before contradictory, invalid and over-cap paths (N1)
+ok 17 - L6 uncertain whole-window launch exclusion wins before contradictory, invalid and over-cap paths (N1)
+  ---
+  duration_ms: 0.1787
+  type: 'test'
+  ...
+# Subtest: L8 query starts determine spacing; separate closed_ms bounds all final handle closure
+ok 18 - L8 query starts determine spacing; separate closed_ms bounds all final handle closure
+  ---
+  duration_ms: 0.1843
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 17
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 116.1848

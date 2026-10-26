@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-22T04:22:09.264Z",
+  "message": "Studio POST workspaces/88df6c10-7310-4ec0-b623-7f48046bc447/plan-connections/7529f8ef-8579-4685-80fc-5df300130667/verify: HTTP 403; no retry.",
+  "dispatch_started": true,
+  "response_observed": false,
+  "retry": false,
+  "recovery": "Read-only inspection/reconciliation only. Never delete operation.lock or repeat this approval."
+}

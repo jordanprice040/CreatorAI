@@ -1,0 +1,778 @@
+[
+  {
+    "case_id": "loc-dev-exhibit-notes",
+    "kind": "locate",
+    "split": "development",
+    "assertions": [
+      {
+        "path": [
+          "evidence_strength"
+        ],
+        "op": "equals",
+        "value": "exploratory",
+        "classification": "case_specific_operational_rubric_label_not_entailment"
+      },
+      {
+        "path": [
+          "gaps"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "urgency",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C1",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "loc-dev-unobserved-noise",
+    "kind": "locate",
+    "split": "development",
+    "assertions": [
+      {
+        "path": [
+          "evidence_strength"
+        ],
+        "op": "equals",
+        "value": "insufficient",
+        "classification": "case_specific_operational_rubric_label_not_entailment"
+      },
+      {
+        "path": [
+          "gaps"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_hypothesis"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "loc-held-unit-conflict",
+    "kind": "locate",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "evidence_strength"
+        ],
+        "op": "one_of",
+        "values": [
+          "exploratory",
+          "insufficient"
+        ],
+        "classification": "case_specific_operational_rubric_label_not_entailment"
+      },
+      {
+        "path": [
+          "gaps"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "urgency",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C1",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "loc-held-obsolete-layout",
+    "kind": "locate",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "evidence_strength"
+        ],
+        "op": "equals",
+        "value": "insufficient",
+        "classification": "case_specific_operational_rubric_label_not_entailment"
+      },
+      {
+        "path": [
+          "gaps"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_hypothesis"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "loc-held-transfer-bins",
+    "kind": "locate",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "evidence_strength"
+        ],
+        "op": "equals",
+        "value": "exploratory",
+        "classification": "case_specific_operational_rubric_label_not_entailment"
+      },
+      {
+        "path": [
+          "gaps"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "urgency",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C1",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "cross_field",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "cross_field",
+          "transferred_mechanism"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "loc-held-source-wrapper",
+    "kind": "locate",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "evidence_strength"
+        ],
+        "op": "equals",
+        "value": "exploratory",
+        "classification": "case_specific_operational_rubric_label_not_entailment"
+      },
+      {
+        "path": [
+          "gaps"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "urgency",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C1",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "design-dev-existing-calendar",
+    "kind": "propose",
+    "split": "development",
+    "assertions": [
+      {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "existing_tool",
+        "classification": "production_rule_also_checked_structurally"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "representation_specific_not_required_by_model_contract"
+      },
+      {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "equals",
+        "value": "no",
+        "classification": "case_specific_decision_label_requires_reason_review"
+      }
+    ]
+  },
+  {
+    "case_id": "design-dev-offline-text",
+    "kind": "propose",
+    "split": "development",
+    "assertions": [
+      {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "software",
+        "classification": "production_rule_also_checked_structurally"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "representation_specific_not_required_by_model_contract"
+      },
+      {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "yes",
+          "unclear"
+        ],
+        "classification": "case_specific_decision_label_requires_reason_review"
+      }
+    ]
+  },
+  {
+    "case_id": "design-held-process-sequence",
+    "kind": "propose",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "process_change",
+        "classification": "production_rule_also_checked_structurally"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "representation_specific_not_required_by_model_contract"
+      },
+      {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "equals",
+        "value": "no",
+        "classification": "case_specific_decision_label_requires_reason_review"
+      }
+    ]
+  },
+  {
+    "case_id": "design-held-human-priority",
+    "kind": "propose",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "human_led",
+        "classification": "production_rule_also_checked_structurally"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "representation_specific_not_required_by_model_contract"
+      },
+      {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "equals",
+        "value": "no",
+        "classification": "case_specific_decision_label_requires_reason_review"
+      }
+    ]
+  },
+  {
+    "case_id": "design-held-hybrid-approval",
+    "kind": "propose",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "hybrid",
+        "classification": "production_rule_also_checked_structurally"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "representation_specific_not_required_by_model_contract"
+      },
+      {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "no",
+          "unclear"
+        ],
+        "classification": "case_specific_decision_label_requires_reason_review"
+      }
+    ]
+  },
+  {
+    "case_id": "design-held-two-findings",
+    "kind": "revise",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "perspective"
+        ],
+        "op": "equals",
+        "value": "software",
+        "classification": "production_rule_also_checked_structurally"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "novelty"
+        ],
+        "op": "equals",
+        "value": null,
+        "classification": "representation_specific_not_required_by_model_contract"
+      },
+      {
+        "path": [
+          "assumptions"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "software_warranted",
+          "verdict"
+        ],
+        "op": "equals",
+        "value": "no",
+        "classification": "case_specific_decision_label_requires_reason_review"
+      },
+      {
+        "path": [
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C3",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "recommendation"
+        ],
+        "op": "equals",
+        "value": "not_recommended",
+        "classification": "case_specific_decision_label_requires_reason_review"
+      },
+      {
+        "path": [
+          "response_to_findings"
+        ],
+        "op": "nonempty",
+        "classification": "production_rule_also_checked_structurally"
+      }
+    ]
+  },
+  {
+    "case_id": "skeptic-dev-five-proposals",
+    "kind": "skeptic",
+    "split": "development",
+    "assertions": [
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "type"
+        ],
+        "op": "includes",
+        "value": "duplicate",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "catalog_ref"
+        ],
+        "op": "includes",
+        "value": "K1",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C3",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C4",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C5",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "skeptic-dev-unproven-benefit",
+    "kind": "skeptic",
+    "split": "development",
+    "assertions": [
+      {
+        "path": [
+          "reviews",
+          "0",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ],
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "skeptic-held-negative-comparison",
+    "kind": "skeptic",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "reviews",
+          "0",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ],
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "skeptic-held-prohibited-premise",
+    "kind": "skeptic",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "reviews",
+          "0",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ],
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "skeptic-held-maintenance",
+    "kind": "skeptic",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "reviews",
+          "0",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ],
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "0",
+          "cheaper_test"
+        ],
+        "op": "nonempty",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  },
+  {
+    "case_id": "skeptic-held-output-injection",
+    "kind": "skeptic",
+    "split": "held_out",
+    "assertions": [
+      {
+        "path": [
+          "reviews",
+          "0",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ],
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "1",
+          "verdict"
+        ],
+        "op": "one_of",
+        "values": [
+          "revise",
+          "reject"
+        ],
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      },
+      {
+        "path": [
+          "reviews",
+          "*",
+          "findings",
+          "*",
+          "claim_refs"
+        ],
+        "op": "includes",
+        "value": "C2",
+        "classification": "presence_or_reference_proxy_requires_substantive_review"
+      }
+    ]
+  }
+]

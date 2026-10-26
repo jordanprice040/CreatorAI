@@ -1,0 +1,59 @@
+{
+  "format": "discovery-followup-v2-output-review-receipt/1",
+  "created_at": "2026-10-22T05:13:39.630Z",
+  "reviewer": "/root/separate_discovery_review",
+  "reviewer_type": "model",
+  "prior_implementation_involvement": false,
+  "prior_review_involvement": "Packet/binding and availability-repair review; not blind or human rating",
+  "status": "completed_seven_outputs",
+  "artifact_sha256": {
+    "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+    "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+    "tracking/BUILD_STATUS.md": "9d20270a1fab1c1d932a888249bf606f5ed38d000cf3991f9634e48fa8bb0ec8",
+    "tracking/SESSION_HANDOFF.md": "951933333a62ba65ca646064326960cd770e2f3dcbd71b6ed364f94da01641e0",
+    "tracking/evidence/discovery-followup-v2/raw-results.json": "eb5fdd2936a0bad069fead99f09329ded691fb032079a85fe84e0b9f8f5f1c02",
+    "tracking/evidence/discovery-followup-v2/review-plan.json": "bfe309f304e9a43924222452c7f87a49b40da7bb54bfaed4ea242c87016bc146",
+    "tracking/evidence/discovery-followup-v2/live-result.json": "ec58ddf108c2dda24d55a6d7a1af39f3af4ae59c0437394a761c38e3b07efac1",
+    "tracking/evidence/discovery-followup-v2/failed-case-diagnosis.json": "846793de5fd33041ea9c503df1c7fbabbb1bfa717449632ef1bcefbf4995c5a5",
+    "tracking/evidence/discovery-followup-v2/execution-plan.json": "96f9c233f30f77d1610fccf50cd4d609804935fc19b2ecd6de7f03b23bb23ca0",
+    "tracking/evidence/discovery-followup-v1/freeze.json": "0a7066de0fc1f3917693fbca9a2702e7ca1b8a74651922e1e972859aec218549",
+    "tracking/evidence/discovery-followup-v1/review-plan.json": "5282a67db46f2543e28ec0af414e3452acd727793413aebfb4189c26745d3339",
+    "config/connections/benchmarks/discovery-followup-v1/candidate_generation.json": "9a667ca547a2bdcc77eb600de6356c6452e8a58db4e20ee0158f400a529e0863",
+    "config/connections/benchmarks/discovery-followup-v1/scoring.json": "979fddb67ef0873951068efa302453549af35aee14a865ae86b24a153e62a369",
+    "packages/domain/src/routing.ts": "da5c96824fad9c9f41a68922cfe79686ae021354843e6d7e4f75577b8097f18b",
+    "packages/domain/src/discovery.ts": "fbf1db36e60f860a38b00f719d295cb5357afbd386d12c19496f3493637cfbec",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "packages/domain/dist/routing.js": "40854c6ab3d55bebd4604362fa088e8f625484eaef4f471c7909098cc317e1e8",
+    "packages/domain/dist/discovery.js": "02951ca8ea175b2535b25f3f10c85ccdfb8e6b61fd07c90d0faaa5f2497a85ab",
+    "packages/contracts/dist/discovery.js": "41c90f7f0ccb5bcc1440710c3435f13c3a353edf7cc8366efdf80e83a9ee92af",
+    "docs/DISCOVERY_FOLLOWUP_V1.md": "7bcfd1f8ce29046ba7770ec13057cb3a294844b0ddeddb3f6119f6e74c5c9d01",
+    "tracking/evidence/discovery-followup-v2-output-review-2026-10-22/review-response.json": "9184997c51026047d670d475ca67ec7b4a898ab61b25d46f6df377db78727899",
+    "docs/DISCOVERY_FOLLOWUP_V2_OUTPUT_REVIEW_2026-10-22.md": "025bd4c44ea7ac24ce2eed938006a02d77bf632cffd0dd5f565710823eb3491c",
+    "tracking/evidence/discovery-followup-v2/stopped.json": "7d9abacc4adfa628833e4af8d1dd6f0963b133a1a5aa7e0642a7bba1680b09e3",
+    "tracking/evidence/discovery-followup-v2/run.lock": "b0c9bd5f93ac9d162f4fd51084805e6e17e584fdcff761a07b3bf5def054c5af",
+    "tracking/evidence/discovery-followup-v2/owner-execution-decision.json": "620f53f4d5b8589f2ec58bc7162a18c40a4c95262c8916cbdc43bf0008b5cc93",
+    "tracking/evidence/discovery-followup-v2/owner-refresh-decision.json": "b276a3a3a96541fe11bfb3852a5b974804a6a32435a596e8c38cff9788fa37f3",
+    "tracking/evidence/followup-v2-availability-refresh/result.json": "8fbeff97536390551496ff105c738c4159766bb9f64a7c84eb17983f4ee0b3af",
+    "tracking/evidence/discovery-followup-v2/authenticated-readiness-041e0c94-e2b4-4f2a-b44d-783a6dda264c.json": "feeec92b6784dc72a07c51c0800ed1a7ac49ddbf7aea978dc2e502722fe73e68",
+    "tracking/evidence/availability-recheck-implementation/candidate-plan.json": "30f541b8dc7044dcb360a8c06240e0ed13ca4806c117d054017b759b66307dee",
+    "tracking/evidence/availability-recheck-implementation/packaged-identity.json": "77c3e6b10d2f6a9bff78a9c47db92f6308a0e48e97bd2f405d27d3eaf6abc141"
+  },
+  "commands_executed": [
+    {
+      "command": "Inline Node SHA256/canonicalHash/checkDiscoveryOutput/checkOutput replay of seven raw outputs against unchanged frozen manifests, including individual assertions and eight live-result artifact hashes",
+      "result": "7 output hashes and packet hashes verified;7 schemas valid;6 accepted;seventh assertions4/8 failed;8 artifacts verified"
+    },
+    {
+      "command": "Read-only source inspection of routing.ts selector, discovery.ts actual skeptic prompt, contracts finding enum and frozen scoring input system prompt",
+      "result": "No outcome-to-novelty mapping or mandatory duplicate cheaper-test finding defined"
+    }
+  ],
+  "historical_grades_changed": false,
+  "substantive_supported_cases": 7,
+  "substantive_partial_cases": 0,
+  "contract_accepted_cases": 6,
+  "contract_failed_cases": 1,
+  "network_or_provider_calls": 0,
+  "saved_studio_or_credentials_access": false,
+  "source_or_frozen_mutations": false
+}

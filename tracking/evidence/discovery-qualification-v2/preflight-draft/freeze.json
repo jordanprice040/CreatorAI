@@ -1,0 +1,45 @@
+{
+  "format": "discovery-qualification-plan/2",
+  "status": "frozen_offline_not_authorized_or_executed",
+  "prepared_at": "2026-10-21T00:12:23.796Z",
+  "proposal_hash": "db5e4d5f007ee5891da6763200421791b1ec1759056767d3e8200bff5897525c",
+  "role_version": "r02-discovery/1.1",
+  "prompt_hash": "6211f86a0b13b196cc63ffbec02cf02f6d4be9fe31f4f311c01ddffeca9e500e",
+  "model_id": "gpt-6-astra",
+  "cases": 18,
+  "local_scorer_checks": 108,
+  "files": [
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v2/research_synthesis.json",
+      "task_class": "research_synthesis",
+      "sha256": "bc777a3d719959dea02020ee607d6db111b08376211d434dea9f5e6d95321042",
+      "canonical_hash": "0aa3cfb8935f8b129f131e2dca421198e7dee684495fc7e166059e75b9591c02"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v2/candidate_generation.json",
+      "task_class": "candidate_generation",
+      "sha256": "1f428d5566e423138a57777bed5ab243db4e58980758bb631aad434f6e9475a2",
+      "canonical_hash": "0332f4be27076a92f4318cab72dd3be88f189960fea0f709c30472becdd437c3"
+    },
+    {
+      "path": "config/connections/benchmarks/discovery-synthetic-v2/scoring.json",
+      "task_class": "scoring",
+      "sha256": "2e754d2981d381520561d8f55c22bf025f34137d8fb80926222b7141aa4ca38e",
+      "canonical_hash": "6d6a644d01c233c86f8fa348c28df8e43514885c89a511bedbbb7ed9e2a205ad"
+    }
+  ],
+  "controls_sha256": "a8641d7c8c1a3f1cf518676bc4fffb794c3a20c6fb5ea16d2ee98762f07ed67b",
+  "limits": {
+    "max_new_requests": 18,
+    "retries": 0,
+    "max_concurrency": 1,
+    "max_request_ms": 120000,
+    "max_wall_ms": 2160000,
+    "max_output_chars": 16000,
+    "max_input_chars": 24000,
+    "new_metered_spend_nano_usd": "0",
+    "settings_expansion": false
+  },
+  "manual_review_required": true,
+  "original_failed_result_preserved": true
+}

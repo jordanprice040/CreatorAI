@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-22T04:43:24.350Z",
+  "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- '4232244c-8d65-4cd6-9615-45ca54da2f32'\n",
+  "endpoint_attempted": true,
+  "retry": false,
+  "instruction": "Preserve lock; only read-only inspection/reconciliation next."
+}

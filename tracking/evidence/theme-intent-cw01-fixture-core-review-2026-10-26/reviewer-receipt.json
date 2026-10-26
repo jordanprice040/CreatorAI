@@ -1,0 +1,121 @@
+{
+ "format": "theme-intent-cw01-fixture-core-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent review, repository-only, per docs/THEME_INTENT_CW01_FIXTURE_CORE_IMPLEMENTATION_2026-10-26.md",
+ "reviewer": "Claude (Anthropic model family), separate Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of reviewed files. Implementation by another Claude session; the CW-01 design review and v1.1 review it implements were also Claude sessions (same model family); not blinded. No external review service.",
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_FIXTURE_CORE_REVIEW_2026-10-26.md",
+  "sha256": "d4d05a86005198a115af258e42108b6833a2e6d130073d7e0bf058fe24cc2c04"
+ },
+ "reviewed": {
+  "docs/THEME_INTENT_CW01_FIXTURE_CORE_IMPLEMENTATION_2026-10-26.md": "9a3a119409d9a69f0d6eca0a710bff43652ab660df7c5458a6ea678780e127e4",
+  "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/implementation-receipt.json": "1788d54b0ddefd79cf3a08bfedf8a5c3627d18b2c139b33d895d05a3565ab63f",
+  "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+  "scripts/theme-intent-cw01-core-fixture.mjs": "b8b9eb5db59afdf3725717bf9a723c808e66b4ca399624d20fa8f4afe1730662",
+  "tests/theme-intent-cw01-core-fixture.test.mjs": "5e0b615cdeb4d1c953531c60b6a0829002904636a83119e65d8d975a06939dda",
+  "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/mutation-check.mjs": "1266cc3d7f7b8fb4e9f0b1401a12811a062096a7418c8cab045bf063d94a1457",
+  "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/mutation-results.json": "0eb618e5b70667e00cd570dde35e00f43b515b84ebaa0a378a7117e823fd766c",
+  "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/tests-final.tap": "71164f896197628850ab217cd3999c90e2a15b9cb7707a0348153c60f252230e"
+ },
+ "governing": {
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md": "d762803241fe4d85a39e9645019121c0c8683a34b99dfb511b19813265c8de58"
+ },
+ "verdicts": {
+  "sql_asset_v2": "supported",
+  "fixture_core_and_tests": "supported_in_part_two_medium_repairs_needed",
+  "fixture_to_operational_promotion": "none_found",
+  "operational_native_readiness": "not_ready_blocked_unchanged",
+  "freshness_bounds": "values_confirmed_15s_autorun_5s_prestop_anchor_changed_to_measured_spawn_see_F2"
+ },
+ "binding_checks": {
+  "implementation_receipt_new_files_report_and_18_frozen_inputs_mismatches": [],
+  "tracking_after_hashes_matched_receipt_before_this_review": true,
+  "tracking_prior_bytes_suffix_matches_receipt_before": true,
+  "sql_asset_lf_only": true,
+  "sql_markers_unique": 42,
+  "sql_ordered_fidelity_70_original_lines_after_removing_S05_A04_A05_A14_B03_B07_and_reverting_M1": true
+ },
+ "checks_executed": {
+  "node_version": "v22.21.0",
+  "node_test": {
+   "file": "tests/theme-intent-cw01-core-fixture.test.mjs",
+   "tests": 18,
+   "pass": 18,
+   "fail": 0,
+   "tap": "tracking/evidence/theme-intent-cw01-fixture-core-review-2026-10-26/tests-rerun.tap",
+   "tap_sha256": "056548180dcbc61be00871132f96d6628f5d4efb937f5eb1396089ad635f4f4b"
+  },
+  "mutation_check": {
+   "run_from": "copy in session scratch directory (isolated copies outside repo, removed)",
+   "mutants": 12,
+   "killed": 12,
+   "identical_to_recorded": true,
+   "output": "tracking/evidence/theme-intent-cw01-fixture-core-review-2026-10-26/mutation-rerun.json",
+   "output_sha256": "0eb618e5b70667e00cd570dde35e00f43b515b84ebaa0a378a7117e823fd766c"
+  },
+  "probes": "static reading of core and tests; passing test fixtures used as evidence; no additional code executed"
+ },
+ "findings": [
+  {
+   "id": "F1",
+   "severity": "medium",
+   "locator": "core start_outcome (655-688) and stop_outcome (751-763)",
+   "summary": "pg_ctl exit/timeout flags and the launch handle (R2 anchor) never pass measured(); unlabeled/model-asserted launch matching a measured chain is accepted; launch.exit_ft not compared with chain pg_ctl exit_ft; test fixtures carry no provenance on these and pass",
+   "repair": "measure outcome/launch evidence; compare exit times; negative tests"
+  },
+  {
+   "id": "F2",
+   "severity": "medium",
+   "locator": "LIMITS.outer_deadline_ms and sql_total_ms unused; deadlineOk booleans; checkProcessChain lower bound only; checkAutoRun anchored to start_intent",
+   "summary": "90 s outer deadline and start-intent->creation->readiness interval not enforced from measured times; pg_ctl may be created arbitrarily after start intent; preflight, A-B span, stop revalidation and stop launch untimed",
+   "repair": "AutoRun <=15 s before pg_ctl creation; B->stop pg_ctl creation <=5 s with timestamped revalidation; enforce outer and SQL totals from measured times; missing time is unknown"
+  },
+  {
+   "id": "F3",
+   "severity": "low",
+   "locator": "newRun/step/fixtureReceipt",
+   "summary": "request held by mutable reference; bindings read live after admission; no request digest in history or receipt",
+   "repair": "snapshot+deep-freeze at newRun; record request digest"
+  }
+ ],
+ "informational": [
+  "I-1 SQL header comment says A02/B01 take the actor parameter; B observer statement is B02 (marker correct); erratum or fix in next successor",
+  "I-2 fidelity test checks line membership only; ordered comparison passes",
+  "I-3 admitPathSpelling does not refuse CONIN$/CONOUT$",
+  "I-4 report wording 'within the pidfile second' vs code's correct one-sided check",
+  "I-5 refused step result unfrozen; not a boundary against the caller"
+ ],
+ "not_run": [
+  "SQL asset or any SQL",
+  "Credentials",
+  "Operational config/environment/registry/process/port/pidfile reads",
+  "Cluster/app start or stop",
+  "Launch or sign-in",
+  "pnpm scripts",
+  "Unrelated tests or verifiers",
+  "Retired OneDrive checkout access"
+ ],
+ "status_preserved": "M3 unchanged and not reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled; CW-01 not operational",
+ "next": "Jordan's selection; no automatic next milestone, commit or push",
+ "tracking_changes": {
+  "tracking/BUILD_STATUS.md": {
+   "before": "2ad882f13240c1a3b91c206474cc9d4ffc53417e76d65f12a869bb7c29fccfd1",
+   "after": "1654ea5ca2408146f94b6cc85b2dcb484eddc19a26d53db65ca875d05eed0a6d",
+   "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+  },
+  "tracking/SESSION_HANDOFF.md": {
+   "before": "b694f7fbb1a65ad26101d52fba0028d896b417029d46e520064e377b78485b3b",
+   "after": "7b9a27db51a10f8497913807db82a7e03266b330c574bfd2ea67eb0fab5db5f3",
+   "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+  },
+  "not_applicable": [
+   "tracking/DECISIONS.md (no new decision)",
+   "tracking/INTEGRATIONS.md (no integration activated)"
+  ]
+ },
+ "files_not_modified": "No reviewed, governing or other existing file changed besides the two tracking files"
+}

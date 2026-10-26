@@ -1,0 +1,33 @@
+{
+  "finalized_at": "2026-10-22T04:44:16.109Z",
+  "available": true,
+  "request_id": "abf94f01-938e-4de7-b1a5-671f5f4478d8",
+  "grant_id": "4232244c-8d65-4cd6-9615-45ca54da2f32",
+  "grant_used": 1,
+  "outcome": {
+    "kind": "completed",
+    "output_chars": 2,
+    "output_tokens": 5,
+    "response_id": "resp_0d6509ea9389a29a016ad9946a5e2c87d192cd58712be7f5ca"
+  },
+  "quota": {
+    "state": "available",
+    "observed_at": "2026-10-22T04:43:24.328Z",
+    "reason_code": null
+  },
+  "schema": 28,
+  "saved_requests": 36,
+  "prior_35_request_records_unchanged": true,
+  "prior_grants_access_qualifications_unchanged": true,
+  "settings_unchanged": true,
+  "credits": "confirmed_off",
+  "last_24h_requests": 25,
+  "remaining_daily_requests": 15,
+  "in_flight": 0,
+  "unresolved": 0,
+  "new_provider_requests": 1,
+  "retry": false,
+  "qualification_dispatched": false,
+  "helper_final_assertion_recovered_read_only": true,
+  "recovery_reason": "API PlanRequestSchema omits grant_id; exact persisted binding verified via SELECT, without repeating provider delivery."
+}

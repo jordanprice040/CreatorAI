@@ -1,0 +1,81 @@
+{
+  "date_local": "2026-10-21",
+  "original_execution_plan_hash": "68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d",
+  "capacity_authorization_hash": "19c60ab6762bc631bbb012c8651c304723ced25e2324a64da4ec730139a34a1d",
+  "temporary_daily_cap": 42,
+  "restored_daily_cap": 40,
+  "settings_restored": true,
+  "credits": "confirmed_off",
+  "attempted": 11,
+  "completed_accepted": 10,
+  "provider_quota_failures": 1,
+  "unknown": 0,
+  "unattempted": 7,
+  "retries": 0,
+  "research": {
+    "qualification_id": "ff7ae4f1-117f-4773-be46-b39f3c18ff53",
+    "state": "qualified_operational_contract_only",
+    "development": {
+      "passed": 2,
+      "total": 2
+    },
+    "held_out": {
+      "passed": 4,
+      "total": 4
+    }
+  },
+  "candidate_generation": {
+    "qualification_id": "b90d89e8-cb58-46b3-80c5-4a58af019ad0",
+    "state": "failed",
+    "development": {
+      "passed": 2,
+      "total": 2
+    },
+    "held_out": {
+      "passed": 2,
+      "total": 4
+    },
+    "note": "Two held-out answers accepted, third quota failure, fourth not attempted. Not two observed content failures."
+  },
+  "scoring": "not_attempted",
+  "quota_failure": {
+    "task_class": "candidate_generation",
+    "case_id": "design-held-costume-coordinator",
+    "split": "held_out",
+    "signal": "provider_error",
+    "request_id": "7fe8f598-e299-4e55-9fdf-8d47c79a9cde",
+    "outcome": {
+      "kind": "failed",
+      "message": "The response failed after streaming began.",
+      "response_id": "resp_05422295dcf3162c016ad869f76df487d1bb441920a7ea75be",
+      "output_chars": 0,
+      "reason_code": "subscription_sharing_usage_limit_exceeded",
+      "quota": "exhausted",
+      "retry_allowed": false
+    }
+  },
+  "postrun_counts": {
+    "workflows": 0,
+    "audit_events": 36,
+    "plan_requests": 35
+  },
+  "request_states": {
+    "failed": 1,
+    "completed": 33,
+    "reconciled": 1
+  },
+  "in_flight": 0,
+  "unresolved": 0,
+  "leased": 0,
+  "quota": "exhausted",
+  "verified_source_bindings": 183,
+  "verified_installed_files": 58,
+  "installed_manifest_sha256": "0331d863e67859d0338e4f54560e12a020f16923730b47ed82411743474707d9",
+  "original_plan_and_frozen_cases_unchanged": true,
+  "metered_fallback": false,
+  "credits_activation": false,
+  "workflow_search_build_pilot": false,
+  "restoration_verification": "Local cap restore succeeded; initial helper incorrectly required zero blockers despite independent provider quota. Read-only API/DB confirmed restoration; no repeated mutation.",
+  "substantive_review": "Author observations separate; independent review required/not performed.",
+  "next_eligible": "Review complete output artifacts and remaining qualification scope offline. Further live testing requires provider quota availability and a separately scoped prospective decision; do not reset quota, repeat v5 or raise studio cap as a provider-quota workaround."
+}

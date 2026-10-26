@@ -1,0 +1,11 @@
+{
+  "format": "research14-live-authorization-v2-review-integration/1",
+  "integrated_at": "2026-10-23T03:56:55.666Z",
+  "status": "supported_live_authorization_package",
+  "authorization_plan_hash": "d567088498d2d0ed111c939113990997ab73cfd50f829736775697724c2223c0",
+  "reviewer_receipt_sha256": "088092ad066735bd83180994b524fc726a8df7fa0c4c7d4368df981cf969ff5f",
+  "verified_artifacts": 245,
+  "provider_calls": 0,
+  "prior_locks_preserved": true,
+  "next_eligible": "New exact owner decision before up to one availability recheck plus six research qualification requests"
+}

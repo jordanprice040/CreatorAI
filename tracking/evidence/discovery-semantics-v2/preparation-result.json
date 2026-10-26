@@ -1,0 +1,27 @@
+{
+  "state": "offline_prepared",
+  "cases": 12,
+  "controls": 108,
+  "freeze_hash": "b6da3adc6061627b81036dcacee83884d6c8fe40c539368cead1f63fb139e5fa",
+  "candidate_hash": "f6cce6ffd9b5fa76370cd40c56e3c72c008c980f8835491b31804182516b5289",
+  "transport": [
+    {
+      "task_class": "candidate_generation",
+      "creation_bytes": 90126,
+      "max_input_chars": 12854
+    },
+    {
+      "task_class": "scoring",
+      "creation_bytes": 120340,
+      "max_input_chars": 21284
+    }
+  ],
+  "provider_calls": 0,
+  "installation": false,
+  "review_required": true,
+  "remaining": [
+    "Separate packet/controls review",
+    "Exact distributable candidate packaging and installation binding",
+    "New execution plan review/owner decision and fresh preflight"
+  ]
+}

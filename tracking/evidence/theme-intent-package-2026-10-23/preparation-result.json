@@ -1,0 +1,22 @@
+{
+  "format": "theme-intent-package-preparation/1",
+  "recorded_at": "2026-10-23T05:04:47.640Z",
+  "candidate_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installation_plan_hash": "27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1",
+  "resources": 71,
+  "source_bindings": 265,
+  "staged_upgrade_tests": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "old_migrations_unchanged": 28,
+  "role_parity_files": 11,
+  "installed_predecessor_unchanged_after_build": true,
+  "operational_database_access": false,
+  "provider_calls": 0,
+  "installation_executed": false,
+  "new_operational_backup_created": false,
+  "test_cluster_stopped": true,
+  "next_eligible": "Package/plan review and schema29-aware executable upgrade helper preparation before fresh backup/owner decision"
+}

@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-22T17:56:51.626Z",
+  "actor": "owner",
+  "user_message": "I approve that",
+  "decision": "approved",
+  "authorization_plan_hash": "1fd2ee8f8925af3e31ec7265b25c087e0b6dd021ca1c2183bf946eafc3b1af6f",
+  "scope": {
+    "availability_requests": 1,
+    "suite_requests": 12,
+    "max_total": 13,
+    "retries": 0,
+    "credits": "confirmed_off",
+    "suite_wall_minutes": 24
+  },
+  "no_further_milestone": true
+}

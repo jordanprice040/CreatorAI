@@ -1,0 +1,250 @@
+TAP version 13
+# Subtest: v2 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 1 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 1881.8973
+      type: 'test'
+      ...
+    # Subtest: junction ancestors and operational reuse of fixture review are rejected
+    ok 2 - junction ancestors and operational reuse of fixture review are rejected
+      ---
+      duration_ms: 1172.2859
+      type: 'test'
+      ...
+    # Subtest: running qualifications block the real before phase
+    ok 3 - running qualifications block the real before phase
+      ---
+      duration_ms: 7077.0112
+      type: 'test'
+      ...
+    # Subtest: a pre-existing managed cluster is not silently adopted or stopped
+    ok 4 - a pre-existing managed cluster is not silently adopted or stopped
+      ---
+      duration_ms: 4967.4037
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 5 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 7395.8609
+      type: 'test'
+      ...
+    # Subtest: reusing a session in another evidence directory cannot overwrite its backup
+    ok 6 - reusing a session in another evidence directory cannot overwrite its backup
+      ---
+      duration_ms: 2503.7879
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 7 - expired admission fails before mutation
+      ---
+      duration_ms: 2562.3856
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 8 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 17710.3094
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 9 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 12002.2564
+      type: 'test'
+      ...
+    # Subtest: per-studio lock rejects concurrent actual wrapper runs
+    ok 10 - per-studio lock rejects concurrent actual wrapper runs
+      ---
+      duration_ms: 9586.8134
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 11 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 21139.0658
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 12 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 37218.7444
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 13 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 37660.1716
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 14 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 38867.7662
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 15 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 39429.4423
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-intent has explicit recovery
+    ok 16 - crash-window hard-crash-after-migration-intent has explicit recovery
+      ---
+      duration_ms: 34650.6118
+      type: 'test'
+      ...
+    # Subtest: migration child nonzero is retained and not retried
+    not ok 17 - migration child nonzero is retained and not retried
+      ---
+      duration_ms: 19270.4248
+      type: 'test'
+      location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v2.test.mjs:597:17'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        1 !== 2
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 2
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:623:22)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:597:9)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: migration child malformed is retained and not retried
+    not ok 18 - migration child malformed is retained and not retried
+      ---
+      duration_ms: 8016.1949
+      type: 'test'
+      location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v2.test.mjs:597:17'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        1 !== 0
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 0
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:603:20)
+        process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:597:9)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: migration child timeout is retained and not retried
+    not ok 19 - migration child timeout is retained and not retried
+      ---
+      duration_ms: 7836.6808
+      type: 'test'
+      location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v2.test.mjs:597:17'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        1 !== 0
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 0
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:603:20)
+        process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:597:9)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: old admission cannot expire post-mutation read-only verification
+    not ok 20 - old admission cannot expire post-mutation read-only verification
+      ---
+      duration_ms: 8146.3794
+      type: 'test'
+      location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v2.test.mjs:635:15'
+      failureType: 'testCodeFailure'
+      error: |-
+        node:internal/modules/run_main:123
+            triggerUncaughtException(
+            ^
+        
+        AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+        + actual - expected
+        
+        + '510b09c31d6ea2f00b65b97239345329a13835a63521262caa1a6223e8988ca9'
+        - '6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46'
+        
+            at program (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2-core.mjs:114:10)
+            at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2.mjs:437:11
+            at async managed (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2-core.mjs:429:12)
+            at async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2.mjs:420:3 {
+          generatedMessage: true,
+          code: 'ERR_ASSERTION',
+          actual: '510b09c31d6ea2f00b65b97239345329a13835a63521262caa1a6223e8988ca9',
+          expected: '6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46',
+          operator: 'strictEqual',
+          diff: 'simple'
+        }
+        
+        Node.js v22.21.0
+        Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.
+        At C:\dev\creator_agent\scripts\upgrade-theme-intent-v2.ps1:41 char:26
+        + ... CODE -ne 0){throw 'Helper stopped; preserve intents/evidence and use  ...
+        +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            + CategoryInfo          : OperationStopped: (Helper stopped;...licit recovery.:String) [], RuntimeException
+            + FullyQualifiedErrorId : Helper stopped; preserve intents/evidence and use reconcile or explicit recovery.
+         
+        
+        
+        1 !== 0
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 0
+      actual: 1
+      operator: 'strictEqual'
+      stack: |-
+        program (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2-core.mjs:114:10)
+        async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2.mjs:437:11
+        async managed (file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2-core.mjs:429:12)
+        async file:///C:/dev/creator_agent/scripts/theme-intent-upgrade-v2.mjs:420:3 {
+        TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:643:18)
+        process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///C:/dev/creator_agent/tests/theme-intent-upgrade-v2.test.mjs:635:7)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    1..20
+not ok 1 - v2 real wrapper lifecycle, populated state, admission, faults and recovery
+  ---
+  duration_ms: 329413.761
+  type: 'test'
+  location: 'C:\\dev\\creator_agent\\tests\\theme-intent-upgrade-v2.test.mjs:290:1'
+  failureType: 'subtestsFailed'
+  error: '4 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 21
+# suites 0
+# pass 16
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 329504.6893

@@ -1,0 +1,113 @@
+{
+ "format": "theme-intent-cw01-fixture-core-v4-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent re-review, repository-only, per the last section of docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REPAIR_2026-10-26.md",
+ "authorization": "Jordan approved fix-and-review loop (message cmsg_01Ekfs9asX2KK8f8YWsvsDtFKZCTkAXN7kCaNfRZnCWHpD, relayed by the coordinator)",
+ "reviewer": "Claude (Anthropic model family), separate Creator Agent project thread on device folder C:devcreator_agent",
+ "involvement": "No authorship of reviewed files. The v4, v3 and v2 repairs and the v1 review were written by another Claude session; the v2 and v3 re-reviews by earlier Claude sessions (same model family); not blinded. No external review service.",
+ "independent_review": true,
+ "operational": false,
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REVIEW_2026-10-26.md",
+  "sha256": "2d4ab765035fa9163e3f0dd933c690bf12a63617b955678f3935901a90cbc3e8"
+ },
+ "answers": {
+  "path": "docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REPAIR_2026-10-26.md",
+  "sha256": "979e07222d2d1afc19ebec10abbfd49ccf7f48fe28f9823913319d2e26c34f14"
+ },
+ "reviewed": {
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-2026-10-26/repair-receipt.json": "185416f1e4956d303b1d45ceffc77054cf995a6db424aa1a159e9779f479a0e9",
+  "scripts/theme-intent-cw01-core-fixture-v4.mjs": "ce3c4ad7c66d4f15bd695519f1db05940142f5e57a372b52c4781b1abf2507bb",
+  "tests/theme-intent-cw01-core-fixture-v4.test.mjs": "666ce597daea82ca236df32833624a70fdc6262a75da410a1ec3311d4fe77149",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-2026-10-26/tests-final.tap": "7382604a90186cb9c4927b29b6dc3ca366dd40a5abdbc3d1407bf37db9c98569",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-2026-10-26/mutation-check.mjs": "7a00ff62e5b7155de4d5d9b3f65795e45d6f2e738ff81f1c8801d120cd247c22",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-2026-10-26/mutation-results.json": "b74a3ab35efed156a825f4503e1303ebc2e0a88284bfe3ad7e52d2909234156c"
+ },
+ "receipt_bound_hashes": {
+  "checked": 48,
+  "mismatches": []
+ },
+ "verdicts": {
+  "fixture_core_v4": "SUPPORTED as a fixture-only slice",
+  "L_1": "fixed",
+  "I_1": "fixed",
+  "I_2": "fixed",
+  "regressions_vs_v3": "none found",
+  "false_passes": "none found",
+  "promotion": "refused for formats /1 to /4 and relabeled receipts",
+  "attestation_bound_120s": "unchanged; needs Jordan confirmation (not confirmed by this review)",
+  "operational_native_readiness": "NOT READY (blocked), unchanged"
+ },
+ "new_findings": {
+  "low_or_higher": [],
+  "informational": {
+   "I-A": "refused-path digest of the copy not pinned (extra mutant x_refuse_digest_input survives; behaviourally equal for plain data)",
+   "I-B": "prior format /3 not individually pinned (x_prior_format_v3_dropped survives; admitted false in all paths; reason code only)",
+   "I-C": "non-JSON evidence recorded as digest(null) with the missing-evidence code, indistinguishable from absent evidence; fails closed"
+  }
+ },
+ "checks": {
+  "node_version": "v22.21.0",
+  "tests": 26,
+  "pass": 26,
+  "fail": 0,
+  "mutation_baseline": "pass",
+  "mutants": 33,
+  "mutants_killed": 33,
+  "mutation_output_identical_to_recorded": true,
+  "mutation_run_location": "session scratch copy; work copies removed",
+  "extra_mutants": {
+   "total": 6,
+   "killed": 4,
+   "survived": [
+    "x_refuse_digest_input",
+    "x_prior_format_v3_dropped"
+   ]
+  },
+  "probe_matrix": {
+   "cells": 968,
+   "v4_throws": 0,
+   "v3_throws": 242,
+   "v3_v4_differences_where_v3_did_not_throw": 0
+  }
+ },
+ "evidence_sha256": {
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/extra-mutants.json": "287697fb3c0f8f1095cca08c74cc95211403841b0f4be05beb386ee1f0fd2030",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/extra-mutants.mjs": "af4f169dc680499abd3e3c434557fc7cd4410be5454f0955701eef43f012d51f",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/mutation-rerun.json": "b74a3ab35efed156a825f4503e1303ebc2e0a88284bfe3ad7e52d2909234156c",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/probes-output.txt": "3fef3db7a25ea1bb43e866ffcc77d97c8fed0b98c76d3df44566b72b7b691f6b",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/probes.mjs": "e0e0b6602a8aa587c835890fd7b74581d9bcd2aada75a1860d661976fd053038",
+  "tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/tests-rerun.tap": "18b53287a7b3d8713d29162d39dc4d272bf8de62f5dc9626a82cd3abd11a8631"
+ },
+ "tracking_changes": {
+  "tracking/BUILD_STATUS.md": {
+   "before": "5b553c307d275650fba3e11a88e263b586ca494007edb2207f4d7f61c8d45f71",
+   "after": "797327375d99f4cd44c5c0924f5f38b286b01d7e95e55391f67440359a2d8865",
+   "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+  },
+  "tracking/SESSION_HANDOFF.md": {
+   "before": "8470ba27f0f9fefef6fb3d013144bf1e9821adcfa3b5ed5ba7193f8805e4a954",
+   "after": "d3a1f24e2aa6d18e39c82a0db571fd934da1b538f8cc0ed3c11c8b33ab52cb2d",
+   "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+  },
+  "not_applicable": [
+   "tracking/DECISIONS.md (no new decision)",
+   "tracking/INTEGRATIONS.md (no integration activated)"
+  ]
+ },
+ "not_run": [
+  "SQL asset or any SQL",
+  "Credentials",
+  "Operational config/environment/registry/process/port/object/pidfile reads",
+  "Cluster/app start or stop",
+  "Launch or sign-in",
+  "pnpm scripts",
+  "Prettier",
+  "Unrelated tests or verifiers",
+  "Retired OneDrive checkout access"
+ ],
+ "findings_fixed_by_reviewer": false,
+ "status_preserved": "M3 unchanged and not reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled; CW-01 not operational",
+ "decision_for_jordan": "Confirm or change the 120 s attestation-to-spawn bound (acceptable as a ceiling; 30-60 s also reasonable if affirmation is the last human step)",
+ "next": "After Jordan confirms the bound, v4 stands as the supported fixture slice; I-A/I-B optional one-line test pins; I-C and getter limitation carry into adapter design"
+}

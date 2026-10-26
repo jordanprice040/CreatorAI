@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-20",
+  "state": "prepared_pending_specific_owner_approval",
+  "new_real_provider_requests": 0,
+  "saved_studio_migrated": false,
+  "installed": false,
+  "settings_changed": false,
+  "prepared_cases": 18,
+  "local_authored_controls": 90,
+  "regression_checks": {
+    "passed": 32,
+    "failed": 0,
+    "skipped": 0
+  },
+  "staged_upgrade_restore_checks": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "production_bundle": "built",
+  "native_release": "built",
+  "installer": "built",
+  "execution_plan_hash": "de5297fdbd86635a6301cf6a53147cebec4bcf467d77dabbfa56132dc16346b4",
+  "installer_sha256": "f94ff911ef46e596e3425b8443edd538807fa80bb4a536291911b74881e672c9",
+  "bundle_manifest_sha256": "80fe5f7a40e844d6361277dc4c96f33e927cb0527871fe2e863c08b086cdb56b",
+  "source_bindings_verified": 117,
+  "notes": [
+    "Initial sandbox NSIS DNS failure; outside-sandbox packaging passed.",
+    "Existing Vite chunk-size warning.",
+    "No live role qualifications, research, build, pilot or other milestone activated.",
+    "Installed program/runtime rollback copy verified; actual database upgrade backup remains required."
+  ]
+}

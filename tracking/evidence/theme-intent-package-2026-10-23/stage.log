@@ -1,0 +1,5 @@
+[bundle] compiling TypeScript
+[bundle] type-checking and building the production UI
+[bundle] bundling the studio service
+[bundle] staging runtime, worker bridge, configuration and UI
+[bundle] staged 71 files from 590aba3c3e5a (uncommitted changes) with Node v22.21.0

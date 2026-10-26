@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-21T00:36:25.267Z",
+  "state": "installed_live_qualification_failed_schema",
+  "execution_plan_hash": "8175e90e31df06302907a0abab8c7f1aa57a31b6b9d4180b9c204baef43da459",
+  "installed_manifest_sha256": "b59212cfe661723e6a150ca5f1d02658ccb069bbd94dcbb2664f69b26255a048",
+  "schema": 27,
+  "migration_performed": false,
+  "settings_changed": false,
+  "new_provider_requests": 1,
+  "retries": 0,
+  "held_out_attempted": 0,
+  "unattempted_cases": 17,
+  "request_id": "c6a314e6-9496-418f-912a-c3d36c4cdd1f",
+  "qualification_id": "9586ebfb-adf8-4550-8c95-9a011744f2a1",
+  "signal": "schema_invalid",
+  "usage": {
+    "last_24h_requests": 11,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "output_hash": "28f346c146e013f23ca0b0007b821ab882c49f170d1972fd7a661d322bd3f542",
+  "independent_review": false,
+  "discovery_qualified": false,
+  "workflow_search_build_pilot_launched": false
+}

@@ -1,0 +1,43 @@
+{
+  "date_local": "2026-10-21",
+  "owner_authorization": "I approve you moving forward with that",
+  "approved_execution_plan_hash": "8e5b6774738de3dfcf3e633edd4dc4a7903ab0884ad194fe3d593e1540b7a98a",
+  "installed_manifest_sha256": "907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17",
+  "verified_source_files": 146,
+  "verified_installed_files": 48,
+  "new_requests": 7,
+  "completed": 7,
+  "retries": 0,
+  "unattempted": 11,
+  "research": {
+    "state": "qualified_operational_contract_only",
+    "development_passed": 2,
+    "held_out_passed": 4,
+    "qualification_id": "463406b6-898e-421f-8c03-391a21b020e1"
+  },
+  "candidate_generation": {
+    "state": "failed",
+    "qualification_id": "4e6a8cad-a777-44d9-bf05-aa728545701f",
+    "case_id": "design-dev-existing-calendar",
+    "request_id": "4df814b9-35af-4bb0-b8a9-b3a911341fdd",
+    "output_hash": "e6c8999f056ddf8ea85ffa9d461626718f63a40f6028c5259066deceb9190c86",
+    "signal": "acceptance_check_failed",
+    "reason": "Frozen novelty=null assertion; output supplied an explicit no-originality statement. Production validation passed; other four assertions passed."
+  },
+  "scoring": "not_attempted",
+  "postrun_counts": {
+    "workflows": 0,
+    "audit_events": 25,
+    "plan_requests": 18
+  },
+  "in_flight": 0,
+  "unresolved": 0,
+  "leased_tasks": 0,
+  "settings_unchanged": true,
+  "migration": false,
+  "substantive_review": "Independent review required; separate coding-agent author observations are not acceptance.",
+  "metered_fallback": false,
+  "credits_activation": false,
+  "workflow_search_build_pilot_launch": false,
+  "next_eligible_prompt": "Audit qualification assertion semantics against production contracts and model-facing instructions across all task kinds; preserve frozen v3 grades and exposed outputs. Propose a prospective versioned correction and fresh qualification design before any new live dispatch."
+}

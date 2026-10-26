@@ -1,0 +1,49 @@
+{
+  "format": "theme-intent-installation-plan/1",
+  "status": "prospective_not_executed_new_exact_owner_approval_required",
+  "candidate_plan_hash": "7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc",
+  "installer_path": ".verification/theme-intent-artifacts-2026-10-23/Creator Agent_0.1.0_x64-setup.exe",
+  "installer_sha256": "3af2712caeccc3d4519b732964948270b8647dd023be6b6159614889be6d834b",
+  "packaged_desktop_sha256": "510b09c31d6ea2f00b65b97239345329a13835a63521262caa1a6223e8988ca9",
+  "target_install_dir": "C:/Users/jorda/AppData/Local/Creator Agent",
+  "studio_home": "C:/Users/jorda/AppData/Local/com.creatoragent.studio",
+  "expected_predecessor_manifest_sha256": "621e6f12e37db3baf883c30d76d27a39bbdcba71a8df3a72c32fdfe22ddaa448",
+  "expected_predecessor_native_sha256": "6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46",
+  "expected_target_manifest_sha256": "5b38b43e6153202073b03f49db66e3a0a0fb01e36364d2d3bab9d9b6ba54eba6",
+  "expected_target_resources": 71,
+  "expected_predecessor_schema": 28,
+  "required_schema": 29,
+  "migration_required": true,
+  "migration_versions": [
+    29
+  ],
+  "migration_mechanism": "Supported desktop approve_migration / migrateStudio: verified backup first, locked migration; never migrate operational state during packaging",
+  "settings_changes": false,
+  "provider_calls": 0,
+  "automatic_workflow": false,
+  "installation_helper_status": "new schema29-aware executable backup/install/preservation helper and affected review required before approval request",
+  "preconditions": [
+    "Exact package/plan review supported; executable upgrade helper and pre-secret gates reviewed",
+    "New exact owner approval for installation and backup-first schema28-to29 migration",
+    "Owner fully quits Creator Agent; no active/unknown model requests or leased/nonterminal workflow work",
+    "Fresh supported database/products backup plus protected config/DPAPI/plan-credential copy; verify hashes",
+    "Fresh full installed-program rollback copy plus retained predecessor installer; verify hashes",
+    "Capture current request/grant/access/qualification/settings hashes and confirm schema28 before mutation"
+  ],
+  "postconditions": [
+    "Pinned installer exits zero and installed native/manifest/all71resources match candidate",
+    "Supported migration applies only29 and preserves existing records/settings/grants/access/qualifications",
+    "Authenticated local health/session and saved model status checked without provider dispatch",
+    "Verify theme save/resume and unsaved-navigation repair through installed UI before normal work; record any test-only records explicitly"
+  ],
+  "rollback": {
+    "previous_installer_path": ".verification/discovery-semantics-v2-artifacts/Creator Agent_0.1.0_x64-setup.exe",
+    "previous_installer_sha256": "57cc5d923ba9ef62d052f788fd0e38c77c124d8b2d9e4b596cf7cb700affed27",
+    "old_binary_cannot_run_schema29": true,
+    "after_migration_requires_verified_schema28_backup_restore": true,
+    "instruction": "Stop on failure; preserve evidence/locks. Do not merely reinstall schema28 binaries over schema29. Restore the verified pre-upgrade database/products/config and prior program together under an explicit recovery decision before allowing new work.",
+    "restore_rehearsal_claimed": false
+  },
+  "authorization_inherited": false,
+  "backups_created_for_this_install": false
+}

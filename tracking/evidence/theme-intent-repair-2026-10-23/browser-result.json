@@ -1,0 +1,20 @@
+{
+  "format": "theme-intent-guard-browser-result/1",
+  "recorded_at": "2026-10-23T04:45:01.886Z",
+  "checks_passed": 8,
+  "api_intercepted": true,
+  "database_access": false,
+  "provider_calls": 0,
+  "mutations": 0,
+  "detail_reads": 2,
+  "checks": [
+    "repeat New guarded",
+    "alternate Resume guarded",
+    "Keep preserves",
+    "explicit saved-load allowed",
+    "repeat Reload guarded",
+    "failed confirmed load preserves",
+    "post-failure New guarded",
+    "explicit New allowed without mutation"
+  ]
+}

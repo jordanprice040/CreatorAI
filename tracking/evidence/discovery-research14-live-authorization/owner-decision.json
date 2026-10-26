@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-10-23T03:25:54.230Z",
+  "actor": "owner",
+  "user_message": "I authorize this",
+  "decision": "approved",
+  "authorization_plan_hash": "581dd0e6e30b3626a80a0657a6e169d5e11b9e6361a3c2c721a04919db7e8286",
+  "scope": {
+    "availability_requests": 1,
+    "suite_requests": 6,
+    "max_total": 7,
+    "retries": 0,
+    "credits": "confirmed_off",
+    "suite_wall_minutes": 12,
+    "settings_changes": false
+  },
+  "no_further_milestone": true
+}

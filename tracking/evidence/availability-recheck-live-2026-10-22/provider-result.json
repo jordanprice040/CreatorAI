@@ -1,0 +1,10 @@
+{
+  "request_id": "abf94f01-938e-4de7-b1a5-671f5f4478d8",
+  "available": true,
+  "outcome": {
+    "kind": "completed",
+    "output_chars": 2,
+    "output_tokens": 5,
+    "response_id": "resp_0d6509ea9389a29a016ad9946a5e2c87d192cd58712be7f5ca"
+  }
+}

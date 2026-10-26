@@ -1,0 +1,23 @@
+{
+  "format": "semantics-live-full-record-reconciliation/1",
+  "verified_at": "2026-10-22T18:04:08.248Z",
+  "mode": "read_only_sql",
+  "saved_requests": 57,
+  "request_states": {
+    "completed": 55,
+    "reconciled": 1,
+    "failed": 1
+  },
+  "new_requests": 13,
+  "suite_requests": 12,
+  "availability_requests": 1,
+  "all_new_requests_completed": true,
+  "old44_requests_unchanged": true,
+  "old_grants_access_qualifications_unchanged": true,
+  "new_availability_grant_used_once": true,
+  "settings_credits_unchanged": true,
+  "active": 0,
+  "unknown": 0,
+  "provider_calls": 0,
+  "api_history_page_limit_observed": 50
+}

@@ -1,0 +1,20 @@
+{
+  "state": "prepared_only",
+  "at": "2026-10-21T01:00:49.044Z",
+  "execution_plan_hash": "8e5b6774738de3dfcf3e633edd4dc4a7903ab0884ad194fe3d593e1540b7a98a",
+  "freeze_hash": "6b9551be5d89a8940a8600bb77c531565f1b03b50f6e681fd6e0a6fcdcb9906a",
+  "installer_sha256": "a29821c994c7a4f3de6e9629fc92be27de449467a28444b43d19eebb8a9ad648",
+  "bundle_manifest_sha256": "907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17",
+  "source_bindings": 146,
+  "affected_tests": {
+    "passed": 56,
+    "failed": 0,
+    "skipped": 0
+  },
+  "local_scorer_controls": 144,
+  "new_provider_calls": 0,
+  "installed": false,
+  "settings_changed": false,
+  "migration_required": false,
+  "original_failed_run_preserved": true
+}

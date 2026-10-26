@@ -1,0 +1,14 @@
+{
+  "fixture": true,
+  "case": "U7 missing closed_ms plus otherwise available uncertain sample",
+  "v3": {
+    "fixture": true,
+    "status": "unknown",
+    "reason": "INVALID_CLOSURE_TIMING"
+  },
+  "v4": {
+    "fixture": true,
+    "status": "blocked",
+    "reason": "LAUNCH_NOT_EXCLUDED"
+  }
+}

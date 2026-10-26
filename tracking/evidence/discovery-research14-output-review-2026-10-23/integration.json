@@ -1,0 +1,15 @@
+{
+  "format": "research14-exact-output-review-integration/1",
+  "integrated_at": "2026-10-23T04:07:19.076Z",
+  "reviewer_receipt_sha256": "0dd0c383576f15f85a26743c67c89ad21912674dddddb7f5adad29affbb9934e",
+  "verified_artifacts": 37,
+  "outputs_reviewed": 6,
+  "criteria_reviewed": 18,
+  "result": "supported",
+  "packet_issue": "R14-PACKET-01 preserved; prospective correction only if reused",
+  "operational_role_coverage": "3/3",
+  "human_acceptance": false,
+  "provider_calls": 0,
+  "old_results_changed": false,
+  "next_eligible": "Bounded read-only C54 acceptance-readiness and gap audit; no workflow/pilot activation"
+}

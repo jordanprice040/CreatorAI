@@ -1,0 +1,346 @@
+{
+  "format": "theme-intent-v4-review-copy-rename-race/1",
+  "at": "2026-10-24T11:41:17.849Z",
+  "root": "C:\\dev\\creator_agent\\.verification\\theme-v4-review-race-1792842065857",
+  "root_removed": true,
+  "summary": {
+    "powershell-fixture-installer": {
+      "iterations": 20,
+      "refused_first_attempt": 0,
+      "codes": {},
+      "max_ms_until_renamed": 2,
+      "never_renamed": 0
+    },
+    "node-cp": {
+      "iterations": 20,
+      "refused_first_attempt": 3,
+      "codes": {
+        "EPERM": 3
+      },
+      "max_ms_until_renamed": 65,
+      "never_renamed": 0
+    }
+  },
+  "results": [
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 0,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 1,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 2,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 3,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 4,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 2
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 5,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 6,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 7,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 8,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 2
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 9,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 10,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 11,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 12,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 13,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 14,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 15,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 16,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 2
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 17,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 2
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 18,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "powershell-fixture-installer",
+      "i": 19,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 0,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 1,
+      "first_attempt": "EPERM",
+      "attempts": 2,
+      "renamed": true,
+      "ms_until_renamed": 56
+    },
+    {
+      "mode": "node-cp",
+      "i": 2,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 3,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 4,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 5,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 6,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 7,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 2
+    },
+    {
+      "mode": "node-cp",
+      "i": 8,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 9,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 10,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 11,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 12,
+      "first_attempt": "EPERM",
+      "attempts": 2,
+      "renamed": true,
+      "ms_until_renamed": 65
+    },
+    {
+      "mode": "node-cp",
+      "i": 13,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 14,
+      "first_attempt": "EPERM",
+      "attempts": 2,
+      "renamed": true,
+      "ms_until_renamed": 61
+    },
+    {
+      "mode": "node-cp",
+      "i": 15,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 16,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 2
+    },
+    {
+      "mode": "node-cp",
+      "i": 17,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 18,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    },
+    {
+      "mode": "node-cp",
+      "i": 19,
+      "first_attempt": "ok",
+      "attempts": 1,
+      "renamed": true,
+      "ms_until_renamed": 1
+    }
+  ]
+}

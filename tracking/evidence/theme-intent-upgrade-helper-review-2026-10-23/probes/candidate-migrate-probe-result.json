@@ -1,0 +1,23 @@
+{
+ "passed": true,
+ "database": "theme_review_1792802590108",
+ "seeded_tables": 0,
+ "before_tables": 114,
+ "exit": 0,
+ "stderr_tail": "",
+ "result": {
+  "from": 28,
+  "to": 29,
+  "applied": [
+   29
+  ],
+  "backup_format": "creator-premigration/1"
+ },
+ "after_preserved": true,
+ "rerun_exit": 0,
+ "rerun": {
+  "from": 29,
+  "applied": [],
+  "new_backup_created": true
+ }
+}

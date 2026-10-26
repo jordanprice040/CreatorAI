@@ -1,0 +1,47 @@
+{
+  "reviewer": "/root/separate_discovery_review",
+  "reviewer_type": "model",
+  "prior_implementation_involvement": false,
+  "prior_review_involvement": "Role1.4/predecessor output and v1 packet reviews; not blinded/human",
+  "status": "supported_bounded_offline_packet",
+  "artifact_sha256": {
+    "docs/DISCOVERY_SEMANTICS_V2_REVIEW_2026-10-22.md": "267a659636264bfb2626ecf7febf97cf4201c62846ff07ce6a2f85e19d891b93",
+    "tracking/evidence/discovery-semantics-v2-review-2026-10-22/gold-review.json": "b76624e53cedbb4978df0d7c2bdda0601c6cffd90fa0ff68bc033bdc6b8fe666",
+    "tracking/evidence/discovery-semantics-v2-review-2026-10-22/correction-review.mjs": "89de90cdc375da175aa2e0de8d56f636fa8f2032f24bb287de9c84f4457322a0",
+    "tracking/evidence/discovery-semantics-v2-review-2026-10-22/correction-review.txt": "16b9805d3983138188999b2689320421c92d5370dd55bdea297e6166c4bbe156",
+    "tracking/evidence/discovery-semantics-v2-review-2026-10-22/checker-review.txt": "b5a10a3d0df2d02aa2c05c32aeb4e302e1f94640f2bf9343016b84831883eb7e",
+    "docs/DISCOVERY_SEMANTICS_V2.md": "fbe72e48aba8007295c1125fac93e8995567a5a17b11d0514f06fda7d607cbd7",
+    "scripts/prepare-discovery-semantics-v2.mjs": "c7883141eb8ec1a6187edbf6c8cf13588eefbdcceac8492dd6fc342c97b610f8",
+    "scripts/check-discovery-semantics-v2.mjs": "edef6b2afab956cffa8cc6afa64c19e31853f1ab0185ba6181d68fb715850be6",
+    "packages/domain/src/discovery.ts": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+    "packages/domain/dist/discovery.js": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+    "packages/domain/src/routing.ts": "da5c96824fad9c9f41a68922cfe79686ae021354843e6d7e4f75577b8097f18b",
+    "packages/domain/dist/routing.js": "40854c6ab3d55bebd4604362fa088e8f625484eaef4f471c7909098cc317e1e8",
+    "tracking/evidence/discovery-semantics-v1/preparation-receipt.json": "326b072fb7ef369adf81483ed72504aa56d1f9e4f95c15f4f890b516f054645e",
+    "config/connections/benchmarks/discovery-semantics-v2/candidate_generation.json": "3c65e41e0509493e768387b8907def935b83eb7c6a625342910bd3b96ba8efb9",
+    "config/connections/benchmarks/discovery-semantics-v2/scoring.json": "06dc62303c1262e24b5de967043967ecf37df4c8d19775d67594efcb2dfe5b0a",
+    "config/connections/benchmarks/discovery-semantics-v2/author-controls.json": "6b9dc6a9c5825dfaceba429a3d84ddceef06319c608d2dfbb3f1bddb3c8e907f",
+    "tracking/evidence/discovery-semantics-v2/freeze.json": "0e606536674a61ef2a87bf7db2ca1715fcc94048b089780aca9afe52eb04802a",
+    "tracking/evidence/discovery-semantics-v2/review-plan.json": "424375ab934fc346298a59ba975d3c4bc2c24a11e22b028049d1e478a1c949e3",
+    "tracking/evidence/discovery-semantics-v2/preparation-result.json": "12064bb1532efd2762b6258de958c2148c19d3f37783e113357e2bb76e8793c2",
+    "tracking/evidence/discovery-semantics-v2/preparation-receipt.json": "035ba2d8bdcc18e49b9c06f4ebcc2b3cff86acd7b4614a2c016a88a17219f5f6",
+    "tracking/evidence/discovery-semantics-v2/correction-checks.json": "d97c43292a5879b710373b7d9675591bf53d7c3aaa677c8eb8b95f97d636ed02",
+    "tracking/evidence/discovery-semantics-v2/validation-result.json": "b5a10a3d0df2d02aa2c05c32aeb4e302e1f94640f2bf9343016b84831883eb7e"
+  },
+  "resolved_v1_findings": [
+    "R1",
+    "R2",
+    "R3"
+  ],
+  "unresolved_findings": [],
+  "commands_executed": [
+    "node scripts/check-discovery-semantics-v2.mjs",
+    "node tracking/evidence/discovery-semantics-v2-review-2026-10-22/correction-review.mjs"
+  ],
+  "golds_reviewed": 12,
+  "checklist_items_reviewed": 36,
+  "provider_or_network_calls": 0,
+  "source_or_frozen_mutations": false,
+  "installed_identity_verified": false,
+  "live_execution_authority": false
+}

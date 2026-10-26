@@ -1,0 +1,20 @@
+{
+  "format": "discovery-semantics-corrected-preparation/1",
+  "recorded_at": "2026-10-22T17:12:53.470Z",
+  "status": "independent_review_pending",
+  "supersedes": "discovery-semantics-v1",
+  "same_scenarios_corrected_before_outputs": true,
+  "candidate_hash": "f6cce6ffd9b5fa76370cd40c56e3c72c008c980f8835491b31804182516b5289",
+  "provider_calls": 0,
+  "installed_binding": false,
+  "live_execution_authority": false,
+  "artifact_sha256": {
+    "docs/DISCOVERY_SEMANTICS_V2.md": "fbe72e48aba8007295c1125fac93e8995567a5a17b11d0514f06fda7d607cbd7",
+    "scripts/prepare-discovery-semantics-v2.mjs": "c7883141eb8ec1a6187edbf6c8cf13588eefbdcceac8492dd6fc342c97b610f8",
+    "scripts/check-discovery-semantics-v2.mjs": "edef6b2afab956cffa8cc6afa64c19e31853f1ab0185ba6181d68fb715850be6",
+    "tracking/evidence/discovery-semantics-v2/freeze.json": "0e606536674a61ef2a87bf7db2ca1715fcc94048b089780aca9afe52eb04802a",
+    "tracking/evidence/discovery-semantics-v2/review-plan.json": "424375ab934fc346298a59ba975d3c4bc2c24a11e22b028049d1e478a1c949e3",
+    "tracking/evidence/discovery-semantics-v2/validation-result.json": "b5a10a3d0df2d02aa2c05c32aeb4e302e1f94640f2bf9343016b84831883eb7e",
+    "tracking/evidence/discovery-semantics-v2/correction-checks.json": "d97c43292a5879b710373b7d9675591bf53d7c3aaa677c8eb8b95f97d636ed02"
+  }
+}

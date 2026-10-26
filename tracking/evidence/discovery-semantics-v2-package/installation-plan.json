@@ -1,0 +1,31 @@
+{
+  "format": "discovery-semantics-installation-binding/1",
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "installer_path": ".verification/discovery-semantics-v2-artifacts/Creator Agent_0.1.0_x64-setup.exe",
+  "installer_sha256": "57cc5d923ba9ef62d052f788fd0e38c77c124d8b2d9e4b596cf7cb700affed27",
+  "packaged_desktop_sha256": "6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46",
+  "target_install_dir": "C:/Users/jorda/AppData/Local/Creator Agent",
+  "studio_home": "C:/Users/jorda/AppData/Local/com.creatoragent.studio",
+  "expected_predecessor_manifest_sha256": "82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7",
+  "expected_target_manifest_sha256": "621e6f12e37db3baf883c30d76d27a39bbdcba71a8df3a72c32fdfe22ddaa448",
+  "expected_target_resources": 67,
+  "required_schema": 28,
+  "migration_required": false,
+  "settings_changes": false,
+  "provider_calls": 0,
+  "preconditions": [
+    "Affected candidate/plan review supported",
+    "Owner local upgrade scope and app fully quit",
+    "No active/unknown provider requests or leased/nonterminal workflows",
+    "Hash-verified program rollback and supported studio-home/database backup",
+    "Before-state hashes for requests/grants/access/qualifications/settings"
+  ],
+  "postconditions": [
+    "Pinned installer exits zero",
+    "Installed packaged desktop and all manifest resource hashes match",
+    "Schema28 and before-state hashes unchanged",
+    "Owner service health and session verified without provider dispatch"
+  ],
+  "backup_restore_rehearsal_claimed": false,
+  "status": "prospective_not_executed"
+}

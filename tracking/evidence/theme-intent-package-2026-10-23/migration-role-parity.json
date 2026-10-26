@@ -1,0 +1,71 @@
+{
+  "format": "theme-intent-package-parity/1",
+  "verified_at": "2026-10-23T05:02:34.992Z",
+  "old_schema": 28,
+  "new_schema": 29,
+  "prior_migration_sql_and_metadata_unchanged": 28,
+  "new_migration": {
+    "version": 29,
+    "name": "theme_intent_drafts",
+    "sql": "\nalter table entities drop constraint entities_kind_check;\nalter table entities add constraint entities_kind_check check (kind in ('source',\n  'claim', 'problem', 'idea', 'alternative', 'assessment', 'product',\n  'specification', 'run', 'task', 'decision', 'grant', 'artifact', 'assumption',\n  'humility_review', 'search_brief', 'scorecard', 'theme_intent'));\n"
+  },
+  "unchanged_discovery_paths": [
+    {
+      "path": "agents/ROLE_PROMPTS.md",
+      "sha256": "1fe5be5bb3a14bd21db5e27aef3b59b6bc8bd18f0948425ed06f4a9142c9c84f",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/domain/src/discovery.ts",
+      "sha256": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/domain/dist/discovery.js",
+      "sha256": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/contracts/src/discovery.ts",
+      "sha256": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/contracts/dist/discovery.js",
+      "sha256": "41c90f7f0ccb5bcc1440710c3435f13c3a353edf7cc8366efdf80e83a9ee92af",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/contracts/src/orchestration.ts",
+      "sha256": "0c32f1219a62b99e67584abab1180335af306379127904555f51840decf14985",
+      "reference": "historical_subscription_source_receipt"
+    },
+    {
+      "path": "packages/contracts/dist/orchestration.js",
+      "sha256": "d97a6439dba6172a47dc24c24442dcb5e3f379d5c7aa3191609c72fe89dc70e6",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/db/src/connection-store.ts",
+      "sha256": "5d5e0f04f09329f0d10c8e6a1a068821a2395a55f914a53e8c4d50e564079506",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/db/dist/connection-store.js",
+      "sha256": "02670bd60b8bba49a42d9f6df9b2cae2085eaf0c062bc5025ce37c1227ce84a6",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/broker/src/plan-service.ts",
+      "sha256": "2380ba801298d3ecc9d5061aba352d4623d084cf167ede98dad2a450c23ae4a8",
+      "reference": "prior_distributable_candidate"
+    },
+    {
+      "path": "packages/broker/src/plan-responses.ts",
+      "sha256": "b6f877644bc824e90217f6386b84d044e1d3a68175e0c7d83317464c77acab64",
+      "reference": "prior_distributable_candidate"
+    }
+  ],
+  "qualification_reuse_scope": "Role contracts/rendering/admission unchanged; historical outputs stay candidate-bound evidence, not automatic live acceptance or activation",
+  "provider_calls": 0
+}

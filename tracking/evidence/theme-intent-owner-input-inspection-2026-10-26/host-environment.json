@@ -1,0 +1,23 @@
+{
+  "observed_at": "2026-10-26T04:09:46.4387207+00:00",
+  "execution": "outside_sandbox_environment_check",
+  "environment": [
+    {
+      "scope": "Process",
+      "localappdata": "C:\\Users\\jorda\\AppData\\Local",
+      "creator_studio_home_present": false
+    },
+    {
+      "scope": "User",
+      "localappdata": null,
+      "creator_studio_home_present": false
+    },
+    {
+      "scope": "Machine",
+      "localappdata": null,
+      "creator_studio_home_present": false
+    }
+  ],
+  "all_launch_paths_confirmed": false,
+  "provenance": "Exact output of host-side targeted environment check in this chat; null persistent LOCALAPPDATA does not imply process variable absent"
+}

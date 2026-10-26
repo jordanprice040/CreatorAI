@@ -1,0 +1,1 @@
+{"goldsCompared":12,"checklistsUnchanged":36,"goldChangesOnlyNewTrialQualification":true,"ownReasonsVerified":11,"singletonScoringPerspectivesCorrect":true,"cableNoUnclearAcceptedYesRejected":true,"nullTests":3,"nonnullTests":8,"allTestPolaritySwapsRejected":true,"v1PreparationArtifactsPreserved":7,"provider_calls":0}

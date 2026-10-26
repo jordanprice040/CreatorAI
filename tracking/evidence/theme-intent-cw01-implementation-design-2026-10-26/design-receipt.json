@@ -1,0 +1,54 @@
+{
+  "format": "theme-intent-cw01-implementation-design/1",
+  "date": "2026-10-26",
+  "authorization": "Jordan explicit reply: Prepare implementation design; no implementation/execution",
+  "author": "Codex; design/note author, not independent review",
+  "status": "implementation_design_review_pending_operational_native_blocked",
+  "design_sha256": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "input_snapshot_sha256": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+  "preserved_input_count": 343,
+  "preservation_mismatches": [],
+  "local_links": 3,
+  "checks": [
+    "Repository source/review reads",
+    "Direct preservation hashing",
+    "Official PostgreSQL docs reading",
+    "New-document formatting/link/whitespace"
+  ],
+  "not_run": [
+    "Implementation",
+    "SQL execution",
+    "Operational config/environment/registry/process/ports/objects",
+    "Credential access",
+    "Cluster/app start or stop",
+    "Tests/historical verifiers",
+    "Helpers/install/migration/recovery",
+    "Activation"
+  ],
+  "blockers": [
+    "Independent exact design review",
+    "Actual manifest bindings",
+    "Native config identity/parity adapter N1-N4",
+    "Collector L1/L4 implementation/review",
+    "Protected access actor/capability",
+    "Background type and relation fingerprint assets",
+    "Owner attestation",
+    "Concrete operational grants"
+  ],
+  "official_sources": [
+    "https://www.postgresql.org/docs/18/app-pg-ctl.html",
+    "https://www.postgresql.org/docs/18/runtime-config-connection.html",
+    "https://www.postgresql.org/docs/18/config-setting.html",
+    "https://www.postgresql.org/docs/18/sql-set-transaction.html",
+    "https://www.postgresql.org/docs/18/runtime-config-client.html"
+  ],
+  "source_date": "2026-10-26",
+  "limitations": [
+    "Input snapshot after inspection before authoring",
+    "SQL text is proposed allowlist not executed/qualified",
+    "No new operational/native proof",
+    "Upstream docs not installed binary identity",
+    "One nonexistent reversed helper filename read failed and was corrected"
+  ],
+  "next": "Independent repository-only exact implementation-design review; no code or execution"
+}

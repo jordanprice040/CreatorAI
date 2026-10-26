@@ -1,0 +1,1 @@
+{"multi_p1_gold":"accepted_despite_wrong_proposal_input_reason","source_faithful_p1_revision":"schema_valid_but_rejected","cable_conservative_deferral":"schema_valid_but_rejected","nullTests":3,"nonnullTests":8,"all_test_field_polarity_swaps_rejected":true,"benefit_novelty_swap_rejected":true}

@@ -1,0 +1,12 @@
+{
+  "format": "semantics-live-authorization-review-integration/1",
+  "integrated_at": "2026-10-22T17:54:13.121Z",
+  "status": "supported_live_authorization_package",
+  "authorization_plan_hash": "1fd2ee8f8925af3e31ec7265b25c087e0b6dd021ca1c2183bf946eafc3b1af6f",
+  "reviewer_receipt_sha256": "82bd307a4e15d40a206a3851b96fa3929c6b0444d9cac3f9cc6f2c68c754cccb",
+  "verified_artifacts": 239,
+  "owner_decision": "pending",
+  "provider_calls": 0,
+  "combined_operation_lock_present": false,
+  "suite_run_lock_present": false
+}

@@ -1,0 +1,32 @@
+{
+  "format": "finding-semantics-implementation/1",
+  "recorded_at": "2026-10-22T16:59:46.028Z",
+  "status": "locally_implemented_affected_review_pending",
+  "role_version": "r02-discovery/1.4",
+  "prompt_hash": "c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8",
+  "build": "node node_modules/typescript/bin/tsc -b passed",
+  "tests": {
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0
+  },
+  "schema_unchanged": true,
+  "historical_live_artifacts_verified": 8,
+  "historical_execution_guard": "rejects_changed_candidate_as_expected",
+  "installed_bundle_unchanged": true,
+  "installed_role": "r02-discovery/1.3",
+  "provider_calls": 0,
+  "installation": false,
+  "semantic_entailment": "still_requires_substantive_review",
+  "artifact_sha256": {
+    "packages/domain/src/discovery.ts": "e0ca4da10e71edf6c6ee0154ce8015fc97f785258bf3c09f8c5d47db63e7c0bc",
+    "packages/domain/dist/discovery.js": "bbf24bc1863313bf13f5dac3dec0f215ce22f66bbf3151fcdfb089f8d0b01ca4",
+    "agents/ROLE_PROMPTS.md": "1fe5be5bb3a14bd21db5e27aef3b59b6bc8bd18f0948425ed06f4a9142c9c84f",
+    "tests/discovery-finding-semantics.test.mjs": "990402c3a42ddf6dff80c01cd2f304ef65c869d8aa6c40d2f2c1b5c19accb1f6",
+    "tests/src/discovery-identity-assertions.test.ts": "9d469d27d5943726677c255aca3054fc9e42d803fe99428a343ac8c4d8417aaa",
+    "tests/src/discovery-output-contract.test.ts": "a5478a6ca3496bcf3daf703b4be6f9156ac8ffcc92264edef7b0bdb344ac290b",
+    "packages/contracts/src/discovery.ts": "9212c1f771dcfe0a125f1d8b8194fc0767f675ac63a540eeb64e063310a63ed4",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/tests-final.tap": "6cab89b5f0cafc2cea2d724fd9c4a20825f0f20075f1d3176c2c5905a530da18",
+    "tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/historical-guard.txt": "682d0f42c2733904332ebf6a440c3a03f6c52b2b9e00d5a480051edacaa23800"
+  }
+}

@@ -1,0 +1,95 @@
+TAP version 13
+# Subtest: v2 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 1 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 1533.932
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 2 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 6912.9114
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 3 - expired admission fails before mutation
+      ---
+      duration_ms: 2536.5569
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 4 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 10128.7416
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 5 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 10494.7037
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 6 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 12370.2872
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 7 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 34338.9528
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 8 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 33980.1899
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 9 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 35844.1986
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 10 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 33288.4706
+      type: 'test'
+      ...
+    # Subtest: migration child nonzero is retained and not retried
+    ok 11 - migration child nonzero is retained and not retried
+      ---
+      duration_ms: 32196.2492
+      type: 'test'
+      ...
+    # Subtest: migration child malformed is retained and not retried
+    ok 12 - migration child malformed is retained and not retried
+      ---
+      duration_ms: 33206.2153
+      type: 'test'
+      ...
+    # Subtest: migration child timeout is retained and not retried
+    ok 13 - migration child timeout is retained and not retried
+      ---
+      duration_ms: 31612.6776
+      type: 'test'
+      ...
+    1..13
+ok 1 - v2 real wrapper lifecycle, populated state, admission, faults and recovery
+  ---
+  duration_ms: 287592.9486
+  type: 'test'
+  ...
+1..1
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 287681.0955

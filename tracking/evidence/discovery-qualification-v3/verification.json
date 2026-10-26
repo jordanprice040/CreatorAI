@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-21T01:02:28.607Z",
+  "state": "prepared_only_verified",
+  "source_bindings": 146,
+  "bundle_files": 48,
+  "installer_bundle_and_installed_before_verified": true,
+  "freeze_and_prior_history_preserved": true,
+  "tests": {
+    "passed": 56,
+    "failed": 0,
+    "skipped": 0
+  },
+  "local_scorer_assertions": 144,
+  "model_calls": 0,
+  "installed_changed": false,
+  "settings_changed": false,
+  "new_run_lock_exists": false,
+  "execution_plan_hash": "8e5b6774738de3dfcf3e633edd4dc4a7903ab0884ad194fe3d593e1540b7a98a"
+}

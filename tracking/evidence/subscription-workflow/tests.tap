@@ -1,0 +1,286 @@
+TAP version 13
+# Subtest: software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+ok 1 - software-suitable case: cross-field locator, independent proposals, a known duplicate, bounded revision
+  ---
+  duration_ms: 2046.6548
+  type: 'test'
+  ...
+# Subtest: justified existing-tool choice: software is not recommended when an existing tool covers the need
+ok 2 - justified existing-tool choice: software is not recommended when an existing tool covers the need
+  ---
+  duration_ms: 1701.1748
+  type: 'test'
+  ...
+# Subtest: insufficient evidence stops after the locator and proposes nothing
+ok 3 - insufficient evidence stops after the locator and proposes nothing
+  ---
+  duration_ms: 1285.5316
+  type: 'test'
+  ...
+# Subtest: answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+ok 4 - answers that cite evidence outside the packet or only name the fields are repaired, not accepted
+  ---
+  duration_ms: 1898.7737
+  type: 'test'
+  ...
+# Subtest: the revision limit is enforced and unresolved objections are kept as dissent
+ok 5 - the revision limit is enforced and unresolved objections are kept as dissent
+  ---
+  duration_ms: 1640.3319
+  type: 'test'
+  ...
+# Subtest: start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+ok 6 - start requests: exclusions, a non-software option, brief shape, human-only runs and changed claims
+  ---
+  duration_ms: 1427.1366
+  type: 'test'
+  ...
+# Subtest: plan connection API and CLI: create, block, sign in, confirm credits, accept caps, verify once
+ok 7 - plan connection API and CLI: create, block, sign in, confirm credits, accept caps, verify once
+  ---
+  duration_ms: 3957.1301
+  type: 'test'
+  ...
+# Subtest: proposed plan settings parse and keep code_build, private data and credits out
+ok 8 - proposed plan settings parse and keep code_build, private data and credits out
+  ---
+  duration_ms: 1.2955
+  type: 'test'
+  ...
+# Subtest: plan request body follows the preview limits and the error codes map to states
+ok 9 - plan request body follows the preview limits and the error codes map to states
+  ---
+  duration_ms: 0.2329
+  type: 'test'
+  ...
+# Subtest: only official endpoints are accepted for real connections
+ok 10 - only official endpoints are accepted for real connections
+  ---
+  duration_ms: 0.3865
+  type: 'test'
+  ...
+# Subtest: first registration uses the dynamic client with the name hint; later ones do not
+ok 11 - first registration uses the dynamic client with the name hint; later ones do not
+  ---
+  duration_ms: 0.7339
+  type: 'test'
+  ...
+# Subtest: loopback callback refuses a wrong state and a different client id
+ok 12 - loopback callback refuses a wrong state and a different client id
+  ---
+  duration_ms: 29.1555
+  type: 'test'
+  ...
+# Subtest: ID tokens are checked for nonce and audience
+ok 13 - ID tokens are checked for nonce and audience
+  ---
+  duration_ms: 65.0806
+  type: 'test'
+  ...
+# Subtest: the Responses stream counts only response.completed and enforces the output cap
+ok 14 - the Responses stream counts only response.completed and enforces the output cap
+  ---
+  duration_ms: 39.6379
+  type: 'test'
+  ...
+# Subtest: pure admission keeps sign-in, credits, caps, model access and qualification separate
+ok 15 - pure admission keeps sign-in, credits, caps, model access and qualification separate
+  ---
+  duration_ms: 0.8353
+  type: 'test'
+  ...
+# Subtest: no vault means no sign-in, and file-dev is never chosen implicitly
+ok 16 - no vault means no sign-in, and file-dev is never chosen implicitly
+  ---
+  duration_ms: 0.1673
+  type: 'test'
+  ...
+# Subtest: a real workspace connection refuses loopback endpoints and uses the official hosts
+ok 17 - a real workspace connection refuses loopback endpoints and uses the official hosts
+  ---
+  duration_ms: 1317.9295
+  type: 'test'
+  ...
+# Subtest: credits confirmation remains readable by the UI after reloading
+ok 18 - credits confirmation remains readable by the UI after reloading
+  ---
+  duration_ms: 1254.267
+  type: 'test'
+  ...
+# Subtest: sign-in, credits, caps, verification and qualification are separate recorded states
+ok 19 - sign-in, credits, caps, verification and qualification are separate recorded states
+  ---
+  duration_ms: 1489.2443
+  type: 'test'
+  ...
+# Subtest: provider refusals are recorded as eligibility and quota states and stop admission
+ok 20 - provider refusals are recorded as eligibility and quota states and stop admission
+  ---
+  duration_ms: 1392.533
+  type: 'test'
+  ...
+# Subtest: one request at a time: a concurrent admission is refused while one is in flight
+ok 21 - one request at a time: a concurrent admission is refused while one is in flight
+  ---
+  duration_ms: 1386.0521
+  type: 'test'
+  ...
+# Subtest: a terminal refresh error requires a new sign-in and keeps the registration
+ok 22 - a terminal refresh error requires a new sign-in and keeps the registration
+  ---
+  duration_ms: 1245.0832
+  type: 'test'
+  ...
+# Subtest: refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+ok 23 - refresh rotates the token, and sign-out revokes it and deletes the saved sign-in
+  ---
+  duration_ms: 1431.0447
+  type: 'test'
+  ...
+# Subtest: a sign-in that grants no plan usage scope is recorded but admits nothing
+ok 24 - a sign-in that grants no plan usage scope is recorded but admits nothing
+  ---
+  duration_ms: 1273.8302
+  type: 'test'
+  ...
+# Subtest: manifest changes bind packet/config; baseline context excludes rubric and structured prompt
+ok 25 - manifest changes bind packet/config; baseline context excludes rubric and structured prompt
+  ---
+  duration_ms: 8.6609
+  type: 'test'
+  ...
+# Subtest: study participant and grader isolation, frozen records, terminal failures and complete repeatable export
+ok 26 - study participant and grader isolation, frozen records, terminal failures and complete repeatable export
+  ---
+  duration_ms: 1582.6261
+  type: 'test'
+  ...
+# Subtest: human-only denies every broker action and helper with zero adapter calls and durable denial evidence
+ok 27 - human-only denies every broker action and helper with zero adapter calls and durable denial evidence
+  ---
+  duration_ms: 1293.5237
+  type: 'test'
+  ...
+# Subtest: real structured worker and open-ended broker paths stay inside frozen study contexts
+ok 28 - real structured worker and open-ended broker paths stay inside frozen study contexts
+  ---
+  duration_ms: 1515.7474
+  type: 'test'
+  ...
+# Subtest: concurrent finish preserves one outcome; changed structured inputs and cross-participant reads are refused
+ok 29 - concurrent finish preserves one outcome; changed structured inputs and cross-participant reads are refused
+  ---
+  duration_ms: 1403.761
+  type: 'test'
+  ...
+# Subtest: late outputs retain charges and artifacts without completing an expired assignment; stopped attempts deny further dispatch
+ok 30 - late outputs retain charges and artifacts without completing an expired assignment; stopped attempts deny further dispatch
+  ---
+  duration_ms: 1333.3658
+  type: 'test'
+  ...
+# Subtest: seed retries return the same assignments and agent identities cannot receive grader material
+ok 31 - seed retries return the same assignments and agent identities cannot receive grader material
+  ---
+  duration_ms: 1154.3261
+  type: 'test'
+  ...
+# Subtest: participant ids match regardless of letter case, so a participant can never become a grader
+ok 32 - participant ids match regardless of letter case, so a participant can never become a grader
+  ---
+  duration_ms: 1390.3307
+  type: 'test'
+  ...
+# Subtest: subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+ok 33 - subscription discovery needs role qualifications, no envelope/pricing, and preserves legacy request hashes
+  ---
+  duration_ms: 2109.9338
+  type: 'test'
+  ...
+# Subtest: subscription workflow replay survives restart without redispatch, binds input
+ok 34 - subscription workflow replay survives restart without redispatch, binds input
+  ---
+  duration_ms: 2343.3672
+  type: 'test'
+  ...
+# Subtest: subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+ok 35 - subscription setup refuses stale settings, concurrent jobs, human-only runs, unsupported local routes and unapproved data
+  ---
+  duration_ms: 1420.8868
+  type: 'test'
+  ...
+# Subtest: unknown subscription requests hold work without retry and explicit reconciliation releases the task
+ok 36 - unknown subscription requests hold work without retry and explicit reconciliation releases the task
+  ---
+  duration_ms: 1847.9247
+  type: 'test'
+  ...
+# Subtest: missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+ok 37 - missing grants wait durably and cancellation aborts an admitted subscription call without redispatch
+  ---
+  duration_ms: 1618.8978
+  type: 'test'
+  ...
+# Subtest: authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+ok 38 - authenticated HTTP discovery dispatches on the embedded worker with typed plan setup
+  ---
+  duration_ms: 2061.7056
+  type: 'test'
+  ...
+# Subtest: a workflow started over HTTP survives killed worker and API processes
+ok 39 - a workflow started over HTTP survives killed worker and API processes
+  ---
+  duration_ms: 5833.9284
+  type: 'test'
+  ...
+# Subtest: a workflow runs to a structured result and continues after a restart
+ok 40 - a workflow runs to a structured result and continues after a restart
+  ---
+  duration_ms: 1458.9954
+  type: 'test'
+  ...
+# Subtest: heartbeats keep a live lease past its first expiry, and refuse a stale token
+ok 41 - heartbeats keep a live lease past its first expiry, and refuse a stale token
+  ---
+  duration_ms: 2327.9545
+  type: 'test'
+  ...
+# Subtest: a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice
+ok 42 - a crashed worker loses its lease; the stale worker cannot commit and nothing is sent twice
+  ---
+  duration_ms: 1853.7713
+  type: 'test'
+  ...
+# Subtest: a workflow waits for a decision, survives duplicate wake-ups, then completes
+ok 43 - a workflow waits for a decision, survives duplicate wake-ups, then completes
+  ---
+  duration_ms: 1791.3494
+  type: 'test'
+  ...
+# Subtest: cancellation stops delegation and keeps in-flight exposure held
+ok 44 - cancellation stops delegation and keeps in-flight exposure held
+  ---
+  duration_ms: 1613.6594
+  type: 'test'
+  ...
+# Subtest: autonomous runs stop as needs-human; human-only and unbounded workflows never start
+ok 45 - autonomous runs stop as needs-human; human-only and unbounded workflows never start
+  ---
+  duration_ms: 1372.7744
+  type: 'test'
+  ...
+# Subtest: a malformed answer is repaired within limits; pause holds dispatch until resume
+ok 46 - a malformed answer is repaired within limits; pause holds dispatch until resume
+  ---
+  duration_ms: 1603.2066
+  type: 'test'
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 46
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 67362.0779

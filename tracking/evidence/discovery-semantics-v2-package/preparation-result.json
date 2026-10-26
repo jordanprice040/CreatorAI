@@ -1,0 +1,18 @@
+{
+  "candidate_plan_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "installation_plan_hash": "01c84b292084bd989383d541a259cff2f9001cace7155e600b66b9389cfdc464",
+  "execution_binding_hash": "d4efe785220f2c1c4f084720e4af481995b857fdfcb0ee184280a8cbc3a036a6",
+  "resource_count": 67,
+  "extracted_resources_verified": 67,
+  "tests": {
+    "passed": 23,
+    "failed": 0,
+    "skipped": 0
+  },
+  "controls": 108,
+  "installed_predecessor_unchanged": true,
+  "previous_installer_archived_verified": true,
+  "provider_calls": 0,
+  "installation": false,
+  "dispatch_ready": false
+}

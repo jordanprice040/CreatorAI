@@ -1,0 +1,10 @@
+{
+  "repair_artifact_hashes_verified": 12,
+  "original_other_artifacts_unchanged": 25,
+  "explicit_discard_true_call_sites": 1,
+  "pure_regressions_passed": 3,
+  "failed": 0,
+  "skipped": 0,
+  "provider_api_db_credential_calls": 0,
+  "exact_original_source_reconstructed_from_four_repair_edits": true
+}

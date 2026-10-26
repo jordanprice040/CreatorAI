@@ -1,0 +1,8 @@
+{
+  "grant_id": "df32cca2-ed9a-442b-ac3f-bb9f998f4206",
+  "model_id": "gpt-6-astra",
+  "purpose": "availability_recheck",
+  "max_requests": 1,
+  "retry": false,
+  "owner_authorization": "New exact combined authorization; recorded separately before execution."
+}

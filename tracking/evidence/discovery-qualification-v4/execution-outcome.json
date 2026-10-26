@@ -1,0 +1,60 @@
+{
+  "date_local": "2026-10-21",
+  "owner_authorization": "I approve all that",
+  "approved_execution_plan_hash": "58dff31c4e9484689ff9c533c71337c44b97e6a52e8c1025a82562850af8d721",
+  "installed_manifest_sha256": "115b6c885e88ed226bfd1677d24a8627ec609aec7ad1108f9f16566cca2440c1",
+  "verified_source_files": 162,
+  "verified_installed_files": 53,
+  "attempted": 6,
+  "completed": 5,
+  "accepted": 5,
+  "unknown": 1,
+  "retries": 0,
+  "unattempted": 12,
+  "research": {
+    "state": "running_unresolved",
+    "qualification_id": "887288bb-ce7f-4edb-b11f-7f1494b146e3",
+    "observed_development_passes": 2,
+    "observed_held_out_passes": 3,
+    "remaining_held_out": "one unknown timeout; no acceptance inferred"
+  },
+  "unknown_request": {
+    "task_class": "research_synthesis",
+    "case_id": "loc-held-rehearsal-wrapper",
+    "split": "held_out",
+    "signal": "provider_error",
+    "request_id": "50fcd841-85c1-4abd-9591-e18655538a2f",
+    "outcome": {
+      "kind": "unknown",
+      "reason_code": "timeout",
+      "message": "timeout",
+      "response_id": "resp_0306953cb8a7ff12016ad85ed6ed9c87d1a478817473f4ca98",
+      "output_chars": 1653,
+      "retry_allowed": false
+    },
+    "elapsed_ms": 120359
+  },
+  "candidate_generation": "not_attempted",
+  "scoring": "not_attempted",
+  "postrun_counts": {
+    "workflows": 0,
+    "audit_events": 26,
+    "plan_requests": 24
+  },
+  "request_states": {
+    "unknown": 1,
+    "completed": 23
+  },
+  "in_flight": 0,
+  "unresolved": 1,
+  "leased_tasks": 0,
+  "settings_unchanged": true,
+  "migration": false,
+  "owner_reconciliation_performed": false,
+  "substantive_review": "Independent review required; author observations do not establish acceptance.",
+  "metered_fallback": false,
+  "credits_activation": false,
+  "workflow_search_build_pilot_launch": false,
+  "diagnostic": "Local deadline elapsed after partial streaming; no response.completed observed. Response ID and 1653-character count retained, without complete text/hash/token count. Unknown is not proof of no execution or a completed usable result. Adapter has no implemented retrieval/reconciliation observer; store:false was configured. No quota exhaustion was observed.",
+  "next_eligible_prompt": "Review timeout/stream recovery and evidence-backed reconciliation of the retained request. Do not retry, fabricate completion or clear unknown to continue; preserve the frozen run and lock. Any subsequent qualification requires its own prospective decision."
+}

@@ -1,0 +1,69 @@
+TAP version 13
+# PROBE-OUTPUT
+# ACCEPTED-NONFINITE k=6 ev=disconnect bad=nanTime -> disconnected
+# ACCEPTED-NONFINITE k=6 ev=disconnect bad=infTime -> disconnected
+# ACCEPTED-NONFINITE k=8 ev=stop_outcome bad=nanTime -> stopped_verified
+# ACCEPTED-NONFINITE k=8 ev=stop_outcome bad=infTime -> stopped_verified
+# ACCEPTED-NONFINITE k=9 ev=w2_reference bad=nanTime -> W2_reference_recorded
+# ACCEPTED-NONFINITE k=9 ev=w2_reference bad=infTime -> W2_reference_recorded
+# matrix cells=968 v4throws=0 v3throws=242 v3/v4 diffs(both non-throwing)=0
+# happy v4=W2_reference_recorded v3=W2_reference_recorded; history digests equal per entry input: true
+# sqlA ctx digest == history input digest: true (entry event field present: true)
+# sqlB ctx digest == history input digest: true
+# getter reads=1 state=sql_A stored=true digestMatch=true
+# v3 same getter: ownership_unavailable/TIME_CONTRADICTION
+# v3: A ctx.connected=T+40000 A history digest==digest(ctx)=false; B -> sql_B/null
+# v4: A ctx.connected=undefined A history digest==digest(ctx)=false; B -> ownership_unavailable/TERMINAL_STATE
+# nested toJSON: state=ownership_unavailable/SQL_PARENT_LINK_MISSING stored pid=undefined digestMatch=false
+# Date at_ms: state=blocked/ADMISSION_TIME_INVALID
+# Subtest: PROBE matrix: bad evidence at every state and event, v3 vs v4
+ok 1 - PROBE matrix: bad evidence at every state and event, v3 vs v4
+  ---
+  duration_ms: 595.1581
+  type: 'test'
+  ...
+# Subtest: PROBE plain-data differential: every carried override path gives the same state/reason in v3 and v4
+ok 2 - PROBE plain-data differential: every carried override path gives the same state/reason in v3 and v4
+  ---
+  duration_ms: 1.243
+  type: 'test'
+  ...
+# Subtest: PROBE stored copy digest equals history input digest for every accepted step
+ok 3 - PROBE stored copy digest equals history input digest for every accepted step
+  ---
+  duration_ms: 0.6828
+  type: 'test'
+  ...
+# Subtest: PROBE getter evidence is read once at copy time
+ok 4 - PROBE getter evidence is read once at copy time
+  ---
+  duration_ms: 0.8548
+  type: 'test'
+  ...
+# Subtest: PROBE v3 review L-1 scenario (A toJSON reports connection at T+40000, B at T+50000)
+ok 5 - PROBE v3 review L-1 scenario (A toJSON reports connection at T+40000, B at T+50000)
+  ---
+  duration_ms: 1.2011
+  type: 'test'
+  ...
+# Subtest: PROBE nested toJSON and Date
+ok 6 - PROBE nested toJSON and Date
+  ---
+  duration_ms: 1.5235
+  type: 'test'
+  ...
+# Subtest: PROBE report
+ok 7 - PROBE report
+  ---
+  duration_ms: 0.6549
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 683.1732

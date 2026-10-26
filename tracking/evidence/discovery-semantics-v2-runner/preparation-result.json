@@ -1,0 +1,35 @@
+{
+  "format": "semantics-bound-runner-preparation/1",
+  "recorded_at": "2026-10-22T17:32:35.876Z",
+  "execution_plan_path": "tracking/evidence/discovery-semantics-v2-runner/execution-plan-v3.json",
+  "execution_plan_hash": "4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c",
+  "status": "implemented_final_review_pending",
+  "source_bindings": 229,
+  "tests": {
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0
+  },
+  "packet_controls": 108,
+  "build": "tsc -b passed",
+  "powershell_syntax": "passed",
+  "installation": false,
+  "provider_calls": 0,
+  "run_lock_present": false,
+  "superseded_plans": [
+    "execution-plan.json",
+    "execution-plan-v2.json"
+  ],
+  "review_repair": "Home, installation proof and installed hashes gated by static --execution-check before wrapper DPAPI",
+  "artifact_sha256": {
+    "scripts/check-discovery-semantics-runner.mjs": "e198f32dd51f19e8f0746f6c202678b91c999a34ec3869f46aa1c012d556ec32",
+    "scripts/qualify-discovery-semantics-v2.mjs": "2a8302874f6e44fc1b299ea30f2fbecd6a63fda369deb01537e18dc7c6143cc4",
+    "scripts/qualify-discovery-semantics-v2.ps1": "9c00ef779f99abaf43906719daab89fe881342cfe7aae7f05cfa3dbeb87abba1",
+    "scripts/prepare-discovery-semantics-runner.mjs": "2e8bbe1fa9d8f48d8744a5378daf9c9aaea8ec83ce1ea116bea9e866bcd7ec97",
+    "tests/discovery-semantics-runner.test.mjs": "ce50b6a0ebb55adf37671fb899735cba43295ebaa14ecb7191d4e042c5c387e6",
+    "tests/src/discovery-semantics-runner.test.ts": "d509d3edb4c0e1f101d6ac3cff0a1f2eeec47f0be29107a5772bf17f9e7cc044",
+    "tracking/evidence/discovery-semantics-v2-runner/execution-plan-v3.json": "6962b505ea820cc2f3702081748113b722be9441458c34db0223bedb570c08c7",
+    "tracking/evidence/discovery-semantics-v2-runner/tests-review-fix.tap": "e2f80ce55bd988f8845f81636210e57943f8e186633ed1659b64994ea7798097",
+    "tracking/evidence/discovery-semantics-v2-runner/tests-default-entry-final.tap": "b7dcecf2faaee62c3fcb4a2cf02d0792f503cee2038297756fccc41580c3381e"
+  }
+}

@@ -1,0 +1,161 @@
+TAP version 13
+# Subtest: v3 real wrapper lifecycle, populated state, admission, faults and recovery
+    # Subtest: blocked review rejects before DPAPI or backup access
+    ok 1 - blocked review rejects before DPAPI or backup access
+      ---
+      duration_ms: 2199.5092
+      type: 'test'
+      ...
+    # Subtest: junction ancestors and operational reuse of fixture review are rejected
+    ok 2 - junction ancestors and operational reuse of fixture review are rejected
+      ---
+      duration_ms: 1685.4806
+      type: 'test'
+      ...
+    # Subtest: running qualifications block the real before phase
+    ok 3 - running qualifications block the real before phase
+      ---
+      duration_ms: 10914.4052
+      type: 'test'
+      ...
+    # Subtest: a pre-existing managed cluster is not silently adopted or stopped
+    ok 4 - a pre-existing managed cluster is not silently adopted or stopped
+      ---
+      duration_ms: 7169.8167
+      type: 'test'
+      ...
+    # Subtest: partial before death: before-snapshot can release without prepared data or credentials
+    ok 5 - partial before death: before-snapshot can release without prepared data or credentials
+      ---
+      duration_ms: 36292.8371
+      type: 'test'
+      ...
+    # Subtest: partial before death: before-protected-copy can release without prepared data or credentials
+    ok 6 - partial before death: before-protected-copy can release without prepared data or credentials
+      ---
+      duration_ms: 32563.6669
+      type: 'test'
+      ...
+    # Subtest: before owns cluster lifecycle and copies sensitive data only to ignored home backups
+    ok 7 - before owns cluster lifecycle and copies sensitive data only to ignored home backups
+      ---
+      duration_ms: 9257.6387
+      type: 'test'
+      ...
+    # Subtest: reusing a session in another evidence directory cannot overwrite its backup
+    ok 8 - reusing a session in another evidence directory cannot overwrite its backup
+      ---
+      duration_ms: 2717.544
+      type: 'test'
+      ...
+    # Subtest: expired admission fails before mutation
+    ok 9 - expired admission fails before mutation
+      ---
+      duration_ms: 2774.754
+      type: 'test'
+      ...
+    # Subtest: real wrapper installs fixture payload then migrates via exact candidate child
+    ok 10 - real wrapper installs fixture payload then migrates via exact candidate child
+      ---
+      duration_ms: 21844.9121
+      type: 'test'
+      ...
+    # Subtest: read-only verification repeat is allowed and mutations cannot repeat
+    ok 11 - read-only verification repeat is allowed and mutations cannot repeat
+      ---
+      duration_ms: 15168.855
+      type: 'test'
+      ...
+    # Subtest: death during after resumes schema29 forward without rollback or repeated effects
+    ok 12 - death during after resumes schema29 forward without rollback or repeated effects
+      ---
+      duration_ms: 14287.2723
+      type: 'test'
+      ...
+    # Subtest: per-studio lock rejects concurrent actual wrapper runs
+    ok 13 - per-studio lock rejects concurrent actual wrapper runs
+      ---
+      duration_ms: 10805.5365
+      type: 'test'
+      ...
+    # Subtest: coordinated recovery restores populated schema28/program/config/credentials/products
+    ok 14 - coordinated recovery restores populated schema28/program/config/credentials/products
+      ---
+      duration_ms: 23688.2303
+      type: 'test'
+      ...
+    # Subtest: crash-window after-admission has explicit recovery
+    ok 15 - crash-window after-admission has explicit recovery
+      ---
+      duration_ms: 43487.7373
+      type: 'test'
+      ...
+    # Subtest: crash-window after-installer has explicit recovery
+    ok 16 - crash-window after-installer has explicit recovery
+      ---
+      duration_ms: 45105.1993
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-intent has explicit recovery
+    ok 17 - crash-window after-migration-intent has explicit recovery
+      ---
+      duration_ms: 46463.7378
+      type: 'test'
+      ...
+    # Subtest: crash-window after-migration-child has explicit recovery
+    ok 18 - crash-window after-migration-child has explicit recovery
+      ---
+      duration_ms: 59254.9783
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-intent has explicit recovery
+    ok 19 - crash-window hard-crash-after-migration-intent has explicit recovery
+      ---
+      duration_ms: 56246.6266
+      type: 'test'
+      ...
+    # Subtest: crash-window hard-crash-after-migration-result has explicit recovery
+    ok 20 - crash-window hard-crash-after-migration-result has explicit recovery
+      ---
+      duration_ms: 76736.8849
+      type: 'test'
+      ...
+    # Subtest: migration child nonzero is retained and not retried
+    ok 21 - migration child nonzero is retained and not retried
+      ---
+      duration_ms: 63726.1111
+      type: 'test'
+      ...
+    # Subtest: migration child malformed is retained and not retried
+    ok 22 - migration child malformed is retained and not retried
+      ---
+      duration_ms: 61863.8132
+      type: 'test'
+      ...
+    # Subtest: migration child timeout is retained and not retried
+    ok 23 - migration child timeout is retained and not retried
+      ---
+      duration_ms: 64263.3622
+      type: 'test'
+      ...
+    # Subtest: old admission cannot expire post-mutation read-only verification
+    ok 24 - old admission cannot expire post-mutation read-only verification
+      ---
+      duration_ms: 80846.8181
+      type: 'test'
+      ...
+    1..24
+ok 1 - v3 real wrapper lifecycle, populated state, admission, faults and recovery
+  ---
+  duration_ms: 803263.4058
+  type: 'test'
+  ...
+1..1
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 803375.8806

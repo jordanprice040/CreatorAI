@@ -1,0 +1,8 @@
+{
+  "grant_id": "3c54701a-3b96-43af-814d-73f732101069",
+  "model_id": "gpt-6-astra",
+  "purpose": "availability_recheck",
+  "max_requests": 1,
+  "retry": false,
+  "owner_authorization": "Owner approved one additional availability check and continuation of the already approved exact suite; yes I approve that."
+}

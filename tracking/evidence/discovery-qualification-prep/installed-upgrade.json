@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-20T23:58:42.647Z",
+  "owner_approval": "I approve all of that",
+  "plan_hash": "de5297fdbd86635a6301cf6a53147cebec4bcf467d77dabbfa56132dc16346b4",
+  "preflight_request_states": [
+    {
+      "state": "completed",
+      "count": 9
+    }
+  ],
+  "migration": {
+    "applied": [
+      27
+    ],
+    "backup": {
+      "dir": "C:\\Users\\jorda\\AppData\\Local\\com.creatoragent.studio\\backups\\pre-migrate-v26-2026-10-20T23-58-41-979Z",
+      "format": "creator-premigration/1",
+      "created_at": "2026-10-20T23:58:42.523Z",
+      "schema_from": 26,
+      "schema_to": 27,
+      "database": {
+        "file": "database.dump",
+        "sha256": "8bc7c74f170d16d269bb2e8ea08432ac281af5c29a7b949bbf8ae60d669ad0f9",
+        "bytes": 459417
+      }
+    },
+    "from": 26,
+    "to": 27
+  },
+  "backup_hash_verified": true
+}

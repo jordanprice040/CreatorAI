@@ -1,0 +1,614 @@
+{
+  "at": "2026-10-21T06:38:50.301Z",
+  "phase": "preflight",
+  "schema": 27,
+  "leased": 0,
+  "counts": {
+    "workflows": 0,
+    "audit_events": 25,
+    "plan_requests": 18
+  },
+  "detail": {
+    "connection": {
+      "id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+      "fixture": false,
+      "kind": "chatgpt_plan",
+      "label": "ChatGPT plan",
+      "version": 12,
+      "settings": {
+        "format": "chatgpt-plan-settings/1",
+        "plan_type": "plus",
+        "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
+        "allowed_data_classes": [
+          "synthetic",
+          "public"
+        ],
+        "allowed_task_classes": [
+          "summarization",
+          "specification",
+          "research_synthesis",
+          "candidate_generation",
+          "scoring"
+        ],
+        "caps": {
+          "responses": {
+            "max_requests_per_run": 10,
+            "request_timeout_ms": 120000,
+            "max_output_chars": 16000,
+            "max_input_chars": 24000
+          },
+          "codex": {
+            "max_builds_per_day": 2,
+            "max_turns_per_build": 1,
+            "max_model_requests_per_build": 25,
+            "build_timeout_ms": 600000
+          },
+          "shared": {
+            "max_model_requests_per_day": 40,
+            "max_in_flight": 1
+          }
+        }
+      },
+      "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+      "caps_accepted_at": "2026-10-21T00:00:07.872Z",
+      "ext_agent_host_id": "urn:uuid:36dd4851-7381-48e4-9655-885cd9b11419",
+      "sign_in": {
+        "state": "signed_in",
+        "issued_client_id": "oaiapp_XW3Y7HYXkvECPDbYQEVRJkhCh",
+        "account_label": "jordanprice@ufl.edu",
+        "scopes": [
+          "chatgpt.tokens.use.direct",
+          "email",
+          "offline_access",
+          "openid",
+          "profile",
+          "resource.invoke"
+        ],
+        "plan_usage_granted": true,
+        "verified_at": "2026-10-20T12:28:39.370Z",
+        "access_expires_at": "2026-10-21T07:08:49.795Z"
+      },
+      "credits": {
+        "state": "confirmed_off",
+        "checked_on": "2026-10-20",
+        "confirmed_at": "2026-10-20T12:09:31.214Z",
+        "confirmed_by": "00000000-0000-4000-8000-000000000001"
+      },
+      "eligibility": {
+        "state": "eligible",
+        "reason_code": null,
+        "upstream_request_id": "resp_0ebc77dfd68eb1bd016ad8576cbad887d1937b66c3673ca2ca",
+        "observed_at": "2026-10-21T06:11:12.919Z"
+      },
+      "quota": {
+        "state": "available",
+        "reason_code": null,
+        "observed_at": "2026-10-21T06:11:12.919Z"
+      },
+      "status_reason": null,
+      "created_at": "2026-10-20T12:00:36.029Z",
+      "updated_at": "2026-10-21T06:11:12.922Z"
+    },
+    "model_access": [
+      {
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "path": "responses",
+        "access": "verified",
+        "reason_code": null,
+        "request_id": "6f887269-7809-43e9-8acf-5692983dbe3b",
+        "verified_at": "2026-10-20T12:32:50.851Z"
+      }
+    ],
+    "qualifications": [
+      {
+        "id": "4e6a8cad-a777-44d9-bf05-aa728545701f",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "candidate_generation",
+        "manifest_hash": "de03794b65d9572ae889f3110f48aef225715df11496168c4324ee8755ef7cda",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 0,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 0,
+          "total": 4
+        },
+        "reason": "0/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T06:10:51.630Z",
+        "decided_at": "2026-10-21T06:11:12.934Z"
+      },
+      {
+        "id": "463406b6-898e-421f-8c03-391a21b020e1",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "20a7ff225f43c863f608eef44d386ce33889a9614aa8260149694f335e4b4651",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "qualified",
+        "development": {
+          "passed": 2,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 4,
+          "total": 4
+        },
+        "reason": "4/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T06:08:47.279Z",
+        "decided_at": "2026-10-21T06:10:51.577Z"
+      },
+      {
+        "id": "9586ebfb-adf8-4550-8c95-9a011744f2a1",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "2ce652f648c463ea1bc349733ebb2c4a8b894c2484d8993d6e4cfd14a8fd92f8",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 0,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 0,
+          "total": 4
+        },
+        "reason": "0/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T00:34:50.261Z",
+        "decided_at": "2026-10-21T00:35:18.790Z"
+      },
+      {
+        "id": "bfdbcf34-dcd2-49bf-9afa-7ac401020429",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "research_synthesis",
+        "manifest_hash": "30b92cd090f98bdbb97f1461ea22c3a40f9234dcae723b512e33b550d849616e",
+        "min_held_out_cases": 4,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "failed",
+        "development": {
+          "passed": 0,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 0,
+          "total": 4
+        },
+        "reason": "0/4 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-21T00:00:14.097Z",
+        "decided_at": "2026-10-21T00:00:42.110Z"
+      },
+      {
+        "id": "db9cc857-cb7b-4651-a0e9-4f74ac00da85",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "task_class": "summarization",
+        "manifest_hash": "72809de002696f07d9574c3ec474596d4847afc8fe5904281150e8bdff5fea15",
+        "min_held_out_cases": 6,
+        "floor": {
+          "numerator": 1,
+          "denominator": 1
+        },
+        "state": "qualified",
+        "development": {
+          "passed": 2,
+          "total": 2
+        },
+        "held_out": {
+          "passed": 6,
+          "total": 6
+        },
+        "reason": "6/6 held-out cases accepted against a floor of 1/1 (absolute, not baseline-relative).",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-20T12:38:48.418Z",
+        "decided_at": "2026-10-20T12:39:11.413Z"
+      }
+    ],
+    "grants": [
+      {
+        "id": "eec35947-f314-448c-b033-168c44524945",
+        "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+        "model_id": "gpt-6-astra",
+        "path": "responses",
+        "max_requests": 1,
+        "used": 1,
+        "expires_at": "2026-10-20T13:02:25.741Z",
+        "created_by": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-20T12:32:25.741Z"
+      }
+    ],
+    "usage": {
+      "last_24h_requests": 18,
+      "last_24h_codex_builds": 0,
+      "in_flight": 0,
+      "unresolved": 0
+    },
+    "blockers": []
+  },
+  "requests": [
+    {
+      "id": "4df814b9-35af-4bb0-b8a9-b3a911341fdd",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "7696510c-6618-4ee0-a595-5fd1b5523f7b",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "candidate_generation",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0ebc77dfd68eb1bd016ad8576cbad887d1937b66c3673ca2ca",
+      "output_tokens": 649,
+      "output_chars": 3374,
+      "output_hash": "e6c8999f056ddf8ea85ffa9d461626718f63a40f6028c5259066deceb9190c86",
+      "started_at": "2026-10-21T06:10:51.671Z",
+      "finished_at": "2026-10-21T06:11:12.921Z"
+    },
+    {
+      "id": "32dcb913-18fc-490a-a9ef-a0fdcadf1302",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "c2f4ca57-1241-4bd1-8446-8a062df7ebf0",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_04c068d48a6cae7e016ad8575a02c887d19ebc795c6d809042",
+      "output_tokens": 465,
+      "output_chars": 2318,
+      "output_hash": "1f6a8222e076db0b9633984a0b397963cc0398188cbd39d06b17191a598d89fd",
+      "started_at": "2026-10-21T06:10:32.907Z",
+      "finished_at": "2026-10-21T06:10:51.563Z"
+    },
+    {
+      "id": "be7461f0-d259-4bd5-b66d-009eabf6abe7",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "e2763aa8-1def-46c4-8ba0-9e6621b35710",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0fdd659ad56711e0016ad85743082487d1a2c581d65631be5c",
+      "output_tokens": 644,
+      "output_chars": 3204,
+      "output_hash": "0819ca92178514c3f8a8f2f794bd062f4a39e5b1cacdc594f081a49e58665d8d",
+      "started_at": "2026-10-21T06:10:09.964Z",
+      "finished_at": "2026-10-21T06:10:32.890Z"
+    },
+    {
+      "id": "6488657f-e219-482e-a9ed-e24648615e74",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "5ac98058-1c2e-47c9-9ac6-bedcd401e661",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0f0e06af13d730d8016ad85731334c87d18ac018d9b7eb15ae",
+      "output_tokens": 520,
+      "output_chars": 2514,
+      "output_hash": "39fe23e53d86cca907f706ba4a430aeae0ce9f15bbfc1012de128627bce507ca",
+      "started_at": "2026-10-21T06:09:51.967Z",
+      "finished_at": "2026-10-21T06:10:09.947Z"
+    },
+    {
+      "id": "310f14d9-871d-48bb-ac00-5001d2b1004f",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "7a6aef32-7fb6-4d68-af30-c3af85574189",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_01561b86f0f74253016ad8571be42087d1b1c5d7006a208829",
+      "output_tokens": 613,
+      "output_chars": 2951,
+      "output_hash": "8f8ab3c87fb9169ab2b774217750fe5f42849357d04690e79711c019507a7651",
+      "started_at": "2026-10-21T06:09:30.844Z",
+      "finished_at": "2026-10-21T06:09:51.950Z"
+    },
+    {
+      "id": "7b7f14af-3582-4250-bb90-3cdde8481c91",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "a57573b3-a017-43cd-b0b2-79889ea3550a",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_02b20fca19937f20016ad85707a08887d1bc8f4b7a8ac48472",
+      "output_tokens": 517,
+      "output_chars": 2623,
+      "output_hash": "5a56664ae530a4f31a74e5bad6096f7bea382c2cd61950bb96f703410bc21e97",
+      "started_at": "2026-10-21T06:09:10.586Z",
+      "finished_at": "2026-10-21T06:09:30.827Z"
+    },
+    {
+      "id": "0459b641-aa8c-4938-85a2-2486d1d77a5e",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "e547abfa-3c88-44a2-b803-b82e4e57f06d",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_08eeec69ecad25a3016ad856f32dd487d1b224f89d7a0f20e6",
+      "output_tokens": 651,
+      "output_chars": 3133,
+      "output_hash": "8c88472fcc0115300984e9604844871e5268f741b980bfced0320909748c6c7e",
+      "started_at": "2026-10-21T06:08:47.345Z",
+      "finished_at": "2026-10-21T06:09:10.567Z"
+    },
+    {
+      "id": "c6a314e6-9496-418f-912a-c3d36c4cdd1f",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "4fd2a2d1-32e7-4977-b0d2-58ce38fe68ac",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_069d96581e8515d1016ad808aceb5c87d1ad168bbd6b0b037d",
+      "output_tokens": 869,
+      "output_chars": 4377,
+      "output_hash": "28f346c146e013f23ca0b0007b821ab882c49f170d1972fd7a661d322bd3f542",
+      "started_at": "2026-10-21T00:34:50.325Z",
+      "finished_at": "2026-10-21T00:35:18.775Z"
+    },
+    {
+      "id": "4f35a154-0210-4b40-b092-5bfd56a76503",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "aa82b716-cedf-4491-80b7-f4762aadc720",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "research_synthesis",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_080772511ee17b7e016ad800924f6487d1bdd340075ee178f7",
+      "output_tokens": 862,
+      "output_chars": 4332,
+      "output_hash": "55c57b4aad3eb4a05d565526d21a9304dfc726c8430c3b0852263fe29f42bfec",
+      "started_at": "2026-10-21T00:00:14.156Z",
+      "finished_at": "2026-10-21T00:00:42.096Z"
+    },
+    {
+      "id": "a3e1647a-733d-4f26-b91b-81c20bc29d12",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "dd6160b4-af91-4192-9d37-a972436ff7b3",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0c8c38b859d7127b016ad760eed7a087d19379abf0f730f5d9",
+      "output_tokens": 27,
+      "output_chars": 94,
+      "output_hash": "1150e992e73457d17aeb0ee52a9b536944473e1d38ad20e5baf86ebf1d3e9b61",
+      "started_at": "2026-10-20T12:39:08.633Z",
+      "finished_at": "2026-10-20T12:39:11.408Z"
+    },
+    {
+      "id": "6827fdee-ada0-4f7c-ba0c-e42a2d13d097",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "25d7365f-1772-484e-b5f9-e22a9ae0e5bb",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0e5b787a51ad4870016ad760ebb6d887d1bf5b665e748ca759",
+      "output_tokens": 27,
+      "output_chars": 92,
+      "output_hash": "692fbfea7a6fd6403da6bca363e377bb6766396af12b01f276d12b49d6a050e1",
+      "started_at": "2026-10-20T12:39:05.562Z",
+      "finished_at": "2026-10-20T12:39:08.627Z"
+    },
+    {
+      "id": "2c086d2f-03ca-42af-8e0b-ade0829a5f37",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "006aaffb-9b62-47b4-a62a-97766874fa92",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_038383314cddf878016ad760e89df087d1b41d7d631ae00994",
+      "output_tokens": 23,
+      "output_chars": 88,
+      "output_hash": "3e25a5990357a862a0298cd87e45dd34dc6fd9a4f619751b8da0c3bed9662be2",
+      "started_at": "2026-10-20T12:39:02.404Z",
+      "finished_at": "2026-10-20T12:39:05.556Z"
+    },
+    {
+      "id": "1c75cd16-79d7-4b39-a952-5c2b6a726f7a",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "11eab69d-30ae-42a2-a434-32f709ac7162",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0a270aa0ece79009016ad760e6019487d1b89122082501a875",
+      "output_tokens": 29,
+      "output_chars": 93,
+      "output_hash": "e4d18429669de03a7b10a7519bcfebd60fd65f47a66ee2208371b12287e23b45",
+      "started_at": "2026-10-20T12:38:59.704Z",
+      "finished_at": "2026-10-20T12:39:02.399Z"
+    },
+    {
+      "id": "1b8c48e7-e3ae-407b-be03-6bcd176a3864",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "bf5e2b83-c3bb-49bf-a0a8-b84afb394fea",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_00f755a56a1a8481016ad760e33ea087d1a06d96db9d3b0738",
+      "output_tokens": 28,
+      "output_chars": 87,
+      "output_hash": "962d5478898d9d99146b2169ddd2217c160e4ffab09335ec757b8ed8e0a44d5e",
+      "started_at": "2026-10-20T12:38:57.012Z",
+      "finished_at": "2026-10-20T12:38:59.697Z"
+    },
+    {
+      "id": "6cd26b78-817b-457f-8cf6-40949e82667e",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "5ee4fec4-ab70-48d4-9fde-4b8917bbb821",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_041c9bd084959dd4016ad760e03b2487d1958a56082dabfafe",
+      "output_tokens": 27,
+      "output_chars": 90,
+      "output_hash": "e5c1330982e6ab96e4b1d75c404288b9a0ff613b957dc5039312c56bdfa89326",
+      "started_at": "2026-10-20T12:38:53.796Z",
+      "finished_at": "2026-10-20T12:38:57.006Z"
+    },
+    {
+      "id": "3a6cfbce-ea10-4412-82fa-2b3c3af5aa52",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "dbcfea01-e581-46c3-9591-d14fa812c8bf",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_032ffbadad87ec7b016ad760dd5e4487d1b5032bddf66ff1ba",
+      "output_tokens": 22,
+      "output_chars": 87,
+      "output_hash": "fbf08a077b20d186beca5f0d13a25d3e0cbb6920e98d34be19b3b7cfb912e532",
+      "started_at": "2026-10-20T12:38:51.240Z",
+      "finished_at": "2026-10-20T12:38:53.790Z"
+    },
+    {
+      "id": "09186e4e-42b0-48a1-9afc-28b8a906c8d9",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "0a97231c-0a44-4d94-bf36-4e87f9d6b528",
+      "path": "responses",
+      "purpose": "qualification",
+      "model_id": "gpt-6-astra",
+      "task_class": "summarization",
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_006e769d40f04c82016ad760dad37c87d19b98230a225d59ec",
+      "output_tokens": 27,
+      "output_chars": 91,
+      "output_hash": "b67ffd6f121aafc61d9c0c9418cc61c0bfc3ca954c138271e9d8d2144c6d8514",
+      "started_at": "2026-10-20T12:38:48.514Z",
+      "finished_at": "2026-10-20T12:38:51.234Z"
+    },
+    {
+      "id": "6f887269-7809-43e9-8acf-5692983dbe3b",
+      "connection_id": "7529f8ef-8579-4685-80fc-5df300130667",
+      "logical_operation_id": "131425c3-8a85-4712-86b2-d3c2547ce7db",
+      "path": "responses",
+      "purpose": "verification",
+      "model_id": "gpt-6-astra",
+      "task_class": null,
+      "data_class": "synthetic",
+      "run_id": null,
+      "build_id": null,
+      "state": "completed",
+      "reason_code": null,
+      "upstream_request_id": "resp_0bbd44c340cf8406016ad75f72c7d487d184afdab6ce29646c",
+      "output_tokens": 5,
+      "output_chars": 2,
+      "output_hash": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+      "started_at": "2026-10-20T12:32:48.192Z",
+      "finished_at": "2026-10-20T12:32:50.850Z"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "request_id": "50fcd841-85c1-4abd-9591-e18655538a2f",
+  "state": "reconciled",
+  "recorded_outcome": "ran_without_usable_result",
+  "qualification_id": "887288bb-ce7f-4edb-b11f-7f1494b146e3",
+  "qualification_state": "failed",
+  "held_out": {
+    "total": 4,
+    "passed": 3
+  },
+  "requests": 24,
+  "unresolved": 0,
+  "in_flight": 0,
+  "new_provider_calls": 0,
+  "settings_unchanged": true,
+  "installed_unchanged": true,
+  "original_timeout_receipts_preserved": true
+}

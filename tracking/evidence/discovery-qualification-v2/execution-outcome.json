@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-21T00:29:30.555Z",
+  "state": "installed_stopped_before_dispatch",
+  "approved_plan_hash": "46186bc4952349c040c70e3d39fab47ee0f6677fc5ac6f9894c95223b065b8e0",
+  "installed_manifest_sha256": "733837fe38fd84be6479e02ac1115dededd98a7ca99a644d03b31e72b043897c",
+  "schema": 27,
+  "settings_changed": false,
+  "migration_performed": false,
+  "new_provider_calls": 0,
+  "attempted_cases": 0,
+  "qualification_created": false,
+  "stop": "HTTP413 qualification creation exceeds64KiB",
+  "counts_before": {
+    "workflows": 0,
+    "audit_events": 19,
+    "plan_requests": 10
+  },
+  "counts_after": {
+    "workflows": 0,
+    "audit_events": 19,
+    "plan_requests": 10
+  },
+  "usage_after": {
+    "last_24h_requests": 10,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "discovery_qualified": false,
+  "repair_prepared_not_installed": true,
+  "repair_plan_hash": "8175e90e31df06302907a0abab8c7f1aa57a31b6b9d4180b9c204baef43da459"
+}

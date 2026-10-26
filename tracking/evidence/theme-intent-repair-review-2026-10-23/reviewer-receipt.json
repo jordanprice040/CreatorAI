@@ -1,0 +1,49 @@
+{
+  "format": "theme-intent-repair-independent-review/1",
+  "status": "supported_repair",
+  "reviewer_type": "model",
+  "reviewer": "U02 separate model reviewer",
+  "prior_implementation_involvement": false,
+  "prior_review_familiarity": true,
+  "human_acceptance": false,
+  "closed_findings": [
+    "TI-01"
+  ],
+  "prospectively_corrected_metadata": [
+    "TI-02"
+  ],
+  "source_sha256": "4909dbf8b96b8ca54ac3590d6eed09c7fbf1b4d1ba4499766d663c48818c08de",
+  "commands": [
+    "node --test tests/dist/theme-intent-navigation.test.js"
+  ],
+  "checks": {
+    "repair_artifact_hashes_verified": 12,
+    "original_other_artifacts_unchanged": 25,
+    "explicit_discard_true_call_sites": 1,
+    "pure_regressions_passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "provider_api_db_credential_calls": 0,
+    "exact_original_source_reconstructed_from_four_repair_edits": true
+  },
+  "limitations": "Pure actual-handler regression plus source/button inspection; author fixture browser evidence inspected but not independently rerun; no live/DB/runtime installation acceptance.",
+  "artifact_sha256": {
+    "apps/web/src/theme-intent.tsx": "4909dbf8b96b8ca54ac3590d6eed09c7fbf1b4d1ba4499766d663c48818c08de",
+    "tests/src/theme-intent-navigation.test.ts": "92a6f7658521e8067911d1a5675b5db0b36264394d21b724f54ffe9736ac2adb",
+    "tests/dist/theme-intent-navigation.test.js": "a9a2231e020619b7a0cd3419c0dbfbfa47be98124cc7666b04d464e5e7aa87c2",
+    "scripts/verify-theme-intent-guard.playwright.js": "c4cef2cd11caa9afcc0e629e56bd95cdc018c43560a1a47450f431d2a495ac29",
+    "tracking/evidence/theme-intent-repair-2026-10-23/tests-before-valid.tap": "6256db61e5922384646979fd1262cff780894e408e62d887363dbdc1806fe46d",
+    "tracking/evidence/theme-intent-repair-2026-10-23/tests-after.tap": "5445ee4f5b48d6fe978d41f0780f3055f17631ef26d9e0ae5f63020e5bdc16b0",
+    "tracking/evidence/theme-intent-repair-2026-10-23/browser-result.json": "96e6bcce9bb16207608dbac87dda4d3771c0d5b4aa4cb1b53e07b52a68de138e",
+    "tracking/evidence/theme-intent-implementation-2026-10-23/implementation-receipt.json": "dbe8c6b4f9930915b68b4cbe59bc2708f40bf9bd32d66afa97b679e26268cb61",
+    "tracking/evidence/theme-intent-review-2026-10-23/reviewer-receipt.json": "cfe4f4040b84ce595a95cfabc02c0e8c7f0ea00202350200f494ec874a659500",
+    "tracking/evidence/theme-intent-review-2026-10-23/findings.json": "abf40c13217993f51e38d301c10cbe94defa3ff9ba0b72ccca43c019aab9915f",
+    "tracking/evidence/theme-intent-review-2026-10-23/parent-browser-reproduction.json": "8e5c45889f4338a79cccff9ab5f486c768ae4cc50593b546196e01fed644fc41",
+    "docs/THEME_INTENT_REPAIR_2026-10-23.md": "400301f3d98eebbc8c6e64582a9f59cb055e546c4320ad9249fa716e5e052184",
+    "tracking/evidence/theme-intent-repair-2026-10-23/repair-receipt.json": "1e3f076f3199fde6d821bc519bd2535f4d1005853174cde1ac9bcde110bb3633",
+    "docs/THEME_INTENT_REPAIR_REVIEW_2026-10-23.md": "69c59ca75c009ef7c79cdd432f961b30cf402d427e5fcec0efca3751ae226dd5",
+    "tracking/evidence/theme-intent-repair-review-2026-10-23/tests-review.tap": "4364be12f0cbee39071dc264da2d470617f5dd812df3d0397fb9362e058c4d3a",
+    "tracking/evidence/theme-intent-repair-review-2026-10-23/verification-transcript.json": "aec14fda5ef180e8a9b5a56f577a7e2dbb3b3b55ee808d6766659da7122ef5f7",
+    "tracking/evidence/theme-intent-review-2026-10-23/probe-open-result.json": "1168759ad2c6e8b8b4f641bd65337777528647ef00a955ecb03a1110a5a251bf"
+  }
+}

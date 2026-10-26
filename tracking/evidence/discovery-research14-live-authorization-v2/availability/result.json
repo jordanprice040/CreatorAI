@@ -1,0 +1,30 @@
+{
+  "finished_at": "2026-10-23T03:58:17.294Z",
+  "request_id": "fa217b11-6833-400e-8460-e0d6fd9a3d38",
+  "available": true,
+  "outcome": {
+    "kind": "completed",
+    "output_chars": 2,
+    "output_tokens": 5,
+    "response_id": "resp_0a1a32c59554079a016adadb573fac87d1a4c054133e22b3ce"
+  },
+  "quota": {
+    "state": "available",
+    "reason_code": null,
+    "observed_at": "2026-10-23T03:58:17.270Z"
+  },
+  "usage": {
+    "last_24h_requests": 23,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "remaining_daily_requests": 17,
+  "new_requests": 1,
+  "saved_requests": 50,
+  "access_and_qualifications_unchanged": true,
+  "settings_and_credits_unchanged": true,
+  "retry": false,
+  "qualification_dispatched": false,
+  "plan_hash": "df52351b7edff8c9fd5493a2f33ab9d47afc681819c2e9e3d3163fe7ad4f8477"
+}

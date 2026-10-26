@@ -1,0 +1,97 @@
+{
+  "format": "theme-intent-cw01-fixture-core-implementation/1",
+  "date": "2026-10-26",
+  "authorization": "Jordan's explicit request in this thread for the bounded repository-only CW-01 fixture prerequisite slice",
+  "author": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent; same model family as the CW-01 design review and v1.1 review being implemented",
+  "status": "fixture_slice_verified_independent_review_pending",
+  "independent_review": false,
+  "operational": false,
+  "report": {
+    "path": "docs/THEME_INTENT_CW01_FIXTURE_CORE_IMPLEMENTATION_2026-10-26.md",
+    "sha256": "9a3a119409d9a69f0d6eca0a710bff43652ab660df7c5458a6ea678780e127e4"
+  },
+  "new_files_sha256": {
+    "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+    "scripts/theme-intent-cw01-core-fixture.mjs": "b8b9eb5db59afdf3725717bf9a723c808e66b4ca399624d20fa8f4afe1730662",
+    "tests/theme-intent-cw01-core-fixture.test.mjs": "5e0b615cdeb4d1c953531c60b6a0829002904636a83119e65d8d975a06939dda",
+    "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/tests-final.tap": "71164f896197628850ab217cd3999c90e2a15b9cb7707a0348153c60f252230e",
+    "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/mutation-check.mjs": "1266cc3d7f7b8fb4e9f0b1401a12811a062096a7418c8cab045bf063d94a1457",
+    "tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/mutation-results.json": "0eb618e5b70667e00cd570dde35e00f43b515b84ebaa0a378a7117e823fd766c"
+  },
+  "sql_asset": {
+    "version": "cw01-observer-sql/2",
+    "sha256": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+    "executed": false,
+    "original_sql_location": "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md (unchanged)",
+    "corrections": ["M1 host()", "M2/R3 instance query with pg_backend_pid in A and B", "L3 NULL backend_type in A and B", "L4 startup-boundary settings in A", "I-a transaction_timeout"]
+  },
+  "tracking_changes": {
+    "tracking/BUILD_STATUS.md": {
+      "before": "596d7df6a207d4425643d2011f155f96cb1605e357a569278f18585bbf25ec25",
+      "after": "2ad882f13240c1a3b91c206474cc9d4ffc53417e76d65f12a869bb7c29fccfd1",
+      "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+    },
+    "tracking/SESSION_HANDOFF.md": {
+      "before": "b6962b0091a0f0e2d218119375aa687f802b6479076822675577dfc9d18bfe0f",
+      "after": "b694f7fbb1a65ad26101d52fba0028d896b417029d46e520064e377b78485b3b",
+      "change": "one CRLF section prepended; prior bytes verified as exact suffix"
+    },
+    "not_applicable": ["tracking/DECISIONS.md (no new decision)", "tracking/INTEGRATIONS.md (no integration activated)"]
+  },
+  "frozen_inputs_sha256_verified_unchanged": {
+    "AGENTS.md": "bcd5960f1ee79733ac664598be8bf25c35b262fd0ce82e90ad93cd2a1912871c",
+    "PROJECT_CONTEXT.md": "0bc7d39b1881adfd40fa7197226bb28d6a5b070ac2ba93207362af8f39250b24",
+    "PROMPT_LIBRARY.md": "d1189ae2c4361f55db833ae3bb8e00f1224f8ee18a0763735ad5af7b1a97e161",
+    "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+    "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/design-receipt.json": "37a49082ba146d42462dd6970abfcc57a351db476887c378139e1b537870f7dc",
+    "tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/input-snapshot.json": "b5b51a5b38a66f69eb4dc684714d3cbe5c4e02d342dbe1929ad6cbbe854a4395",
+    "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md": "7619804d7259351f13006fbad68913b317a4996d15157881fa6e94537582f196",
+    "tracking/evidence/theme-intent-cw01-implementation-design-review-2026-10-26/reviewer-receipt.json": "90b6a2673dab3296f48715b07665b68a592bb1c38fb3ae5ee18ed4be85a61680",
+    "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+    "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/repair-receipt.json": "ce15033fe705e15161920e6fb6ab8444b41085bed72c44ec57a309a409ebaa9f",
+    "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/input-snapshot.json": "ba937675f5f47d085a1b6ebd0b292c5cda35d4f3fc989f8cdb13eb9529852c99",
+    "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md": "d762803241fe4d85a39e9645019121c0c8683a34b99dfb511b19813265c8de58",
+    "tracking/evidence/theme-intent-cw01-implementation-design-v1-1-review-2026-10-26/reviewer-receipt.json": "31327193bf6347d9881a92b7e506b3768eec59f750aa7795a01db81774764614",
+    "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md": "a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91",
+    "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39",
+    "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md": "e4313c2013c919be7c762ff58a20653a15a7721af71ac37ae044fc9208a58dfa",
+    "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md": "d1b4fe0805ed908d54baf28faeaa0d2118fd5e241f00df103c27eab4182ac8a5",
+    "docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md": "6ae7554e4df508e849e51c2f3d5a64ad1d0ae478930d491569d1298fbad89a05"
+  },
+  "frozen_input_mismatches": [],
+  "checks": {
+    "node_test_file": "tests/theme-intent-cw01-core-fixture.test.mjs",
+    "node_version": "v22.21.0",
+    "tests": 18,
+    "pass": 18,
+    "fail": 0,
+    "mutants": 12,
+    "mutants_killed": 12,
+    "mutant_initially_surviving_then_test_strengthened": "sql_hash (A refusal masked by B comparison)",
+    "prettier_check_new_mjs": "clean"
+  },
+  "not_run": [
+    "SQL asset or any SQL",
+    "Credentials",
+    "Operational config/environment/registry/process/port/object/pidfile reads",
+    "Cluster/app start or stop",
+    "Launch or sign-in",
+    "Helpers/install/migration/recovery",
+    "Activation or dispatch",
+    "Unrelated historical tests or verifiers",
+    "pnpm scripts",
+    "Retired OneDrive checkout access"
+  ],
+  "remaining_blockers": [
+    "Reader N1-N4",
+    "Collector L1/L4",
+    "Process-metadata, W1 pidfile and AutoRun registry adapters",
+    "Protected-credential adapter",
+    "Real manifest bindings (port, home, pg_bin, startup/HBA/background boundary, relation fingerprints)",
+    "Concrete operational grants",
+    "Owner attestation (blank; other-producer access unknown)",
+    "Independent review of this slice"
+  ],
+  "status_preserved": "M3 unchanged and not reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled; CW-01 not operational",
+  "next": "Independent review per the report's prompt; no automatic next milestone"
+}

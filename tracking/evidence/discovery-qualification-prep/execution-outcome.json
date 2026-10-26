@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-21T00:02:06.213Z",
+  "state": "installed_migrated_qualification_failed",
+  "approved_plan_hash": "de5297fdbd86635a6301cf6a53147cebec4bcf467d77dabbfa56132dc16346b4",
+  "installed_bundle_manifest_sha256": "80fe5f7a40e844d6361277dc4c96f33e927cb0527871fe2e863c08b086cdb56b",
+  "schema": 27,
+  "new_provider_requests": 1,
+  "retries": 0,
+  "held_out_attempted": 0,
+  "unattempted_cases": 17,
+  "request_ids": [
+    "4f35a154-0210-4b40-b092-5bfd56a76503"
+  ],
+  "usage": {
+    "last_24h_requests": 10,
+    "last_24h_codex_builds": 0,
+    "in_flight": 0,
+    "unresolved": 0
+  },
+  "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+  "production_contract_passed": true,
+  "frozen_assertion": {
+    "path": "evidence_strength",
+    "expected": "well_supported",
+    "actual": "exploratory"
+  },
+  "discovery_qualified": false,
+  "search_workflow_pilot_launched": false
+}

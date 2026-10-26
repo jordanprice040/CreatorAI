@@ -1,0 +1,23 @@
+{
+  "format": "followup-v2-output-review-integration/1",
+  "integrated_at": "2026-10-22T05:14:23.888Z",
+  "reviewer_receipt_sha256": "d39991c07eadceb51408fa3228fc5124d96aa2b5bf9c84a95a4d2d3555f4eee7",
+  "verified_review_artifact_count": 30,
+  "reviewed_outputs": 7,
+  "checklist_judgments": 21,
+  "supported_checklist_judgments": 21,
+  "reviewed_mutable_tracking_snapshots": {
+    "tracking/BUILD_STATUS.md": {
+      "snapshot": "tracking/evidence/discovery-followup-v2-output-review-2026-10-22/reviewed-BUILD_STATUS.md",
+      "sha256": "9d20270a1fab1c1d932a888249bf606f5ed38d000cf3991f9634e48fa8bb0ec8"
+    },
+    "tracking/SESSION_HANDOFF.md": {
+      "snapshot": "tracking/evidence/discovery-followup-v2-output-review-2026-10-22/reviewed-SESSION_HANDOFF.md",
+      "sha256": "951933333a62ba65ca646064326960cd770e2f3dcbd71b6ed364f94da01641e0"
+    }
+  },
+  "historical_results_unchanged": true,
+  "scoring_state": "failed_incomplete",
+  "provider_calls": 0,
+  "next_eligible_prompt": "U03 prospective finding taxonomy/representation alignment proposal"
+}

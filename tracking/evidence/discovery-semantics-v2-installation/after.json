@@ -1,0 +1,20 @@
+{
+  "observed_at": "2026-10-22T17:45:10.376Z",
+  "schema": 28,
+  "requests": 44,
+  "request_states": {
+    "completed": 42,
+    "reconciled": 1,
+    "failed": 1
+  },
+  "hashes": {
+    "requests": "604b59e19a4f608f3527c3ddb257804db20ce9def295e31e6b47c94845962ebc",
+    "grants": "a84d253770670998b0f0dee574e1058543bef238ba7457a0eb6b1a279971acdc",
+    "access": "2b751e478e56dd945832efd5007d9f9cef6d1ad2562f698c79c5936f1af1f2c3",
+    "qualifications": "634baf304a815a80c721159024a346ce4867c6219d9b9d31881634c19616dd46",
+    "connections": "d6cc4e46778e907e5507c701d5f393bba2a181bf51aeb3465ba15531e0a08cf3"
+  },
+  "settings_hash": "5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533",
+  "credits": "confirmed_off",
+  "studio_config_sha256": "fedcbce7bbcd8d1586008ae14de5a37d2407d5ef9082c3b3014f3e0a07060dbe"
+}

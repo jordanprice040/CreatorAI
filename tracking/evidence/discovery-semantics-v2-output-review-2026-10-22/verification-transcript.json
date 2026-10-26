@@ -1,0 +1,123 @@
+{
+  "outputs_verified": 12,
+  "production_schemas_valid": 12,
+  "unchanged_contract_replays_accepted": 12,
+  "production_inputs_reproduced": 12,
+  "live_receipt_artifact_hashes_verified": 13,
+  "execution_plan_hash": "4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c",
+  "packet_local_candidate_hash": "f6cce6ffd9b5fa76370cd40c56e3c72c008c980f8835491b31804182516b5289",
+  "distributable_candidate_hash": "d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf",
+  "manifest_sha256": "621e6f12e37db3baf883c30d76d27a39bbdcba71a8df3a72c32fdfe22ddaa448",
+  "packaged_desktop_sha256": "6c841ec4725726e0626612704abb1ca2b6e631f62733230e61ddab46140e2e46",
+  "observations": [
+    {
+      "case_id": "semantics-v2-design-dev-caption-order",
+      "request_id": "b1d561e6-5032-4045-8d43-538d6dc39b9a",
+      "output_hash": "921c9dd6b365e91d758d85e31a5feb66205e01a2dd39e78803e4807c55d4c3b9",
+      "packet_hash": "f1706b3f0bf96cf7efc18b936c8d3f9128f919ba67c5f3f83b528b06d1094d3b",
+      "output_chars": 4061,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-design-dev-cable-paths",
+      "request_id": "b665d791-5ede-4d15-aa4b-2acd69ce43a4",
+      "output_hash": "f8312dc9bbf85ded403fe38fefaf6dde13fa17a730e72abe9c86541a5c510f94",
+      "packet_hash": "3351838155e6c5e9e9bbbcf39b40dadf164d2ea265e341651d48e511eef6d702",
+      "output_chars": 4183,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-design-held-ticket-stubs",
+      "request_id": "19f4917d-213e-40ed-8feb-c0d1284690cb",
+      "output_hash": "7a5457b2abb6dfa62be661e4ece3ac7ee4f0017a2e8a24bbe79b3c0f4fee8a40",
+      "packet_hash": "28f8cf094f18f2ef56b03106a85ccdbdb6ed0227c077668bbe45160a8fcd08d1",
+      "output_chars": 4402,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-design-held-accessible-script",
+      "request_id": "5e70c9cf-ced3-45c0-ad23-52039e327dd6",
+      "output_hash": "02a908d5160ca1c01506d45ab11d55a621549a334b29e2cf8ba6d808b365e12e",
+      "packet_hash": "70a412298b0d81bc19ecdaf83547aec46726cbb62a0510bf98db38801961c2f9",
+      "output_chars": 4692,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-design-held-paint-batches",
+      "request_id": "aab1c001-9e3d-4509-9ebd-f0c6cf190a03",
+      "output_hash": "c7179628e8f266678b58d9c23e4dddc053e4fbd3d41de63762f395545faba4b0",
+      "packet_hash": "80a04c13f8f0518f733ead16ff1dfae3035267aa4bd336677d136b6890773e22",
+      "output_chars": 4574,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-design-held-fabric-revision",
+      "request_id": "f32305a7-2edf-40fc-b69b-96b74bca96df",
+      "output_hash": "acfd08b39850a5f91f063dda3555b497fecbc77a553fa2183007bddabd9602d5",
+      "packet_hash": "98c9f710e794fa1983de4e8bc2551c4443e332ffc97dd9b8089b974b39096150",
+      "output_chars": 4517,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-skeptic-dev-multi-proposals",
+      "request_id": "da16b3eb-365a-4890-8bfd-a4d24775d415",
+      "output_hash": "474935dd073ef086b27dcfa22db879534ff16f224331f1539b0758ea3527fcf9",
+      "packet_hash": "f96af79e61188047db39a43f28c989a88899b32c2d26497ba5e12aa2e5bee060",
+      "output_chars": 5186,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-skeptic-dev-universal-shortcuts",
+      "request_id": "246f3fee-db5a-4699-b2d0-4df91dd6c89d",
+      "output_hash": "a886b46a4fd823bccac4e66e33025e9f744e862c7fc1cc02d9d5a655b7019e22",
+      "packet_hash": "01b17c88f04f06e26d80007cc52844a0e70e4915c612498d21dea994172eb7e3",
+      "output_chars": 1962,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-token-errors",
+      "request_id": "6e9e0025-724b-4414-a723-35b993849e37",
+      "output_hash": "253c56f08a20a0686d5a1b88f76effcecbeff6e46292cfc59e7f4c6925c0d65e",
+      "packet_hash": "a96fab37beefaf97d88f4b4bbbecf6d8a65a89c095642b311c4a4ac8a482bcdd",
+      "output_chars": 1845,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-weather-access",
+      "request_id": "5030cbf5-4529-4e50-8a37-96a8e24e5f1d",
+      "output_hash": "74827ca4f0f08dd933867ee4b8b37c6649f019eb0dbe02933c97288d6867e191",
+      "packet_hash": "6fa4b65f495f2de2fca156f01440140efe74bec64394c7541ad270b9797c31e8",
+      "output_chars": 1682,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-ceramic-tags",
+      "request_id": "f1a5f7ed-85d5-4aff-bf21-67bc172f949e",
+      "output_hash": "73f6367ded4f49beefb247442060323b38e29f2b023aa5c1c8a4f30679ba7ce3",
+      "packet_hash": "3cf80ecafd759c3b77ca5e273f221e531c29c85f93c22f9483fbda4d2ba1efdd",
+      "output_chars": 1968,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    },
+    {
+      "case_id": "semantics-v2-skeptic-held-roster-injection",
+      "request_id": "02ff52a4-1872-4d47-8bb1-7ab68816b140",
+      "output_hash": "57838e7e5517709155269635f22c12f129f8f4bc9b53057a44a124a190432373",
+      "packet_hash": "434ef7be1edeb8762b6c88b93caa205dba2b1f24b3d0cefd9f25fcd2fbf0c3d9",
+      "output_chars": 2238,
+      "schema_valid": true,
+      "check_signal": "accepted"
+    }
+  ],
+  "network_or_provider_calls": 0
+}

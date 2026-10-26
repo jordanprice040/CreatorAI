@@ -1,0 +1,14 @@
+{
+  "integrated_at": "2026-10-22T04:12:27.599Z",
+  "reviewer_type": "model",
+  "packet_hash": "2d81d4d4245cfd114c1206bfee5bbadcc84fdd460c2846b165ed78462f47f219",
+  "review_response_sha256": "41b40f9a74eb87e5d0c597a695e4b166be9379df16e4dafb74d22c2de3c42bed",
+  "reviewed_cases": 10,
+  "supported_criteria": 30,
+  "artifact_hashes_verified": 235,
+  "separate_model_review_gate": "satisfied",
+  "human_acceptance": "not_established",
+  "runtime_qualifications_changed": false,
+  "provider_availability": "not_observed",
+  "provider_calls": 0
+}

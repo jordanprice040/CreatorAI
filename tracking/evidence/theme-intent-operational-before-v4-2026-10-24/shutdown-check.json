@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-10-24T12:32:04.9974958Z",
+  "pg_ctl_status": 3,
+  "listener_count": 0,
+  "theme_intent_lease_count": 0,
+  "data_relative_path": "postgres/data",
+  "passed": true
+}
