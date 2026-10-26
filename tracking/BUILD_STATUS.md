@@ -1,3 +1,14 @@
+## CW-01 operational adapter design v1.3 note re-reviewed; review loop closed — October 26, 2026
+
+CW-01 adapter design v1.3 note independently re-reviewed 2026-10-26 (review 163f92c0...aec7,
+receipt a3257bc2...231b): supported with conditions; J1-J6, J8, J9 resolved, J7 partly; new
+Low K1-K3; no Medium or higher open. Implementation not started; operational NOT READY
+(blocked). Open: Jordan to confirm the G2 limit covers the v1.3 J1 scope (any console host,
+incl. agent terminal tools). K1 (Node tty raw mode uses SetConsoleMode; restore mode on
+every exit), K2 (abort/refusal events need a schema or the orphan rule) and K3 (120 s and
+5 s bounds still end on supervisor/observer clocks) carry as conditions into the future v5
+implementation design; no further note.
+
 ## CW-01 operational adapter design v1.3 note written — October 26, 2026
 
 CW-01 adapter design v1.2 note independently re-reviewed 2026-10-26: supported with
