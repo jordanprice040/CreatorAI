@@ -1,3 +1,17 @@
+## GitHub and Payments screens — October 26, 2026
+
+Web pages for the existing X04 and X07 routes (no API, policy or schema change). GitHub:
+connections (add fixture or live by credential variable name only, verify, revoke with
+confirmation, webhook deliveries), managed repositories, operations (all six kinds; refused
+ones point to Decisions; unknown ones can be checked against GitHub) and pull request
+reviews. Walked in the fixture workspace: added and verified the simulated connection,
+repo_create was refused for want of a grant, approved once under Decisions, then succeeded.
+Payments: processor connections (simulated or Stripe test mode, fixture workspaces only;
+add, verify, revoke), offers (create from a packaged release, archive), ledger balances,
+buyer access and reinvestment capacity in simulated units for fixture workspaces. Walked:
+simulated processor added and verified; offers need a packaged build, which this workspace
+has none of. Checkout, rails, commitments, owner funding and reinvestment policy/allocation
+stay API/CLI. Checks: typecheck and format pass.
 ## Spending ceiling in Settings; round 1 review fixes — October 26, 2026
 
 Jordan asked for Settings (user-adjustable spending ceiling), GitHub and Payments screens in

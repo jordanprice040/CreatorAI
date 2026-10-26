@@ -32,6 +32,8 @@ export const VIEWS = [
   ['portfolio', 'Portfolio'],
   ['models', 'Models and connections'],
   ['settings', 'Settings'],
+  ['github', 'GitHub'],
+  ['payments', 'Payments'],
 ] as const;
 export type View = (typeof VIEWS)[number][0];
 
@@ -41,7 +43,10 @@ export const VIEW_GROUPS: readonly { label: string; views: readonly View[] }[] =
     { label: 'Studio', views: ['overview', 'submit', 'compare', 'portfolio'] },
     { label: 'Evidence', views: ['catalog', 'evidence', 'scores', 'search'] },
     { label: 'Oversight', views: ['decisions', 'runs', 'budgets', 'activity'] },
-    { label: 'Build and study', views: ['gallery', 'studies', 'marketing'] },
+    {
+      label: 'Build and study',
+      views: ['gallery', 'github', 'payments', 'marketing', 'studies'],
+    },
     {
       label: 'System',
       views: ['settings', 'models', 'desktop', 'operations'],

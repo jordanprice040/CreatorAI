@@ -24,6 +24,8 @@ import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
 import { Operations } from './operations.js';
 import { Settings } from './settings.js';
+import { GitHub } from './github.js';
+import { Payments } from './payments.js';
 import { Marketing } from './marketing.js';
 import { Models } from './models.js';
 import { Portfolio } from './portfolio.js';
@@ -436,6 +438,24 @@ function App() {
         return <Operations />;
       case 'settings':
         return <Settings session={s} open={open} />;
+      case 'payments':
+        return (
+          <Payments
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            open={open}
+          />
+        );
+      case 'github':
+        return (
+          <GitHub
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            open={open}
+          />
+        );
       case 'desktop':
         return (
           <DesktopDevices
