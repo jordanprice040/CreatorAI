@@ -1,0 +1,121 @@
+{
+ "format": "theme-intent-cw01-operational-adapter-design-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the reviewed design (another Claude session) or of any input. Same model family as the author and prior reviewers; not blinded. No external review service.",
+ "reviewed_design": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_2026-10-26.md",
+  "sha256": "97258c082105e92e1bc684aaa19b669ba9058b6767e007ff2c9f6f4525c6031e",
+  "bytes": 32495,
+  "commit": "25e39e4",
+  "branch": "claude/project-thread-7gwqdm"
+ },
+ "inputs_verified": {
+  "scripts/theme-intent-cw01-core-fixture-v4.mjs": "ce3c4ad7c66d4f15bd695519f1db05940142f5e57a372b52c4781b1abf2507bb",
+  "tests/theme-intent-cw01-core-fixture-v4.test.mjs": "666ce597daea82ca236df32833624a70fdc6262a75da410a1ec3311d4fe77149",
+  "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md": "7aaa898cf8fc6b6a2d2b728a2e32e92dfc4ed295dfff44d29d4cdf4c30c17252",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md": "d762803241fe4d85a39e9645019121c0c8683a34b99dfb511b19813265c8de58",
+  "docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REVIEW_2026-10-26.md": "2d4ab765035fa9163e3f0dd933c690bf12a63617b955678f3935901a90cbc3e8",
+  "apps/desktop/src-tauri/src/secret.rs": "743959d2a1c175ae8cc6bdecb655c3c3bf1ae2213e484b6beda197851fa864e1"
+ },
+ "inputs_match": "8/8",
+ "local_dependency_sources": {
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/connection-parameters.js": "6b6548f99acba3502663a17a180582ba8e1f1725aa9d94b5f47cac19dcb6211b",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/crypto/sasl.js": "99f1a2607fe2a29f1c4dd1aaf43dec0fc2b5de8755de72b39d3aa8c575bd6a71",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/client.js": "ad6aa93c26b0bf26db1f2ebe74216212790a04c41af5585c63760f9fa8322a32"
+ },
+ "external_sources_sha256": {
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/bin/pg_ctl/pg_ctl.c": "41cfc7187149b0c810524d644e80eb5c1ca41ab86fc99bca8833118ef0a5fea0",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/port/path.c": "8be73709534d5cff769c34d4117eb45d61f016f3d9716e2e3d433d280feaeb42",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/utils/init/miscinit.c": "54bdb859c143a6c70d86067ccf2e124f59aa0852e5705bb653652e41a60af39a",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/port/open.c": "1cca7d50cd463f40a6e14df9ea6f79917275a654ab09c8c4b86609a5f9739dde",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/common/exec.c": "b39dfdb5574510a25441da87c413ea4c4df90188e5666c2d218345e05cc70831",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/pg_config_manual.h": "3b513dda5408337ef7c31bca491844650b4ea2cdb1b688d6b99ab74ba3f06700",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/postmaster/postmaster.c": "467a6d6deb8f31d1fa599b854511207923a252f02b7d5cbcc878caece577eefb",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/port/win32_shmem.c": "a48fce58896574143d59682a02f11bc65ec61c83ec9fb00d1aecb634d6ef4bd2",
+  "https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/backend/main/main.c": "fb2cab36f9fc3186ad86fe87233570b0d62bdda2a66d26d91f904789e914f36d",
+  "https://raw.githubusercontent.com/libuv/libuv/v1.x/src/win/process.c (fetched 2026-10-26)": "4b9975bde42483f8915dff79c3d2a6f2da58374ac4dbad0983be0bb94442c8fe"
+ },
+ "external_docs": [
+  "https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regqueryvalueexw",
+  "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute",
+  "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/open-osfhandle",
+  "https://devco.re/en/blog/tag/WorstFit/",
+  "https://www.tukaani.org/xz/argument-injection.html"
+ ],
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md",
+  "sha256": "3cbfe9cf65b752a86985edc0fb4d46fd1239bea8169ccc6f438c5324b1314c3f"
+ },
+ "verdicts": {
+  "design_support": "supported_with_conditions_two_medium_five_low",
+  "ic_and_getter_limit": "closed_in_principle_core_closure_requires_F7",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked",
+  "m3": "unchanged_not_reopened",
+  "attestation_bound_120s": "confirmed_by_jordan_unchanged"
+ },
+ "findings": [
+  {
+   "id": "F1",
+   "severity": "medium",
+   "summary": "A2 checks the helper's own job; libuv assigns non-detached children to a KILL_ON_JOB_CLOSE job, so start is always refused; spawn helper detached"
+  },
+  {
+   "id": "F2",
+   "severity": "medium",
+   "summary": "PostgreSQL writes pidfile line 2 with forward slashes (canonicalize_path/debackslash_path); v4 sameSpelling refuses '/', so every real W1 fails; add reviewed pidfile_data_dir_literal binding"
+  },
+  {
+   "id": "F3",
+   "severity": "low",
+   "summary": "pg_ctl argv[0] unspecified (find_my_exec checks cwd/PATH); images hashed only after postgres -V and start ran; helper hash-then-spawn race"
+  },
+  {
+   "id": "F4",
+   "severity": "low",
+   "summary": "non-ASCII paths pass ANSI best-fit conversion in pg_ctl/postgres argv (WorstFit); require printable ASCII for paths reaching pg_ctl/CMD/postgres"
+  },
+  {
+   "id": "F5",
+   "severity": "low",
+   "summary": "pg 8.23.1 requires string password (sasl.js:67, client.js:282); null password falls back to pgpass (client.js:295-303)"
+  },
+  {
+   "id": "F6",
+   "severity": "low",
+   "summary": "pg val() reads PG* env when config value is falsy (PGOPTIONS etc.); scrub process environment"
+  },
+  {
+   "id": "F7",
+   "severity": "low",
+   "summary": "I-C/getter closure is supervisor discipline; provenance self-reported; per-adapter hash undefined; duplicate-key code inconsistent; nested backend_parent provenance; operational attestation channel unspecified"
+  }
+ ],
+ "informational": [
+  "I-1 image query failure must be unavailable; cluster_running derivation",
+  "I-2 confirm handle alive after snapshot parent lookup",
+  "I-3 HANDLE_LIST flags",
+  "I-4 minimal environment untested",
+  "I-5 zero DPAPI buffer; separate credential frame",
+  "I-6 pg_ctl stop pidfile read residual",
+  "I-7 confirmations: /C without /D, RegQueryValueExW size-only, secret.rs layout, windows =0.62.2",
+  "I-8 LF-only pidfile source-supported not observed"
+ ],
+ "not_done": [
+  "Windows API calls",
+  "registry/process/pidfile/port/credential reads",
+  "SQL",
+  "cluster/app actions",
+  "launch",
+  "sign-in",
+  "builds/tests/pnpm/Prettier",
+  "tracking edits",
+  "commit/push",
+  "retired OneDrive checkout"
+ ],
+ "authority": "none granted"
+}

@@ -1,3 +1,27 @@
+## CW-01 operational adapter design v1.1 note written — October 26, 2026
+
+Additive note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_NOTE_2026-10-26.md
+(0c314c1c...c02e), repository-only and unreviewed, answers the review's F1-F7 and
+I-1 to I-8: detached helper spawn (F1); reviewed forward-slash pidfile line-2 literal
+(F2); quoted argv[0] and share-read hash-locked images before launch (F3); printable-
+ASCII paths for everything PostgreSQL sees (F4); one-shot string password, no pgpass
+(F5); no PG* environment and resolved-parameter check (F6); core v5 takes {channel,
+bytes}, parses strictly and stamps provenance per channel (F7). Design bytes unchanged.
+Nothing implemented or executed. M3 unchanged and not reopened; operational/native
+readiness NOT READY. Next eligible: independent re-review of the note in a fresh thread.
+
+## CW-01 operational adapter design independently reviewed — October 26, 2026
+
+Independent review (Claude, same model family as the author; not blinded):
+docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md (3cbfe9cf...4c3f);
+receipt tracking/evidence/theme-intent-cw01-operational-adapter-design-review-2026-10-26/
+reviewer-receipt.json (b2d13f6f...d88e). Verdict: SUPPORTED WITH CONDITIONS. Mediums:
+F1 libuv puts non-detached children in a kill-on-close job, so A2 always refuses; F2
+PostgreSQL 18.6 writes pidfile line 2 with forward slashes, so v4's same-spelling check
+always fails. Lows F3-F7 (argv[0]/prelaunch hashing, WorstFit non-ASCII paths, pg string
+password and pgpass fallback, PG* env fallback, core-side framing/provenance).
+Implementation not started; operational readiness NOT READY; M3 not reopened.
+
 ## Studio work committed (PR #46); CW-01 operational adapter design written — October 26, 2026
 
 Committed the uncommitted work from October 20-26 on branch claude/project-thread-7gwqdm
