@@ -141,6 +141,8 @@ export function Payments({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  /** Bumped after an add succeeds: the forms remount closed and empty, so they can't add twice. */
+  const [added, setAdded] = useState(0);
   const act = async (work: () => Promise<string>) => {
     setBusy(true);
     setError('');
@@ -155,6 +157,9 @@ export function Payments({
     }
   };
   const d = data.data;
+  // Only a verified, current release can be sold; failed, blocked or replaced builds can't.
+  const verified =
+    d?.artifacts.filter((a) => a.state === 'verified' && a.current) ?? [];
   // Fixture workspaces count in simulated units, so their amounts never read as dollars.
   const usd = (nano: string) => money(nano, !!fixture);
 
@@ -209,9 +214,10 @@ export function Payments({
               </ul>
             )}
             {fixture && !viewer && (
-              <details className="gh-add">
+              <details className="gh-add" key={`conn-${added}`}>
                 <summary>Add a processor connection</summary>
                 <AddConnection
+                  done={() => setAdded((n) => n + 1)}
                   base={base}
                   session={session}
                   busy={busy}
@@ -259,7 +265,7 @@ export function Payments({
             )}
             {!viewer &&
               d.connections.some((c) => c.status === 'active') &&
-              (d.artifacts.length === 0 ? (
+              (verified.length === 0 ? (
                 <p className="small">
                   To sell something, package a verified build first; it then
                   appears in{' '}
@@ -269,15 +275,16 @@ export function Payments({
                   .
                 </p>
               ) : (
-                <details className="gh-add">
+                <details className="gh-add" key={`offer-${added}`}>
                   <summary>Create an offer</summary>
                   <AddOffer
+                    done={() => setAdded((n) => n + 1)}
                     base={base}
                     session={session}
                     connections={d.connections.filter(
                       (c) => c.status === 'active',
                     )}
-                    artifacts={d.artifacts}
+                    artifacts={verified}
                     busy={busy}
                     act={act}
                   />
@@ -355,8 +362,10 @@ export function Payments({
               <dd>
                 {usd(d.capacity.usable_liquidity_nano)}{' '}
                 <small>
-                  fresh balances of funding sources you set up, less reserve and
-                  commitments; money at the bank counts only through one
+                  fresh balances of funding sources you set up (command line:
+                  rail-add), less the reserve, commitments, reinvested budget
+                  not yet spent and any losses to repay; money at the bank
+                  counts only through a funding source
                 </small>
               </dd>
               {BigInt(d.capacity.outstanding_losses_nano) > 0n && (
@@ -512,11 +521,13 @@ function ConnectionRow({
 }
 
 function AddConnection({
+  done,
   base,
   session,
   busy,
   act,
 }: {
+  done: () => void;
   base: string;
   session: SessionInfo;
   busy: boolean;
@@ -545,6 +556,7 @@ function AddConnection({
           },
         },
       );
+      done();
       return `${c.body.label} added. Verify it before creating offers.`;
     });
   }
@@ -626,6 +638,7 @@ function AddConnection({
 }
 
 function AddOffer({
+  done,
   base,
   session,
   connections,
@@ -633,6 +646,7 @@ function AddOffer({
   busy,
   act,
 }: {
+  done: () => void;
   base: string;
   session: SessionInfo;
   connections: PaymentConnection[];
@@ -675,6 +689,7 @@ function AddOffer({
               price_nano_usd: nano,
             },
           });
+          done();
           return `Offer "${o.label}" created.`;
         });
       }}
@@ -732,8 +747,9 @@ function AddOffer({
       </div>
       {gone.length > 0 && (
         <p className="small" role="status">
-          The {gone.join(' and ')} you picked is no longer available; the form
-          now uses the first one listed. Check it before creating the offer.
+          The {gone.join(' and ')} you picked {gone.length > 1 ? 'are' : 'is'}{' '}
+          no longer available; the form now uses the first one listed. Check
+          before creating the offer.
         </p>
       )}
       {price.trim() && (!nano || !wholeCents) && (
