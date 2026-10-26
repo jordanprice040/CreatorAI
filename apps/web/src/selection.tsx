@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   FreezeOutcomeSchema,
-  RunControlSchema,
   SelectionReportSchema,
   SelectionSchema,
   SpecStatusSchema,
@@ -22,7 +21,6 @@ import {
   clip,
   problemLabel,
   richestProblem,
-  useLoad,
   type View,
 } from './ui.js';
 
@@ -163,27 +161,16 @@ function FreezeSpec({
   session: SessionInfo;
   spec: SpecStatus;
   /** The run that made the spec's selection; the server freezes only under that run. */
-  selectionRun: string | null;
+  selectionRun: string;
   dataClass: 'synthetic' | 'public';
   open: (view: View, id?: string) => void;
   frozen: () => void;
 }) {
-  const runs = useLoad(
-    async () =>
-      (await api(z.array(RunControlSchema), `${base}/runs`)).filter(
-        (r) => r.state === 'active',
-      ),
-    [base],
-  );
-  const [picked, setPicked] = useState('');
-  const runId = selectionRun ?? picked;
+  const runId = selectionRun;
   const [justification, setJustification] = useState('');
   const [outcome, setOutcome] = useState<FreezeOutcome | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => {
-    if (!picked && runs.data?.[0]) setPicked(runs.data[0].run_id);
-  }, [runs.data]);
   async function freeze(e?: FormEvent) {
     e?.preventDefault();
     if (!runId || !justification.trim()) return;
@@ -218,33 +205,10 @@ function FreezeSpec({
         A frozen version fixes the tasks and acceptance checks a build is held
         to. Later edits make a new version and show which tasks changed.
       </p>
-      {selectionRun ? (
-        <p className="small">
-          Recorded under run {selectionRun.slice(0, 8)}, the run that made this
-          spec&apos;s selection.
-        </p>
-      ) : (
-        <>
-          <label htmlFor="frz-run">Record under run</label>
-          <select
-            id="frz-run"
-            value={runId}
-            onChange={(e) => {
-              setPicked(e.target.value);
-              setOutcome(null);
-            }}
-          >
-            {runs.data?.length === 0 && (
-              <option value="">No active runs</option>
-            )}
-            {runs.data?.map((r) => (
-              <option key={r.run_id} value={r.run_id}>
-                {words(r.autonomy_mode)} run {r.run_id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
+      <p className="small">
+        Recorded under run {selectionRun.slice(0, 8)}, the run that made this
+        spec&apos;s selection.
+      </p>
       <label htmlFor="frz-why">Why this version is ready</label>
       <textarea
         id="frz-why"
@@ -299,9 +263,9 @@ function FreezeSpec({
             {outcome.admission.explanation}
           </p>
         )}
-        {(error || runs.error) && (
+        {error && (
           <p className="error" role="alert">
-            {error || runs.error}
+            {error}
           </p>
         )}
       </div>
@@ -342,6 +306,8 @@ export function Scoring({
   const [specs, setSpecs] = useState<StoredEntity[]>([]);
   const [spec, setSpec] = useState<SpecStatus | null>(null);
   const [specRun, setSpecRun] = useState<string | null>(null);
+  /** Every problem, archived ones too: a spec's selection may belong to any of them. */
+  const [allProblemIds, setAllProblemIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const base = `workspaces/${workspace}`;
@@ -358,6 +324,7 @@ export function Scoring({
       const active = p.filter((x) => x.status === 'active');
       const c = await alternativeCounts(base, active);
       setProblems(active);
+      setAllProblemIds(p.map((x) => x.id));
       setCounts(c);
       setAlternatives(a);
       setSpecs(s.filter((x) => x.body?.format === 'spec/1'));
@@ -407,10 +374,10 @@ export function Scoring({
       const selectionId = specs.find((s) => s.id === id)?.body?.selection_id;
       const [status, ...lists] = await Promise.all([
         api(SpecStatusSchema, `${base}/specs/${id}`),
-        ...problems.map((p) =>
+        ...allProblemIds.map((pid) =>
           api(
             z.array(SelectionSchema),
-            `${base}/problems/${p.id}/selections`,
+            `${base}/problems/${pid}/selections`,
           ).catch(() => []),
         ),
       ]);
@@ -585,7 +552,8 @@ export function Scoring({
           {!spec.frozen_current &&
             spec.blockers.length === 0 &&
             spec.problems.length === 0 &&
-            current.role !== 'viewer' && (
+            current.role !== 'viewer' &&
+            (specRun ? (
               <FreezeSpec
                 key={`${spec.spec.id}:${spec.spec.version}`}
                 base={base}
@@ -596,7 +564,18 @@ export function Scoring({
                 open={open}
                 frozen={() => void openSpec(spec.spec.id)}
               />
-            )}
+            ) : (
+              <p className="error">
+                Couldn&apos;t find the run that made this spec&apos;s selection,
+                and a spec can only be frozen under that run.{' '}
+                <button
+                  className="secondary"
+                  onClick={() => void openSpec(spec.spec.id)}
+                >
+                  Try again
+                </button>
+              </p>
+            ))}
         </div>
       )}
       {error && (

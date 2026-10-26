@@ -29,7 +29,7 @@ const CONNECTION_STATUS: Record<string, string> = {
 const ACCOUNT_LABEL: Record<string, string> = {
   processor_pending: 'Held by the processor (pending)',
   processor_available: 'Held by the processor (available)',
-  bank: 'Paid out to the bank',
+  bank: 'At the bank',
   revenue: 'Revenue',
   processing_fees: 'Processing fees',
   refunds: 'Refunds',
@@ -37,6 +37,60 @@ const ACCOUNT_LABEL: Record<string, string> = {
   dispute_fees: 'Dispute fees',
   owner_funding: 'Your own funding',
 };
+/**
+ * The ledger stores debits positive and credits negative. Revenue and owner funding are
+ * credit accounts, so their balances are negative there; flip them so every line reads as a
+ * positive amount of what it names.
+ */
+const CREDIT_NORMAL = new Set(['revenue', 'owner_funding']);
+export const asShown = (account: string, nano: string) =>
+  CREDIT_NORMAL.has(account) ? (-BigInt(nano)).toString() : nano;
+
+/** Archiving an offer can't be undone, so it asks first and says what happens. */
+function ArchiveOffer({
+  label,
+  busy,
+  archive,
+}: {
+  label: string;
+  busy: boolean;
+  archive: () => Promise<void>;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking)
+    return (
+      <>
+        {' '}
+        <button
+          className="secondary stop"
+          disabled={busy}
+          onClick={() => setAsking(true)}
+        >
+          Archive…
+        </button>
+      </>
+    );
+  return (
+    <span
+      className="confirm-inline"
+      role="group"
+      aria-label={`Archive ${label}`}
+    >
+      Stop selling {label}? This can&apos;t be undone; people who already bought
+      it keep access.
+      <button className="secondary" autoFocus onClick={() => setAsking(false)}>
+        Keep selling
+      </button>
+      <button
+        className="secondary danger"
+        disabled={busy}
+        onClick={() => void archive().then(() => setAsking(false))}
+      >
+        Archive for good
+      </button>
+    </span>
+  );
+}
 
 /**
  * Payments, entitlements and reinvestment (X07, docs/PAYMENTS.md). Only fixture and processor
@@ -184,25 +238,20 @@ export function Payments({
                       · release {shortId(o.artifact_id)} · {when(o.created_at)}
                     </small>
                     {!viewer && o.status === 'active' && (
-                      <>
-                        {' '}
-                        <button
-                          className="secondary"
-                          disabled={busy}
-                          onClick={() =>
-                            void act(async () => {
-                              await api(
-                                OfferSchema,
-                                `${base}/payment-offers/${o.id}/archive`,
-                                { csrf: session.csrf_token, body: {} },
-                              );
-                              return `${o.label} archived; existing buyers keep access.`;
-                            })
-                          }
-                        >
-                          Archive
-                        </button>
-                      </>
+                      <ArchiveOffer
+                        label={o.label}
+                        busy={busy}
+                        archive={() =>
+                          act(async () => {
+                            await api(
+                              OfferSchema,
+                              `${base}/payment-offers/${o.id}/archive`,
+                              { csrf: session.csrf_token, body: {} },
+                            );
+                            return `${o.label} archived; existing buyers keep access.`;
+                          })
+                        }
+                      />
                     )}
                   </li>
                 ))}
@@ -243,7 +292,7 @@ export function Payments({
                 {Object.entries(d.balances.balances).map(([k, v]) => (
                   <Fragment key={k}>
                     <dt>{ACCOUNT_LABEL[k] ?? words(k)}</dt>
-                    <dd>{usd(v)}</dd>
+                    <dd>{usd(asShown(k, v))}</dd>
                   </Fragment>
                 ))}
               </dl>
@@ -409,9 +458,14 @@ function ConnectionRow({
             </button>
           ) : (
             <span className="confirm-inline" role="group" aria-label="Revoke">
+              Revoke {b.label} for good? It can&apos;t be verified or used
+              again.
+              <label className="inline" htmlFor={`revoke-${c.id}`}>
+                Why
+              </label>
               <input
-                aria-label="Why revoke"
-                placeholder="Why"
+                id={`revoke-${c.id}`}
+                autoFocus
                 value={reason}
                 maxLength={500}
                 onChange={(e) => setReason(e.target.value)}
@@ -579,8 +633,15 @@ function AddOffer({
   busy: boolean;
   act: Act;
 }) {
-  const [connectionId, setConnectionId] = useState(connections[0]?.id ?? '');
-  const [artifactId, setArtifactId] = useState(artifacts[0]?.id ?? '');
+  // Fall back to the first valid option when the lists change under the open form.
+  const [connPick, setConnectionId] = useState('');
+  const connectionId = connections.some((c) => c.id === connPick)
+    ? connPick
+    : (connections[0]?.id ?? '');
+  const [artifactPick, setArtifactId] = useState('');
+  const artifactId = artifacts.some((a) => a.id === artifactPick)
+    ? artifactPick
+    : (artifacts[0]?.id ?? '');
   const [label, setLabel] = useState('');
   const [price, setPrice] = useState('');
   const nano = usdToNano(price);
@@ -646,7 +707,9 @@ function AddOffer({
           />
         </div>
         <div>
-          <label htmlFor="po-price">Price (US dollars, whole cents)</label>
+          <label htmlFor="po-price">
+            Price (whole cents; simulated in fixture workspaces)
+          </label>
           <input
             id="po-price"
             inputMode="decimal"

@@ -1,3 +1,16 @@
+## PR #50 review fixes — October 26, 2026
+
+Review of #50 (same model family): #49 fixes hold; three Mediums fixed. GitHub and Payments
+forms now fall back to the first valid connection, run, repository or release whenever the
+lists change (no more empty ids after a repository is created or a connection revoked);
+archiving an offer asks first and says it can't be undone and buyers keep access; "Money
+in" shows revenue and owner funding as positive amounts and the bank line as "At the bank".
+Lows: Settings freezes the reviewed version and pauses reloads while confirming; spec
+freeze looks up the selection's run across all problems and shows an error with Try again
+instead of a run picker; failed webhook-delivery loads show the error; a token connection
+needs its expiry; revoke confirms say what happens, have a visible label and focus the
+reason; price label no longer says US dollars. Not added: a restore test for older dumps
+(restore tests need pg tools, skipped here). Checks: typecheck, format, web-display 4/4.
 ## PR #49 review fixes — October 26, 2026
 
 Independent review of #49 (same model family): no High; server-side ceiling confirmed

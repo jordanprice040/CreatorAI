@@ -34,27 +34,37 @@ export function Settings({
     [],
   );
   const c = data.data;
+  /**
+   * What the person reviewed. While the confirm step is open, reloads pause and the request
+   * names this version, so a change elsewhere is a conflict, never a silent new baseline.
+   */
+  const [snap, setSnap] = useState<{
+    version: number;
+    ceiling: string;
+    exposure: string;
+  } | null>(null);
+  const reviewing = snap !== null;
   // The ceiling can change in another tab or window, so read it again whenever this page is
   // shown or the window regains focus; a save always shows the server's answer.
   const active = usePageActive();
   useEffect(() => {
-    if (active) data.reload();
+    if (active && !snap) data.reload();
   }, [active]);
   useEffect(() => {
-    if (!active) return;
+    if (!active || snap) return;
     const on = () => data.reload();
     window.addEventListener('focus', on);
     return () => window.removeEventListener('focus', on);
-  }, [active]);
+  }, [active, snap]);
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
-  const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const next = usdToNano(amount);
+  const base = snap?.ceiling ?? c?.ceiling_nano_usd;
   const raising =
-    c && next !== null && BigInt(next) > BigInt(c.ceiling_nano_usd);
+    base !== undefined && next !== null && BigInt(next) > BigInt(base);
   const same =
     c && next !== null && BigInt(next) === BigInt(c.ceiling_nano_usd);
   const left = c
@@ -65,17 +75,22 @@ export function Settings({
     e.preventDefault();
     setError('');
     setNotice('');
-    if (next !== null && !same && reason.trim()) setReviewing(true);
+    if (c && next !== null && !same && reason.trim())
+      setSnap({
+        version: c.version,
+        ceiling: c.ceiling_nano_usd,
+        exposure: c.exposure_nano_usd,
+      });
   }
   async function confirm() {
-    if (!c || next === null) return;
+    if (!snap || next === null) return;
     setBusy(true);
     setError('');
     try {
       const updated = await api(RuntimeCeilingSchema, 'settings/spending', {
         csrf: session.csrf_token,
         body: {
-          expected_version: c.version,
+          expected_version: snap.version,
           ceiling_nano_usd: next,
           reason: reason.trim(),
         },
@@ -86,7 +101,7 @@ export function Settings({
       );
       setAmount('');
       setReason('');
-      setReviewing(false);
+      setSnap(null);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
         data.reload();
@@ -94,7 +109,7 @@ export function Settings({
           'The ceiling changed elsewhere while you were deciding. The page now shows the latest; review your change again.',
         );
       } else setError(message(err));
-      setReviewing(false);
+      setSnap(null);
     } finally {
       setBusy(false);
     }
@@ -189,11 +204,11 @@ export function Settings({
                 <div className="notice" role="group" aria-label="Confirm">
                   <p>
                     {raising ? 'Raise' : 'Lower'} the overall ceiling from{' '}
-                    <strong>{money(c.ceiling_nano_usd, false)}</strong> to{' '}
+                    <strong>{money(snap!.ceiling, false)}</strong> to{' '}
                     <strong>{money(next!, false)}</strong>?{' '}
                     {raising
                       ? 'This allows more real money to be spent on paid calls.'
-                      : BigInt(next!) < BigInt(c.exposure_nano_usd)
+                      : BigInt(next!) < BigInt(snap!.exposure)
                         ? 'That is below what is already used or held, so no new paid call will be sent until you raise it again.'
                         : 'New paid calls stop once this amount is reached.'}{' '}
                     The change and your reason are recorded.
@@ -203,7 +218,7 @@ export function Settings({
                       className="secondary"
                       type="button"
                       disabled={busy}
-                      onClick={() => setReviewing(false)}
+                      onClick={() => setSnap(null)}
                     >
                       Back
                     </button>
