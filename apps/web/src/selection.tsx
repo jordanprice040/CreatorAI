@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   FreezeOutcomeSchema,
   RunControlSchema,
@@ -313,6 +313,8 @@ export function Scoring({
   const [problems, setProblems] = useState<StoredEntity[]>([]);
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const problem = focus;
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
   const setProblem = (u: string | ((c: string) => string)) =>
     onFocus(typeof u === 'function' ? u(focus) : u);
   const [alternatives, setAlternatives] = useState<StoredEntity[]>([]);
@@ -339,9 +341,11 @@ export function Scoring({
       setCounts(c);
       setAlternatives(a);
       setSpecs(s.filter((x) => x.body?.format === 'spec/1'));
-      setProblem((cur) =>
-        active.some((x) => x.id === cur) ? cur : richestProblem(active, c),
-      );
+      // Read the address now, not when the load started: a pick made while the counts
+      // were loading must not be replaced by the default.
+      const cur = focusRef.current;
+      if (!active.some((x) => x.id === cur))
+        setProblem(richestProblem(active, c));
     } catch (e) {
       setError(message(e));
     }

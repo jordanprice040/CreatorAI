@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   z,
   StudySummarySchema,
@@ -45,6 +45,8 @@ export function Studies({
   } | null>(null);
   const [expected, setExpected] = useState('');
   const [confirmStop, setConfirmStop] = useState(false);
+  /** Set once the person picks a study, so the automatic open never overrides them. */
+  const picked = useRef(false);
 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -57,19 +59,27 @@ export function Studies({
   }
   useEffect(() => {
     setSelected('');
+    picked.current = false;
     setAttempt(null);
     setAttempts([]);
     setContext(null);
-    // Open the newest study straight away so the page shows its attempts, not an empty picker.
+    // Open the newest study straight away so the page shows its attempts, not an empty picker,
+    // unless the workspace changed or the person already picked one while the list loaded.
+    let stale = false;
     void load()
       .then((list) => {
         const newest = list.reduce<StudySummary | null>(
           (a, b) => (!a || b.created_at > a.created_at ? b : a),
           null,
         );
-        if (newest) return openStudy(newest.id);
+        if (newest && !stale && !picked.current) return openStudy(newest.id);
       })
-      .catch((e) => setError(message(e)));
+      .catch((e) => {
+        if (!stale) setError(message(e));
+      });
+    return () => {
+      stale = true;
+    };
   }, [workspace.id]);
   async function perform(fn: () => Promise<void>) {
     setBusy(true);
@@ -139,6 +149,7 @@ export function Studies({
               `${base}/studies/seed`,
               { body: {}, csrf: session.csrf_token },
             );
+            picked.current = true;
             await load();
             await openStudy(s.study.id);
           })
@@ -150,7 +161,10 @@ export function Studies({
         Study
         <select
           value={selected}
-          onChange={(e) => void perform(() => openStudy(e.target.value))}
+          onChange={(e) => {
+            picked.current = true;
+            void perform(() => openStudy(e.target.value));
+          }}
         >
           <option value="">Choose a study</option>
           {studies.map((s) => (
@@ -452,7 +466,9 @@ export function Studies({
                 role="group"
                 aria-label="Stop attempt"
               >
-                Stop this attempt? It can&apos;t be resumed.{' '}
+                {attempt.condition === 'autonomous'
+                  ? 'Stop this autonomous attempt? It is marked as needing a person; an assisted continuation can follow, outside the primary comparison.'
+                  : 'Stop this attempt? It is recorded as cancelled and can’t be resumed.'}{' '}
                 <button
                   className="secondary"
                   onClick={() => setConfirmStop(false)}

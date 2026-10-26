@@ -213,7 +213,8 @@ function workspaceLabel(w: Workspace, all: Workspace[]) {
   });
   return [
     w.name,
-    ...(twin ? [created] : []),
+    // The id prefix still tells twins apart when they were created the same minute.
+    ...(twin ? [`${created} (${w.id.slice(0, 4)})`] : []),
     w.record_mode === 'fixture' ? 'fixture' : 'real',
     ...(w.role !== 'owner' ? [w.role] : []),
   ].join(' · ');
@@ -357,6 +358,12 @@ function App() {
   useEffect(() => {
     if (workspace) rememberWorkspace(workspace.id);
   }, [workspace?.id]);
+  // An address without a known workspace (edited by hand, or an old link) opens the usual
+  // starting workspace instead of the "no workspace yet" page.
+  useEffect(() => {
+    if (workspaces && workspaces.length > 0 && !workspace)
+      go({ ws: startingWorkspace(workspaces), id: '' }, true);
+  }, [workspaces, route.ws]);
   const names = useActors(workspace?.id ?? '');
   const open = (view: View, id?: string, q?: string) =>
     go({
