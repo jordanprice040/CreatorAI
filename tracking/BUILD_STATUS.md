@@ -1,3 +1,75 @@
+## CW-01 operational adapter design v1.3 note re-reviewed; review loop closed — October 26, 2026
+
+CW-01 adapter design v1.3 note independently re-reviewed 2026-10-26 (review 163f92c0...aec7,
+receipt a3257bc2...231b): supported with conditions; J1-J6, J8, J9 resolved, J7 partly; new
+Low K1-K3; no Medium or higher open. Implementation not started; operational NOT READY
+(blocked). Open: Jordan to confirm the G2 limit covers the v1.3 J1 scope (any console host,
+incl. agent terminal tools). K1 (Node tty raw mode uses SetConsoleMode; restore mode on
+every exit), K2 (abort/refusal events need a schema or the orphan rule) and K3 (120 s and
+5 s bounds still end on supervisor/observer clocks) carry as conditions into the future v5
+implementation design; no further note.
+
+## CW-01 operational adapter design v1.3 note written — October 26, 2026
+
+CW-01 adapter design v1.2 note independently re-reviewed 2026-10-26: supported with
+conditions (Medium J1, Low J2-J7). G2 limit accepted by Jordan; confirm it covers
+pseudoconsole automation (J1). Review docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_REVIEW_2026-10-26.md
+(eb2a46a0...1577); receipt tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-2-review-2026-10-26/
+reviewer-receipt.json (7b7a7841...d3a5).
+v1.3 note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_3_NOTE_2026-10-26.md
+(e8e553b2...1bb6), repository-only and unreviewed, answers J1-J9: interactive-console
+check run by the supervisor (isTTY exception), per-run console challenge, residual restated
+as any console host including an agent's terminal tool, pending Jordan's confirmation (J1);
+full console field list, operational provenance owner_undertaking_console and extended
+channel table (J2); ownership time from the chain part (J3); core-derived
+sql_instance_unchanged (J4); sql_deadline schema (J5); toStringTag brand check and
+new Uint8Array copy (J6); supervisor times are assertions, freshness anchored to helper
+times (J7); type byte in parts (J8); durable history before launch (J9). Earlier
+documents unchanged; nothing implemented or executed. Implementation not started;
+operational NOT READY. Next eligible: v1.3 note re-review in a fresh thread.
+
+## CW-01 operational adapter design v1.2 note written — October 26, 2026
+
+CW-01 operational adapter design v1.1 re-review (2026-10-26): SUPPORTED WITH CONDITIONS;
+F1-F6 resolved, F7 partial; new Medium G1, G2, Low G3-G7; implementation not started;
+native NOT READY. Review docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_REVIEW_2026-10-26.md
+(48ee4835...74de); receipt tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-1-review-2026-10-26/
+reviewer-receipt.json (c1debc77...ee31).
+v1.2 note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_NOTE_2026-10-26.md
+(a3d64af4...0c8a), repository-only and unreviewed, answers G1-G7 and I-a to I-f: multipart
+{parts} input with fixed per-event schema and a supervisor channel (G1); separate
+owner_undertaking channel hash-linked to the collector record, console-collected and
+labeled unauthenticated, residual for Jordan to accept or reject (G2); descriptor-only
+wrapper reads and one byte copy (G3); typed frames, secret never reaches the core (G4);
+postgres image locked through disconnect and pg_bin ACL binding (G5); helper exits on
+supervisor loss, orphaned_run_needs_owner terminal (G6); password lives with the client,
+ended after sql_B (G7). Design and v1.1 note unchanged; nothing implemented or executed.
+Next eligible: v1.2 note re-review in a fresh thread.
+
+## CW-01 operational adapter design v1.1 note written — October 26, 2026
+
+Additive note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_NOTE_2026-10-26.md
+(0c314c1c...c02e), repository-only and unreviewed, answers the review's F1-F7 and
+I-1 to I-8: detached helper spawn (F1); reviewed forward-slash pidfile line-2 literal
+(F2); quoted argv[0] and share-read hash-locked images before launch (F3); printable-
+ASCII paths for everything PostgreSQL sees (F4); one-shot string password, no pgpass
+(F5); no PG* environment and resolved-parameter check (F6); core v5 takes {channel,
+bytes}, parses strictly and stamps provenance per channel (F7). Design bytes unchanged.
+Nothing implemented or executed. M3 unchanged and not reopened; operational/native
+readiness NOT READY. Next eligible: independent re-review of the note in a fresh thread.
+
+## CW-01 operational adapter design independently reviewed — October 26, 2026
+
+Independent review (Claude, same model family as the author; not blinded):
+docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md (3cbfe9cf...4c3f);
+receipt tracking/evidence/theme-intent-cw01-operational-adapter-design-review-2026-10-26/
+reviewer-receipt.json (b2d13f6f...d88e). Verdict: SUPPORTED WITH CONDITIONS. Mediums:
+F1 libuv puts non-detached children in a kill-on-close job, so A2 always refuses; F2
+PostgreSQL 18.6 writes pidfile line 2 with forward slashes, so v4's same-spelling check
+always fails. Lows F3-F7 (argv[0]/prelaunch hashing, WorstFit non-ASCII paths, pg string
+password and pgpass fallback, PG* env fallback, core-side framing/provenance).
+Implementation not started; operational readiness NOT READY; M3 not reopened.
+
 ## Studio work committed (PR #46); CW-01 operational adapter design written — October 26, 2026
 
 Committed the uncommitted work from October 20-26 on branch claude/project-thread-7gwqdm

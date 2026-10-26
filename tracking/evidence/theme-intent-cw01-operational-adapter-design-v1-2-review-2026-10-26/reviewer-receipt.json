@@ -1,0 +1,98 @@
+{
+ "format": "theme-intent-cw01-operational-adapter-design-v1-2-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent re-review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the reviewed note, the design, the v1.1 note, either earlier review or any input. Same model family as the author and prior reviewers; not blinded. No external review service.",
+ "reviewed_note": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_NOTE_2026-10-26.md",
+  "sha256": "a3d64af4ed21134e61e3f0630e0690c77dfea6989f281f931cb173b5f3190c8a",
+  "bytes": 15006,
+  "commit": "f406df6",
+  "branch": "claude/project-thread-7gwqdm",
+  "pr": 47
+ },
+ "inputs_verified": {
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_2026-10-26.md": "97258c082105e92e1bc684aaa19b669ba9058b6767e007ff2c9f6f4525c6031e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_NOTE_2026-10-26.md": "0c314c1c0ee1de954b8dba6f8398c68adbeb4cd3ef9fa5b0e3055a57cb90c02e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md": "3cbfe9cf65b752a86985edc0fb4d46fd1239bea8169ccc6f438c5324b1314c3f",
+  "tracking/evidence/theme-intent-cw01-operational-adapter-design-review-2026-10-26/reviewer-receipt.json": "b2d13f6f60d23d36565cc45bb8c7511ab88e8e0a87ac54d8d170d5c28fbcd88e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_REVIEW_2026-10-26.md": "48ee48352a1945f8f2e771bdb0d498e878fa3ed350cf2fdac937e9cdbf4274de",
+  "tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-1-review-2026-10-26/reviewer-receipt.json": "c1debc77557b9153848b33c18bc6b266f7f5286a6b65502916b0ecd7e28aee31",
+  "scripts/theme-intent-cw01-core-fixture-v4.mjs": "ce3c4ad7c66d4f15bd695519f1db05940142f5e57a372b52c4781b1abf2507bb",
+  "tests/theme-intent-cw01-core-fixture-v4.test.mjs": "666ce597daea82ca236df32833624a70fdc6262a75da410a1ec3311d4fe77149",
+  "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+  "apps/desktop/src-tauri/src/secret.rs": "743959d2a1c175ae8cc6bdecb655c3c3bf1ae2213e484b6beda197851fa864e1",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md": "a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81"
+ },
+ "inputs_match": "14/14 including the note",
+ "byte_unchanged_check": "git diff 34c45a2 f406df6 --stat lists only the v1.1 re-review, v1.2 note, its receipt, .prettierignore and two tracking files; git log shows every input last touched by an earlier commit (25e39e4, 34c45a2, cf3a839, 1c0167f, acd000b, efe6627); working tree differs from HEAD only in .codex/config.toml",
+ "local_dependency_sources": {
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/client.js": "ad6aa93c26b0bf26db1f2ebe74216212790a04c41af5585c63760f9fa8322a32",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/connection-parameters.js": "6b6548f99acba3502663a17a180582ba8e1f1725aa9d94b5f47cac19dcb6211b"
+ },
+ "local_dependency_sources_match_prior_receipt": "2/2",
+ "external_sources": {
+  "https://learn.microsoft.com/en-us/windows/console/creating-a-pseudoconsole-session": "read 2026-10-26 via fetch (page dated 2022-09-20); not hashed",
+  "PostgreSQL REL_18_6 and libuv v1.x": "not re-fetched; relied on v1.1 re-review receipt hashes; no finding depends on a new reading",
+  "ECMA-262 %TypedArray%.prototype.slice / TypedArraySpeciesCreate": "reviewer knowledge of the specification text; not executed"
+ },
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_REVIEW_2026-10-26.md",
+  "sha256": "eb2a46a0534008fe899a97355d7ad2ecfda6f8ec692fb0124845e31270b81577",
+  "bytes": 20136
+ },
+ "verdicts": {
+  "design_support": "supported_with_conditions_one_new_medium_six_new_low",
+  "significant_issues_remain": true,
+  "ic_and_getter_limit": "core_properties_subject_to_J6",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked",
+  "g2_residual": "accepted_by_jordan_2026-10-26T09:35Z_as_known_limit_on_v1_2_wording (relayed by coordinator, cited message cmsg_01Ekfs9asX2KK8f8YWsvsDtF66apSkLJrFBUTdBXDueram); confirmation that it covers J1 pseudoconsole scope still needed; J1 drops to low if confirmed",
+  "m3": "unchanged_not_reopened",
+  "attestation_bound_120s": "confirmed_by_jordan_unchanged"
+ },
+ "prior_findings": {
+  "G1": "resolved for shape and supervisor channel (Low J3, J4, J5, J7)",
+  "G2": "partly resolved: records, channels, hash links and receipt label right (Medium J1, Low J2)",
+  "G3": "resolved in structure (Low J6)",
+  "G4": "resolved (Info J8)",
+  "G5": "resolved",
+  "G6": "resolved (Info J9)",
+  "G7": "resolved, client.js:286 confirmed",
+  "I-a": "resolved",
+  "I-b": "resolved (info: connect_timeout derives from connectionTimeoutMillis; add sslnegotiation)",
+  "I-c": "resolved",
+  "I-d": "resolved",
+  "I-e": "resolved in intent (info: state the check method; live password-callback backstop)",
+  "I-f": "resolved"
+ },
+ "findings": [
+  {"id": "J1", "severity": "medium", "summary": "GetConsoleMode on stdin proves a console handle, not human presence; a ConPTY host (including agent terminal tools) can pass it and type the answers, so the G2 residual is understated; the detached helper has no console or handle to the supervisor's stdin, so 'checked through the helper' cannot run as written"},
+  {"id": "J2", "severity": "low", "summary": "console record lacks fields checkAttestation reads (source, date, uncertainty, operator_ref) and is stamped owner_undertaking_console while v4 requires owner_affirmation; new channels have no adapter-hash stamp rows; fails closed"},
+  {"id": "J3", "severity": "low", "summary": "start_outcome observed_at_ms filled from the launch part, so the 90 s outer deadline and SQL-after-ownership ordering bind to launch time, not the later pidfile/chain observation"},
+  {"id": "J4", "severity": "low", "summary": "revalidation.sql_instance_unchanged has no measuring source (helper revalidate does no SQL; client ended per G7), so it would be a stamped assertion"},
+  {"id": "J5", "severity": "low", "summary": "sql_deadline event has no part schema; refused as PARTS_SCHEMA_MISMATCH, leaving the run without its sql_unknown terminal state"},
+  {"id": "J6", "severity": "low", "summary": "Uint8Array.prototype.slice uses TypedArraySpeciesCreate, so a caller-set constructor/@@species can return a view on a buffer it keeps; use a toStringTag brand check and new Uint8Array(bytes)"},
+  {"id": "J7", "severity": "low", "summary": "'a supervisor time can only make a check stricter' is overclaimed: admitted_at_ms and start_intent at_ms bound helper times in one direction; helper-measured freshness bounds limit the effect"}
+ ],
+ "informational": [
+  "J8 frame type has no carrier in the {channel, bytes} key set; a non-0x02 reply to unprotect must be a protocol error and never forwarded",
+  "J9 orphan detection needs durable evidence-directory and history writes before launch; orphan record is new, not a mutation; owner decision carries the J1 caveat"
+ ],
+ "not_done": [
+  "Windows API calls",
+  "registry/process/pidfile/port/credential reads",
+  "SQL",
+  "cluster/app actions",
+  "launch",
+  "sign-in",
+  "builds/tests/pnpm/Prettier",
+  "tracking edits",
+  "commit/push",
+  "retired OneDrive checkout"
+ ],
+ "authority": "none granted"
+}

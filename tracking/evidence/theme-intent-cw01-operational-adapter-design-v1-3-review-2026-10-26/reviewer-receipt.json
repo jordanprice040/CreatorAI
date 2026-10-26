@@ -1,0 +1,98 @@
+{
+ "format": "theme-intent-cw01-operational-adapter-design-v1-3-review/1",
+ "date": "2026-10-26",
+ "prompt": "U02 independent re-review, repository-only",
+ "reviewer": "Claude (Anthropic model family), Creator Agent project thread on device folder C:\\dev\\creator_agent",
+ "involvement": "No authorship of the reviewed note, the design, the v1.1 or v1.2 notes, any earlier review or any input. Same model family as the author and prior reviewers; not blinded. No external review service.",
+ "reviewed_note": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_3_NOTE_2026-10-26.md",
+  "sha256": "e8e553b252518f9883dd10b32d150a211dd2cda48a8b8d1aff2fc5b94a4b1bb6",
+  "bytes": 11495,
+  "commit": "ed7ae24",
+  "branch": "claude/project-thread-7gwqdm",
+  "pr": 47
+ },
+ "inputs_verified": {
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_2026-10-26.md": "97258c082105e92e1bc684aaa19b669ba9058b6767e007ff2c9f6f4525c6031e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_NOTE_2026-10-26.md": "0c314c1c0ee1de954b8dba6f8398c68adbeb4cd3ef9fa5b0e3055a57cb90c02e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_NOTE_2026-10-26.md": "a3d64af4ed21134e61e3f0630e0690c77dfea6989f281f931cb173b5f3190c8a",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_REVIEW_2026-10-26.md": "3cbfe9cf65b752a86985edc0fb4d46fd1239bea8169ccc6f438c5324b1314c3f",
+  "tracking/evidence/theme-intent-cw01-operational-adapter-design-review-2026-10-26/reviewer-receipt.json": "b2d13f6f60d23d36565cc45bb8c7511ab88e8e0a87ac54d8d170d5c28fbcd88e",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_1_REVIEW_2026-10-26.md": "48ee48352a1945f8f2e771bdb0d498e878fa3ed350cf2fdac937e9cdbf4274de",
+  "tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-1-review-2026-10-26/reviewer-receipt.json": "c1debc77557b9153848b33c18bc6b266f7f5286a6b65502916b0ecd7e28aee31",
+  "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_REVIEW_2026-10-26.md": "eb2a46a0534008fe899a97355d7ad2ecfda6f8ec692fb0124845e31270b81577",
+  "tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-2-review-2026-10-26/reviewer-receipt.json": "7b7a7841a78b8a5d35b6caf7b299b22eb1a4d5d1e9e20e080eb62fe20864d3a5",
+  "scripts/theme-intent-cw01-core-fixture-v4.mjs": "ce3c4ad7c66d4f15bd695519f1db05940142f5e57a372b52c4781b1abf2507bb",
+  "tests/theme-intent-cw01-core-fixture-v4.test.mjs": "666ce597daea82ca236df32833624a70fdc6262a75da410a1ec3311d4fe77149",
+  "scripts/theme-intent-cw01-observer-sql-v2.sql": "074561c3e36d655888aed442664f6419d817a5d5ea48116eb2714381339f89b2",
+  "apps/desktop/src-tauri/src/secret.rs": "743959d2a1c175ae8cc6bdecb655c3c3bf1ae2213e484b6beda197851fa864e1",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md": "a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91",
+  "docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md": "0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39",
+  "docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md": "0462b51605bdb2fad3ed0586594e8f31ecb216620e6d4a373a88c5c9788ebb81"
+ },
+ "inputs_match": "17/17 including the note",
+ "byte_unchanged_check": "git log shows each document written in a single commit (design 25e39e4; first review and v1.1 note 34c45a2; v1.1 review and v1.2 note f406df6; v1.2 review and v1.3 note ed7ae24) and each code input last touched before PR #47 (1c0167f, acd000b, cf3a839, efe6627); HEAD is ed7ae24; working tree differs from HEAD only in .codex/config.toml",
+ "local_dependency_sources": {
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/client.js": "ad6aa93c26b0bf26db1f2ebe74216212790a04c41af5585c63760f9fa8322a32",
+  "node_modules/.pnpm/pg@8.23.1/node_modules/pg/lib/connection-parameters.js": "6b6548f99acba3502663a17a180582ba8e1f1725aa9d94b5f47cac19dcb6211b"
+ },
+ "local_dependency_sources_match_prior_receipt": "2/2",
+ "external_sources": {
+  "https://raw.githubusercontent.com/libuv/libuv/v1.x/src/win/handle.c (fetched 2026-10-26)": "36778077a3ad0fb0ee55ccdba904e7393f74601be72be989110be4ee26ff753d",
+  "https://raw.githubusercontent.com/libuv/libuv/v1.x/src/win/tty.c (fetched 2026-10-26)": "7cdf11dfcf174c968777ae6235215fe0f54bb22fdf2a2b0dd8d0757c1373b63e",
+  "https://tc39.es/ecma262/multipage/indexed-collections.html (ES2027 draft, read 2026-10-26 via scrape cached 2026-10-24; sha256 of extracted markdown)": "b10596b87b9851c2e5602c4587e18bfec18b82db48b951e560f62afb904026d7",
+  "PostgreSQL REL_18_6 and Microsoft pseudoconsole page": "not re-fetched; relied on earlier receipts; no finding depends on a new reading",
+  "J6 behaviour": "from the specification text (23.2.3.38, 23.2.5.1.2); not executed"
+ },
+ "review_report": {
+  "path": "docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_3_REVIEW_2026-10-26.md",
+  "sha256": "163f92c05a4b340291ecad9f811ba6316b85f7d1a63b884740558df4056daec7",
+  "bytes": 16440
+ },
+ "verdicts": {
+  "design_support": "supported_with_conditions_no_medium_three_new_low",
+  "significant_issues_remain": false,
+  "open_owner_decision": "whether Jordan's accepted G2 limit also covers the v1.3 J1 scope (any console host, including an agent's terminal tool); pending, not treated as decided; operational runs blocked until confirmed",
+  "implementation_readiness": "not_started",
+  "operational_native_readiness": "not_ready_blocked",
+  "m3": "unchanged_not_reopened",
+  "attestation_bound_120s": "confirmed_by_jordan_unchanged"
+ },
+ "prior_findings": {
+  "J1": "resolved as a design finding (name, supervisor isTTY exception, challenge, honest residual marked pending); owner confirmation pending; Low K1 on exception wording",
+  "J2": "resolved (info: yes->true and item numbering, challenge_passed check, request-ID typing confirms only the request ID, collection order vs 15 s ages)",
+  "J3": "resolved (info: also require launch observed_at_ms >= exit; name stop failure state)",
+  "J4": "resolved",
+  "J5": "resolved (same gap for other supervisor-ended runs: K2)",
+  "J6": "resolved per ECMA-262 23.2.3.38 and 23.2.5.1.2 (info: map throws; getter configurable)",
+  "J7": "partly resolved (Low K3)",
+  "J8": "resolved",
+  "J9": "resolved (info: no directory fsync on Windows; preflight backstop)"
+ },
+ "findings": [
+  {"id": "K1", "severity": "low", "summary": "note says the supervisor makes no console or Windows call beyond isTTY, but raw-mode challenge reading uses setRawMode, which libuv implements with SetConsoleMode (tty.c 367-418); state the exception as Node's tty API and restore console mode on every exit"},
+  {"id": "K2", "severity": "low", "summary": "undertaking refusals, protocol errors and helper loss have no event or part schema, and refused steps keep state, so such runs end without a terminal entry (orphan rule after start_intent, undefined before); add a supervisor abort event or state the orphan treatment; fails closed"},
+  {"id": "K3", "severity": "low", "summary": "J7 reword still overclaims: the 120 s undertaking age uses supervisor affirmed_at_ms and the 5 s pre-stop bound uses observer-clock sqlB.observed_at_ms, so not every freshness bound is helper-anchored at the relevant end; trusted hash-bound code, so Low"}
+ ],
+ "informational": [
+  "J1 practical: desktop-app terminal tools can read and type into Jordan's terminal panel; run the undertaking in a standalone console as an operating note; DECISIONS.md entry still says 'shows human presence' and should be superseded once Jordan answers",
+  "J2 yes->true mapping and item numbering; challenge_passed check; typed request ID confirms only the request ID; order undertaking before preflight so the 15 s ages hold",
+  "J3 require launch observed_at_ms >= exit; stop PARTS_TIME_ORDER -> stop_unknown",
+  "J4 record that sql_instance_unchanged is core-derived",
+  "J6 map TypeError from detached/out-of-bounds sources to EVIDENCE_NOT_FRAME; getter is configurable, covered by allowlist env with no NODE_OPTIONS",
+  "J9 Node cannot fsync a directory on Windows; preflight PREEXISTING_CLUSTER_NO_ADOPTION is the fail-closed backstop"
+ ],
+ "not_done": [
+  "Windows API calls",
+  "registry/process/pidfile/port/credential reads",
+  "SQL",
+  "cluster/app actions",
+  "launch",
+  "sign-in",
+  "builds/tests/pnpm/Prettier/JavaScript execution",
+  "tracking edits",
+  "commit/push",
+  "retired OneDrive checkout"
+ ],
+ "authority": "none granted"
+}

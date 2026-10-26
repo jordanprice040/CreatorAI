@@ -1,5 +1,29 @@
 # Decision log
 
+## CW-01 console undertaking limit widened to any console host (provisional) — October 26, 2026
+
+Jordan: "For now the limit can cover any console host." This supersedes the wording of the
+earlier entry below ("shows human presence"). Per the CW-01 adapter design v1.3 note (J1),
+the undertaking is collected through an interactive-console check run by the supervisor
+(Node tty API, per-run console challenge). Any process able to host or drive a console,
+including a pseudoconsole host such as an IDE terminal panel or an agent's terminal tool,
+could supply it; the author is not authenticated, and
+receipts say so. Accepted for the present design; the acceptance is provisional ("for now") and can be withdrawn; an
+authenticated owner path would replace it. It grants no undertaking, implementation,
+operational read, SQL, credential, cluster start/stop, launch or native-session authority,
+and no model may run the undertaking step or type it. M3 unchanged and not reopened.
+
+## CW-01 unauthenticated console undertaking accepted as a known limit — October 26, 2026
+
+Jordan accepted ("I am okay accepting that as a known limit") the residual raised by the
+CW-01 operational adapter design v1.2 note (G2): the six-item W1-W3 undertaking is typed
+at an interactive supervisor console after admission, which shows human presence but
+does not authenticate the author. Receipts label it owner_undertaking_console and state
+that the author is not authenticated. This accepts a design limit only: it grants no
+undertaking, implementation, operational read, SQL, credential, cluster start/stop,
+launch or native-session authority, and no model may type the undertaking. M3 unchanged
+and not reopened.
+
 ## CW-01 attestation-to-spawn bound confirmed (120 s) — October 26, 2026
 
 Jordan confirmed "120 s is fine" for the CW-01 fixture core's owner-attestation
