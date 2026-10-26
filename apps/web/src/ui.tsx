@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActorSummarySchema,
+  ProblemComparisonSchema,
   StoredKindSchema,
   z,
   type ActorSummary,
@@ -299,3 +300,63 @@ export function StateBadge({ state }: { state: string }) {
 }
 
 export const shortId = (id: string) => id.slice(0, 8);
+
+/**
+ * History wording for display. Events recorded before they had their own wording kept the
+ * internal action code ("study.assigned"); show those as words too.
+ */
+export const eventText = (summary: string) =>
+  /^[a-z_]+(\.[a-z_]+)+$/.test(summary)
+    ? `${summary[0]!.toUpperCase()}${summary.slice(1).replace(/[._]+/g, ' ')}`
+    : summary;
+
+/** Shortens text for a one-line label at a word boundary, marking the cut with an ellipsis. */
+export function clip(text: string, max: number) {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/**
+ * How many alternatives each problem has, so a page can open on one with something to
+ * compare instead of whichever problem happens to be listed first. Problems whose
+ * comparison fails to load are left out rather than counted as empty.
+ */
+export async function alternativeCounts(
+  base: string,
+  problems: readonly { id: string }[],
+) {
+  const counts = new Map<string, number>();
+  await Promise.all(
+    problems.slice(0, 20).map(async (p) => {
+      try {
+        const c = await api(
+          ProblemComparisonSchema,
+          `${base}/problems/${p.id}/comparison`,
+        );
+        counts.set(p.id, c.alternatives.length);
+      } catch {
+        // An unreadable comparison still shows in the list; it just isn't preferred.
+      }
+    }),
+  );
+  return counts;
+}
+/** The problem with the most alternatives; the first listed when none has any. */
+export function richestProblem(
+  problems: readonly { id: string }[],
+  counts: ReadonlyMap<string, number>,
+) {
+  let best = problems[0]?.id ?? '';
+  for (const p of problems)
+    if ((counts.get(p.id) ?? 0) > (counts.get(best) ?? 0)) best = p.id;
+  return best;
+}
+/** A problem's option label: its title, and a note when nothing was proposed for it. */
+export const problemLabel = (
+  p: { id: string; title: string },
+  counts: ReadonlyMap<string, number>,
+  max = 90,
+) =>
+  `${clip(p.title, max)}${counts.get(p.id) === 0 ? ' (no options proposed)' : ''}`;

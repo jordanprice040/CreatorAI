@@ -5,7 +5,14 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
-import { Empty, Status, shortId, subjectTarget, type View } from './ui.js';
+import {
+  Empty,
+  Status,
+  eventText,
+  shortId,
+  subjectTarget,
+  type View,
+} from './ui.js';
 
 const ACTIONS = [
   ['', 'Everything'],
@@ -125,7 +132,7 @@ export function Activity({
                   {e.actor.display_name}
                   {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                 </strong>{' '}
-                {e.summary}{' '}
+                {eventText(e.summary)}{' '}
                 <Subject kind={e.subject_kind} id={e.subject_id} open={open} />
                 <small> · #{e.sequence}</small>
               </li>

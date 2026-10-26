@@ -13,7 +13,15 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
-import { Empty, Stamp, Status, shortId, useLoad, type View } from './ui.js';
+import {
+  Empty,
+  Stamp,
+  Status,
+  eventText,
+  shortId,
+  useLoad,
+  type View,
+} from './ui.js';
 
 const LineageSchema = z.array(
   z.strictObject({ depth: z.number(), link: StoredLinkSchema }),
@@ -28,26 +36,45 @@ function Fields({ body }: { body: Record<string, unknown> | null }) {
         Redacted: only the identity, versions and hashes remain.
       </p>
     );
-  const show = (v: unknown): string =>
-    v === null
-      ? '—'
-      : typeof v === 'string'
-        ? v
-        : typeof v === 'number' || typeof v === 'boolean'
-          ? String(v)
-          : Array.isArray(v)
-            ? v.map(show).join('; ')
-            : JSON.stringify(v);
+  return <FieldList body={body} depth={0} />;
+}
+const plain = (v: unknown) =>
+  v === null ||
+  typeof v === 'string' ||
+  typeof v === 'number' ||
+  typeof v === 'boolean';
+/** Nested objects and lists become indented field lists instead of JSON text. */
+function FieldList({
+  body,
+  depth,
+}: {
+  body: Record<string, unknown> | unknown[];
+  depth: number;
+}) {
+  const entries = Array.isArray(body)
+    ? body.map((v, i) => [`#${i + 1}`, v] as const)
+    : Object.entries(body);
   return (
-    <dl className="fields">
-      {Object.entries(body).map(([k, v]) => (
+    <dl className={depth ? 'fields nested' : 'fields'}>
+      {entries.map(([k, v]) => (
         <div key={k}>
-          <dt>{words(k)}</dt>
-          <dd>{show(v).slice(0, 1200)}</dd>
+          <dt>{k.startsWith('#') ? k : words(k)}</dt>
+          <dd>
+            <FieldValue v={v} depth={depth} />
+          </dd>
         </div>
       ))}
     </dl>
   );
+}
+function FieldValue({ v, depth }: { v: unknown; depth: number }) {
+  if (v === null) return <>—</>;
+  if (plain(v)) return <>{String(v).slice(0, 1200)}</>;
+  if (Array.isArray(v) && v.every(plain))
+    return <>{v.map((x) => (x === null ? '—' : String(x))).join('; ')}</>;
+  if (depth >= 3 || typeof v !== 'object')
+    return <>{JSON.stringify(v).slice(0, 1200)}</>;
+  return <FieldList body={v as Record<string, unknown>} depth={depth + 1} />;
 }
 
 function LinkList({
@@ -261,7 +288,7 @@ export function Catalog({
             )}
           </Status>
         </div>
-        <div>
+        <div className="detail-pane">
           {!selected ? (
             <Empty>
               Select a record to see its versions, links and history.
@@ -412,7 +439,7 @@ export function Catalog({
                 <ol className="history">
                   {activity.map((h) => (
                     <li key={h.event_id}>
-                      {h.summary}{' '}
+                      {eventText(h.summary)}{' '}
                       <Stamp
                         actor={`${h.actor.display_name}${h.actor.kind === 'human' ? '' : ` (${h.actor.kind})`}`}
                         at={h.occurred_at}

@@ -181,7 +181,7 @@ export function Models({
           OpenAI API key: used only when the API's live opt-in and a verified
           model registry entry are set. This screen does not change it.
         </li>
-        <li>Local models (Ollama): not implemented yet (§2.3).</li>
+        <li>Local models (Ollama): not available yet.</li>
       </ul>
       <h3>ChatGPT plan</h3>
       {!loaded && <p role="status">Loading saved connections…</p>}

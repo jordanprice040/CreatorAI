@@ -1,3 +1,28 @@
+## Studio usability pass, round 1 — October 26, 2026
+
+Hands-on walk of every reachable studio flow in the dev studio (Docker PostgreSQL, fixture
+provider, dev login code, seed-selection/study-seed/seed-research/seed-lineage; no live calls
+or spend). Audit: https://claude.ai/artifact/GZnCnhr5EmGtbh67V8Ut5C (5 high, 9 medium, 7 low).
+Round 1 (web display only; no policy, budget-enforcement or schema change):
+Compare and Scores open on the problem with the most alternatives and mark problems with
+none; workspace switcher disambiguates same-named workspaces by creation date and opens the
+last-used (else newest) workspace; amounts drop trailing zeros and settlement notes no longer
+show raw nano integers; new history rows use words for study/spec/selection events, amounts
+in units and no repeated reasons (existing rows keep their stored wording; the UI words raw
+codes); Monitor shows a run's conclusion instead of a second "succeeded"; Studies opens the
+newest study and confirms Stop attempt; Catalog detail stays in view and shows nested record
+fields as lists; labels clip at word boundaries; page reset is a quiet "Reset fields" link;
+input values no longer render bold; developer-only text removed from Evidence, Models,
+Operations and Monitor.
+Checks: typecheck pass; format check pass; new tests/src/web-display.test.ts pass; pnpm
+test:db 442 pass, 26 skipped, 3 fail. Two failures were port clashes with the running dev
+studio (studio-service.test passes 5/5 with ports free); "ChatGPT-plan Codex builder still
+goes through scoped patches" also fails on unmodified main (expects checkpoint, gets
+verified_candidate), not triaged here.
+Not covered: desktop shell (installed app off-limits, dev shell not built), Gallery/preview
+(needs the WSL build chain), payments (no screen). Open for Jordan: Settings page with the
+user-adjustable spending ceiling; whether Payments and GitHub screens belong in this pass.
+Next: round 1 independent re-review; round 2 (Submit restructure, spec freeze in the app).
 ## CW-01 operational adapter design v1.3 note re-reviewed; review loop closed — October 26, 2026
 
 CW-01 adapter design v1.3 note independently re-reviewed 2026-10-26 (review 163f92c0...aec7,

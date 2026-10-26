@@ -109,6 +109,8 @@ export function Search({
             {TYPE_LABEL[t]}
           </label>
         ))}
+      </div>
+      <div className="filters">
         <label htmlFor="s-kind" className="inline">
           Record kind
         </label>

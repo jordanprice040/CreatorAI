@@ -565,15 +565,22 @@ mark {
 }
 .page-reset {
   position: absolute;
-  top: 22px;
+  top: 26px;
   right: 24px;
+}
+.text.page-reset {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.text.page-reset:hover {
+  color: var(--text);
 }
 .draft-content > .panel:first-child {
   margin-top: 0;
 }
 .draft-content > .panel:first-child > h2:first-child,
 .draft-content > .panel:first-child > .decision-head:first-child {
-  padding-right: 150px;
+  padding-right: 110px;
   min-height: 34px;
 }
 @media (max-width: 760px) {
@@ -618,6 +625,31 @@ main > .panel.records:first-child {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: 28px;
 }
+/* A long record list keeps the chosen record's detail in view beside it. */
+@media (min-width: 761px) {
+  .detail-pane {
+    position: sticky;
+    top: 68px;
+    align-self: start;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+  }
+}
+.rows.entities > li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.rows.entities > li > button.text {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+}
+.rows.entities .kind {
+  min-width: 0;
+}
 .two {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -659,6 +691,54 @@ main > .panel.records:first-child {
   gap: 8px;
   align-items: center;
 }
+.actions.split .stop,
+.actions.split .confirm-inline {
+  margin-left: auto;
+}
+.confirm-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.secondary.danger,
+.secondary.danger:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.attempt-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 0;
+}
+.attempt-list button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.fetch-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0;
+}
+.fetch-row select {
+  width: auto;
+  max-width: 240px;
+}
+@media (max-width: 760px) {
+  .fetch-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fetch-row select {
+    max-width: none;
+  }
+}
 .row-actions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -694,6 +774,8 @@ select,
 input {
   width: 100%;
   font: inherit;
+  /* Fields sit inside bold labels; their values read as normal text. */
+  font-weight: 400;
   font-size: 14px;
   padding: 9px 11px;
   border: 1px solid var(--border-input);
@@ -997,6 +1079,7 @@ button.text[aria-current='true'] {
 /* Needs attention, unknown or waiting */
 .state-overrun,
 .res-unknown,
+.wf-outcome,
 .wf-waiting_human,
 .wf-reconciling,
 .wf-paused_operator,
@@ -1240,6 +1323,24 @@ dl.facts {
 .fields > div {
   font-size: 13px;
 }
+/* Record bodies read top to bottom; nested values indent under their field. */
+.fields > div:has(> dd > .fields) {
+  flex-direction: column;
+  gap: 4px;
+}
+.fields dd:has(> .fields) {
+  text-align: left;
+}
+.fields.nested {
+  margin: 0;
+  padding-left: 12px;
+  border-top: 0;
+  border-left: 1px solid var(--border);
+}
+.fields.nested > div {
+  padding: 4px 0;
+  border-bottom: 0;
+}
 details {
   font-size: 13px;
   margin-top: 14px;
@@ -1402,7 +1503,7 @@ table.ranking td:nth-child(4) {
 /* ---------- Evidence, compare, search ---------- */
 .compare-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 12px;
   margin: 12px 0;
 }

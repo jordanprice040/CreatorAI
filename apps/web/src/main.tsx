@@ -181,6 +181,43 @@ function FixtureDemo() {
   );
 }
 
+const LAST_WORKSPACE = 'creator.workspace';
+/** Remembers the open workspace in this browser only; a blocked store just forgets it. */
+function rememberWorkspace(id: string) {
+  try {
+    localStorage.setItem(LAST_WORKSPACE, id);
+  } catch {
+    // Private windows and blocked storage fall back to the newest workspace.
+  }
+}
+/** The workspace to open when the address names none: the last one used here, else the newest. */
+function startingWorkspace(list: Workspace[]) {
+  let last: string | null = null;
+  try {
+    last = localStorage.getItem(LAST_WORKSPACE);
+  } catch {
+    last = null;
+  }
+  if (last && list.some((w) => w.id === last)) return last;
+  return list.reduce((a, b) => (b.created_at > a.created_at ? b : a)).id;
+}
+/** A workspace's name in the switcher; a shared name gets its creation date to tell them apart. */
+function workspaceLabel(w: Workspace, all: Workspace[]) {
+  const twin = all.some((o) => o.id !== w.id && o.name === w.name);
+  const created = new Date(w.created_at).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return [
+    w.name,
+    ...(twin ? [created] : []),
+    w.record_mode === 'fixture' ? 'fixture' : 'real',
+    ...(w.role !== 'owner' ? [w.role] : []),
+  ].join(' · ');
+}
+
 /** Creates a workspace; fixture workspaces hold only synthetic records. */
 function NewWorkspace({
   csrf,
@@ -306,7 +343,7 @@ function App() {
       setWorkspaces(list);
       const keep = select ?? route.ws;
       if (!list.some((w) => w.id === keep) && list[0])
-        go({ ws: list[0].id }, true);
+        go({ ws: startingWorkspace(list) }, true);
       else if (select) go({ ws: select }, true);
     } catch (e) {
       setWsError(message(e));
@@ -316,6 +353,9 @@ function App() {
     if (auth.session) void loadWorkspaces();
   }, [auth.session]);
   const workspace = workspaces?.find((w) => w.id === route.ws) ?? null;
+  useEffect(() => {
+    if (workspace) rememberWorkspace(workspace.id);
+  }, [workspace?.id]);
   const names = useActors(workspace?.id ?? '');
   const open = (view: View, id?: string, q?: string) =>
     go({
@@ -539,6 +579,7 @@ function App() {
             <select
               id="ws"
               value={workspace.id}
+              title={workspaceLabel(workspace, workspaces!)}
               onChange={(e) => {
                 setMenuOpen(false);
                 go({ ws: e.target.value, id: '' });
@@ -546,8 +587,7 @@ function App() {
             >
               {workspaces!.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.name} · {w.record_mode === 'fixture' ? 'FIXTURE' : 'real'}
-                  {w.role !== 'owner' ? ` · ${w.role}` : ''}
+                  {workspaceLabel(w, workspaces!)}
                 </option>
               ))}
             </select>
