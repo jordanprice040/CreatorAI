@@ -191,8 +191,15 @@ export class DiscoveryStore extends ResearchStore {
           subject: req.brief,
           context: { ...context },
           limits: req.limits,
-          envelopeId: req.envelope_id,
-          pricingSnapshotId: req.pricing_snapshot_id,
+          envelopeId:
+            req.resource_setup?.kind === 'api'
+              ? req.resource_setup.envelope_id
+              : (req.envelope_id ?? null),
+          pricingSnapshotId:
+            req.resource_setup?.kind === 'api'
+              ? req.resource_setup.pricing_snapshot_id
+              : (req.pricing_snapshot_id ?? null),
+          resourceSetup: req.resource_setup,
           dataClass: req.data_class,
           audit: {
             perspectives: req.perspectives.length,

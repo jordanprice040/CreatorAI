@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   CancelRunRequestSchema,
@@ -28,6 +28,7 @@ import {
   type Workflow,
   type WorkflowDetail,
   type WorkflowLimits,
+  type WorkflowResourceSetup,
   type WorkflowResult,
   type WorkflowTask,
   type z,
@@ -85,8 +86,12 @@ function toWorkflow(r: Row): Workflow {
     constraints: context.constraints as string[],
     perspectives: context.perspectives as string[],
     limits: r.limits as WorkflowLimits,
-    envelope_id: String(r.envelope_id),
-    pricing_snapshot_id: String(r.pricing_snapshot_id),
+    envelope_id: r.envelope_id == null ? null : String(r.envelope_id),
+    pricing_snapshot_id:
+      r.pricing_snapshot_id == null ? null : String(r.pricing_snapshot_id),
+    ...(r.resource_setup
+      ? { resource_setup: r.resource_setup as WorkflowResourceSetup }
+      : {}),
     data_class: r.data_class as Workflow['data_class'],
     state: r.state as Workflow['state'],
     reason: String(r.reason),
@@ -137,6 +142,8 @@ export interface TaskLease {
   workflowId: string;
   envelopeId: string;
   pricingSnapshotId: string;
+  resourceSetup?: WorkflowResourceSetup | undefined;
+  deadlineAt: string;
   dataClass: Workflow['data_class'];
   limits: WorkflowLimits;
   /** Synthesis only: the critique outputs named in its context, verified by hash. */
@@ -376,6 +383,21 @@ export class WorkflowStore extends BudgetStore {
     return this.getWorkflow(ctx, ws, id);
   }
 
+  protected async checkSubscriptionWorkflow(
+    _c: PoolClient,
+    _ctx: CommandContext,
+    _ws: string,
+    _runId: string,
+    _setup: Extract<WorkflowResourceSetup, { kind: 'subscription' }>,
+    _limits: WorkflowLimits,
+    _dataClass: Workflow['data_class'],
+  ): Promise<void> {
+    throw fail(
+      'LIVE_DISABLED',
+      'This store does not support subscription workflows.',
+    );
+  }
+
   /** The pinned record version a workflow starts from; redacted records cannot be used. */
   protected async subjectVersion(
     c: PoolClient,
@@ -411,8 +433,9 @@ export class WorkflowStore extends BudgetStore {
       subject: { id: string; version: number };
       context: Record<string, unknown>;
       limits: WorkflowLimits;
-      envelopeId: string;
-      pricingSnapshotId: string;
+      envelopeId: string | null;
+      pricingSnapshotId: string | null;
+      resourceSetup?: WorkflowResourceSetup | undefined;
       dataClass: Workflow['data_class'];
       audit: Row;
     },
@@ -458,23 +481,40 @@ export class WorkflowStore extends BudgetStore {
     );
     if (live.rowCount)
       throw fail('DUPLICATE', 'This run already has a live workflow.');
-    const env = await c.query(
-      `select status, run_id from budget_envelopes where workspace_id = $1 and id = $2`,
-      [ws, w.envelopeId.toLowerCase()],
-    );
-    const e = env.rows[0] as Row | undefined;
-    if (!e) throw fail('NOT_FOUND', 'Budget envelope not found.');
-    if (e.status !== 'active' || (e.run_id !== null && e.run_id !== runId))
+    if (w.resourceSetup?.kind === 'local')
       throw fail(
-        'SCOPE_EXCEEDED',
-        'Use an active envelope that is workspace-wide or belongs to this run.',
+        'LIVE_DISABLED',
+        'Local workflow inference is not implemented; choose a supported route.',
       );
-    const price = await c.query(
-      'select 1 from pricing_snapshots where workspace_id = $1 and id = $2',
-      [ws, w.pricingSnapshotId.toLowerCase()],
-    );
-    if (!price.rowCount)
-      throw fail('PRICING_MISSING', 'Pricing snapshot not found.');
+    if (w.resourceSetup?.kind === 'subscription') {
+      await this.checkSubscriptionWorkflow(
+        c,
+        ctx,
+        ws,
+        runId,
+        w.resourceSetup,
+        w.limits,
+        w.dataClass,
+      );
+    } else {
+      const env = await c.query(
+        `select status, run_id from budget_envelopes where workspace_id = $1 and id = $2`,
+        [ws, w.envelopeId?.toLowerCase() ?? null],
+      );
+      const e = env.rows[0] as Row | undefined;
+      if (!e) throw fail('NOT_FOUND', 'Budget envelope not found.');
+      if (e.status !== 'active' || (e.run_id !== null && e.run_id !== runId))
+        throw fail(
+          'SCOPE_EXCEEDED',
+          'Use an active envelope that is workspace-wide or belongs to this run.',
+        );
+      const price = await c.query(
+        'select 1 from pricing_snapshots where workspace_id = $1 and id = $2',
+        [ws, w.pricingSnapshotId?.toLowerCase() ?? null],
+      );
+      if (!price.rowCount)
+        throw fail('PRICING_MISSING', 'Pricing snapshot not found.');
+    }
     const fixture = (
       await c.query<{ fixture: boolean }>(
         'select fixture from workspaces where id = $1',
@@ -487,9 +527,9 @@ export class WorkflowStore extends BudgetStore {
       `insert into workflows (id, workspace_id, fixture, run_id, role, role_version,
          prompt_hash, policy_version, subject_id, subject_version, context, context_hash,
          limits, envelope_id, pricing_snapshot_id, data_class, state, reason, deadline_at,
-         created_by)
+         created_by, resource_setup)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'queued','started',
-         now() + make_interval(secs => $17::double precision), $18)`,
+         now() + make_interval(secs => $17::double precision), $18, $19)`,
       [
         workflowId,
         ws,
@@ -504,11 +544,12 @@ export class WorkflowStore extends BudgetStore {
         JSON.stringify(w.context),
         contextHash,
         JSON.stringify(w.limits),
-        w.envelopeId.toLowerCase(),
-        w.pricingSnapshotId.toLowerCase(),
+        w.envelopeId?.toLowerCase() ?? null,
+        w.pricingSnapshotId?.toLowerCase() ?? null,
         w.dataClass,
         w.limits.max_wall_seconds,
         ctx.actorId,
+        w.resourceSetup ? JSON.stringify(w.resourceSetup) : null,
       ],
     );
     // The agent that runs tasks acts in this workspace only as an editor: it can submit
@@ -667,6 +708,22 @@ export class WorkflowStore extends BudgetStore {
         tasks,
         usage: usageOf(reservations),
         reservations,
+        ...(w.rows[0].resource_setup?.kind === 'subscription'
+          ? {
+              subscription_usage: (
+                await c.query(
+                  `select count(*)::int as requests, count(*) filter (where p.state='in_flight')::int as in_flight,
+           count(*) filter (where p.state in ('unknown','in_flight'))::int as unresolved
+           from plan_requests p join workflow_tasks t on p.workflow_task_id=t.id where t.workflow_id=$1`,
+                  [workflowId],
+                )
+              ).rows[0] as {
+                requests: number;
+                in_flight: number;
+                unresolved: number;
+              },
+            }
+          : {}),
       };
     });
   }
@@ -1369,8 +1426,10 @@ export class WorkflowStore extends BudgetStore {
             workspaceId: wf.workspace_id,
             runId: wf.run_id,
             workflowId: wf.id,
-            envelopeId: wf.envelope_id,
-            pricingSnapshotId: wf.pricing_snapshot_id,
+            envelopeId: wf.envelope_id ?? '',
+            pricingSnapshotId: wf.pricing_snapshot_id ?? '',
+            resourceSetup: wf.resource_setup,
+            deadlineAt: wf.deadline_at,
             dataClass: wf.data_class,
             limits: wf.limits,
             critiques,
@@ -1609,6 +1668,55 @@ export class WorkflowStore extends BudgetStore {
         );
         if (!t[0]) return 0;
         const task = toTask(t[0] as Row);
+        if (wf.resource_setup?.kind === 'subscription') {
+          const prior = (
+            await c.query(
+              'select * from plan_requests where workflow_task_id=$1',
+              [task.id],
+            )
+          ).rows[0];
+          if (
+            !prior ||
+            prior.state === 'in_flight' ||
+            prior.state === 'unknown'
+          )
+            return 0;
+          let output: unknown = null;
+          if (
+            prior.state === 'completed' &&
+            typeof prior.output_text === 'string' &&
+            createHash('sha256').update(prior.output_text).digest('hex') ===
+              prior.output_hash
+          ) {
+            try {
+              output = validateOutput(
+                task.kind,
+                JSON.parse(prior.output_text),
+                {
+                  packet: (await this.discoveryContextOf(c, wf.id)).packet,
+                  context: task.context,
+                },
+              );
+            } catch {
+              output = null;
+            }
+          }
+          await this.setTask(
+            c,
+            ctx,
+            wf.workspace_id,
+            task.id,
+            output ? 'succeeded' : 'failed',
+            output
+              ? 'late_plan_result'
+              : String(
+                  prior.reason_code ?? 'outcome_reconciled_without_result',
+                ),
+            output ? { output } : {},
+          );
+          await this.coordinateIn(c, ctx, wf.workspace_id, wf.id);
+          return 1;
+        }
         const { rows: att } = await c.query(
           `${RESERVATION_SELECT} where r.logical_operation_id = $1 and r.status <> 'denied'
            order by r.attempt desc limit 1`,

@@ -215,7 +215,10 @@ export async function loopbackCallback(
       }
       clientId = issued;
     }
-    done(200, 'Signed in. You can close this tab and return to Creator Agent.');
+    done(
+      200,
+      'Browser authorization received. Return to Creator Agent to see whether sign-in finished successfully. You can close this tab.',
+    );
     settle({ code, client_id: clientId, scope: u.searchParams.get('scope') });
   });
   const listen = (port: number) =>

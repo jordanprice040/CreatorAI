@@ -98,7 +98,13 @@ const DPAPI_SCRIPT = (protect: boolean) =>
 function powershell(script: string, input: string): Promise<string> {
   return new Promise((ok, bad) => {
     const p = spawn(
-      'powershell.exe',
+      join(
+        process.env.SystemRoot ?? 'C:\\Windows',
+        'System32',
+        'WindowsPowerShell',
+        'v1.0',
+        'powershell.exe',
+      ),
       [
         '-NoProfile',
         '-NonInteractive',

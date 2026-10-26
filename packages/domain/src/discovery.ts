@@ -16,6 +16,7 @@ import {
   type ResponseType,
   type SkepticOutput,
   type Sufficiency,
+  z,
 } from '@creator/contracts';
 import { canonicalHash } from './rules.js';
 import {
@@ -34,7 +35,7 @@ import {
 // whether a role's answer is admissible against the packet, and what each proposal's
 // disposition is. Models propose; these functions decide what counts.
 
-export const DISCOVERY_ROLE_VERSION = 'r02-discovery/1.0';
+export const DISCOVERY_ROLE_VERSION = 'r02-discovery/1.4';
 
 // ---- Evidence packet -------------------------------------------------------------------
 
@@ -198,17 +199,47 @@ export function catalogMatches(
 
 // ---- Prompts and model input -----------------------------------------------------------
 
-const R02 = `Narrow the theme into an observable recurring problem. Explore intersections between fields by identifying a mechanism or technique that may transfer, not by merely naming two fields. Use NAE Grand Challenge themes only as optional search seeds. Identify who experiences the problem, current workarounds, seriousness/frequency, accessible data and measurable outcome. Search existing ideas and alternatives. Distinguish a well-supported need from an exploratory hypothesis. Return insufficient evidence or a non-software direction when warranted.`;
-const R04 = `Propose a response that addresses the actual mechanism of the problem. Depending on the assigned perspective, consider a minimal software tool, an existing product, a process change, a human-led intervention or a hybrid. Specify intended users, smallest useful version, measurable outcome, feasibility/data needs and maintenance burden. Explain why software is or is not warranted. Do not overclaim originality or impact. Independent first proposals must not read other designers' answers.`;
-const R05 = `Seek reasons the proposal may fail: weak evidence, false independence of sources, existing equivalents, unavailable data, poor causal mechanism or hidden maintenance. Compare all relevant response types with suitability criteria, not software influence alone. Look for counterevidence, duplicates of catalog entries, infeasible assumptions, novelty overclaims and a cheaper test that could disconfirm the proposal. Preserve disagreement. You recommend; application code and scoped owner policy determine advancement.`;
+const R02 = `Narrow the theme into an observable recurring problem. Explore intersections between fields by identifying a mechanism or technique that may transfer, not by merely naming two fields. Use NAE Grand Challenge themes only as optional search seeds. Identify who experiences the problem, current workarounds, seriousness/frequency, accessible data and measurable outcome. Search existing ideas and alternatives. Distinguish a well-supported need from an exploratory hypothesis. Return insufficient evidence or a non-software direction when warranted.
+
+Operational evidence-strength rubric v2: evidence_strength describes support for the observed need within the packet's stated scope, not confidence that a proposed intervention works. well_supported requires current, relevant, corroborating observations, justified source independence and resolution of material contrary evidence within that scope. exploratory means a plausible need has some usable support but independence, causal explanation, generalization or material disagreement remains unresolved. insufficient means no usable current observation supports the need or an essential premise cannot be assessed. Packet sufficiency only permits investigation; it is not a confidence rating. Repeated logs from one author do not establish independent corroboration. A supported problem does not establish software benefit or a transferable mechanism. An untested response remains a hypothesis even when the observed need is well_supported. In a synthetic packet, evaluate internal support within the simulation and always state that it does not establish real-world need, customer validation or benefit. Record consequential scope and source limitations in gaps; never use a confidence label to erase them.`;
+const R04 = `Propose a response that addresses the actual mechanism of the problem. Depending on the assigned perspective, consider a minimal software tool, an existing product, a process change, a human-led intervention or a hybrid. Specify intended users, smallest useful version, measurable outcome, feasibility/data needs and maintenance burden. Explain why software is or is not warranted. Do not overclaim originality or impact. Independent first proposals must not read other designers' answers.
+
+Field semantics v1.3: novelty is an affirmative, evidence-backed distinctiveness claim only. Return novelty:null when none is established; put routine-method or uncertainty explanations in mechanism or feasibility, not in novelty. A positive novelty claim needs supplied evidence and claim_refs; absence of a catalog match does not prove originality. software_warranted asks whether NEW/CUSTOM software is warranted, not whether existing software can help: yes means a justified custom build, no means no custom build warranted, unclear means evidence cannot resolve that decision. Explain the verdict against existing tools, process changes and human judgment. Even a software perspective may conclude no. Assumptions must preserve consequential conditions and what would change the recommendation; a nonempty array alone proves nothing.`;
+const R05 = `Seek reasons the proposal may fail: weak evidence, false independence of sources, existing equivalents, unavailable data, poor causal mechanism or hidden maintenance. Compare all relevant response types with suitability criteria, not software influence alone. Look for counterevidence, duplicates of catalog entries, infeasible assumptions, novelty overclaims and a cheaper test that could disconfirm the proposal. Preserve disagreement. You recommend; application code and scoped owner policy determine advancement.
+
+Finding semantics v1.4: weak_evidence means inadequate support for a consequential premise, causal inference or benefit, including an unsupported universal outcome guarantee or an unexecuted comparison presented as proof. novelty_overclaim means unsupported originality or distinctiveness relative to supplied alternatives; an efficacy claim alone is not a novelty claim, and no catalog match does not prove originality. duplicate means a materially equivalent supplied catalog entry, with the actual proposal claim and matching catalog_ref; a similar title alone is insufficient. infeasible_assumption means an unavailable, unauthorized or constraint-incompatible dependency; distinguish a known prohibition from unresolved feasibility and never grant access. counterevidence means a supplied observation, constraint or alternative weighs against this proposal or its incremental value; name what it contradicts and do not invent an adverse observation from unknown effectiveness. other is a concrete consequential issue outside these categories, never a way to hide an access or source issue. Multiple types may apply to distinct issues; do not force every type onto every proposal or pad findings. Correct labels and valid references alone do not establish source entailment.`;
 const REVISE = `Revise your proposal to answer the skeptic's findings, or say plainly why a finding does not hold. Keep the same response type. Do not drop a finding by ignoring it, and do not inflate the recommendation to win the argument.`;
 const REFS =
   'Cite evidence only by the packet\'s claim refs ("C1"...) and catalog refs ("K1"...); a ref that is not in the packet makes the answer invalid.';
+// Derive types/limits from validators; refinements and packet-dependent rules
+// remain enforced by checkDiscoveryOutput and are stated separately below.
+function modelSchema(schema: z.ZodType) {
+  const json = z.toJSONSchema(schema, { io: 'output' });
+  // Test-adapter metadata is not a model-authored field.
+  if (json.properties) delete json.properties.fixture;
+  return json;
+}
+const OUTPUT_SCHEMAS = {
+  locate: modelSchema(LocatorOutputSchema),
+  propose: modelSchema(ProposalOutputSchema),
+  revise: modelSchema(ProposalOutputSchema),
+  skeptic: modelSchema(SkepticOutputSchema),
+};
+const RESULT_PAYLOAD =
+  'For this discovery assignment, the role-specific JSON object below is the complete result payload. The application records lifecycle/status, provenance, checks and measured usage outside this object; do not return a generic TaskResult wrapper or invent fields for them. Return exactly one JSON object, without Markdown, commentary or extra keys. All required keys must be present, including keys whose value is null. A string field is one string, never an array; array fields contain only their stated item type and must respect maxItems. Trim string values and keep them within minLength/maxLength. Use null, not an empty string or the word "null", where the schema permits absence. Omit fixture metadata: it belongs only to test adapters. Combine related limitations concisely within the available fields instead of adding entries beyond a limit. Never discard consequential uncertainty to fit: summarize it, and defer a recommendation within the permitted fields when necessary. Do not add usage, billing, status or next-action entries just to repeat the shared runtime contract. This specifies its serialization for discovery and does not expand tools, permissions or authority.';
 const OUTPUT: Record<DiscoveryTaskKind, string> = {
-  locate: `${REFS} Return JSON: {"problem_statement", "affected_users", "observable_problem", "urgency": {"frequency", "severity": "low"|"medium"|"high"|"unknown", "claim_refs"}, "workarounds": [{"description", "claim_refs"}], "alternatives": [{"description", "claim_refs"}], "software_hypothesis": {"hypothesis", "measurable_outcome", "claim_refs"}|null, "cross_field": {"from_field", "to_field", "transferred_mechanism", "why_it_transfers", "claim_refs"}|null, "cross_field_absent_reason": string|null, "evidence_strength": "well_supported"|"exploratory"|"insufficient", "gaps": [string]}. cross_field names the brief's two fields.`,
-  propose: `${REFS} You are the designer for the assigned perspective only. Return JSON: {"perspective", "title", "mechanism", "intended_users", "smallest_version", "measurable_outcome", "feasibility", "maintenance", "software_warranted": {"verdict": "yes"|"no"|"unclear", "reason"}, "recommendation": "recommend"|"consider"|"not_recommended", "claim_refs", "assumptions": [{"statement", "would_change"}], "novelty": string|null, "response_to_findings": null}.`,
-  revise: `${REFS} Return the revised proposal as JSON with the propose fields, and "response_to_findings" set to how the revision answers each finding.`,
-  skeptic: `${REFS} Review every supplied proposal once. Return JSON: {"summary", "reviews": [{"proposal": "P1"..., "verdict": "stands"|"revise"|"reject", "findings": [{"type": "counterevidence"|"duplicate"|"infeasible_assumption"|"novelty_overclaim"|"weak_evidence"|"cheaper_test"|"other", "detail", "claim_refs", "catalog_ref": string|null}], "cheaper_test": string|null}]}.`,
+  locate:
+    REFS +
+    " affected_users is one string. Give either a cross_field object or a cross_field_absent_reason string, never both or neither. If cross_field is present, name the brief's two fields exactly, cite its supporting claims and describe an actual transferable mechanism, not just the field names. Gaps must preserve uncertainty within at most 8 concise entries. software_hypothesis is null when no defensible software mechanism is available; a supported conditional mechanism may be described as untested, never as demonstrated benefit. Nonempty gaps do not replace consequential limitations or source fidelity.",
+  propose:
+    REFS +
+    ' Answer for the assigned perspective only. response_to_findings must be null for this first proposal. Do not read or claim access to sibling proposals.',
+  revise:
+    REFS +
+    ' Keep the assigned perspective. response_to_findings must be a nonempty string addressing every supplied skeptic finding; it cannot be null. Return the complete revised proposal, including unchanged required fields.',
+  skeptic:
+    REFS +
+    ' Review each supplied proposal exactly once, with its actual P1..P5 label, and no invented or omitted proposal. A catalog_ref must be a supplied K-reference or null. Bind each finding, claim_ref and catalog_ref to the actual proposal and finding it supports; citing a valid ref elsewhere does not establish that association. Use catalog_ref:null when no supplied equivalent supports that finding. reviews[].cheaper_test is the authoritative per-proposal test field: describe a permitted bounded action, an observable comparison or outcome, and a condition that could change the recommendation. A paper comparison or existing tool may suffice; do not assume custom software, live data, spending or wider access. State proposed tests as proposed, not executed. If no permitted test addresses the consequential dependency, use null and explain why in the relevant findings. The legacy findings[].type=cheaper_test remains permitted but optional; do not duplicate the test merely to emit that type. If present, it must agree with reviews[].cheaper_test and cannot replace that required field. Preserve adverse supplied observations even when proposing a later test. Keep contrary evidence and disagreements in the relevant findings.',
 };
 const ROLE_TEXT: Record<DiscoveryTaskKind, [string, string]> = {
   locate: ['R02 locator', R02],
@@ -221,6 +252,8 @@ export const DISCOVERY_PROMPT_HASH = canonicalHash({
   runtime: RUNTIME_CONTRACT,
   roles: ROLE_TEXT,
   output: OUTPUT,
+  result_payload: RESULT_PAYLOAD,
+  output_schemas: OUTPUT_SCHEMAS,
 });
 /** Marks the role in the system message; the fixture model reads it, nothing else does. */
 export const discoveryMarker = (kind: DiscoveryTaskKind) =>
@@ -250,7 +283,7 @@ export function discoveryRoleInput(
   return [
     {
       role: 'system',
-      text: `${RUNTIME_CONTRACT}\n\nRole ${name} (${DISCOVERY_ROLE_VERSION}) ${discoveryMarker(kind)}:\n${prompt}\n\n${OUTPUT[kind]}`,
+      text: `${RUNTIME_CONTRACT}\n\nRole ${name} (${DISCOVERY_ROLE_VERSION}) ${discoveryMarker(kind)}:\n${prompt}\n\n${RESULT_PAYLOAD}\n\n${OUTPUT[kind]}\nOutput JSON Schema:\n${JSON.stringify(OUTPUT_SCHEMAS[kind])}`,
     },
     data('Evidence packet', packet),
     data('Assignment', {

@@ -2,6 +2,7 @@ export * from './primitives.js';
 export * from './records.js';
 export * from './execution.js';
 export * from './storage.js';
+export * from './intake.js';
 import { TaskSchema, TaskResultSchema, RunConfigSchema } from './execution.js';
 import {
   SourceSchema,

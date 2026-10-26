@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
+  BenchmarkCheckSchema,
   AcceptPlanCapsRequestSchema,
   AttestCreditsRequestSchema,
   ContractError,
@@ -14,6 +15,11 @@ import {
   WithdrawCreditsRequestSchema,
   parse,
   z,
+  DISCOVERY_TASK_CLASSES,
+  type WorkflowResourceSetup,
+  type WorkflowLimits,
+  type Workflow,
+  type Admission,
   type PlanAdmissionRequest,
   type PlanConnection,
   type PlanConnectionDetail,
@@ -24,6 +30,8 @@ import {
   type PlanVerificationGrant,
 } from '@creator/contracts';
 import {
+  DISCOVERY_ROLE_VERSION,
+  discoveryRoleInput,
   admissionBlockers,
   canonicalHash,
   connectionBlockers,
@@ -54,6 +62,7 @@ export interface PlanObservation {
   upstream_request_id?: string | null;
   /** Qualification only: the objective signal the service computed from the output. */
   signal?: string;
+  workflow_output_text?: string;
 }
 
 const PLAN_LOCK = 'creator:plan-connection:';
@@ -73,7 +82,16 @@ function toConnection(r: Row): PlanConnection {
     caps_accepted_at: r.caps_accepted_at ? iso(r.caps_accepted_at) : null,
     ext_agent_host_id: String(r.ext_agent_host_id),
     sign_in: r.sign_in as PlanConnection['sign_in'],
-    credits: r.credits as PlanConnection['credits'],
+    credits: {
+      ...(r.credits as PlanConnection['credits']),
+      // JSONB retains PostgreSQL's offset timestamp spelling; the wire contract
+      // requires UTC ISO dates, just like the ordinary timestamptz columns.
+      confirmed_at: (r.credits as PlanConnection['credits']).confirmed_at
+        ? new Date(
+            (r.credits as PlanConnection['credits']).confirmed_at!,
+          ).toISOString()
+        : null,
+    },
     eligibility: r.eligibility as PlanConnection['eligibility'],
     quota: r.quota as PlanConnection['quota'],
     status_reason: nullable(r.status_reason),
@@ -100,6 +118,7 @@ const toGrant = (r: Row): PlanVerificationGrant => ({
   expires_at: iso(r.expires_at),
   created_by: String(r.created_by),
   created_at: iso(r.created_at),
+  intent: (r.intent ?? 'model_access') as PlanVerificationGrant['intent'],
 });
 const toQualification = (r: Row): PlanQualification => ({
   id: String(r.id),
@@ -364,7 +383,9 @@ export class ConnectionStore extends PortfolioStore {
       ws,
       id,
       req.expected_version,
-      'verification_approved',
+      req.intent === 'availability_recheck'
+        ? 'availability_recheck_approved'
+        : 'verification_approved',
       async (c, conn) => {
         const blockers = connectionBlockers(conn);
         if (blockers.length)
@@ -375,8 +396,8 @@ export class ConnectionStore extends PortfolioStore {
           );
         const gid = randomUUID();
         const { rows } = await c.query(
-          `insert into plan_verification_grants (id, connection_id, model_id, path, max_requests, expires_at, created_by)
-         values ($1,$2,$3,$4,1, clock_timestamp() + make_interval(mins => $5), $6) returning *`,
+          `insert into plan_verification_grants (id, connection_id, model_id, path, max_requests, expires_at, created_by, intent)
+         values ($1,$2,$3,$4,1, clock_timestamp() + make_interval(mins => $5), $6, $7) returning *`,
           [
             gid,
             conn.id,
@@ -384,10 +405,16 @@ export class ConnectionStore extends PortfolioStore {
             req.path,
             req.expires_in_minutes,
             ctx.actorId,
+            req.intent ?? 'model_access',
           ],
         );
         grant = toGrant(rows[0] as Row);
-        return { grant_id: gid, model_id: req.model_id, path: req.path };
+        return {
+          grant_id: gid,
+          model_id: req.model_id,
+          path: req.path,
+          intent: req.intent ?? 'model_access',
+        };
       },
     );
     return grant!;
@@ -410,6 +437,19 @@ export class ConnectionStore extends PortfolioStore {
       req.expected_version,
       'request_reconciled',
       async (c, conn) => {
+        const observed = await c.query(
+          `select output_chars from plan_requests where id=$1 and connection_id=$2
+           and state in ('unknown','in_flight') for update`,
+          [uuid(requestId), conn.id],
+        );
+        if (
+          req.outcome === 'did_not_run' &&
+          Number(observed.rows[0]?.output_chars ?? 0) > 0
+        )
+          throw fail(
+            'INVALID_TRANSITION',
+            'Cannot record did_not_run: this request has observed output.',
+          );
         const r = await c.query(
           `update plan_requests set state = 'reconciled', reason_code = $3, finished_at = coalesce(finished_at, clock_timestamp())
          where id = $1 and connection_id = $2 and state in ('unknown','in_flight') returning id`,
@@ -604,12 +644,152 @@ export class ConnectionStore extends PortfolioStore {
    * Admits one upstream plan request or refuses it with every reason. On success the request
    * row is in flight and counts against every cap until it settles.
    */
+  async #discoveryQualifications(
+    c: PoolClient,
+    id: string,
+  ): Promise<PlanQualification[]> {
+    const rows = await c.query(
+      'select * from plan_qualifications where connection_id=$1',
+      [id],
+    );
+    return rows.rows
+      .filter((r) => {
+        const manifest = r.manifest as {
+          cases?: {
+            input?: { role: string; text: string }[];
+            check?: unknown;
+          }[];
+        };
+        const required =
+          r.task_class === 'candidate_generation'
+            ? ['propose', 'revise']
+            : r.task_class === 'research_synthesis'
+              ? ['locate']
+              : ['skeptic'];
+        const kinds = new Set<string>();
+        if (
+          !manifest.cases?.length ||
+          canonicalHash(manifest) !== r.manifest_hash
+        )
+          return false;
+        for (const item of manifest.cases) {
+          const parsed = BenchmarkCheckSchema.safeParse(item.check);
+          if (!parsed.success || parsed.data.kind !== 'discovery_contract')
+            return false;
+          const check = parsed.data;
+          if (
+            check.context.role_version !== DISCOVERY_ROLE_VERSION ||
+            check.context.packet_hash !== canonicalHash(check.packet)
+          )
+            return false;
+          const expected = discoveryRoleInput(
+            check.task_kind,
+            check.context,
+            check.packet,
+            [],
+          )[0]!.text;
+          if (
+            item.input
+              ?.filter((m) => m.role === 'system')
+              .map((m) => m.text)
+              .join('\n\n') !== expected
+          )
+            return false;
+          kinds.add(check.task_kind);
+        }
+        return required.every((k) => kinds.has(k));
+      })
+      .map((r) => toQualification(r as Row));
+  }
+
+  protected override async checkSubscriptionWorkflow(
+    c: PoolClient,
+    _ctx: CommandContext,
+    ws: string,
+    runId: string,
+    setup: Extract<WorkflowResourceSetup, { kind: 'subscription' }>,
+    limits: WorkflowLimits,
+    dataClass: Workflow['data_class'],
+  ): Promise<void> {
+    const assigned = await c.query(
+      'select 1 from study_attempts where workspace_id=$1 and run_id=$2',
+      [ws, runId],
+    );
+    if (assigned.rowCount)
+      throw fail(
+        'SCOPE_EXCEEDED',
+        'Subscription discovery is not supported for frozen study assignments.',
+      );
+    const conn = await this.#lock(c, ws, setup.connection_id);
+    if (conn.settings_hash !== setup.settings_hash)
+      throw fail(
+        'VERSION_CONFLICT',
+        'Connection settings changed; refresh run setup.',
+      );
+    if (limits.max_concurrency !== 1 || limits.max_attempts !== 1)
+      throw fail(
+        'SCOPE_EXCEEDED',
+        'Subscription workflows require one job at a time and one attempt per logical call.',
+      );
+    if (
+      limits.call_timeout_ms >
+        conn.settings.caps.responses.request_timeout_ms ||
+      setup.max_output_chars > conn.settings.caps.responses.max_output_chars ||
+      limits.max_calls > conn.settings.caps.responses.max_requests_per_run
+    )
+      throw fail(
+        'SCOPE_EXCEEDED',
+        'Workflow limits exceed accepted connection caps.',
+      );
+    const access = await this.#access(c, conn.id);
+    const qualifications = await this.#discoveryQualifications(c, conn.id);
+    const usage = await this.#usage(c, conn.id, runId, null);
+    const blockers = [
+      ...new Set(Object.values(DISCOVERY_TASK_CLASSES)),
+    ].flatMap((task_class) =>
+      admissionBlockers({
+        connection: conn,
+        access,
+        qualifications,
+        grant: null,
+        usage,
+        now: new Date(),
+        request: {
+          connection_id: conn.id,
+          logical_operation_id: randomUUID(),
+          path: 'responses',
+          purpose: 'task',
+          model_id: setup.model_id,
+          task_class,
+          data_class: dataClass,
+          run_id: runId,
+          build_id: null,
+          grant_id: null,
+          qualification_id: null,
+          input_chars: 0,
+        },
+      }),
+    );
+    if (blockers.length)
+      throw new ContractError(
+        'ACCESS_DENIED',
+        'Discovery route is not ready.',
+        [...new Set(blockers)],
+      );
+  }
+
   async admitPlanRequest(
     ctxIn: CommandContext,
     ws: string,
     body: unknown,
     qualificationCase?: { case_id: string; split: 'development' | 'held_out' },
-  ): Promise<{ request_id: string; connection: PlanConnection }> {
+    workflow?: { task_id: string; lease_token: string; input_hash: string },
+  ): Promise<{
+    request_id: string;
+    connection: PlanConnection;
+    replay?: Row;
+    admission?: Admission;
+  }> {
     const ctx = normalize(ctxIn);
     const req: PlanAdmissionRequest = parse(PlanAdmissionRequestSchema, body);
     if ((req.purpose === 'qualification') !== Boolean(qualificationCase))
@@ -619,11 +799,94 @@ export class ConnectionStore extends PortfolioStore {
       );
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, true);
+      let wf: Row | undefined;
+      let task: Row | undefined;
+      if (workflow) {
+        const peek = await c.query(
+          'select workflow_id from workflow_tasks where id=$1',
+          [uuid(workflow.task_id)],
+        );
+        wf = (
+          await c.query(
+            'select * from workflows where id=$1 and workspace_id=$2 for update',
+            [peek.rows[0]?.workflow_id, ws],
+          )
+        ).rows[0];
+        task = (
+          await c.query('select * from workflow_tasks where id=$1 for update', [
+            workflow.task_id,
+          ])
+        ).rows[0];
+        if (
+          !wf ||
+          !task ||
+          task.state !== 'leased' ||
+          task.lease_token !== workflow.lease_token ||
+          new Date(String(task.lease_expires_at)).getTime() <= Date.now()
+        )
+          throw fail(
+            'LEASE_LOST',
+            'The workflow task lease is no longer held.',
+          );
+        const setup = wf.resource_setup as Extract<
+          WorkflowResourceSetup,
+          { kind: 'subscription' }
+        >;
+        if (
+          setup?.kind !== 'subscription' ||
+          setup.connection_id !== req.connection_id ||
+          setup.model_id !== req.model_id ||
+          req.purpose !== 'task' ||
+          req.run_id !== wf.run_id ||
+          req.data_class !== wf.data_class ||
+          req.logical_operation_id !== task.logical_operation_id ||
+          DISCOVERY_TASK_CLASSES[
+            task.kind as keyof typeof DISCOVERY_TASK_CLASSES
+          ] !== req.task_class
+        )
+          throw fail(
+            'SCOPE_EXCEEDED',
+            'Plan request does not match the pinned workflow task.',
+          );
+        if (
+          wf.control !== 'run' ||
+          wf.finished_at ||
+          new Date(String(wf.deadline_at)).getTime() <= Date.now()
+        )
+          throw fail(
+            'INVALID_TRANSITION',
+            'Workflow is paused, cancelled, terminal or expired.',
+          );
+      }
+      if (wf) await this.lockRun(c, ws, String(wf.run_id));
       const conn = await this.#lock(c, ws, req.connection_id);
+      if (
+        wf &&
+        conn.settings_hash !==
+          (wf.resource_setup as { settings_hash: string }).settings_hash
+      )
+        throw fail(
+          'VERSION_CONFLICT',
+          'Connection settings changed after workflow setup.',
+        );
       const dup = await c.query(
-        'select id from plan_requests where logical_operation_id = $1',
+        'select * from plan_requests where logical_operation_id = $1',
         [req.logical_operation_id],
       );
+      if (workflow && dup.rows[0]) {
+        const prior = dup.rows[0];
+        if (
+          prior.connection_id !== conn.id ||
+          prior.workflow_task_id !== workflow.task_id ||
+          prior.input_hash !== workflow.input_hash
+        )
+          throw fail('EVIDENCE_MISMATCH', 'Replayed workflow request changed.');
+        return {
+          request_id: String(prior.id),
+          connection: conn,
+          replay: prior,
+        };
+      }
       if (dup.rowCount)
         throw fail(
           'DUPLICATE',
@@ -631,7 +894,9 @@ export class ConnectionStore extends PortfolioStore {
         );
       const usage = await this.#usage(c, conn.id, req.run_id, req.build_id);
       const access = await this.#access(c, conn.id);
-      const qualifications = await this.#qualifications(c, conn.id);
+      const qualifications = wf
+        ? await this.#discoveryQualifications(c, conn.id)
+        : await this.#qualifications(c, conn.id);
       let grant: PlanVerificationGrant | null = null;
       if (req.grant_id) {
         const g = await c.query(
@@ -655,6 +920,28 @@ export class ConnectionStore extends PortfolioStore {
           'This plan request is not admitted.',
           blockers,
         );
+      if (workflow && wf && task) {
+        const n = await c.query(
+          'select count(*)::int as n from plan_requests p join workflow_tasks t on t.id=p.workflow_task_id where t.workflow_id=$1',
+          [wf.id],
+        );
+        if (n.rows[0].n >= (wf.limits as WorkflowLimits).max_calls)
+          throw fail('SCOPE_EXCEEDED', 'Workflow request cap is reached.');
+        const admission = await this.admitIn(c, ctx, ws, String(wf.run_id), {
+          action_type: 'model.generate',
+          task_id: String(task.id),
+          target: null,
+          spec_hash: String(task.context_hash),
+          amount_nano_usd: null,
+          data_class: req.data_class,
+          assumption_ids: [],
+          humility_review: null,
+          flags: [],
+          justification: `Subscription discovery task ${task.kind}; connection ${conn.id}; model ${req.model_id}.`,
+        });
+        if (admission.verdict !== 'allow')
+          return { request_id: '', connection: conn, admission };
+      }
       if (grant)
         await c.query(
           'update plan_verification_grants set used = 1 where id = $1',
@@ -684,6 +971,11 @@ export class ConnectionStore extends PortfolioStore {
           ctx.actorId,
         ],
       );
+      if (workflow)
+        await c.query(
+          'update plan_requests set workflow_task_id=$2, input_hash=$3 where id=$1',
+          [rid, workflow.task_id, workflow.input_hash],
+        );
       return { request_id: rid, connection: conn };
     });
   }
@@ -711,7 +1003,7 @@ export class ConnectionStore extends PortfolioStore {
       const now = new Date().toISOString();
       await c.query(
         `update plan_requests set state = $2, reason_code = $3, upstream_request_id = $4,
-           output_tokens = $5, output_chars = $6, output_hash = $7, signal = $8, finished_at = clock_timestamp()
+           output_tokens = $5, output_chars = $6, output_hash = $7, signal = $8, output_text = $9, finished_at = clock_timestamp()
          where id = $1`,
         [
           r.id,
@@ -722,6 +1014,9 @@ export class ConnectionStore extends PortfolioStore {
           s.output_chars,
           s.state === 'completed' ? s.output_hash : null,
           observed.signal ?? null,
+          r.workflow_task_id && s.state === 'completed'
+            ? (observed.workflow_output_text ?? null)
+            : null,
         ],
       );
       const updates: string[] = [];
@@ -789,6 +1084,20 @@ export class ConnectionStore extends PortfolioStore {
           { actorId: String(r.created_by) },
         );
       }
+      if (r.purpose === 'availability_recheck')
+        await this.#event(
+          c,
+          String(r.connection_id),
+          'availability_checked',
+          {
+            model_id: r.model_id,
+            path: r.path,
+            request_id: r.id,
+            state: s.state,
+            reason_code: s.state === 'completed' ? null : s.reason_code,
+          },
+          { actorId: String(r.created_by) },
+        );
       const after = await c.query('select * from plan_requests where id = $1', [
         r.id,
       ]);

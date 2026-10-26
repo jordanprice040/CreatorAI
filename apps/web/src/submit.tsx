@@ -1,6 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import {
   ClaimEvidenceSchema,
+  PlanConnectionSchema,
+  PlanConnectionDetailSchema,
+  DISCOVERY_TASK_CLASSES,
   EnvelopeSchema,
   EvidenceRoleSchema,
   GrantSchema,
@@ -22,6 +25,7 @@ import {
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
 import { money } from './budgets.js';
+import { ThemeIntent } from './theme-intent.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 
 const lines = (s: string) =>
@@ -101,16 +105,35 @@ export function Submit({
 }) {
   const base = `workspaces/${workspace.id}`;
   const ctx = useLoad(async () => {
-    const [claims, runs, workflows, envelopes, pricing] = await Promise.all([
-      api(
-        z.array(StoredEntitySchema),
-        `${base}/entities?kind=claim&status=active`,
+    let connectionError = '';
+    const [claims, runs, workflows, envelopes, pricing, connections] =
+      await Promise.all([
+        api(
+          z.array(StoredEntitySchema),
+          `${base}/entities?kind=claim&status=active`,
+        ),
+        api(z.array(RunControlSchema), `${base}/runs`),
+        api(z.array(WorkflowSchema), `${base}/workflows`),
+        api(z.array(EnvelopeSchema), `${base}/budgets`),
+        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+        api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
+          (e) => {
+            connectionError = `Could not load connections: ${message(e)}`;
+            return [];
+          },
+        ),
+      ]);
+    const planDetails = await Promise.all(
+      connections.map((conn) =>
+        api(
+          PlanConnectionDetailSchema.passthrough(),
+          `${base}/plan-connections/${conn.id}`,
+        ).catch((e) => {
+          connectionError = `Could not load connection details: ${message(e)}`;
+          return null;
+        }),
       ),
-      api(z.array(RunControlSchema), `${base}/runs`),
-      api(z.array(WorkflowSchema), `${base}/workflows`),
-      api(z.array(EnvelopeSchema), `${base}/budgets`),
-      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-    ]);
+    );
     const evidence = new Map<string, ClaimEvidence>();
     await Promise.all(
       claims.map((c) =>
@@ -133,6 +156,8 @@ export function Submit({
       ),
       envelopes: envelopes.filter((e) => e.status === 'active'),
       pricing,
+      planDetails: planDetails.filter((p) => p !== null),
+      connectionError,
     };
   }, [workspace.id]);
 
@@ -146,10 +171,16 @@ export function Submit({
   const [data, setData] = useState('');
   const [timeLimit, setTimeLimit] = useState('Six weeks');
   const [budgetLimit, setBudgetLimit] = useState(
-    'Fixture budget only; no paid services',
+    workspace.record_mode === 'fixture'
+      ? 'Fixture budget only; no paid services'
+      : 'No extra metered spending',
   );
   const [seed, setSeed] = useState('');
-  const [constraints, setConstraints] = useState('Synthetic data only.');
+  const [constraints, setConstraints] = useState(
+    workspace.record_mode === 'fixture'
+      ? 'Synthetic data only.'
+      : 'Use permitted public evidence only.',
+  );
   const [roles, setRoles] = useState<Record<string, EvidenceRole[]>>({});
   const [excluded, setExcluded] = useState<
     Partial<Record<ResponseType, string>>
@@ -161,6 +192,14 @@ export function Submit({
   const [allowCalls, setAllowCalls] = useState(true);
   const [envelopeId, setEnvelopeId] = useState('');
   const [pricingId, setPricingId] = useState('');
+  const [resourceKind, setResourceKind] = useState<'api' | 'subscription'>(
+    workspace.record_mode === 'fixture' ? 'api' : 'subscription',
+  );
+  const [connectionId, setConnectionId] = useState('');
+  const [planModel, setPlanModel] = useState('');
+  const [dataClass, setDataClass] = useState<
+    'synthetic' | 'public' | 'private_approved'
+  >(workspace.record_mode === 'fixture' ? 'synthetic' : 'public');
   const [revisions, setRevisions] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -201,6 +240,60 @@ export function Submit({
   const c = ctx.data;
   const envelope = envelopeId || c?.envelopes[0]?.id || '';
   const price = pricingId || c?.pricing[0]?.id || '';
+  const plan = connectionId
+    ? c?.planDetails.find((p) => p.connection.id === connectionId)
+    : c?.planDetails[0];
+  const model =
+    planModel ||
+    plan?.model_access.find(
+      (a) => a.path === 'responses' && a.access === 'verified',
+    )?.model_id ||
+    '';
+  const planBlockers =
+    resourceKind === 'subscription'
+      ? [
+          ...(c?.connectionError ? [c.connectionError] : []),
+          ...(plan?.blockers ?? [
+            'Add and verify a ChatGPT-plan connection in Models and connections.',
+          ]),
+          ...(plan &&
+          !plan.connection.settings.allowed_data_classes.includes(dataClass)
+            ? [
+                'This connection does not permit the selected evidence sharing class.',
+              ]
+            : []),
+          ...[...new Set(Object.values(DISCOVERY_TASK_CLASSES))]
+            .filter(
+              (tc) =>
+                !plan?.qualifications.some(
+                  (q) =>
+                    q.model_id === model &&
+                    q.task_class === tc &&
+                    q.state === 'qualified',
+                ),
+            )
+            .map(
+              (tc) => `Model is not qualified for ${tc.replaceAll('_', ' ')}.`,
+            ),
+        ]
+      : [];
+  const limits =
+    resourceKind === 'subscription'
+      ? {
+          ...LIMITS,
+          max_concurrency: 1,
+          max_attempts: 1,
+          max_calls: Math.min(
+            LIMITS.max_calls,
+            plan?.connection.settings.caps.responses.max_requests_per_run ?? 10,
+          ),
+          call_timeout_ms: Math.min(
+            LIMITS.call_timeout_ms,
+            plan?.connection.settings.caps.responses.request_timeout_ms ??
+              LIMITS.call_timeout_ms,
+          ),
+        }
+      : LIMITS;
   const request = {
     brief: { id: '00000000-0000-4000-8000-000000000000', version: 1 },
     evidence,
@@ -208,10 +301,26 @@ export function Submit({
     excluded: exclusions,
     max_revisions: revisions,
     max_age_days: 180,
-    envelope_id: envelope || '00000000-0000-4000-8000-000000000000',
-    pricing_snapshot_id: price || '00000000-0000-4000-8000-000000000000',
-    data_class: 'synthetic',
-    limits: LIMITS,
+    ...(resourceKind === 'subscription'
+      ? {
+          resource_setup: {
+            kind: 'subscription',
+            connection_id: plan?.connection.id ?? '',
+            model_id: model,
+            settings_hash: plan?.connection.settings_hash ?? '',
+            max_output_chars: Math.min(
+              100000,
+              plan?.connection.settings.caps.responses.max_output_chars ??
+                16000,
+            ),
+          },
+        }
+      : {
+          envelope_id: envelope || '00000000-0000-4000-8000-000000000000',
+          pricing_snapshot_id: price || '00000000-0000-4000-8000-000000000000',
+        }),
+    data_class: dataClass,
+    limits,
   };
   const reqCheck = StartDiscoveryRequestSchema.safeParse(request);
   const reqIssues = reqCheck.success
@@ -221,7 +330,12 @@ export function Submit({
           ? 'Evidence: attach at least one claim and say what it bears on'
           : plain(i.message),
       );
-  const ready = briefCheck.success && reqCheck.success && !!envelope && !!price;
+  const ready =
+    briefCheck.success &&
+    reqCheck.success &&
+    (resourceKind === 'subscription'
+      ? !!model && planBlockers.length === 0
+      : !!envelope && !!price);
 
   function toggle(claim: string, role: EvidenceRole) {
     setRoles((r) => {
@@ -278,10 +392,11 @@ export function Submit({
               run_id: runId,
               action_types: ['model.generate', 'model.summarize'],
               target_kind: null,
-              max_amount_nano_usd: '2000000000',
+              max_amount_nano_usd:
+                resourceKind === 'subscription' ? null : '2000000000',
               allow_irreversible: false,
               allow_external_effects: false,
-              data_classes: ['synthetic'],
+              data_classes: [dataClass],
               expires_at: new Date(Date.now() + 86_400_000).toISOString(),
               rationale:
                 `Model calls for the discovery run on “${brief.theme}”, granted from the submit form.`.slice(
@@ -314,6 +429,8 @@ export function Submit({
   return (
     <section className="panel" aria-labelledby="sub-title">
       <h2 id="sub-title">Submit a theme</h2>
+      <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
+      <h3>Discover from existing claims</h3>
       <p>
         A theme becomes a versioned search brief and a discovery run: a locator
         narrows it to affected users and an observable problem, then each
@@ -424,7 +541,9 @@ export function Submit({
                   />
                 </div>
                 <div>
-                  <label htmlFor="b-budget">Budget limit</label>
+                  <label htmlFor="b-budget">
+                    Solution budget constraint (separate from run limits)
+                  </label>
                   <input
                     id="b-budget"
                     required
@@ -595,13 +714,12 @@ export function Submit({
                       checked={allowCalls}
                       onChange={(e) => setAllowCalls(e.target.checked)}
                     />
-                    Let this run make model calls on synthetic data for 24
-                    hours, up to 2{' '}
-                    {workspace.record_mode === 'fixture'
-                      ? 'simulated units'
-                      : 'dollars'}{' '}
-                    per call (a standing permission you can revoke under
-                    Decisions)
+                    Let this run make model calls on the selected data class for
+                    24 hours,{' '}
+                    {resourceKind === 'subscription'
+                      ? 'within the subscription caps shown below; no API spending'
+                      : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
+                    (a standing permission you can revoke under Decisions)
                   </label>
                   {!allowCalls && (
                     <p className="small">
@@ -610,41 +728,137 @@ export function Submit({
                   )}
                 </>
               )}
-              <label htmlFor="b-env">Budget</label>
-              <select
-                id="b-env"
-                value={envelope}
-                onChange={(e) => setEnvelopeId(e.target.value)}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => ctx.reload()}
               >
-                {c.envelopes.length === 0 && (
-                  <option value="">No active budget</option>
-                )}
-                {c.envelopes.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} · {money(e.available, e.fixture)} available
-                  </option>
-                ))}
-              </select>
-              <label htmlFor="b-price">Pricing snapshot</label>
+                Refresh run setup
+              </button>
+              <label htmlFor="b-route">Model access</label>
               <select
-                id="b-price"
-                value={price}
-                onChange={(e) => setPricingId(e.target.value)}
+                id="b-route"
+                value={resourceKind}
+                onChange={(e) =>
+                  setResourceKind(e.target.value as 'api' | 'subscription')
+                }
               >
-                {c.pricing.length === 0 && (
-                  <option value="">No pricing snapshot</option>
-                )}
-                {c.pricing.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.body.provider}/{p.body.model_id} · {p.body.basis}
-                  </option>
-                ))}
+                <option value="subscription">
+                  ChatGPT plan · subscription quota
+                </option>
+                <option value="api">API / fixture · budget and pricing</option>
               </select>
-              {(c.envelopes.length === 0 || c.pricing.length === 0) && (
-                <p className="error">
-                  A discovery run needs an active budget (Budgets view) and a
-                  pricing snapshot (<code>pnpm cli pricing-add</code>).
-                </p>
+              <label htmlFor="b-data-class">Evidence sharing class</label>
+              <select
+                id="b-data-class"
+                value={dataClass}
+                onChange={(e) =>
+                  setDataClass(e.target.value as typeof dataClass)
+                }
+              >
+                <option value="synthetic">Synthetic</option>
+                <option value="public">Public</option>
+                <option value="private_approved">
+                  Private · approved provider sharing required
+                </option>
+              </select>
+              {resourceKind === 'subscription' ? (
+                <>
+                  <label htmlFor="b-connection">Connection</label>
+                  <select
+                    id="b-connection"
+                    value={plan?.connection.id ?? ''}
+                    onChange={(e) => {
+                      setConnectionId(e.target.value);
+                      setPlanModel('');
+                    }}
+                  >
+                    {!c.planDetails.length && (
+                      <option value="">No plan connection</option>
+                    )}
+                    {c.planDetails.map((p) => (
+                      <option key={p.connection.id} value={p.connection.id}>
+                        {p.connection.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="b-plan-model">Verified model</label>
+                  <select
+                    id="b-plan-model"
+                    value={model}
+                    onChange={(e) => setPlanModel(e.target.value)}
+                  >
+                    {!model && <option value="">No verified model</option>}
+                    {plan?.model_access
+                      .filter(
+                        (a) =>
+                          a.path === 'responses' && a.access === 'verified',
+                      )
+                      .map((a) => (
+                        <option key={a.model_id} value={a.model_id}>
+                          {a.model_id}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="small">
+                    Subscription quota; no API pricing or money envelope. One
+                    model job, at most {limits.max_calls} requests,{' '}
+                    {limits.max_wall_seconds} seconds per workflow and{' '}
+                    {Math.min(
+                      100000,
+                      plan?.connection.settings.caps.responses
+                        .max_output_chars ?? 16000,
+                    )}{' '}
+                    characters per response. Provider allowance is shared and
+                    may be unavailable. No paid fallback or search is included.
+                  </p>
+                  {planBlockers.length > 0 && (
+                    <ul className="error">
+                      {planBlockers.map((b) => (
+                        <li key={b}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <>
+                  <label htmlFor="b-env">Budget</label>
+                  <select
+                    id="b-env"
+                    value={envelope}
+                    onChange={(e) => setEnvelopeId(e.target.value)}
+                  >
+                    {c.envelopes.length === 0 && (
+                      <option value="">No active budget</option>
+                    )}
+                    {c.envelopes.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} · {money(e.available, e.fixture)} available
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="b-price">Pricing snapshot</label>
+                  <select
+                    id="b-price"
+                    value={price}
+                    onChange={(e) => setPricingId(e.target.value)}
+                  >
+                    {c.pricing.length === 0 && (
+                      <option value="">No pricing snapshot</option>
+                    )}
+                    {c.pricing.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.body.provider}/{p.body.model_id} · {p.body.basis}
+                      </option>
+                    ))}
+                  </select>
+                  {(c.envelopes.length === 0 || c.pricing.length === 0) && (
+                    <p className="error">
+                      A discovery run needs an active budget (Budgets view) and
+                      a pricing snapshot (<code>pnpm cli pricing-add</code>).
+                    </p>
+                  )}
+                </>
               )}
             </fieldset>
 

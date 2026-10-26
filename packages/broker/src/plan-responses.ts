@@ -124,6 +124,15 @@ export function planRequestBody(
 export async function callPlanResponses(
   o: PlanCallInput,
 ): Promise<PlanObservedOutcome> {
+  if (o.signal?.aborted)
+    return {
+      kind: 'rejected',
+      reason_code: 'cancelled_before_dispatch',
+      message: 'Request cancelled before dispatch.',
+      response_id: null,
+      output_chars: null,
+      retry_allowed: false,
+    };
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(new Error('timeout')),
@@ -186,10 +195,20 @@ export async function callPlanResponses(
       };
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buf = '';
+    let previousCR = false;
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      buf += value;
+      // Normalize SSE line endings across arbitrary transport chunks. A CR is
+      // one newline; its optional following LF must not become a blank line.
+      for (const ch of value) {
+        if (ch === '\n' && previousCR) {
+          previousCR = false;
+          continue;
+        }
+        previousCR = ch === '\r';
+        buf += previousCR ? '\n' : ch;
+      }
       let sep: number;
       while ((sep = buf.indexOf('\n\n')) >= 0) {
         const block = buf.slice(0, sep);
@@ -229,6 +248,18 @@ export async function callPlanResponses(
             const usage = (response.usage ?? {}) as Record<string, unknown>;
             const out = Number(usage.output_tokens);
             if (!text) text = completedText(response);
+            if (text.length > o.max_output_chars) {
+              controller.abort(new Error('output cap'));
+              await reader.cancel().catch(() => {});
+              return {
+                kind: 'failed',
+                reason_code: 'studio_output_cap',
+                message: 'The studio ended the stream at the output cap.',
+                response_id: responseId,
+                output_chars: text.length,
+                retry_allowed: false,
+              };
+            }
             await reader.cancel().catch(() => {});
             return {
               kind: 'completed',

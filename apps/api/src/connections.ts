@@ -54,7 +54,7 @@ const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|qualifications|requests|reconcile|quota-recheck|codex-builds|run|finish))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|run|finish))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -165,6 +165,17 @@ export async function connectionRoutes(r: {
       return send(
         200,
         await service().verifyModel(ctx, ws, item, {
+          id: b.grant_id,
+          model_id: b.model_id,
+        }),
+        true,
+      );
+    }
+    case 'availability-recheck': {
+      const b = parse(VerifyBody, await r.body());
+      return send(
+        200,
+        await service().recheckAvailability(ctx, ws, item, {
           id: b.grant_id,
           model_id: b.model_id,
         }),

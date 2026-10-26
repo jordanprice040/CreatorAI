@@ -25,7 +25,12 @@ export class ApiError extends Error {
 export async function api<T>(
   schema: z.ZodType<T>,
   path: string,
-  init: { body?: unknown; csrf?: string; timeoutMs?: number } = {},
+  init: {
+    body?: unknown;
+    csrf?: string;
+    timeoutMs?: number;
+    idempotencyKey?: string;
+  } = {},
 ): Promise<T> {
   const response = await fetch(`/api/${path}`, {
     ...(init.body === undefined
@@ -35,6 +40,9 @@ export async function api<T>(
           headers: {
             'Content-Type': 'application/json',
             ...(init.csrf ? { 'X-CSRF-Token': init.csrf } : {}),
+            ...(init.idempotencyKey
+              ? { 'Idempotency-Key': init.idempotencyKey }
+              : {}),
           },
           body: JSON.stringify(init.body),
         }),
