@@ -1,4 +1,2613 @@
+## CW-01 fixture core v4 independently supported; 120 s bound owner-confirmed — October 26, 2026
+
+v4 re-review (docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REVIEW_2026-10-26.md, 2d4ab765...c3e8):
+v4 SUPPORTED as a fixture-only slice; no new Low+ findings; fix/review loop closed.
+Jordan then confirmed the 120 s attestation-to-spawn bound ("120 s is fine"),
+recorded in tracking/DECISIONS.md; no code changed. Supported fixture core:
+scripts/theme-intent-cw01-core-fixture-v4.mjs with
+tests/theme-intent-cw01-core-fixture-v4.test.mjs and SQL asset cw01-observer-sql/2.
+Carry into adapter design: non-JSON evidence is recorded as null and fails closed;
+getters are resolved once at copy time. Operational/native readiness NOT READY
+(blocked): reader N1-N4, collector L1/L4, process-metadata/pidfile/registry adapters,
+protected credential, real manifest bindings, grants and the owner attestation remain.
+M3 unchanged and not reopened; original A0/native acceptance blocked; NI not-run; H
+unverified; full C54 partial; workspace-ID alternative disabled. No commit, push or
+automatic next milestone.
+
+## CW-01 fixture core v4 repair independently re-reviewed — October 26, 2026
+
+Independent re-review (Claude, same model family as the repair author; not blinded):
+docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REVIEW_2026-10-26.md; receipt
+tracking/evidence/theme-intent-cw01-fixture-core-v4-review-2026-10-26/reviewer-receipt.json.
+Verdict: fixture core v4 (ce3c4ad7...07bb) and tests (666ce597...7149) SUPPORTED as a
+fixture-only slice; L-1, I-1 and I-2 fixed; no regression against v3. Reproduced: v4
+tests 26/26; mutation check baseline pass and 33/33 killed (output byte-identical to the
+recorded results). All 48 receipt-bound hashes match; v1-v3 files, SQL asset and frozen
+inputs unchanged. Probes: 968-cell bad-evidence matrix, v4 throws 0 (v3 242), 0 v3/v4
+differences where v3 did not throw; stored copy digests equal history digests. No new Low
+or higher. Informational: refused-path digest of the copy not pinned by a test (I-A);
+prior format /3 not individually pinned (I-B, cosmetic); non-JSON evidence is recorded
+as null, indistinguishable from absent (I-C). Decision for Jordan: confirm the 120 s
+attestation-to-spawn bound or name another value; this is the only open item needing
+Jordan. Operational/native readiness NOT READY (blocked), unchanged. M3 unchanged and not
+reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54
+partial; workspace-ID alternative disabled. No SQL, credentials, operational reads,
+cluster/app actions, launch or sign-in.
+
+## CW-01 fixture core v4 repair (v3 re-review L-1) — October 26, 2026
+
+Under Jordan's approved fix-and-review loop, after the v3 re-review
+(docs/THEME_INTENT_CW01_FIXTURE_CORE_V3_REVIEW_2026-10-26.md: v3 SUPPORTED as a
+fixture slice; Low L-1, informational I-1/I-2). Report:
+docs/THEME_INTENT_CW01_FIXTURE_CORE_V4_REPAIR_2026-10-26.md; evidence:
+tracking/evidence/theme-intent-cw01-fixture-core-v4-2026-10-26/. Successor files
+scripts/theme-intent-cw01-core-fixture-v4.mjs and
+tests/theme-intent-cw01-core-fixture-v4.test.mjs; v1-v3 and SQL asset byte-unchanged.
+L-1: step copies evidence first (deep-frozen JSON) and validates, digests and stores
+that copy. I-1: B freeze pinned. I-2: non-JSON evidence fails closed without throwing.
+Attestation bound still 120 s pending Jordan's confirmation. Checks: v4 tests 26/26;
+mutation check baseline pass and 33/33 killed; Prettier clean. Independent re-review
+pending. Operational/native readiness NOT READY (blocked), unchanged. M3 unchanged
+and not reopened; original A0/native acceptance blocked; NI not-run; H unverified;
+full C54 partial; workspace-ID alternative disabled. No SQL, credentials,
+operational reads, cluster/app actions, launch or sign-in.
+
+## CW-01 fixture core v3 repair independently re-reviewed — October 26, 2026
+
+Independent re-review (Claude, same model family as the repair author; not blinded):
+docs/THEME_INTENT_CW01_FIXTURE_CORE_V3_REVIEW_2026-10-26.md; receipt
+tracking/evidence/theme-intent-cw01-fixture-core-v3-review-2026-10-26/reviewer-receipt.json.
+Verdict: fixture core v3 (4f61cbaf...5aa2) and tests (ecb7e95d...c37c) SUPPORTED as a
+fixture-only slice; R-1, R-2 and R-3 fixed as specified; no regression against v2.
+Reproduced: v3 tests 24/24; mutation check baseline pass and 33/33 killed (output
+byte-identical to the recorded results). All 39 receipt-bound hashes match; v1/v2 files,
+SQL asset and frozen inputs unchanged. New Low L-1: SQL evidence is checked before it is
+copied, so an evidence object with its own toJSON can store values different from those
+checked (probe: SQL phase limit bypassed); repair is copy-then-check. Informational: B's
+freeze not pinned by a test; non-JSON evidence throws (pre-existing in v2). Decision for
+Jordan: confirm the 120 s attestation-to-spawn bound or name another value (review finds
+120 s acceptable; 30-60 s would also work). Then a narrow v4 repair of L-1, or carry L-1
+into adapter design. Operational/native readiness NOT READY (blocked), unchanged. M3
+unchanged and not reopened; original A0/native acceptance blocked; NI not-run; H
+unverified; full C54 partial; workspace-ID alternative disabled. No SQL, credentials,
+operational reads, cluster/app actions, launch or sign-in.
+
+## CW-01 fixture core v3 repair (re-review R-1 to R-3) — October 26, 2026
+
+Under Jordan's approved fix-and-review loop, after the v2 re-review
+(docs/THEME_INTENT_CW01_FIXTURE_CORE_V2_REVIEW_2026-10-26.md: v2 SUPPORTED as a
+fixture slice with Lows R-1 to R-3). Report:
+docs/THEME_INTENT_CW01_FIXTURE_CORE_V3_REPAIR_2026-10-26.md; evidence:
+tracking/evidence/theme-intent-cw01-fixture-core-v3-2026-10-26/. Successor files
+scripts/theme-intent-cw01-core-fixture-v3.mjs and
+tests/theme-intent-cw01-core-fixture-v3.test.mjs; v1/v2 and SQL asset byte-unchanged.
+R-1: attestation at most 120 s older than pg_ctl creation (repair's choice; Jordan to
+confirm). R-2: stop launch exit required; stopped state observed after that exit.
+R-3: accepted SQL A/B evidence kept as deep-frozen copies. Checks: v3 tests 24/24;
+mutation check baseline pass and 33/33 killed; Prettier clean. Written by the same
+Claude session as the v1 review and v2 repair: independent re-review pending.
+Operational/native readiness NOT READY (blocked), unchanged. M3 unchanged and not
+reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54
+partial; workspace-ID alternative disabled. No SQL, credentials, operational reads,
+cluster/app actions, launch or sign-in.
+
+## CW-01 fixture core v2 repair independently re-reviewed — October 26, 2026
+
+Independent re-review (Claude, same model family as the repair author; not blinded):
+docs/THEME_INTENT_CW01_FIXTURE_CORE_V2_REVIEW_2026-10-26.md; receipt
+tracking/evidence/theme-intent-cw01-fixture-core-v2-review-2026-10-26/reviewer-receipt.json.
+Verdict: fixture core v2 (f72b9ea1...a1de) and tests (3309e810...624c) SUPPORTED as a
+fixture-only slice; F1, F2 (as specified) and F3 fixed; I-2/I-3 fixed; I-1 erratum
+accurate; 15 s pre-spawn bound for preflight/job confirmed. Reproduced: v2 tests 21/21;
+mutation check baseline pass and 28/28 killed (output byte-identical to the recorded
+results). All 30 receipt-bound hashes match; v1 files, SQL asset and frozen inputs
+unchanged. Three Low conditions: R-1 attestation not bounded to the spawn (design I3
+"immediately before W1"); R-2 stop launch handle need not show an exit; R-3 accepted SQL
+A/B evidence held by reference in ctx. Options: narrow v3 repair of R-1..R-3, or carry
+them as conditions into adapter design. Operational/native readiness NOT READY
+(blocked), unchanged. M3 unchanged and not reopened; original A0/native acceptance
+blocked; NI not-run; H unverified; full C54 partial; workspace-ID alternative disabled.
+No SQL, credentials, operational reads, cluster/app actions, launch or sign-in.
+
+## CW-01 fixture core v2 repair (review F1-F3) — October 26, 2026
+
+Jordan approved repairing the fixture-core review findings. Report:
+docs/THEME_INTENT_CW01_FIXTURE_CORE_V2_REPAIR_2026-10-26.md; receipt/TAP/mutation
+evidence: tracking/evidence/theme-intent-cw01-fixture-core-v2-2026-10-26/. Successor
+files scripts/theme-intent-cw01-core-fixture-v2.mjs and
+tests/theme-intent-cw01-core-fixture-v2.test.mjs; v1 core/tests and SQL asset
+cw01-observer-sql/2 byte-unchanged. F1: start/stop outcomes and launch handles are
+measured evidence; chain pg_ctl exit must equal the launch handle's. F2: 90 s outer
+deadlines, 30 s SQL phase and freshness measured to the spawn (AutoRun/job/preflight
+<= 15 s before pg_ctl creation; B <= 5 s before stop pg_ctl creation; timed
+revalidation). F3: frozen request snapshot with digest in history and receipt. I-2
+ordered SQL fidelity test; I-3 CONIN$/CONOUT$; I-1 header-comment erratum (A02/B02)
+recorded, asset unchanged. Checks: v2 tests 21/21; mutation check baseline pass and
+28/28 killed; Prettier clean. Written by the reviewer of v1 (same model family): an
+independent re-review is pending; no self-issued pass. Operational/native readiness
+NOT READY (blocked), unchanged. M3 unchanged and not reopened; original A0/native
+acceptance blocked; NI not-run; H unverified; full C54 partial; workspace-ID
+alternative disabled. No SQL, credentials, operational reads, cluster/app actions,
+launch or sign-in. Next: independent re-review per the report's prompt.
+
+## CW-01 fixture-only core independently reviewed — October 26, 2026
+
+Independent U02 review (Claude, same model family as the implementer; not blinded):
+docs/THEME_INTENT_CW01_FIXTURE_CORE_REVIEW_2026-10-26.md; receipt
+tracking/evidence/theme-intent-cw01-fixture-core-review-2026-10-26/reviewer-receipt.json.
+Verdicts: SQL asset cw01-observer-sql/2 (074561c3...89b2) SUPPORTED (exact bytes;
+ordered fidelity to the frozen design's 70 SQL lines; M1/M2/R3/L3/L4/I-a correct;
+header comment erratum I-1). Fixture core/tests SUPPORTED IN PART: R1-R3, I1/I2/I4/N4
+enforced; tests 18/18 and recorded mutation check 12/12 killed reproduced. Two Medium
+repairs needed: F1 start/stop outcome and pg_ctl launch handle bypass measured
+provenance; F2 outer/SQL deadlines and freshness anchored to caller intent times and
+self-reported booleans, not the measured spawn. Low F3: request not snapshotted or
+digest-bound. Freshness values confirmed (15 s AutoRun, 5 s pre-stop) but to be
+measured to pg_ctl creation / stop launch. No fixture-to-operational promotion found.
+Operational/native readiness NOT READY (blocked), unchanged. M3 unchanged and not
+reopened; original A0/native acceptance blocked; NI not-run; H unverified; full C54
+partial; workspace-ID alternative disabled. No SQL, credentials, operational reads,
+cluster/app actions, launch or sign-in. Next is Jordan's selection (narrow F1/F2 repair
+plus re-review, carry as conditions, or defer); no automatic next milestone, commit
+or push.
+
+## CW-01 fixture-only core implemented — October 26, 2026
+
+Jordan authorized the bounded repository-only CW-01 prerequisite slice. Report:
+docs/THEME_INTENT_CW01_FIXTURE_CORE_IMPLEMENTATION_2026-10-26.md; receipt/TAP/mutation
+evidence: tracking/evidence/theme-intent-cw01-fixture-core-2026-10-26/. Added
+successor SQL asset scripts/theme-intent-cw01-observer-sql-v2.sql (cw01-observer-sql/2,
+074561c3...89b2; NOT executed; original design SQL unchanged), pure core
+scripts/theme-intent-cw01-core-fixture.mjs and tests/theme-intent-cw01-core-fixture.test.mjs.
+Core: fixture-only admission (operational mode always blocked; missing bindings,
+grants and adapter reviews are blockers), hash-linked lifecycle with
+candidate_process_bound, terminal unknown/ownership/producer states, refused
+retry/escalation/adoption. R1 fresh existence-only HKLM/HKCU AutoRun, System32 view
+bound; R2 upward walk from pidfile PID with handle-bound containment (no PID
+non-reuse assumption, probe shell refused); R3 mandatory pg_backend_pid parent =
+owned postmaster. I1 nested-job refusal, pidfile line 7 empty, N4 spelling, same
+connection A/B, per-session preload labels. Fixture receipts never satisfy an
+operational gate; model assertions are not measurements.
+
+Checks: node --test on the new file only, 18/18 pass; 12/12 targeted mutants killed;
+Prettier check on new files; 14 frozen inputs rehashed, 0 mismatches. Not run: SQL,
+credentials, operational config/registry/process/port/pidfile reads, cluster/app
+actions, launch/sign-in, unrelated tests/verifiers. Independent review pending (author
+is the reviews' model family). Adapters N1-N4, collector L1/L4, process/pidfile/
+registry/credential adapters, real bindings, grants and attestation remain blockers.
+CW-01 NOT operational. M3 unchanged and not reopened; original A0/native blocked, NI
+not-run, H unverified, full C54 partial; workspace-ID alternative disabled. Next:
+independent review using the prompt in the report; no automatic next milestone.
+
+## CW-01 implementation design v1.1 note independently reviewed — October 26, 2026
+
+Repository-only U02 review by Claude (same model family as the frozen design
+review; note and design by Codex; not blinded). Report:
+docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_REVIEW_2026-10-26.md; receipt:
+tracking/evidence/theme-intent-cw01-implementation-design-v1-1-review-2026-10-26/.
+Design support: SUPPORTED at design scope with three Lows. M1, L2, L3, L4 and
+I-a-I-f resolved; M2 resolved in substance; L1 partly. R1 CMD.EXE AutoRun (no /D in
+pg_ctl's shell or its popen version probe) runs before postgres and can alter the
+postmaster environment; needs a detect-only existence check with its own grant.
+R2 parent links must use GetProcessTimes containment and an upward walk from the
+pidfile PID, not undocumented PID non-reuse while a handle is open. R3 link the SQL
+session directly (pg_backend_pid parent or listener owner PID), not only by time.
+Info I1-I5 (nested jobs, pidfile lines 2/7, crash-restart, per-session preloads,
+process-metadata privacy). Implementation NOT STARTED; operational/native NOT READY.
+
+Checks: 348 snapshot entries rehashed (0 mismatches), note/receipt/frozen design and
+review hashes, local links, REL_18_6 source and PostgreSQL 18/Microsoft docs read
+(hashes in receipt). No code, tests/verifiers, SQL/credentials, pidfile/registry/
+process/operational reads, cluster/app actions or sign-in. M3 unchanged and not
+reopened; original A0/native blocked, NI not-run, H unverified, full C54 partial;
+workspace-ID alternative disabled. Next on Jordan's selection: a small additive
+v1.2 note closing R1-R3, carry R1-R3 into a later implementation design, or defer.
+
+## CW-01 implementation design v1.1 repair note prepared — October 26, 2026
+
+Jordan authorized the additive repository-only repair. Added
+ docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md;
+receipt/input map: tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/.
+Proposed M1/M2 and L1-L4 fixes, I-a-I-f dispositions; independent exact review pending.
+M1 uses host(inet_server_addr()), requires boolean true; NULL blocks. M2 defines
+W1-only stable bounded postmaster.pid read, exact pg_ctl->CMD->postmaster instance
+chain with image/creation/parent handles, SQL startup time/recovery confirmation
+and pre-stop revalidation. Candidate_process_bound precedes SQL identity proof;
+pg_ctl readiness alone grants neither ownership nor stop. W2 pidfile stays
+existence-only; new W1 read requires its own reviewed scope/grant.
+
+L1 pins trusted COMSPEC/system working directory and strict CMD-safe paths,
+acknowledging pg_ctl's internal shell. L2 inner pg_ctl timeout80s under outer90s,
+process-handle exit not pipe EOF, NUL output, no inherited kill-on-close jobs or
+process-tree kill. L3 NULL backend_type zero counts in both transactions. L4
+pre-start/W2 signal-file absence and detect-only effective recovery/preload/archive
+boundary checks; no post-start repair of missing preflight. No new background ranges,
+credentials, operational inputs or owner attestation inferred. Adapter/binding
+blockers remain, including Windows process-provenance implementation/qualification.
+
+Checks: official PostgreSQL18/REL_18_6 and Microsoft source/docs read, prior343
+snapshot entries verified, 348 frozen inputs unchanged, four local links and new-note
+format/whitespace checks. Original design/review/receipts untouched; prior tracking
+bytes preserved as suffixes. No code, tests/verifiers, operational reads, pidfile/SQL/
+credential access, cluster/app actions, sign-in, helper/install/migration/recovery,
+activation or retired-checkout access. M3 unchanged; original A0/native blocked,
+NI not-run, H unverified, full C54 partial; workspace-ID alternative disabled.
+Next eligible: independent exact repository-only note review (prompt at note end),
+then stop for owner selection. No automatic implementation or operational milestone.
+
+## CW-01 implementation design independent review — October 26, 2026
+
+U02 review by Claude (Codex authored the CW-01 design, governing design and v1.1
+note; prior reviews by other Claude sessions, same model family; not blinded):
+docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_REVIEW_2026-10-26.md, receipt
+tracking/evidence/theme-intent-cw01-implementation-design-review-2026-10-26/.
+Design support PARTIAL, bounded repair required. M1 Medium: address_ok compares
+inet_server_addr()::text, which renders 127.0.0.1/32, so the gate is always false
+(fail-closed). M2 Medium: Windows pg_ctl returns the CMD.EXE PID and its -w accepts
+any recent pidfile and standby, so the ownership evidence (postmaster.pid line scope,
+image/parent binding, pg_postmaster_start_time, pg_is_in_recovery) must be named.
+Lows: L1 pg_ctl's own CMD.EXE/COMSPEC lookup and metacharacters; L2 coinciding
+90 s deadlines, inherited pipes and job objects; L3 NULL backend_type rows uncounted;
+L4 no post-start detect-only check of recovery/preload/archive settings or signal
+files. Schema29 work predicates verified exact. 343 design inputs rehashed, 0
+mismatches; prior bytes preserved. Implementation not started; operational/native
+NOT READY; attestation blank. M3 unchanged; A0/native blocked, NI not-run, H
+unverified, full C54 partial. Next on Jordan's choice: additive CW-01 design v1.1
+note (prompt in review) or defer; no automatic milestone.
+
+## CW-01 implementation design prepared — October 26, 2026
+
+Jordan explicitly selected Prepare implementation design. Added
+ docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md;
+receipt/input map: tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/.
+Repository-only specification, not code or execution. Pins direct hash-bound start
+argv with manifest port/listen_addresses=127.0.0.1 and smart/wait/90s stop; no adopt,
+retry or escalation. Fixed schema29 SQL allowlist includes observer privilege and
+identity, effective listener settings, catalog relation validation, ledger parity,
+all work predicates and cluster-wide client/walsender/background observations in
+separate A/B transactions. Terminal needs_human admitted via finished_at IS NULL.
+W2/PR01+W2 extension has exact read scope/caps, immutable reference and no-proof
+fingerprint limitations. Attestation binds operator/windows/manifest and fresh
+pre-W1 affirmation, plus W1/W2/post-W3 confirmations; still blank.
+
+Reader N1-N4, collector L1/L4 have concrete contracts with unimplemented/unbound
+items marked blocking. Protected credential access, actual port/home/tools,
+startup/auth/background boundary and relation fingerprint assets remain blockers;
+no wider-credential fallback. Uses Claude's corrected REL_18_6 xlog locators
+6195-6214/7290-7309 (F1) and addresses start binding F2. No new note edits.
+
+Checks: 343 prior input hashes unchanged, three local links, new-document formatting/
+whitespace and official PostgreSQL documentation reads. Prior tracking bytes
+preserved as exact suffixes. Author involved; independent exact review pending.
+No implementation, tests/verifiers, operational reads, SQL/credentials, cluster/app
+start/stop, sign-in, helper/install/migration/recovery, activation or retired-checkout
+access. M3 unchanged; original A0/native blocked, NI not-run, H unverified, full
+C54 partial; workspace-ID alternative disabled. Next eligible: independent exact
+repository-only implementation-design review (prompt in document), then stop;
+no automatic implementation or operational milestone.
+
+## Current-work safety design v1.1 note independent review — October 26, 2026
+
+U02 review by Claude (Codex authored the design and note; the repaired findings came
+from another Claude session, same model family; not blinded): docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_REVIEW_2026-10-26.md,
+receipt tracking/evidence/theme-intent-current-work-safety-design-v1-1-review-2026-10-26/.
+Design-scope resolution SUPPORTED: M1 now has a reachable, expressly threat-bounded
+pass condition (W1 fresh samples, owned smart stop, W2 fingerprint match, full
+owner attestation, else defer); L1 finished_at IS NULL equals schema29's five
+nonterminal states; L2 smart mode, no escalation, foreign access means no stop.
+W1 new-transaction sample confirmed necessary (REL_18_6 backend_status.c caches
+activity per transaction). W2 limits confirmed (clean non-recovery start writes
+pg_control only at production, xlog.c 6195-6214). New Lows: F1 note's xlog.c
+locators wrong (corrected here: 6195-6214, 7290-7309); F2 CW-01 start invocation
+unpinned (implementation condition: -p manifest port, listen_addresses=127.0.0.1,
+-w -t 90). Corrected prior review: postgres.rs is in the /4 helper map. 337 note
+inputs and all prior bytes unchanged. Implementation not started; operational/native
+NOT READY; attestation blank. M3 unchanged; A0/native blocked, NI not-run, H
+unverified, full C54 partial. Next eligible on Jordan's choice: repository-only CW-01
+implementation design (prompt in review) or defer. No automatic execution.
+
+## Current-work safety design v1.1 note prepared — October 26, 2026
+
+Added docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_V1_1_NOTE_2026-10-26.md and
+tracking/evidence/theme-intent-current-work-safety-design-v1-1-2026-10-26/.
+Proposed M1/L1/L2 repair with I1-I4 dispositions; independent review pending.
+W1: fresh foreign-client observations, explicit current listener/auth/startup
+boundary and residual transient-access limitation. W2: pg_control hash/WAL inventory/
+pid absence comparison plus enumerated owner attestation, not proof no start/write.
+W3: retained native/observation rules and continuing no-producer undertaking.
+Unknown owner access remains unknown; absent attestation means defer. Corrected
+task count to finished_at IS NULL (terminal needs_human deliberately admitted).
+Explicit owned pg_ctl smart/wait/90s stop; foreign access/adoption means no stop,
+invalid result and scoped follow-up. No fast/immediate escalation or retry.
+
+Official PostgreSQL 18 docs and REL_18_6 source read: normal startup/shutdown updates
+control state, WAL names/sizes cannot establish unchanged contents; universal
+no-start inference rejected. Fingerprint evidence is supplemental and threat-bounded.
+studio.rs package map confirmed by prior review; postgres.rs directly matches
+supported /4 helper source artifact map 109615f4...b88b, but source-to-exact-installed
+native binary equivalence not established here. Current operational boundary still
+needs reviewed evidence. Single-user alternative assessed, not selected.
+
+Checks: original 330 snapshot entries verified; 337 frozen inputs preserved;
+new-note formatting/local links and tracking whitespace checked. No implementation,
+operational reads, tests/verifiers, SQL/credentials, cluster/app start/stop, helpers,
+install/migration/recovery, activation or retired-checkout access. Original design,
+receipts and Claude review unchanged; prior tracking bytes preserved as suffixes.
+M3 unchanged; original A0/native acceptance blocked, NI not-run, H unverified,
+full C54 partial, workspace-ID alternative disabled. Next eligible: independent
+exact v1.1-note review against original design/review, schema29 and cited official
+sources; exact bounded prompt in note. No automatic implementation/execution.
+
+## Current-work safety design independent review — October 26, 2026
+
+U02 review by Claude (different model family from Codex author; earlier Claude
+sessions reviewed parts of this chain, not blinded): docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_REVIEW_2026-10-26.md,
+receipt tracking/evidence/theme-intent-current-work-safety-design-review-2026-10-26/.
+Design support PARTIAL: source trace faithful against bound studio.mjs 9d5ddac3
+(plus studio.rs, also package-bound); schema29 predicates cover every automatic
+consumer found; effect separation correct. M1 Medium: producer exclusion lacks a
+concrete evidence basis (repair: W1/W2/W3 split, pg_control/pg_wal continuity across
+owned stop and fresh PR-01, enumerated owner attestation or defer). L1 Low: terminal
+needs_human tasks counted as nonterminal (fail-closed). L2 Low: stop mode and
+foreign-backend-before-stop handling unspecified. Conditional database-only CW-01
+remains the smallest coherent path. Operational/native readiness NOT READY.
+Static reads and hashing only; no tests, verifiers, SQL, launch or operational reads.
+Design, receipts and 330 snapshot inputs unchanged. M3 unchanged; native acceptance
+blocked, original A0 blocked, NI not-run, H unverified, full C54 partial.
+Next eligible: additive v1.1 note resolving M1/L1/L2 (exact prompt in the review),
+then independent review. No automatic implementation or execution.
+
+## Current-work safety design prepared — October 26, 2026
+
+Repository-only design: docs/THEME_INTENT_CURRENT_WORK_SAFETY_DESIGN_2026-10-26.md.
+Receipt/input map: tracking/evidence/theme-intent-current-work-safety-design-2026-10-26/.
+Traced hashed reviewed studio.mjs startup, recovery/outbox relay, workflow leasing/
+wakeup/reconciliation, plan/model admission, scheduler and request-driven fetch/
+preview paths. Exact bundle and three mapped sources match package reviewer hashes.
+Worker starts before UI baseline; M3 scheduler-off does not exclude queued work.
+Selected conditional standalone database-only CW-01 design, not helper execution.
+Adapt historical quiescence predicates, add actual unfinished-workflow enumeration
+and undelivered outbox checks; schema29 allowlist, all-workspace counts only, bounded
+read-only transaction, owned cluster start/normal stop and protected authentication.
+These lifecycle/credential operations have effects and need separate exact review/
+authority. No generic helper invocation, source-only clearance or worker-off shortcut.
+
+Operational admission deferred: configured port/tools/home, reviewed capability,
+protected access and producer exclusion unresolved. Other-session/work-producer
+access is owner-reported unknown; a clean snapshot cannot bridge that gap or survive
+uncontrolled stop/relaunch. No current-work observation or native permission claimed.
+If exclusion cannot be supported, defer or separately design effective startup
+control; no changed-candidate implementation/install selected automatically.
+
+Checks: static reads/searches only, four exact package-map matches, 330 preserved
+input hashes unchanged, four local links, new-document formatting/whitespace.
+Snapshot taken after inspection/before authoring, not claimed pre-read capture.
+Failed path searches/parse-only shell attempt corrected; no result invented.
+Prior tracking bytes preserved as suffixes. No tests/verifiers, operational reads,
+SQL/credentials, implementation, launch/sign-in, helper/install/migration/recovery,
+activation or retired-checkout access. Author involved; independent review pending.
+M3 unchanged, original A0/native acceptance blocked, NI not-run, H unverified,
+full C54 partial. Next eligible: independent exact repository-only design review;
+exact prompt in design. No automatic implementation or operational milestone.
+
+## Owner Quit method/time clarified — October 26, 2026
+
+Jordan reports no problems with launches/sign-ins/restarts since October 24; this
+does not establish that none occurred or provide complete helper/config/install
+history. Reports using Quit in the top-left dropdown about October 26 00:15
+America/New_York (approximately 04:15 UTC), not a measured timestamp. Other-session/
+work-producer access explicitly unknown. Additive owner report:
+tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_QUIT_AND_HISTORY_CLARIFICATION.md.
+Quit control reported, actual running/stopped state and SH-01 timing unobserved;
+no passing planned-Quit case or unplanned-exit incident inferred. Prior evidence
+and reviews unchanged. No operational read/action or new grant. Original A0 and
+native acceptance blocked; M3 unchanged, H unverified, full C54 partial. Next
+eligible remains repository-only current-work safety design under supported v2,
+not automatically executed. Validation: targeted report formatting and tracking
+whitespace; prior tracking bytes preserved as exact suffixes. No runtime tests.
+
+## Post-launch reconciliation independently reviewed and repaired — October 26, 2026
+
+Owner authorized continuing the recommended path and a fresh review subagent.
+First review: docs/THEME_INTENT_POST_LAUNCH_RECONCILIATION_REVIEW_2026-10-26.md,
+receipt under tracking/evidence/theme-intent-post-launch-reconciliation-review-2026-10-26/.
+Same-model fresh subagent, no inherited conversation, not blinded; did not author
+reviewed plan/v1. Verdict partial documentation, native admission blocked. R1 High:
+owner acceptance of unknown queued/uncertain work cannot replace current-work
+safety support before worker-on launch. R2 Low: identification branch needs exact
+installed UI identity/role procedure. Historical evidence reusable: reviewer checked
+341 helper/reviewer/installation map bindings, all matched; 384 preservation hashes
+unchanged. Parent independently rechecked the 384 hashes before tracking updates.
+
+Preserved original plan and proposed v1. Added successor
+ docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_2026-10-26.md,
+SHA256 555a54faa9f5f33efbb912dd5170e3794577fa18a3bdd6716e07755aed55ad8d.
+Current-work safety is mandatory before every launch, including identification;
+owner risk acceptance, PR-01 and M3 cannot substitute. Exact-ID default block
+retained; no UI role inference from absent owner suffix and no worker command
+execution. Separate review of exact v2 supports documentation repair, R1/R2 resolved,
+no new actionable findings: docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_REVIEW_2026-10-26.md,
+receipt under tracking/evidence/theme-intent-post-launch-amendment-v2-review-2026-10-26/.
+Same reviewer, retained review history, no v2 authorship; nine inputs unchanged.
+Owner adoption and operational/native readiness remain pending; no grant created.
+
+Validation: new author documents formatted and local links checked; both review
+receipts and preservation maps checked directly, no historical verifier/test run.
+Prior tracking bytes retained as exact suffixes. Only repository preparation/review;
+no operational reads, adapter/collector/control implementation, launch/sign-in,
+SQL/helpers, installation/migration, activation, recovery or retired-checkout access.
+Missing owner history/quit mechanism/other-producer knowledge requested, not inferred.
+M3 unchanged; original A0 blocked, NI cases not-run, H unverified, full C54 partial.
+Next eligible: exact repository-only current-work safety design prompt in v2 review.
+Trace exact-candidate startup/worker/outbox/broker/retrieval admission, choose one
+bounded evidence/control approach or defer; no automatic operational milestone.
+
+## Post-launch reconciliation plan prepared — October 26, 2026
+
+Repository-only proposal:
+docs/THEME_INTENT_POST_LAUNCH_RECONCILIATION_PLAN_2026-10-26.md.
+Historical October 24 installation/preservation evidence remains usable at its
+original scope; no reinstall, migration or unrelated fixture rerun justified.
+October 26 owner-reported visit is not NI-00/NI-01 or a sampling incident. Original
+A0 remains blocked; reported quit does not establish stopped state. Proposed path:
+review a versioned prospective-session amendment, resolve missing owner/binding
+inputs, then separately prepare/review the concrete operational capability and
+scope before any observation or native session. Unknown workspace ID needs existing
+evidence or an explicitly reviewed/owner-approved identification-only amendment;
+no out-of-order sign-in. Prior items 1–6 targeted authority retained, not expanded
+or executed; adapter/collector review prerequisites remain. M3 unchanged, native
+acceptance blocked, H unverified, full C54 partial. No operational reads, launch,
+implementation, SQL/helpers, activation, cleanup or retired-checkout access.
+Validation: targeted new-plan formatting, local-link and whitespace checks; prior
+tracking bytes retained as exact suffixes and frozen theme-intent files hash-checked.
+No runtime tests or independent review claimed. Next eligible: uninvolved exact
+repository-only review of this plan and amendment choices; no automatic next step.
+
 # Implementation status
+
+## Owner launch details clarified — October 26, 2026
+
+Jordan reports opening Creator Agent about 12:10 a.m. October 26 via
+C:\Users\jorda\OneDrive\Desktop\Creator Agent.lnk, subsequently quitting,
+and only looking around without making changes. Time interpreted as America/New_York
+(approximately 04:10 UTC), not a measured timestamp. Exact quit time/mechanism and
+actual stopped state unobserved. No intentional changes reported; automatic startup/
+worker/auth/shutdown effects remain unobserved. Shortcut storage in OneDrive does
+not establish a OneDrive studio home; shortcut not inspected in this step.
+Evidence: tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_LAUNCH_CLARIFICATION.md.
+Prior reports preserved. Workspace name/owner role reported, ID unknown. Next
+eligible: bounded reconciliation proposal before acceptance, using repository and
+owner evidence; no automatic operational read/relaunch/recovery. Native acceptance
+remains blocked; M3 unchanged, H unverified, full C54 partial.
+
+
+## Owner workspace/role replies and reported launch — October 26, 2026
+
+Jordan reports workspace Jordan's Creator Studio, role owner; workspace ID unknown.
+Earlier persistence/install recollections refer to before October 24 shutdown.
+Jordan also reports opening the app now and seeing apparently persisted state.
+Exact time/route, subsequent actions, other intervening activity and running state
+remain unknown. Evidence: tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/OWNER_REPLIES_AND_LAUNCH.md.
+Owner report only, not NI-00/NI-01 verification or a collector observation. No
+sampling window was running. A0 continuity/prelaunch gate remains blocked; familiar
+appearance does not establish unchanged database/work state. No damage or dispatch
+is inferred. Next: clarify launch details and prepare scoped reconciliation before
+acceptance; no automatic relaunch, SQL, helper or recovery. No agent app interaction
+performed. M3 unchanged, H unverified, full C54 partial.
+
+
+## Targeted owner-input inspection — October 26, 2026
+
+Jordan authorized inspection of items 1-6 and guidance for 7-9. Completed targeted
+host environment, named Creator Agent shortcut/Run-value reads and hashes/file
+versions of two source-listed PostgreSQL candidate executables. Results/limits:
+tracking/evidence/theme-intent-owner-input-inspection-2026-10-26/INSPECTION.md.
+Host LOCALAPPDATA identified; no host process/user/machine home override found;
+all launch paths remain unconfirmed. Both candidate tools have file version 18.6;
+exact hashes recorded, not yet bound to configured pg_bin. Initial sandbox
+LOCALAPPDATA explicitly rejected as launch evidence. No app/tool launch, config
+read, SQL, PR-01/SH-01 execution or acceptance. Database port and configured pg_bin
+remain pending because no independently reviewed operational adapter exists.
+User's targeted read authorization does not substitute for that review requirement.
+Asked Jordan for continuity and intended workspace/last-known role; replies pending.
+Original template remains blank. Next: incorporate answers and resolve missing
+field evidence through owner input or separately reviewed adapter. M3 unchanged;
+no collector; native acceptance blocked, H unverified, full C54 partial.
+
+
+## Owner-attestation template v1.1 clarification — October 26, 2026
+
+Owner authorized the L1-L3 documentation clarifications. Added
+docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_V1_1_NOTE_2026-10-25.md
+(the October 25 filename is retained from the review's requested artifact name;
+the note records its actual preparation date and Codex authorship).
+L1 now distinguishes intended workspace/last-known role with evidence date from
+current confirmation at NI-01; mismatch or insufficient role stops before writes.
+L2 adds ASCII-case-insensitive onedrive component-prefix rejection and links all
+four successor notes with their precedence. L3 permits owner-produced nonsecret
+port/hash/file-properties-version evidence with source/date/method, while missing
+evidence stays pending and agent inspection still needs its own scoped grant.
+Also clarifies historical versus per-window attestation, observer effects and
+omission of other account names. No values filled, operational reads, collector,
+launch, grants or runtime changes. M3 unchanged; native acceptance blocked,
+H unverified and full C54 partial.
+
+Validation: source comparison against the review, proposal/notes and plan v5;
+all source links resolve and all nine original fields remain blank. Rehashed
+116 prior review input/report paths before and after, zero mismatches.
+Template SHA-256: a5f49bf0edc962ec9dc1305c0261e82b52721c03cc2a998f2e6304c69a4e3e91.
+Additive note SHA-256: 0347619a9974aff3889950aae3353d6321c3335e1d6fb0849a00beec25296c39.
+Review receipt SHA-256: fba04ac9702e2bcb2418ed2c92b1306f5744bd5b976f27c266c84f8e3b4a3e76.
+No runtime tests or verifiers run for this documentation-only change; no independent
+review claimed. Next eligible: Jordan supplies nonsecret owner inputs under the
+clarified template, leaving unknowns explicit; assess them without treating the
+template as an execution grant or automatically starting a collector milestone.
+
+
+## Claude collector owner-attestation template independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author the template or its tracking
+entries; same model family as the L12/L13 review thread that wrote the template
+prompt; not blinded). Report:
+docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_REVIEW_2026-10-25.md; receipt:
+tracking/evidence/theme-intent-collector-owner-attestations-template-review-2026-10-25/reviewer-receipt.json
+(fba04ac9...3e76). Template a5f49bf0...3e91 unchanged. Verdict: supported as a blank
+owner-input request; no Critical/High/Medium. All nine fields blank, cover the nine
+prerequisites, preserve exact-key, active-home, tool-identity, continuity/quiet-launch
+and workspace/role rules, prefill nothing and grant no authority. Low L1: workspace
+ID/role currentness demanded before a session while sign-in is forbidden (plan v5
+confirms at NI-01). Low L2: note v4.2 OneDrive key-admission rule omitted; notes
+v4.1-v4.4 not cited. Low L3: port and pg_ctl/postgres hash/version evidence has no
+stated owner-side route (no repository record exists). Info I16-I19. Checks: prior
+L12/L13 receipt input+report maps rehashed 113/113 distinct paths, zero mismatches;
+text searches of template; static reading. No classifier, verifier, --record,
+record-baseline or test run; no operational access; no field filled. M3 unchanged.
+No collector; native acceptance blocked, H unverified, full C54 partial. Next
+eligible (exact prompt in report, not executed): additive v1.1 template note
+resolving L1-L3, or Jordan fills the template as is accepting them.
+
+## Blank collector owner-attestation template prepared — October 25, 2026
+
+Owner authorized the exact next prompt from the supported L12/L13 review. Added
+ docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md using
+repository text only. Nine blank response fields cover exact launch LOCALAPPDATA,
+CREATOR_STUDIO_HOME/launch paths, database port, pg_bin, separate pg_ctl/postgres
+identity provenance, historical continuity, existing workspace ID and current role.
+Each names owner-supplied evidence and the collector/session prerequisite it supports.
+No values filled or inferred; no operational read, environment/registry/process/port
+query, external file access, collector, launch or grant. The reviewed scope manifest,
+collector implementation/review, concrete operational grant and bounded session
+decision remain separate and pending. M3 unchanged; native acceptance blocked,
+H unverified and full C54 partial.
+
+Validation: reviewed against the L12/L13 report's exact prompt, proposal v4 and
+checklist v5; all nine fields blank. Prior review-bound files rehashed before and
+after preparation (113 distinct paths, zero mismatches). No runtime tests rerun for
+this documentation-only change. Next eligible: review the blank template against
+its named repository sources, without filling values or expanding access. The
+template contains that bounded next prompt; no automatic collector milestone.
+
+
+## Claude verifier-L12/L13 repair independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author the L12/L13 verify.mjs, REPAIR.md
+or repair receipt, nor the L11 review; same model family as the L11 review that wrote
+the implemented prompt; not blinded). Report:
+docs/THEME_INTENT_OBSERVATION_VERIFIER_L12_L13_REVIEW_2026-10-25.md; receipt:
+tracking/evidence/theme-intent-observation-verifier-l12-l13-review-2026-10-25/reviewer-receipt.json
+(93417f2a...9996). Verdict: supported at supplemental-guard scope; no Critical/High/
+Medium/Low. L12 and L13 resolved: the frozen L11 guard accepts all seven named forms,
+the successor rejects them plus 35 further loop-target and modified-constructor
+variants; 23 declaration/local-loop and keyword-constructor controls admitted. All 52
+L11 mutants and 6 controls kept; unchanged classifier v4 admitted by v4, L11 and new
+guards. Info I13 (static keyword constructor admitted; harmless static method), I14
+(L11 scanner block replaced by a strictly stronger rule), I15 (escaped unquoted
+keyword fails closed). Alias writes remain a documented limit. Checks: rehash 111/111
+(214 overlapping bindings, 108 distinct prior paths, no tracking exclusion); new
+verify.mjs no-arg exit 0, receipt bytes unchanged (041a98f7...caedb); 67 parse-only
+guard probes on v4, L11 and new guards. No mutant program, older verifier entry point,
+--record, record-baseline or classifier test run; historical 20/20 TAP read only. No
+operational access. M3 unchanged. Verifier supported; fixture classifier unchanged;
+no collector; native acceptance blocked, H unverified, full C54 partial. Next eligible
+(exact prompt in report, not executed): owner-attestation template for the collector
+prerequisites, repository text only, no values read or filled.
+
+## L12/L13 verifier-only repair — October 25, 2026
+
+Owner authorized the L11 review's exact successor prompt. New evidence directory:
+tracking/evidence/theme-intent-observation-verifier-l12-l13-2026-10-25/.
+L12 routes non-declaration for-of/for-in initializers through existing write-target
+checks. L13 requires a ConstructorDeclaration's own ConstructorKeyword token,
+including after modifiers. All L11 mutants and controls retained; unchanged v4
+classifier admitted. Executed 61 negative AST/TAP checks, 12 positive controls,
+three retained L11 and seven L12/L13 parse-only baseline reproductions. Preservation:
+214 overlapping bindings, 108 distinct prior paths, zero mismatches. Historical
+20/20 classifier TAP read only; classifier tests not rerun. No prior evidence edited.
+
+REPAIR.md contains scope, limitations and the exact next independent U02 prompt.
+Default verifier check-only preserves receipt bytes; receipt created exclusively.
+Author involved; independent review pending. Next eligible: separate uninvolved
+review of these exact bytes, no automatic implementation. Guard remains supplemental;
+alias analysis is a documented limit. No operational access, collector, adapter,
+launch or activation. M3 unchanged; N1-N4 and L1/L4 remain later scope. Native
+acceptance blocked, H unverified, full C54 partial.
+
+
+## Claude verifier-L11 repair independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author the L11 verify.mjs, REPAIR.md or
+repair receipt; same model family as the v4 review that wrote the implemented prompt;
+not blinded). Report: docs/THEME_INTENT_OBSERVATION_VERIFIER_L11_REVIEW_2026-10-25.md;
+receipt: tracking/evidence/theme-intent-observation-verifier-l11-review-2026-10-25/reviewer-receipt.json
+(c4f53087...4d2e). Verdict: partial, two Low, no Critical/High/Medium. Both L11 rules
+hold for every named and listed form; all 26 v4 mutants and v4 checks kept (guard diff
+removes nothing); unchanged classifier v4 admitted. Low L12: for-of/for-in targets
+rooted in allowed intrinsics accepted (`for (Number.isSafeInteger of [() => true]);`,
+valid JS). Low L13: quoted constructor after static/async accepted (harmless or
+unloadable). Alias writes are a documented limit; source uses none of these.
+Checks: rehash 106/106 (204 overlapping bindings, 103 distinct prior paths; no
+tracking exclusion occurred; v3/v4 mutex scripts are distinct paths with identical
+bytes); new verify.mjs no-arg exit 0, receipt bytes unchanged (fb068553...8e2b); 151
+parse-only guard probes on old and new guards; 7 node --check syntax files. No mutant
+program, older verifier entry point, --record, record-baseline or classifier test run;
+historical 20/20 TAP read only. No operational access. M3 unchanged. Verifier support
+partial; fixture classifier unchanged; no collector; native acceptance blocked, H
+unverified, full C54 partial. Next eligible (exact prompt in report, not executed):
+verifier-only L12/L13 successor, or Jordan accepts both as documented limits.
+
+## L11 verifier-only repair — October 25, 2026
+
+Owner authorized the exact v4 review successor prompt. Added only a new verifier,
+report and receipt under tracking/evidence/theme-intent-observation-verifier-l11-2026-10-25/.
+Classifier v4, tests, notes and prior evidence unchanged: 204 overlapping bindings,
+103 distinct prior paths, zero mismatches. Dangerous quoted property names and
+non-local-root writes are rejected; all v4 mutants retained. Executed 54 negative
+AST/TAP checks, six positive local controls and three parse-only old-guard L11
+reproductions. The unchanged classifier is admitted. Historical 20/20 TAP was read,
+not rerun. Default check-only verification preserves receipt bytes.
+
+REPAIR.md records pre-receipt implementation failures and fixes, scope, limitations
+and the exact next separate uninvolved U02 review prompt. The author is involved;
+independent support is pending. Supplemental guard is not general purity or alias
+analysis. No operational access, collector, adapter, launch or activation. M3
+unchanged; N1-N4 and L1/L4 remain later scope. Native acceptance blocked, H unverified,
+full C54 partial. No automatic next implementation.
+
+
+## Claude observation-classifier v4 / v4.4-note independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author classifier v4, tests, repair
+report, v4.4 note, verify.mjs, record-baseline.mjs, baseline probes, TAP or repair
+receipt; same model family as the v3 review that wrote the implemented prompt; not
+blinded). Report: docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V4_REVIEW_2026-10-25.md;
+receipt: tracking/evidence/theme-intent-observation-classifier-v4-review-2026-10-25/reviewer-receipt.json.
+Verdict: pass for the fixture repair scope with one Low. Fixture classifier supported;
+v4.4 note supported; no operational collector exists; native acceptance not ready/
+blocked. v3->v4 diff is exactly the requested L9 pre-scan plus loop reason. L9
+resolved and independently reproduced: U7 v3 unknown/INVALID_CLOSURE_TIMING -> v4
+blocked/LAUNCH_NOT_EXCLUDED; U1-U7/U10 and other earlier rejections block for six
+flag values; explicit launch keeps LAUNCH_DURING_SAMPLING; classifySample identical
+(58 inputs) so the availability split holds. M1-M4, L6, L8, timing, key, binding,
+count, redaction and planned Quit unchanged; no new pass in 210 v3/v4 probes; no
+inherited test changed. L10 mutants rejected. Low L11: guard still accepts a
+string-literal `{'constructor':F}` destructuring (reaches Function) and assignments
+to allowed intrinsics (Number.isSafeInteger); source clean. Info I7-I9 in report.
+Checks: rehash 101/101 (180 overlapping bindings, 92 distinct prior paths; tracking
+exclusion excluded nothing); verify.mjs check-only exit 0, repair receipt bytes
+unchanged (4e70e400...7bd0); reviewer ran v4 tests 20/20; record-baseline not run.
+No operational read, config, environment, registry, process, mutex/event, launch,
+SQL, credentials, repairs or retired checkout. M3 preserved; N1-N4, L1/L4 later
+scope. Full C54 partial; native/H unverified. Next eligible (exact prompt in report,
+not executed): verifier-only L11 guard successor, or Jordan accepts L11 as a
+documented supplemental-guard limit.
+
+## Observation classifier v4 fixture repair — October 25, 2026
+
+Owner authorized the v3 review's bounded repair. New classifier-v4 and tests add
+sample-level LAUNCH_NOT_EXCLUDED precedence and preserve its reason in the loop.
+The v4.4 note corrects the v4.3 overstatement while retaining the sample availability
+split. Earlier source, tests, notes and evidence preserved: 180 overlapping hash
+bindings, 92 distinct prior paths, zero mismatches (historical mutable tracking
+excluded explicitly). Fixture suite executed 20/20 pass, zero fail/skip. U7 reproduced:
+v3 INVALID_CLOSURE_TIMING unknown -> v4 LAUNCH_NOT_EXCLUDED blocked. New verifier
+uses lexical free-identifier allowlisting and ComputedPropertyName rejection;
+28 negative AST/TAP self-checks pass. Static guard remains supplemental.
+
+Report and exact next review prompt:
+docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V4_REPAIR_2026-10-25.md.
+Note: docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_4_NOTE_2026-10-25.md.
+Evidence: tracking/evidence/theme-intent-observation-classifier-v4-2026-10-25/.
+Author involved, independent review pending. Next eligible: separate uninvolved U02
+review of those exact bytes; no next implementation authorized. No collector or
+operational adapter, config/OS/credential read, launch or activation. M3 unchanged;
+N1-N4 and L1/L4 later scope. Full C54 partial, native acceptance blocked, H unverified.
+
+
+## Claude observation-classifier v3 / v4.3-note independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author classifier v3, tests, repair
+report, v4.3 note, verify.mjs, baseline probes, TAP or repair receipt; same model
+family as the v2 review that wrote the implemented prompt; not blinded). Report:
+docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V3_REVIEW_2026-10-25.md; receipt:
+tracking/evidence/theme-intent-observation-classifier-v3-review-2026-10-25/reviewer-receipt.json.
+Verdict: pass for the fixture repair scope with Lows. Fixture classifier supported
+with Lows; v4.3 note supported with one Low; no operational collector exists; native
+acceptance not ready/blocked. Resolved and independently reproduced: M4 (R1-R3 v2
+pass -> v3 RESTART_AFTER_STOPPED_SAMPLE, persists through clean pairs and every early
+exit; R4 shutdown control passes), L6 (uncertain window flag blocks before
+contradiction/shape/cap/deadline), L8 (uniform query-start at_ms, closed_ms=now_ms
+within original bounds; missing/invalid closure no longer passes), L7 checks as
+specified. M1-M3/L2, planned Quit, key/admission, mapping, counts, binding, redaction
+still hold. No false pass found. Low L9: uncertain sample-level launch flag still
+downgraded to unknown by earlier rejections (new path via missing closed_ms) and
+labelled LAUNCH_DURING_SAMPLING; a v4.3 sentence overstates. Low L10: AST guard still
+bypassable without element access (computed destructuring, descriptor Function, Intl
+clock); source clean. Checks: rehash 88/88 (154 overlapping bindings, 78 distinct
+prior paths); verify.mjs check-only exit 0, receipt unchanged; reviewer ran v3 tests
+18/18; 103 pure probe windows across v1-v3; guard probes. No operational read, config,
+environment, registry, process, mutex/event, launch, SQL, credentials, repairs or
+retired checkout. M3 decision preserved; N1-N4, L1/L4 later scope. Full C54 partial;
+native/H unverified. Next eligible (exact prompt in report, not executed): pure
+classifier v4 for L9 plus v4.4 note and allowlist verifier for L10, then separate
+uninvolved review.
+
+## Observation classifier v3 restart/timing repair verified in fixtures — October 25, 2026
+
+Owner authorized the classifier-v2 review's bounded next step. New classifier-v3
+and tests preserve v1/v2, their evidence, reader v2, proposal v4, notes v4.1/v4.2,
+checklist v5 and M3. SH-01 now blocks any non-stopped result after any stopped
+sample as RESTART_AFTER_STOPPED_SAMPLE; later clean pairs cannot pass. Explicit
+launch keeps priority; object-level uncertain launch exclusion immediately blocks
+before contradiction/shape/deadline checks. Uniform query-start at_ms plus separate
+closed_ms=now_ms bounds closure within original15s/90s windows. No operational data.
+
+Report/review prompt: docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V3_REPAIR_2026-10-25.md.
+Additive note: docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_3_NOTE_2026-10-25.md.
+New code/tests: scripts/theme-intent-observation-classifier-fixture-v3.mjs and
+ tests/theme-intent-observation-classifier-fixture-v3.test.mjs. Static whitelisted
+field folding replaces computed property accesses for the stronger AST guard.
+L7 verifier rejects all computed element access, Math/crypto/Reflect/Proxy and
+import.meta; these remain supplemental guards, not an arbitrary-code purity proof.
+
+Final Windows fixture suite18/18 groups passed, zero fail/skip. Retained initial
+16/18 and second17/18: inherited pending-on-restart expectation and missing closed_ms
+in one manual fixture, then a nonmatching text replacement; corrected tests only.
+Core unchanged between attempts. Baseline pure probes reproduce R1-R3 v2 passes
+and v3 incident blocks, R4 shutdown control passes both, N1 uncertain launch is now
+blocked. Evidence/check-only receipt/verifier:
+tracking/evidence/theme-intent-observation-classifier-v3-2026-10-25/.
+154 prior hash bindings including overlap,78 distinct prior paths,zero mismatches;
+16 negative AST/TAP guard self-checks passed. Formatting/whitespace passed; default
+check-only preserves receipt bytes. No saved config/OS/credential/environment/
+registry/process/object observation, launch, activation/recovery/retired checkout.
+
+Next eligible: separate uninvolved exact classifier-v3/tests/v4.3 implementation
+review using report prompt. No collector/operational adapter exists; reader N1-N4,
+classifier L1/L4 and informational collector limits remain later scope. Active-home/
+continuity/workspace/role/tool provenance/reviewed scope/operational-session grants
+still pending. Full C54 partial; native/H unverified. Author involved, not independent.
+
+
+## Claude observation-classifier v2 / v4.2-note independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author classifier v2, tests, repair
+report, v4.2 note, verify.mjs, baseline probes or repair receipt; same model family as
+the review that wrote the implemented prompt; not blinded). Report:
+docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V2_REVIEW_2026-10-25.md; receipt:
+tracking/evidence/theme-intent-observation-classifier-v2-review-2026-10-25/reviewer-receipt.json.
+Verdict: partial. Fixture classifier partial (M4 open); v4.2 note supported with
+Lows; no operational collector exists; native acceptance not ready/blocked. Resolved
+and independently reproduced: M1 launch precedence over every early return, M2
+SH-01 planned-Quit preconditions, M3 contradiction invalidates either window with
+launch priority, L2 OneDrive refusal matching home.rs check_home, L3 window
+attestation/closure and show-event disclosure, L5 in substance. Medium M4: SH-01
+passes after a restart (activity after a stopped sample, then a new pair); v1 had it
+too. Low: L6 uncertain window exclusion reported unknown on contradiction/invalid
+paths, L7 verifier AST guard bypasses (actual source clean), L8 mixed at_ms meaning.
+L1/L4 carried. Checks: rehash 76/76 receipt-bound inputs match; new verify.mjs
+check-only exit 0, receipt unchanged; reviewer ran fixture tests 15/15; pure probes;
+guard probes. No Rust rerun, operational read, config, environment, registry,
+process, mutex/event, launch, SQL, credentials, repairs or retired checkout. M3
+decision preserved; N1-N4 out of scope. Full C54 partial; native/H unverified. Next
+eligible: pure classifier v3 for M4/L6 plus v4.3 note for restart rule and L8 (exact
+prompt in report). Not executed.
+
+## Observation classifier v2 fixture repairs verified — October 25, 2026
+
+Owner authorized bounded M1-M3 repair after Claude's partial review. New module/tests:
+scripts/theme-intent-observation-classifier-fixture-v2.mjs and
+ tests/theme-intent-observation-classifier-fixture-v2.test.mjs. Explicit launch
+pre-scans every supplied sample and window before any rejection; SH-01 requires
+recorded running/planned Quit and exact quit_request_ms=start_ms; pg_ctl0 with
+postgres_processes0 invalidates the whole window. OneDrive-prefixed components
+refused. Window-level no-attempt and final handles-closed attestations required.
+All inputs remain injected fixtures, not observed OS state or authority.
+
+New report/review prompt: docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V2_REPAIR_2026-10-25.md.
+New additive v4.2 note: docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_2_NOTE_2026-10-25.md.
+Covers planned shutdown, contradiction, final-handle completion timing and show-event
+lifetime effect. Original15s/90s bounds unchanged; no collector exists. Frozen v1/
+tests/report/v4.1/reader v2/proposal v4/checklist v5/M3/prior evidence unchanged.
+
+Windows pure fixture suite15/15 groups passed first run, zero fail/skip. Separate
+pure baseline probes reproduced all3 old defects and new corrected outcomes.
+Evidence/TAP/probes/check-only receipt/verifier:
+tracking/evidence/theme-intent-observation-classifier-v2-2026-10-25/.
+84 prior frozen hash bindings matched, zero mismatches. Anchored exact TAP totals,
+AST import/dependency guard and7 negative guard self-checks passed; guards are
+supplemental, not proof of arbitrary JavaScript purity. Formatting/whitespace passed.
+Check-only receipt bytes preserved. No config/credentials/OS observation/launch,
+activation/recovery/retired checkout; full C54 partial, native/H unverified.
+
+Next eligible: separate uninvolved exact classifier-v2/tests/v4.2 implementation
+review using report prompt. L1/L4 remain future collector, reader N1-N4 future
+adapter. Active home/continuity/workspace/current role/tool provenance, reviewed
+scope and concrete operational/session grants remain pending. No next milestone
+execution; author involved in implementation, not independent support.
+
+
+## Claude observation-classifier / v4.1-note independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author the classifier, tests, report,
+v4.1 note, verify.mjs or implementation receipt; same model family as the review
+that wrote the implemented prompt; not blinded). Report:
+docs/THEME_INTENT_OBSERVATION_CLASSIFIER_REVIEW_2026-10-25.md; receipt:
+tracking/evidence/theme-intent-observation-classifier-review-2026-10-25/reviewer-receipt.json.
+Verdict: partial. Classification core partial; v4.1 note supported with Lows;
+no operational collector exists; native acceptance not ready/blocked. Supported:
+key admission and native join (vectors recomputed, match Rust-executed values),
+open/Run mapping, strict counts/attestations, spacing/binding/stale/deadline/caps,
+redaction, purity. No PR-01 false pass found. Medium: M1 launch incident downgraded
+to unknown (unavailable/overrun/spacing/cap paths) or to prelaunch-activity block;
+M2 SH-01 passes without recorded running state/planned Quit; M3 contradictory SH-01
+sample (pg_ctl 0, zero postgres processes) then stopped pair passes. Low: L1 map
+results unconnected to samples, L2 OneDrive-component homes admitted though native
+refuses, L3 N6 note lacks post-final-sample attestation and show-event effect, L4
+gates folded into one boolean, L5 weak verifier guards. N5 resolved. Checks: rehash
+16/16 receipt-bound inputs match; new verify.mjs check-only (76 bindings, 0
+mismatches); fixture tests 10/10 run by reviewer; pure probes; string-only key
+recomputation. No Rust rerun, operational read, studio.json, registry, process,
+mutex/event, launch, SQL, credentials, repairs or retired checkout. M3 decision
+preserved; N1-N4 out of scope. Full C54 partial; native/H unverified. Next eligible:
+pure classifier v2 for M1-M3 and L2 plus a v4.2 note (exact prompt in report). Not
+executed.
+
+## PR-01/SH-01 pure fixture classification core implemented — October 25, 2026
+
+Owner explicitly authorized the review's bounded next step. New pure module:
+scripts/theme-intent-observation-classifier-fixture.mjs; tests:
+tests/theme-intent-observation-classifier-fixture.test.mjs. Implements attested
+exact LOCALAPPDATA admission/join/key derivation, bound-key open result mapping,
+type-agnostic Run existence, complete stopped-sample classification, PR-01 15s and
+SH-01 90s two-sample rules, unavailable/incident handling and fixed-field redaction.
+Inputs are injected fixture observations/attestations/times, not measured OS data.
+No collector, OS/file/network/environment/clock calls or operational entry point.
+
+Report + independent-review prompt: docs/THEME_INTENT_OBSERVATION_CLASSIFIER_2026-10-25.md.
+New v4.1 note: docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_1_NOTE_2026-10-25.md.
+N6 open-only handles can briefly suppress a concurrent launch; no launch attempt
+during whole sampling window, uncertainty/attempt is incident. N5 actual trailing-
+separator branch is exercised. N1-N4 reader-side changes remain in future adapter
+scope. Frozen reader v2/tests/proposal v4/checklist v5/M3/prior receipts unchanged.
+
+Windows pure tests10/10 groups passed first run, zero skips. Evidence/TAP and
+new check-only verifier/receipt:
+tracking/evidence/theme-intent-observation-classifier-2026-10-25/.
+76 prior frozen hash bindings matched, zero mismatches; source-only pure-dependency
+guard and changed-file formatting/whitespace checks passed. Check-only preserves
+receipt bytes. No previous reader suite rerun because no reader behavior changed.
+No saved config/credentials/OS observation/launch/activation/recovery/retired checkout.
+
+Next eligible: separate uninvolved exact classifier/tests/v4.1-note implementation
+review using report's prompt. No operational adapter/PR-01/SH-01 collector exists;
+active-home/continuity/workspace/current role/tool provenance/reviewed scope and
+operational/session grants remain pending. Full C54 partial, native/H unverified.
+Author implemented these bytes and cannot give independent support.
+
+
+## Claude reader-v2 / proposal-v4 independent review — October 25, 2026
+
+Separate-session Claude U02 review (did not author reader v2, tests, repair report,
+proposal v4 or the repair verifier/receipt; receipt records author involvement;
+same model family as the v5 reviewer; not blinded). Report:
+docs/THEME_INTENT_CONFIG_READER_V2_AND_PROPOSAL_V4_REVIEW_2026-10-25.md; receipt:
+tracking/evidence/theme-intent-config-reader-v2-review-2026-10-25/reviewer-receipt.json.
+Verdict: pass for the fixture-only repair milestone, Low findings only. F1 resolved
+(Windows hard links refused; mutation probe shows nlink guards are operative and
+layered). F2 resolved (both v4 vectors confirmed with actual Rust PathBuf::join on
+Windows; forward-slash LOCALAPPDATA gives b552bb84, double trailing backslash
+681853bc, both outside v4's admitted spelling). F3-F7 resolved as specified;
+symlink/junction tags caught by the attribute query alone, other reparse tags
+untested. Open Lows: N1 BOM accepted (v1 regression; serde_json rejects), N2
+PowerShell stdin encoding unpinned, N3 SystemRoot-derived PowerShell path, N4 pg_bin
+device names, N5 tautological key test/no join emulation, N6 open mutex handle can
+make a concurrent launch exit as second instance. Checks: rehash 0 mismatches;
+repair verify.mjs check-only (72 bindings, 0 mismatches, receipt unchanged); Windows
+fixture tests 12/12; reviewer probes; serde_json 1.0.154 parity build. SystemRoot
+probe inconclusive (Node aborts). No operational read, studio.json, registry,
+process, mutex/event, launch, SQL, credentials or retired checkout. Adapter and
+PR-01/SH-01 do not exist; native acceptance blocked. M3 preserved. Full C54 partial;
+native/H unverified. Next eligible: fixture-only pure PR-01/SH-01 classification core
+plus proposal v4.1 N6 note (exact prompt in report). Not executed.
+
+## Config reader v2 and proposal v4 repairs verified in fixtures — October 24, 2026
+
+Owner authorized assessment and eligible fixes after separate Claude v5 review.
+New files preserve reader v1/tests/checklist v5/proposal v3 and prior receipts.
+Report/review prompt: docs/THEME_INTENT_CONFIG_READER_V2_REPAIR_2026-10-24.md.
+New code/tests: scripts/theme-intent-config-reader-fixture-v2.mjs and
+ tests/theme-intent-config-reader-fixture-v2.test.mjs. F1 fixed with nlink1 across
+pre/open/post/final stats for config and marker; BigInt identity/time comparisons;
+Windows ReparsePoint attribute query on fixture ancestry, fail closed. F4 strict
+printable-ASCII pg_bin path components. F3 native-accepted hash provenance required;
+not a complete serde-parity parser. F5 metadata guard tests added; hostile same-user
+namespace race prevention and all-tag executed coverage not claimed.
+
+Proposal v4 folds S1-S4 into body/table, binds exact attested LOCALAPPDATA spelling
+for desktop key (unattested=unavailable), includes slash/backslash test vectors and
+all named startup paths. Event vs mutex and open-only contracts preserved. No M3
+change. Operational adapter/PR-01/SH-01 still absent; no saved configuration read.
+Windows12/12 final fixture tests passed with actual hard links, junction and file/
+marker symlinks. Initial8/11 (sandbox link EPERM + marker test typo), unrestricted
+10/11, final12/12 retained in evidence. Only test marker typo repaired after first
+attempt; no acceptance criterion weakened. New repair verifier passed72 prior
+frozen hash bindings, zero mismatches; check-only default. Evidence:
+tracking/evidence/theme-intent-config-reader-v2-2026-10-24/.
+Formatting/whitespace checks passed. Full C54 partial, native/H unverified.
+Next eligible: separate uninvolved exact reader-v2/tests/proposal-v4 review using
+report's embedded prompt. Do not execute operational reads/OS observations, native
+launch/session, activation, recovery or retired checkout access. Concrete adapter
+scope/read grant, active home/continuity/workspace/current role/tool provenance
+remain pending. Author involved in repair; no independent support claimed.
+
+
+## Claude config-reader / v5 / proposal-v3 independent review — October 24, 2026
+
+Separate-session Claude U02 review (did not write the reader, tests, v5, proposal v3
+or M3 decision; Codex did; exact-v3/v4 reviews were other Claude threads; not
+blinded). Report: docs/THEME_INTENT_CONFIG_READER_AND_PLAN_V5_REVIEW_2026-10-24.md;
+receipt: tracking/evidence/theme-intent-config-reader-v5-review-2026-10-24/reviewer-receipt.json.
+Verdict: partial, changes required. Reader projection/redaction/mismatch/size and
+symlink guards supported; F1 (Medium) hard link to a file outside the fixture root
+is read and labelled fixture:true (no nlink check). F2 (Medium) desktop mutex/event
+key input string unbound (plan's forward-slash studio_home gives a different key
+than PathBuf::join, so wrong-key "absent" = false stopped). S1/S3/S4 supported;
+S2 event-vs-mutex correct; L-A/L-D/L-F/L-G resolved; M3 preserved. Lows F3-F7:
+native-parse divergence, pg_bin charset, untested change guards, proposal v3 body
+contradicts S1-S4 addendum, launch-path list incomplete. Checks: v5 verify.mjs
+check-only (36 inputs, 0 mismatches, receipt unchanged; no --record); reader tests
+6/6 on exact copied bytes in scratch on Linux (junction case is a symlink there);
+16 disposable reviewer probes. No operational read, studio.json, registry/process/
+mutex, launch, SQL, credentials or retired checkout. Operational adapter and
+PR-01/SH-01 do not exist; native acceptance not executed. Full C54 partial.
+Next eligible: new-file reader v2 (nlink/reparse/pg_bin fixes + tests on Windows)
+and proposal v4 (fold S1-S4, bind exact key input) with check-only receipt, then a
+separate uninvolved review. No operational execution.
+
+
+## V4 findings repaired; field-limited fixture reader prepared — October 24, 2026
+
+Owner authorized assessment/fixes and selected “Prepare a field-limited reader
+for separate review”; no operational config read granted. Report/scope:
+docs/THEME_INTENT_CONFIG_READER_PREPARATION_2026-10-24.md. New checklist v5 and
+observation proposal v3 incorporate S1-S4/L-A..L-G while preserving frozen history.
+Actual source correction: desktop Show object is an event (OpenEventW), not mutex;
+no object observation implemented. Active-home attestation names CREATOR_STUDIO_HOME
+and LOCALAPPDATA; reviewed manifest is allowlist source; registry semantics explicit.
+A0 historical assertion is not refreshed by PR-01; no closing either window.
+
+scripts/theme-intent-config-reader-fixture.mjs is a fixture-only library, direct CLI
+refuses. Projects mode/port/pg_bin/hash-equality only; mismatch has no fields;
+redacted errors, bounded bytes and observed ancestry/file-change guards. No live
+adapter or PR-01/SH-01 inspector exists. Workspace/role/continuity/tool identity
+and concrete operational grant remain pending. Same-user hostile namespace races
+not claimed protected; operational adapter needs separate exact review/scope.
+
+Tests: initial sandbox5/6, junction setup EPERM; authorized isolated Windows rerun
+and final run6/6 including junction refusal. TAP at tracking/evidence/theme-intent-config-reader-2026-10-24/tests-final.tap.
+V5 receipt/check-only verifier at tracking/evidence/theme-intent-acceptance-plan-v5-2026-10-24/;
+36 direct v4-review inputs preserved, zero mismatches; excluded mutable tracking
+paths and recorded pre-update hashes listed. Earlier v4 verifier separately checks
+807 bindings. New source/docs formatted; whitespace checks passed. No operational
+read/credentials/launch/activation/recovery/retired checkout. Full C54 partial.
+Next eligible: separate uninvolved exact reader/tests/v5/proposal-v3 review using
+embedded preparation-report prompt; no further document-only review required as a
+separate step from that combined implementation review. Then separately scope an
+operational adapter; no execution now. Author involved, not independent support.
+
+
+## Claude exact-v4/proposal-v2 independent review — October 24, 2026
+
+Separate-session Claude review (did not prepare v4, proposal v2 or the M3 decision;
+another Claude thread wrote the exact-v3 review; not blinded). Report:
+docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V4_REVIEW_2026-10-24.md; receipt:
+tracking/evidence/theme-intent-acceptance-v4-review-2026-10-24/reviewer-receipt.json.
+Verdict: planned observations supported (design); M3 exact-bundle configuration
+decision faithfully implemented (studio.mjs 9d5ddac3 scheduler fixed off, worker on;
+fresh installed match pending); PR-01/SH-01 contract partial; no inspector exists;
+operational/native execution not executable. Findings: M-A active home can be
+overridden by CREATOR_STUDIO_HOME (main.rs:155-164), name it in the attestation;
+lows L-A..L-G (desktop Local\CreatorAgentStudio-<key16> mutex omitted, open-only
+mutex and type-agnostic Run-value checks, allowlist source = bundle manifest
+5b38b43e, window-close instruction, receipt exclusion list, v4 line 208).
+Port/pg_bin pending; reliable values need Jordan's own reading of studio.json or a
+separately selected field-limited reader scope. Checks: 636/636 v4 inputs rehashed;
+v4 verify.mjs run check-only (807 bindings, 0 mismatches), receipt unchanged; no
+--record, no older verifier. No launch, SQL, credentials, studio.json, registry/
+process/port/mutex inspection, activation or retired checkout access. Full C54
+partial. Next eligible: Jordan supplies nonsecret scope values (or selects a
+field-limited reader scope); then bounded fixture-only PR-01/SH-01 inspector folding
+S1-S4; then separate uninvolved implementation review. No operational execution.
+
+## Exact-v4 independent review packet ready — October 24, 2026
+
+Owner requested next step. Current author prepared v4/proposal v2 and cannot supply
+independent support. Prepared self-contained fresh-Claude review prompt:
+docs/THEME_INTENT_ACCEPTANCE_V4_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md.
+No reviewer dispatched or independent review completed in this turn. V4 check-only
+verification passed 807 prior bindings, zero mismatches, without changing receipts.
+Packet carries accepted M3 decision and asks distinct design/implementation/scope
+verdicts; no repeated M3 owner choice. Operational bindings/continuity/workspace/
+current role and concrete session scope remain pending. No operational read,
+launch, implementation, activation or retired checkout access. Full C54 partial.
+Next eligible: run the prepared prompt in a separate uninvolved Claude session;
+bring back its exact report/receipt before repairs or inspector implementation.
+
+
+## Claude v3 findings reconciled; v4/proposal v2 prepared — October 24, 2026
+
+Owner authorized assessment/eligible fixes and explicitly selected exact-bundle
+configuration evidence for this narrow UI-only session. Decision:
+docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md
+(THEME-ACCEPTANCE-M3-2026-10-24). Not live observation, continuous prevention or
+zero dispatch; worker remains on. No inspection/launch/session authority follows.
+
+Prepared docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V4_2026-10-24.md and
+THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V2_2026-10-24.md. Folded historical
+installation reconciliation into body; explicit running-only planned Quit,
+accidental-close/startup incident, versioned v2-v4 leases and V3/V4 mutex bounds,
+launch-at-login single-value presence read and separately scoped later SH-01
+re-observation. Binding sources named with no config/credential-read fallback.
+M4 nuance: installation-plan.json does name intended studio_home; current active
+home still needs confirmation. Database port/pg_bin/tool identity remain pending.
+L4 nuance: control close hides while running, Quits otherwise; studio close follows
+saved preference. No source/runtime/helper/package changes or operational reads.
+
+Evidence: tracking/evidence/theme-intent-acceptance-plan-v4-2026-10-24/.
+Check-only verifier defaults to no writes; --record uses exclusive creation.
+807 prior hash bindings passed, zero mismatches; mutable pre-update tracking hashes
+explicitly excluded. New Markdown formatted, all NI identifiers/stale wording
+checked. Frozen v2/v3/proposals/reviews preserved. No inspector implemented or run;
+full C54 partial, R/N/H unverified. Author involved in revisions, not independent.
+Next eligible: separate uninvolved exact-v4/proposal-v2/decision review; concrete
+port/tool/active-home bindings and workspace/current role/continuity/session scope
+remain necessary before operational execution. No automatic milestone advance.
+
+
+## Exact checklist v3 and observation proposal independently reviewed; execution blocked — October 24, 2026
+
+Separate Claude project-thread review (did not prepare v3, the proposal, v2, the
+exact-v2 review, helper or package; other Claude threads wrote the v1 review and
+helper reviews; not blinded). Verdict: partial support, blocked for execution.
+Report: docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V3_REVIEW_2026-10-24.md.
+Receipt: tracking/evidence/theme-intent-acceptance-v3-review-2026-10-24/reviewer-receipt.json.
+Rehashed 204 v3, 200 v2-review, 183 readiness, 145 helper, 32 v4-artifact,
+424 package-artifact and 265 candidate-source bindings: 0 mismatches. v3 verify.mjs
+not run (it rewrites its receipt). M2 correction supported: NI-04/final Quit record
+stopping/exit honestly and require SH-01. Not executable: v3, PR-01/SH-01 inspector
+contract, native session. B1: M1 retained; no reviewed authorized prelaunch path.
+M3: the rule cannot be met by prelaunch observation. The reviewed bundle studio.mjs
+9d5ddac3 fixes the scheduler off for those bytes; whether that suffices is Jordan's
+decision, otherwise a startup-admission candidate is needed. Worker stays on either
+way. M4: no reviewed source for home/port/pg_ctl/lease bindings (studio.json barred).
+M5: launch-at-login Run value outside PR-01/R. L1–L6 minor. No operational access,
+launch, credentials, helpers, writes, activation or retired checkout. Full C54
+partial. Next eligible: Jordan's M1 standard decision, then checklist v4/proposal v2
+resolving M4, M5 and L1–L6, then a separate exact review. No inspection or session.
+
+## Checklist v3 and bounded observation proposal prepared — October 24, 2026
+
+User authorized the next planning step after exact-v2 review. Full derived v3:
+docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V3_2026-10-24.md. Companion contract:
+docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_2026-10-24.md.
+NI-04/final Quit now require separately scoped SH-01 shutdown observations;
+visible stopping/exit does not establish shutdown. Historical installation and
+schema29 prerequisites reconciled without repeating preparation/install.
+PR-01 proposes exact-path identity/continuity/stopped-host reads; SH-01 proposes
+bounded post-Quit polling. Neither is implemented/reviewed/operationally executed.
+Source-derived scheduler default remains configuration evidence only. Unknown
+live scheduling still blocks acceptance; candidate-changing startup admission is
+an unaccepted design option, not an activated mode or granted implementation.
+
+Evidence: tracking/evidence/theme-intent-acceptance-plan-v3-2026-10-24/revision-receipt.json
+and verify.mjs. Verified all 200 prior exact-review input hashes unchanged, frozen
+v2 hash, all NI identifiers and removal of NI-04's stopped-control expectation.
+Changed planning Markdown formatted; no runtime tests needed for documentation.
+Author now prepared v3/proposal and cannot independently support them. Existing
+workspace/current owner-editor, continuity and separate bounded session decisions
+remain pending. No operational/credential access, launch, helper, writes to saved
+studio, activation, recovery, cleanup or retired checkout access. Full C54 partial.
+Next eligible: separate uninvolved exact-v3/proposal review using its embedded
+review prompt. No operational inspection or native acceptance execution yet.
+
+
+## Exact checklist v2 independently reviewed; execution blocked — October 24, 2026
+
+User-requested separate review completed with no prior implementation involvement
+in the available conversation. Verdict: partial checklist support, blocked for
+execution. Report: docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V2_REVIEW_2026-10-24.md.
+Receipt/verifier: tracking/evidence/theme-intent-acceptance-v2-review-2026-10-24/.
+Repository-only verifier passed 365 hash bindings, zero mismatches; 145 helper
+bindings, 16 run-01 receipts, 114 preserved business hashes, schema29 and ordered
+migration/observation. Historical receipts only; no fresh operational observation.
+Actual installation supersedes frozen v2 pending helper/install prerequisites.
+
+M1: live scheduling and continuity still block launch; source off-default and
+cleared child environment do not establish live observation. M2: NI-04 expects a
+visible stopped control state, but Quit sets stopping then exits, including after
+a logged cluster-stop error. Closure cannot prove shutdown; prepare a versioned
+correction and separately scoped reviewed shutdown observation before relaunch.
+All NI cases not-run. Existing workspace/current owner-editor and bounded session
+decision remain pending. A v1–2/B v1 retain by default; R separate; H Jordan only.
+No launch/sign-in, operational/credential access, helper execution, acceptance
+writes, activation, recovery, cleanup or retired checkout access. Frozen artifacts
+preserved. Full C54 partial. Next eligible: versioned M2 correction and bounded
+prelaunch scheduling/continuity inspection/control proposal, then independent
+review; no native session execution or automatic next milestone.
+
+
+## Native acceptance readiness assessed; session remains blocked — October 24, 2026
+
+Bounded repository-only reconciliation completed. No newer independent exact-v2
+checklist review found in docs/tracking filename inventory and text search; original
+review covers v1, revision is not independent, and supported v4 review covers helper
+bytes only. No reviewer dispatched. Frozen checklist/helper/package/history preserved.
+Actual schema29 installation and pre-UI receipts supersede v2's pending helper,
+backup/install/migrate prerequisites; no repeat preparation/install is indicated.
+Repository evidence check: 182 hash bindings, zero mismatches; 145 exact helper
+bindings; 16 run-01 JSON receipts read; all114 business hashes preserved; migration
+precedes observation. These are historical receipts, not fresh operational checks.
+
+Readiness and proposed session scope:
+docs/THEME_INTENT_ACCEPTANCE_READINESS_2026-10-24.md.
+Evidence/reproducible repository-only check:
+tracking/evidence/theme-intent-acceptance-readiness-2026-10-24/assessment-receipt.json
+and assess.mjs. Native acceptance remains blocked by independent exact-v2 review,
+unknown live scheduling state, named existing workspace/current owner-editor role,
+continuity through first launch and a separate bounded session authorization.
+Source defaults do not prove live scheduler state; worker starts on launch. UI-only
+scope cannot establish raw hashes, post-UI database equality or exhaustive zero
+dispatch. A v1–2/B v1 synthetic scope retains records by default; registry/shortcuts
+need separate read-only scope; /NS skips creation; Jordan H remains separate.
+
+No operational/credential access, launch/sign-in, acceptance writes, helper execution,
+provider/workflow activation, recovery/stale release, cleanup or retired checkout
+access. R/N/H remain unverified; full C54 partial. Next eligible: use
+ docs/THEME_INTENT_ACCEPTANCE_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md in a separate
+review session. Resolve scheduling/continuity gates before requesting native session
+execution. No automatic next milestone or authority granted by this assessment.
+
+## Exact theme-intent installed and schema29 preserved before UI — October 24, 2026
+
+Owner authorized next step after operational before completion. New exact /4 owner
+install decision binds frozen candidate7100a039...8bc /plan27f79525...7a1, prepared
+5bb69e60...ddf0d2 and reviewed145runtime map. Fresh admission passed with unchanged
+schema28/predecessor/state/backups. Real NSIS3af2712c...6d834b ran /S /NS, exit0,
+no timeout, completed2026-10-24T12:34:45.802Z (08:34:45EDT). Exact candidate migrate
+applied[29] from28to29 and created its own verified schema28 migration snapshot.
+Reviewed after passed before any desktop/UI launch: schema29 observed
+2026-10-24T12:34:49.022Z; all114business table hashes, prior migrations, protected
+files/config/products preserved. Parent rechecked full receipt/admission/installer/
+migration chain and migration dump hash; exact installed native510b09...88ca9,
+manifest5b38b4...eba6 and71runtime resources verified.
+Operational cluster stopped normally. Host check pg_ctl status3, no configured-port
+listener, no lease, desktop or runtime worker. No provider calls/workflow activation,
+UI/acceptance writes, recovery or retired checkout access. Code/packages/reviews
+unchanged; CurrentUser DPAPI used by reviewed wrapper only, no secret bytes logged.
+Evidence: tracking/evidence/theme-intent-installation-v4-2026-10-24/completion-receipt.json
+and shutdown-check.json; original session receipts and new owner-install-approval
+under tracking/evidence/theme-intent-operational-before-v4-2026-10-24/.
+Prior before completion remains immutable history; installed state now supersedes28.
+Keep schema28 snapshot and matching program together at private before backup;
+coordinated rollback needs separate decision, never old binaries alone over29.
+Real installation I is verified. Registry/shortcuts R, native UI N and Jordan human
+acceptance H remain unverified. /NS skips shortcut creation. No operational restore
+rehearsal claimed. Acceptance checklist v2 review/session scope still separate;
+keep desktop quit until gates resolve. Next eligible: independent exact-checklist-v2
+review alongside supported v4 helper, then scoped native acceptance decision.
+No automatic acceptance/next milestone. FullC54 remains partial.
+
+## Operational v4 before preparation completed — October 24, 2026
+
+Owner authorized next step after exact-v4 independent support. Supported /4 review
+validated with all145 runtime bindings; frozen package preflight passed. New session
+operational-before-v4-20261024-01, evidence
+tracking/evidence/theme-intent-operational-before-v4-2026-10-24/.
+Reviewed PS/CLI before exited0, fixture:false, provider_calls0. Actual managed
+postgres/data schema28 observed;28migration rows and114table hashes. Dedicated
+snapshot plus post-backup preserved-state checks/quiescence passed. Private backup:
+C:/Users/jorda/AppData/Local/com.creatoragent.studio/backups/theme-intent-v4-operational-before-v4-20261024-01.
+Database dump553996bytes; matching predecessor program78files, protected4files,
+configured products tree0files. Helper verified dump list/hash and copy maps; parent
+rehashed all copies/dump and prepared/before/backup receipt links. CurrentUser DPAPI
+used only inside reviewed wrapper; no credential bytes logged/tracked. No restore
+rehearsal performed on operational snapshot; dump-list/hash verification is distinct.
+Prepared_at2026-10-24T12:31:01.322Z; prepared SHA256
+5bb69e60eaae96a503368ef2bd9f7e61c9f40546825b893de4e1d44492ddf0d2.
+Earliest backup/prepared15minute age deadline2026-10-24T12:46:00.939Z
+(08:46:00.939 America/New_York). Admission must recheck freshness/unchanged state
+and a NEW exact owner installation decision; age deadline is not admission approval.
+Host final check:pg_ctl status3, no configured-port listener, no theme-intent lease.
+Operational database and installed predecessor remain schema28; no install, migrate,
+admit, recovery, stale release, provider/workflow activation or retired-path access.
+Completion receipt and shutdown/owner provenance retained; prior failed v3 attempt
+unchanged. Helper/plan/packages/reviews untouched. Native NSIS/registry/shortcuts/UI
+and human acceptance remain unverified; acceptance checklist v2 review separate.
+Next eligible: new exact installation/migration owner decision, fresh admission and
+only then authorized install/migrate/after before any UI launch. If stale or state
+changed, new before session/directories required. No automatic next milestone.
+FullC54 remains partial.
+
+## Bounded disk cleanup — October 24, 2026
+
+Owner-authorized cleanup only; no milestone advanced. Removed 36.34 GiB of file
+bytes (C: free 12.35 GB to 50.00 GB right after; the concurrent v4 review run then
+grew): superseded TEST_ONLY v2 (7) and v3 (2) helper fixture roots, three finished
+v2/v3 reviewer probe roots, and cargo intermediates target/{debug,release}/
+{deps,build,.fingerprint} plus debug/incremental. Explicit list, lstat walk,
+containment and top-level reparse refusal; each root's alias-home junction was
+unlinked, not traversed; no process referenced any target. Preserved all v4 roots
+(review run on 55455 active), frozen candidate/predecessor artifacts (setup.exe
+hashes re-verified against the installation plan), rollback copies, approved
+installers, target final exe/pdb/bundle/nsis/studio, .creator, tracking/evidence and
+uncommitted work. Historical v2/v3 record-repair.mjs can no longer re-run (newest
+fixture root gone); receipts and their tracked artifact hashes are unaffected.
+Remaining: .verification about 18 GiB (includes the live v4 review run), target
+0.29 GiB. Manifest: tracking/evidence/disk-cleanup-2026-10-24/MANIFEST.md,
+cleanup.mjs and dry-run/execute results. Next desktop build recompiles from scratch.
+Next eligible task is unchanged: the in-progress independent exact-v4 helper review.
+
+## Development artifact retention mechanism — October 24, 2026
+
+Owner authorized bounded retention for synthetic development test artifacts.
+New scripts/dev-artifact-retention.mjs: opt-in createOwnedRun() writes a
+.creator-dev-run.json marker (owner, host/pid, active/passed/failed, heartbeat,
+optional protection) before anything else; cleanup CLI is dry-run unless --apply.
+Only direct children with a valid marker naming that exact directory are
+candidates. Kept: unmarked/foreign/copied-marker dirs, links/junctions, live or
+recent active runs, protected runs, runs named in tracking/ or docs/, the latest
+passed (1) and failed (2) per prefix, passed <24h and failed <14d. Abandoned
+active runs follow failure retention. Root safety refuses drive/home/temp/checkout
+roots, link roots and APPDATA/LOCALAPPDATA/PROGRAMDATA/Program Files. Apply holds
+an exclusive lock, re-validates, renames to a tombstone, re-validates and refuses
+any run containing a link. Checks: node --test tests/dev-artifact-retention.test.mjs
+8/8 pass (disposable temp roots); real .verification dry run: 94 entries, 0
+candidates (61 unmarked dirs, 33 files). Frozen v2/v3/v4 tests and runners were not
+edited, so their existing and future directories stay unmarked and untouched;
+nothing was deleted. Usage: docs/DEV_ARTIFACT_RETENTION.md. No product milestone,
+operational data, credentials or installed app touched.
+
+## Installed acceptance checklist v2 revised; execution remains blocked — October 24, 2026
+
+Owner authorized document-only revision following Claude's blocked checklist review.
+New docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V2_2026-10-24.md preserves the original
+plan and review. Incorporates A0–A13: exact candidate/plan/proposed-v4 map and review
+binding; successful after/cluster-stop evidence before first launch with actual
+v4 at/state.observed_at fields and operator timeline; control-window GUI-migration
+stop; native sign-in/Quit; workspace/role/mutation scope; two-draft visible ledger;
+clean-save version/activity check; pending-target semantics; retention by default.
+UI-only observation chosen. Raw content hashes, whole-database equality after UI
+activity and exhaustive zero dispatch are explicitly unverified. Plan declarations
+are wiring, not measured dispatch. Worker startup/bookkeeping are explicit; no
+worker-off control or live scheduler-off UI invented. Unknown runtime scheduling
+blocks execution; stronger prevention/accounting proof needs a separate reviewed
+inspection/control task. Real install, registry/shortcuts, native UI and Jordan's
+human acceptance have separate I/R/N/H classes; historical fixtures are F.
+All cases not-run. No operational data/credentials, helper, installer, app, provider,
+workflow or retired path accessed/run. Only documentation/tracking/new planning
+evidence changed. Original plan/report/receipt hashes preserved; all168 v4 repair
+artifacts unchanged. Markdown formatting and case coverage checks pass. Evidence:
+tracking/evidence/theme-intent-acceptance-plan-v2-2026-10-24/revision-receipt.json.
+Next: independent exact-v2 checklist review alongside resulting reviewed helper
+identity. V4 helper review remains a separate gate; operational preparation, install/
+migration and native acceptance still require their recorded gates and authority.
+No automatic next milestone. No fresh operational backup from failed v3 attempt;
+fullC54 remains partial.
+
+## Native-layout helper v4 locally verified; independent review next — October 24, 2026
+
+Owner authorized the next repair after operational v3 before failed. V4 preserves
+v3 and frozen package/plan. Shared PGDATA is desktop-native postgres/data in normal
+managed control, postmaster ownership inspection, stale data_dir binding/release
+and coordinated recovery. Nested directory/no-links/PG_VERSION18 checks now precede
+DPAPI. No flat fallback or data relocation. Versioned /4 authority/review/lease
+contracts require a fresh exact independent review; v3 support does not cover v4.
+Verified source-bound run:26/26 TAP tests (25scenarios+parent), guards11/11,0skip,
+source maps unchanged. Independent fixture initdb uses nested layout; source-contract
+guard reproduces v3 failure. Real wrapper rejects missing nested PGDATA while
+synthetic DPAPI is unavailable. Before/death/stale-release, forward29 preservation
+and coordinated28 recovery pass. Static package/PS parse/format/syntax pass.
+First full run retained: two scenarios failed (23pass/3fail including parent):
+missing synthetic studio.json setup, corrected in test only; transient EPERM on
+fixture program rename during interrupted recovery. Exact-directory rename/back
+subsequently succeeded, and unchanged runtime passed complete rerun. EPERM cause
+unconfirmed, no production retry/gate relaxation; retain for independent review.
+V2's162 and v3's161 artifact hashes unchanged. Disposable55455 summary stopped.
+No operational configuration/credentials/database accessed in this repair; no NSIS,
+providers/workflows, installed app changes or retired checkout access. Failed
+v3 operational before still produced no fresh backup; installed schema28 remains
+last verified status, not re-queried. FullC54partial. V3 low findings deferred.
+See docs/THEME_INTENT_UPGRADE_HELPER_V4_2026-10-24.md and
+tracking/evidence/theme-intent-upgrade-helper-v4-2026-10-24/repair-receipt.json,
+verified-{guards,e2e}-run.json/TAP and retained first-run failure evidence.
+Next U02: fresh independent exact-v4 review of layout/pre-secret/stale/recovery
+and failure evidence. Operational retry remains blocked until review support;
+new session/directories/current authority required. No automatic next milestone,
+installation/migration, recovery or release authority follows.
+
+## Operational before blocked by native-layout mismatch — October 24, 2026
+
+Owner authorized operational before preparation only. Exact frozen package preflight
+and independent /3 review passed (145 runtime bindings). Actual reviewed v3 attempt
+operational-before-20261024-01 exited 1: managed() reads postgres/PG_VERSION, while
+desktop Home::pg_data (apps/desktop/src-tauri/src/home.rs:121) uses postgres/data.
+Read-only inspection confirmed postgres/data/PG_VERSION=18; operational schema was
+not queried. Wrapper decrypted CurrentUser DPAPI before this failure; no credential
+bytes logged. No database start, snapshot, private backup, prepared receipt, install,
+migration, providers or workflows. Empty run-01 evidence directory retained; lease
+removed normally. Original reviewed v3 bytes and all historical evidence preserved.
+The synthetic fixture layout mirrored the same wrong assumption, so prior passing
+tests/review do not establish native layout compatibility. Operational preparation
+is blocked despite historical supported review. See
+tracking/evidence/theme-intent-operational-before-2026-10-24/attempt-result.json
+and owner-before-authorization.json.
+Next eligible U03: bounded versioned native-layout repair, actual-desktop-layout
+fixture coverage (including stale/recovery paths), then fresh independent exact
+review before a new operational before attempt. No install/migration authorization.
+No complete fresh backup exists from this attempt; full C54 remains partial.
+
+## Upgrade-helper v3 stale-state repair locally verified — October 23, 2026
+
+V2 independent review is partial: interrupted before had no cleanup route and
+post-migration death forced rollback. Separate v3 fixes both while preserving v1/v2
+bytes/evidence. New cleanup-only release requires current review, exact dead PID,
+lease hash/token, home/data/evidence/config/session and owner scope; needs no prepared
+backup, SQL or credentials. Matching transient PG token is required before a stop.
+Per-studio OS guard survives parent death safely, complete leases publish atomically,
+and after/reconcile can clean stale state then verify schema29 forward without
+repeating effects. Inner confirmation gates added; /NS shortcut claim corrected.
+Source-bound full run25/25 (24scenarios+parent), guards8/8,0skip. Actual early/partial
+before deaths, missing-DPAPI cleanup, wrong-hash/foreign/live-owner denial and two
+forward-verification deaths pass, alongside inherited regressions. Runtime/test
+hashes unchanged during runs; TAP digests bound. PS parse/format/static package pass.
+V2's162 artifacts unchanged; test listener55454 stopped. No operational config,
+credentials/DB, NSIS, providers, workflows or retired checkout access. FullC54 partial.
+Package/plan stay7100a039...8bc /27f79525...7a1. Native NSIS/shell/UI and large-scale
+timing remain unverified; owner must keep desktop/workers quit outside helper mutex.
+See docs/THEME_INTENT_UPGRADE_HELPER_V3_2026-10-23.md and v3 repair receipt.
+Next U02: independent exact-v3 review. No operational preparation or installation
+authority follows from local checks; fresh owner decisions remain separate.
+
+## Upgrade-helper v2 repairs locally verified; independent review pending — October 23, 2026
+
+Claude's exact-v1 review blocked operational preparation (H1/H2/M1–M5); preserve
+that verdict and all v1 bytes/receipts. Separate v2 helpers implement owned managed
+PG lifecycle, review before DPAPI including before, private backup/hash-evidence
+separation, dedicated snapshot/client, admission-only freshness, absolute installer
+resolution, bound action provenance, global locks, reconciliation and coordinated
+schema28 restore. Recovery refuses later/unknown work and requires a separate exact
+decision; it restores into a new database, retains failed state and restores matching
+program/products/protected files with explicit config relocation.
+Final20 end-to-end scenarios+parent21/21,0skip; guard tests5/5,0skip. Real PowerShell5,
+synthetic DPAPI/SCRAM PG18 and exact candidate migrate; installers are fixture copies.
+Crash/death, interrupted protected restore, aged after, concurrency, populated
+requests/grants/access/qualifications/settings preservation and negative gates pass.
+Static package preflight, PS parsing/format pass. Prior16 artifact hashes intact;
+test listener55452 stopped. No operational config/credential/DB, NSIS, provider,
+workflow, install/migration/recovery action. FullC54 partial. Exact package/plan stay
+7100a039...8bc /27f79525...7a1. Native NSIS/shell and UI acceptance remain unverified.
+See docs/THEME_INTENT_UPGRADE_HELPER_V2_2026-10-23.md and new repair receipt.
+Next U02: fresh exact-v2 independent review, then separately authorized fresh
+operational preparation and new exact installation/migration decision. No auto install.
+
+## Schema29-aware upgrade helper prepared — October 23, 2026
+
+Implemented backup/admission/install/migrate/after helpers pinned to candidate
+7100a039...8bc and plan27f79525...7a1. Static package/review/resource preflight,
+PowerShell parsing and JS formatting pass. Isolated expanded tests10/10 pass,
+0skip: full28→29 table-fingerprint preservation/checksum rejection plus synthetic
+dump/restore and negative approval/quiescence/copy gates. Initial connectivity and
+shutdown-orchestration failures retained separately. Both test listeners stopped.
+No operational config/credentials/DB access, installation, provider or workflow.
+Self-reviewed only; independent exact-helper U02 review remains required and is
+enforced before admission, followed by fresh backups/readiness and new exact owner
+installation/migration approval. No approval file created. Existing installed
+schema28 is last verified status, not re-inspected here. FullC54 partial.
+New backup format is explicitly theme-intent-upgrade-backup/1 (custom PostgreSQL
+snapshot plus product/protected/program copies), not current schema29 portable
+Restore Studio format. Full coordinated studio/DPAPI recovery not rehearsed.
+See docs/THEME_INTENT_UPGRADE_HELPER_2026-10-23.md and exact helper evidence.
+Next eligible: U02 independent helper review; no automatic install/next milestone.
+
+## Theme-intent desktop package/declarative plan supported — October 23, 2026
+
+Candidate7100a0393460066101e2b493cc1e5ed091e08921c92ccb96cfa643004b9ef8bc;
+installationplan27f7952597a4e37796f64cc978712633b9f391a1210189da61ac7d57a3dc67a1.
+LockedofflineMSVC/Tauri NSIS build/staging complete:71runtime resources,265source
+bindings. Installer3af271...d834b,packagednative510b09...88ca9 (distinct loosebinary),
+manifest5b38b4...eba6 archived under .verification/theme-intent-artifacts-2026-10-23/.
+All71extracted/staged/archive resources match. Supported stagedservice isolated
+backup-first28->29 tests2/2pass;all28prior migration SQL unchanged,11role/admission
+parity references match. Norestore/installedacceptance claim. Separatepackage review
+supported/no materialfinding;parent verified424review artifact hashes. Oldinstaller/
+archive and installed67resource predecessor unchanged before/afterbuild. No provider,
+operationalDB/credential/settings access or install;testcluster stopped. C54partial.
+See docs/THEME_INTENT_PACKAGE_2026-10-23.md and matching independentreview/evidence.
+Installation remains prospective:NEWschema29-aware executable backup/install/
+preservation helper+affectedreview required BEFORE newownerapproval. Freshoperational
+quiescence/backup/rollback/preservation hashes stillrequired;nonewbackup claimed.
+Rollbackafter29 must restore28snapshot+matchingprogram together,not oldbinaryalone.
+Nexteligible:implement/reviewthathelper andstaticpreflight,thenfreshbackup/readiness
+and exactownerinstallation/migration decision. Noautomatic install or activation.
+
+## Theme-intent guard repaired and separately supported — October 23, 2026
+
+TI-01closed on exact UI source4909dbf8...08de:ordinaryNew/Resume/Reload always guard
+dirty input;only explicitDiscard passestrue. Failed-load preservation/re-guarding
+retained; successfulsave clearsobsoletependingprompt. NoAPI/domain/schema change.
+Valid before-regression2fail/1pass;after3pass0skip;8fixturebrowser checks pass with
+APIintercepted,0mutations/DB/provider calls. Project/webtypes+formatpass. Separate
+review independently reran3actual-handler tests,inspectedbuttonwiring,verified12repair
+hashes+25unchangedoriginalbindings and reconstructedoldsource byreversing4edits.
+Parent verified17reviewartifact hashes. TI-02format corrected in supplemental
+versioned receipt;original malformedreceipt/partialreview/failureevidence preserved.
+Verificationwebserver stopped;installedapp/studio unchanged,migration29stilltest-only.
+No package/install/sourcecollection/pilot;fullC54partial. See docs/THEME_INTENT_REPAIR_2026-10-23.md
+and docs/THEME_INTENT_REPAIR_REVIEW_2026-10-23.md with exactrepair/review evidence.
+Next eligible: bounded exact candidate/package/install PREPARATION. Noautomatic
+installation/activation;compare source/role/migration bindings and preserve rollback.
+
+## Theme-intent independent review partial: input-loss repair required — October 23, 2026
+
+U02 separate model review found TI-01(P2):open() guards dirty input only when
+pending===null; after prompt appears,a second ordinary New/Resume/Reload skips
+confirmation and overwrites edits. Reviewer actual-handler probe and parent actual
+retained-browser reproduction independently confirm; prior10browser checks missed
+that sequence. Packaging/install preparation not supported until U03repair/review.
+API/domain zero-dispatch/version/workspace paths otherwise supported by inspection;
+26implementation hashes and5frozenlegacycontract artifacts checked. One freshpure
+domain test passed; priorHTTP/PG/browser evidence inspected,not freshly rerun.
+Parent verified41reviewreceipt artifact hashes. TI-02minor:original implementation
+receipt format='passed';preserve it and issue supplemental versioned metadata later.
+No production/API/DB/provider/build/install changes. Model review/not humanacceptance;
+C54partial. See docs/THEME_INTENT_REVIEW_2026-10-23.md and exactreview evidence.
+NextU03:separate ordinary guarded-open from explicit confirmed discard;regress
+repeatedNew/alternateResume/Reload while prompt open and failed-load preservation,
+then review exact changed candidate. No packaging or activation yet.
+
+## Durable theme-intent draft/preparation slice implemented — October 23, 2026
+
+New theme-intent/1 contracts+theme_intent record,migration29,deterministic domain
+research-plan preparation and active-record GET endpoint;reuses versioned entity
+API/store. Submit saves theme-only/resumes after reload without claims,connection
+or budget;optional context/solution constraints/questions/public URLs editable.
+Expected-version conflicts and failed saves retain input;explicit reload/discard,
+create idempotency and workspace/session isolation retained. Plan binds saved
+version/hash,zero requests/fetches/spend,not_authorized;no grants/claims/run dispatch.
+Existing brief/discovery/study contracts unchanged. Project/web types+formatpass;
+28relevant tests0skip plus final2theme-only HTTP/restart/rebinding checks pass.
+10browser checks against separate real API/PG inclinjected503/conflict/mobile pass.
+TestSQL0claims/runs/grants/workflows/providerrequests. Testservices stopped/data
+retained. Migration29 onlytestDB; installedapp/studio unchanged. No providers/source
+fetches/productbuild/install/pilot. See docs/THEME_INTENT_IMPLEMENTATION_2026-10-23.md.
+NextU02:exactchange review before candidate/package/install preparation. Collection
+to claims,citedcomparison and fullin-app lifecycle remain later;C54partial.
+
+## C54 readiness/gap audit completed — October 23, 2026
+
+Read-only source/evidence audit plus4offline contract probes,36sourcebindings;
+no network/provider/credentials/DB/build/install/workflow changes. Operationalroles
+3/3+substantive modelreviews remain narrow. Existing subscription worker/admission,
+source broker and artifact APIs present; not complete live/UI acceptance. Missing:
+durable theme-only draft/no-claims intake,source collection-to-claims,complete
+parent/pilot effective setup,subscription search integration/qualification,and
+in-app spec/build/package/revision actions (CLI instructions remain). OldOct20
+workflow receipt8/14sourcebindings current:historical tests not promoted. Dated
+readiness config missing-role text superseded narrowly;frozen config unchanged.
+See docs/C54_READINESS_AUDIT_2026-10-23.md and audit.json. FullC54partial.
+Next eligible: bounded durable theme-intent draft+research-plan preparation through
+contracts/domain/API/UI;save/resume without connection,budget,claims or dispatch.
+Preserve existing evidence-first/study contracts;no source/provider activation or
+install in that slice. Collection/citedcomparison then lifecycle and ownerwalkthrough
+remain later gates. No approval requested for unimplemented live work.
+
+## Six exact research outputs substantively supported — October 23, 2026
+
+Separate U02 model review supports all6outputs/18frozen criteria; no material output
+repair. Low packet issue R14-PACKET-01: event sufficiency rationale denies mechanism
+while C2describes identifier suppression; output explicitly flags contradiction and
+retains conditional transfer. Preserve frozen packet/results; prospective rationale
+correction only if reused. Parent verified37review artifact hashes and6case/18criterion
+coverage; reviewer replayed all6textSHA/char/identity/render/schema/checkOutput and
+22liveartifact hashes. Reviewer-owned optional-input verifier error repaired/replayed;
+no production/source/output edits. Review has prior familiarity,nonblinded/model-only,
+not human/customer acceptance. Historical placeholders/decisions/locks unchanged.
+No provider/API/DB/credential/network/build/install calls this milestone. Current
+operationalrole evidence3/3 now has narrow substantive reviews; fullC54stillpartial.
+See docs/DISCOVERY_RESEARCH14_OUTPUT_REVIEW_2026-10-23.md and exactreview evidence.
+Next eligible: bounded read-only C54 acceptance readiness/gap audit against §2.19
+bridge,§2.5citedresearch and Group3in-app spec/build/export/revision/ownerwalkthrough.
+No automatic workflow/pilot/live action.
+
+## Research role1.4 live suite operationally qualified — October 23, 2026
+
+Owner approval “Yes I approve that” recorded for d567...23c0 before execution.
+Oneavailability+sixresearch requests completed;0retries,2/2development+4/4held-out
+contractpasses. Qualification a2e439d2-7ff8-43c9-8d70-2b510c6a861d qualified;
+finished04:00:37Z/00:00EDT within12minute suite limit. Credits off/settings unchanged.
+Read-only SQL64requests (62completed/1historicalfailed/1reconciled),exact7newcomplete,
+newgrant usedonce,original44+baselinehashes preserved/prior13semantics stillcomplete,
+0active/unknown. GET04:01:08Z usage29/40=11studio slots,0blockers;API50is page only.
+Exact compiled filter replay admits current research/candidate/scoring:3/3
+operationalcoverage; six outputhashes checked. Research substantive review pending,
+not human acceptance/real-world validation. Full discovery/C54partial. All old/new
+locks retained;noappchanges,workflow or pilot. See live-result report/evidence.
+Next U02:separate six-output substantive review against frozen18criteria/source
+packets;no further provider calls authorized or needed for that review.
+
+## Fresh research authorization v2 prepared and reviewed — October 22, 2026
+
+New combined plan d567088498d2d0ed111c939113990997ab73cfd50f829736775697724c2223c0;
+availability df52351b7edff8c9fd5493a2f33ab9d47afc681819c2e9e3d3163fe7ad4f8477.
+Same seven-request ceiling (one availability check then six research), no retries,
+credits off/settings unchanged,120s each/12minute suite dispatch limit. Fresh
+combined/probe operation paths; original stopped plan and locks preserved and bound
+in236source/artifact hashes. Never-started research suite path/guards unchanged.
+Four standalone and four compiled tests,tsc,PSparser,static exactinstalled gates
+passed. Separate model review supported/no material findings; parent verified245
+review artifact hashes and actual approval gate. No credentials/API/DB/provider
+calls,appchanges or new locks. Readiness evidence is saved,not freshly re-observed.
+See docs/DISCOVERY_RESEARCH14_LIVE_AUTHORIZATION_V2_2026-10-22.md and matching review.
+Next: new exact owner decision before scripts/run-research14-v2-approved-live.ps1;
+record it before execution. Old approval does not cover new operation. Stop on
+first failure/unknown; no automatic workflow. Coverage2/3,C54partial.
+
+## Local research readiness restored and records reconciled — October 22, 2026
+
+App open and saved owner session valid; authenticated GET-only local API check
+succeeded at03:51:54Z Oct23/23:51EDT Oct22. Settings match,credits off,0blockers/
+active/unresolved,rolling22/40=18studio slots. Research14-v2 packet unattempted.
+Saved availability18:02:59Z Oct22 is stale; no current provider availability claim.
+Read-only SQL confirms57requests (55complete/1historicalfailed/1reconciled), prior
+44+13semantics requests/grants/access/qualifications preserved; stopped research
+attempt added0. Reconciliation receipt new_requests13 refers to historical run,
+not this inspection. API50record history is a page only. Exact installed gates
+pass; no provider calls,settings changes or retry; old operation locks preserved.
+See docs/DISCOVERY_RESEARCH14_READINESS_2026-10-22.md and readiness evidence.
+Next eligible: new bounded authorization package/review with fresh paths, then
+new exact owner decision for availability+sixresearch. Coverage2/3,C54partial.
+
+## Authorized research run stopped before provider dispatch — October 22, 2026
+
+Owner “I authorize this” recorded for combined581dd0e6...e8286 before execution.
+Actual static approval/review/install gates passed. First local auth/session read
+failed ECONNREFUSED127.0.0.1:4310; availability endpoint_attempted:false. No grant,
+provider dispatch or research suite start; zero provider requests, no retries.
+Combined/availability locks preserved; local stop reconciliation verifies absence
+of grant/dispatch/provider result/suite run-lock artifacts. No app process or4310
+listener observed. No DB/current service health claim; installed files unchanged.
+Coverage remains2/3, C54partial. See docs/DISCOVERY_RESEARCH14_LIVE_STOP_2026-10-22.md.
+Next eligible: restore/inspect local app readiness without provider calls, then
+prepare a new reviewed authorization. Never replay this plan or remove its locks.
+
+## Research live authorization prepared and separately reviewed — October 22, 2026
+
+Combined plan 581dd0e6e30b3626a80a0657a6e169d5e11b9e6361a3c2c721a04919db7e8286
+allows at most seven subscription requests: one intent-bound availability recheck,
+then six research14-v2 cases only if all unchanged admission gates pass. Probe120s;
+suite12-minute dispatch budget,120s each,zero retries,credits off,unchanged settings,
+no quota reset/fallback/automatic workflow. Exact installed candidate and reviewed
+research runner remain bound. 229 plan source bindings; 238 separate-review hashes
+verified by parent. Four standalone and four compiled tests, TypeScript build,
+PowerShell parser, static installed-file checks and actual approval gate passed.
+Separate model review supported with no unresolved material findings; not human
+acceptance or execution authorization. No credential/API/DB/provider calls, app
+changes or operation/run locks. Coverage remains 2/3; full discovery/C54 partial.
+See docs/DISCOVERY_RESEARCH14_LIVE_AUTHORIZATION_2026-10-22.md and matching review.
+Next eligible: new exact owner approval for this seven-request scope, then record
+that decision before invoking scripts/run-research14-approved-live.ps1. Prior
+approvals are consumed; failure/unknown preserves locks and stops without retry.
+
+## Research-only runner implemented and separately reviewed — October 22, 2026
+
+Exact plan a96eed07aa0372e55d7880a62b57f6c0f5726b3ea6c559617af3f9119e11469a
+binds 233 sources/artifacts, reviewed research14-v2 packet and unchanged installed
+role1.4 candidate. Six sequential locator requests, no retries, 120s per request,
+12-minute dispatch budget; persistent lock, intent-before-delivery and first-failure
+stop. Static plan/review/install gates precede credentials; live admission remains
+subject to fresh availability, credits off, unchanged settings and full capacity.
+TypeScript build, standalone and compiled entries (17/17 each), six-case/54-control
+check, PowerShell parser and actual review gate passed. Separate model review has
+no unresolved material findings; parent verified all 240 receipt-bound hashes.
+Offline checks do not establish current service health or target output fidelity.
+No provider/API/DB/credential/build/install operations or run lock; prior evidence
+preserved. Actual role coverage remains 2/3; full discovery/C54 remains partial.
+See docs/DISCOVERY_RESEARCH14_RUNNER_2026-10-22.md and matching review/evidence.
+Next eligible: prepare/review new bounded live authorization, separately scoping
+fresh availability if needed, then obtain a new exact owner decision. No inherited
+approval or automatic suite/workflow/pilot.
+
+## Research-only packet v2 supported after additive review repair — October22,2026
+
+Separate v1 review found injection confidence too narrowly exploratory despite
+no usable current-need observation;minor C2observer label inherited C1provenance.
+V1 preserved. Additive v2 goldinsufficient/accepts exploratory or insufficient;
+unsupportedwell_supported still fails. Two-observer label restricted to C1 only.
+Same6scenarios corrected before outputs,18substantive criteria unchanged.
+Separate v2review supports all6golds/18criteria with no unresolved findings.
+54controls/223sourcebindings independently verified;both injection positives and
+negative,2/1origins labels and7v1preparation hashes checked. Parent verified
+237v1+239v2receipt hashes. Currentfreeze
+c0576b32481fc2f682a71d7506ef10fe4866382d065dbeb45e68d937395142d4.
+Existing installed candidate d009.../role1.4 unchanged. Body102468,maxinput11987;
+2dev4held-out/4of4floor,6seq0retry120seach12min prospective limits retained.
+See docs/DISCOVERY_RESEARCH14_V2.md and matching V1/V2review reports/evidence.
+No provider/API/DB/credential/build/install/frozenresult changes. Installedmanifest
+bytes compared only. Actual coverage remains2of3;goldreview is not targetoutput
+or human acceptance. Next eligible:research-only bound runner/exactplan preparation
+and independent review;new applicable decision/preflight before any livecheck.
+No automatic suite/workflow/pilot. Full discovery/C54partial.
+
+## Fresh research-only role1.4 packet prepared — October22,2026
+
+New discovery-research14-v1:6synthetic locator cases,2dev/4held-out,4of4floor.
+54controls pass;18frozen substantive criteria,outputs null/not_reviewed. Covers
+copied-origin counts,conditional mechanism transfer,within-simulation corroboration
+versus correctness/benefit,adverse13vs5,injection/aggregate authority,stale-only
+insufficient need. Corroborated case allows exploratory/well_supported with fidelity
+review rather than over-specific confidence demand. Fabricated prose control
+discloses structural blindspot. Not independent thesis holdouts/customer evidence.
+Freeze8aead115a755b6581627e34900f1ef58e2a4c0e26f6daf490e50f9791eb3da67;
+existing installed candidate d009...manifest621e...role1.4 binding223sources.
+Manifest102238bytes,maxinput11980,production rendering/schema/hash checks pass.
+No app rebuild/install,provider/API/DB/credential calls or oldevidence regrade.
+Prospective suite6seq/0retries/120seach/12min/16000output;not an executableplan,
+noimplicit availability check. Eligiblecoverage remains2of3 until actualevidence.
+See docs/DISCOVERY_RESEARCH14_V1.md and packet evidence. Next U02:separate packet/
+controls/criteria review;then bound researchrunner/new exactlive decision.
+No automatic workflow/pilot;full discovery/C54partial.
+
+## Role1.4 remaining evidence audit completed — October22,2026
+
+Exact compiled discovery qualification filter replay:current candidate-generation
+andscoring qualify;older research1.3 does not.2of3classes currently covered.
+Oldresearch6outputs/2dev4held-out/model review remain historical,not relabeled.
+All6locator system texts differ only by role-version marker versus currentprompt,
+but deterministic gate intentionally requires exactcurrent binding. No gatebug
+or productionrepair found.4negative controls reject stale role/system/packet and
+missing revision;18saved outputhash/review associations verified. No DB/API test
+was run;existing DB integration test source inspected only.
+See docs/DISCOVERY_ROLE14_COVERAGE_AUDIT_2026-10-22.md and coverage audit receipt.
+No provider/workflow/search/DB/credential/install/settings or oldgrade action.
+Next eligible:prepare fresh research-only locator packet,currentrole1.4/candidate,
+2dev4held-out/4of4floor and substantive fidelity controls;then separate review
+and new exact-plan decision before any livecheck. No apprebuild needed solely
+for evidencegap. C54also needs real-workspace citedcollection/comparison and
+permitted search/effective limits/in-app build/export/revision/owner acceptance;
+rolebenchmarks alone cannot complete it. Full discovery/C54partial.
+
+## Role1.4 twelve-output substantive model review completed — October22,2026
+
+Separate reviewer supports12 exact outputs against all36 frozen substantive
+criteria,with no material findings or output repair. Independently verified12
+outputhashes/charcounts/schemas/contracts,input rendering,raw/execution-result
+correspondence and13live evidence hashes. Parent verified32review artifact hashes
+and exact12request/output/packet/localcandidate bindings plus36checkliststrings.
+Correct benefit/originality types,per-proposal cheaper tests,adverse comparisons,
+prohibited-data deferral,both revision findings and injection asymmetry retained.
+Review binds localcandidatef6cce6...,distributabled009...,manifest621e...,native
+exe6c841... and executable-plan4fb62... separately. No historical grades or old
+review placeholder changed. All12contract passes/4of4perclass remain recorded.
+See docs/DISCOVERY_SEMANTICS_V2_OUTPUT_REVIEW_2026-10-22.md and structured response/
+receipt/integration in discovery-semantics-v2-output-review-2026-10-22.
+Nonblinded model review with previous packet familiarity,not independent human
+acceptance,customer validation,causal improvement or fullC54 completion.
+No provider/network/studio/credential/DB/build/install action this review.
+Next eligible:coverage audit of remaining exact-candidate discovery evidence,
+especially older research-role qualification versus installed role1.4. No
+automatic new suite/workflow/pilot. Full discovery/C54 partial.
+
+## Role1.4 semantics live suite operationally qualified — October22,2026
+
+Owner approved exact combined1fd2ee...;oneavailability+12suite requests completed,
+0retries/failures/unknowns. All12contract accepted. Candidate generation andscoring
+each2/2dev+4/4held-out,exact saved manifests qualified. Suiteplan4fb62a...b280c;
+completed14:02:59EDT within24min. All12outputhashes verified.
+Read-only reconciliation:57saved (55completed/1historicalfailed/1reconciled);exact
+prior44requests/grants/access/qualifications preserved. Newgrant usedonce;13new
+requestIDs allcomplete. GET endpoint50entries is page cap,not savedcount. Credits
+off/settings unchanged,22rolling/18slots,0active/unknown. Alllocks preserved.
+See docs/DISCOVERY_SEMANTICS_V2_LIVE_RESULT_2026-10-22.md and runner/live-result.json.
+No workflow/search/build/pilot or further provider call. Approval consumed.
+Next eligible U02:independent exact-output substantive review of12responses and
+36frozen criteria. Structural qualification is not source entailment/human acceptance/
+customer benefit. Prior research-role evidence is older candidate,not newlyrole1.4
+verified by thissuite. Full discovery/C54 partial.
+
+## New13-request live authorization prepared/reviewed — October22,2026
+
+Concrete combined authorization hash
+1fd2ee8f8925af3e31ec7265b25c087e0b6dd021ca1c2183bf946eafc3b1af6f.
+At most1new synthetic intent-bound availability check (plan4ea9ac49aaebccf028d035efe5c14ed57bed4ad8ca9979d794f3019ffcdd5a40),
+then exact12suite4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c
+only after success/fullpreflight. No retries,credits/settings unchanged,noquotareset,
+noadditional refresh/fallback. Probe120s configured;suite24min total/120seach,
+other limits/floors unchanged. Global/probe/suite locks preserve no-replay semantics.
+Static combined approval/review/installedproof gates precede DPAPI;probe failure
+or unknown stops suite. Exact new ownerdecision required,not supplied yet.
+4offline tests/defaultentry pass;tsc/PSparser pass. Independent review supported;
+239review artifact hashes verified;actual receipt static --approval-check passes
+(no authority implied).GET-only13:53:06EDT healthy/owner valid,44requests unchanged,
+31studio slots,0active/unknown,newpacket unattempted;provider availabilitystale.
+No provider calls,probe/global/suite locks absent. See scope/review docs
+DISCOVERY_SEMANTICS_V2_LIVE_AUTHORIZATION_2026-10-22.md and matching reviewreport.
+Next:owner exact13request decision,then execute one combined operation ifapproved;
+stop first failure/unknown and preserve evidence;substantive output review later.
+Past approvals not reused;noauto workflow/pilot. Full discovery/C54 partial.
+
+## Role1.4 installed and preservation verified — October 22, 2026
+
+Owner confirmed Quit;pinned installer exit0 once;installer.lock preserved.
+Restarted installed app;all67resources/native/manifests match reviewed package.
+Schema28 and requests/grants/access/qualifications/connections/settings/config
+before-state hashes unchanged.44requests (42completed/1failed/1reconciled),
+zero active/unknown or leased/nonterminal work. Backups/72file rollback retained.
+GET-only health/session verified at13:45:31EDT:healthy,owner authenticated,
+credits off,settings unchanged,new packet unattempted.9rolling requests/31studio
+slots;old records remain44. Saved availability05:04:50Z stale,not refreshed.
+Runner actual static --execution-check passes verified installation and review
+receipts;not live preflight or owner live decision. Executable plan
+4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c.
+See docs/DISCOVERY_SEMANTICS_V2_UPGRADE_RESULT_2026-10-22.md and installed-result.
+No provider calls,suite,migration,setting change or old-grade change.
+Next eligible:prepare/request new bounded live decision for one freshavailability
+check plus exact12-suite if gates pass;no old grant/approval reuse,hidden refresh
+or automatic live action. Full discovery/C54 partial.
+
+## Local role1.4 upgrade backed up; waiting app Quit — October 22, 2026
+
+Supported createBackup snapshot/dump/products hashes verified;protected home
+config/DPAPI/plan-credential copy hashes verified;72-file program rollback verified.
+Read-only before/after backup state: schema28,44requests,zero active/unknown or
+leased/nonterminal workflows,settings/credits unchanged. Requests/grants/access/
+qualifications/connection/config hashes saved. No provider call or migration.
+Creator Agent still running PID2672;installation not started. Native controls
+unavailable;owner must fully Quit through app/tray,not merely close window.
+See docs/DISCOVERY_SEMANTICS_V2_UPGRADE_PREPARATION_2026-10-22.md and installation
+evidence. Pinned installer helper checks quit,predecessor,installer,backup/rollback
+then exclusive installer.lock. After owner Quit: install once,start app,verify67
+resources/exe/schema/records/settings plus owner health/session;then installation
+receipt. No restore rehearsal or live suite claimed/authorized. C54 partial.
+
+## Bound semantics-v2 runner implemented and reviewed — October 22, 2026
+
+Final executable plan v3
+4fb62a439113717dbca5e97399a17b4479aae6cc93ba799fd9d3e600a37b280c
+binds229sources,reviewed packet/package and exact scope.17offline tests and108
+controls pass;TypeScript build/PowerShell syntax pass. Separate review supported;
+240review artifact hashes verified;positive --review-check passed actual receipt.
+R1 wrapper secret-order gap resolved:static --execution-check validates exact home,
+installation receipt and installed resources BEFORE DPAPI. Actual wrapper negative
+and direct missing-installation test independently verify refusal. Initial finding
+and superseded plans preserved;no dispatch with them.
+New runner retains shared12seq/no-retry/24min loop,exclusive lock,unknown/stop,
+exact static review/install/hash gates and live auth/quota/credit/capacity/idle gates.
+Future installation receipt and new exact-owner live decision remain required.
+No run.lock,provider/network/studio/credential call or installation this step.
+Installed role1.3 unchanged. See docs/DISCOVERY_SEMANTICS_V2_RUNNER_2026-10-22.md
+and separate runner review report/receipt/integration.
+Next eligible:supported local upgrade with reviewed pinned installer,fully quit/idle
+app,rollback+supported backup,before/after state and installed-resource checks.
+No automatic suite,quota refresh or new spending. Full discovery/C54 partial.
+
+## Exact role1.4 package/plan review supported — October 22, 2026
+
+Separate review supports exact archived candidate and declarative bindings, no
+unresolved findings.370 immutable review artifact hashes verified at integration:
+219 source bindings,installer/native payload/manifest,all67 archived+67 extracted
+resources and exact packet/review identities. Checker108controls independently
+pass. Candidate d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf.
+Installation plan preserves schema28/no migration and before/after backup/record
+checks. Execution binding retains limits but is explicitly non-runnable. No
+installed/service or model behavior verification claimed. Parent manifest delta:
+one changed service resource,six added evaluation configs,no removals.
+See docs/DISCOVERY_SEMANTICS_V2_PACKAGE_REVIEW_2026-10-22.md and review receipt/integration.
+No source/frozen/runtime edits,installation,provider/network/studio/credential
+calls this review. Installed role1.3 unchanged. Next eligible: implement and
+independently review bound runner;then supported local upgrade with backup and
+record preservation under applicable scope. Exact final executable-plan owner
+decision/fresh preflight remain before live suite;no old approval or quota refresh
+is reused. Full discovery/C54 partial.
+
+## Role1.4 exact Windows package prepared — October 22, 2026
+
+Staged67 resources;TypeScript/UI/service build and host Tauri/NSIS build pass.
+Initial sandbox NSIS download DNS failure retained;host build completed. Exact
+installer archived and extracted;all67 payload resources match staged manifest.
+Native payload SHA distinct from loose executable recorded without substitution.
+Candidate d009f0e1364eb71c3db8be8a0ddc9a78079e91b75df90f88771fb53519c7b0cf;
+219 source/artifact hashes verified;23 targeted tests/108 controls pass.
+Prospective install/execution bindings prepared, not executed or dispatch-ready.
+Install requires quit/idle, rollback+supported backup, exact installer/hash checks
+and before/after record preservation;schema28/no migration/settings/provider calls.
+Execution binding retains12sequential/0retries/24min/credits-off/cap40/4of4 floors,
+15min availability freshness and no implicit refresh. Runner remains required.
+See docs/DISCOVERY_SEMANTICS_V2_PACKAGE_2026-10-22.md and package evidence directory.
+Old staged bundle/installer archived;installed role1.3/manifest unchanged. No live
+API/provider/credentials, installation, migration or grade change this step.
+Next U02: independent exact-package/prospective-plan review;then bound runner
+implementation/review and supported local upgrade under scoped work. No automatic
+provider test, suite or pilot. Full discovery/C54 partial.
+
+## Evaluation packet v2 separately reviewed — October 22, 2026
+
+Independent v1 review found R1 inherited cross-proposal justifications/perspectives,
+R2 no-new-trial wording ambiguity, R3 over-specific cable verdict. Preserved v1
+and findings; created additive v2 correction before any provider outputs. Each
+scoring input now cites its own justification, singleton software perspectives
+match, adverse supplied comparisons coexist with no NEW trial wording, and cable
+allows no/unclear while still rejecting unsupported yes.
+Separate v2 review supports bounded offline packet, no unresolved findings.
+108controls independently pass;12 golds and36checklist judgments reviewed.
+11 own-source reasons verified;3null/8nonnull polarity swaps rejected;7v1
+preparation hashes unchanged. Verified19v1+22v2 reviewer hashes at integration.
+Current freeze b6da3adc6061627b81036dcacee83884d6c8fe40c539368cead1f63fb139e5fa;
+local candidate f6cce6ffd9b5fa76370cd40c56e3c72c008c980f8835491b31804182516b5289.
+Same newly authored scenarios corrected, not independent new sample or thesis
+holdouts.13-binding identity is local source/compiled only, not installed release.
+See docs/DISCOVERY_SEMANTICS_V2.md, v1/v2 review reports and v2/review-integration.json.
+No runtime edits, install, provider/studio/credential calls, old grade changes or
+new live authority. Installed role1.3 unchanged. Next eligible: exact distributable
+packaging and supported installation/execution binding under scoped work; then
+new exact-plan decision/fresh preflight. No suite/quota refresh/cap change/retry
+automatically. Full discovery/C54 remains partial.
+
+## New role1.4 evaluation packet prepared offline — October 22, 2026
+
+New discovery-semantics-v1 packet:12 author-visible synthetic cases,2dev/4held-out
+per candidate-generation/scoring class;4/4 floor retained.108 controls pass,
+production input rendering and source/packet/context hashes verified. Manifest
+bodies90096/120375bytes below128KiB;max inputs12850/21051 below24000.
+Frozen per-output substantive criteria; fabricated narrative controls deliberately
+expose structural blind spot. Gold fixtures are not provider/model-review evidence.
+Freeze92635f76d187a51c3f356847f65d13d48dbdc31235feda8b31efe5841f2f5b59;
+local13-binding candidate801007c2c9a2f17768dd12a3655de39db6dc335aaf4bcdc24a76534d9663fe1e.
+This is source/compiled identity only, not an installed distributable. Installed
+role1.3 unchanged; no executable plan/live decision/provider call. Old suites,
+failures/locks and8 live artifact hashes preserved. See docs/DISCOVERY_SEMANTICS_V1.md
+and tracking/evidence/discovery-semantics-v1/.
+Next eligible U02: independent packet/controls/criteria/local-binding review.
+Then prepare exact distributable/install/execution binding as scoped work. No
+old-suite resumption, quota refresh, cap change or live dispatch. C54 partial.
+
+## Role1.4 affected review supported — October 22, 2026
+
+Separate model review supports bounded local finding-semantics implementation.
+Exact prompt c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8;
+39 immutable review artifact hashes verified at integration. No schema/selector
+weakening or unresolved actionable findings. Reviewer independently passed23
+checks through both standalone and compiled-default entry. Found P2 test discovery
+gap: ten new calibration checks omitted by normal test glob. Repaired with small
+tests/src/discovery-finding-semantics.test.ts importing shared calibration; compiled
+entry now matches existing default glob. Build and23 checks pass; independent
+review verified fix. Full default suite not run. Original receipts preserved;
+supplemental default-entry receipt/transcript records this review-driven repair.
+Historical failure/evidence unchanged and old execution guard refuses new prompt.
+Installed role1.3 unchanged; no provider/network/studio/credential call or install.
+See docs/DISCOVERY_FINDING_SEMANTICS_REVIEW_2026-10-22.md and review receipt/integration.
+Next eligible: prepare prospective new evaluation packet and exact candidate
+binding under role1.4; retain source controls, substantive review and frozen bounds.
+No old locked-suite replay, new live authorization or model-behavior claim.
+Full discovery/C54 remains partial.
+
+## Finding semantics role1.4 implemented locally — October 22, 2026
+
+Actual skeptic prompt defines finding types and authoritative reviews[].cheaper_test;
+legacy enum/schema preserved. Role1.4 hash
+c7ba20c798279491da5b3c4818c9e561d1ef65649477a1875630c74206e691f8.
+Direct installed TypeScript build passed;23 targeted checks passed/0failed/0skipped.
+Calibration covers current rendered schema/prompt and source/proposal associations,
+including disclosed structural acceptance of contradictory prose needing review.
+Eight historical live artifact hashes verified; old execution guard rejects changed
+candidate. No frozen assertions/output/grade changes. Installed role1.3 unchanged;
+no provider call, installation, migration or new qualification.
+See docs/DISCOVERY_FINDING_SEMANTICS_IMPLEMENTATION_2026-10-22.md and receipt/tests
+in tracking/evidence/discovery-finding-semantics-implementation-2026-10-22/.
+Next eligible U02: affected independent review of local prompt/tests; only then
+prepare prospective new evaluation/candidate binding. No old-suite resumption.
+Full discovery/C54 remains partial; no model-behavior verification claimed.
+
+## Prospective finding semantics proposal prepared — October 22, 2026
+
+U03 specification proposal defines weak_evidence for unsupported benefit and
+novelty_overclaim for unsupported originality, with reviews[].cheaper_test as
+authoritative test representation. Retain legacy enum/wire compatibility; no
+normalizer, source-selector relaxation or historical regrade. Proposed role1.4
+and new prompt hash are not implemented or activated. See
+docs/DISCOVERY_FINDING_SEMANTICS_PROPOSAL_2026-10-22.md.
+Verified8 live-result artifact hashes and28 preserved reviewer/source bindings;
+unchanged exact-plan checker still passes108 controls. Preparation receipt in
+tracking/evidence/discovery-finding-semantics-proposal-2026-10-22/.
+No runtime edits, new provider calls, installation, live suite or policy change.
+Next eligible U03: implement the prospective prompt/role clarification locally,
+verify rendered prompt and source-association controls, then affected review.
+Future live qualification requires new packet/plan/candidate binding; do not reuse
+old exposed cases as independent holdouts or resume the locked suite.
+Historical scoring failed/incomplete remains; full discovery/C54 partial.
+
+## Follow-up v2 substantive model review completed — October 22, 2026
+
+Separate reviewer directly assessed seven exact outputs and all21 frozen substantive
+checklist judgments: supported. Bound request/output/packet/candidate hashes and
+30 reviewer artifacts verified at integration; reviewed tracking snapshots saved
+before this update. Independently replayed seven schemas/contracts and individual
+assertions; historical six accepted/one scoring failure unchanged, five scoring
+cases unattempted. No human acceptance or full qualification claim.
+Review identifies P2 prospective taxonomy/representation alignment issue: prompt
+does not define universal benefit as novelty_overclaim, or require a cheaper_test
+typed finding alongside its separate cheaper_test field. Output addressed both
+issues substantively; no selector defect established. Do not regrade/relax/resume.
+See docs/DISCOVERY_FOLLOWUP_V2_OUTPUT_REVIEW_2026-10-22.md and new bound review
+response/receipt/integration in discovery-followup-v2-output-review-2026-10-22.
+No provider/network/studio/credential calls this review; no runtime/frozen changes.
+Next eligible U03: propose explicit finding semantics and one authoritative cheaper
+test representation, then prospectively align prompt/contract/new evaluation.
+Preserve identity/source controls and all historical failures. No automatic repair,
+new live suite, workflow, build or pilot. Full discovery/C54 remains partial.
+
+## Follow-up v2 stopped on scoring acceptance — October 22, 2026
+
+Owner approved exact suite and one additional availability refresh. Refresh succeeded;
+suite sent seven sequential requests, no retries, then stopped at first scoring
+development failure. Candidate generation operationally qualified: 2/2 dev, 4/4
+held-out accepted. Scoring failed/incomplete: first dev failed assertions 4 and 8;
+five cases including all held-out unattempted. Saved response discusses the issues
+but uses weak_evidence instead of novelty_overclaim for P3/C3 and counterevidence
+instead of cheaper_test for P5/C5. Offline exact-output replay reproduced both.
+No rubric/prompt/code change; run.lock retained. Seven outputs need substantive
+review. GET-only final state:44 requests (42 completed/1 failed/1 reconciled),
+33 rolling,7 studio slots,0active/unknown,credits off/settings unchanged.
+Eight new provider calls total:one approved refresh plus seven suite responses.
+See docs/DISCOVERY_FOLLOWUP_V2_LIVE_RESULT.md and v2/live-result.json.
+Next eligible prompt U02: independent substantive review and assessment of typed
+finding failures, then prospective repair proposal if warranted. No auto retry,
+resumption, suite, workflow, build or pilot. Full discovery/C54 remains partial.
+
+## Approved follow-up stopped at freshness preflight — October 22, 2026
+
+Owner approved exact plan 22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2
+(12 sequential requests, no retries, credits off, 24-minute ceiling). Approval saved
+in discovery-followup-v2/owner-execution-decision.json. Static bindings passed;
+authenticated preflight stopped before run.lock or qualification creation because
+availability observed 04:43:24Z was older than 15 minutes. No provider call.
+GET-only read at 04:58:58Z confirms 36 requests unchanged, no manifest attempted,
+zero active/unknown, 15 studio slots and unchanged settings/credits. Approval for
+the suite remains valid for the unchanged plan; do not ask for it again.
+Next: owner decision on one additional synthetic availability recheck, no retries,
+120-second timeout, no quota reset/settings change; proposal recorded in
+tracking/evidence/discovery-followup-v2/availability-refresh-proposal.json.
+If approved and successful, continue the already approved suite after fresh gates.
+Preserve all previous operation locks/grants. C54 remains partial.
+
+## Discovery follow-up schema 28 binding separately reviewed — October 22, 2026
+
+Prepared a new execution binding for the unchanged, unattempted 12-case packet.
+Exact plan: 22e7ba4d803e73a42f075cfe211fe77ad315757df586609e40648e177a6fdbb2.
+17 tests and 108 controls passed; separate model review supported the binding.
+Verified 259 execution bindings, 261 reviewer artifact hashes, and 61 installed
+resources. Original packet, criteria, plans, and evidence remain unchanged.
+Read-only snapshot at 04:52:48Z: 36 saved requests, 25 rolling, 15 studio slots,
+zero active/unknown requests; credits off. Neither manifest has been attempted.
+No provider calls, settings changes, installation, or suite execution in this step.
+See docs/DISCOVERY_FOLLOWUP_V2.md and docs/DISCOVERY_FOLLOWUP_V2_REVIEW_2026-10-22.md.
+Next eligible step: exact-plan owner decision, then fresh preflight for at most
+12 sequential requests, no retries, 24-minute ceiling. Availability observed
+04:43:24Z ages; the runner requires freshness within 15 minutes and includes no
+extra refresh request. Earlier one-shot approval is consumed. C54 remains partial.
+
+## Explicit availability recheck installed and live-verified — October 22, 2026
+
+Owner authorized repair and newly bounded live testing. Added intent-bound grant
+and availability_recheck purpose/API/UI; initial already-verified rejection retained.
+Schema28 defaults old grants to model_access.29 tests pass/0skipped on disposable
+PostgreSQL/loopback; TS/UI/native build pass; separate model review supported repair.
+Pinned installer9cfacf012273627828da5a47d8834a9517ed0b3d7b9d467c907ca543752504f3 installed exit0
+after owner Quit;68-file rollback saved. Supported backup/migrate27→28 hash verified;
+original35requests/grants/access/qualifications/settings preserved.61 installed
+resources manifest82fa93fcc6783c7aa6db33b9ac94c00a2cb82d9b92ec4458d29cfe8116a509f7.
+Loose-native hash differed; pinned-installer extraction proves installed payload
+2d007429953fab03eb0adf7131b13158282920a66a9b01b9ce62704aef858652. Original plan retained.
+One new live availability requestabf94f01-938e-4de7-b1a5-671f5f4478d8 completed with
+2chars/hash ok/5outputtokens. Grant4232244c-8d65-4cd6-9615-45ca54da2f32 used1.
+Quota observed available2026-10-22T04:43:24.328Z;25/40rolling,15slots,credits off.
+Helper postcondition erroneously expected omitted API grant_id; stopped AFTER
+success. Read-only SQL finalizer verified binding and exact preservation;no retry.
+36saved=34completed+1failed+1reconciled,0active/unknown. Test server stopped/app running.
+See docs/AVAILABILITY_RECHECK_IMPLEMENTATION_2026-10-22.md and live final-result.json.
+No discovery qualification/suite/pilot. Old follow-up schema27/source bindings
+intentionally stale. Next offline prospective schema28/current-candidate binding
+and affected review for unchanged unattempted12cases; then scoped suite decision
+and fresh preflight. One-shot approval consumed;C54 partial.
+
+## Approved availability recovery stopped at local admission — October 22, 2026
+
+Owner approved quota-observation clear plus one verify/no retry/no suite. Reset
+succeeded to unknown; new one-shot grant082e920d-d3c1-4ab7-8f19-9a19258eab53 created.
+Verify POST returned403; stopped without retry. GET-only diagnosis and actual
+compiled admission replay identify sole blocker: model already verified on this
+path. Proposed recovery procedure missed this restriction; no guard bypassed.
+35 requests unchanged,0new/active/unknown;grant unused;24/40 rolling use,16slots;
+credits off/settings hash unchanged/qualifications unchanged. No provider call
+admitted. Unknown quota is not available. Original observation and operation.lock
+preserved in tracking/evidence/approved-availability-check-2026-10-22.
+See docs/APPROVED_AVAILABILITY_CHECK_RESULT_2026-10-22.md. Earlier built-in verify
+recovery proposal is not executable for this already-verified model. Next eligible
+local versioned explicit availability-recheck implementation with one-use grant,
+privacy/cap enforcement and meaningful tests; then affected-candidate review and
+new live decision. No repeat grant/retry/suite. C54 partial.
+
+## Saved studio started; authenticated readiness inspected — October 22, 2026
+
+Started installed desktop normally. Supervisor recorded healthy managed DB/service
+and removed expired/revoked local session. Owner signed in through desktop; GET-only
+inspection succeeded. Settings5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533
+match plan;credits off;24 rolling requests/40cap=16slots versus12needed;0active/unknown.
+35 saved requests=33completed+1failed+1reconciled unchanged. Saved provider quota
+still exhausted from2026-10-21T07:29:59Z; actual current allowance not checked.
+No provider calls/quota reset/settings change/qualification/migration. Desktop left
+running. docs/DISCOVERY_STARTUP_READINESS_2026-10-22.md gives concrete proposed
+one-shot availability recovery: preserve observation, authenticated quota-recheck
+to unknown, new one-request grant and one built-in verify with existing120sec/
+16000char caps; no retry/paid fallback/automatic suite. This new provider action
+requires scoped authorization. Read-only helper syntax/contract parsing passed.
+Next eligible: owner decision on that one request; then separately exact-suite
+decision/fresh preflight if availability established. C54 partial.
+
+## Separate model review completed — October 22, 2026
+
+Owner explicitly authorized fresh-context review subagent. Separate reviewer read
+all ten v5 outputs before author conclusions;10 cases/30 criteria supported.
+No material new code defect established in follow-up packet/runner; static gate
+and14 offline tests pass. Parent verified235 reviewed artifact hashes and exact
+review-response binding; narrow separate-model-review gate satisfied. Not human
+acceptance, thesis rating, full discovery qualification or activation. Additive
+report docs/DISCOVERY_SEPARATE_REVIEW_2026-10-22.md and evidence under
+tracking/evidence/discovery-separate-review-2026-10-22; original files preserved.
+Fresh installed manifest0331d863e67859d0338e4f54560e12a020f16923730b47ed82411743474707d9
+and58 resources match. Local health initially sandbox EACCES; permitted read-only
+retry ECONNREFUSED. No credential access/service launch/provider call. Current quota
+unobserved. Availability gate requires available observation within15min; reset
+to unknown or waiting is insufficient. No quota reset authorized/performed.
+Next eligible: start normal saved studio and inspect authenticated status read-only;
+establish separately authorized bounded availability path if necessary, then exact
+plan decision/fresh preflight. Do not resume v5, relax availability gate, pool
+grades or dispatch automatically. Human/owner acceptance and C54 remain partial.
+
+## Separate-review authorization requested — October 22, 2026
+
+Checked available review tools: Code Review connector exposes CI diagnostics only;
+CodeRabbit CLI not found. No install, external upload or reviewer contact performed.
+Host requires explicit authorization to spawn a review subagent; requested a fresh-
+context separate model review of the ten v5 outputs plus follow-up packet/runner.
+No separate acceptance claimed. Local health probe initially EACCES in sandbox;
+authorized read-only retry returned ECONNREFUSED on127.0.0.1:4310. Current provider
+availability remains unobserved, not inferred exhausted or reset. Two unique
+readiness-observation receipts retained under discovery-followup-v1. No inference,
+settings change, service launch or frozen artifact mutation. Next: on explicit
+subagent authorization perform separate model review; otherwise owner-supplied
+reviewer response. Live dispatch remains gated. C54 partial.
+
+## Fresh discovery follow-up packet prepared — October 22, 2026
+
+Prepared12 fresh candidate/scoring cases,2dev+4held each;108 author controls and
+14 offline runner/contract tests pass,0 skipped. Same role1.3/schema27/v5 runtime;
+no installation or production edits. External manifests POST93537/111689bytes,
+max input13468/19695chars.231 bindings/58 staged resources verified; original183
+source bindings and historical evidence preserved. Freeze55da91cabef9163692508132e936b9a2e5df9815f071ca93642db0cd091f2266;
+execution plan2dca3f79f5c7c98f88eef2f20a915c8e2a5f71e1f2da8934b9ca6c0dd9110c3e.
+Bounded runner max12 sequential/no retries/120sec request/24min total; static
+separate-review gate before secrets, fresh available quota within15min,40/day
+unchanged,credits off,no paid fallback. No live calls/quota check/settings/migration.
+See docs/DISCOVERY_FOLLOWUP_V1.md. Separate substantive review/provider availability
+and exact prospective approval remain gates; no automatic run/research/search/pilot.
+Next eligible: separate reviewer completes prior exact-output packet and reviews
+new packet/runner; resolve availability, then exact decision/fresh preflight.
+C54 partial; offline adapter tests do not establish live qualification.
+
+## Separate review packet and remaining-coverage proposal — October 21, 2026
+
+Prepared docs/DISCOVERY_REMAINING_COVERAGE_PROPOSAL.md and new additive evidence
+in tracking/evidence/discovery-followup-proposal. Ten exact outputs/full inputs/
+frozen checklists exported without prior author judgments or automated grades;
+review-response template remains not_reviewed, no independent acceptance claimed.
+Verified ten output/packet bindings, frozen manifests and all183 source bindings;
+original top-level v5 evidence unchanged. Proposed fresh12-request suite covers
+candidate_generation/scoring,2dev+4held each, unchanged4/4 floor, no pooled v5
+grades, no retries/paid fallback,40/day unchanged. Proposal is not executable or
+authorized. No new cases frozen, live calls, quota read, install or reviewer contact.
+Next eligible offline preparation of fresh executable cases/controls/bounded runner;
+separate substantive reviewer and provider availability remain dispatch gates.
+C54 partial; source parity does not establish current installed/runtime parity.
+
+## V5 offline artifact review — October 21, 2026
+
+Completed coding-agent second pass of all ten answers against frozen claims and
+review checklists; not independent human/blind acceptance. No material source
+contradiction identified; minor origami next-action placement and condition-checklist
+responsibility observations recorded, no grade/prompt changes. New offline receipt
+binds ten output/packet hashes and candidate/plan; replayed ten frozen checks pass.
+Verified frozen manifests and original top-level evidence unchanged. One quota case
+has no answer, seven cases unattempted; research operational-only, candidate failed,
+scoring absent, C54 partial. See docs/DISCOVERY_V5_OFFLINE_REVIEW.md. Current-status
+and runbook banners distinguish superseded instructions. No live calls, quota read,
+settings changes, install or pilot. Next: separate substantive acceptance and
+prospective remaining-coverage proposal; no automatic dispatch or frozen-v5 rerun.
+
+## V5 ran with owner capacity amendment; provider quota stop — October 21, 2026
+
+Owner authorized temporary40→42 daily cap. Separate amendment
+19c60ab6762bc631bbb012c8651c304723ced25e2324a64da4ec730139a34a1d preserved original
+v5 plan/cases/candidate.11 attempts:10 completed/accepted; request11 failed provider
+subscription_sharing_usage_limit_exceeded. Research2dev+4held accepted/qualified;
+candidate2dev+2held accepted, next held quota failure, revision unattempted; failed
+2/4 floor. Scoring6 unattempted. No retry,7 cases unattempted, no content grade
+inferred for quota failure. Temporary cap restored40/settings hash5c3c7fcaf4a47d928e607c6677f54a70eece1e07c92b423e75f143d9a022e533,
+credits off. Restore assertion encountered independent quota blocker after mutation;
+read-only verification recovered receipt without repeat mutation.35 requests:
+33complete/1failed/1reconciled,0unknown/0active/0leased/0workflows;36 audit events.
+Installed/source hashes verified. Provider quota exhausted; no reset time observed.
+docs/DISCOVERY_V5_LIVE_RESULT.md. Independent review pending/full discovery C54 partial.
+Next eligible offline artifact/remaining-coverage review, no automatic rerun or pilot.
+
+Capacity recheck October21,03:19AM EDT (07:19UTC): approved v5 plan and183 source
+bindings/installed candidate still match;16 daily slots versus18 required,
+0unresolved/0inflight. No requests or qualification dispatched. Evidence
+discovery-qualification-v5/preflight-capacity-check.json and capacity-recheck-result.json.
+Existing approval remains valid; next eligible fresh check at sufficient capacity,
+estimated08:38:49AM EDT without further usage. No cap changes or automation.
+
+## Approved v5 installed; suite awaits capacity — October 21, 2026
+
+Verified183 bindings/installer/predecessor, saved62-file program rollback, graceful
+Quit and installer exit0. Current manifest
+0331d863e67859d0338e4f54560e12a020f16923730b47ed82411743474707d9;58 installed files verified.
+Session/schema27/settings/exact request records retained. Readback24 requests,
+28 audit events/0 workflows/0leased/0unresolved/0inflight unchanged. No live call or
+v5 qualification/run.lock. Capacity16 slots versus18 required; keep40/day unchanged.
+Estimated18 slots October21~8:38:49AM EDT without new usage; recheck authoritative
+preflight then. Approval retained for exact plan68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d.
+Next eligible same approved bounded suite when capacity/other gates pass; no repeat
+approval needed. No automation scheduled. docs/DISCOVERY_V5_INSTALLATION.md.
+Live repair/model qualification still unverified; C54 partial/no automatic pilot.
+
+## Stream repair candidate and fresh v5 frozen — October 21, 2026
+
+18 fresh role1.3 packets (2dev/4held per class),144 base controls,75 affected checks
+pass/0 skipped on disposable PostgreSQL/loopback fakes. Actual v3/v4/v5 manifests
+exercise authenticated HTTP with no inference. TypeScript/UI/NSIS build passes;
+existing chunk warning. Test DB stopped. POST106202/92691/108642bytes and max input
+14064/13135/18382chars within existing caps. Final freeze
+bdea8d1b1eb819ef53fd37fa4460987a90f8db1f8d8ab0a2ccdaa61cf58beaf9.
+Candidate0331d863e67859d0338e4f54560e12a020f16923730b47ed82411743474707d9,
+installer2d1be3976bbe6618a8c3acc1d3d31854752e1be370238b0fa01ef3422c89c08d,
+plan68c59f330da54b3e22933f5e789f520edec3abbcdbf985666ccec5a4f89af37d.
+183 source bindings/58 packaged resources verified; historical packets/5locks and
+reconciliation lock retained. Current installed115b6c885e88ed226bfd1677d24a8627ec609aec7ad1108f9f16566cca2440c1 unchanged.
+No model calls/install/settings/migration. Readback24 requests/0unresolved/0inflight;
+only16 daily slots remain versus18 required. Next eligible exact packet approval,
+install/state checks and capacity-gated execution; never raise cap or extend timeout.
+See docs/DISCOVERY_QUALIFICATION_V5.md. Independent review pending/C54 partial.
+
+## Approved timeout reconciliation and qualification closure — October 21, 2026
+
+Owner authorized the concrete next decision. Local authenticated API recorded
+50fcd841-85c1-4abd-9591-e18655538a2f as reconciled/owner_ran WITHOUT usable result;
+upstream ID/1653chars/null output hash+tokens/start+finish times preserved. Closed
+qualification887288bb-ce7f-4edb-b11f-7f1494b146e3 failed under unchanged3/4held-out
+versus4/4 required (2/2dev). No retry/new provider call or missing-answer grade.
+Independent API/DB readback:24 requests=23completed+1reconciled,0unknown/0inflight,
+0leased/0workflows,28 audit events. Schema27/settings/installed manifest unchanged.
+Five old locks and original timeout evidence preserved; new operation.lock retained.
+See docs/V4_TIMEOUT_RECONCILIATION.md. Source stream fixes remain uninstalled;
+role1.3 discovery unqualified/C54 partial. Next eligible: repair candidate/prospective
+qualification preparation. No automatic installation/live run or workflow/pilot.
+
+## Stream recovery/reconciliation reviewed and repaired locally — October 21, 2026
+
+Reproduced missed CRLF completion, completion-fallback output-cap bypass and
+did_not_run reconciliation contradicting positive observed output. Fixed incremental
+LF/CRLF/CR normalization, fallback cap and atomic reconciliation contradiction guard.
+36 affected checks pass/0 skipped including stalled real loopback HTTP, durable
+unknown/duplicate fencing, API and worker paths on disposable PostgreSQL. TypeScript
+passed/test DB stopped. Live v4 timeout root cause remains unproven (no wire trace).
+Readback24 requests/26 audit events/0 workflows/1unknown unchanged; no new live calls,
+owner reconciliation or installation. Installed115b6c885e88ed226bfd1677d24a8627ec609aec7ad1108f9f16566cca2440c1 unchanged.
+See docs/PLAN_STREAM_RECOVERY_REVIEW.md and tracking/evidence/plan-stream-recovery.
+Concrete proposal: owner records ran without usable result, then closes v4 qualification
+failed at unchanged3/4 held-out floor; no retry. Next eligible decision/repair-candidate
+preparation, not automatic dispatch. Source repair not live verified; C54 partial.
+
+## Approved v4 installed; stopped on unknown timeout — October 21, 2026
+
+Exact approved plan58dff31c4e9484689ff9c533c71337c44b97e6a52e8c1025a82562850af8d721
+installed successfully;162 bindings/53 installed resources verified,56-file rollback.
+Current manifest115b6c885e88ed226bfd1677d24a8627ec609aec7ad1108f9f16566cca2440c1.
+Schema27/session/settings/records preserved. Six attempts:5 completed/accepted
+(2dev/3held), sixth held-out timeout unknown after120359ms/1653 observed chars.
+No retry; candidate/scoring12 cases unattempted. Research qualification
+887288bb-ce7f-4edb-b11f-7f1494b146e3 remains running/unresolved, not qualified.
+Readback24 saved requests:23 completed/1unknown/0in-flight;0leased/0workflows.
+No reconciliation or fabricated completion; response ID retained. No quota result
+observed. No migration/settings/credits/metered fallback/search/build/pilot.
+Independent substantive review pending/full discovery C54 partial. See
+docs/DISCOVERY_V4_LIVE_RESULT.md and v4 execution-outcome.json. Next eligible:
+bounded stream-timeout recovery/reconciliation review; preserve unknown and5 locks,
+no restart or new live dispatch automatically.
+
+## Fresh v4 packets frozen and candidate prepared — October 21, 2026
+
+18 new synthetic packets for role1.3 (2dev/4held per class),144 base scorer controls
+and45 affected tests pass/0 skipped. Actual v4/v3 fixture manifests exercised through
+authenticated HTTP with no inference dispatch. Identity-bound skeptic associations,
+permutation equivalence, positive internal corroboration and complete revision covered.
+Semantic-negative controls remain disclosed automation limits; independent review
+is required/not performed. Pretarget authoring drafts and failed local logs retained.
+TypeScript/UI/native NSIS build passed; existing Vite chunk warning. Test DB stopped.
+POST106068/92312/108784 bytes; max input14221/13016/18426 chars fit existing caps.
+Verified162 source bindings/53 packaged files; historical v1–v3 frozen data/4locks
+and installed manifest907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17 unchanged.
+Prepared candidate115b6c885e88ed226bfd1677d24a8627ec609aec7ad1108f9f16566cca2440c1,
+installer5587625285af68a1288e4f97cf27dcf2dc91e9460b4e4d37e6d17e989bf1e3c1;
+execution plan58dff31c4e9484689ff9c533c71337c44b97e6a52e8c1025a82562850af8d721.
+No install/model calls/settings/migration. See docs/DISCOVERY_QUALIFICATION_V4.md.
+Next eligible: exact candidate approval, graceful install/state verification,
+at most18 sequential requests/no retries or new metered spend; stop first failure.
+No automatic workflow/search/build/pilot. Source discovery unqualified/C54 partial.
+
+## Role1.3 field semantics and identity assertions implemented — October 21, 2026
+
+Added opt-in skeptic proposal/finding selectors with packet/context validation;
+exactly one match required, null catalog supported, reordered reviews equivalent.
+Legacy assertions retain grading/canonical hashes. Model instructions clarify
+affirmative novelty/null, new/custom software, bounded cheaper tests and evidence
+association. Output schemas/limits unchanged; new prompt hash
+024648aca2bf927cff58d166ab957ddaecf47b2608d4bc9f0decd9b3561faf77.
+TypeScript passed via installed compiler (pnpm launcher registry DNS unavailable).
+38 affected domain/API/workflow tests pass,0 skipped on disposable PostgreSQL and
+loopback stand-ins. Historical v1–v3 qualifications cannot unlock new-role workflow;
+exact historical grades preserved. Test database stopped.19 bound config/evidence
+files and installed907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17 unchanged.
+No installer, saved-studio mutation or model calls. Source role1.3 unqualified;
+independent substantive review still required/full discovery C54 partial.
+See docs/DISCOVERY_SEMANTICS_IMPLEMENTATION.md and implementation evidence.
+Next eligible: author complete fresh packets/controls, verify serialization/bounds/
+review criteria and freeze concrete candidate proposal. No automatic install/dispatch.
+
+## Role1.3 field semantics and identity assertions implemented — October 21, 2026
+
+Added opt-in skeptic proposal/finding selectors with packet/context validation;
+exactly one match required, null catalog supported, reordered reviews equivalent.
+Legacy assertions retain grading/canonical hashes. Model instructions clarify
+affirmative novelty/null, new/custom software, bounded cheaper tests and evidence
+association. Output schemas/limits unchanged; new prompt hash
+024648aca2bf927cff58d166ab957ddaecf47b2608d4bc9f0decd9b3561faf77.
+TypeScript passed via installed compiler (pnpm launcher registry DNS unavailable).
+38 affected domain/API/workflow tests pass,0 skipped on disposable PostgreSQL and
+loopback stand-ins. Historical v1–v3 qualifications cannot unlock new-role workflow;
+exact historical grades preserved. Test database stopped.19 bound config/evidence
+files and installed907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17 unchanged.
+No installer, saved-studio mutation or model calls. Source role1.3 unqualified;
+independent substantive review still required/full discovery C54 partial.
+See docs/DISCOVERY_SEMANTICS_IMPLEMENTATION.md and implementation evidence.
+Next eligible: author complete fresh packets/controls, verify serialization/bounds/
+review criteria and freeze concrete candidate proposal. No automatic install/dispatch.
+
+## Cross-role assertion-semantics audit completed offline — October 21, 2026
+
+Audited18 frozen v3 cases/71 assertions across locate/propose/revise/skeptic.
+Executed72 offline probes against existing production validators/scorer; all expected
+results matched, including disclosed false acceptances. Six no-originality prose
+alternatives fail exact-null grading; six generic-gap mutations, ignored revision
+findings and misassociated skeptic findings can pass. Preserved146 source bindings,
+all three v3 manifests, four run locks and selected exact live evidence unchanged.
+No runtime/prompt/grade/settings changes, install or model requests. Full discovery
+unqualified/C54 partial; v3 research remains operationally qualified only.
+docs/DISCOVERY_ASSERTION_SEMANTICS_AUDIT.md contains field-policy proposal,
+identity-bound assertion design, independent-review boundary and18 fresh scenario
+sketches (not executable/frozen). Evidence tracking/evidence/discovery-assertion-semantics.
+Next eligible: implement prospective versioned field semantics and identity-bound
+assertions with local controls and preserved legacy scoring; then prepare complete
+fresh packets/candidate proposal. No automatic install/live dispatch.
+
+## Approved v3 installed; research passes, candidate suite stops — October 21, 2026
+
+Exact owner-approved installation succeeded: 146 bindings, 51 rollback files and 48
+installed resources verified. Current manifest
+907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17; schema27/session/settings intact.
+Seven new requests completed: research 2/2 development + 4/4 held-out accepted;
+first candidate development case failed frozen novelty=null assertion. Production
+validation and four other assertions pass; actual text denies originality. Possible
+grading/serialization mismatch recorded without regrading. Stop honored, no retries,
+eleven unattempted, scoring not started. API/database:18 total requests, zero
+active/unknown/leased/workflows. Independent substantive review remains required;
+author observations are separate. No migration/settings expansion/metered fallback/
+credits/search/build/pilot. Full discovery unqualified/C54 partial.
+See docs/DISCOVERY_V3_LIVE_RESULT.md. Next eligible: cross-role assertion-semantics
+audit and prospective versioned qualification design. Preserve all grades/locks;
+no automatic live rerun.
+
+## Fresh v3 qualification frozen and candidate prepared — October20,2026
+
+Completed18 new synthetic packets/manifests for current role1.2 with exact production
+prompt and message serialization.2 development/4 held-out per class; full two-finding
+revision and five-proposal skeptic coverage. Cases/criteria/gold/control hashes frozen
+before target outputs.144 local scorer assertions, including18 explicit demonstrations
+of the substantive-entailment blind spot; required reviewer checklists retained.
+All56 affected checks pass/0 skipped on disposable PostgreSQL and loopback stand-ins.
+Actual v3 manifests exercised through authenticated HTTP; research service grading
+uses stand-in outputs, not real model evidence. POST bytes101745/86861/104186 and
+max inputs12244/12140/18274 fit existing128KiB/24000 limits. Historical v1/v2 files,
+failed grades and locks preserved. TypeScript/web build and native NSIS packaging
+passed; existing chunk warning. Test cluster stopped. No new provider calls, saved
+studio changes, install, settings expansion or migration. Current installed manifest
+remainsb59212cfe661723e6a150ca5f1d02658ccb069bbd94dcbb2664f69b26255a048.
+Concrete review packet: docs/DISCOVERY_QUALIFICATION_V3.md. New installer hash
+a29821c994c7a4f3de6e9629fc92be27de449467a28444b43d19eebb8a9ad648,
+bundle907d3d2aae9cbbc56a14dac5b1d84f7400354db8b97967f5fc2ed00c243bee17,
+execution plan8e5b6774738de3dfcf3e633edd4dc4a7903ab0884ad194fe3d593e1540b7a98a
+binds146 files plus frozen data. Next eligible: exact v3 packet approval, graceful
+install/state verification and max18 new sequential plan requests with no retries/
+new metered spend, stop first failure/unknown/quota. No automatic workflow/search/
+build/pilot; substantive review remains separate, discovery unqualified and C54 partial.
+
+## Discovery output-contract audit/revision1.2 completed offline — October20,2026
+
+Audited locate/propose/revise/skeptic against all production schemas. Replaced
+field-name sketches with schema-derived JSON types/limits/enums/reference formats,
+strict object keys and full revision shape. Clarified discovery payload instead of
+generic TaskResult/status/usage wrapper; preserve uncertainty within bounded fields.
+Application validators, relational/source checks, permissions and budgets unchanged.
+Shared discovery role version1.2/prompt hash01ef4e7c37ab9c6c50abe0d4c3ef25a22484daa8d3d1490672bc60e8007c0f00.
+No provider-enforced structured-output support assumed: existing plan adapter still
+sends text; deterministic post-validation and substantive review remain required.
+TypeScript passed;52 affected tests pass/0 skipped on disposable PostgreSQL and
+loopback stand-ins, including189 nested boundary mutations, exact historical v1/v2
+bytes/grades and rejection of both historical qualification versions. Current-model
+fixture HTTP payloads101668/83535/88740bytes and inputs12173/10748/10939characters
+fit accepted ingress/input caps. Test-only rebindings are not live qualification.
+Retained exact v2 output still invalid; no coercion/regrading. Offline inventory
+and prompts: tracking/evidence/discovery-output-contract.18 fresh v3 scenario
+designs proposed, not executable manifests or frozen live authority. No model calls,
+install, settings change, migration or frozen-study protocol/weight changes. Current
+installed bundle remainsb59212cfe661723e6a150ca5f1d02658ccb069bbd94dcbb2664f69b26255a048.
+Read docs/DISCOVERY_OUTPUT_CONTRACT_AUDIT.md. Next eligible: author/freeze complete
+fresh v3 packets/manifests/controls, verify exact HTTP/input bounds and reviewer
+checklists, then prepare a concrete candidate/execution packet. No automatic live
+rerun, workflow/search/build/pilot; discovery unqualified and C54 partial.
+
+## Approved transport repair installed; v2 stopped on schema failure — October20,2026
+
+Jordan approved exact repair packet8175e90e31df06302907a0abab8c7f1aa57a31b6b9d4180b9c204baef43da459.
+Verified137 bindings, saved hash-verified program rollback, graceful Quit, installer
+exit0 and installed manifestb59212cfe661723e6a150ca5f1d02658ccb069bbd94dcbb2664f69b26255a048.
+Reopened with session/schema27/settings/records unchanged; no migration/permissions
+change. Real API qualification creation now succeeds. Exactly one new gpt-6-astra
+request completed on loc-dev-maintenance, then schema_invalid stopped the suite.
+affected_users was an array instead of string; gaps had10 entries versus max8.
+No retry, later cases/classes or held-out dispatch. Research qualification
+9586ebfb-adf8-4550-8c95-9a011744f2a1 is failed. Independent readback:11 total completed
+requests, zero in-flight/unknown/leased and0 workflows. Earlier summarization remains
+narrowly qualified; discovery does not. Raw output, hashes, failed grade and all
+three locks preserved. Coding-agent author review observed appropriate uncertainty
+and synthetic limits, but is not independent human acceptance or a passing grade.
+See docs/DISCOVERY_V2_LIVE_RESULT.md and tracking/evidence/discovery-v2-transport-repair/
+execution-outcome.json. No metered fallback/credits activation/search/workflow/build/
+pilot launch. C54 partial. Next eligible: bounded model-facing output-contract audit
+against every production role schema, exact types/limits and versioned prospective
+controls/qualification proposal; preserve current failure, no automatic live retry.
+
+## Approved v2 installed; zero-dispatch HTTP413 stop; repair prepared — October20,2026
+
+Owner approved exact v2 packet. Verified program-only rollback, graceful Quit,
+installer exit0 and installed bundle733837fe38fd84be6479e02ac1115dededd98a7ca99a644d03b31e72b043897c.
+Reopened with saved session/schema27/settings/records unchanged. Qualification
+manifest creation was rejected by the64KiB API body cap: research payload77,265bytes.
+Runner stopped at attempted0/qid=null; preserve v2 run.lock. Independent readback:
+10 total completed requests, zero active/unknown/leased, no new qualifications,
+19 audit events and zero workflows unchanged. No target inputs were sent.
+Narrow fix implemented locally: authenticated qualification creation accepts128KiB,
+all other actions retain64KiB; declared and streamed bytes, owner/CSRF/schema/task/
+data/model/version gates remain. Four HTTP/API checks pass using actual frozen
+manifest payloads and chunked requests, oversized/unauthenticated rejections and
+loopback-only inference stand-ins. TypeScript/web/service/native/NSIS build passed;
+existing chunk warning. Repair built but not installed. Original18 model cases,
+criteria and runtime prompt unchanged; frozen-input/role evidence remains as before.
+Separate repair packet binds137 files/receipts and requires predecessor zero-dispatch
+proof; new lock preserves stopped run. docs/DISCOVERY_V2_TRANSPORT_REPAIR.md has
+exact candidate/run hashes. Next eligible: approve/install transport repair and run
+same bounded18-case suite (no retries/new metered spending), then substantive review.
+No saved-data migration or permission expansion proposed. C54 partial; discovery
+unqualified. No workflow/search/build/pilot activation.
+
+## Operational rubric1.1 and executable v2 qualification prepared — October20,2026
+
+Implemented explicit observed-need confidence anchors in the production locator;
+shared discovery role version is r02-discovery/1.1. Packet admission is separate
+from corroboration/real-world validity and from untested intervention benefit.
+Authored/froze18 fresh production-bound cases and108 local scorer controls, with
+positive coverage of all confidence labels, schema-valid bad decisions, source
+refs, designer revision and multi-proposal skeptic coverage. All44 affected tests
+passed with zero skips on disposable PostgreSQL. Historical v1 grades/bytes remain
+unchanged and a qualified v1 manifest cannot unlock the revised role. A semantic
+negative control documents the narrative-entailment gap; substantive review is
+still required and the runner retains reviewer/output-hash checklist state.
+Offline initial draft packet-tag inconsistency was corrected before target output;
+its manifests/freeze/test log retained in v2/preflight-draft. Final bundle built and
+NSIS packaged; backup-first staged upgrade and restore/adoption passed. Extra staged
+startup/persistence check blocked by existing port4310 (failed receipt retained),
+not claimed verified. No installed update, saved settings/migration or provider calls.
+Review packet: docs/DISCOVERY_QUALIFICATION_V2.md; evidence:
+tracking/evidence/discovery-qualification-v2. Exact127 bindings and installer/run
+hashes prepared. Next eligible: scoped approval/install/execution of the v2 packet
+(max18 new plan requests, no retries/new metered spend, stop first failure), then
+substantive review of exact outputs; no automatic workflow/search/build/pilot.
+Earlier v1 approval does not cover this new candidate/run. C54 remains partial.
+
+## Discovery evidence-strength review completed — October20,2026
+
+Offline review: docs/DISCOVERY_QUALIFICATION_RUBRIC_REVIEW.md. Packet sufficiency
+is investigation admission, not proof of independent or real-world need. Production
+locator labels lack scope anchors; two v1 cases require well_supported despite
+synthetic evidence. Actual exploratory response is defensible; original failed grade
+is retained, not promoted. Review reproduces contract-pass/assertion-fail and verifies
+117 pinned source bindings, original manifest bytes and preserved run.lock.
+Prepared18 fresh scenario designs (2development/4held-out per class), including
+designer revision, in config/connections/benchmarks/discovery-synthetic-v2/proposal.json.
+These are prospective design specs, not executable manifests, independent ratings,
+a frozen study or live authority. No provider calls, runtime/prompt/installed/settings
+changes. C54 remains partial; discovery unqualified. Receipt:
+tracking/evidence/discovery-rubric-review/result.json. Next eligible: implement
+operational rubric anchors and production-bound v2 manifests/controls, verify all
+roles and prepare a new hash-bound execution packet. No automatic install/live rerun.
+
+## Approved discovery upgrade executed; qualification stopped — October 20, 2026
+
+Jordan approved the exact review packet. Installer exited0; installed bundle hash
+80fe5f7a40e844d6361277dc4c96f33e927cb0527871fe2e863c08b086cdb56b.
+Supported installed service saved a verified pre-upgrade dump and migrated26→27.
+Desktop reopened, local-owner sign-in renewed, reviewed three task permissions
+accepted through API; caps/data/credits-off unchanged. Exactly one live gpt-6-astra
+request completed, then stop-on-first-failure halted dev-transfer: production schema/
+refs passed, frozen well_supported expectation disagreed with exploratory output.
+No retries, held-out cases, later classes, search, workflows or pilot launched.
+Readback:10 total completed requests, zero in-flight/unresolved; discovery remains
+unqualified (research_synthesis failed; other two classes untested). Preserve all
+frozen inputs/criteria/run.lock. Possible overly restrictive authored expectation
+requires review, not retroactive passing. See docs/DISCOVERY_QUALIFICATION_RESULT.md
+and tracking/evidence/discovery-qualification-prep/execution-outcome.json.
+Next eligible: bounded evidence-strength rubric review and versioned fresh-case
+qualification proposal; no automatic rerun or new milestone. C54 remains partial.
+
+## Discovery qualification and migration prepared — October 20, 2026
+
+Concrete review packet: docs/DISCOVERY_QUALIFICATION_PLAN.md. Built final unsigned
+installer and staged migration-27 bundle; current installed manifest re-read and
+verified rollback program copy prepared (no studio data/credentials copied).
+Prepared 18 new synthetic cases: 2 development + 4 held-out per discovery class.
+Production schemas/source refs and frozen decision assertions grade outputs; current
+role-prompt binding and designer revision coverage are required by workflow admission.
+Unrelated/stale task-class qualification cannot unlock discovery. Local checks32/32,
+staged backup-first upgrade/restore checks2/2; native release/NSIS build passed.
+No new real provider calls, saved-studio migration, installation, settings expansion
+or activation. Before/after settings, source/artifact hashes and exact execution plan
+are in tracking/evidence/discovery-qualification-prep. Initial freeze's template
+settings hashes are superseded only for execution by settings-review.json; case
+bytes/criteria unchanged and no target outcomes seen. The actual approved change
+adds only research_synthesis/candidate_generation/scoring, preserving all caps/data/
+credits policy. Next eligible: exact packet approval/execution (max18 plan calls,
+no retries/new metered spend; stop on failure/unknown/quota). Do not replay summary
+benchmark or start other milestones. Existing uncommitted work preserved.
+
+## §2.19A subscription discovery bridge — October 20, 2026
+
+Implemented first slice in checkout; docs/SUBSCRIPTION_DISCOVERY.md describes exact
+scope. Migration 27 adds immutable typed workflow resources and task-bound replay
+outputs. Plan discovery has no API pricing/envelope, uses existing grants/lifecycle/
+leases, and requires research_synthesis/candidate_generation/scoring qualifications.
+Connection settings/data/role/call/day/run caps and input hashes are checked; one
+job/attempt, bounded repairs, cancellation and unknown-result reconciliation remain.
+Embedded and standalone workers share the plan service. Submit selects resource/data
+classes and shows blockers; workflow details distinguish subscription usage. Legacy
+payload/hash and frozen-study paths retained; local route explicitly unimplemented.
+Checks: TypeScript/web pass; affected suites 46/46; final focused checks and candidate
+hashes in tracking/evidence/subscription-workflow; browser 7/7 fixture-only, zero writes.
+No new real provider calls, settings changes, studio migration, native install,
+Agent Reach, pilot activation or study changes. Existing earlier uncommitted repairs
+preserved. C54 remains partial. Next eligible: bounded role-qualification preparation;
+live dispatch/settings expansion requires its matching scoped authority. See guide.
+
+## Current-status reconciliation completed — October 20, 2026
+
+Authoritative concise snapshot: docs/CURRENT_STATUS.md (candidate/evidence table,
+limits and next bounded prompt). Earlier conflicting entries below are historical.
+Staged desktop manifest hash rechecked against recorded installed receipt; no fresh
+installed-disk/native acceptance asserted. Plan-summary receipts confirm narrow
+2/2 development + 6/6 held-out qualification, not discovery/search/code readiness.
+Readiness register adds C52–C54 as not_verified and corrects obsolete no-live-call
+blockers without promoting states/removing gates. Deterministic check: not_ready,
+zero register problems. Separate non-activating owner-pilot.defaults.json prepares
+accepted defaults; activation config unchanged. Manual schedules=[] rejection and
+integration-wide account gating remain implementation blockers, not bypassed.
+Next eligible: first §2.19A typed-resource/workflow-bridge slice in CURRENT_STATUS.
+No runtime implementation, live dispatch, installs, activation or frozen-study change.
+
+## First live summarization qualification — October 20, 2026
+
+Jordan authorized benchmark preparation and execution in chat after the successful
+one-call model verification. Frozen eight-case synthetic structured-event-summary
+manifest: config/connections/benchmarks/summarization-synthetic-v1.json. Two development
+and six held-out cases, all six required; exact canonical JSON grading rejects missing,
+wrong and extra content. Forty local scoring checks passed before dispatch. No target
+outputs were seen before freezing; no prompts, labels or criteria changed afterward.
+
+Executed exactly eight new gpt-6-astra direct-plan requests through the existing
+PlanConnectionService admission/vault/provider/settlement path. Qualification created
+through the authenticated API, then finished through the existing domain gate. All
+eight completed/accepted: development 2/2, held-out 6/6; state qualified. Qualification
+db9cc857-cb7b-4651-a0e9-4f74ac00da85; manifest canonical hash
+72809de002696f07d9574c3ec474596d4847afc8fe5904281150e8bdff5fea15.
+Independent installed-API read verified the decision, matching eight request IDs and
+output hashes, valid UI schema, nine requests total (one prior verification + eight
+cases), zero running/unknown. No retries, credits, paid fallback or cap changes.
+
+Guide/commands: docs/PLAN_SUMMARIZATION_QUALIFICATION.md. Frozen intent, raw synthetic
+outputs and receipts: tracking/evidence/plan-summary-v1. Runner retains raw outcomes
+in addition to the normal database hashes/signals, and an exclusive lock prevents
+automatic repetition. This is a small operational check of constrained structured
+summaries, not general prose quality, independent review or thesis evidence. Existing
+UI gate calls it summarization; qualification of specification/code_build and broader
+acceptance remain separate. No new app build needed. Next eligible: separately select
+a bounded summarization use or specification qualification; no automatic next task.
+
+## ChatGPT sign-in repair — October 20, 2026
+
+Reproduced two native defects: the minimal installed-service PATH cannot resolve
+`powershell.exe`, so DPAPI token saving fails after browser authorization; and
+PostgreSQL JSONB credits.confirmed_at uses an offset timestamp rejected by the UI's
+strict ISO parser, hiding the saved connection after restart. Fixed with the explicit
+Windows PowerShell path and UTC normalization at the database adapter boundary.
+Models now refreshes visible connection status, shows pending/failure states, blocks
+repeated pending sign-in, offers manual refresh, and waits for a successful list load
+before offering Add. Browser callback no longer claims sign-in has already succeeded.
+
+Executed: both regression checks failed before their fixes; connection/API/CLI suite
+18/18 pass on disposable PostgreSQL; native DPAPI minimal-PATH save/read/delete 1/1
+pass outside the sandbox; intercepted browser checks 5/5; TypeScript and targeted
+format/whitespace checks; studio/native/NSIS builds. Installed update (exit 0) after
+Jordan quit, reopened it, and confirmed installed/staged bundle-manifest SHA256
+97720440cd44a24f5f95d371706257742d24ea3e6620607f2e3691d3f01a13eb. Existing real
+connection now passes the actual UI schema. Sandbox rename/network failures were
+environmental; rechecks passed outside those restrictions. Existing Vite chunk warning.
+
+Jordan retried and confirmed Signed in. Installed API independently reports completed
+sign-in with plan usage granted (2026-10-20T12:28:39Z); a separate process reopened
+the DPAPI record and confirmed saved registration, access/refresh/ID tokens and
+plan scope without printing credentials. Native restart itself was not repeated.
+Request ledger reports zero model requests. Earlier failed registrations saved no
+local IDs/tokens; their duplicate ChatGPT settings entries remain unchanged and
+cannot be revoked with this connection's credentials. No real inference or model
+verification request sent. Next eligible: separately approve the documented
+one-request model verification; task qualification remains blocked.
 
 ## §2.2 / §2.4 — ChatGPT plan connection and Codex builder (October 20, 2026)
 
@@ -51,7 +2660,6 @@ calls, discovery submission, public release, credential or login preference chan
 App left running. Broader §2.1 setup/tray/login/restart acceptance remains incomplete;
 next eligible prompt: finish those outstanding §2.1 checks, then §2.2 only if selected.
 
-
 ## Reset action layout refinement — October 20, 2026
 
 Removed the draft-explanation strip and placed Reset page fields inside the panel's
@@ -65,7 +2673,6 @@ The minimal Monitor fixture shows a contract error; live Monitor data is unverif
 No operational API/provider calls. Installer/native bundle not rebuilt for this edit.
 Next eligible: rebuild/install candidate and finish native runbook §2.1 acceptance;
 §2.2 only when separately selected. Preserve all other uncommitted work.
-
 
 ## Page-navigation draft loss repaired — October 20, 2026
 
@@ -95,11 +2702,9 @@ Executed: tsc build and web typecheck; studio service protocol tests 7/7 against
 
 Limitations: screen control was declined, so setup-window clicks, menu sign-in, creating a record in the window, tray/background and login toggles, and Windows restart are NOT executed natively (service-level equivalents pass). The agent shell runs inside the Claude desktop package, whose AppData writes are virtualized, so its install landed in the package's LocalCache: Jordan must install from the setup .exe himself. Paired execution worker identity still in memory (ADR-0028). Unsigned local build; NSIS tools downloaded by the Tauri CLI with hash validation. Bundled Node is the build host's v22.21.0. §2.1 is not complete until Jordan's interactive acceptance passes. Next eligible after that: §2.2 (new request).
 
-
 ## Claude handoff prepared — §2.1 (October 20, 2026)
 
 Owner requested a handoff for Claude to implement persistent desktop startup. Copyable prompt and verified starting state: docs/CLAUDE_HANDOFF_2_1.md. Covers fresh studio adoption, production service lifecycle, secure identity, packaging, external dependency ownership, native acceptance and unchosen background/login preferences. Local uncommitted work must be preserved; use this checkout, not a cloud clone. Handoff formatted successfully; no §2.1 implementation, external message, commit or push performed. Next eligible work remains §2.1; §2.2 is outside this handoff's implementation scope.
-
 
 ## Milestone 1.2 — fresh studio adopted (October 20, 2026)
 
@@ -109,20 +2714,17 @@ Executed: direct TypeScript build; all 24 migrations; repeated migration no-op; 
 
 Start with scripts/start-local-studio.ps1; see docs/LOCAL_STUDIO.md. This explicitly selects the fresh target but remains development startup, not installed desktop lifecycle. Milestone 1.2 complete via owner-authorized fresh-start path. Next eligible: COMPLETION_RUNBOOK §2.1; not started automatically.
 
-
 ## Milestone 1.2 — read-only saved-data inventory (October 20, 2026)
 
 Owner is open to a fresh studio; this turn authorized read-only inspection. Confirmed Docker creator-agent-local-db-1 healthy, loopback port 55433, database creator_dev, public schema version 23. Its only workspace is "Fixture discovery demonstration" (fixture mode); all 49 entities are fixture-labelled, 3 run controls, 39 usage records all source fixture, 0 studies and 0 catalogued artifact manifests. Current checkout .creator/products contains 40 product directories and 19 package manifests, all 19 with fixture_roles=true. Older OneDrive copy also has products; it was not changed. These observations support a fresh studio without losing implemented code, but do not prove every ancillary file or database row is disposable.
 
 No database/artifact/configuration changes, migration, backup, restore, activation or live inference. Existing development database and files retained. No CREATOR environment configuration was present in this tool process; Compose documentation identifies the development connection, not an owner-confirmed operational deployment. Next eligible: confirm a separately named fresh studio database/product store, initialize schema 24, and execute backup/restore plus application verification appropriate to the fresh target. Milestone 1.2 remains incomplete; no automatic advance to 2.1.
 
-
 ## Completion runbook §1.1 — independent repair review (October 20, 2026)
 
 U02 PASS for candidate 5f7d22443e91f421197b3b0f9b1d3e623afc9edf: no blocking findings in the four repaired audit boundaries. Separate review conversation; not blind. Report: docs/audits/U02_REPAIR_REVIEW_2026-10-20.md. All 14 bound source/test hashes match; migrations 1–23 unchanged. Scratch schema 23→24 upgrade, repeat apply, schema gate and record preservation passed. Focused PostgreSQL/contract checks 41/41 and QA secrecy checks 2/2 (including real WSL) passed; build/typecheck passed. Readiness remains not_ready, exit 3, no register inconsistencies. Evidence: tracking/evidence/u02-review.
 
 Application code/configuration and existing tests unchanged. No operational database migration, provider activation, live call, spending or publication. Review-only PostgreSQL stopped. Existing runbook/tracking edits preserved. Next eligible: COMPLETION_RUNBOOK §1.2, requiring the owner's named operational database/artifact store and scoped adoption authority. No automatic milestone advancement; full product remains incomplete.
-
 
 ## Completion runbook and desktop/model direction — October 20, 2026
 
@@ -145,7 +2747,6 @@ Work continues in C:/dev/creator_agent, branch codex/audit-boundary-fixes, from 
 Verified: full pnpm check 302 tests / 287 pass / 0 fail / 15 skips; typecheck/format clean. Real WSL QA secrecy 1/1; final context 18/18 and uppercase audit-chain case 1/1; final API/cleanup regressions 3/3. Build/smoke pass; readiness honestly not_ready (exit 3, no inconsistencies). Intermediate failed runs retained and explained in the repair report. Migrations 1–23 checksum-identical; only disposable databases migrated to 24.
 
 No paid/live runtime operation, protocol/owner decision change, deployment or activation. Existing deployment databases were not migrated. Next eligible: U02 independent review of the repair candidate; no automatic next milestone.
-
 
 ## Owner decisions after the 2026-10-20 audit (October 20, 2026)
 
@@ -211,11 +2812,9 @@ validation). Limits: register is hand-maintained; no concurrent load, browser or
 measurement; nothing live, deployed, spent or sent. Next eligible: owner decisions listed in
 the readiness report (pilot choices, model verification, RD1–RD10); no automatic milestone.
 
-
 ## Local audit fixes published for review — 2026-10-19
 
 Preserves the original checkout while publishing its DNS cancellation, sign-out, stale actor request, and maintenance-health fixes with regression tests. Documentation cleanup and historical local tracking patches are retained. This PR is stacked on X08/X09; X10 is not started. Validation: typecheck, production build, formatting, and 15 focused regression tests passed. PostgreSQL/live activation was not rerun for this audit branch.
-
 
 ## X09 — portfolio scheduling and reviewed knowledge (October 19, 2026)
 
@@ -332,7 +2931,6 @@ on PostgreSQL 16: 257 tests, 244 pass, 0 fail, 13 skips. `pnpm build` passes.
 
 Limits: browser only; native Tauri/WebView2, screen reader and Windows high contrast not observed.
 No dialogs exist to check. Fixture data and the T13 test double only.
-
 
 ## X06/X07 independent audit and repairs (October 19, 2026)
 
@@ -1289,7 +3887,6 @@ Executed: TypeScript build; formatting of changed files; 34/34 research/broker/A
 
 Migration 25 adds the Brave provider constraints; coordinate that number with concurrent Claude §2.4 work before applying anywhere durable. No desktop/auth/subscription implementation files touched. Readiness promotes only source-search implementation/fixture/contract; live/activation remain unverified. §2.5 is PARTIAL until account-specific terms/pricing, protected credential, local/subscription prerequisite verification and a recorded bounded live search/fetch grant are available. Next eligible prompt: finish §2.5 live qualification through the actual application; no automatic §2.6.
 
-
 ## §2.4 plan clarification — October 20, 2026
 
 Jordan confirmed ChatGPT Plus. Q2 resolved in docs/CODEX_INTEGRATION.md and proposed ADR-0042; plan is owner-reported, connection/eligibility unverified. Shared plan usage must account for Creator Agent and personal Codex use. No other proposed decision accepted, activation authorized or code changed. Next eligible work remains the selected milestones and their documented gates.
@@ -1305,3 +3902,54 @@ repository formatting check and 7/7 storage tests passed on disposable PostgreSQ
 failures; isolated cluster on 55579 resolved them. GitHub PostgreSQL 16 rerun pending.
 Next eligible milestone remains outstanding section 2.1 native acceptance; no
 additional milestone authorized by this CI repair.
+
+## Studio chat and theme-free discovery roadmap — October 20, 2026
+
+Owner feedback incorporated through U04 into COMPLETION_RUNBOOK §2.17/§2.18 and
+requirements C52/C53; rationale in DECISIONS. Planned central chat supports prompt/
+source intake and linked actions; Explore for me derives evidence-backed concrete
+briefs without a user theme, within explicit resource/source/oversight limits.
+Inspected submit.tsx and SearchBriefBodySchema: current discovery requires a theme.
+Documentation-only; no feature implementation, live dispatch, schedule activation,
+budget change or frozen study modification. Checked diff/section references; no
+runtime tests needed. Existing uncommitted implementation/evidence preserved.
+Next eligible: select §2.17's bounded intake slice or §2.18's manual exploration
+slice after required source/model gates; no automatic milestone progression.
+
+## Billing-aware theme submission feedback — October 20, 2026 (planning)
+
+U04: owner reports mandatory budget/pricing snapshots conflict with plan-only use.
+Inspected submit.tsx: readiness requires both an envelope and pricing snapshot;
+brief budget text is separate but confusing. Added COMPLETION_RUNBOOK §2.19 for
+simple draft intake, distinct solution constraints, typed subscription/local/API
+resource admission, internally resolved API pricing and no extra metered spend for
+plan-only runs. Plan access/summary qualification does not qualify discovery roles.
+Documentation only; no runtime changes or live calls. Diff whitespace check passed.
+Next eligible: bounded §2.19 discovery-route/admission implementation and required
+role qualification, preserving frozen studies and existing uncommitted work.
+
+## App/workflow alignment review — October 20, 2026
+
+Source-based review: docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md records nine
+prioritized findings and proposed edits to existing runbook sections. Direction
+aligns overall; plan-to-workflow dispatch, evidence-first intake, in-app build/
+revision transitions, route/data/limit setup and stale delivery/readiness text
+remain gaps. User requested findings before adding scope; runbook unchanged this
+review. No runtime tests, live dispatch or native walkthrough executed. Existing
+changes preserved. Next eligible planning action: owner selects proposed refinements;
+then amend existing sections and choose a bounded implementation prompt.
+
+## Accepted workflow-alignment planning — October 20, 2026
+
+Owner accepted all nine findings and native plan search/Agent Reach comparison
+for later implementation. Runbook impact map covers §2.5A native search first,
+selective upstream comparison, §2.10 shared resource settings, §2.14 onboarding,
+§2.15 status reconciliation/delivery order, §2.17 research handoff, §2.19A role
+workflow dispatch/worker parity/effective limits/data sharing and Group 3 in-app
+spec/build/package/revision. These are plans, not implemented/activated features.
+Official plan docs permit web search subject to model/account/workspace policy;
+current app integration/qualification is missing. Agent Reach remains a candidate,
+not an installed dependency or replacement provider. No spending, schedule or study
+changes. Next eligible prompt: §2.15 current-status reconciliation, then explicitly
+select a bounded dependency-complete implementation slice. Documentation checks
+only; no runtime tests/live calls. Existing unrelated changes preserved.

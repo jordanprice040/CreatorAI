@@ -57,3 +57,8 @@ Core/Extension is the proposed delivery priority, not a claim of formal committe
 | C49 | Real-vs-fixture integration status | Earlier implementation | All | T00–T19,X01–X10 | Implementation, fixture, contract, live verification and activation reported separately. |
 | C50 | Owner control without repeated unnecessary permission | Earlier direction + Oct 8 | All | T03,X01–X10 | Covered routine actions proceed; actual out-of-scope actions get concrete review. |
 | C51 | Declared-scale performance and operating targets | Earlier implementation | Extension | X10 | Measured latency/throughput on stated hardware/data; no claimed targets without measurements. |
+
+| C52 | Central studio chat for requests, source/prompt intake and linked research/comparisons | Owner Oct 20 | Extension | Runbook §2.17; T09/X03 reuse | Save-only requests do not dispatch; actions link to durable records/runs; citations, context permissions, idempotency and recovery verified. |
+| C53 | Agent-led problem discovery without a user-supplied theme | Owner Oct 20 | Extension | Runbook §2.18; T06–T08/X09 reuse | Bounded manual exploration yields evidence-backed briefs or an honest empty result; aggregate limits and oversight enforced; frozen study conditions preserved. |
+
+| C54 | Billing-aware simple theme intake and complete in-app workflow | Owner Oct 20 alignment review | Extension | Runbook §2.5A/§2.15/§2.19A, Group 3 | Real-workspace theme with no claims reaches cited comparison via qualified role routes; effective limits/data sharing and supported build/export/revision work without CLI assembly. |

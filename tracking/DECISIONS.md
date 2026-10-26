@@ -1,5 +1,455 @@
 # Decision log
 
+## CW-01 attestation-to-spawn bound confirmed (120 s) — October 26, 2026
+
+Jordan confirmed "120 s is fine" for the CW-01 fixture core's owner-attestation
+bound: pg_ctl's measured creation may be at most 120 s after the attestation's
+affirmed_at_ms (LIMITS.attestation_max_age_ms in
+scripts/theme-intent-cw01-core-fixture-v4.mjs, introduced in v3). This settles the
+value flagged in docs/THEME_INTENT_CW01_FIXTURE_CORE_V3_REPAIR_2026-10-26.md and the
+v4 repair; no code changed. It confirms a fixture-core parameter only: it grants no
+attestation, SQL, credential, registry/pidfile/process read, cluster start/stop,
+launch or native-session authority. M3 unchanged and not reopened.
+
+## Theme acceptance field-limited reader preparation — October 24, 2026
+
+Jordan selected “Prepare a field-limited reader for separate review” in this
+conversation. This authorizes fixture-only preparation and review, not saved
+studio.json/credential reads, operational OS observations or native acceptance.
+Implementation/report: docs/THEME_INTENT_CONFIG_READER_PREPARATION_2026-10-24.md.
+M3's previously accepted exact-bundle evidence standard remains unchanged. Any
+future operational adapter/read needs concrete separate reviewed scope; fixture
+projection cannot establish active home/workspace role/continuity or tool identity.
+
+
+## THEME-ACCEPTANCE-M3-2026-10-24 — scoped scheduler evidence standard
+
+Jordan explicitly selected “Accept exact-bundle configuration evidence for this
+session” after Claude's exact-v3 review. For narrow theme-draft UI acceptance only,
+a fresh installed match to reviewed studio.mjs SHA256
+9d5ddac373c475a88253f23e01bf18852276db04a2113d2de7582c22fa21da88
+may satisfy the scheduler-configuration gate. This is an explicit evidence-standard
+change, not observed live state, continuous prevention or exhaustive zero dispatch.
+Worker remains on; current identity/continuity and all other gates remain. No
+startup-admission candidate selected. Concrete inspection/session scope separate.
+Canonical scoped statement: docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md.
+No frozen study/protocol or wider policy change, operational read, activation or
+launch is authorized. V4/proposal v2 prepared for separate independent review.
+
+
+## Native acceptance readiness assessed; session remains blocked — October 24, 2026
+
+Bounded repository-only reconciliation completed. No newer independent exact-v2
+checklist review found in docs/tracking filename inventory and text search; original
+review covers v1, revision is not independent, and supported v4 review covers helper
+bytes only. No reviewer dispatched. Frozen checklist/helper/package/history preserved.
+Actual schema29 installation and pre-UI receipts supersede v2's pending helper,
+backup/install/migrate prerequisites; no repeat preparation/install is indicated.
+Repository evidence check: 182 hash bindings, zero mismatches; 145 exact helper
+bindings; 16 run-01 JSON receipts read; all114 business hashes preserved; migration
+precedes observation. These are historical receipts, not fresh operational checks.
+
+Readiness and proposed session scope:
+docs/THEME_INTENT_ACCEPTANCE_READINESS_2026-10-24.md.
+Evidence/reproducible repository-only check:
+tracking/evidence/theme-intent-acceptance-readiness-2026-10-24/assessment-receipt.json
+and assess.mjs. Native acceptance remains blocked by independent exact-v2 review,
+unknown live scheduling state, named existing workspace/current owner-editor role,
+continuity through first launch and a separate bounded session authorization.
+Source defaults do not prove live scheduler state; worker starts on launch. UI-only
+scope cannot establish raw hashes, post-UI database equality or exhaustive zero
+dispatch. A v1–2/B v1 synthetic scope retains records by default; registry/shortcuts
+need separate read-only scope; /NS skips creation; Jordan H remains separate.
+
+No operational/credential access, launch/sign-in, acceptance writes, helper execution,
+provider/workflow activation, recovery/stale release, cleanup or retired checkout
+access. R/N/H remain unverified; full C54 partial. Next eligible: use
+ docs/THEME_INTENT_ACCEPTANCE_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md in a separate
+review session. Resolve scheduling/continuity gates before requesting native session
+execution. No automatic next milestone or authority granted by this assessment.
+
+## Exact theme-intent installed and schema29 preserved before UI — October 24, 2026
+
+Owner authorized next step after operational before completion. New exact /4 owner
+install decision binds frozen candidate7100a039...8bc /plan27f79525...7a1, prepared
+5bb69e60...ddf0d2 and reviewed145runtime map. Fresh admission passed with unchanged
+schema28/predecessor/state/backups. Real NSIS3af2712c...6d834b ran /S /NS, exit0,
+no timeout, completed2026-10-24T12:34:45.802Z (08:34:45EDT). Exact candidate migrate
+applied[29] from28to29 and created its own verified schema28 migration snapshot.
+Reviewed after passed before any desktop/UI launch: schema29 observed
+2026-10-24T12:34:49.022Z; all114business table hashes, prior migrations, protected
+files/config/products preserved. Parent rechecked full receipt/admission/installer/
+migration chain and migration dump hash; exact installed native510b09...88ca9,
+manifest5b38b4...eba6 and71runtime resources verified.
+Operational cluster stopped normally. Host check pg_ctl status3, no configured-port
+listener, no lease, desktop or runtime worker. No provider calls/workflow activation,
+UI/acceptance writes, recovery or retired checkout access. Code/packages/reviews
+unchanged; CurrentUser DPAPI used by reviewed wrapper only, no secret bytes logged.
+Evidence: tracking/evidence/theme-intent-installation-v4-2026-10-24/completion-receipt.json
+and shutdown-check.json; original session receipts and new owner-install-approval
+under tracking/evidence/theme-intent-operational-before-v4-2026-10-24/.
+Prior before completion remains immutable history; installed state now supersedes28.
+Keep schema28 snapshot and matching program together at private before backup;
+coordinated rollback needs separate decision, never old binaries alone over29.
+Real installation I is verified. Registry/shortcuts R, native UI N and Jordan human
+acceptance H remain unverified. /NS skips shortcut creation. No operational restore
+rehearsal claimed. Acceptance checklist v2 review/session scope still separate;
+keep desktop quit until gates resolve. Next eligible: independent exact-checklist-v2
+review alongside supported v4 helper, then scoped native acceptance decision.
+No automatic acceptance/next milestone. FullC54 remains partial.
+
+## Operational v4 before preparation completed — October 24, 2026
+
+Owner authorized next step after exact-v4 independent support. Supported /4 review
+validated with all145 runtime bindings; frozen package preflight passed. New session
+operational-before-v4-20261024-01, evidence
+tracking/evidence/theme-intent-operational-before-v4-2026-10-24/.
+Reviewed PS/CLI before exited0, fixture:false, provider_calls0. Actual managed
+postgres/data schema28 observed;28migration rows and114table hashes. Dedicated
+snapshot plus post-backup preserved-state checks/quiescence passed. Private backup:
+C:/Users/jorda/AppData/Local/com.creatoragent.studio/backups/theme-intent-v4-operational-before-v4-20261024-01.
+Database dump553996bytes; matching predecessor program78files, protected4files,
+configured products tree0files. Helper verified dump list/hash and copy maps; parent
+rehashed all copies/dump and prepared/before/backup receipt links. CurrentUser DPAPI
+used only inside reviewed wrapper; no credential bytes logged/tracked. No restore
+rehearsal performed on operational snapshot; dump-list/hash verification is distinct.
+Prepared_at2026-10-24T12:31:01.322Z; prepared SHA256
+5bb69e60eaae96a503368ef2bd9f7e61c9f40546825b893de4e1d44492ddf0d2.
+Earliest backup/prepared15minute age deadline2026-10-24T12:46:00.939Z
+(08:46:00.939 America/New_York). Admission must recheck freshness/unchanged state
+and a NEW exact owner installation decision; age deadline is not admission approval.
+Host final check:pg_ctl status3, no configured-port listener, no theme-intent lease.
+Operational database and installed predecessor remain schema28; no install, migrate,
+admit, recovery, stale release, provider/workflow activation or retired-path access.
+Completion receipt and shutdown/owner provenance retained; prior failed v3 attempt
+unchanged. Helper/plan/packages/reviews untouched. Native NSIS/registry/shortcuts/UI
+and human acceptance remain unverified; acceptance checklist v2 review separate.
+Next eligible: new exact installation/migration owner decision, fresh admission and
+only then authorized install/migrate/after before any UI launch. If stale or state
+changed, new before session/directories required. No automatic next milestone.
+FullC54 remains partial.
+
+## Development artifact retention mechanism — October 24, 2026
+
+Retention is opt-in by marker and never inferred from directory names, so
+historical evidence, recovery material and unknown directories cannot be deleted by
+pattern. Frozen reviewed runners are not retrofitted (hash bindings); new runs mark
+themselves via createOwnedRun(). Policy: passed 24h + latest 1, failed 14d + latest 2,
+abandoned active treated as failed, protected/referenced always kept. Deletion
+refuses links/junctions anywhere in a run and operational/broad roots. No automatic
+or scheduled deletion.
+
+## Installed acceptance checklist v2 revised; execution remains blocked — October 24, 2026
+
+Owner authorized document-only revision following Claude's blocked checklist review.
+New docs/THEME_INTENT_INSTALLED_ACCEPTANCE_PLAN_V2_2026-10-24.md preserves the original
+plan and review. Incorporates A0–A13: exact candidate/plan/proposed-v4 map and review
+binding; successful after/cluster-stop evidence before first launch with actual
+v4 at/state.observed_at fields and operator timeline; control-window GUI-migration
+stop; native sign-in/Quit; workspace/role/mutation scope; two-draft visible ledger;
+clean-save version/activity check; pending-target semantics; retention by default.
+UI-only observation chosen. Raw content hashes, whole-database equality after UI
+activity and exhaustive zero dispatch are explicitly unverified. Plan declarations
+are wiring, not measured dispatch. Worker startup/bookkeeping are explicit; no
+worker-off control or live scheduler-off UI invented. Unknown runtime scheduling
+blocks execution; stronger prevention/accounting proof needs a separate reviewed
+inspection/control task. Real install, registry/shortcuts, native UI and Jordan's
+human acceptance have separate I/R/N/H classes; historical fixtures are F.
+All cases not-run. No operational data/credentials, helper, installer, app, provider,
+workflow or retired path accessed/run. Only documentation/tracking/new planning
+evidence changed. Original plan/report/receipt hashes preserved; all168 v4 repair
+artifacts unchanged. Markdown formatting and case coverage checks pass. Evidence:
+tracking/evidence/theme-intent-acceptance-plan-v2-2026-10-24/revision-receipt.json.
+Next: independent exact-v2 checklist review alongside resulting reviewed helper
+identity. V4 helper review remains a separate gate; operational preparation, install/
+migration and native acceptance still require their recorded gates and authority.
+No automatic next milestone. No fresh operational backup from failed v3 attempt;
+fullC54 remains partial.
+
+## Native-layout helper v4 locally verified; independent review next — October 24, 2026
+
+Owner authorized the next repair after operational v3 before failed. V4 preserves
+v3 and frozen package/plan. Shared PGDATA is desktop-native postgres/data in normal
+managed control, postmaster ownership inspection, stale data_dir binding/release
+and coordinated recovery. Nested directory/no-links/PG_VERSION18 checks now precede
+DPAPI. No flat fallback or data relocation. Versioned /4 authority/review/lease
+contracts require a fresh exact independent review; v3 support does not cover v4.
+Verified source-bound run:26/26 TAP tests (25scenarios+parent), guards11/11,0skip,
+source maps unchanged. Independent fixture initdb uses nested layout; source-contract
+guard reproduces v3 failure. Real wrapper rejects missing nested PGDATA while
+synthetic DPAPI is unavailable. Before/death/stale-release, forward29 preservation
+and coordinated28 recovery pass. Static package/PS parse/format/syntax pass.
+First full run retained: two scenarios failed (23pass/3fail including parent):
+missing synthetic studio.json setup, corrected in test only; transient EPERM on
+fixture program rename during interrupted recovery. Exact-directory rename/back
+subsequently succeeded, and unchanged runtime passed complete rerun. EPERM cause
+unconfirmed, no production retry/gate relaxation; retain for independent review.
+V2's162 and v3's161 artifact hashes unchanged. Disposable55455 summary stopped.
+No operational configuration/credentials/database accessed in this repair; no NSIS,
+providers/workflows, installed app changes or retired checkout access. Failed
+v3 operational before still produced no fresh backup; installed schema28 remains
+last verified status, not re-queried. FullC54partial. V3 low findings deferred.
+See docs/THEME_INTENT_UPGRADE_HELPER_V4_2026-10-24.md and
+tracking/evidence/theme-intent-upgrade-helper-v4-2026-10-24/repair-receipt.json,
+verified-{guards,e2e}-run.json/TAP and retained first-run failure evidence.
+Next U02: fresh independent exact-v4 review of layout/pre-secret/stale/recovery
+and failure evidence. Operational retry remains blocked until review support;
+new session/directories/current authority required. No automatic next milestone,
+installation/migration, recovery or release authority follows.
+
+## Operational before blocked by native-layout mismatch — October 24, 2026
+
+Owner authorized operational before preparation only. Exact frozen package preflight
+and independent /3 review passed (145 runtime bindings). Actual reviewed v3 attempt
+operational-before-20261024-01 exited 1: managed() reads postgres/PG_VERSION, while
+desktop Home::pg_data (apps/desktop/src-tauri/src/home.rs:121) uses postgres/data.
+Read-only inspection confirmed postgres/data/PG_VERSION=18; operational schema was
+not queried. Wrapper decrypted CurrentUser DPAPI before this failure; no credential
+bytes logged. No database start, snapshot, private backup, prepared receipt, install,
+migration, providers or workflows. Empty run-01 evidence directory retained; lease
+removed normally. Original reviewed v3 bytes and all historical evidence preserved.
+The synthetic fixture layout mirrored the same wrong assumption, so prior passing
+tests/review do not establish native layout compatibility. Operational preparation
+is blocked despite historical supported review. See
+tracking/evidence/theme-intent-operational-before-2026-10-24/attempt-result.json
+and owner-before-authorization.json.
+Next eligible U03: bounded versioned native-layout repair, actual-desktop-layout
+fixture coverage (including stale/recovery paths), then fresh independent exact
+review before a new operational before attempt. No install/migration authorization.
+No complete fresh backup exists from this attempt; full C54 remains partial.
+
+## October 23 v3 bounded stale-state release repair
+
+Owner authorized repair of the v2 independent review's two Medium process-death
+findings. Preserve reviewed v2; use separate v3 /3 formats/paths. Cleanup authority
+must be distinct from install/migration/rollback, work before a prepared receipt
+exists and require no credential decryption. Bind dead lease/PID/token and exact
+home/config/data/session/evidence/review map; preserve retired and partial artifacts.
+Serialize cleanup and normal phases with a parent-monitored Windows named mutex;
+publish synced complete disk leases atomically. Tag owned PG startup transiently,
+never stop merely because status says running, keep desktop/workers quit and retain
+leases on uncertain cleanup. After/reconcile can resume forward under cleanup scope
+without repeating effects. These host-specific helper choices change no product
+stack or frozen package. Inner/outer explicit confirmations remain separate from
+the real owner decision. /NS skips shortcut creation; native integration unverified.
+Run receipts now bind before/after runtime+test hashes and TAP digests.25+8 local
+tests pass (24E2Escenarios+parent,8guards); independent /3 support still required.
+No operational action authorized/executed; fullC54 partial. See v3 report/receipt.
+
+## October 23 upgrade-helper independent-review repair revision2
+
+The owner authorized repairs after Claude blocked v1. Preserve v1 helper bytes and
+its rejected review, including malformed original metadata; create a separate v2
+implementation rather than rewriting that evidence. No package rebuild/source or
+frozen-plan change. Review binds migration/pg dependency closure before importing
+it; all phases require the exact v2 gate before DPAPI. Managed cluster ownership is
+explicit and normal phases refuse an already-running cluster. Sensitive snapshots
+belong in the studio backup tree; tracked evidence has hashes only. Backup directory
+reuse is rejected. Freshness applies to admission, not post-effect verification.
+Recovery is a separate exact decision, restores only within the unchanged upgrade
+window, verifies populated schema28 on a new empty DB, retains failed state, restores
+matching program/products/protected files and explicitly redirects config. Standard
+shell integration uses the pinned predecessor installer; actual/custom shell and UI
+acceptance are unverified. Fixture installers/clock/DPAPI decisions are test-only.
+Local21+5 checks pass; no independent support or operational authority implied.
+Next fresh U02 v2 review. FullC54 partial. See v2 report/repair receipt for exact scope.
+
+## October 23 schema29-aware upgrade-helper preparation
+
+Implementation choice within authorized preparation: separate exact-pinned helper,
+not edits to frozen schema28 helpers/package receipts. Current createBackup and
+checkBackup expect schema29 and cannot cover the predecessor unchanged. Use
+supported pg_dump custom archive/exported snapshot + pg_restore TOC validation,
+verified product/protected/program trees, and explicit
+theme-intent-upgrade-backup/1 metadata. Do not imply compatibility with current
+Restore Studio; coordinated empty-target PostgreSQL recovery is documented.
+All existing public tables and migration ledger checksums are fingerprinted;
+schema28 before and29 after are distinct. Unknown work, stale evidence, review or
+approval mismatch and partial-attempt locks fail closed. Independent helper review
+and new exact owner decision remain prerequisites, not approvals supplied here.
+10isolated checks pass; implementation-involved self-review only. No operational
+or provider action. FullC54 partial. See new helper report/evidence.
+
+## October 23 theme-intent preparation implementation
+
+The authorized first C54 gap uses an additive theme_intent record (theme-intent/1),
+reusing existing versioned storage and permission paths rather than weakening the
+frozen claim-backed SearchBrief/discovery contracts. Migration29 only expands the
+record-kind constraint; test databases only. Research-plan preparation is a pure,
+version/hash-bound read with zero execution exposure,not a grant or source claim.
+Source collection and current parent-limit/sharing admission remain later gates.
+No new dependency,provider integration or installed-app change. See implementation
+report and exact evidence; separate code review precedes packaging/installation.
+
+## October22 research packet confidence/provenance correction before outputs
+
+Preserved v1 and prepared/reviewed additive v2:injection current-need confidence
+permits exploratory/insufficient,not unsupportedwell_supported;observer label
+attached only to its actual C1 claim.18substantive criteria/floor/bounds unchanged.
+No historical regrade,productionpolicy change or live authority inferred.
+See docs/DISCOVERY_RESEARCH14_V2_REVIEW_2026-10-22.md.
+
+## October 22 additive packet correction after review
+
+V1 input contamination/temporal ambiguity/over-specific conditional verdict were
+found before provider outputs. Preserve v1 and use separately frozen/reviewed v2.
+This corrects authoring specification, not model results or historical grades.
+No floor/budget expansion; no live activation or policy change. Same intended
+scenarios, not an independent sample. docs/DISCOVERY_SEMANTICS_V2_REVIEW_2026-10-22.md.
+
+## October 22 local finding-semantics implementation
+
+Owner continued the prospective correction. Implemented role1.4 prompt definitions
+and authoritative per-proposal cheaper_test locally; schema and historical grades
+preserved. No policy or research-protocol acceptance inferred, no installation/live
+authorization. Prompt hash and executed checks in
+docs/DISCOVERY_FINDING_SEMANTICS_IMPLEMENTATION_2026-10-22.md.
+Affected independent review is next before a new evaluation binding.
+
+## October 22 proposed finding-semantics clarification (not activated)
+
+Prepared U03 prospective specification after separate seven-output review.
+Recommend preserving schema compatibility, defining novelty as originality and
+using the existing per-proposal cheaper_test field as authoritative. Unsupported
+benefit belongs to weak_evidence. This is a proposed implementation direction,
+not an accepted research-protocol change, live authorization or retroactive
+regrade. Production remains role1.3; role1.4 is proposed only. Exact scope,
+alternatives, version consequences and local verification plan:
+docs/DISCOVERY_FINDING_SEMANTICS_PROPOSAL_2026-10-22.md.
+
+## October 21 v5 provider-quota stop and restored owner cap
+
+Executed owner-authorized two-slot amendment; first10 answers passed,11th provider
+quota failure stopped suite. Restore40 as agreed; preserve provider quota exhaustion.
+Local restore verification corrected its false assumption that restoring a studio
+cap removes independent quota blockers. No repeated mutation, retry, quota reset,
+wider account/credits fallback or hidden grade change. Research narrow qualification
+does not qualify incomplete candidate/scoring or establish usefulness. Next offline
+review; any further live evaluation needs provider availability/prospective scope.
+See docs/DISCOVERY_V5_LIVE_RESULT.md.
+
+## October 21 owner authorized two additional test slots
+
+Explicit user instruction permits temporary daily cap40→42, enough for the existing
+approved18-case v5 suite with24 requests in the rolling window. No other permission,
+credit, timeout, retry, per-run budget or frozen criterion changes. Accept new exact
+caps through owner API, preserve original plan and bind separate capacity amendment
+19c60ab6762bc631bbb012c8651c304723ced25e2324a64da4ec730139a34a1d.
+Restore40 after bounded attempt; no erased usage. No repeat approval required for
+this instructed delta. docs/V5_TEST_CAPACITY_AMENDMENT.md records scope/receipts.
+
+## October 21 v5 installation approved; capacity gate honored
+
+Owner authorized exact reviewed v5 next step. Installed verified candidate and
+preserved saved state. Do not start18-request suite with only16 daily slots; no cap
+increase, splitting, retry or inferred provider quota. Existing scoped approval
+persists for unchanged plan when fresh preflight passes; no repeated approval.
+Capacity estimate8:38:49AM EDT is conditional on no new usage, not a scheduled
+automation or authority to skip checks. docs/DISCOVERY_V5_INSTALLATION.md.
+
+## October 21 repair candidate/fresh v5 preparation
+
+Owner authorized preparation. Package tested stream and reconciliation repairs with
+fresh author-created role1.3 packets, preserving v4 failure/reconciliation and all
+prior locks. No frozen deadline/cap extension, retrieved answer or proven live root
+cause claimed.75 checks pass; exact source/package bindings in v5 execution plan.
+Current16 daily slots cannot admit proposed18-request suite; fresh capacity check
+must pass without increasing limits. No installation/live dispatch in preparation.
+Independent substantive review remains pending. docs/DISCOVERY_QUALIFICATION_V5.md.
+
+## October 21 owner adopted ran-without-result reconciliation
+
+After the explicit proposal, owner authorized next step. Recorded ran (observed
+partial activity only), retained unknown-result metadata and historical timeout,
+then closed v4 qualification failed at3/4held-out under frozen4/4 requirement.
+No retry or provider request. Independent API/DB readback confirms zero unresolved
+and unchanged24 requests. No recovered answer or substantive pass claimed.
+docs/V4_TIMEOUT_RECONCILIATION.md records receipts and next candidate preparation.
+
+## October 21 bounded stream-recovery repair
+
+Owner authorized next recovery review. Correct reproduced stream framing/cap defects
+without claiming they explain the live timeout. Require observed-output consistency
+on reconciliation: cannot say did_not_run when positive output is recorded. Preserve
+unknown until an actual owner decision; propose ran without usable result and failed
+qualification closure, never reconstructed completion or automatic retry. Keep existing
+caps/deadline/grants, no wider retrieval scope or invented recovery API.36 local tests
+pass; saved state/install unchanged. See docs/PLAN_STREAM_RECOVERY_REVIEW.md.
+
+## October 21 approved v4 timeout stop
+
+Owner approved exact v4 candidate/suite. Install succeeded; five requests accepted,
+sixth timeout unknown. Stop honored with no retry or later task class. Preserve
+unknown and running qualification until evidence-backed owner reconciliation; a
+provider response ID/partial stream does not certify a complete result. Do not turn
+unknown into a model schema failure or count unattempted cases as observations.
+No wider retrieval credentials, invented capability, budget change or automatic
+rerun. Next bounded step is timeout/recovery/reconciliation review. See
+docs/DISCOVERY_V4_LIVE_RESULT.md.
+
+## October 21 fresh v4 preparation
+
+Owner authorized fresh qualification preparation.18 new author-created packets use
+role1.3 semantics and identity selectors; gold/control/reviewer criteria frozen
+before target exposure. Pretarget draft corrections and failed harness checks are
+retained; final45 tests pass. No independent review or live result is asserted.
+Author-visible operational holdouts are not independent thesis tasks. Preserve
+all v1–v3 results/locks; no automatic rerun or new installation. Exact candidate/
+execution proposal is docs/DISCOVERY_QUALIFICATION_V4.md. No budget/cap/permission
+or research-study protocol change. Approval and active-state checks precede activation.
+
+## October 21 role1.3 and opt-in identity-bound checks
+
+Owner authorized bounded implementation after audit. Explicit field semantics are
+versioned1.3; no output schema, permission or budget relaxation. Optional selector
+binds skeptic assertions to one supplied proposal and one matching finding;
+ambiguous/missing targets fail. Without selector, retain legacy grading so frozen
+v3 novelty failure remains failed and historical manifests retain exact hashes.
+No substring-based novelty whitelist or retrospective coercion. Independent
+substantive acceptance remains separate from structural/reference matching.
+38 local tests pass including v1–v3 qualification invalidation for new role.
+No install/live requests; fresh packets and concrete candidate proposal come next.
+See docs/DISCOVERY_SEMANTICS_IMPLEMENTATION.md.
+
+## October 21 role1.3 and opt-in identity-bound checks
+
+Owner authorized bounded implementation after audit. Explicit field semantics are
+versioned1.3; no output schema, permission or budget relaxation. Optional selector
+binds skeptic assertions to one supplied proposal and one matching finding;
+ambiguous/missing targets fail. Without selector, retain legacy grading so frozen
+v3 novelty failure remains failed and historical manifests retain exact hashes.
+No substring-based novelty whitelist or retrospective coercion. Independent
+substantive acceptance remains separate from structural/reference matching.
+38 local tests pass including v1–v3 qualification invalidation for new role.
+No install/live requests; fresh packets and concrete candidate proposal come next.
+See docs/DISCOVERY_SEMANTICS_IMPLEMENTATION.md.
+
+## October 21 prospective assertion-semantics correction proposal
+
+Owner authorized next bounded audit. Preserve every v3 grade and exposed output;
+do not null-coerce its valid prose or special-case the returned sentence. Audit
+all roles: exact-null novelty lacks explicit model-facing semantics; wildcard
+presence cannot establish correct proposal/finding association or source entailment.
+Propose explicit field meanings (new/custom software versus existing tools included),
+identity-bound assertions and independent substantive acceptance. Retain legacy
+scoring and frozen study protocol.72 offline probes document limitations without
+new model calls.18 fresh scenario sketches are proposed only, not frozen packets
+or dispatch authority. See docs/DISCOVERY_ASSERTION_SEMANTICS_AUDIT.md. Next eligible
+is local versioned implementation/controls, then a concrete qualification proposal.
+
+## October 21 approved v3 installation and bounded result
+
+Owner approved exact v3 plan8e5b6774738de3dfcf3e633edd4dc4a7903ab0884ad194fe3d593e1540b7a98a.
+Installed verified candidate and ran seven sequential plan requests before first
+failure; no retry. Research qualified operationally; candidate failed exact-null
+novelty assertion while production-valid prose denies originality. Preserve this
+failure and every frozen file/lock. Do not equate schema compliance with usefulness
+or representation-specific grading failure with fabricated novelty. Audit assertion
+semantics prospectively across roles before proposing new qualification; no post-hoc
+gate weakening or target-string special case. Independent substantive review remains
+separate. No automatic workflow/search/build/pilot/live run. See
+docs/DISCOVERY_V3_LIVE_RESULT.md and v3 execution-outcome.json.
+
 ## ADR-0042 — ChatGPT plan connection and Codex builder (accepted October 20, 2026)
 
 Full record: [ADR-0042](ADR-0042-codex-integration.md); design and Jordan's answers
@@ -118,7 +568,6 @@ Stream batch results with byte/line/count bounds; keep unknown costs held on unr
 
 Rejected: removing stale-read ordering protection, holding financial locks across network I/O, marking parse failures free, deleting evidence with unresolved billing, storing raw hostile request samples, or changing held-out expected cases. Historical audit and ADRs remain intact. No new dependency, activation or spending grant.
 
-
 ## ADR-0039 — Owner decisions after the 2026-10-20 audit: runtime ceiling, pairing limits, scheduler state, portfolio reinvestment, OneDrive move
 
 October 20, 2026. Jordan's decisions on audit items N1, N2, N4, R1 and R2. Built by Claude
@@ -188,7 +637,6 @@ Consequences: the report says NOT READY while live/model/hosted/payment paths an
 remain unverified, and it cannot be talked into READY without evidence on disk. The register
 is hand-maintained: a row is only as true as the evidence it cites, so review it on each
 milestone. Single-client latency says nothing about concurrent users.
-
 
 ## ADR-0036 — X09 bounded portfolio policy and reviewed task knowledge
 
@@ -296,7 +744,6 @@ following the OS theme (contradicts the owner's choice). `useRoute` now drops a 
 request after the user leaves it (fixes being pulled back). No API, gate, session or CSRF change.
 Numbering: if Codex's X08 lands first with ADR-0035, renumber this entry rather than X08's.
 See docs/UX_UI.md.
-
 
 ## ADR-0034 — X06/X07 audit repairs and conserved processor identity
 
@@ -858,8 +1305,188 @@ Owner requested routing/effort optimization, broad file operations and conversio
 
 Existing SourceBroker/HttpFetchAdapter retained; no existing live search adapter was present to qualify (only synthetic tool.search_public). Add a disabled Brave raw Web Search candidate using the existing metered ModelBroker rather than inventing a second authorization/accounting path. Raw results remain unverified; source fetch and exact passage support remain separate. One request/page, ten results, task domains plus output filtering, no generated summary or credential redirects. Provider HTTP errors conservatively keep billing unknown. This is an implementation choice, not final coverage/cost/terms qualification or owner account activation. Official Brave guide recommends LLM Context for machine consumption; owner plan terms/storage rights and suitability must be checked before activation, with an alternative if unsuitable. Migration 25 reserved for Brave provider constraints; coordinate concurrent §2.4 migration allocation before durable application. Guide and evidence: docs/RESEARCH_RETRIEVAL.md, tracking/evidence/research-2-5.
 
-
 October 20, 2026 — Owner explicitly approved installed studio backup and migration
 24→25 during reset-layout update verification. Applied through native upgrade action;
 backup present and startup succeeded. Provider activation unchanged. Evidence:
 tracking/evidence/reset-layout/result.json.
+
+## Owner-requested studio chat and theme-free discovery — October 20, 2026
+
+U04 roadmap refinement: docs/COMPLETION_RUNBOOK.md §2.17 specifies central Studio
+chat for discussion, save-only prompts/sources and actionable research/comparison
+using existing records, admission and workflows. §2.18 specifies manual Explore for
+me: agent-selected directions within a bounded permitted search envelope, evidenced
+shortlist, then concrete versioned briefs and configured selection. "Issues" is
+interpreted as real-world problems; repository maintenance remains separate.
+Requirements C52/C53 trace these additions. Current submit.tsx and
+SearchBriefBodySchema require a theme; no theme-free control is asserted. This
+records requested planning, not implementation, live dispatch, scheduling, higher
+limits or a changed thesis protocol. Next eligible prompts are the bounded slices
+in §2.17/§2.18 after their stated dependencies; no implementation started here.
+
+## Billing-aware theme submission feedback — October 20, 2026 (planning)
+
+U04: owner reports mandatory budget/pricing snapshots conflict with plan-only use.
+Inspected submit.tsx: readiness requires both an envelope and pricing snapshot;
+brief budget text is separate but confusing. Added COMPLETION_RUNBOOK §2.19 for
+simple draft intake, distinct solution constraints, typed subscription/local/API
+resource admission, internally resolved API pricing and no extra metered spend for
+plan-only runs. Plan access/summary qualification does not qualify discovery roles.
+Documentation only; no runtime changes or live calls. Diff whitespace check passed.
+Next eligible: bounded §2.19 discovery-route/admission implementation and required
+role qualification, preserving frozen studies and existing uncommitted work.
+
+## Accepted workflow-alignment planning — October 20, 2026
+
+Owner accepted all nine findings and native plan search/Agent Reach comparison
+for later implementation. Runbook impact map covers §2.5A native search first,
+selective upstream comparison, §2.10 shared resource settings, §2.14 onboarding,
+§2.15 status reconciliation/delivery order, §2.17 research handoff, §2.19A role
+workflow dispatch/worker parity/effective limits/data sharing and Group 3 in-app
+spec/build/package/revision. These are plans, not implemented/activated features.
+Official plan docs permit web search subject to model/account/workspace policy;
+current app integration/qualification is missing. Agent Reach remains a candidate,
+not an installed dependency or replacement provider. No spending, schedule or study
+changes. Next eligible prompt: §2.15 current-status reconciliation, then explicitly
+select a bounded dependency-complete implementation slice. Documentation checks
+only; no runtime tests/live calls. Existing unrelated changes preserved.
+
+## §2.19A typed subscription discovery resources — October 20, 2026
+
+Owner selected the first workflow/resource slice. Keep legacy API request shape and
+study hashes intact; add typed resources rather than fake zero-priced API snapshots.
+Subscription route uses accepted connection caps plus explicit data grants and fixed
+role-to-qualification mapping, with one job/attempt and parent connection enforcement.
+Migration 27 stores immutable resource setup and bounded raw workflow response text
+for hash-bound crash replay; other direct plan results stay hash-only. This is necessary
+because a settled request hash alone cannot recover a lost task output. Unknown results
+remain held; no automatic redispatch. Reuse existing workers/admission/output gates,
+not a second coordinator. Local route is typed but explicitly blocked until implemented.
+Source-only contract acceptance does not install or qualify the actual model. Guide:
+docs/SUBSCRIPTION_DISCOVERY.md. Pilot schedule gate and broader settings remain separate.
+
+## Discovery qualification preparation — October 20, 2026
+
+Prepare production-role contract checks instead of qualifying discovery from generic
+JSON-key/phrase checks. New discovery_contract benchmarks preserve schema, exact
+packet/role bindings, grounded reference IDs, fixed decision expectations and revision
+coverage. A same-name or obsolete-prompt benchmark no longer unlocks discovery.
+New synthetic cases are target-held-out but author-visible; no claim of independent
+review or thesis evidence. Exact candidate/settings/migration/run plan prepared in
+docs/DISCOVERY_QUALIFICATION_PLAN.md; raw outcomes retained by the bounded runner
+only after scoped execution approval. Source and compiled hashes pin checker behavior;
+future prompt/checker changes invalidate affected qualification. No classes/caps or
+provider access activated by preparation. Template note drift was resolved by matching
+the last verified settings hash; current API equality must still precede any change.
+
+## October20 approved discovery execution: preserve failed qualification
+
+Owner approved the exact upgrade/settings/18-request packet. Upgrade and task-class
+changes executed; first development case returned exploratory where frozen grading
+required well_supported. Production contract passed. Preserve failed qualification
+and all original criteria; no retry, hidden rubric change or exposure of remaining
+held-out labels as fresh evidence. Review whether authored evidence-strength gold
+confuses synthetic observability with real-world validation before proposing a new
+version. See docs/DISCOVERY_QUALIFICATION_RESULT.md.
+
+## October20 evidence-strength review: qualify scope before enum
+
+The v1 locator prompt does not specify whether evidence_strength assesses the
+observed bounded problem or the untested intervention. Packet sufficiency admits
+investigation; it does not establish independent corroboration/external validity.
+Retain the failed v1 grade and original candidate. Propose explicit operational
+anchors and semantic negative controls in a new version; do not silently change
+study rubric or accept all labels. Eighteen fresh scenario designs prepared, not
+frozen executable manifests or live authorization. See
+docs/DISCOVERY_QUALIFICATION_RUBRIC_REVIEW.md.
+
+## October20 operational discovery rubric1.1 and fresh qualification v2
+
+User authorized implementing clearer anchors and executable benchmarks. Version
+locator prompts around observed-need confidence within evidence scope; do not map
+packet sufficiency to high confidence or synthetic support to real-world validation.
+Shared role/prompt version change invalidates prior discovery evidence for the new
+candidate. Preserve historical v1 failure unchanged.18 fresh packets are operational
+contract checks with explicit author-visible labels, not independent or thesis
+evidence. Substantive entailment review remains separate and required; nonempty
+fields/enums alone cannot certify it. Initial offline packet-role-tag correction
+retained in preflight-draft before any target outputs. Candidate/execution packet
+prepared, not authorized for live use by earlier v1 grant. No study protocol or
+weights, money/data permissions or saved connection settings changed. See
+docs/DISCOVERY_QUALIFICATION_V2.md.
+
+## October20 v2 zero-dispatch transport blocker and bounded repair
+
+Exact approved v2 candidate installed, but qualification manifest creation exceeds
+API64KiB cap. Stop recorded before qualification/model admission. Preserve original
+v2 lock and all inputs/criteria; not a model failure or a license to retry output.
+Fix only authenticated plan-qualification creation ingress to128KiB, retaining
+ordinary64KiB action limits and all auth/schema/domain controls. HTTP/stream tests
+prove actual frozen manifests fit without inference. Prepare a new candidate/binding
+for owner review, not automatic replacement of the exact approved installation.
+Repair runner requires zero-dispatch predecessor proof and a separate durable lock.
+Same18 cases remain unexposed to target; not freshly authored or independent study
+evidence. See docs/DISCOVERY_V2_TRANSPORT_REPAIR.md.
+
+## October20 approved repair resolves ingress; preserve actual v2 schema failure
+
+Install/run approval matched repair hash8175e90e31df06302907a0abab8c7f1aa57a31b6b9d4180b9c204baef43da459.
+API413 blocker resolved; first actual target response violates affected_users type
+and gaps max length. Stop after1, retain failed grade and all locks; do not normalize
+arrays, truncate output or weaken schema to pass. Output prompt names fields without
+all exact types/limits, while runtime asks for several auxiliary details. Audit the
+whole model-facing contract before preparing any versioned next candidate; do not
+tune just visible fields or reuse target-exposed output as fresh held-out evidence.
+Coding-agent substantive observations are author review, not independent approval.
+No further milestone or new live call automatically follows. See
+docs/DISCOVERY_V2_LIVE_RESULT.md.
+
+## October20 discovery contract1.2: derive complete output shape from validators
+
+User authorized the next bounded output-contract audit/revision. All discovery
+task kinds now receive schema-derived types/counts/lengths/enums/reference patterns,
+including a complete revision proposal. Keep relational evidence/perspective/ref
+checks in application code. Clarify discovery-specific serialization without editing
+the general runtime contract or weakening production validators; omit reserved
+fixture metadata from model-facing projection. Hash generated schemas and payload
+instructions with version1.2, invalidating historical evidence for a new candidate.
+Prompt guidance is not provider-enforced generation or substantive entailment.
+Preserve every prior grade/manifest/lock, test historical invariants and use explicitly
+fixture-only rebindings for current plumbing tests. Prepare18 fresh v3 scenario
+designs without live dispatch or new installation. No thesis protocol or weights
+changed. docs/DISCOVERY_OUTPUT_CONTRACT_AUDIT.md records limits and next prompt.
+
+## October20 fresh v3 operational qualification frozen for role1.2
+
+User authorized complete fresh packets/manifests, controls, size verification and
+candidate preparation.18 new scenarios now have production-bound frozen inputs and
+prospective assertions, without reusing exposed v1/v2 outputs or tuning after target
+results. Do not treat author-visible gold as independent evaluation. Order-independent
+review coverage is retained for five proposals; two findings supplied to revision.
+Semantic false-narrative controls explicitly expose automation limits and require
+separate substantive review. Exact HTTP ingress/input checks precede live approval;
+no cap changes or unverified structured-output provider features. New candidate/
+execution hash prepared, not installed or authorized by older grants. See
+docs/DISCOVERY_QUALIFICATION_V3.md.
+
+## Discovery follow-up preparation note — October 22, 2026
+
+Implemented the authorized offline preparation in DISCOVERY_REMAINING_COVERAGE_PROPOSAL:
+fresh12 cases, no pooling/resuming v5, unchanged production prompts/runtime and
+4/4 held-out floor. Reuse the existing v5 runtime with externally frozen manifests
+through its existing API; no packaging/install prerequisite added. Prospective runner
+requires separate review and a provider-available observation within15min, plus
+unchanged settings/caps and exact plan approval. This is a prepared execution
+proposal, not owner execution approval, quota reset or an accepted new research
+protocol. See docs/DISCOVERY_FOLLOWUP_V1.md; historical failures/grades retained.
+
+## Explicit availability-check intent — October 22, 2026
+
+Owner selected repairing the already-verified availability path and approved one
+new bounded live check. Keep initial-verification restriction; separate intent
+and purpose require a fresh one-use grant and existing verified model. Legacy
+grants default model_access. Fixed synthetic prompt, ordinary caps/credits and
+unknown fencing apply; settlement updates availability without replacing access
+or qualification. Migration28 additive. Implemented/reviewed/installed; one call
+completed. This is not approval for the12case suite, another recheck, provider
+fallback, research protocol changes or pilot activation. See implementation report.
