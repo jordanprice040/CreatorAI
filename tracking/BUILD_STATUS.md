@@ -1,3 +1,22 @@
+## CW-01 operational adapter design v1.3 note written — October 26, 2026
+
+CW-01 adapter design v1.2 note independently re-reviewed 2026-10-26: supported with
+conditions (Medium J1, Low J2-J7). G2 limit accepted by Jordan; confirm it covers
+pseudoconsole automation (J1). Review docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_2_REVIEW_2026-10-26.md
+(eb2a46a0...1577); receipt tracking/evidence/theme-intent-cw01-operational-adapter-design-v1-2-review-2026-10-26/
+reviewer-receipt.json (7b7a7841...d3a5).
+v1.3 note docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_3_NOTE_2026-10-26.md
+(e8e553b2...1bb6), repository-only and unreviewed, answers J1-J9: interactive-console
+check run by the supervisor (isTTY exception), per-run console challenge, residual restated
+as any console host including an agent's terminal tool, pending Jordan's confirmation (J1);
+full console field list, operational provenance owner_undertaking_console and extended
+channel table (J2); ownership time from the chain part (J3); core-derived
+sql_instance_unchanged (J4); sql_deadline schema (J5); toStringTag brand check and
+new Uint8Array copy (J6); supervisor times are assertions, freshness anchored to helper
+times (J7); type byte in parts (J8); durable history before launch (J9). Earlier
+documents unchanged; nothing implemented or executed. Implementation not started;
+operational NOT READY. Next eligible: v1.3 note re-review in a fresh thread.
+
 ## CW-01 operational adapter design v1.2 note written — October 26, 2026
 
 CW-01 operational adapter design v1.1 re-review (2026-10-26): SUPPORTED WITH CONDITIONS;
