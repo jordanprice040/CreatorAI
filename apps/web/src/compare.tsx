@@ -18,7 +18,17 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import {
+  Empty,
+  Status,
+  alternativeCounts,
+  clip,
+  problemLabel,
+  richestProblem,
+  shortId,
+  useLoad,
+  type View,
+} from './ui.js';
 
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
@@ -130,16 +140,18 @@ export function Compare({
   open: (view: View, id?: string) => void;
 }) {
   const base = `workspaces/${workspace.id}`;
-  const problems = useLoad(
-    () =>
-      api(
-        z.array(StoredEntitySchema),
-        `${base}/entities?kind=problem&status=active`,
-      ),
-    [workspace.id],
-  );
+  const problems = useLoad(async () => {
+    const list = await api(
+      z.array(StoredEntitySchema),
+      `${base}/entities?kind=problem&status=active`,
+    );
+    return { list, counts: await alternativeCounts(base, list) };
+  }, [workspace.id]);
+  const problemList = problems.data?.list;
+  const counts = problems.data?.counts ?? new Map<string, number>();
   useEffect(() => {
-    if (!focus && problems.data?.[0]) onFocus(problems.data[0].id);
+    if (!focus && problems.data?.list[0])
+      onFocus(richestProblem(problems.data.list, problems.data.counts));
   }, [problems.data, focus]);
   const detail = useLoad(async () => {
     if (!focus) return null;
@@ -281,12 +293,12 @@ export function Compare({
           value={focus}
           onChange={(e) => onFocus(e.target.value)}
         >
-          {problems.data?.length === 0 && (
+          {problemList?.length === 0 && (
             <option value="">No problems yet</option>
           )}
-          {problems.data?.map((p) => (
+          {problemList?.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.title.slice(0, 90)}
+              {problemLabel(p, counts)}
             </option>
           ))}
         </select>
@@ -299,7 +311,7 @@ export function Compare({
         error={problems.error}
         retry={problems.reload}
       >
-        {problems.data?.length === 0 && (
+        {problemList?.length === 0 && (
           <Empty>
             No problem records yet. Submit a theme; a finished discovery writes
             one.
@@ -526,7 +538,7 @@ export function Compare({
                   const id = a.entity.id;
                   return (
                     <fieldset key={id}>
-                      <legend>{a.entity.title.slice(0, 120)}</legend>
+                      <legend>{clip(a.entity.title, 120)}</legend>
                       <label htmlFor={`dis-${id}`}>Disposition</label>
                       <select
                         id={`dis-${id}`}
@@ -685,10 +697,11 @@ export function Compare({
                       {s.dispositions.map((x) => (
                         <li key={x.alternative.id}>
                           <span className="kind">{words(x.disposition)}</span>{' '}
-                          {alts
-                            .find((a) => a.entity.id === x.alternative.id)
-                            ?.entity.title.slice(0, 80) ??
-                            shortId(x.alternative.id)}
+                          {clip(
+                            alts.find((a) => a.entity.id === x.alternative.id)
+                              ?.entity.title ?? shortId(x.alternative.id),
+                            80,
+                          )}
                           <small>
                             {' '}
                             · {x.reasons.join(' ')} · reverse if {x.reverse_if}

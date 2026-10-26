@@ -17,6 +17,7 @@ import {
   Empty,
   STATE_NOTE,
   StateBadge,
+  eventText,
   Status,
   shortId,
   useLoad,
@@ -225,27 +226,44 @@ export function Overview({
               <>
                 <h3>Recently finished</h3>
                 <ul className="rows">
-                  {recent.map((w) => (
-                    <li key={w.id}>
-                      <StateBadge state={w.state} />{' '}
-                      <button
-                        className="text"
-                        onClick={() => open('runs', w.id)}
-                      >
-                        {w.role === 'r02_discovery'
-                          ? 'Discovery'
-                          : 'Skeptic review'}{' '}
-                        {shortId(w.id)}
-                      </button>
-                      <small>
-                        {' '}
-                        · {w.result
-                          ? words(w.result.outcome)
-                          : words(w.reason)}{' '}
-                        · {when(w.finished_at ?? w.updated_at)}
-                      </small>
-                    </li>
-                  ))}
+                  {recent.map((w) => {
+                    // A run can finish cleanly yet conclude something else ("insufficient
+                    // evidence"); show that conclusion instead of a second "succeeded".
+                    const outcome = w.result?.outcome;
+                    const differs =
+                      w.state === 'succeeded' && outcome && outcome !== w.state;
+                    const note = outcome ?? w.reason;
+                    return (
+                      <li key={w.id}>
+                        {differs ? (
+                          <span
+                            className="badge wf-outcome"
+                            title="Finished; this is what the run concluded"
+                          >
+                            {words(outcome)}
+                          </span>
+                        ) : (
+                          <StateBadge state={w.state} />
+                        )}{' '}
+                        <button
+                          className="text"
+                          onClick={() => open('runs', w.id)}
+                        >
+                          {w.role === 'r02_discovery'
+                            ? 'Discovery'
+                            : 'Skeptic review'}{' '}
+                          {shortId(w.id)}
+                        </button>
+                        <small>
+                          {' '}
+                          {!differs && note && note !== w.state
+                            ? `· ${words(note)} `
+                            : ''}
+                          · {when(w.finished_at ?? w.updated_at)}
+                        </small>
+                      </li>
+                    );
+                  })}
                 </ul>
               </>
             )}
@@ -277,8 +295,8 @@ export function Overview({
                 <h3>Product stages</h3>
                 {o.products.length === 0 ? (
                   <Empty>
-                    No products yet. Selection does not create one; building
-                    starts in a later milestone.
+                    No product records yet. Selecting an option doesn&apos;t
+                    create one; packaged builds are listed in Gallery.
                   </Empty>
                 ) : (
                   <ul className="rows">
@@ -304,7 +322,7 @@ export function Overview({
                   <ol className="rows history">
                     {d.activity.entries.map((e) => (
                       <li key={e.event_id}>
-                        {e.summary}
+                        {eventText(e.summary)}
                         <small>
                           {' '}
                           · {e.actor.display_name}

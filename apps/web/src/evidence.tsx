@@ -169,13 +169,12 @@ export function Evidence({
       {fixture && (
         <p className="notice">
           Fixture workspace: pages come from the synthetic corpus on
-          .fixture.test hosts (try <code>pnpm cli seed-research</code>). None of
-          it is real reporting.
+          .fixture.test hosts. None of it is real reporting.
         </p>
       )}
-      <form className="connection" onSubmit={(e) => void fetchSource(e)}>
+      <form className="fetch-row" onSubmit={(e) => void fetchSource(e)}>
         <label htmlFor="evurl" className="inline">
-          Fetch
+          Fetch a page
         </label>
         <input
           id="evurl"
@@ -196,7 +195,16 @@ export function Evidence({
             </option>
           ))}
         </select>
-        <button disabled={busy || !runId || !url.trim()}>
+        <button
+          disabled={busy || !runId || !url.trim()}
+          title={
+            !runId
+              ? 'Register a run first; each fetch runs under a run’s permission'
+              : !url.trim()
+                ? 'Enter the page address to fetch'
+                : undefined
+          }
+        >
           {busy ? 'Fetching…' : 'Fetch'}
         </button>
       </form>

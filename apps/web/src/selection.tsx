@@ -13,6 +13,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { alternativeCounts, clip, problemLabel, richestProblem } from './ui.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',
@@ -86,9 +87,8 @@ export function Ranking({
                       <div>
                         Unresolved against{' '}
                         {c.overlaps_with
-                          .map(
-                            (id) =>
-                              names.get(id)?.slice(0, 40) ?? id.slice(0, 8),
+                          .map((id) =>
+                            clip(names.get(id) ?? id.slice(0, 8), 40),
                           )
                           .join('; ')}
                       </div>
@@ -151,6 +151,7 @@ export function Scoring({
 }) {
   const workspace = current.id;
   const [problems, setProblems] = useState<StoredEntity[]>([]);
+  const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
   const problem = focus;
   const setProblem = (u: string | ((c: string) => string)) =>
     onFocus(typeof u === 'function' ? u(focus) : u);
@@ -172,11 +173,14 @@ export function Scoring({
         api(z.array(StoredEntitySchema), `${base}/entities?kind=alternative`),
         api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
       ]);
-      setProblems(p.filter((x) => x.status === 'active'));
+      const active = p.filter((x) => x.status === 'active');
+      const c = await alternativeCounts(base, active);
+      setProblems(active);
+      setCounts(c);
       setAlternatives(a);
       setSpecs(s.filter((x) => x.body?.format === 'spec/1'));
       setProblem((cur) =>
-        p.some((x) => x.id === cur) ? cur : (p[0]?.id ?? ''),
+        active.some((x) => x.id === cur) ? cur : richestProblem(active, c),
       );
     } catch (e) {
       setError(message(e));
@@ -233,7 +237,7 @@ export function Scoring({
         specification through the CLI (<code>pnpm cli spec-freeze</code>).
         Approvals appear under Decisions.
       </p>
-      <div className="connection">
+      <div className="filters">
         <label htmlFor="sel-problem" className="inline">
           Problem
         </label>
@@ -245,7 +249,7 @@ export function Scoring({
           {problems.length === 0 && <option value="">No problems yet</option>}
           {problems.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.title.slice(0, 80)}
+              {problemLabel(p, counts, 80)}
             </option>
           ))}
         </select>
@@ -295,9 +299,11 @@ export function Scoring({
                     {s.dispositions.map((d) => (
                       <li key={d.alternative.id}>
                         <span className="kind">{words(d.disposition)}</span>{' '}
-                        {names
-                          .get(d.alternative.id.toLowerCase())
-                          ?.slice(0, 80) ?? d.alternative.id.slice(0, 8)}
+                        {clip(
+                          names.get(d.alternative.id.toLowerCase()) ??
+                            d.alternative.id.slice(0, 8),
+                          80,
+                        )}
                         <small>
                           {' '}
                           — {d.reasons.join(' ')} Reverse if: {d.reverse_if}

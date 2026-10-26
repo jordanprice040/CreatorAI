@@ -4,6 +4,7 @@ import {
   StudySummarySchema,
   StudyAttemptSchema,
   type StudyAttempt,
+  type StudySummary,
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
@@ -43,20 +44,32 @@ export function Studies({
     content_hash: string;
   } | null>(null);
   const [expected, setExpected] = useState('');
+  const [confirmStop, setConfirmStop] = useState(false);
 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const base = `workspaces/${workspace.id}`;
   async function load() {
-    setStudies(await api(z.array(StudySummarySchema), `${base}/studies`));
+    const list = await api(z.array(StudySummarySchema), `${base}/studies`);
+    setStudies(list);
+    return list;
   }
   useEffect(() => {
     setSelected('');
     setAttempt(null);
     setAttempts([]);
     setContext(null);
-    void load().catch((e) => setError(message(e)));
+    // Open the newest study straight away so the page shows its attempts, not an empty picker.
+    void load()
+      .then((list) => {
+        const newest = list.reduce<StudySummary | null>(
+          (a, b) => (!a || b.created_at > a.created_at ? b : a),
+          null,
+        );
+        if (newest) return openStudy(newest.id);
+      })
+      .catch((e) => setError(message(e)));
   }, [workspace.id]);
   async function perform(fn: () => Promise<void>) {
     setBusy(true);
@@ -86,6 +99,7 @@ export function Studies({
       await api(z.array(Entry), `${base}/study-attempts/${a.id}/entries`),
     );
     setAttempt(a);
+    setConfirmStop(false);
     setContent('');
     setSavedArtifact(null);
     setContext(
@@ -210,11 +224,12 @@ export function Studies({
           </button>
         </div>
       )}
-      <ul>
+      <ul className="attempt-list">
         {attempts.map((a) => (
           <li key={a.id}>
             <button
               className="secondary"
+              aria-pressed={attempt?.id === a.id}
               onClick={() => void perform(() => openAttempt(a))}
             >
               #{a.order} · {a.condition.replaceAll('_', ' ')} · {a.state}
@@ -410,46 +425,72 @@ export function Studies({
               onChange={(e) => setMinutes(e.target.value)}
             />
           </label>
-          <button
-            disabled={busy || attempt.state !== 'assigned'}
-            onClick={() =>
-              void perform(async () => {
-                await write('finish', {
-                  status: 'submitted',
-                  summary:
-                    'Participant submitted saved work; not independently verified.',
-                  human_active_minutes: Number(minutes),
-                  human_wait_seconds: Number(waitSeconds),
-                });
-                await openStudy(selected);
-                setNotice(
-                  'Submission recorded. This is not a verified-success rating.',
-                );
-              })
-            }
-          >
-            Submit saved work
-          </button>
-          <button
-            className="secondary"
-            disabled={busy || attempt.state !== 'assigned'}
-            onClick={() =>
-              void perform(async () => {
-                await write('finish', {
-                  status:
-                    attempt.condition === 'autonomous'
-                      ? 'needs_human'
-                      : 'cancelled',
-                  summary: 'Stopped by operator.',
-                  human_active_minutes: Number(minutes),
-                  human_wait_seconds: Number(waitSeconds),
-                });
-                await openStudy(selected);
-              })
-            }
-          >
-            Stop attempt
-          </button>
+          <div className="actions split">
+            <button
+              disabled={busy || attempt.state !== 'assigned'}
+              onClick={() =>
+                void perform(async () => {
+                  await write('finish', {
+                    status: 'submitted',
+                    summary:
+                      'Participant submitted saved work; not independently verified.',
+                    human_active_minutes: Number(minutes),
+                    human_wait_seconds: Number(waitSeconds),
+                  });
+                  await openStudy(selected);
+                  setNotice(
+                    'Submission recorded. This is not a verified-success rating.',
+                  );
+                })
+              }
+            >
+              Submit saved work
+            </button>
+            {confirmStop ? (
+              <span
+                className="confirm-inline"
+                role="group"
+                aria-label="Stop attempt"
+              >
+                Stop this attempt? It can&apos;t be resumed.{' '}
+                <button
+                  className="secondary"
+                  onClick={() => setConfirmStop(false)}
+                >
+                  Keep working
+                </button>
+                <button
+                  className="secondary danger"
+                  disabled={busy || attempt.state !== 'assigned'}
+                  onClick={() =>
+                    void perform(async () => {
+                      setConfirmStop(false);
+                      await write('finish', {
+                        status:
+                          attempt.condition === 'autonomous'
+                            ? 'needs_human'
+                            : 'cancelled',
+                        summary: 'Stopped by operator.',
+                        human_active_minutes: Number(minutes),
+                        human_wait_seconds: Number(waitSeconds),
+                      });
+                      await openStudy(selected);
+                    })
+                  }
+                >
+                  Stop attempt
+                </button>
+              </span>
+            ) : (
+              <button
+                className="secondary stop"
+                disabled={busy || attempt.state !== 'assigned'}
+                onClick={() => setConfirmStop(true)}
+              >
+                Stop attempt…
+              </button>
+            )}
+          </div>
         </div>
       )}
       {error && (

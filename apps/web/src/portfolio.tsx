@@ -289,6 +289,9 @@ export function Portfolio({
         ))}
       </ul>
       <h3>Scheduled outcomes</h3>
+      {view?.jobs.length === 0 && (
+        <p className="small">No scheduled work has run yet.</p>
+      )}
       <ul>
         {view?.jobs.map((j) => (
           <li key={j.id}>

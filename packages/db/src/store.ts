@@ -194,9 +194,44 @@ export function normalize(ctx: CommandContext): CommandContext {
 const contentHash = (kind: string, title: string, body: unknown) =>
   canonicalHash({ kind, title, body });
 
+/**
+ * A nano-unit amount as an exact decimal (55770000 → 0.05577). History rows don't carry the
+ * budget's mode, so no currency or "simulated" label is claimed here; the budget view has both.
+ */
+function amount(nano: unknown) {
+  const s = String(nano);
+  if (!/^-?\d+$/.test(s)) return s;
+  const v = BigInt(s);
+  const abs = v < 0n ? -v : v;
+  const frac = (abs % 1_000_000_000n)
+    .toString()
+    .padStart(9, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0');
+  return `${v < 0n ? '-' : ''}${abs / 1_000_000_000n}.${frac}`;
+}
+
+/** " (reason)" after a state, left out when the reason only repeats the state. */
+const because = (state: unknown, reason: unknown) =>
+  reason === undefined || reason === null || String(reason) === String(state)
+    ? ''
+    : ` (${String(reason).replaceAll('_', ' ')})`;
+
 /** Safe history wording: kinds, versions and relations only, never titles or bodies. */
 function summarize(action: string, kind: string, version: unknown, p: Row) {
   switch (action) {
+    case 'study.created':
+      return 'Created study';
+    case 'study.assigned':
+      return 'Assigned a study attempt';
+    case 'spec.frozen':
+      return 'Froze specification';
+    case 'spec.revised':
+      return 'Revised specification';
+    case 'selection.recorded':
+      return 'Recorded selection';
+    case 'deployment.environment_claimed':
+      return 'Claimed this database for the local deployment';
     case 'workspace.created':
       return `Created ${String(p.record_mode)} workspace`;
     case 'member.added':
@@ -243,19 +278,19 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return `Recorded ${String(p.basis)} pricing for ${String(p.provider)}/${String(p.model_id)}`;
     case 'budget.funded':
     case 'budget.allocated':
-      return `${action === 'budget.funded' ? 'Funded' : 'Allocated'} ${String(p.kind)} budget of ${String(p.cap_nano)} nano-USD${p.fixture ? ' (simulated)' : ''}`;
+      return `${action === 'budget.funded' ? 'Funded' : 'Allocated'} ${String(p.kind)} budget of ${amount(p.cap_nano)}${p.fixture ? ' (simulated)' : ''}`;
     case 'budget.closed':
-      return `Closed budget; returned ${String(p.returned_nano)} nano-USD to its parent`;
+      return `Closed budget; returned ${amount(p.returned_nano)} to its parent`;
     case 'budget.reserved':
-      return `Reserved ${String(p.reserved_nano)} for ${String(p.action_type)} attempt ${String(p.attempt)}`;
+      return `Reserved ${amount(p.reserved_nano)} for ${String(p.action_type)} attempt ${String(p.attempt)}`;
     case 'budget.denied':
       return `Did not send ${String(p.action_type)} (${String(p.reason_code)})`;
     case 'budget.settled':
-      return `Charged ${String(p.incurred_nano)} of ${String(p.reserved_nano)} reserved`;
+      return `Charged ${amount(p.incurred_nano)} of ${amount(p.reserved_nano)} reserved`;
     case 'budget.released':
-      return `Released ${String(p.reserved_nano)} uncharged (${String(p.reason_code)})`;
+      return `Released ${amount(p.reserved_nano)} uncharged (${String(p.reason_code)})`;
     case 'budget.unknown':
-      return `Holding ${String(p.reserved_nano)} for an unknown outcome (${String(p.reason_code)})`;
+      return `Holding ${amount(p.reserved_nano)} for an unknown outcome (${String(p.reason_code)})`;
     case 'budget.late_result_conflict':
       return 'A late provider result arrived for a call already reconciled as uncharged';
     case 'workflow.started':
@@ -263,7 +298,7 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
     case 'workflow.delegated':
       return `Delegated ${String(p.kind)} task ${String(p.ordinal)}${Number(p.repair) ? ` (repair ${String(p.repair)})` : ''}`;
     case 'workflow.state':
-      return `Workflow ${String(p.state)} (${String(p.reason)})`;
+      return `Workflow ${String(p.state)}${because(p.state, p.reason)}`;
     case 'workflow.control':
       return `Owner requested ${String(p.control)}: ${String(p.reason)}`;
     case 'workflow.finished':
@@ -271,7 +306,7 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
     case 'task.leased':
       return `Leased task to ${String(p.worker)} (delivery ${String(p.delivery)})`;
     case 'task.completed':
-      return `Task ${String(p.state)} (${String(p.reason)})`;
+      return `Task ${String(p.state)}${because(p.state, p.reason)}`;
     case 'task.lease_expired':
       return `Lease expired on ${String(p.worker)}; task ${String(p.state)}`;
     case 'task.woken':
@@ -307,8 +342,12 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return `Feedback ${action.slice(9)}`;
     case 'feedback.revised':
       return `Feedback became spec v${String(p.spec_version)}`;
-    default:
-      return action;
+    default: {
+      // Events without their own wording read as words ("study.protocol_frozen" →
+      // "Study protocol frozen") rather than as an internal code.
+      const text = action.replace(/[._]+/g, ' ').trim();
+      return text ? `${text[0]!.toUpperCase()}${text.slice(1)}` : action;
+    }
   }
 }
 

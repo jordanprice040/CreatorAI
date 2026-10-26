@@ -66,10 +66,10 @@ export function PageDrafts({
           <div className="draft-page" hidden={page.key !== key}>
             <button
               type="button"
-              className="secondary page-reset"
+              className="text page-reset"
               onClick={() => setResetKey(page.key)}
             >
-              Reset page fields
+              Reset fields
             </button>
             <div className="draft-content" key={page.revision}>
               {render(page.route)}

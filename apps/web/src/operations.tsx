@@ -30,15 +30,19 @@ export function Operations() {
         <>
           <p>
             <strong>
-              {s.readiness.mode === 'hosted' ? 'Hosted' : 'Local'}{' '}
-              {s.readiness.environment}
+              {s.readiness.mode === 'hosted' ? 'Hosted' : 'Local'} deployment
+              {s.readiness.environment !== s.readiness.mode
+                ? ` (${s.readiness.environment})`
+                : ''}
             </strong>{' '}
             ·{' '}
             <span className={`badge ${s.readiness.ready ? 'ok' : 'bad'}`}>
               {s.readiness.ready ? 'ready' : 'not ready'}
             </span>{' '}
-            · schema {s.readiness.schema_version ?? 'unknown'} · build{' '}
-            {s.readiness.build_commit?.slice(0, 12) ?? 'not set'}
+            · schema {s.readiness.schema_version ?? 'unknown'} ·{' '}
+            {s.readiness.build_commit
+              ? `build ${s.readiness.build_commit.slice(0, 12)}`
+              : 'development build (no commit recorded)'}
           </p>
           <p>{VERIFICATION[s.readiness.verification]}</p>
           <ul className="rows">

@@ -17,14 +17,29 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 
-/** Exact decimal display of nano-USD. Fixture amounts are simulated units, not money. */
+/**
+ * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
+ * cents are dropped. Fixture amounts are simulated units, not money.
+ */
 export function money(nano: string | null, fixture: boolean): string {
   if (nano === null) return '—';
   const v = BigInt(nano);
-  const whole = v / 1_000_000_000n;
-  const frac = (v % 1_000_000_000n).toString().padStart(9, '0').slice(0, 6);
-  return `${fixture ? '' : '$'}${whole}.${frac}${fixture ? ' sim' : ''}`;
+  const sign = v < 0n ? '-' : '';
+  const abs = v < 0n ? -v : v;
+  const whole = abs / 1_000_000_000n;
+  const frac = (abs % 1_000_000_000n)
+    .toString()
+    .padStart(9, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0');
+  return `${sign}${fixture ? '' : '$'}${whole}.${frac}${fixture ? ' sim' : ''}`;
 }
+/**
+ * Stored settlement notes ("Charged 55770000 of 428537500 reserved.") repeat the amounts
+ * already shown above them, in raw nano units; the list leaves them out.
+ */
+const RAW_AMOUNT_NOTE =
+  /^(Charged|Reserved) \d+ (of \d+ reserved|for attempt \d+)\.$/;
 const share = (part: string, cap: string) =>
   BigInt(cap) === 0n
     ? 0
@@ -261,12 +276,6 @@ export function Budgets({
           Refresh
         </button>
       </div>
-      {current.record_mode === 'fixture' && (
-        <p className="notice">
-          Fixture workspace: amounts are simulated units from the deterministic
-          adapter, not money.
-        </p>
-      )}
       <div className="records-grid">
         <div>
           <h3>Budgets</h3>
@@ -314,7 +323,7 @@ export function Budgets({
                 id="fcap"
                 required
                 inputMode="decimal"
-                placeholder="0.000001"
+                placeholder="e.g. 5.00"
                 value={fundCap}
                 onChange={(e) => setFundCap(e.target.value)}
               />
@@ -403,8 +412,12 @@ export function Budgets({
                       : ''}{' '}
                     · {when(r.created_at)}
                   </small>
-                  <br />
-                  <small>{r.explanation}</small>
+                  {!RAW_AMOUNT_NOTE.test(r.explanation) && (
+                    <>
+                      <br />
+                      <small>{r.explanation}</small>
+                    </>
+                  )}
                   {r.status === 'unknown' && (
                     <>
                       {' '}

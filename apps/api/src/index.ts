@@ -1493,7 +1493,7 @@ export function createApi(
               : null,
             note: sourceConfig.adapter
               ? 'Live fetch is configured for the approved hosts; each fetch still needs a covering source.fetch grant. No live fetch has been verified.'
-              : 'Fixture workspaces read the synthetic fixture corpus. Real workspaces are denied until CREATOR_SOURCE_FETCH=live and CREATOR_SOURCE_HOSTS are set.',
+              : 'Live source fetching is off. Fixture workspaces read the synthetic corpus; real workspaces can fetch only after the operator approves source hosts in the studio configuration.',
           }),
         );
       if (req.method === 'POST' && req.url === '/api/fixture')
