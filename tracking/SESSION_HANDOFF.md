@@ -16,7 +16,12 @@ in-app run makes Recover return `waiting` instead of failing. Checks: studio-bui
 lock held, unresolved own-PID run → no "Supervisor still exists"; here WSL fails so it
 refuses with the WSL hint, then a settled run's marker is freed with nothing listed;
 disabling the own-PID rule fails the test), executor + web-display, typecheck,
-format:check. Real-WSL gated test still not run (WSL E_UNEXPECTED on this machine).
+format:check. After Jordan approved `wsl --shutdown` (WSL was failing with E_UNEXPECTED),
+with CREATOR_TEST_ISOLATION=wsl2 from PowerShell: executor (real WSL worker, killed
+supervisor + reconcile), studio-builds and the new studio-builds-wsl gated test (Recover
+refuses while the supervisor lives, then reconciles; dispatch lock and marker freed) all
+pass, 14/14. WSL failed again once while Docker restarted around a run; it recovered after
+another shutdown and was healthy after the passing runs.
 
 ## PR #68 re-review fixes (Recover) — October 27, 2026
 
