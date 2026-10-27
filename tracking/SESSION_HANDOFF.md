@@ -23,6 +23,70 @@ build racing an owner save could deadlock (PostgreSQL aborts one, 40P01). Unreac
 final builds are LIVE_DISABLED; reordering inside lockAttemptForWrite would invert against
 prepareAttempt's ceiling-then-run order, so fix it with the live final-build work.
 
+## Test-mode checkout screen (runbook step 3, ADR-0045) — October 27, 2026
+
+The Payments page has a "Checkout (test mode)" section (apps/web/src/checkout.tsx), between
+Offers and Money in. The owner picks an active offer and a buyer reference and opens a
+checkout; recent checkouts are listed and can be continued. With the simulated processor
+the detail shows a labelled simulated checkout page (Pay, or leave without paying), then the
+buyer and processor steps the current state allows (settle, refund in full, dispute, dispute
+won/lost) and the queued processor events, each deliverable correctly signed, with the wrong
+secret or with an old timestamp, again and in any order; the buyer's access badge and the
+ledger update from the server. Stripe test-mode checkouts show only Stripe's hosted
+checkout link plus a "read a payment by id" recovery; no Stripe call was made. Server:
+`GET .../payment-checkouts` (owner-only), `GET|POST .../payment-checkouts/:id/buyer` and
+`POST .../payment-checkouts/:id/deliver` (owner-only, fixture workspace and simulated
+processor only, audited as `payment.test_buyer_requested`); deliveries go through
+`receiveWebhook` with the webhook identity. Test-buyer state is in API memory and says so
+after a restart. Checkout is now refused for an offer whose release has been replaced. No
+migration; ADR-0045; no live mode; processor choice still pending with Jordan.
+Checks (cloud container, PostgreSQL 16): typecheck; format:check; full `pnpm test` 485 tests, 454 pass, 25 skip, 6 fail: the 5
+known PowerShell-wrapper tests (no pwsh here) and web-display, whose payments stub lacked
+the new checkout module; after the stub and a new Stripe-link test, web-display passes 8/8;
+new tests/src/checkout-api.test.ts (wrong-secret and expired deliveries refused with no
+receipt, correct delivery grants and books revenue, repeat is a duplicate, second pay
+refused, dispute suspends then lost dispute revokes, refund delivered before its payment
+still ends revoked with a balanced ledger, editor/viewer refused, replaced release refused at
+checkout, restart leaves the test buyer unavailable). Browser walk in fixture mode
+(tracking/evidence/checkout-ui/walk.mjs, walk.json, screens/): 11/11 steps, dark theme, no
+console errors, no horizontal scroll at 390 px; the walk answers the artifact list with []
+as the funding walk does. Fixture only; no processor, provider or GitHub call.
+Next eligible: runbook step 5 (exercise the current build in the desktop shell), after the
+fresh review of this PR.
+
+## Funding and reinvestment screen (runbook step 2) — October 27, 2026
+
+The Payments page has a new "Funding and reinvesting" section (apps/web/src/funding.tsx):
+owner funding (review then confirm, idempotency key), funding sources (add an attested or
+processor-balance source, record or read a balance, mark available/unavailable with a
+reason, freshness shown), commitments (add, list open and closed, close with confirm),
+the reinvestment policy (blank fields except the existing 30-day default; turning it on
+asks first and says what it allows), allocations (refuses over-limit amounts unless
+"take what the limits allow", confirm step, idempotency key), settled-earnings tranches
+and "Repay losses now". Controls show only for the workspace owner; the server still
+enforces owner-only, every capacity bound and the runtime ceiling. Added
+GET /workspaces/:ws/commitments (PaymentStore.listCommitments) and `pnpm cli commitments`.
+No migration, no ADR, no policy change: reinvestment stays off until Jordan sets a policy.
+Checks (cloud container, PostgreSQL 16): typecheck; full `pnpm test` 476 tests, 446 pass,
+25 skip, 5 fail (the known PowerShell-wrapper tests, no pwsh here); new
+tests/src/funding-api.test.ts (owner-funding retry posts once, reused key with another
+body is refused, commitments list/close, attested balance feeds usable cash, an enabled
+policy with no settled sale creates no budget); web-display covers percentToBps and
+railState; format:check. Browser walk in fixture mode (tracking/evidence/funding-ui/
+walk.mjs, walk.json, screens/): 9/9 steps, dark theme, no console errors, no horizontal
+scroll at 390 px. The walk answers the artifact list with [] because the seeded minimal
+release row fails the Gallery contract. Fixture only; no processor, provider or GitHub call.
+Review fixes (fresh review of #58: no High or Medium, 7 Lows, all fixed on #58): saving a
+policy that is already on asks first whenever it lets more be reinvested or sooner
+(`loosens`); adding a funding source or commitment sends an idempotency key and the store
+now runs both through `idempotent()`; the portfolio target is disabled without a portfolio
+policy; `listCommitments` returns every open commitment (capacity holds all of them back)
+plus the 100 latest closed; tests added for a second workspace, retried source/commitment
+adds, editor and viewer refusals on all nine writes, `requestKeys` retention and `loosens`.
+Walk re-run on the final code: 12/12 steps including a viewer pass (workspace list served
+with the role rewritten to viewer) and the loosened-policy confirm.
+Next eligible: runbook step 3 (checkout, test mode).
+
 ## Per-run and per-model spending limits (runbook step 4, ADR-0044) — October 27, 2026
 
 Settings now has optional per-run and per-model limits under the overall ceiling
@@ -52,6 +116,37 @@ on a throwaway database (view, over-ceiling error, review, save, history, 390px 
 Not tested end to end: the study per-run refusal (final study attempts stay blocked on the
 protocol freeze). Not built: per-user, per-task, provider-wide and recurring limits (#10).
 Next eligible: runbook step 3 (checkout in test mode) after step 2, or step 5.
+
+## Main cleanup (runbook step 1) — October 27, 2026
+
+Tests and status only; no product behavior, schema, policy or migration change.
+(a) build.test "ChatGPT-plan Codex builder still goes through scoped patches" passes on
+Linux. Its last assertion keyed on CREATOR_TEST_ISOLATION, but the executor runs real QA
+whenever the host is Windows, so on Jordan's machine without that variable QA passed and
+the test expected a checkpoint (the Oct 26 failure). It now keys on the platform:
+verified_candidate with the real WSL2 gate on, either state on Windows without it, the
+QA checkpoint elsewhere. Not rerun on Windows here.
+(b) New payments test: with two verified builds of one spec, an offer for the older one
+is refused, the newer one is accepted, and after a spec revision both are refused; no
+refused offer is written. Removing the server check makes it fail (checked).
+(c) exportStudy already reads the attempt's own workspace (a.workspace_id, created per
+attempt), not the study's home workspace, so no cross-attempt or home-workspace events
+are exported; the older audit wording was wrong. Pinned by an assertion in study.test and
+a code comment. Residual: anything the owner does by hand inside an attempt workspace
+would be exported with that attempt.
+(d) config/readiness.json as_of 2026-10-27: plan-route rows cite the Oct 22-23 role 1.4
+live suites (synthetic, model-reviewed), C54 reflects theme drafts and the schema 29
+candidate, C40/C44 mention the pages, C41 notes main isn't packaged, C28 cites the
+runtime-ceiling test. No state changed. SHA-256 now
+30b903d9e5b1f840f0d9d624653d9b232160dcb621c48416aad22dca01c292e4 (was cb927b91...),
+so receipts that bound the old bytes are historical, not tampering.
+Checks: typecheck, format, pnpm test:db 445 pass, 25 skipped, 5 fail; the 5 are the
+PowerShell-wrapper tests (no PowerShell in this container) and fail identically on
+unchanged main. pnpm readiness: no register problems, verdict NOT READY.
+Review of #56: no High or Medium. Folded in L1 (Windows without the gate no longer fails)
+and L2 (plan-route rows keep "task qualification and end-to-end evidence remain missing"
+and cite the discovery-semantics-v2 evidence for candidate generation and scoring).
+Next eligible: runbook step 2 (funding and reinvestment in the app).
 
 ## Completion runbook rewritten — October 26, 2026
 

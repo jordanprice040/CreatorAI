@@ -23,7 +23,7 @@ study.
 | Evidence search                                | Bounded public search exists (PR #43). No live end-to-end discovery run yet.                                                                                                                                                                                                 | `docs/SEARCH_AND_AUDIT.md`                                                  |
 | Theme intake (C54)                             | Theme drafts and Submit page built. Installed app has the theme-intent candidate at schema 29 (Oct 24); `main` is now ahead of it. Full C54 is partial.                                                                                                                      | `C54_READINESS_AUDIT_2026-10-23.md`                                         |
 | GitHub (X04)                                   | Adapter plus GitHub page; walked in fixture mode. Never run against real GitHub.                                                                                                                                                                                             | `docs/GITHUB.md`                                                            |
-| Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Checkout, rails, commitments, owner funding and reinvestment policy are API/CLI only.                                                     | `docs/PAYMENTS.md`                                                          |
+| Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Owner funding, funding sources, commitments, reinvestment policy and allocation added Oct 27 (step 2). Test-mode checkout screen with a simulated test buyer added Oct 27 (step 3).          | `docs/PAYMENTS.md`                                                          |
 | Desktop app (X05)                              | Tauri app; interactive Windows acceptance passed Oct 19. The installed copy is Jordan's operational studio and is off-limits for testing. The usability-pass build has not been packaged or exercised in the desktop shell.                                                  | `apps/desktop/INTERACTIVE_ACCEPTANCE.md`, `docs/DESKTOP_STUDIO.md`          |
 | Hosted (X06), campaigns (X08)                  | Code and fixture checks only. Not activated, by owner decision.                                                                                                                                                                                                              | `docs/HOSTED_OPERATION.md`, `docs/X06_X07_AUDIT.md`                         |
 | Central chat (C52), theme-free discovery (C53) | Not built.                                                                                                                                                                                                                                                                   | `config/readiness.json`                                                     |
@@ -34,9 +34,10 @@ study.
 
 Checked against the code on October 26 unless noted.
 
-- **Study export over-shares the audit log.** `exportStudy` reads every audit event in
-  the workspace, not just the study's (`packages/db/src/study-store.ts`, the
-  `audit_events where workspace_id=$1` query).
+- **Study export audit scope (rechecked Oct 27).** `exportStudy` reads the audit events of
+  each attempt's own workspace, which is created with the attempt, so it does not leak the
+  home workspace or other attempts (now pinned by `study.test`). Anything done by hand
+  inside an attempt workspace would still be exported with that attempt.
 - **Health is configuration, not verification.** `/api/health` reports `live_configured`
   when a live adapter is configured and `fixture` otherwise. It never says whether a
   connection actually works.
@@ -48,12 +49,9 @@ Checked against the code on October 26 unless noted.
 - **Overrun guard.** T17 fixed child overruns so they count against every ancestor. It
   also recorded that the guard isn't serialized against a concurrent settle. Not
   rechecked here.
-- **A test fails on `main`.** `build.test` "ChatGPT-plan Codex builder still goes through
-  scoped patches" was reported failing on Oct 26. Not rerun here.
-- **Missing test.** Nothing tests that an offer for a replaced release is refused (needs
-  two builds of one spec).
-- **Stale status files.** `config/readiness.json` is dated Oct 20; `docs/CURRENT_STATUS.md`
-  stops at Oct 23. Use `BUILD_STATUS` until they're refreshed.
+- **Fixed Oct 27:** the Codex-builder test failure on Windows (its assertion ignored that
+  Windows runs real QA) and the missing replaced-release offer test; `config/readiness.json`
+  refreshed to Oct 27. `docs/CURRENT_STATUS.md` still stops at Oct 23; use `BUILD_STATUS`.
 
 Two items from older audit lists look done in code: batch input files are deleted at the
 provider once no item is in flight or unknown (`packages/broker/src/context.ts`), and
@@ -64,15 +62,15 @@ child overruns reach the parent (T17).
 Each step is a separate, bounded task. None of them needs live provider, GitHub or
 payment calls unless it says so, and those need Jordan's go-ahead first.
 
-1. **Clean up `main`.** Fix or explain the failing Codex-builder test, add the
-   replaced-release refusal test, and scope `exportStudy` to the study's own audit events.
-   Refresh `config/readiness.json` from current evidence.
-2. **Funding and reinvestment in the app.** Bring owner funding, commitments and
-   reinvestment policy/allocation from the CLI into the Payments page, keeping
-   reinvestment off until Jordan sets a policy (#47–#49).
-3. **Checkout in the app (test mode only).** A buyer checkout flow against simulated or
-   Stripe test mode, with signature checks, entitlements, refunds and duplicate or
-   out-of-order events. Live mode stays a separate, disabled stage.
+1. **Clean up `main`.** Done Oct 27 (see `BUILD_STATUS`).
+2. **Funding and reinvestment in the app.** Done October 27 in the Payments page
+   ("Funding and reinvesting"), fixture-checked; reinvestment stays off until Jordan sets
+   a policy (#47–#49).
+3. **Checkout in the app (test mode only).** Built October 27 in the Payments page
+   ("Checkout (test mode)", ADR-0045), fixture-checked with a simulated test buyer: signature
+   checks, entitlements, refunds, disputes and duplicate or out-of-order events. Stripe test
+   mode shows Stripe's hosted page link; no Stripe call made yet. Live mode stays a separate,
+   disabled stage.
 4. **Narrower spending limits.** Per-model and per-run limits under the workspace ceiling
    (ADR-0043 follow-up), shown in Settings and enforced in the budget code, not the UI.
 5. **Exercise the current build in the desktop shell.** Package `main` with its own data

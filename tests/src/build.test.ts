@@ -424,8 +424,16 @@ test('the ChatGPT-plan Codex builder still goes through scoped patches and an in
     s.product.initial_commit,
     'the patch was applied as a scoped change',
   );
-  if (process.env.CREATOR_TEST_ISOLATION !== 'wsl2')
+  // The final state comes from QA on this host, never from the Codex claim. Real
+  // execution needs Windows + WSL2; elsewhere every QA case fails closed. On Windows
+  // without the opt-in gate the worker may or may not be usable, so either state stands.
+  if (real) assert.equal(result.state, 'verified_candidate');
+  else if (process.platform === 'win32')
+    assert.ok(['verified_candidate', 'checkpoint'].includes(result.state));
+  else {
     assert.equal(result.state, 'checkpoint');
+    assert.match(result.reason, /Repair limit reached/);
+  }
 });
 
 test('a Codex builder change outside the task scope is refused by the scoped patch tool', async (t) => {

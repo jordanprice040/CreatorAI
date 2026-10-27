@@ -674,6 +674,7 @@ export function createApi(
         store,
         service: payments!,
         ctx,
+        hook: { actorId: PAYMENT_WEBHOOK_ACTOR_ID },
         ws,
         collection,
         item,

@@ -208,6 +208,24 @@ test('study participant and grader isolation, frozen records, terminal failures 
   );
   const exported = await store.exportStudy(owner, ws.id, study.id);
   assert.equal(exported.attempts.length, 4);
+  // Each attempt's audit trail comes from its own attempt workspace only: never the
+  // study's home workspace and never another attempt's run or grants.
+  const homeAudit = await db.pool.query(
+    'select count(*)::int as n from audit_events where workspace_id=$1',
+    [ws.id],
+  );
+  assert.ok(homeAudit.rows[0].n > 0);
+  const attemptSpaces = new Set(exported.attempts.map((x) => x.workspace_id));
+  assert.equal(attemptSpaces.size, 4);
+  assert.ok(!attemptSpaces.has(ws.id));
+  for (const x of exported.attempts) {
+    const events = x.audit_events as {
+      workspace_id: string;
+      subject_id: string;
+    }[];
+    assert.ok(events.some((e) => e.subject_id === x.run_id));
+    for (const e of events) assert.equal(e.workspace_id, x.workspace_id);
+  }
   assert.equal(exported.empirical_results, false);
   assert.equal(
     exported.attempts.find((x) => x.id === a.id)!.state,

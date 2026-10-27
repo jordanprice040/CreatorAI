@@ -247,6 +247,7 @@ const USAGE = `Usage:
   pnpm cli rail-status <workspace> <rail-id> <available|unavailable> <reason>
   pnpm cli rail-attest <workspace> <rail-id> <available-nano-usd> <evidence>
   pnpm cli rail-observe <workspace> <rail-id>
+  pnpm cli commitments <workspace>
   pnpm cli commitment-add <workspace> <commitment-json|file.json>
   pnpm cli commitment-close <workspace> <commitment-id>
   pnpm cli reinvest <workspace>
@@ -1721,6 +1722,9 @@ export async function runCli(
           `${ws(rest[0])}/funding-rails/${encodeURIComponent(rest[1] ?? '')}/observe`,
           {},
         );
+        break;
+      case 'commitments':
+        data = await call(z.array(z.unknown()), `${ws(rest[0])}/commitments`);
         break;
       case 'commitment-add':
         data = await call(

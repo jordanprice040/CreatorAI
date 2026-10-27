@@ -1,0 +1,62 @@
+{
+  "when": "2026-10-27T06:03:43.378Z",
+  "ok": true,
+  "steps": [
+    {
+      "name": "sign in and open Payments in the dark theme; checkout section is there",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "open a checkout: the simulated checkout page appears with the price",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "leaving without paying charges nothing",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "paying queues an event but grants nothing yet",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "a delivery with the wrong secret is refused and records nothing",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "a correct delivery grants access and books revenue",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "delivering the same event again is ignored as a duplicate",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "a dispute pauses access; losing it revokes for good",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "out of order: a refund delivered before its payment still ends revoked",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "recent checkouts list both, and the first can be continued",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "phone width: no horizontal scroll",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "problems": []
+}
