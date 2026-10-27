@@ -119,6 +119,67 @@ export const CheckoutSchema = z.strictObject({
 });
 export type Checkout = z.infer<typeof CheckoutSchema>;
 
+// ---- Test buyer (simulated processor only) ---------------------------------------------------
+
+/**
+ * What a simulated buyer or the simulated processor does next. Only fixture connections take
+ * these; each queues one signed-on-delivery event and changes nothing in the studio by itself.
+ */
+export const TestBuyerActionSchema = z.enum([
+  'pay',
+  'settle',
+  'refund',
+  'dispute',
+  'dispute_won',
+  'dispute_lost',
+]);
+export type TestBuyerAction = z.infer<typeof TestBuyerActionSchema>;
+export const TestBuyerRequestSchema = z.strictObject({
+  action: TestBuyerActionSchema,
+});
+/** How a queued event is delivered: correctly signed, signed with the wrong secret, or too old. */
+export const TestDeliverySignatureSchema = z.enum([
+  'valid',
+  'wrong_secret',
+  'expired',
+]);
+export const TestDeliverRequestSchema = z.strictObject({
+  event_id: z.string().regex(/^evt_[A-Za-z0-9_]{1,120}$/),
+  signature: TestDeliverySignatureSchema,
+});
+export const TestCheckoutStateSchema = z.strictObject({
+  checkout_id: id,
+  /** False when the API restarted: the in-memory simulated processor forgot this session. */
+  available: z.boolean(),
+  payment: z
+    .strictObject({
+      id: processorId,
+      amount_cents: cents,
+      settled: z.boolean(),
+      refunded_cents: cents,
+      dispute: z.enum(['none', 'open', 'won', 'lost']),
+    })
+    .nullable(),
+  allowed: z.array(TestBuyerActionSchema),
+  events: z.array(
+    z.strictObject({
+      id: z.string(),
+      type: z.string(),
+      action: TestBuyerActionSchema,
+      queued_at: timestamp,
+      deliveries: z.array(
+        z.strictObject({
+          at: timestamp,
+          signature: TestDeliverySignatureSchema,
+          http_status: z.number().int(),
+          outcome: z.string().max(200),
+        }),
+      ),
+    }),
+  ),
+});
+export type TestCheckoutState = z.infer<typeof TestCheckoutStateSchema>;
+
 // ---- Authoritative processor observations ---------------------------------------------------
 
 export const BalanceTxnSchema = z

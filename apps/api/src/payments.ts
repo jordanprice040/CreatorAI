@@ -3,7 +3,7 @@ import type { CommandContext, PaymentStore } from '@creator/db';
 
 /** X07 routes under /api/workspaces/:ws/<collection>. Matched separately from RECORD_ROUTE. */
 export const PAYMENTS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(payment-connections|payment-offers|payment-checkouts|payments|payouts|ledger|entitlements|funding-rails|commitments|reinvestment)(?:\/([^/]+)(?:\/(verify|revoke|events|archive|reconcile|status|attest|observe|close))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(payment-connections|payment-offers|payment-checkouts|payments|payouts|ledger|entitlements|funding-rails|commitments|reinvestment)(?:\/([^/]+)(?:\/(verify|revoke|events|archive|reconcile|status|attest|observe|close|buyer|deliver))?)?$/;
 /** The processor delivers here (through the owner's local forwarder; the API binds to loopback). */
 export const PAYMENTS_WEBHOOK_ROUTE = /^\/api\/payments\/webhooks\/([^/]+)$/;
 /**
@@ -21,6 +21,8 @@ export async function paymentRoutes(r: {
   store: PaymentStore;
   service: PaymentService;
   ctx: CommandContext;
+  /** The identity processor deliveries use; test-buyer deliveries reuse it. */
+  hook: CommandContext;
   ws: string;
   collection: string;
   item: string | undefined;
@@ -78,8 +80,25 @@ export async function paymentRoutes(r: {
         return send(200, await store.archiveOffer(ctx, ws, item), true);
       break;
     case 'payment-checkouts':
+      if (!item && get)
+        return send(200, await store.listCheckouts(ctx, ws), false);
       if (!item && post)
         return send(201, await service.checkout(ctx, ws, await r.body()), true);
+      // Simulated processor only: a test buyer, and delivery of the events it queues.
+      if (item && action === 'buyer' && get)
+        return send(200, await service.testBuyerState(ctx, ws, item), false);
+      if (item && action === 'buyer' && post)
+        return send(
+          200,
+          await service.testBuyerAct(ctx, ws, item, await r.body()),
+          true,
+        );
+      if (item && action === 'deliver' && post)
+        return send(
+          200,
+          await service.testBuyerDeliver(ctx, r.hook, ws, item, await r.body()),
+          true,
+        );
       break;
     case 'payments':
       // Owner-requested backend read of one payment, e.g. after a deferred delivery.

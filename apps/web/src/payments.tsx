@@ -13,6 +13,7 @@ import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
 import { usdToNano } from './settings.js';
 import { Funding } from './funding.js';
+import { Checkout } from './checkout.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 
 const BalancesSchema = z.strictObject({
@@ -274,6 +275,15 @@ export function Payments({
                   />
                 </details>
               ))}
+
+            <Checkout
+              session={session}
+              workspace={workspace}
+              offers={d.offers}
+              connections={d.connections}
+              entitlements={d.entitlements}
+              changed={data.reload}
+            />
 
             <h3>Money in</h3>
             {Object.keys(d.balances.balances).length === 0 ? (

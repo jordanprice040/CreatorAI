@@ -1,5 +1,28 @@
 # Decision log
 
+## ADR-0045 — Test-mode checkout screen and simulated test buyer (accepted October 27, 2026)
+
+Runbook step 3 (Jordan asked to start it on 2026-10-27). The Payments page gets a
+"Checkout (test mode)" section (apps/web/src/checkout.tsx). Only the workspace owner opens
+checkouts or acts as a buyer; the store enforces it. Three routes are added:
+`GET /workspaces/:ws/payment-checkouts` (owner-only list, newest 50), and for the simulated
+processor only `GET|POST .../payment-checkouts/:id/buyer` (state, and one buyer or processor
+step: pay, settle, refund in full, dispute, dispute won/lost) and
+`POST .../payment-checkouts/:id/deliver` (deliver one queued event correctly signed, with a
+wrong secret, or with a timestamp outside the 5-minute tolerance). A step changes only the
+in-memory fixture processor and queues the event body a processor would send; nothing reaches
+the ledger or access until a delivery passes through `PaymentService.receiveWebhook`, the
+same signature, mode, de-duplication and backend-read path real deliveries use, with the
+webhook actor identity. The owner chooses the order and can repeat a delivery, which
+exercises duplicate and out-of-order events. Each request records a
+`payment.test_buyer_requested` audit event. Test-buyer state lives in API memory like the
+fixture processor; after a restart it says so and offers nothing. Stripe test-mode checkouts
+show only Stripe's hosted `https://checkout.stripe.com/` link and a "read a payment by id"
+recovery (the existing reconcile route); no Stripe call was made by this work. Also:
+`checkoutTarget` now refuses an offer whose release has since been replaced (later build or
+spec version), so a buyer cannot pay for a replaced release. No migration, no live mode, no
+processor choice: Stripe remains the pending default.
+
 ## ADR-0044 — Per-run and per-model spending limits under the ceiling (accepted October 27, 2026)
 
 Implements the narrower limits from owner decision #10 as runbook step 4 (Jordan approved

@@ -559,7 +559,87 @@ export class PaymentStore extends DesktopJobStore {
       const conn = await this.#connection(c, ws, offer.connection_id);
       if (conn.status !== 'active')
         throw fail('INVALID_TRANSITION', 'The connection is not active.');
+      // The offer was for the current release when created; a later build or spec version
+      // replaces it, and a buyer must not pay for the replaced one.
+      const { rows: m } = await c.query(
+        `select (e.version = a.spec_version and not exists (
+             select 1 from artifact_manifests b where b.workspace_id = a.workspace_id
+               and b.spec_id = a.spec_id and b.created_at > a.created_at)) as current
+         from artifact_manifests a join entities e on e.id = a.spec_id
+         where a.workspace_id = $1 and a.id = $2`,
+        [ws, offer.artifact_id],
+      );
+      if ((m[0] as Row | undefined)?.current !== true)
+        throw fail(
+          'INVALID_TRANSITION',
+          'This offer sells a release that has been replaced; archive it and offer the current release.',
+        );
       return { req, offer, connection: conn };
+    });
+  }
+  async listCheckouts(ctx: CommandContext, ws: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const { rows } = await c.query(
+        'select * from payment_checkouts where workspace_id = $1 order by created_at desc limit 50',
+        [ws],
+      );
+      return rows.map((r) => toCheckout(r as Row));
+    });
+  }
+  /**
+   * An owner-only test buyer acting on an open checkout of the simulated processor, in a
+   * fixture workspace. Records who asked; the processor change itself is in memory and
+   * reaches the ledger only through a signed delivery.
+   */
+  async testBuyerTarget(
+    ctx: CommandContext,
+    ws: string,
+    checkoutId: string,
+    request: string | null,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      if (!(await this.#fixtureWorkspace(c, ws)))
+        throw fail(
+          'LIVE_DISABLED',
+          'The test buyer works only in fixture workspaces.',
+        );
+      const { rows } = await c.query(
+        'select * from payment_checkouts where workspace_id = $1 and id = $2',
+        [ws, uuid(checkoutId)],
+      );
+      if (!rows[0]) throw fail('NOT_FOUND', 'Checkout not found.');
+      const checkout = toCheckout(rows[0] as Row);
+      if (checkout.state !== 'open' || !checkout.processor_session_id)
+        throw fail('INVALID_TRANSITION', 'This checkout never opened.');
+      const { rows: o } = await c.query(
+        'select * from payment_offers where workspace_id = $1 and id = $2',
+        [ws, checkout.offer_id],
+      );
+      const offer = toOffer(o[0] as Row);
+      const connection = await this.#connection(c, ws, offer.connection_id);
+      if (connection.body.processor !== 'fixture')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only the simulated processor has a test buyer; for Stripe test mode, pay on the checkout page and forward its webhooks.',
+        );
+      if (request)
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'payment.test_buyer_requested',
+          subjectKind: 'payment_checkout',
+          subjectId: checkout.id,
+          subjectVersion: null,
+          contentHash: null,
+          payload: { request },
+          relatedIds: [offer.id, connection.id],
+        });
+      return { checkout, offer, connection };
     });
   }
   async recordCheckout(

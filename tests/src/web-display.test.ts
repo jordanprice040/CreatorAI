@@ -118,6 +118,7 @@ test('payments show credit accounts as positive amounts of what they name', asyn
     './settings.js': {},
     './ui.js': {},
     './funding.js': {},
+    './checkout.js': {},
   });
   assert.equal(asShown('revenue', '-25000000000'), '25000000000');
   assert.equal(asShown('owner_funding', '-5000000000'), '5000000000');
@@ -297,4 +298,24 @@ test('Settings describes limit changes in plain words and flags any that widen s
     { lines: ['openai/gpt-6-astra: $5.00 → $6.00'], widens: true },
   );
   assert.deepEqual(limitChanges(set, set), { lines: [], widens: false });
+});
+
+test('checkout links only to Stripe-hosted test checkout pages', async () => {
+  const { stripeCheckoutUrl } = await load<{
+    stripeCheckoutUrl: (url: string | null) => string | null;
+  }>('checkout.tsx', {
+    './oversight.js': {},
+    './budgets.js': {},
+    './ui.js': {},
+  });
+  const ok = 'https://checkout.stripe.com/c/pay/cs_test_abc';
+  assert.equal(stripeCheckoutUrl(ok), ok);
+  for (const bad of [
+    null,
+    'https://checkout.invalid/fixture/cs_fx1',
+    'http://checkout.stripe.com/c/pay/cs_test_abc',
+    'https://checkout.stripe.com.evil.example/x',
+    'javascript:alert(1)',
+  ])
+    assert.equal(stripeCheckoutUrl(bad), null, String(bad));
 });
