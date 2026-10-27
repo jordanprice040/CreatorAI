@@ -9,6 +9,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
+import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
@@ -71,6 +72,7 @@ export function Models({
   workspace: Workspace;
   session: SessionInfo | null;
 }) {
+  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   const active = usePageActive();
   const [loaded, setLoaded] = useState(false);
@@ -450,8 +452,15 @@ export function Models({
             </ul>
           ) : (
             <p>
-              No qualification yet. Start one from the CLI with a frozen
-              benchmark manifest (<code>pnpm cli plan-qualify</code>).
+              No qualification yet.{' '}
+              {desktop ? (
+                <>Starting one {NO_CLI_IN_DESKTOP}.</>
+              ) : (
+                <>
+                  Start one from the CLI with a frozen benchmark manifest (
+                  <code>pnpm cli plan-qualify</code>).
+                </>
+              )}
             </p>
           )}
           <h4>Recent requests</h4>

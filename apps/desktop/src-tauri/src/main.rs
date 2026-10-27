@@ -28,23 +28,34 @@ fn supervisor(app: &AppHandle) -> Option<studio::Shared> {
     app.try_state::<studio::Shared>().map(|s| s.inner().clone())
 }
 
+/// WebView2 data (cookies, storage) lives in the studio home, so a `CREATOR_STUDIO_HOME`
+/// run never shares it with the installed app. WebView2 adds its own `EBWebView` folder, so
+/// the default home keeps Tauri's default location.
+fn webview_data(app: &AppHandle) -> Option<std::path::PathBuf> {
+    supervisor(app).map(|s| s.home.root.clone())
+}
+
 /// Bundled setup/status window (local assets, the only window with native commands).
 pub fn show_control(app: &AppHandle) {
     let window = match app.get_webview_window("control") {
         Some(w) => w,
         None => {
-            let built = tauri::WebviewWindowBuilder::new(
+            let mut builder = tauri::WebviewWindowBuilder::new(
                 app,
                 "control",
                 tauri::WebviewUrl::App("index.html".into()),
-            )
-            .title("Creator Agent — status and settings")
-            .inner_size(760.0, 720.0)
-            .on_navigation(|url| {
-                url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost")
-            })
-            .on_new_window(|_, _| NewWindowResponse::Deny)
-            .build();
+            );
+            if let Some(dir) = webview_data(app) {
+                builder = builder.data_directory(dir);
+            }
+            let built = builder
+                .title("Creator Agent — status and settings")
+                .inner_size(760.0, 720.0)
+                .on_navigation(|url| {
+                    url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost")
+                })
+                .on_new_window(|_, _| NewWindowResponse::Deny)
+                .build();
             match built {
                 Ok(w) => {
                     let handle = app.clone();
@@ -300,7 +311,12 @@ fn build_studio_window(
     )?;
     let tools = Submenu::with_items(app, "Tools", true, &[&sign_in, &source, &editor, &run])?;
     let menu = Menu::with_items(app, &[&studio_menu, &tools])?;
-    let window = tauri::WebviewWindowBuilder::new(app, "studio", tauri::WebviewUrl::External(url))
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(app, "studio", tauri::WebviewUrl::External(url));
+    if let Some(dir) = webview_data(app) {
+        builder = builder.data_directory(dir);
+    }
+    let window = builder
         .title("Creator Agent — local studio")
         .inner_size(1200.0, 800.0)
         .visible(visible && !probes.any())
