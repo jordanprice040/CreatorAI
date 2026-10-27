@@ -622,16 +622,14 @@ export function Submit({
               </p>
               {c.claims.length === 0 ? (
                 <Empty>
+                  No claims in this workspace yet. In the Evidence view,
+                  register a run, fetch a page and cite its passages in claims
                   {desktop ? (
-                    <>
-                      No claims in this workspace yet. Adding sources and claims{' '}
-                      {NO_CLI_IN_DESKTOP}.
-                    </>
+                    '.'
                   ) : (
                     <>
-                      No claims in this workspace yet. Record claims with source
-                      support first (Evidence view, or{' '}
-                      <code>pnpm cli seed-research</code>).
+                      {' '}
+                      (or <code>pnpm cli seed-research</code>).
                     </>
                   )}
                 </Empty>
@@ -919,7 +917,9 @@ export function Submit({
                     <p className="error">
                       A discovery run needs an active budget (Budgets view) and
                       a pricing snapshot
-                      {desktop ? (
+                      {workspace.record_mode === 'fixture' ? (
+                        <> (Budgets view: Add fixture pricing).</>
+                      ) : desktop ? (
                         <>; adding a pricing snapshot {NO_CLI_IN_DESKTOP}.</>
                       ) : (
                         <>

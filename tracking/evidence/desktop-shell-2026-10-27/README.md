@@ -65,3 +65,25 @@ bundle reports "with uncommitted changes" because of an unrelated local edit to
 Files: `status-running.png`, `discovery-run.png`, `port-conflict.png`,
 `setup-defaults-after-fix.png`, `submit-desktop-copy-after-fix.png`,
 `supervisor-walk1.log`, `supervisor-walk2.log`.
+
+## D1 follow-up: first run without the CLI (fixed build, fresh home `home4`)
+
+Jordan asked for in-app setup and packaging (Oct 27). Part 1 (this change) covers D1:
+
+- Budgets: "Pricing snapshots" lists the workspace's pricing; a fixture workspace gets
+  "Add fixture pricing (simulated units)", which posts the bundled
+  `config/pricing/fixture-model-v1.json` (the server refuses fixture pricing in a real
+  workspace). Real pricing still needs the command line.
+- Evidence: "Register a run for fetching" creates a run whose only grant is
+  `source.fetch` on public data for 24 hours (revocable under Decisions). In a fixture
+  workspace, the address field suggests corpus pages. Each kept passage has "Cite in a
+  claim": a new or existing claim, stance, kind of evidence, quote (checked verbatim by
+  the server) and rationale.
+
+Walk, all in the desktop shell with no CLI: new studio → sign in → new fixture workspace →
+fund a budget → add fixture pricing → register a run → fetch the clinic-access report →
+cite ¶2 in a new claim (status "supported", single source) → Submit → discovery run
+succeeded. Screenshots: `no-cli-fixture-pricing.png`, `no-cli-claim-recorded.png`,
+`no-cli-discovery-run.png`. The installed home had no file changed.
+
+D2 (in-app build and package) is next, design first.
