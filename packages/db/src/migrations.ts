@@ -2371,6 +2371,25 @@ create trigger runtime_ceiling_changes_immutable before update or delete on runt
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    version: 31,
+    name: 'runtime_limit_changes',
+    sql: `
+create table runtime_limit_changes (
+ version integer primary key check (version > 0),
+ limits jsonb not null check (jsonb_typeof(limits) = 'object'),
+ previous jsonb not null check (jsonb_typeof(previous) = 'object'),
+ reason text not null check (length(reason) between 1 and 1200),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp()
+);
+create trigger runtime_limit_changes_immutable before update or delete on runtime_limit_changes
+ for each row execute function creator_reject_change();
+create index budget_reservations_model_spend on budget_reservations (provider, model_id, created_at)
+ where not fixture;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

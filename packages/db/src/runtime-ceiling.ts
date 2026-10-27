@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
-import { z, parse } from '@creator/contracts';
+import {
+  z,
+  parse,
+  SpendLimitsSchema,
+  type SpendLimits,
+} from '@creator/contracts';
 
 /**
  * The owner's overall ceiling on new runtime spending (config/spending.json, 2026-10-20;
@@ -131,3 +136,106 @@ export function ceilingRefusal(
     };
   return null;
 }
+
+/** No narrower limits: only the overall ceiling applies until the owner sets some. */
+export const NO_SPEND_LIMITS: SpendLimits = {
+  per_run_nano_usd: null,
+  per_model: [],
+};
+
+/**
+ * The narrower limits in force (ADR-0044, migration 31): the latest owner change, else none.
+ * Read inside the deciding transaction after the runtime-ceiling lock, which every change
+ * also takes, so a change and a dispatch serialize.
+ */
+export async function currentSpendLimits(
+  c: PoolClient,
+): Promise<{ version: number; limits: SpendLimits }> {
+  const { rows } = await c.query<{ version: number; limits: unknown }>(
+    'select version, limits from runtime_limit_changes order by version desc limit 1',
+  );
+  const latest = rows[0];
+  return latest
+    ? {
+        version: Number(latest.version),
+        limits: parse(SpendLimitsSchema, latest.limits, 'INVALID_CONFIG'),
+      }
+    : { version: 0, limits: NO_SPEND_LIMITS };
+}
+
+/** What a real paid call counts as: settled cost, or its held maximum while in flight/unknown. */
+const COUNTED_NANO = `coalesce(sum(case when status = 'settled' then coalesce(incurred_nano, 0)
+  when status in ('in_flight', 'unknown') then reserved_nano else 0 end), 0)::text`;
+
+/** Counted real spending of one run since `since` (the ceiling's start date). */
+export async function runSpend(
+  c: PoolClient,
+  since: string,
+  ws: string,
+  runId: string,
+): Promise<bigint> {
+  const { rows } = await c.query<{ n: string }>(
+    `select ${COUNTED_NANO} as n from budget_reservations
+      where not fixture and created_at >= $1 and workspace_id = $2 and run_id = $3`,
+    [since, ws, runId],
+  );
+  return BigInt(rows[0]!.n);
+}
+
+/** Counted real spending on one model, across every workspace, since `since`. */
+export async function modelSpend(
+  c: PoolClient,
+  since: string,
+  provider: string,
+  modelId: string,
+): Promise<bigint> {
+  const { rows } = await c.query<{ n: string }>(
+    `select ${COUNTED_NANO} as n from budget_reservations
+      where not fixture and created_at >= $1 and provider = $2 and model_id = $3`,
+    [since, provider, modelId],
+  );
+  return BigInt(rows[0]!.n);
+}
+
+/**
+ * Null when a real paid call of `amount` fits the narrower limits; otherwise the refusal.
+ * Call after `runtimeExposure` (which takes the lock) in the same transaction. These limits
+ * apply to every real call, study calls included: the overall ceiling still applies too.
+ */
+export async function spendLimitRefusal(
+  c: PoolClient,
+  config: SpendingConfig,
+  call: { ws: string; runId: string; provider: string; modelId: string },
+  amount: bigint,
+): Promise<{ reason_code: string; explanation: string } | null> {
+  const { limits } = await currentSpendLimits(c);
+  if (limits.per_run_nano_usd !== null) {
+    const limit = BigInt(limits.per_run_nano_usd);
+    const used = await runSpend(c, config.effective_from, call.ws, call.runId);
+    if (used + amount > limit)
+      return {
+        reason_code: 'runtime_run_limit',
+        explanation: `The owner's per-run limit has ${left(limit, used)} nano-USD left for this run; this needs ${amount}.`,
+      };
+  }
+  const model = limits.per_model.find(
+    (m) => m.provider === call.provider && m.model_id === call.modelId,
+  );
+  if (model) {
+    const limit = BigInt(model.limit_nano_usd);
+    const used = await modelSpend(
+      c,
+      config.effective_from,
+      call.provider,
+      call.modelId,
+    );
+    if (used + amount > limit)
+      return {
+        reason_code: 'runtime_model_limit',
+        explanation: `The owner's limit for ${call.provider}/${call.modelId} has ${left(limit, used)} nano-USD left; this needs ${amount}.`,
+      };
+  }
+  return null;
+}
+const left = (limit: bigint, used: bigint) =>
+  limit > used ? limit - used : 0n;
