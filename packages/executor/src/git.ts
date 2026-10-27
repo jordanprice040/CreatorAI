@@ -7,8 +7,9 @@ import { canonical, fileAt } from './files.js';
 export async function git(cwd: string, args: string[]): Promise<string> {
   await canonical(cwd);
   return await new Promise((resolve, reject) => {
+    // The installed studio runs with a minimal PATH; its supervisor names Git (ADR-0046).
     const child = spawn(
-      'git',
+      process.env.CREATOR_GIT || 'git',
       [
         '-c',
         'core.hooksPath=/dev/null',
@@ -57,7 +58,15 @@ export async function git(cwd: string, args: string[]): Promise<string> {
     child.stdout.on('data', collect);
     child.stderr.on('data', collect);
     const timeout = setTimeout(() => child.kill(), 15000);
-    child.on('error', reject);
+    child.on('error', (e: NodeJS.ErrnoException) =>
+      reject(
+        e.code === 'ENOENT'
+          ? new Error(
+              'Git was not found. Builds need Git for Windows (git-scm.com); install it and restart Creator Agent.',
+            )
+          : e,
+      ),
+    );
     child.on('close', (code) => {
       clearTimeout(timeout);
       const text = Buffer.concat(chunks).toString('utf8');

@@ -72,6 +72,9 @@ export function Evidence({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [cite, setCite] = useState<Passage | null>(null);
+  // A claim the cite form saved whose evidence step then failed. Kept here, not in the form,
+  // so switching passages attaches to it instead of creating it again.
+  const [unevidenced, setUnevidenced] = useState<StoredEntity | null>(null);
   const base = `workspaces/${workspace}`;
   const editor = current.role !== 'viewer';
   // Registering runs and granting permissions is the workspace owner's (server-enforced).
@@ -112,6 +115,7 @@ export function Evidence({
     setSource(null);
     setEvidence(null);
     setLast(null);
+    setUnevidenced(null);
     void load();
   }, [workspace]);
   useEffect(() => {
@@ -345,6 +349,12 @@ export function Evidence({
             </ul>
           )}
           <h3>Claims</h3>
+          {unevidenced && !cite && (
+            <p className="notice">
+              “{unevidenced.title}” has no evidence yet. Cite a passage for it
+              from a source (pick it in the claim list of the form).
+            </p>
+          )}
           {claims.length === 0 ? (
             <p className="small">No claims.</p>
           ) : (
@@ -477,8 +487,15 @@ export function Evidence({
                   claims={claims}
                   base={base}
                   csrf={session.csrf_token}
+                  created={unevidenced}
+                  onCreated={(c) => {
+                    setUnevidenced(c);
+                    void load();
+                  }}
+                  release={() => setUnevidenced(null)}
                   cancel={() => setCite(null)}
                   done={async (claimId) => {
+                    setUnevidenced(null);
                     setCite(null);
                     await load();
                     await openClaim(claimId);
@@ -510,6 +527,9 @@ function CiteForm({
   claims,
   base,
   csrf,
+  created,
+  onCreated,
+  release,
   cancel,
   done,
 }: {
@@ -517,6 +537,10 @@ function CiteForm({
   claims: StoredEntity[];
   base: string;
   csrf: string;
+  /** A claim already saved by this page whose evidence is still missing. */
+  created: StoredEntity | null;
+  onCreated: (claim: StoredEntity) => void;
+  release: () => void;
   cancel: () => void;
   done: (claimId: string) => Promise<void>;
 }) {
@@ -533,8 +557,8 @@ function CiteForm({
   const [rationale, setRationale] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // A claim this form already created: a retry adds evidence to it instead of a duplicate.
-  const [created, setCreated] = useState<StoredEntity | null>(null);
+  // One key per form: a repeated or retried create returns the same claim.
+  const [key] = useState(() => crypto.randomUUID());
   // Opening the form moves focus (and the view) to it; it sits below the passages.
   useEffect(() => document.getElementById('cite-claim')?.focus(), []);
   const existing = created ?? claims.find((c) => c.id === claimId);
@@ -565,6 +589,7 @@ function CiteForm({
         existing ??
         (await api(StoredEntitySchema, `${base}/entities`, {
           csrf,
+          idempotencyKey: key,
           body: {
             kind: 'claim',
             title: statement.trim().slice(0, 120),
@@ -575,7 +600,7 @@ function CiteForm({
             },
           },
         }));
-      if (!existing) setCreated(claim);
+      if (!existing) onCreated(claim);
       await api(ClaimSupportSchema, `${base}/claims/${claim.id}/support`, {
         csrf,
         body: {
@@ -598,13 +623,19 @@ function CiteForm({
   return (
     <form className="cite" onSubmit={(e) => void submit(e)}>
       <h4>Cite ¶{passage.locator.paragraph} in a claim</h4>
-      <label htmlFor="cite-claim">Claim</label>
       {created ? (
         <p className="small" id="cite-claim" tabIndex={-1}>
-          Saved “{created.title}” without evidence yet. Fix what is below and
-          save again to attach this passage to it.
+          “{created.title}” is saved but has no evidence yet. Fix what is below
+          and save again to attach this passage to it, or{' '}
+          <button type="button" className="text" onClick={release}>
+            choose another claim
+          </button>{' '}
+          (it stays in the list without evidence).
         </p>
       ) : (
+        <label htmlFor="cite-claim">Claim</label>
+      )}
+      {!created && (
         <select
           id="cite-claim"
           value={claimId}

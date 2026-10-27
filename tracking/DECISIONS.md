@@ -1,5 +1,33 @@
 # Decision log
 
+## ADR-0046 — Builds and packaging started from the studio (accepted October 27, 2026)
+
+Jordan approved the five recommendations of the in-app build and package design on
+2026-10-27: builds run in the studio service; real workspaces use the ChatGPT-plan Codex
+builder, with no live call until he approves a specific build; fixture workspaces get a $0
+sample; generated code runs only in the WSL worker; the first release is build, package and
+download, with revisions later. Context: the desktop app has no CLI, and every build step
+after the frozen spec ran inside the CLI process.
+
+Decision: the API gets `GET|POST /workspaces/:ws/products` (list; create from a current
+frozen spec), `POST .../products/:id/tasks`, `POST .../products/:id/builds` and
+`POST .../products/:id/package` (apps/api/src/products.ts). They run the same
+`BuildSupervisor` and `ArtifactSupervisor` the CLI uses, over the API's product store
+(`CREATOR_PRODUCTS_ROOT`, the desktop home's `products`). The build ports the CLI implements
+over HTTP are implemented in-process against the store and broker under the caller's context,
+with the same checks: workspace owner only, current active frozen spec bound to the product,
+active non-human-only run, `product.commit_build` admission with a covering grant and an
+active humility review, re-checked on every step; model calls reserve through the broker; the
+Codex builder goes through the same plan relay (`runCodexBuild`, shared with the CLI route).
+QA cases come from the frozen spec, never from the caller. A build or package answers once its
+intent is recorded and continues in the background; a second start for a product with a build
+running here is refused, not queued. Packaging re-checks the build first, re-reads and
+re-hashes the package, then registers it as the register route does.
+
+Limits: job state is in memory; after a restart a build with no outcome shows as interrupted
+and is never resent. Generated code still runs only in the execution worker; a host without
+WSL cannot build. The first live Codex build remains a separate, owner-approved step.
+
 ## ADR-0045 — Test-mode checkout screen and simulated test buyer (accepted October 27, 2026)
 
 Runbook step 3 (Jordan asked to start it on 2026-10-27). The Payments page gets a

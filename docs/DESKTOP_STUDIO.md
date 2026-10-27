@@ -20,6 +20,11 @@ scheduled task). Launching it from Start:
    secret) and only then opens the studio window. A development server or any other
    program on those ports is reported, never shown.
 
+Building and packaging products (ADR-0046, the Build and package page) also needs Git for
+Windows: the app passes its resolved `git.exe` to the service as `CREATOR_GIT` (found on
+the app's PATH or in the usual install folders); without it a build says Git is missing.
+Generated code still runs only in the WSL worker.
+
 No terminal, pnpm, development server or source checkout is used at launch. A developer
 shell's `CREATOR_*`, `OPENAI_*` or proxy variables do not reach the service (the child gets
 a minimal environment), so no live provider can be switched on by accident.

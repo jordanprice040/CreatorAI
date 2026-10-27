@@ -66,6 +66,72 @@ const RecheckBody = z.strictObject({
   expected_version: z.number().int().positive(),
 });
 
+/**
+ * One supervised Codex turn for a T12 build (ADR-0042), for the CLI's route and for builds the
+ * studio service runs itself (ADR-0046). The plan relay admits each request.
+ */
+export async function runCodexBuild(
+  r: {
+    store: ConnectionStore;
+    service: PlanConnectionService | null;
+    codex: CodexLauncher | null;
+  },
+  ctx: CommandContext,
+  ws: string,
+  connectionId: string,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const b = parse(CodexBuildBody, raw);
+  if (!r.codex)
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'The pinned Codex CLI is not configured for the studio (CREATOR_CODEX_DIR).',
+    );
+  const { connection } = await r.store.planConnectionDetail(
+    ctx,
+    ws,
+    connectionId,
+  );
+  const caps = connection.settings.caps.codex;
+  const turns = codexTurns.get(b.build_id) ?? 0;
+  if (turns >= caps.max_turns_per_build)
+    throw new ContractError(
+      'LIMIT_EXCEEDED',
+      'The per-build Codex turn cap is reached.',
+    );
+  codexTurns.set(b.build_id, turns + 1);
+  if (!r.service)
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'The ChatGPT plan service is not configured.',
+    );
+  const admit = r.service.codexAdmission(ctx, ws, {
+    connection_id: connectionId,
+    model_id: b.model_id,
+    run_id: b.run_id,
+    build_id: b.build_id,
+    data_class: b.data_class,
+  });
+  let record: unknown = null;
+  const out = await codexBuilder({
+    launcher: r.codex,
+    model: b.model_id,
+    timeout_ms: caps.build_timeout_ms,
+    relay: async () =>
+      new PlanRelay({
+        admit,
+        request_timeout_ms:
+          connection.settings.caps.responses.request_timeout_ms,
+        onViolation: () => {},
+      }),
+    record: async (result) => {
+      const { files: _, ...evidence } = result;
+      record = evidence;
+    },
+  })(b.packet as Parameters<ReturnType<typeof codexBuilder>>[0]);
+  return { ...out, evidence: record };
+}
+
 export async function connectionRoutes(r: {
   store: ConnectionStore;
   service: PlanConnectionService | null;
@@ -198,49 +264,19 @@ export async function connectionRoutes(r: {
         true,
       );
     }
-    case 'codex-builds': {
+    case 'codex-builds':
       // One supervised Codex turn for a T12 build. T12 itself applies, reviews and tests it.
-      const b = parse(CodexBuildBody, await r.body());
-      if (!r.codex)
-        throw new ContractError(
-          'INVALID_CONFIG',
-          'The pinned Codex CLI is not configured for the studio (CREATOR_CODEX_DIR).',
-        );
-      const { connection } = await store.planConnectionDetail(ctx, ws, item);
-      const caps = connection.settings.caps.codex;
-      const turns = codexTurns.get(b.build_id) ?? 0;
-      if (turns >= caps.max_turns_per_build)
-        throw new ContractError(
-          'LIMIT_EXCEEDED',
-          'The per-build Codex turn cap is reached.',
-        );
-      codexTurns.set(b.build_id, turns + 1);
-      const admit = service().codexAdmission(ctx, ws, {
-        connection_id: item,
-        model_id: b.model_id,
-        run_id: b.run_id,
-        build_id: b.build_id,
-        data_class: b.data_class,
-      });
-      let record: unknown = null;
-      const out = await codexBuilder({
-        launcher: r.codex,
-        model: b.model_id,
-        timeout_ms: caps.build_timeout_ms,
-        relay: async () =>
-          new PlanRelay({
-            admit,
-            request_timeout_ms:
-              connection.settings.caps.responses.request_timeout_ms,
-            onViolation: () => {},
-          }),
-        record: async (result) => {
-          const { files: _, ...evidence } = result;
-          record = evidence;
-        },
-      })(b.packet as Parameters<ReturnType<typeof codexBuilder>>[0]);
-      return send(200, { ...out, evidence: record }, true);
-    }
+      return send(
+        200,
+        await runCodexBuild(
+          { store, service: r.service, codex: r.codex },
+          ctx,
+          ws,
+          item,
+          await r.body(),
+        ),
+        true,
+      );
     case 'quota-recheck': {
       const b = parse(RecheckBody, await r.body());
       return send(

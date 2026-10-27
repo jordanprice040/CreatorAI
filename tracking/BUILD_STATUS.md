@@ -1,3 +1,27 @@
+## Build and package in the app (D2, ADR-0046) — October 27, 2026
+
+Jordan approved the design's five recommendations. The studio service now builds and
+packages: `GET|POST /workspaces/:ws/products`, `POST .../products/:id/tasks|builds|package`,
+and fixture-only `products/sample-spec` and `products/sample-review` for the $0 sample
+(apps/api/src/products.ts). They run the CLI's BuildSupervisor and ArtifactSupervisor with
+in-process ports and the same gates (owner, current frozen spec, active run,
+`product.commit_build` admission with grant and humility review, broker reservations);
+`runCodexBuild` is shared with the CLI's Codex route. New Build and package page
+(apps/web/src/build.tsx). Desktop: the service gets Git for Windows as `CREATOR_GIT` (its
+PATH is System32 only, so builds failed with "Unexpected server failure"). Also folded in
+the #66 re-review Lows: the cite form keeps a saved, evidence-less claim across passage
+switches (held by the page), reloads the claim list, sends an Idempotency-Key, and the
+page notes a claim still without evidence.
+Checks: new studio-builds test (unfrozen spec refused, other workspace 404 and empty list,
+missing grant → checkpoint naming the decision, concurrent starts 202/409, package into
+Gallery, changed spec refuses packaging; mutations of the list filter fail it); full
+`pnpm test` 494 tests, 468 pass, 26 skip, 0 fail (before the last UI/git edits); cargo test
+17/17; typecheck; format:check. Walked in the desktop shell end to end: sample spec →
+freeze → review → product → task → build (checkpoint, approve, verified in the real WSL2
+worker) → package → Gallery → download bytes match the archive hash.
+Not done: no live Codex build (needs Jordan's approval of a specific build); scorecards,
+spec writing and humility reviews for real options are still CLI-only.
+
 ## PR #65 review fixes (first run without the CLI) — October 27, 2026
 
 Review of #65: 1 Medium, 3 Low, 3 nits. M1: the cite form checks the quote against the

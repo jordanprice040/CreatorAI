@@ -87,3 +87,27 @@ succeeded. Screenshots: `no-cli-fixture-pricing.png`, `no-cli-claim-recorded.png
 `no-cli-discovery-run.png`. The installed home had no file changed.
 
 D2 (in-app build and package) is next, design first.
+
+## D2: build and package in the app (fixed build, home `home4`)
+
+Jordan approved the design's recommendations (ADR-0046). The Build and package page runs
+the product build and packaging in the studio service. Walk in the desktop shell: a
+fixture workspace with a selection and spec (made with the CLI seed through the window's
+session, because writing a spec from a selection is still CLI-only), then all in the app:
+"Use the sample content" → freeze under Scores and specs (approved once under Decisions) →
+"Add the sample review" → Create product → Prepare task → Start build (stopped at a
+checkpoint asking for `product.commit_build`; approved once under Decisions) → Start build
+again: verified, fixture roles, acceptance cases run in the real WSL2 worker
+(`wsl2-bwrap-systemd`) → Package → listed in Gallery, integrity re-hashed → the download
+returned 3,072 bytes whose SHA-256 matches the manifest's archive hash.
+
+Found and fixed during the walk: the studio service runs with PATH limited to System32, so
+`git` (the product store is Git) was not found and the API answered "Unexpected server
+failure". The desktop supervisor now resolves Git for Windows to an absolute path and
+passes it as `CREATOR_GIT`; a missing Git says so; product-store refusals carry their
+message.
+
+Still CLI-only (recorded): scorecards and writing a spec from a selection for a real option,
+a humility review for a real spec, real-workspace pricing. Gallery shows fixture costs with
+a "$" sign (Low, pre-existing).
+Screenshots: `build-checkpoint.png`, `build-packaged.png`, `build-gallery.png`.

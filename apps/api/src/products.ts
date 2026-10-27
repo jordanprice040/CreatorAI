@@ -1,0 +1,588 @@
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import {
+  AdmissionSchema,
+  BrokerCallResultSchema,
+  ContractError,
+  EntityDetailSchema,
+  GrantSchema,
+  RunControlSchema,
+  SpecBodySchema,
+  SpecStatusSchema,
+  WorkspaceSchema,
+  parse,
+  z,
+  type SpecBody,
+} from '@creator/contracts';
+import type { CommandContext, ConnectionStore } from '@creator/db';
+import type { ModelBroker } from '@creator/broker';
+import {
+  BUILD_FIXTURE_SPEC,
+  fixtureHumilityReview,
+  frozenCases,
+} from '@creator/domain';
+import {
+  BuildSupervisor,
+  bindingSchema,
+  buildOutcomeSchema,
+  buildPlanSchema,
+  type ArtifactSupervisor,
+  type Binding,
+  type BuildOutcome,
+  type BuildPorts,
+  type Product,
+} from '@creator/executor';
+
+/**
+ * ADR-0046: product builds and packaging started from the studio itself (the desktop app has
+ * no CLI). The same supervisors the CLI uses run in this process; their ports call the store
+ * and broker directly under the signed-in owner's context instead of over HTTP, with the same
+ * checks. Generated code still runs only in the execution worker.
+ */
+export const PRODUCTS_ROUTE =
+  /^\/api\/workspaces\/([^/]+)\/(products)(?:\/([^/]+)(?:\/(tasks|builds|package))?)?$/;
+
+const uuid = z.uuid();
+const CreateProductBody = z.strictObject({ spec_id: uuid });
+const CreateTaskBody = z.strictObject({
+  task_key: z.string().regex(/^T[1-9][0-9]?$/),
+  expected_commit: z.string().regex(/^[0-9a-f]{40}$/),
+});
+// The executable cases are frozen in the spec, so the caller never supplies them.
+const StartBuildBody = z.strictObject({
+  task_id: uuid,
+  expected_commit: z.string().regex(/^[0-9a-f]{40}$/),
+  plan: buildPlanSchema.omit({ cases: true }),
+});
+const PackageBody = z.strictObject({ build_id: uuid });
+const SampleBody = z.strictObject({ spec_id: uuid });
+// The sample spec goes into an existing spec, or is written from a build selection.
+const SampleSpecBody = z.union([
+  SampleBody,
+  z.strictObject({
+    selection_id: uuid,
+    alternative: z.strictObject({ id: uuid, version: z.number().int().min(1) }),
+  }),
+]);
+
+type Job =
+  | { state: 'running' }
+  | { state: 'failed'; error: string }
+  | { state: 'done'; artifact_id?: string };
+/** A JSON round trip, then the contract: the same shapes the CLI reads over HTTP. */
+const via = <T>(schema: z.ZodType<T>, value: unknown): T =>
+  parse(schema, JSON.parse(JSON.stringify(value)));
+const reason = (e: unknown) =>
+  (e instanceof Error ? e.message : String(e)).slice(0, 2000);
+/** Product-store errors say what is wrong (stale base, missing Git): pass them on. */
+const refusal = (e: unknown): never => {
+  throw e instanceof ContractError
+    ? e
+    : new ContractError('INVALID_TRANSITION', reason(e));
+};
+
+export class StudioBuilds {
+  /** Builds and packages started by this process; restarts forget them (state is on disk). */
+  private readonly builds = new Map<string, Job>();
+  /** Products with a build starting or running here: the supervisor's lock would make a
+   * second start wait for the first to finish, so it is refused instead. */
+  private readonly building = new Set<string>();
+  private readonly packages = new Map<string, Job>();
+  constructor(
+    private readonly store: ConnectionStore,
+    private readonly broker: ModelBroker,
+    private readonly artifacts: ArtifactSupervisor,
+    private readonly codex?: (
+      ctx: CommandContext,
+      ws: string,
+      connectionId: string,
+      body: unknown,
+    ) => Promise<unknown>,
+  ) {}
+  private get supervisor() {
+    return new BuildSupervisor(
+      this.artifacts.products,
+      this.artifacts.executor,
+    );
+  }
+
+  /** The current active frozen spec as a binding; only the workspace owner may build. */
+  private async frozen(
+    ctx: CommandContext,
+    ws: string,
+    specId: string,
+  ): Promise<{ binding: Binding; spec: SpecBody }> {
+    const workspaces = via(
+      z.array(WorkspaceSchema),
+      await this.store.listWorkspaces(ctx),
+    );
+    if (!workspaces.some((w) => w.id === ws && w.role === 'owner'))
+      throw new ContractError(
+        'ACCESS_DENIED',
+        'Only the workspace owner can build products.',
+      );
+    const [status, detail] = await Promise.all([
+      this.store
+        .specStatus(ctx, ws, specId)
+        .then((s) => via(SpecStatusSchema, s)),
+      this.store
+        .getEntity(ctx, ws, specId)
+        .then((d) => via(EntityDetailSchema, d)),
+    ]);
+    const freeze = status.latest_freeze;
+    if (
+      !status.frozen_current ||
+      !freeze ||
+      status.spec.status !== 'active' ||
+      status.problems.length ||
+      status.blockers.length ||
+      detail.entity.version !== status.spec.version ||
+      detail.entity.content_hash !== status.spec.content_hash ||
+      freeze.content_hash !== status.spec.content_hash
+    )
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'A current active frozen specification is required.',
+      );
+    const spec = parse(SpecBodySchema, detail.entity.body);
+    return {
+      spec,
+      binding: parse(bindingSchema, {
+        workspace_id: ws,
+        owner_id: ctx.actorId,
+        spec_id: specId,
+        spec_version: status.spec.version,
+        spec_hash: status.spec.content_hash,
+        freeze_id: freeze.id,
+        tasks: spec.tasks
+          .filter((t) => t.file_scope.length)
+          .map((t) => ({
+            key: t.key,
+            hash: freeze.task_hashes[t.key],
+            file_scope: t.file_scope,
+          })),
+      }),
+    };
+  }
+
+  /** A product of this workspace that this person owns. */
+  private async product(
+    ctx: CommandContext,
+    ws: string,
+    productId: string,
+  ): Promise<Product> {
+    const p = await this.artifacts.products
+      .product(parse(uuid, productId))
+      .catch(() => {
+        throw new ContractError('NOT_FOUND', 'Product not found.');
+      });
+    if (p.binding.workspace_id !== ws)
+      throw new ContractError('NOT_FOUND', 'Product not found.');
+    if (p.integration_owner !== ctx.actorId)
+      throw new ContractError(
+        'ACCESS_DENIED',
+        'Only the owner who created this product can build it.',
+      );
+    return p;
+  }
+
+  /** The CLI's build ports, against the store and broker in this process (ADR-0046). */
+  private ports(ctx: CommandContext, ws: string, product: Product): BuildPorts {
+    let coverage: { grant_id: string; grant_version: number } | null = null;
+    let humility: { id: string; version: number } | null = null;
+    const ports: BuildPorts = {
+      current: async () => {
+        const current = await this.frozen(ctx, ws, product.binding.spec_id);
+        this.artifacts.products.assertBinding(product, current.binding);
+        return current;
+      },
+      assertActive: async (runId) => {
+        const runs = via(
+          z.array(RunControlSchema),
+          await this.store.listRuns(ctx, ws),
+        );
+        const run = runs.find((r) => r.run_id === runId);
+        if (
+          !run ||
+          run.state !== 'active' ||
+          run.experiment_condition === 'human_only' ||
+          run.autonomy_mode === 'human_only'
+        )
+          throw new Error(
+            'An active non-human-only registered run is required',
+          );
+        if (coverage && humility) {
+          const [grants, review] = await Promise.all([
+            this.store
+              .listGrants(ctx, ws)
+              .then((g) => via(z.array(GrantSchema), g)),
+            this.store
+              .getEntity(ctx, ws, humility.id)
+              .then((d) => via(EntityDetailSchema, d)),
+          ]);
+          const grant = grants.find((g) => g.id === coverage!.grant_id);
+          if (
+            !grant ||
+            grant.version !==
+              coverage.grant_version + (grant.scope === 'once' ? 1 : 0) ||
+            grant.status !== (grant.scope === 'once' ? 'consumed' : 'active') ||
+            Date.parse(grant.expires_at) <= Date.now() ||
+            review.entity.version !== humility.version ||
+            review.entity.status !== 'active'
+          )
+            throw new Error(
+              'Build authority or humility review changed or expired',
+            );
+        }
+      },
+      authorize: async (plan) => {
+        const admission = via(
+          AdmissionSchema,
+          await this.store.admitAction(ctx, ws, plan.run_id, {
+            action_type: 'product.commit_build',
+            task_id: null,
+            target: {
+              id: product.binding.spec_id,
+              version: product.binding.spec_version,
+            },
+            spec_hash: product.binding.spec_hash,
+            amount_nano_usd: null,
+            data_class: plan.data_class,
+            assumption_ids: [],
+            humility_review: plan.humility_review,
+            flags: [],
+            justification:
+              'T12 scoped local builder patch and isolated acceptance execution for frozen specification',
+          }),
+        );
+        if (admission.verdict !== 'allow')
+          throw new Error(
+            `Build admission ${admission.outcome}; decision ${admission.decision_id ?? 'none'}`,
+          );
+        if (!admission.covered_by)
+          throw new Error('Build admission has no covering grant');
+        coverage = admission.covered_by;
+        humility = plan.humility_review;
+        return admission;
+      },
+      call: async (runId, request) =>
+        via(
+          BrokerCallResultSchema,
+          await this.broker.call(ctx, ws, runId, request),
+        ),
+    };
+    if (this.codex) {
+      const codex = this.codex;
+      ports.codexBuilder = async (target, packet) => {
+        const { evidence: _, ...out } = (await codex(
+          ctx,
+          ws,
+          target.connection_id,
+          {
+            build_id: target.build_id,
+            run_id: target.run_id,
+            model_id: target.model_id,
+            data_class: target.data_class,
+            packet,
+          },
+        )) as Record<string, unknown>;
+        return out;
+      };
+    }
+    return ports;
+  }
+
+  /** What one product's builds show: the outcome on disk, or what this process knows. */
+  private async buildList(productId: string) {
+    const dir = join(this.artifacts.products.dir(productId), 'builds');
+    const names = await readdir(dir).catch(() => [] as string[]);
+    const out = [];
+    for (const name of names) {
+      if (!uuid.safeParse(name).success) continue;
+      const read = async (file: string) =>
+        JSON.parse(await readFile(join(dir, name, file), 'utf8')) as unknown;
+      const intent = (await read('intent.json').catch(() => null)) as {
+        task_id: string;
+        started_at: string;
+      } | null;
+      if (!intent) continue;
+      const outcome = await read('outcome.json')
+        .then((o) => buildOutcomeSchema.parse(o) as BuildOutcome)
+        .catch(() => null);
+      const job = this.builds.get(name);
+      out.push({
+        id: name,
+        task_id: intent.task_id,
+        started_at: intent.started_at,
+        state: outcome
+          ? outcome.state
+          : job?.state === 'running'
+            ? 'running'
+            : job?.state === 'failed'
+              ? 'failed'
+              : 'interrupted',
+        reason: outcome?.reason ?? (job?.state === 'failed' ? job.error : null),
+        commit: outcome?.commit ?? null,
+        fixture: outcome?.fixture ?? null,
+        finished_at: outcome?.finished_at ?? null,
+        package: this.packages.get(name) ?? null,
+      });
+    }
+    return out.sort((a, b) => b.started_at.localeCompare(a.started_at));
+  }
+
+  async list(ctx: CommandContext, ws: string) {
+    // Reading needs workspace access; listing workspaces checks the session.
+    const workspaces = via(
+      z.array(WorkspaceSchema),
+      await this.store.listWorkspaces(ctx),
+    );
+    if (!workspaces.some((w) => w.id === ws))
+      throw new ContractError('NOT_FOUND', 'Workspace not found.');
+    const root = this.artifacts.products.root;
+    const names = await readdir(root).catch(() => [] as string[]);
+    const out = [];
+    for (const name of names) {
+      if (!uuid.safeParse(name).success) continue;
+      const p = await this.artifacts.products.product(name).catch(() => null);
+      if (!p || p.binding.workspace_id !== ws) continue;
+      out.push({
+        product: p,
+        tasks: await this.artifacts.products.tasks(p.id),
+        builds: await this.buildList(p.id),
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Fixture workspaces only: the $0 sample. Puts the synthetic checklist content (the one
+   * spec the fixture builder answers for) into a spec as a new version; freezing it stays
+   * the owner's step, under its usual admission.
+   */
+  async sampleSpec(ctx: CommandContext, ws: string, raw: unknown) {
+    const req = parse(SampleSpecBody, raw);
+    await this.fixtureOnly(ctx, ws);
+    if ('selection_id' in req)
+      return this.store.createSpec(ctx, ws, {
+        selection_id: req.selection_id,
+        alternative: req.alternative,
+        title: 'Synthetic checklist sample',
+        content: BUILD_FIXTURE_SPEC,
+      });
+    const spec_id = req.spec_id;
+    const status = via(
+      SpecStatusSchema,
+      await this.store.specStatus(ctx, ws, spec_id),
+    );
+    return this.store.reviseSpec(ctx, ws, spec_id, {
+      expected_version: status.spec.version,
+      title: 'Synthetic checklist sample',
+      content: BUILD_FIXTURE_SPEC,
+      reason: 'Fixture build sample: synthetic content, no product claim',
+    });
+  }
+  /** Fixture workspaces only: a labelled synthetic humility review of the spec's version. */
+  async sampleReview(ctx: CommandContext, ws: string, raw: unknown) {
+    const { spec_id } = parse(SampleBody, raw);
+    await this.fixtureOnly(ctx, ws);
+    const status = via(
+      SpecStatusSchema,
+      await this.store.specStatus(ctx, ws, spec_id),
+    );
+    return this.store.createEntity(ctx, ws, {
+      kind: 'humility_review',
+      title: `Synthetic humility review (fixture sample) v${status.spec.version}`,
+      body: fixtureHumilityReview(
+        { id: spec_id, version: status.spec.version },
+        [],
+      ),
+    });
+  }
+  private async fixtureOnly(ctx: CommandContext, ws: string) {
+    if (!(await this.store.isFixtureWorkspace(ctx, ws)))
+      throw new ContractError(
+        'SCOPE_EXCEEDED',
+        'The build sample is synthetic and only exists in fixture workspaces.',
+      );
+  }
+
+  async create(ctx: CommandContext, ws: string, raw: unknown) {
+    const { spec_id } = parse(CreateProductBody, raw);
+    const { binding } = await this.frozen(ctx, ws, spec_id);
+    return this.artifacts.products.create(binding).catch(refusal);
+  }
+
+  async createTask(
+    ctx: CommandContext,
+    ws: string,
+    productId: string,
+    raw: unknown,
+  ) {
+    const req = parse(CreateTaskBody, raw);
+    const p = await this.product(ctx, ws, productId);
+    const { binding } = await this.ports(ctx, ws, p).current();
+    return this.artifacts.products
+      .createTask(p.id, req.task_key, req.expected_commit, binding)
+      .catch(refusal);
+  }
+
+  /**
+   * Starts a build and answers once its intent is recorded; the build goes on in this process.
+   * A refusal before that (admission, stale candidate, plan) is the request's error.
+   */
+  async startBuild(
+    ctx: CommandContext,
+    ws: string,
+    productId: string,
+    raw: unknown,
+  ): Promise<{ build_id: string; state: 'running' }> {
+    const req = parse(StartBuildBody, raw);
+    const p = await this.product(ctx, ws, productId);
+    if (this.building.has(p.id))
+      throw new ContractError(
+        'VERSION_CONFLICT',
+        'A build of this product is already running; wait for it to finish.',
+      );
+    this.building.add(p.id);
+    try {
+      return await this.begin(ctx, ws, p, req);
+    } catch (e) {
+      this.building.delete(p.id);
+      throw e;
+    }
+  }
+  private async begin(
+    ctx: CommandContext,
+    ws: string,
+    p: Product,
+    req: z.infer<typeof StartBuildBody>,
+  ): Promise<{ build_id: string; state: 'running' }> {
+    const ports = this.ports(ctx, ws, p);
+    const { spec } = await ports.current();
+    const task = await this.artifacts.products.task(p.id, req.task_id);
+    const assigned = spec.tasks.find((t) => t.key === task.key);
+    const cases = frozenCases(spec, assigned?.acceptance ?? []).map(
+      ({ held_out: _, ...c }) => c,
+    );
+    return new Promise((resolve, reject) => {
+      let started: string | null = null;
+      this.supervisor
+        .run(
+          p.id,
+          req.task_id,
+          req.expected_commit,
+          { ...req.plan, cases },
+          ports,
+          (buildId) => {
+            started = buildId;
+            this.builds.set(buildId, { state: 'running' });
+            resolve({ build_id: buildId, state: 'running' });
+          },
+        )
+        .finally(() => this.building.delete(p.id))
+        .then(
+          (outcome) => this.builds.set(outcome.id, { state: 'done' }),
+          (e: unknown) => {
+            if (started)
+              this.builds.set(started, { state: 'failed', error: reason(e) });
+            else
+              reject(
+                e instanceof ContractError
+                  ? e
+                  : new ContractError('INVALID_TRANSITION', reason(e)),
+              );
+          },
+        );
+    });
+  }
+
+  /** Packages a verified build in the worker, then lists it in Gallery. Runs in the background. */
+  async package(
+    ctx: CommandContext,
+    ws: string,
+    productId: string,
+    raw: unknown,
+  ): Promise<{ build_id: string; state: 'running' }> {
+    const { build_id } = parse(PackageBody, raw);
+    const p = await this.product(ctx, ws, productId);
+    if (this.packages.get(build_id)?.state === 'running')
+      throw new ContractError(
+        'VERSION_CONFLICT',
+        'That build is already being packaged.',
+      );
+    const ports = this.ports(ctx, ws, p);
+    // The same re-checks packaging starts with, so a stale build is refused now, not later.
+    const outcome = await this.supervisor
+      .status(p.id, build_id, ports)
+      .catch((e: unknown) => {
+        throw new ContractError('INVALID_TRANSITION', reason(e));
+      });
+    if (outcome.state !== 'verified_candidate')
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'Only a verified build can be packaged.',
+      );
+    this.packages.set(build_id, { state: 'running' });
+    void (async () => {
+      try {
+        const packaged = await this.artifacts.package(p.id, build_id, ports);
+        // As the register route does: re-read and re-hash what is on disk before listing it.
+        const { manifest, manifest_sha256 } = await this.artifacts.manifest(
+          p.id,
+          packaged.manifest.id,
+          packaged.manifest_sha256,
+        );
+        await this.artifacts.open(p.id, packaged.manifest.id, manifest_sha256);
+        await this.store.registerArtifact(ctx, ws, manifest, manifest_sha256);
+        this.packages.set(build_id, {
+          state: 'done',
+          artifact_id: packaged.manifest.id,
+        });
+      } catch (e) {
+        this.packages.set(build_id, { state: 'failed', error: reason(e) });
+      }
+    })();
+    return { build_id, state: 'running' };
+  }
+}
+
+export async function productRoutes(o: {
+  service: StudioBuilds;
+  ctx: CommandContext;
+  ws: string;
+  item: string | undefined;
+  action: string | undefined;
+  method: string;
+  body: () => Promise<unknown>;
+  send: (status: number, value: unknown, mutated: boolean) => Promise<boolean>;
+}): Promise<boolean> {
+  const { service, ctx, ws, item, action, method, send } = o;
+  if (!item && method === 'GET')
+    return send(200, await service.list(ctx, ws), false);
+  if (!item && method === 'POST')
+    return send(201, await service.create(ctx, ws, await o.body()), true);
+  if (item === 'sample-spec' && !action && method === 'POST')
+    return send(200, await service.sampleSpec(ctx, ws, await o.body()), true);
+  if (item === 'sample-review' && !action && method === 'POST')
+    return send(201, await service.sampleReview(ctx, ws, await o.body()), true);
+  if (item && action === 'tasks' && method === 'POST')
+    return send(
+      201,
+      await service.createTask(ctx, ws, item, await o.body()),
+      true,
+    );
+  if (item && action === 'builds' && method === 'POST')
+    return send(
+      202,
+      await service.startBuild(ctx, ws, item, await o.body()),
+      true,
+    );
+  if (item && action === 'package' && method === 'POST')
+    return send(
+      202,
+      await service.package(ctx, ws, item, await o.body()),
+      true,
+    );
+  return false;
+}

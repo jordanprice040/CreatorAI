@@ -90,6 +90,7 @@ import {
   readRaw,
 } from './github.js';
 import { artifactRoutes, createPreviewServer } from './artifacts.js';
+import { PRODUCTS_ROUTE, StudioBuilds, productRoutes } from './products.js';
 import {
   PAYMENTS_RETURN_ROUTE,
   PAYMENTS_ROUTE,
@@ -102,6 +103,7 @@ import {
   CONNECTIONS_ROUTE,
   codexLauncherFromEnv,
   connectionRoutes,
+  runCodexBuild,
 } from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
@@ -303,6 +305,23 @@ export function createApi(
           ...fixtureBatchAdapters(),
           ...(liveBatch ? [liveBatch] : []),
         ])
+      : null;
+  // ADR-0046: builds and packaging started from the studio (the desktop app has no CLI).
+  const builds =
+    store && broker
+      ? new StudioBuilds(
+          store,
+          broker,
+          artifacts,
+          (ctx, ws, connection, body) =>
+            runCodexBuild(
+              { store, service: planService, codex: codexLauncher },
+              ctx,
+              ws,
+              connection,
+              body,
+            ),
+        )
       : null;
   // X07: payments. Fixture and test-mode processors only; live payments are not built.
   const payments = store
@@ -532,6 +551,7 @@ export function createApi(
       GITHUB_ROUTE.exec(url.pathname) ??
       PAYMENTS_ROUTE.exec(url.pathname) ??
       CONNECTIONS_ROUTE.exec(url.pathname) ??
+      PRODUCTS_ROUTE.exec(url.pathname) ??
       MARKETING_ROUTE.exec(url.pathname) ??
       PORTFOLIO_ROUTE.exec(url.pathname) ??
       SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
@@ -681,6 +701,21 @@ export function createApi(
         action,
         method,
         url,
+        body: () => readJson(req),
+        send,
+      }))
+    )
+      return true;
+    if (
+      ws &&
+      PRODUCTS_ROUTE.test(url.pathname) &&
+      (await productRoutes({
+        service: builds!,
+        ctx,
+        ws,
+        item,
+        action,
+        method,
         body: () => readJson(req),
         send,
       }))

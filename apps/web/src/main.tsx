@@ -21,6 +21,7 @@ import { Compare } from './compare.js';
 import { Search } from './search.js';
 import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
+import { BuildView } from './build.js';
 import { DesktopDevices } from './desktop.js';
 import { DesktopApp } from './desktop-app.js';
 import { Operations } from './operations.js';
@@ -563,6 +564,8 @@ function App() {
         );
       case 'studies':
         return <Studies workspace={workspace} session={s} />;
+      case 'build':
+        return <BuildView workspace={workspace} session={s} open={open} />;
       case 'gallery':
         return (
           <Gallery

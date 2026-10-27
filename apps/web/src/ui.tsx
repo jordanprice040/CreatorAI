@@ -25,6 +25,7 @@ export const VIEWS = [
   ['search', 'Search'],
   ['activity', 'Activity'],
   ['studies', 'Studies'],
+  ['build', 'Build and package'],
   ['gallery', 'Gallery'],
   ['desktop', 'Desktop and workers'],
   ['operations', 'Operations'],
@@ -45,7 +46,7 @@ export const VIEW_GROUPS: readonly { label: string; views: readonly View[] }[] =
     { label: 'Oversight', views: ['decisions', 'runs', 'budgets', 'activity'] },
     {
       label: 'Build and study',
-      views: ['gallery', 'github', 'payments', 'marketing', 'studies'],
+      views: ['build', 'gallery', 'github', 'payments', 'marketing', 'studies'],
     },
     {
       label: 'System',
