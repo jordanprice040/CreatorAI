@@ -20,7 +20,16 @@ railState; format:check. Browser walk in fixture mode (tracking/evidence/funding
 walk.mjs, walk.json, screens/): 9/9 steps, dark theme, no console errors, no horizontal
 scroll at 390 px. The walk answers the artifact list with [] because the seeded minimal
 release row fails the Gallery contract. Fixture only; no processor, provider or GitHub call.
-Next eligible: runbook step 3 (checkout, test mode) after a review of this PR.
+Review fixes (fresh review of #58: no High or Medium, 7 Lows, all fixed on #58): saving a
+policy that is already on asks first whenever it lets more be reinvested or sooner
+(`loosens`); adding a funding source or commitment sends an idempotency key and the store
+now runs both through `idempotent()`; the portfolio target is disabled without a portfolio
+policy; `listCommitments` returns every open commitment (capacity holds all of them back)
+plus the 100 latest closed; tests added for a second workspace, retried source/commitment
+adds, editor and viewer refusals on all nine writes, `requestKeys` retention and `loosens`.
+Walk re-run on the final code: 12/12 steps including a viewer pass (workspace list served
+with the role rewritten to viewer) and the loosened-policy confirm.
+Next eligible: runbook step 3 (checkout, test mode).
 
 ## Completion runbook rewritten — October 26, 2026
 

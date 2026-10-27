@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { createApi } from '@creator/api';
+import { randomUUID } from 'node:crypto';
+import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
+import { ContractError } from '@creator/contracts';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
 const USD = 1_000_000_000n;
@@ -168,4 +170,98 @@ test('funding screen routes: owner funding, sources, commitments and policy', as
   assert.equal(refused.status, 409);
   assert.equal(refused.body.error.code, 'BUDGET_EXCEEDED');
   assert.deepEqual(await get(`${w}/reinvestment/allocations`), []);
+
+  // Adding a source or a commitment again with the same key (a lost response) adds nothing.
+  const railBody = {
+    label: 'Savings',
+    kind: 'owner_attested',
+    connection_id: null,
+  };
+  const r1 = await post(`${w}/funding-rails`, railBody, 'rail:retry-0001');
+  const r2 = await post(`${w}/funding-rails`, railBody, 'rail:retry-0001');
+  assert.equal(r2.body.id, r1.body.id);
+  assert.equal((await get(`${w}/funding-rails`)).length, 2);
+  const cBody = {
+    kind: 'reserve',
+    label: 'Buffer',
+    amount_nano_usd: String(USD),
+  };
+  const c1 = await post(`${w}/commitments`, cBody, 'commit:retry-01');
+  const c2 = await post(`${w}/commitments`, cBody, 'commit:retry-01');
+  assert.equal(c2.body.id, c1.body.id);
+  assert.equal((await get(`${w}/commitments`)).length, 3);
+
+  // Commitments stay in their own workspace.
+  const other = (
+    await post('workspaces', { name: 'Other funding', record_mode: 'fixture' })
+  ).body.id as string;
+  await post(`workspaces/${other}/commitments`, {
+    kind: 'tax',
+    label: 'Other workspace tax',
+    amount_nano_usd: String(7n * USD),
+  });
+  assert.deepEqual(
+    (await get(`workspaces/${other}/commitments`)).map((c: any) => c.label),
+    ['Other workspace tax'],
+  );
+  assert.ok(
+    (await get(`${w}/commitments`)).every(
+      (c: any) => c.label !== 'Other workspace tax',
+    ),
+  );
+
+  // Editors and viewers can read the screen but every write the screen offers is refused.
+  const store = api.store!;
+  const owner = { actorId: DEFAULT_OWNER_ACTOR_ID };
+  for (const role of ['editor', 'viewer'] as const) {
+    const actor = { actorId: randomUUID() };
+    await store.ensureActor({
+      id: actor.actorId,
+      kind: 'human',
+      display_name: role,
+    });
+    await store.addMember(owner, ws, actor.actorId, role);
+    assert.equal((await store.listCommitments(actor, ws)).length, 3);
+    const writes: [string, () => Promise<unknown>][] = [
+      ['owner funding', () => store.recordOwnerFunding(actor, ws, funding)],
+      ['add source', () => store.registerRail(actor, ws, railBody)],
+      [
+        'record balance',
+        () =>
+          store.attestRail(actor, ws, rail.body.id, {
+            available_nano_usd: String(USD),
+            evidence: 'x',
+          }),
+      ],
+      [
+        'source status',
+        () =>
+          store.setRailStatus(actor, ws, rail.body.id, {
+            status: 'unavailable',
+            reason: 'x',
+          }),
+      ],
+      ['add commitment', () => store.addCommitment(actor, ws, cBody)],
+      ['close commitment', () => store.closeCommitment(actor, ws, c1.body.id)],
+      ['policy', () => store.setReinvestmentPolicy(actor, ws, policy)],
+      [
+        'allocate',
+        () =>
+          store.allocateReinvestment(actor, ws, {
+            amount_nano_usd: String(USD),
+            allow_partial: true,
+            envelope_name: 'x',
+            max_in_flight: 1,
+          }),
+      ],
+      ['repay losses', () => store.settleReinvestmentLosses(actor, ws)],
+    ];
+    for (const [name, write] of writes)
+      await assert.rejects(
+        write(),
+        (e: unknown) =>
+          e instanceof ContractError && e.code === 'ACCESS_DENIED',
+        `${role}: ${name}`,
+      );
+  }
 });

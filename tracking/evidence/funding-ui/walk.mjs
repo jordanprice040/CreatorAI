@@ -222,6 +222,42 @@ await step('turning earnings into a budget refuses an over-limit amount, then as
   await page.locator('ul.rows li', { hasText: 'own budget' }).first().waitFor();
   await page.screenshot({ path: join(shots, '03-after.png'), fullPage: true });
 });
+await step('the portfolio target is unavailable without a portfolio policy', async () => {
+  await open('Turn earnings into a budget');
+  const disabled = await page.locator('#ra-target option[value="portfolio"]').isDisabled();
+  assert(disabled, 'portfolio option enabled');
+  await open('Turn earnings into a budget');
+});
+await step('raising limits on a policy that is already on asks first', async () => {
+  await open('Change the policy');
+  await page.locator('#rp-share').fill('60');
+  await page.locator('#rp-why').fill('Walk: raise share');
+  await page.getByRole('button', { name: 'Save policy' }).click();
+  await see('Allow more to be reinvested? Up to 60%');
+  await page.getByRole('button', { name: 'Yes, save these limits' }).click();
+  await see('Policy version 2 saved; reinvesting is on.');
+});
+// Viewer pass: the page is served the workspace list with this workspace's role rewritten
+// to viewer, so it shows what a viewer's page renders. The server's refusals for editors and
+// viewers are covered by tests/src/funding-api.test.ts.
+await step('a viewer sees the figures but no funding controls', async () => {
+  await page.route(/\/api\/workspaces$/, async (r) => {
+    if (r.request().method() !== 'GET') return r.continue();
+    const res = await r.fetch();
+    const list = (await res.json()).map((x) => (x.id === ws ? { ...x, role: 'viewer' } : x));
+    await r.fulfill({ response: res, json: list });
+  });
+  await page.reload();
+  await funding().waitFor();
+  await see('Only the workspace owner can record funding or change reinvesting.');
+  await see('Could become budget now');
+  for (const control of ['Record money you put in', 'Change the policy', 'Add a funding source', 'Add a commitment', 'Turn earnings into a budget'])
+    assert((await page.locator('summary', { hasText: control }).count()) === 0, `viewer sees ${control}`);
+  for (const button of ['Record balance…', 'Mark unavailable…', 'Close…'])
+    assert((await page.getByRole('button', { name: button }).count()) === 0, `viewer sees ${button}`);
+  await page.screenshot({ path: join(shots, '05-viewer.png'), fullPage: true });
+  await page.unroute(/\/api\/workspaces$/);
+});
 await step('phone width: no horizontal page scroll', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();

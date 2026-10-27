@@ -1,5 +1,5 @@
 {
-  "when": "2026-10-27T04:24:18.022Z",
+  "when": "2026-10-27T04:47:32.315Z",
   "mode": "fixture",
   "steps": [
     {
@@ -35,10 +35,25 @@
     {
       "name": "capacity reflects the settled sale and every bound",
       "ok": true,
-      "detail": "20.00 sim limited by the limit for this period"
+      "detail": "20.00 sim limited by this period's limit"
     },
     {
       "name": "turning earnings into a budget refuses an over-limit amount, then asks before creating",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "the portfolio target is unavailable without a portfolio policy",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "raising limits on a policy that is already on asks first",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "a viewer sees the figures but no funding controls",
       "ok": true,
       "detail": null
     },

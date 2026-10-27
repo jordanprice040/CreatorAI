@@ -194,3 +194,66 @@ test('funding reads percentages as basis points and says why a source does not c
   assert.equal(railState(processor, new Set(), now).counts, false);
   assert.equal(railState(processor, new Set(['c1']), now).counts, true);
 });
+
+test('funding keeps one request key per request and asks before loosening a policy', async () => {
+  type Limits = {
+    enabled: boolean;
+    eligible_bps: number;
+    holdback_days: number;
+    period_days: number;
+    period_cap_nano_usd: string;
+    min_reserve_nano_usd: string;
+  };
+  const { requestKeys, loosens } = await load<{
+    requestKeys: (
+      prefix: string,
+      mint: () => string,
+    ) => { key: (body: unknown) => string; clear: () => void };
+    loosens: (prev: Limits | null, next: Limits) => boolean;
+  }>('funding.tsx', {
+    './oversight.js': {},
+    './budgets.js': {},
+    './settings.js': {},
+    './ui.js': {},
+  });
+  let n = 0;
+  const keys = requestKeys('fund', () => `k${++n}`);
+  assert.equal(keys.key({ a: 1 }), 'fund:k1');
+  assert.equal(keys.key({ a: 1 }), 'fund:k1', 'a retry reuses the key');
+  assert.equal(
+    keys.key({ a: 2 }),
+    'fund:k2',
+    'a changed request gets a new one',
+  );
+  keys.clear();
+  assert.equal(keys.key({ a: 2 }), 'fund:k3', 'after success the next is new');
+
+  const on: Limits = {
+    enabled: true,
+    eligible_bps: 2500,
+    holdback_days: 30,
+    period_days: 30,
+    period_cap_nano_usd: '5000000000',
+    min_reserve_nano_usd: '1000000000',
+  };
+  assert.equal(loosens(null, on), true);
+  assert.equal(loosens({ ...on, enabled: false }, on), true);
+  assert.equal(loosens(on, { ...on, enabled: false }), false);
+  assert.equal(loosens(on, on), false);
+  assert.equal(
+    loosens(on, { ...on, eligible_bps: 2400, holdback_days: 40 }),
+    false,
+  );
+  for (const change of [
+    { eligible_bps: 10_000 },
+    { holdback_days: 0 },
+    { period_days: 7 },
+    { period_cap_nano_usd: '5000000001' },
+    { min_reserve_nano_usd: '0' },
+  ])
+    assert.equal(
+      loosens(on, { ...on, ...change }),
+      true,
+      JSON.stringify(change),
+    );
+});

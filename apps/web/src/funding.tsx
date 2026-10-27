@@ -115,19 +115,50 @@ export function railState(
  * Keeps one idempotency key while the same request is retried (a timeout, a lost response),
  * so a retry can't record money twice; a changed request gets a new key.
  */
-function useRequestKey(prefix: string) {
-  const ref = useRef<{ signature: string; key: string } | null>(null);
+export function requestKeys(prefix: string, mint = () => crypto.randomUUID()) {
+  let held: { signature: string; key: string } | null = null;
   return {
     key(body: unknown) {
       const signature = JSON.stringify(body);
-      if (ref.current?.signature !== signature)
-        ref.current = { signature, key: `${prefix}:${crypto.randomUUID()}` };
-      return ref.current.key;
+      if (held?.signature !== signature)
+        held = { signature, key: `${prefix}:${mint()}` };
+      return held.key;
     },
     clear() {
-      ref.current = null;
+      held = null;
     },
   };
+}
+function useRequestKey(prefix: string) {
+  const ref = useRef<ReturnType<typeof requestKeys> | null>(null);
+  ref.current ??= requestKeys(prefix);
+  return ref.current;
+}
+
+type PolicyLimits = Pick<
+  ReinvestmentPolicy,
+  | 'enabled'
+  | 'eligible_bps'
+  | 'holdback_days'
+  | 'period_days'
+  | 'period_cap_nano_usd'
+  | 'min_reserve_nano_usd'
+>;
+/**
+ * Whether saving `next` lets more earnings become budget, or sooner, than the current policy:
+ * turning it on, a larger share or period limit, a shorter waiting period or period, or a
+ * smaller reserve. Those saves ask first.
+ */
+export function loosens(prev: PolicyLimits | null, next: PolicyLimits) {
+  if (!next.enabled) return false;
+  if (!prev?.enabled) return true;
+  return (
+    next.eligible_bps > prev.eligible_bps ||
+    next.holdback_days < prev.holdback_days ||
+    next.period_days < prev.period_days ||
+    BigInt(next.period_cap_nano_usd) > BigInt(prev.period_cap_nano_usd) ||
+    BigInt(next.min_reserve_nano_usd) < BigInt(prev.min_reserve_nano_usd)
+  );
 }
 
 type Act = (work: () => Promise<string>) => Promise<boolean>;
@@ -165,7 +196,23 @@ export function Funding({
         api(z.array(AllocationRowSchema), `${base}/reinvestment/allocations`),
         api(z.array(TrancheSchema), `${base}/reinvestment/tranches`),
       ]);
-    return { capacity, policy, rails, commitments, allocations, tranches };
+    // Portfolio allocations need a portfolio policy; if it can't be read, don't offer them.
+    const portfolio = await api(
+      z.object({ state: z.object({}).nullable() }),
+      `${base}/portfolio`,
+    ).then(
+      (v) => v.state !== null,
+      () => false,
+    );
+    return {
+      capacity,
+      policy,
+      rails,
+      commitments,
+      allocations,
+      tranches,
+      portfolio,
+    };
   }, [workspace.id]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -295,7 +342,11 @@ export function Funding({
               (d.capacity.enabled && BigInt(d.capacity.capacity_nano) > 0n ? (
                 <details className="gh-add" key={`alloc-${done}`}>
                   <summary>Turn earnings into a budget</summary>
-                  <AllocateForm capacity={d.capacity} {...forms} />
+                  <AllocateForm
+                    capacity={d.capacity}
+                    portfolio={d.portfolio}
+                    {...forms}
+                  />
                 </details>
               ) : (
                 <p className="small">
@@ -527,11 +578,20 @@ function PolicyForm({
     !!capNano &&
     !!reserveNano &&
     !!rationale.trim();
-  const turningOn = enabled && !policy?.enabled;
+  const asksFirst =
+    complete &&
+    loosens(policy, {
+      enabled,
+      eligible_bps: bps!,
+      holdback_days: holdbackDays!,
+      period_days: period!,
+      period_cap_nano_usd: capNano!,
+      min_reserve_nano_usd: reserveNano!,
+    });
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!complete) return;
-    if (turningOn && !confirming) {
+    if (asksFirst && !confirming) {
       setConfirming(true);
       return;
     }
@@ -584,7 +644,10 @@ function PolicyForm({
             id="rp-share"
             inputMode="decimal"
             value={share}
-            onChange={(e) => setShare(e.target.value)}
+            onChange={(e) => {
+              setShare(e.target.value);
+              setConfirming(false);
+            }}
           />
         </div>
         <div>
@@ -593,7 +656,10 @@ function PolicyForm({
             id="rp-hold"
             inputMode="numeric"
             value={holdback}
-            onChange={(e) => setHoldback(e.target.value)}
+            onChange={(e) => {
+              setHoldback(e.target.value);
+              setConfirming(false);
+            }}
           />
         </div>
         <div>
@@ -602,7 +668,10 @@ function PolicyForm({
             id="rp-cap"
             inputMode="decimal"
             value={cap}
-            onChange={(e) => setCap(e.target.value)}
+            onChange={(e) => {
+              setCap(e.target.value);
+              setConfirming(false);
+            }}
           />
         </div>
         <div>
@@ -611,7 +680,10 @@ function PolicyForm({
             id="rp-days"
             inputMode="numeric"
             value={periodDays}
-            onChange={(e) => setPeriodDays(e.target.value)}
+            onChange={(e) => {
+              setPeriodDays(e.target.value);
+              setConfirming(false);
+            }}
           />
         </div>
         <div>
@@ -620,7 +692,10 @@ function PolicyForm({
             id="rp-reserve"
             inputMode="decimal"
             value={reserve}
-            onChange={(e) => setReserve(e.target.value)}
+            onChange={(e) => {
+              setReserve(e.target.value);
+              setConfirming(false);
+            }}
           />
         </div>
       </div>
@@ -644,15 +719,22 @@ function PolicyForm({
       ))}
       {confirming && complete && (
         <p className="notice" role="status">
-          Turn reinvesting on? Up to {share}% of each settled sale&apos;s
-          earnings, after {holdbackDays} days, could become budget, at most{' '}
-          {usd(capNano)} every {period} days, keeping {usd(reserveNano)} in
-          reserve. You still decide each budget yourself.
+          {policy?.enabled
+            ? 'Allow more to be reinvested?'
+            : 'Turn reinvesting on?'}{' '}
+          Up to {share}% of each settled sale&apos;s earnings, after{' '}
+          {holdbackDays} days, could become budget, at most {usd(capNano)} every{' '}
+          {period} days, keeping {usd(reserveNano)} in reserve. You still decide
+          each budget yourself.
         </p>
       )}
       <div className="actions">
         <button className="primary" type="submit" disabled={busy || !complete}>
-          {confirming ? 'Yes, save and turn on' : 'Save policy'}
+          {confirming
+            ? policy?.enabled
+              ? 'Yes, save these limits'
+              : 'Yes, save and turn on'
+            : 'Save policy'}
         </button>
         {confirming && (
           <button
@@ -675,7 +757,8 @@ function AllocateForm({
   busy,
   act,
   usd,
-}: Forms & { capacity: Capacity }) {
+  portfolio,
+}: Forms & { capacity: Capacity; portfolio: boolean }) {
   const [amount, setAmount] = useState('');
   const [name, setName] = useState('Reinvested earnings');
   const [target, setTarget] = useState<'standalone' | 'portfolio'>(
@@ -766,8 +849,9 @@ function AllocateForm({
             }}
           >
             <option value="standalone">Its own budget</option>
-            <option value="portfolio">
+            <option value="portfolio" disabled={!portfolio}>
               This workspace&apos;s portfolio runs
+              {portfolio ? '' : ' (no portfolio policy)'}
             </option>
           </select>
         </div>
@@ -1076,20 +1160,24 @@ function AddRail({
     ? connPick
     : (connections[0]?.id ?? '');
   const processor = kind === 'processor_balance';
+  const request = useRequestKey('rail');
   return (
     <form
       className="gh-form"
       onSubmit={(e) => {
         e.preventDefault();
         void act(async () => {
+          const body = {
+            label: label.trim(),
+            kind,
+            connection_id: processor ? connectionId : null,
+          };
           await api(z.unknown(), `${base}/funding-rails`, {
             csrf: session.csrf_token,
-            body: {
-              label: label.trim(),
-              kind,
-              connection_id: processor ? connectionId : null,
-            },
+            body,
+            idempotencyKey: request.key(body),
           });
+          request.clear();
           return `${label.trim()} added. ${processor ? 'Read its balance' : 'Record its balance'} so it counts.`;
         });
       }}
@@ -1262,6 +1350,7 @@ function AddCommitment({ base, session, busy, act }: Forms) {
   const [amount, setAmount] = useState('');
   const amountNano = usdToNano(amount);
   const valid = !!label.trim() && !!amountNano && BigInt(amountNano) > 0n;
+  const request = useRequestKey('commitment');
   return (
     <form
       className="gh-form"
@@ -1269,10 +1358,17 @@ function AddCommitment({ base, session, busy, act }: Forms) {
         e.preventDefault();
         if (!valid) return;
         void act(async () => {
+          const body = {
+            kind,
+            label: label.trim(),
+            amount_nano_usd: amountNano,
+          };
           await api(z.unknown(), `${base}/commitments`, {
             csrf: session.csrf_token,
-            body: { kind, label: label.trim(), amount_nano_usd: amountNano },
+            body,
+            idempotencyKey: request.key(body),
           });
+          request.clear();
           return `${label.trim()} added; it is held back from usable cash.`;
         });
       }}

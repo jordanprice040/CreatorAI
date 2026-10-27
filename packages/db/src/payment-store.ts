@@ -1832,7 +1832,7 @@ export class PaymentStore extends DesktopJobStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     const req = parse(RegisterRailRequestSchema, raw);
-    return this.tx(async (c) => {
+    return this.idempotent(ws, ctx, { op: 'finance.rail', req }, async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
       if (req.connection_id) await this.#connection(c, ws, req.connection_id);
       if (req.connection_id) {
@@ -2046,38 +2046,51 @@ export class PaymentStore extends DesktopJobStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     const req = parse(CommitmentRequestSchema, raw);
-    return this.tx(async (c) => {
-      await this.requireOwner(c, ws, ctx.actorId);
-      if (BigInt(req.amount_nano_usd) === 0n)
-        throw fail('INVALID_CONTRACT', 'A commitment is a positive amount.');
-      const id = randomUUID();
-      await c.query(
-        `insert into finance_commitments (id, workspace_id, kind, label, amount_nano, status,
+    return this.idempotent(
+      ws,
+      ctx,
+      { op: 'finance.commitment', req },
+      async (c) => {
+        await this.requireOwner(c, ws, ctx.actorId);
+        if (BigInt(req.amount_nano_usd) === 0n)
+          throw fail('INVALID_CONTRACT', 'A commitment is a positive amount.');
+        const id = randomUUID();
+        await c.query(
+          `insert into finance_commitments (id, workspace_id, kind, label, amount_nano, status,
            created_by) values ($1,$2,$3,$4,$5,'open',$6)`,
-        [id, ws, req.kind, req.label, req.amount_nano_usd, ctx.actorId],
-      );
-      await this.append(c, ctx, {
-        workspaceId: ws,
-        action: 'finance.commitment_opened',
-        subjectKind: 'finance_commitment',
-        subjectId: id,
-        subjectVersion: null,
-        contentHash: null,
-        payload: { kind: req.kind, amount_nano: req.amount_nano_usd },
-      });
-      return { id, ...req, status: 'open' as const };
-    });
+          [id, ws, req.kind, req.label, req.amount_nano_usd, ctx.actorId],
+        );
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'finance.commitment_opened',
+          subjectKind: 'finance_commitment',
+          subjectId: id,
+          subjectVersion: null,
+          contentHash: null,
+          payload: { kind: req.kind, amount_nano: req.amount_nano_usd },
+        });
+        return { id, ...req, status: 'open' as const };
+      },
+    );
   }
-  /** Open commitments first, then the most recently closed. */
+  /**
+   * Every open commitment (capacity holds all of them back), then the 100 most recently
+   * closed.
+   */
   async listCommitments(ctx: CommandContext, ws: string) {
     ctx = normalize(ctx);
     ws = uuid(ws);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
       const { rows } = await c.query(
-        `select id, kind, label, amount_nano::text as amount_nano_usd, status, created_at, closed_at
-         from finance_commitments where workspace_id = $1
-         order by status = 'closed', coalesce(closed_at, created_at) desc limit 200`,
+        `select * from ((select id, kind, label, amount_nano::text as amount_nano_usd, status, created_at, closed_at
+           from finance_commitments where workspace_id = $1 and status = 'open'
+           order by created_at desc)
+         union all
+         (select id, kind, label, amount_nano::text, status, created_at, closed_at
+           from finance_commitments where workspace_id = $1 and status = 'closed'
+           order by closed_at desc limit 100)) c
+         order by status = 'closed', coalesce(closed_at, created_at) desc`,
         [ws],
       );
       return rows.map((r) => ({
