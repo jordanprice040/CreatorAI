@@ -1,3 +1,79 @@
+## PR #68 third re-review fixes — October 27, 2026
+
+Third re-review of #68: M-B, the new unresolved-run test assumed the Windows reap message
+and failed on Linux CI (`pnpm test:db`); now any unverifiable reap (WSL failing, or no
+WSL backend) is refused with the same "could not be confirmed stopped: check that WSL
+works" hint (L-3), and the test asserts that. L-1: reconcile on an already-settled run
+frees only that run's marker; `release` never unlinks a dispatch lock naming this process
+(always a live `withLock`); `withLock` removes the lock only if it still holds its own
+token; a finished run frees only its own marker. New test: a settled run whose live
+supervisor holds the dispatch lock → Recover frees the marker, refuses the live lock and
+leaves it (restoring the old release fails it). Nits: Recover's "waiting" result also
+lists what it released; the unfinished-build notice says to just build again when nothing
+is locked. L-2 (clock step over 10 minutes) left as recorded. Checks: studio-builds,
+executor, web-display; with CREATOR_TEST_ISOLATION=wsl2 from PowerShell: executor,
+studio-builds and studio-builds-wsl 14/14; typecheck; format:check.
+
+## PR #68 second re-review fixes (Recover) — October 27, 2026
+
+Second re-review of #68: one Medium (M-A), Lows A–D, nits. M-A: a run that ends
+`cleanup_required` while the app keeps running (bridge failure, e.g. WSL failing) could
+not be reconciled ("Supervisor still exists") and blocked every build. The executor now
+tracks the runs it is dispatching; a run recorded under this process's PID that it is not
+dispatching (or that started before this boot) counts as having no live supervisor, and
+reconcile still requires the expired lease and a verified reap. A reap that cannot be
+verified tells the owner to check WSL; "needs reconciliation" errors and failed builds
+show the Recover notice. Lows: own-PID locks count as held whatever time they record, and
+the pre-boot rule has a 10-minute margin (A); reconcile finishes freeing the marker of an
+already-settled run and Recover lists only runs it changed (B); reconcile applies the
+pre-boot rule to reused supervisor PIDs (C); every per-product action records its product
+for the lock notice (D). Nits: `execution.reconciled` records who; another product's live
+in-app run makes Recover return `waiting` instead of failing. Checks: studio-builds (own
+lock held, unresolved own-PID run → no "Supervisor still exists"; here WSL fails so it
+refuses with the WSL hint, then a settled run's marker is freed with nothing listed;
+disabling the own-PID rule fails the test), executor + web-display, typecheck,
+format:check. After Jordan approved `wsl --shutdown` (WSL was failing with E_UNEXPECTED),
+with CREATOR_TEST_ISOLATION=wsl2 from PowerShell: executor (real WSL worker, killed
+supervisor + reconcile), studio-builds and the new studio-builds-wsl gated test (Recover
+refuses while the supervisor lives, then reconciles; dispatch lock and marker freed) all
+pass, 14/14. WSL failed again once while Docker restarted around a run; it recovered after
+another shutdown and was healthy after the passing runs.
+
+## PR #68 re-review fixes (Recover) — October 27, 2026
+
+Re-review of #68: M1 confirmed; one Medium left (N1) and four Lows. N1: Recover now also
+reconciles acceptance runs a closed app left in the worker (this product's running
+executions and the studio-wide pending marker's run if it is this owner's) through
+`ExecutionSupervisor.reconcile`, which refuses while the supervisor lives or the lease is
+fresh and verifies the WSL2 unit stopped before freeing the dispatch lock and marker; a
+dispatch lock with no worker launched is released; the page says "Nothing was locked"
+when nothing changed and lists what it released or reconciled. Lows: recovery holds the
+product (no build or second recovery meanwhile) and re-reads each lock before releasing;
+a lock written before this boot is dead whatever process has its number now; the
+management lock needs clean task worktrees and no leftover Git index lock (else: create a
+new product); the lock notice shows only on the product that failed, Recover asks to
+confirm, and the event records who; an empty fresh lock is "being written"; CREATOR_GIT
+must be absolute. Checks: studio-builds (live holder, writing, pre-boot, nothing-to-do,
+dispatch with/without marker), executor + web-display, cargo test 17/17, typecheck,
+format:check. New gated test studio-builds-wsl (real WSL2 crash → Recover refuses while
+the supervisor lives, then reconciles) could not run: wsl.exe on this machine now fails
+with Wsl/Service/E_UNEXPECTED (the existing real-worker executor tests fail the same way).
+
+## PR #67 review fixes (in-app builds) — October 27, 2026
+
+Review of #67: 2 Medium, 4 Low. M1: the build ports drop the request's Idempotency-Key,
+so an approved-once admission can't be replayed for a second build or round (test: a
+second build with the same key stops and asks again; restoring the key makes it pass
+admission). M2: `POST .../products/:id/recover` and a Recover button release a product's
+locks whose process is gone (refuses a live holder or this process; management lock only
+with a clean repo; keeps the lock file and an event) (test: live holder refused, dead
+holder released, build no longer locked; disabling the liveness check fails it). Lows: a
+second package request is refused (reserved before the first await); find_git prefers the
+install folders over PATH; the cite form starts a new key when choosing another claim;
+running builds continuing after sign-out is documented in ADR-0046. Checks: studio-builds
+(both mutations fail it), executor + web-display, cargo test 17/17, typecheck,
+format:check.
+
 ## Build and package in the app (D2, ADR-0046) — October 27, 2026
 
 Jordan approved the design's five recommendations. The studio service now builds and

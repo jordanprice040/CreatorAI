@@ -88,6 +88,8 @@ export function BuildView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // The product the last failed action was about, so a lock notice shows only there.
+  const [failed, setFailed] = useState('');
   const data = useLoad(async () => {
     const [specs, products, reviews, runs, budgets, pricing] =
       await Promise.all([
@@ -168,15 +170,21 @@ export function BuildView({
     return () => clearInterval(t);
   }, [running]);
 
-  async function act(what: () => Promise<unknown>, done?: string) {
+  async function act(
+    what: () => Promise<unknown>,
+    done?: string | ((result: unknown) => string),
+    product?: string,
+  ) {
     setBusy(true);
     setError('');
     setNote('');
+    setFailed('');
     try {
-      await what();
-      if (done) setNote(done);
+      const result = await what();
+      if (done) setNote(typeof done === 'string' ? done : done(result));
     } catch (e) {
       setError(message(e));
+      setFailed(product ?? '');
     } finally {
       setBusy(false);
       data.reload();
@@ -298,6 +306,10 @@ export function BuildView({
                   act={act}
                   post={post}
                   open={open}
+                  locked={
+                    failed === p.product.id &&
+                    /locked|needs reconciliation/i.test(error)
+                  }
                 />
               ))
             )}
@@ -462,6 +474,7 @@ function Product({
   act,
   post,
   open,
+  locked,
 }: {
   entry: ProductEntry;
   spec: SpecStatus | undefined;
@@ -469,11 +482,22 @@ function Product({
   owner: boolean;
   fixture: boolean;
   busy: boolean;
-  act: (what: () => Promise<unknown>, done?: string) => Promise<void>;
+  act: (
+    what: () => Promise<unknown>,
+    done?: string | ((result: unknown) => string),
+    product?: string,
+  ) => Promise<void>;
   post: (path: string, body: unknown) => Promise<unknown>;
   open: (view: View, id?: string) => void;
+  /** The last action said a product was locked. */
+  locked: boolean;
 }) {
   const p = entry.product;
+  // Only the newest: once a later build ran, an old interruption needs nothing more.
+  const newest = entry.builds[0];
+  const interrupted =
+    newest?.state === 'interrupted' ||
+    /locked|needs reconciliation/i.test(newest?.reason ?? '');
   const current =
     spec?.frozen_current && spec.spec.version === p.binding.spec_version;
   return (
@@ -487,6 +511,59 @@ function Product({
           The spec changed or was unfrozen after this product was made, so it
           cannot be built or packaged. Create a product from the current frozen
           version.
+        </p>
+      )}
+      {owner && (interrupted || locked) && (
+        <p className="notice">
+          {interrupted
+            ? 'The last build did not finish (the app closed, or its test run was left unresolved). It is recorded and never resent; if Recover finds nothing locked, just build again.'
+            : 'This product may be locked by work that stopped.'}{' '}
+          Recover releases its locks only if the process that held them is gone;
+          the next build re-checks the task's files.{' '}
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Release this product's locks? Only locks whose process is gone are released, and an interrupted test run is first checked to have stopped.",
+                )
+              )
+                return;
+              void act(
+                async () =>
+                  z
+                    .object({
+                      released: z.array(z.string()),
+                      reconciled: z.array(z.string()),
+                      waiting: z.string().nullable(),
+                    })
+                    .parse(await post(`products/${p.id}/recover`, {})),
+                (r: unknown) => {
+                  const { released, reconciled, waiting } = r as {
+                    released: string[];
+                    reconciled: string[];
+                    waiting: string | null;
+                  };
+                  if (waiting)
+                    return released.length
+                      ? `Released: ${released.map((l) => `${l} lock`).join(', ')}. ${waiting}`
+                      : waiting;
+                  if (!released.length && !reconciled.length)
+                    return 'Nothing was locked, so nothing changed.';
+                  return `Recovered: ${[
+                    ...released.map((l) => `${l} lock released`),
+                    ...reconciled.map(
+                      (id) => `test run ${shortId(id)} confirmed stopped`,
+                    ),
+                  ].join(', ')}. You can build this product again.`;
+                },
+                p.id,
+              );
+            }}
+          >
+            Recover
+          </button>
         </p>
       )}
       {p.binding.tasks.map(({ key }) => {
@@ -512,6 +589,7 @@ function Product({
                             expected_commit: p.initial_commit,
                           }),
                         `Task ${key} prepared.`,
+                        p.id,
                       )
                     }
                   >
@@ -530,16 +608,20 @@ function Product({
                 fixture={fixture}
                 busy={busy || builds.some((b) => b.state === 'running')}
                 start={(plan) =>
-                  act(async () => {
-                    const r = Started.parse(
-                      await post(`products/${p.id}/builds`, {
-                        task_id: task.id,
-                        expected_commit: task.base_commit,
-                        plan,
-                      }),
-                    );
-                    return r;
-                  }, 'Build started. This page updates while it runs.')
+                  act(
+                    async () => {
+                      const r = Started.parse(
+                        await post(`products/${p.id}/builds`, {
+                          task_id: task.id,
+                          expected_commit: task.base_commit,
+                          plan,
+                        }),
+                      );
+                      return r;
+                    },
+                    'Build started. This page updates while it runs.',
+                    p.id,
+                  )
                 }
               />
             )}
@@ -602,6 +684,7 @@ function Product({
                                     build_id: b.id,
                                   }),
                                 'Packaging started. It reruns the build from its archive first.',
+                                p.id,
                               )
                             }
                           >

@@ -557,8 +557,9 @@ function CiteForm({
   const [rationale, setRationale] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  // One key per form: a repeated or retried create returns the same claim.
-  const [key] = useState(() => crypto.randomUUID());
+  // One key per claim being created: a retried create returns the same claim; choosing
+  // another claim starts a new key, so a different statement is never a replay conflict.
+  const [key, setKey] = useState(() => crypto.randomUUID());
   // Opening the form moves focus (and the view) to it; it sits below the passages.
   useEffect(() => document.getElementById('cite-claim')?.focus(), []);
   const existing = created ?? claims.find((c) => c.id === claimId);
@@ -627,7 +628,14 @@ function CiteForm({
         <p className="small" id="cite-claim" tabIndex={-1}>
           “{created.title}” is saved but has no evidence yet. Fix what is below
           and save again to attach this passage to it, or{' '}
-          <button type="button" className="text" onClick={release}>
+          <button
+            type="button"
+            className="text"
+            onClick={() => {
+              setKey(crypto.randomUUID());
+              release();
+            }}
+          >
             choose another claim
           </button>{' '}
           (it stays in the list without evidence).

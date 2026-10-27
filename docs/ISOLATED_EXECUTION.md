@@ -115,7 +115,10 @@ redispatches the task. PID reuse or unavailable cleanup leaves recovery blocked.
 An uncertain bridge outcome also fences new work until reconciliation. For a
 management Git crash, inspect the immutable intent, Git heads, worktree status
 and any conflict workspace before manually removing a dead lock; no automatic
-destructive repair is supplied. Do not delete user edits to make a gate pass.
+destructive repair is supplied. The owner's Recover action (Build page, ADR-0046)
+releases a product's build and management locks only when their recorded process is
+gone and not this one, the management lock only once the integration repo is clean; it
+keeps the released lock file and records an event. Do not delete user edits to make a gate pass.
 
 ## Executed checks
 

@@ -1,4 +1,12 @@
-import { mkdir, readFile, writeFile, unlink, readdir } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  unlink,
+  readdir,
+  rename,
+  stat,
+} from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -20,6 +28,7 @@ import {
   jsonWrite,
   readJson,
   withLock,
+  bootedBefore,
   event,
   newFile,
 } from './files.js';
@@ -33,6 +42,34 @@ export const TEMPLATE = {
     'import json\nprint(json.dumps({"template": "checklist/1", "items": ["inspect", "build", "review"]}))\n',
 };
 export const TEMPLATE_HASH = digest(JSON.stringify(TEMPLATE));
+
+/** Whether a process exists (EPERM: it does, owned by someone else). */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+/**
+ * Who holds a lock file: 'dead', a live process number, or 'writing' (empty and fresh: its
+ * holder is between creating and filling it). An empty lock older than a minute is a crash.
+ */
+function lockHolder(raw: string, mtimeMs: number): 'dead' | 'writing' | number {
+  let lock: { pid?: unknown; at?: unknown };
+  try {
+    lock = JSON.parse(raw) as typeof lock;
+  } catch {
+    return Date.now() - mtimeMs > 60_000 ? 'dead' : 'writing';
+  }
+  const pid = Number(lock.pid);
+  if (!Number.isInteger(pid) || pid <= 0) return 'dead';
+  // This process's own lock is held here, whatever its time says.
+  if (pid === process.pid) return pid;
+  if (bootedBefore(String(lock.at))) return 'dead';
+  return alive(pid) ? pid : 'dead';
+}
 
 /** Local owner-facing store. Never available to generated code or remote callers. */
 export class ProductSupervisor {
@@ -100,6 +137,88 @@ export class ProductSupervisor {
       throw new Error(
         'Frozen specification or task hashes changed; create a new bound product',
       );
+  }
+  /**
+   * Releases one lock whose recorded process is gone (a crash or a closed app mid-build):
+   * this product's build lock or management lock, or the studio-wide dispatch lock. A lock
+   * held by this process or a live one is never touched; a lock written before this boot is
+   * dead whatever its process number (Windows reuses them). The management lock needs a
+   * clean repo and task worktrees, so interrupted Git work is never hidden; the dispatch
+   * lock needs no pending worker (that one is resolved by reconciliation, which verifies the
+   * worker stopped). Released locks stay beside it as evidence, with an event naming who.
+   */
+  async recoverDeadLock(
+    which: 'builds' | 'product' | 'dispatch',
+    productId: string,
+    actor: string,
+  ): Promise<boolean> {
+    const dir = which === 'dispatch' ? this.root : this.dir(productId);
+    const lock =
+      which === 'builds'
+        ? join(dir, 'builds', 'supervisor.lock')
+        : join(dir, 'supervisor.lock');
+    const raw = await readFile(lock, 'utf8').catch(() => null);
+    if (raw === null) return false;
+    const holder = lockHolder(raw, (await stat(lock)).mtimeMs);
+    if (holder === 'writing')
+      throw new Error(`The ${which} lock is being written; try again shortly.`);
+    if (holder !== 'dead') {
+      if (holder === process.pid)
+        throw new Error(`The ${which} lock is held by work running now.`);
+      throw new Error(
+        `The ${which} lock is held by a running process (${holder}). If no Creator Agent build is running, restart the computer and recover again.`,
+      );
+    }
+    if (which === 'product') await this.assertQuiet(productId);
+    if (which === 'dispatch')
+      try {
+        await readFile(join(this.root, 'pending-worker.json'));
+        throw new Error(
+          'A worker outcome needs reconciliation first; the dispatch lock stays.',
+        );
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      }
+    // Unchanged since it was judged dead: another recovery or a new holder is never displaced.
+    if ((await readFile(lock, 'utf8').catch(() => null)) !== raw)
+      throw new Error(`The ${which} lock changed; recover again.`);
+    await rename(
+      lock,
+      `${lock}.dead-${new Date().toISOString().replace(/[:.]/g, '-')}`,
+    );
+    await event(dir, 'lock.recovered', { lock: which, raw, actor });
+    return true;
+  }
+  /** The integration repo and every task worktree are clean, with no Git lock left behind. */
+  private async assertQuiet(productId: string): Promise<void> {
+    const repo = this.repo(productId);
+    const stuck = [join(repo, '.git', 'index.lock')];
+    const worktrees = join(repo, '.git', 'worktrees');
+    for (const n of await readdir(worktrees).catch(() => [] as string[]))
+      stuck.push(join(worktrees, n, 'index.lock'));
+    for (const f of stuck)
+      if (
+        await stat(f).then(
+          () => true,
+          () => false,
+        )
+      )
+        throw new Error(
+          'Git work was interrupted (a Git lock is left). Create a new product from the spec to build again.',
+        );
+    for (const tree of [
+      repo,
+      ...(await this.tasks(productId)).map((t) =>
+        this.worktree(productId, t.id),
+      ),
+    ]) {
+      await safeTree(tree);
+      await clean(tree).catch(() => {
+        throw new Error(
+          'An interrupted build left changes in a task. Create a new product from the spec to build again.',
+        );
+      });
+    }
   }
   async create(
     raw: unknown,

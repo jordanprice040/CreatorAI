@@ -32,6 +32,7 @@ import {
   withLock,
   fileAt,
   newFile,
+  bootedBefore,
 } from './files.js';
 import type { PackageFile } from './tar.js';
 
@@ -46,6 +47,8 @@ function wslPath(p: string): string {
   return `/mnt/${full[0]!.toLowerCase()}/${full.slice(3).replaceAll('\\', '/')}`;
 }
 export class ExecutionSupervisor {
+  /** Runs this process is dispatching now; any other run recorded under its PID is over. */
+  private readonly active = new Set<string>();
   async profile() {
     return {
       backend: 'wsl2-bwrap-systemd' as const,
@@ -216,6 +219,36 @@ export class ExecutionSupervisor {
     const executionId = randomUUID(),
       dir = this.dir(productId, executionId),
       job = join(dir, 'job');
+    this.active.add(executionId);
+    try {
+      return await this.runRecorded(
+        productId,
+        taskId,
+        commit,
+        prepare,
+        source,
+        onStarted,
+        executionId,
+        dir,
+        job,
+        qa,
+      );
+    } finally {
+      this.active.delete(executionId);
+    }
+  }
+  private async runRecorded(
+    productId: string,
+    taskId: string,
+    commit: string,
+    prepare: (input: string) => Promise<string>,
+    source: Record<string, unknown>,
+    onStarted: (id: string) => void | Promise<void>,
+    executionId: string,
+    dir: string,
+    job: string,
+    qa?: QaCase | RunInput,
+  ): Promise<Execution> {
     await mkdir(dir);
     await mkdir(job);
     await mkdir(join(job, 'input'));
@@ -370,7 +403,7 @@ export class ExecutionSupervisor {
     }
     record.finished_at = new Date().toISOString();
     if (dispatchIntent && record.state !== 'cleanup_required')
-      await unlink(join(this.products.root, 'pending-worker.json'));
+      await this.release(executionId, null);
     checked(executionSchema, record);
     await jsonWrite(join(dir, 'outcome.json'), record);
     await event(this.products.dir(productId), 'execution.outcome', record);
@@ -484,19 +517,31 @@ export class ExecutionSupervisor {
     this.products.assertOwner(p, owner);
     return withLock(this.products.dir(productId), async () => {
       const record = await this.status(productId, executionId);
-      if (!['running', 'cleanup_required'].includes(record.state))
+      if (!['running', 'cleanup_required'].includes(record.state)) {
+        // Already settled (a crash after its record, before the cleanup): free only its marker.
+        // The dispatch lock is left to the liveness-checked recovery; someone may hold it now.
+        await this.release(executionId, null);
         return record;
+      }
       const pid = record.environment.supervisor_pid;
       if (typeof pid !== 'number')
         throw new Error('Unknown supervisor; manual inspection required');
-      try {
-        process.kill(pid, 0);
-        throw new Error(
-          'Supervisor still exists; cancel it and wait. PID reuse also blocks recovery.',
-        );
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e;
-      }
+      // This process, not dispatching it now (it ended unresolved), or a run from before
+      // this boot (its number may be reused): its supervisor is gone either way.
+      const gone =
+        (pid === process.pid && !this.active.has(executionId)) ||
+        bootedBefore(record.started_at);
+      if (!gone)
+        try {
+          process.kill(pid, 0);
+          throw new Error(
+            pid === process.pid
+              ? 'This run is still being dispatched; wait for it to finish.'
+              : 'Supervisor still exists; cancel it and wait. PID reuse also blocks recovery.',
+          );
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e;
+        }
       const dir = this.dir(productId, executionId),
         job = join(dir, 'job');
       const lease = (await readJson(join(job, 'lease.json'))) as {
@@ -523,22 +568,33 @@ export class ExecutionSupervisor {
       await canonical(job);
       await rm(job, { recursive: true });
       await jsonWrite(join(dir, 'reconciliation.json'), record);
-      await event(this.products.dir(productId), 'execution.reconciled', record);
-      const lock = join(this.products.root, 'supervisor.lock');
-      try {
-        const lockOwner = (await readJson(lock)) as { pid: number };
-        if (lockOwner.pid === pid) await unlink(lock);
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-      }
-      const pending = join(this.products.root, 'pending-worker.json');
-      try {
-        const marker = (await readJson(pending)) as { execution_id: string };
-        if (marker.execution_id === executionId) await unlink(pending);
-      } catch (e) {
-        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-      }
+      await event(this.products.dir(productId), 'execution.reconciled', {
+        ...record,
+        reconciled_by: owner,
+      });
+      await this.release(executionId, pid);
       return record;
     });
+  }
+  /**
+   * Frees this run's marker and, after a verified reap, the dispatch lock of its dead
+   * supervisor. A lock naming this process is always a live `withLock`, which removes itself.
+   */
+  private async release(executionId: string, deadSupervisor: unknown) {
+    const lock = join(this.products.root, 'supervisor.lock');
+    if (deadSupervisor !== null && deadSupervisor !== process.pid)
+      try {
+        const lockOwner = (await readJson(lock)) as { pid: number };
+        if (lockOwner.pid === deadSupervisor) await unlink(lock);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      }
+    const pending = join(this.products.root, 'pending-worker.json');
+    try {
+      const marker = (await readJson(pending)) as { execution_id: string };
+      if (marker.execution_id === executionId) await unlink(pending);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    }
   }
 }
