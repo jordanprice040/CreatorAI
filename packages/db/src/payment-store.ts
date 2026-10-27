@@ -435,6 +435,23 @@ export class PaymentStore extends DesktopJobStore {
 
   // ---- Offers and checkout ------------------------------------------------------------------
 
+  /**
+   * A release and whether it is current as Gallery computes it: the latest build of its spec,
+   * for the spec's current version. A replaced release is not sold (2026-10-26 review).
+   */
+  async #release(c: PoolClient, ws: string, artifactId: string) {
+    const { rows } = await c.query(
+      `select a.product_id, a.manifest_sha256, a.state,
+         (e.version = a.spec_version and not exists (
+           select 1 from artifact_manifests b where b.workspace_id = a.workspace_id
+             and b.spec_id = a.spec_id and b.created_at > a.created_at)) as current
+       from artifact_manifests a join entities e on e.id = a.spec_id
+       where a.workspace_id = $1 and a.id = $2`,
+      [ws, artifactId],
+    );
+    return rows[0] as Row | undefined;
+  }
+
   async createOffer(ctx: CommandContext, ws: string, raw: unknown) {
     ctx = normalize(ctx);
     ws = uuid(ws);
@@ -452,16 +469,7 @@ export class PaymentStore extends DesktopJobStore {
         );
       // Current as Gallery computes it: the latest build of its spec, for the spec's current
       // version. A replaced release is not offered for sale (2026-10-26 review).
-      const { rows: m } = await c.query(
-        `select a.product_id, a.manifest_sha256, a.state,
-           (e.version = a.spec_version and not exists (
-             select 1 from artifact_manifests b where b.workspace_id = a.workspace_id
-               and b.spec_id = a.spec_id and b.created_at > a.created_at)) as current
-         from artifact_manifests a join entities e on e.id = a.spec_id
-         where a.workspace_id = $1 and a.id = $2`,
-        [ws, uuid(req.artifact_id)],
-      );
-      const manifest = m[0] as Row | undefined;
+      const manifest = await this.#release(c, ws, uuid(req.artifact_id));
       if (!manifest) throw fail('NOT_FOUND', 'Release (artifact) not found.');
       if (manifest.state !== 'verified')
         throw fail('MISSING_EVIDENCE', 'Only a verified release can be sold.');
@@ -561,15 +569,7 @@ export class PaymentStore extends DesktopJobStore {
         throw fail('INVALID_TRANSITION', 'The connection is not active.');
       // The offer was for the current release when created; a later build or spec version
       // replaces it, and a buyer must not pay for the replaced one.
-      const { rows: m } = await c.query(
-        `select (e.version = a.spec_version and not exists (
-             select 1 from artifact_manifests b where b.workspace_id = a.workspace_id
-               and b.spec_id = a.spec_id and b.created_at > a.created_at)) as current
-         from artifact_manifests a join entities e on e.id = a.spec_id
-         where a.workspace_id = $1 and a.id = $2`,
-        [ws, offer.artifact_id],
-      );
-      if ((m[0] as Row | undefined)?.current !== true)
+      if ((await this.#release(c, ws, offer.artifact_id))?.current !== true)
         throw fail(
           'INVALID_TRANSITION',
           'This offer sells a release that has been replaced; archive it and offer the current release.',
