@@ -35,9 +35,13 @@ const reason = (e: unknown) =>
 interface TestBuyer {
   payment: string | null;
   events: TestCheckoutState['events'];
+  /** Event bodies by event id; signed only when delivered. */
+  bodies: Map<string, { type: string; object: Record<string, unknown> }>;
 }
 const TEST_EVENT_LIMIT = 40;
 const TEST_DELIVERY_LIMIT = 20;
+/** Test buyers kept per API process; the oldest are forgotten first. */
+const TEST_BUYER_LIMIT = 100;
 /** Signs a deliberately wrong delivery; never a real secret. */
 const WRONG_SECRET = 'whsec_test_buyer_wrong_secret';
 
@@ -139,8 +143,12 @@ export class PaymentService {
     // caller's allowed-check and processor change run without interleaving.
     let buyer = this.#buyers.get(target.checkout.id);
     if (!buyer) {
-      buyer = { payment: null, events: [] };
+      buyer = { payment: null, events: [], bodies: new Map() };
       this.#buyers.set(target.checkout.id, buyer);
+      for (const old of this.#buyers.keys()) {
+        if (this.#buyers.size <= TEST_BUYER_LIMIT) break;
+        this.#buyers.delete(old);
+      }
     }
     return {
       ...target,
@@ -166,7 +174,9 @@ export class PaymentService {
       : !p
         ? ['pay']
         : [
-            ...(settled ? [] : (['settle'] as const)),
+            ...(settled || refunded >= p.amount || dispute === 'lost'
+              ? []
+              : (['settle'] as const)),
             ...(refunded < p.amount && dispute === 'none'
               ? (['refund', 'dispute'] as const)
               : []),
@@ -268,13 +278,9 @@ export class PaymentService {
       queued_at: new Date().toISOString(),
       deliveries: [],
     });
-    this.#bodies.set(id, { type, object });
+    buyer.bodies.set(id, { type, object });
     return this.#state(t.checkout.id, fx, buyer, true);
   }
-  readonly #bodies = new Map<
-    string,
-    { type: string; object: Record<string, unknown> }
-  >();
   /**
    * Delivers one queued event through the webhook path. `hook` is the identity real
    * deliveries use, so a test delivery records exactly what a processor's would.
@@ -294,7 +300,7 @@ export class PaymentService {
       `deliver:${req.signature}`,
     );
     const event = t.buyer.events.find((e) => e.id === req.event_id);
-    const body = this.#bodies.get(req.event_id);
+    const body = t.buyer.bodies.get(req.event_id);
     if (!event || !body)
       throw new ContractError(
         'NOT_FOUND',
@@ -311,6 +317,14 @@ export class PaymentService {
         'INVALID_CONFIG',
         `Set ${t.connection.body.webhook_secret_env} in the API environment so deliveries can be signed and checked.`,
       );
+    // Reserve the delivery slot before any await, so concurrent deliveries can't pass the cap.
+    const slot: TestCheckoutState['events'][number]['deliveries'][number] = {
+      at: new Date().toISOString(),
+      signature: req.signature,
+      http_status: 0,
+      outcome: 'in_flight',
+    };
+    event.deliveries.push(slot);
     const now = Math.floor(Date.now() / 1000);
     const signed = t.fx.event(
       body.type,
@@ -318,20 +332,22 @@ export class PaymentService {
       req.signature === 'wrong_secret' ? WRONG_SECRET : secret,
       { id: event.id, t: req.signature === 'expired' ? now - 600 : now },
     );
-    const out = await this.receiveWebhook(
-      hook,
-      t.connection.id,
-      signed.signature,
-      signed.raw,
-      now,
-    );
-    const b = out.body as { outcome?: unknown; error?: unknown };
-    event.deliveries.push({
-      at: new Date().toISOString(),
-      signature: req.signature,
-      http_status: out.status,
-      outcome: String(b.outcome ?? b.error ?? 'answered').slice(0, 200),
-    });
+    try {
+      const out = await this.receiveWebhook(
+        hook,
+        t.connection.id,
+        signed.signature,
+        signed.raw,
+        now,
+      );
+      const b = out.body as { outcome?: unknown; error?: unknown };
+      slot.http_status = out.status;
+      slot.outcome = String(b.outcome ?? b.error ?? 'answered').slice(0, 200);
+    } catch (e) {
+      slot.http_status = 500;
+      slot.outcome = 'delivery_failed';
+      throw e;
+    }
     return this.#state(t.checkout.id, t.fx, t.buyer, t.available);
   }
 

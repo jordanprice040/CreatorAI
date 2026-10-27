@@ -42,6 +42,7 @@ function deliveryText(
   d: TestCheckoutState['events'][number]['deliveries'][number],
 ) {
   const how = SIGNATURE_LABEL[d.signature] ?? d.signature;
+  if (d.outcome === 'in_flight') return `${how}: delivering…`;
   if (d.outcome === 'applied') return `${how}: applied`;
   if (d.outcome === 'duplicate') return `${how}: already applied, ignored`;
   if (d.http_status === 400 && d.signature !== 'valid')
@@ -79,6 +80,7 @@ export function Checkout({
   offers,
   connections,
   entitlements,
+  replaced,
   changed,
 }: {
   session: SessionInfo;
@@ -86,6 +88,8 @@ export function Checkout({
   offers: Offer[];
   connections: PaymentConnection[];
   entitlements: Entitlement[];
+  /** Offers whose release a newer build or spec version replaced; they can't be bought. */
+  replaced: ReadonlySet<string>;
   changed: () => void;
 }) {
   const owner = workspace.role === 'owner';
@@ -99,7 +103,9 @@ export function Checkout({
   const [picked, setPicked] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const active = offers.filter((o) => o.status === 'active');
+  const active = offers.filter(
+    (o) => o.status === 'active' && !replaced.has(o.id),
+  );
   const offerById = new Map(offers.map((o) => [o.id, o]));
   const connById = new Map(connections.map((c) => [c.id, c]));
   const checkouts = list.data ?? [];
@@ -129,7 +135,11 @@ export function Checkout({
         </p>
       )}
       {active.length === 0 ? (
-        <Empty>Create an offer first; a checkout sells one active offer.</Empty>
+        <Empty>
+          {offers.some((o) => o.status === 'active')
+            ? 'Every active offer sells a replaced release; archive it and offer the current release.'
+            : 'Create an offer first; a checkout sells one active offer.'}
+        </Empty>
       ) : (
         <OpenCheckout
           base={base}
@@ -479,7 +489,11 @@ function SimulatedBuyer({
                   Pay {price}
                 </button>
                 {!left && (
-                  <button className="secondary" onClick={() => setLeft(true)}>
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => setLeft(true)}
+                  >
                     Leave without paying
                   </button>
                 )}

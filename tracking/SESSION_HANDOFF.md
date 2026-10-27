@@ -1,3 +1,26 @@
+## Test-mode checkout review fixes (PR #60 review, 7 Lows) — October 27, 2026
+
+Fresh review of #60 (merged) found no High or Medium; all seven Lows fixed here. L1:
+checkout-api.test.ts now refuses the test buyer in a real workspace (LIVE_DISABLED), on a
+seeded open Stripe test-mode checkout (labelled SQL seam, no Stripe call), and in the
+service when the fixture seam hands back something that is not a FixtureProcessor. L2: the
+test asserts the ledger and entitlement audit rows of a test delivery carry the webhook
+actor. L3: the restart check posts `pay` and expects the "restarted" refusal. L4: test-buyer
+state keeps the latest 100 checkouts, event bodies live with their buyer and go with it.
+L5: one `#release` helper serves createOffer and checkoutTarget; the Payments page flags an
+active offer whose release was replaced ("release replaced", archive and re-offer) and the
+checkout picker leaves it out. L6: ADR-0045 says buyer steps and deliveries are audited,
+state reads are not. L7: a delivery reserves its slot before awaiting, so concurrent
+deliveries can't pass the cap; "Leave without paying" is disabled while busy; Settle is no
+longer offered after a full refund or a lost dispute (tested).
+Checks: typecheck; format:check; checkout-api passes; mutation checks (each fixture gate,
+the restart check, the webhook identity and the new Settle rule removed in turn) each fail
+the test; full `pnpm test` 487 tests, 457 pass, 25 skip, 5 fail (the known
+PowerShell-wrapper tests, no pwsh here); browser walk re-run 11/11 (tracking/evidence/
+checkout-ui/walk.json). The replaced-offer badge is not covered by the walk (its artifact
+list is stubbed empty); it is the same `current` flag the offer picker already uses.
+Next eligible: runbook step 5 (exercise the current build in the desktop shell).
+
 ## PR #57 review fixes (spending limits) — October 27, 2026
 
 Review of #57: 0 High, 1 Medium, 8 Low. Medium fixed: a new test fires 8 concurrent paid

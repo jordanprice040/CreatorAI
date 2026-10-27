@@ -144,6 +144,16 @@ export function Payments({
   // Only a verified, current release can be sold; failed, blocked or replaced builds can't.
   const verified =
     d?.artifacts.filter((a) => a.state === 'verified' && a.current) ?? [];
+  // An offer sells one release; once a newer build or spec version replaces it, the server
+  // refuses checkout, so the page says so instead of letting the owner find out at checkout.
+  const stale = new Set(
+    d?.artifacts.filter((a) => !a.current).map((a) => a.id) ?? [],
+  );
+  const replaced = new Set(
+    d?.offers
+      .filter((o) => o.status === 'active' && stale.has(o.artifact_id))
+      .map((o) => o.id) ?? [],
+  );
   // Fixture workspaces count in simulated units, so their amounts never read as dollars.
   const usd = (nano: string) => money(nano, !!fixture);
 
@@ -223,9 +233,17 @@ export function Payments({
                     >
                       {o.status}
                     </span>
+                    {replaced.has(o.id) && (
+                      <>
+                        {' '}
+                        <span className="badge warn">release replaced</span>
+                      </>
+                    )}
                     <small>
                       {' '}
                       · release {shortId(o.artifact_id)} · {when(o.created_at)}
+                      {replaced.has(o.id) &&
+                        ' · buyers can no longer check out; archive it and offer the current release'}
                     </small>
                     {!viewer && o.status === 'active' && (
                       <ArchiveOffer
@@ -282,6 +300,7 @@ export function Payments({
               offers={d.offers}
               connections={d.connections}
               entitlements={d.entitlements}
+              replaced={replaced}
               changed={data.reload}
             />
 

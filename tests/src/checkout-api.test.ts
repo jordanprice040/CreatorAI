@@ -2,7 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
+import {
+  createApi,
+  DEFAULT_OWNER_ACTOR_ID,
+  PAYMENT_WEBHOOK_ACTOR_ID,
+} from '@creator/api';
+import { PaymentService } from '@creator/broker';
 import { ContractError } from '@creator/contracts';
 import { NANO_PER_CENT } from '@creator/domain';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
@@ -141,6 +146,16 @@ test('checkout screen routes: test buyer, signed delivery, duplicates, out-of-or
   );
   assert.equal(await access('buyer-a'), true);
   assert.equal((await deliver(a, paid)).outcome, 'duplicate');
+  // Test deliveries book what a processor's would: as the webhook identity, not the owner.
+  const posters = await db.pool.query(
+    `select distinct actor_id from audit_events
+     where workspace_id = $1 and action in ('finance.posted', 'entitlement.active')`,
+    [ws],
+  );
+  assert.deepEqual(
+    posters.rows.map((r) => r.actor_id),
+    [PAYMENT_WEBHOOK_ACTOR_ID],
+  );
   let balances = (await call(`${w}/ledger/balances`)).body;
   assert.equal(balances.total_nano, '0');
   assert.equal(balances.balances.revenue, (-2500n * NANO_PER_CENT).toString());
@@ -157,7 +172,9 @@ test('checkout screen routes: test buyer, signed delivery, duplicates, out-of-or
   state = (await act(a, 'dispute_lost')).body;
   await deliver(a, state.events.at(-1).id);
   assert.equal(await entitlement('buyer-a'), 'revoked');
+  // Nothing is left to refund or settle once the dispute is lost.
   assert.equal((await act(a, 'refund')).status, 409);
+  assert.equal((await act(a, 'settle')).status, 409);
 
   // Out of order: the refund's event arrives before the payment's. Both read the processor,
   // so access ends revoked and the ledger matches either way round.
@@ -207,6 +224,66 @@ test('checkout screen routes: test buyer, signed delivery, duplicates, out-of-or
       );
   }
 
+  // The test buyer exists only for the simulated processor in a fixture workspace.
+  const real = (await call('workspaces', { name: 'Real', record_mode: 'real' }))
+    .body.id as string;
+  await assert.rejects(
+    store.testBuyerTarget(owner, real, randomUUID(), 'pay'),
+    (e: unknown) => e instanceof ContractError && e.code === 'LIVE_DISABLED',
+  );
+  const stripe = await store.registerPaymentConnection(owner, ws, {
+    label: 'Stripe test',
+    processor: 'stripe',
+    mode: 'test',
+    account_id: 'acct_checkouttest01',
+    secret_key_env: 'CREATOR_STRIPE_TEST_KEY',
+    webhook_secret_env: 'CREATOR_PAYMENTS_HOOK',
+  });
+  // Seeded rows (labelled seam): an open Stripe checkout without any Stripe call.
+  const stripeOffer = randomUUID();
+  const stripeCheckout = randomUUID();
+  await db.pool.query(
+    `insert into payment_offers (id, workspace_id, connection_id, product_id, artifact_id,
+       manifest_sha256, label, price_nano, status, created_by)
+     values ($1,$2,$3,$4,$5,$6,'Stripe offer',$7,'active',$8)`,
+    [
+      stripeOffer,
+      ws,
+      stripe.id,
+      release.product_id,
+      release.artifact_id,
+      release.manifest_sha256,
+      (2500n * NANO_PER_CENT).toString(),
+      owner.actorId,
+    ],
+  );
+  await db.pool.query(
+    `insert into payment_checkouts (id, workspace_id, offer_id, customer_ref, state,
+       processor_session_id, url, reason, created_by)
+     values ($1,$2,$3,'buyer-s','open','cs_test_seeded',
+       'https://checkout.stripe.com/c/pay/cs_test_seeded',null,$4)`,
+    [stripeCheckout, ws, stripeOffer, owner.actorId],
+  );
+  const stripeBuyer = await call(
+    `${w}/payment-checkouts/${stripeCheckout}/buyer`,
+    { action: 'pay' },
+  );
+  assert.equal(stripeBuyer.status, 409);
+  assert.match(
+    JSON.stringify(stripeBuyer.body),
+    /Only the simulated processor/,
+  );
+  // And the service itself refuses a processor that isn't the simulated one.
+  const odd = new PaymentService(store, {
+    env: {},
+    fixture: () => ({}) as never,
+  });
+  await assert.rejects(
+    odd.testBuyerState(owner, ws, a),
+    (e: unknown) =>
+      e instanceof ContractError && /Not a simulated processor/.test(e.message),
+  );
+
   // A newer build of the same spec replaces the release: new checkouts for its old offer
   // are refused, so nobody pays for the replaced one.
   const h = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -241,9 +318,9 @@ test('checkout screen routes: test buyer, signed delivery, duplicates, out-of-or
   assert.equal(
     (
       await again.call(`${w}/payment-checkouts/${b}/buyer`, {
-        action: 'settle',
+        action: 'pay',
       })
-    ).status,
-    409,
+    ).body.error?.message ?? '',
+    'The simulated processor restarted and forgot this checkout; open a new one.',
   );
 });

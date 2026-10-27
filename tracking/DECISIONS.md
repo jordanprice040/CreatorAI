@@ -14,9 +14,10 @@ in-memory fixture processor and queues the event body a processor would send; no
 the ledger or access until a delivery passes through `PaymentService.receiveWebhook`, the
 same signature, mode, de-duplication and backend-read path real deliveries use, with the
 webhook actor identity. The owner chooses the order and can repeat a delivery, which
-exercises duplicate and out-of-order events. Each request records a
-`payment.test_buyer_requested` audit event. Test-buyer state lives in API memory like the
-fixture processor; after a restart it says so and offers nothing. Stripe test-mode checkouts
+exercises duplicate and out-of-order events. Each buyer step or delivery records a
+`payment.test_buyer_requested` audit event (state reads do not). Test-buyer state lives in
+API memory like the fixture processor (the latest 100 checkouts' test buyers are kept);
+after a restart it says so and offers nothing. Stripe test-mode checkouts
 show only Stripe's hosted `https://checkout.stripe.com/` link and a "read a payment by id"
 recovery (the existing reconcile route); no Stripe call was made by this work. Also:
 `checkoutTarget` now refuses an offer whose release has since been replaced (later build or
