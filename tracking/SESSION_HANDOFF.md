@@ -1,3 +1,21 @@
+## PR #63 review fixes (desktop walkthrough) — October 27, 2026
+
+Review of #63: 1 Medium, 4 Low, 1 nit, all addressed. M1: debug probes no longer fall back
+to the installed app's folder; they refuse to start without `CREATOR_STUDIO_HOME` or when
+it names the installed home, and both the WebView2 data and the download probe's source
+cache now live in the launch's studio home (download.rs used `app_local_data_dir`, the
+installed home, too). native-startup.mjs, signin-acceptance.mjs and the two native artifact
+tests pass a throwaway home. L1: ADR-0041 amended and the desktop README updated. L2: "(recommended on a
+new computer)". L3: the close-behavior fallback is `background` everywhere. L4: noted in
+DESKTOP_STUDIO.md and the ADR amendment: an upgraded install keeps its saved `quit`. Nit:
+the desktop Submit copy no longer points at the Evidence view.
+Checks: cargo fmt --check, cargo test 16/16 (1 ignored), typecheck, format:check,
+web-display 8/8; probe without a home and with the installed home both refused (exit 101);
+native-startup.mjs passed; artifact-api with CREATOR_TEST_NATIVE=1 3/3, including the
+native download; studio-service 7/7 on the test DB. The installed home had no file
+changed. Not run: artifact-cli native pairing (needs the WSL worker), signin-acceptance.
+D1/D2 still wait on Jordan.
+
 ## Desktop-shell walkthrough of current main (runbook step 5) — October 27, 2026
 
 Walked `main` 3c42717 as a debug desktop shell (not installed) with a throwaway

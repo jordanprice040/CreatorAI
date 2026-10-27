@@ -643,6 +643,11 @@ only written to the current user's Run key after an explicit setting change. The
 defaults follow the handoff's conservative suggestion and are not the owner's choice;
 first-run setup asks. No Windows service, scheduled task, or account change.
 
+Amended October 27, 2026 (owner decisions #1–#2, PR #63): setup now preselects
+`background` (the first close each launch explains it) and recommends a new, empty studio
+on a new computer while still offering adoption. A saved choice is kept, so an install set
+up earlier keeps `quit` until the owner changes it in the status window.
+
 Rejected: a shortcut to the existing shell; starting or stopping the Docker development
 container (it serves `creator_dev` too and is not app-owned); bundling an unreviewed
 PostgreSQL distribution; separate API/worker processes (duplicate worker risk without new

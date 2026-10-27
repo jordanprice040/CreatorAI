@@ -231,7 +231,7 @@ impl Supervisor {
             .ok()
             .flatten()
             .map(|c| c.close_behavior)
-            .unwrap_or_else(|| "quit".into())
+            .unwrap_or_else(|| "background".into())
     }
     /// True the first time per launch, so the background notice is shown once.
     pub fn take_background_notice(&self) -> bool {

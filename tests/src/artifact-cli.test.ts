@@ -337,6 +337,7 @@ test(
                   CREATOR_NATIVE_PROBE_COOKIE: auth.cookie,
                   CREATOR_NATIVE_PROBE_WORKSPACE: ws,
                   CREATOR_NATIVE_PROBE_ARTIFACT: a1.id,
+                  CREATOR_STUDIO_HOME: join(dir, 'native-home'),
                 },
               },
             );

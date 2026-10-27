@@ -1,6 +1,6 @@
 # Installed desktop studio (§2.1)
 
-Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. Since October 27, 2026 setup recommends and preselects a new, empty studio and preselects Keep running in the background (existing installs keep their saved choice). Restoring a studio backup from setup is not built yet. Historical evidence below predates these defaults.
+Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. Since October 27, 2026 setup recommends and preselects a new, empty studio and preselects Keep running in the background (existing installs keep their saved choice). An upgrade keeps an install's saved choice, so the installed studio (set up with `quit`) still quits on close after step 7 unless Jordan switches it in the status window. Restoring a studio backup from setup is not built yet. Historical evidence below predates these defaults.
 
 October 20, 2026. Design: ADR-0041 in `tracking/DECISIONS.md`. Evidence:
 `tracking/evidence/desktop-2-1/`.
@@ -47,7 +47,7 @@ The setup window asks for:
    already installed (detected at `C:\pgsql18\pgsql\bin` and
    `C:\Program Files\PostgreSQL\18\bin`; version checked). It downloads nothing.
 2. **Where records come from.**
-   - _Start a new, empty studio (recommended, preselected):_ nothing is imported.
+   - _Start a new, empty studio (recommended on a new computer, preselected):_ nothing is imported.
    - _Adopt an existing studio on this computer:_ prefilled with the §1.2 studio
      (`creator_studio` on 127.0.0.1:55433, password read from the named line of
      `C:\dev\creator_agent\.env.docker`, products from `.creator\studio\products`).

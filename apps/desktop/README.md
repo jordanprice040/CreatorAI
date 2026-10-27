@@ -1,6 +1,6 @@
 # Windows desktop and paired workers — X05
 
-Owner update: [accepted setup/close preferences](../../tracking/OWNER_DECISIONS_2026-10-20.md) #1–#3 supersede prior proposed defaults. Target close-to-tray is user-changeable with explicit Quit; current close-to-quit implementation needs reconciliation and native acceptance. Login startup remains off/opt-in.
+Owner update: [accepted setup/close preferences](../../tracking/OWNER_DECISIONS_2026-10-20.md) #1–#3 supersede prior proposed defaults. Since October 27, 2026 setup preselects close-to-tray (user-changeable, explicit Quit) and recommends a new studio on a new computer; installs set up earlier keep their saved close choice. Native acceptance of the new default is still pending. Login startup remains off/opt-in.
 
 > **October 20, 2026 (§2.1, ADR-0041):** the installed app now starts the whole local
 > studio itself — app-managed PostgreSQL, one bundled Node service for UI/API/worker/

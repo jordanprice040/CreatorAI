@@ -154,11 +154,8 @@ pub fn download(window: WebviewWindow) -> Result<PathBuf, String> {
     if parsed["package"]["bytes"].as_u64() != Some(archive.len() as u64) {
         return Err("Downloaded archive size mismatch".into());
     }
-    let root = window
-        .app_handle()
-        .path()
-        .app_local_data_dir()
-        .map_err(|_| "No local application directory")?
+    let root = crate::data_root(window.app_handle())
+        .ok_or("No studio folder for this launch")?
         .join("source-cache");
     plain_path(&root)?;
     fs::create_dir_all(&root).map_err(|_| "Could not create source cache")?;

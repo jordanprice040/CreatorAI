@@ -28,11 +28,28 @@ fn supervisor(app: &AppHandle) -> Option<studio::Shared> {
     app.try_state::<studio::Shared>().map(|s| s.inner().clone())
 }
 
-/// WebView2 data (cookies, storage) lives in the studio home, so a `CREATOR_STUDIO_HOME`
-/// run never shares it with the installed app. WebView2 adds its own `EBWebView` folder, so
-/// the default home keeps Tauri's default location.
-fn webview_data(app: &AppHandle) -> Option<std::path::PathBuf> {
-    supervisor(app).map(|s| s.home.root.clone())
+/// Folder for this launch's WebView2 data (cookies, storage) and download cache: the studio
+/// home, so a `CREATOR_STUDIO_HOME` run or a debug probe never shares the installed app's.
+/// WebView2 adds its own `EBWebView` folder, so the default home keeps Tauri's default.
+pub struct DataRoot(pub std::path::PathBuf);
+
+pub fn data_root(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.try_state::<DataRoot>().map(|d| d.0.clone())
+}
+
+/// Debug probes must name a throwaway home: they never fall back to the installed app's.
+fn probe_home() -> Result<home::Home, String> {
+    let root = match std::env::var("CREATOR_STUDIO_HOME") {
+        Ok(p) if !p.is_empty() => std::path::PathBuf::from(p),
+        _ => return Err("Debug probes need CREATOR_STUDIO_HOME set to a throwaway folder".into()),
+    };
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let installed = std::path::Path::new(&local).join(IDENTIFIER);
+        if root.to_string_lossy().to_lowercase() == installed.to_string_lossy().to_lowercase() {
+            return Err("Debug probes must not use the installed app's folder".into());
+        }
+    }
+    home::Home::new(root)
 }
 
 /// Bundled setup/status window (local assets, the only window with native commands).
@@ -45,7 +62,7 @@ pub fn show_control(app: &AppHandle) {
                 "control",
                 tauri::WebviewUrl::App("index.html".into()),
             );
-            if let Some(dir) = webview_data(app) {
+            if let Some(dir) = data_root(app) {
                 builder = builder.data_directory(dir);
             }
             let built = builder
@@ -313,7 +330,7 @@ fn build_studio_window(
     let menu = Menu::with_items(app, &[&studio_menu, &tools])?;
     let mut builder =
         tauri::WebviewWindowBuilder::new(app, "studio", tauri::WebviewUrl::External(url));
-    if let Some(dir) = webview_data(app) {
+    if let Some(dir) = data_root(app) {
         builder = builder.data_directory(dir);
     }
     let window = builder
@@ -538,6 +555,7 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
             if probes.any() {
+                app.manage(DataRoot(probe_home()?.root));
                 let url = if probes.download || probes.job {
                     let ws =
                         uuid::Uuid::parse_str(&std::env::var("CREATOR_NATIVE_PROBE_WORKSPACE")?)?;
@@ -555,6 +573,7 @@ fn main() {
                 Some(Err(e)) => return Err(e.into()),
                 None => unreachable!(),
             };
+            app.manage(DataRoot(home.root.clone()));
             let sup = studio::Supervisor::new(handle.clone(), home, studio_resources(&handle));
             app.manage(sup.clone());
             sup.note(&format!(
