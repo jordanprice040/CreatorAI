@@ -3,6 +3,7 @@ import { RuntimeCeilingSchema, type SessionInfo } from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { money } from './budgets.js';
+import { SpendingLimits } from './spending-limits.js';
 import { Status, useLoad, type View } from './ui.js';
 
 /**
@@ -18,7 +19,8 @@ export function usdToNano(text: string): string | null {
 }
 
 /**
- * Settings: the owner's overall ceiling on real spending (ADR-0043), plus pointers to the
+ * Settings: the owner's overall ceiling on real spending (ADR-0043), the narrower per-run
+ * and per-model limits under it (ADR-0044), plus pointers to the
  * other places preferences live. Changing the ceiling is a deliberate, recorded act by the
  * signed-in person; agents and workers have no route to it.
  */
@@ -270,6 +272,8 @@ export function Settings({
           </>
         )}
       </Status>
+
+      <SpendingLimits session={session} />
 
       <h3>Elsewhere</h3>
       <ul className="rows">

@@ -319,3 +319,76 @@ export const SetRuntimeCeilingRequestSchema = z.strictObject({
 export type SetRuntimeCeilingRequest = z.infer<
   typeof SetRuntimeCeilingRequestSchema
 >;
+
+/**
+ * Narrower limits under the overall ceiling (ADR-0044): one per-run limit and per-model
+ * limits, each counted over real (non-fixture) paid calls since the ceiling's start date.
+ * None are set until the owner sets them; with none, only the overall ceiling applies. A
+ * limit can never be set above the ceiling in force, and the ceiling always still applies.
+ */
+const limitNano = nanoUsd.regex(/^(0|[1-9][0-9]{0,23})$/);
+const modelKey = {
+  provider: ProviderSchema.exclude(['fixture']),
+  model_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/),
+};
+export const ModelSpendLimitSchema = z.strictObject({
+  ...modelKey,
+  limit_nano_usd: limitNano,
+});
+export type ModelSpendLimit = z.infer<typeof ModelSpendLimitSchema>;
+export const SpendLimitsSchema = z.strictObject({
+  /** The most any one run may spend; null means only the overall ceiling bounds a run. */
+  per_run_nano_usd: limitNano.nullable(),
+  per_model: z.array(ModelSpendLimitSchema).max(50),
+});
+export type SpendLimits = z.infer<typeof SpendLimitsSchema>;
+export const SpendLimitChangeSchema = z.strictObject({
+  version: counter.min(1),
+  limits: SpendLimitsSchema,
+  previous: SpendLimitsSchema,
+  reason: note,
+  actor_id: id,
+  created_at: timestamp,
+});
+export type SpendLimitChange = z.infer<typeof SpendLimitChangeSchema>;
+export const SpendLimitsViewSchema = z.strictObject({
+  /** 0 until the first change; a change must name the version it replaces. */
+  version: counter,
+  limits: SpendLimitsSchema,
+  /** The overall ceiling in force; it still applies on top of every narrower limit. */
+  ceiling_nano_usd: nanoUsd,
+  counted_since: timestamp,
+  /** Models with a limit, a real pricing snapshot or counted spending, with what counts. */
+  models: z
+    .array(
+      z.strictObject({
+        ...modelKey,
+        limit_nano_usd: limitNano.nullable(),
+        exposure_nano_usd: nanoUsd,
+      }),
+    )
+    .max(200),
+  /** The real runs with the most counted spending, highest first. */
+  top_runs: z
+    .array(
+      z.strictObject({
+        workspace_id: id,
+        run_id: id,
+        exposure_nano_usd: nanoUsd,
+      }),
+    )
+    .max(10),
+  history: z.array(SpendLimitChangeSchema).max(50),
+});
+export type SpendLimitsView = z.infer<typeof SpendLimitsViewSchema>;
+export const SetSpendLimitsRequestSchema = z.strictObject({
+  expected_version: counter,
+  limits: SpendLimitsSchema,
+  reason: note,
+});
+export type SetSpendLimitsRequest = z.infer<typeof SetSpendLimitsRequestSchema>;

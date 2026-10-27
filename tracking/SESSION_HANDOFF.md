@@ -1,3 +1,33 @@
+## Per-run and per-model spending limits (runbook step 4, ADR-0044) — October 27, 2026
+
+Settings now has optional per-run and per-model limits under the overall ceiling
+(migration 31 `runtime_limit_changes`, ADR-0044). None are set by default: until Jordan sets
+some, the overall ceiling ($20 from config/spending.json, or its latest Settings version) is
+the only limit, and no amount was set or changed by this work. Each save is a new immutable
+version of the whole limit set with a reason, a `spending.limits_changed` audit event, the
+version it replaces (stale pages get VERSION_CONFLICT), and the same `runtime-ceiling`
+advisory lock every paid dispatch takes. Only a signed-in human workspace owner can read or
+change them; agents and system actors are refused. No limit may be above the ceiling in
+force; a later lower ceiling still wins because dispatch checks both. Enforcement is in
+BudgetStore.prepareAttempt (after the ceiling check, real workspaces only): a call is
+refused with `runtime_run_limit` or `runtime_model_limit` if it would take its run, or its
+provider/model across every workspace, past the limit. Counting matches the ceiling: settled
+cost plus held exposure of in-flight and unknown calls since the ceiling's start date.
+A final study attempt whose frozen cap is above the per-run limit is refused before it
+starts (StudyStore.holdBudget). Settings shows each model's limit and used-or-held amount,
+the highest run so far, a review step that says whether a change widens spending, and the
+change history.
+Checks (cloud container, PostgreSQL 16, fixture only, no live calls): typecheck; format;
+web build; `pnpm test` 481 tests, 450 pass, 25 skipped, 6 fail before the last fix: the 5
+known PowerShell-wrapper tests (no pwsh here) and one new web-display test, fixed and rerun
+(5/5); new tests/src/spending-limits.test.ts 6/6 (defaults, per-run, per-model across
+workspaces, every limit plus a lowered ceiling, owner-only/bounds/versions/immutability,
+concurrent saves); runtime-ceiling and storage tests pass. Walked Settings in the dev studio
+on a throwaway database (view, over-ceiling error, review, save, history, 390px width).
+Not tested end to end: the study per-run refusal (final study attempts stay blocked on the
+protocol freeze). Not built: per-user, per-task, provider-wide and recurring limits (#10).
+Next eligible: runbook step 3 (checkout in test mode) after step 2, or step 5.
+
 ## Completion runbook rewritten — October 26, 2026
 
 docs/COMPLETION_RUNBOOK.md went from 1,829 lines of dated status snapshots and prompts to
