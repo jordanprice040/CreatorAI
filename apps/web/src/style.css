@@ -1706,3 +1706,40 @@ form > .secondary {
 .wsbar form > .secondary {
   margin-top: 0;
 }
+
+/* ---------- Test-mode checkout (Payments) ---------- */
+.test-checkout {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.test-checkout h4 {
+  margin: 0;
+}
+.buyer-page {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  padding: 14px 16px;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+.buyer-page p {
+  margin: 0;
+}
+.test-checkout .row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.test-checkout .row-actions select {
+  width: auto;
+  max-width: 100%;
+}

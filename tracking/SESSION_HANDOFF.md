@@ -1,3 +1,34 @@
+## Test-mode checkout screen (runbook step 3, ADR-0045) — October 27, 2026
+
+The Payments page has a "Checkout (test mode)" section (apps/web/src/checkout.tsx), between
+Offers and Money in. The owner picks an active offer and a buyer reference and opens a
+checkout; recent checkouts are listed and can be continued. With the simulated processor
+the detail shows a labelled simulated checkout page (Pay, or leave without paying), then the
+buyer and processor steps the current state allows (settle, refund in full, dispute, dispute
+won/lost) and the queued processor events, each deliverable correctly signed, with the wrong
+secret or with an old timestamp, again and in any order; the buyer's access badge and the
+ledger update from the server. Stripe test-mode checkouts show only Stripe's hosted
+checkout link plus a "read a payment by id" recovery; no Stripe call was made. Server:
+`GET .../payment-checkouts` (owner-only), `GET|POST .../payment-checkouts/:id/buyer` and
+`POST .../payment-checkouts/:id/deliver` (owner-only, fixture workspace and simulated
+processor only, audited as `payment.test_buyer_requested`); deliveries go through
+`receiveWebhook` with the webhook identity. Test-buyer state is in API memory and says so
+after a restart. Checkout is now refused for an offer whose release has been replaced. No
+migration; ADR-0045; no live mode; processor choice still pending with Jordan.
+Checks (cloud container, PostgreSQL 16): typecheck; format:check; full `pnpm test` 485 tests, 454 pass, 25 skip, 6 fail: the 5
+known PowerShell-wrapper tests (no pwsh here) and web-display, whose payments stub lacked
+the new checkout module; after the stub and a new Stripe-link test, web-display passes 8/8;
+new tests/src/checkout-api.test.ts (wrong-secret and expired deliveries refused with no
+receipt, correct delivery grants and books revenue, repeat is a duplicate, second pay
+refused, dispute suspends then lost dispute revokes, refund delivered before its payment
+still ends revoked with a balanced ledger, editor/viewer refused, replaced release refused at
+checkout, restart leaves the test buyer unavailable). Browser walk in fixture mode
+(tracking/evidence/checkout-ui/walk.mjs, walk.json, screens/): 11/11 steps, dark theme, no
+console errors, no horizontal scroll at 390 px; the walk answers the artifact list with []
+as the funding walk does. Fixture only; no processor, provider or GitHub call.
+Next eligible: runbook step 5 (exercise the current build in the desktop shell), after the
+fresh review of this PR.
+
 ## Funding and reinvestment screen (runbook step 2) — October 27, 2026
 
 The Payments page has a new "Funding and reinvesting" section (apps/web/src/funding.tsx):

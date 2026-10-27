@@ -1,5 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { ContractError, type PaymentConnection } from '@creator/contracts';
+import {
+  ContractError,
+  TestBuyerRequestSchema,
+  TestDeliverRequestSchema,
+  parse,
+  type PaymentConnection,
+  type TestBuyerAction,
+  type TestCheckoutState,
+} from '@creator/contracts';
 import { NANO_PER_CENT, verifyWebhook } from '@creator/domain';
 import type { CommandContext, PaymentStore } from '@creator/db';
 import {
@@ -23,8 +31,20 @@ export interface PaymentServiceOptions {
 const reason = (e: unknown) =>
   e instanceof Error ? e.message.slice(0, 300) : 'unknown error';
 
+/** One test-buyer checkout: the simulated payment and the events waiting to be delivered. */
+interface TestBuyer {
+  payment: string | null;
+  events: TestCheckoutState['events'];
+}
+const TEST_EVENT_LIMIT = 40;
+const TEST_DELIVERY_LIMIT = 20;
+/** Signs a deliberately wrong delivery; never a real secret. */
+const WRONG_SECRET = 'whsec_test_buyer_wrong_secret';
+
 export class PaymentService {
   readonly #fixtures = new Map<string, FixtureProcessor>();
+  /** Test buyers by checkout id; in memory, like the simulated processor itself. */
+  readonly #buyers = new Map<string, TestBuyer>();
   constructor(
     readonly store: PaymentStore,
     readonly opts: PaymentServiceOptions,
@@ -96,6 +116,225 @@ export class PaymentService {
     }
     return this.store.recordCheckout(ctx, ws, offer, req.customer_ref, result);
   }
+  // ---- Test buyer (simulated processor only) -----------------------------------------------
+  // A test buyer drives the in-memory processor, then queues the signed event a real processor
+  // would send. Delivery goes through receiveWebhook, so signatures, mode, de-duplication and
+  // the backend read are the real path; the owner picks the order and can repeat or spoil one.
+
+  async #testBuyer(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    ask: string | null,
+  ) {
+    const target = await this.store.testBuyerTarget(ctx, ws, id, ask);
+    const fx = this.processor(target.connection);
+    if (!(fx instanceof FixtureProcessor))
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'Not a simulated processor.',
+      );
+    const session = target.checkout.processor_session_id!;
+    // Get-or-create with no await after it, so concurrent requests share one buyer and the
+    // caller's allowed-check and processor change run without interleaving.
+    let buyer = this.#buyers.get(target.checkout.id);
+    if (!buyer) {
+      buyer = { payment: null, events: [] };
+      this.#buyers.set(target.checkout.id, buyer);
+    }
+    return {
+      ...target,
+      fx,
+      session,
+      buyer,
+      available: fx.checkouts.has(session),
+    };
+  }
+  #state(
+    checkoutId: string,
+    fx: FixtureProcessor,
+    buyer: TestBuyer,
+    available: boolean,
+  ): TestCheckoutState {
+    const p = buyer.payment ? fx.payments.get(buyer.payment) : undefined;
+    const refunded = p?.refunds.reduce((n, r) => n + r.amount, 0) ?? 0;
+    const d = p?.disputes.at(-1);
+    const dispute = d?.status ?? 'none';
+    const settled = p?.charge?.balance_transaction.status === 'available';
+    const allowed: TestBuyerAction[] = !available
+      ? []
+      : !p
+        ? ['pay']
+        : [
+            ...(settled ? [] : (['settle'] as const)),
+            ...(refunded < p.amount && dispute === 'none'
+              ? (['refund', 'dispute'] as const)
+              : []),
+            ...(dispute === 'open'
+              ? (['dispute_won', 'dispute_lost'] as const)
+              : []),
+          ];
+    return {
+      checkout_id: checkoutId,
+      available,
+      payment: p
+        ? {
+            id: p.id,
+            amount_cents: p.amount,
+            settled,
+            refunded_cents: refunded,
+            dispute,
+          }
+        : null,
+      allowed,
+      events: structuredClone(buyer.events),
+    };
+  }
+  async testBuyerState(ctx: CommandContext, ws: string, checkoutId: string) {
+    const t = await this.#testBuyer(ctx, ws, checkoutId, null);
+    return this.#state(t.checkout.id, t.fx, t.buyer, t.available);
+  }
+  async testBuyerAct(
+    ctx: CommandContext,
+    ws: string,
+    checkoutId: string,
+    raw: unknown,
+  ) {
+    const { action } = parse(TestBuyerRequestSchema, raw);
+    const t = await this.#testBuyer(ctx, ws, checkoutId, action);
+    const { fx, buyer } = t;
+    if (!t.available)
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'The simulated processor restarted and forgot this checkout; open a new one.',
+      );
+    if (!this.#state(t.checkout.id, fx, buyer, true).allowed.includes(action))
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        `The test buyer can't ${action.replace('_', ' ')} now.`,
+      );
+    if (buyer.events.length >= TEST_EVENT_LIMIT)
+      throw new ContractError(
+        'BUDGET_EXCEEDED',
+        'This test checkout has queued enough events; open a new one.',
+      );
+    let pi = buyer.payment;
+    let type: string;
+    let object: Record<string, unknown>;
+    switch (action) {
+      case 'pay':
+        pi = fx.pay(t.session);
+        buyer.payment = pi;
+        type = 'payment_intent.succeeded';
+        object = { object: 'payment_intent', id: pi };
+        break;
+      case 'settle':
+        fx.settle(pi!);
+        type = 'charge.updated';
+        object = {
+          object: 'charge',
+          id: fx.payments.get(pi!)!.charge!.id,
+          payment_intent: pi,
+        };
+        break;
+      case 'refund': {
+        const p = fx.payments.get(pi!)!;
+        const left = p.amount - p.refunds.reduce((n, r) => n + r.amount, 0);
+        type = 'refund.created';
+        object = {
+          object: 'refund',
+          id: fx.refund(pi!, left),
+          payment_intent: pi,
+        };
+        break;
+      }
+      case 'dispute':
+        type = 'charge.dispute.created';
+        object = { object: 'dispute', id: fx.dispute(pi!), payment_intent: pi };
+        break;
+      default: {
+        const d = fx.payments.get(pi!)!.disputes.at(-1)!;
+        fx.closeDispute(pi!, d.id, action === 'dispute_won' ? 'won' : 'lost');
+        type = 'charge.dispute.closed';
+        object = { object: 'dispute', id: d.id, payment_intent: pi };
+      }
+    }
+    // The body is fixed now; it is signed at delivery so the timestamp is the delivery's.
+    const id = `evt_fxtest${randomUUID().replace(/-/g, '')}`;
+    buyer.events.push({
+      id,
+      type,
+      action,
+      queued_at: new Date().toISOString(),
+      deliveries: [],
+    });
+    this.#bodies.set(id, { type, object });
+    return this.#state(t.checkout.id, fx, buyer, true);
+  }
+  readonly #bodies = new Map<
+    string,
+    { type: string; object: Record<string, unknown> }
+  >();
+  /**
+   * Delivers one queued event through the webhook path. `hook` is the identity real
+   * deliveries use, so a test delivery records exactly what a processor's would.
+   */
+  async testBuyerDeliver(
+    ctx: CommandContext,
+    hook: CommandContext,
+    ws: string,
+    checkoutId: string,
+    raw: unknown,
+  ) {
+    const req = parse(TestDeliverRequestSchema, raw);
+    const t = await this.#testBuyer(
+      ctx,
+      ws,
+      checkoutId,
+      `deliver:${req.signature}`,
+    );
+    const event = t.buyer.events.find((e) => e.id === req.event_id);
+    const body = this.#bodies.get(req.event_id);
+    if (!event || !body)
+      throw new ContractError(
+        'NOT_FOUND',
+        'No such queued event for this checkout.',
+      );
+    if (event.deliveries.length >= TEST_DELIVERY_LIMIT)
+      throw new ContractError(
+        'BUDGET_EXCEEDED',
+        'This event has been delivered enough times.',
+      );
+    const secret = this.opts.env[t.connection.body.webhook_secret_env];
+    if (!secret)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        `Set ${t.connection.body.webhook_secret_env} in the API environment so deliveries can be signed and checked.`,
+      );
+    const now = Math.floor(Date.now() / 1000);
+    const signed = t.fx.event(
+      body.type,
+      body.object,
+      req.signature === 'wrong_secret' ? WRONG_SECRET : secret,
+      { id: event.id, t: req.signature === 'expired' ? now - 600 : now },
+    );
+    const out = await this.receiveWebhook(
+      hook,
+      t.connection.id,
+      signed.signature,
+      signed.raw,
+      now,
+    );
+    const b = out.body as { outcome?: unknown; error?: unknown };
+    event.deliveries.push({
+      at: new Date().toISOString(),
+      signature: req.signature,
+      http_status: out.status,
+      outcome: String(b.outcome ?? b.error ?? 'answered').slice(0, 200),
+    });
+    return this.#state(t.checkout.id, t.fx, t.buyer, t.available);
+  }
+
   /** Owner-requested read of one payment (recovery for a missed or deferred event). */
   async reconcilePayment(
     ctx: CommandContext,
