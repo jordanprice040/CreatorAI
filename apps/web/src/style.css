@@ -685,6 +685,10 @@ main > .panel.records:first-child {
   align-items: center;
   margin: 14px 0;
 }
+/* The cite form's buttons share one row; the primary's usual top gap would misalign it. */
+.cite .actions .primary {
+  margin-top: 0;
+}
 .actions form.inline {
   display: flex;
   flex-wrap: wrap;

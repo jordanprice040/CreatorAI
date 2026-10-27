@@ -1,3 +1,16 @@
+## PR #65 review fixes (first run without the CLI) — October 27, 2026
+
+Review of #65: 1 Medium, 3 Low, 3 nits. M1: the cite form checks the quote against the
+passage (whitespace-normalized, as the server's quoteInPassage does) before creating
+anything, and remembers a claim it already created, so a failed evidence step followed by a
+retry attaches to that claim instead of making a duplicate (checked in the desktop shell:
+a bad quote creates nothing; a simulated 503 on the evidence step then a retry leaves one
+claim). L1/L2: "Register a run for fetching" and "Add fixture pricing" show only for the
+workspace owner. L3: an optional quote under "does not support" must still be 8+
+characters. Nits: the form's buttons share one row; a real workspace notes that pages are
+fetched only while live fetching is on. Not changed: N2 (a passage over 1000 characters
+prefills a verbatim cut). Checks: typecheck, format:check, web-display 8/8.
+
 ## Desktop first run without the CLI (D1) — October 27, 2026
 
 Jordan asked to build in-app setup and packaging next. Part 1 (D1): a new desktop studio

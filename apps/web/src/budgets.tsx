@@ -373,7 +373,7 @@ export function Budgets({
               ))}
             </ul>
           )}
-          {current.role !== 'viewer' &&
+          {current.role === 'owner' &&
             (current.record_mode === 'fixture' ? (
               !pricing.some(
                 (p) => p.body.model_id === fixturePricing.model_id,
