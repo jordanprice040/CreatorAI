@@ -16,6 +16,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 
 /**
  * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
@@ -106,6 +107,7 @@ export function Budgets({
   session: SessionInfo;
   workspace: Workspace;
 }) {
+  const desktop = useDesktopApp();
   const workspace = current.id;
   const [fundName, setFundName] = useState('');
   const [fundCap, setFundCap] = useState('');
@@ -426,8 +428,9 @@ export function Budgets({
                         Confirm no charge
                       </button>{' '}
                       <small>
-                        (for a charge, use pnpm cli reconcile with the
-                        provider's usage)
+                        {desktop
+                          ? `(recording a charge ${NO_CLI_IN_DESKTOP})`
+                          : "(for a charge, use pnpm cli reconcile with the provider's usage)"}
                       </small>
                     </>
                   )}

@@ -1,6 +1,6 @@
 # Installed desktop studio (§2.1)
 
-Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. The implemented close-to-quit default is a reconciliation item; historical evidence below is not evidence of this new default.
+Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. Since October 27, 2026 setup recommends and preselects a new, empty studio and preselects Keep running in the background (existing installs keep their saved choice). Restoring a studio backup from setup is not built yet. Historical evidence below predates these defaults.
 
 October 20, 2026. Design: ADR-0041 in `tracking/DECISIONS.md`. Evidence:
 `tracking/evidence/desktop-2-1/`.
@@ -32,6 +32,7 @@ locations are refused). `CREATOR_STUDIO_HOME` overrides it for acceptance runs o
 | Path              | Contents                                                                     |
 | ----------------- | ---------------------------------------------------------------------------- |
 | `studio.json`     | non-secret settings and how the records got here (adoption evidence)         |
+| `EBWebView\`      | the windows' WebView2 data (cookies, storage); follows `CREATOR_STUDIO_HOME` |
 | `secrets\*.dpapi` | database password/URL and the persisted sign-in, Windows DPAPI (CurrentUser) |
 | `postgres\data`   | app-managed PostgreSQL 18 cluster (managed mode)                             |
 | `products\`       | generated product store                                                      |
@@ -46,17 +47,18 @@ The setup window asks for:
    already installed (detected at `C:\pgsql18\pgsql\bin` and
    `C:\Program Files\PostgreSQL\18\bin`; version checked). It downloads nothing.
 2. **Where records come from.**
-   - _Adopt your existing studio (recommended):_ prefilled with the §1.2 studio
+   - _Start a new, empty studio (recommended, preselected):_ nothing is imported.
+   - _Adopt an existing studio on this computer:_ prefilled with the §1.2 studio
      (`creator_studio` on 127.0.0.1:55433, password read from the named line of
      `C:\dev\creator_agent\.env.docker`, products from `.creator\studio\products`).
      "Check this studio" shows its workspaces read-only. Adoption takes a T17 backup,
      restores it into the app's cluster and product folder, and requires the restore
      check (schema, audit chain, artifacts, lineage, exact budget totals) before saving
      anything. The source database and files are only read.
-   - _Keep using that server directly:_ external mode; you start it yourself.
-   - _Start a new, empty studio:_ explicitly labelled; nothing is imported.
-3. **Close behavior and login start.** Defaults: closing quits; login start off. These are
-   conservative implementation defaults, not owner decisions.
+   - _Keep using an existing database server directly:_ external mode; you start it yourself.
+3. **Close behavior and login start.** Defaults: closing keeps the studio running in the
+   background with a tray icon (owner decision #2; the first close each launch explains
+   it); login start off (#3).
 
 A failed setup removes only what it created and saves nothing.
 

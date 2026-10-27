@@ -1,3 +1,26 @@
+## Desktop-shell walkthrough of current main (runbook step 5) — October 27, 2026
+
+Walked `main` 3c42717 as a debug desktop shell (not installed) with a throwaway
+`CREATOR_STUDIO_HOME`; the installed app and its home were not touched (no file changed).
+Fixture only, no live calls. Passed: new-studio setup, sign-in, fixture workspace, a
+discovery run, quit, relaunch (sign-in and workspace kept), quit one second into a run
+(it finished after relaunch), port-in-use message and Retry, second launch, background
+close, sign out. Fixed: F1 WebView2 data now follows the studio home (it was shared with
+the installed app's EBWebView); F2/F3 setup now preselects a new empty studio
+(recommended) and Keep running in the background, per owner decisions #1–#2 (existing
+installs keep their saved choice); F4 the desktop UI no longer tells users to run
+`pnpm cli` commands they can't reach, and the top bar says "this computer". Recorded,
+not fixed (need Jordan's scope call): D1 High, a new desktop studio can't reach a first
+run without the CLI (claims, run registration and pricing are CLI-only and the CLI can't
+sign in to the desktop service); D2 High, packaging is CLI-only so a desktop studio can't
+produce a download; "Restore a studio backup" setup option (decision #1) not built; four
+Lows. Evidence: tracking/evidence/desktop-shell-2026-10-27/.
+Checks: typecheck, format:check, cargo fmt --check, cargo test 16/16 (1 ignored),
+web-display 8/8, desktop + desktop-lifecycle 2 pass 4 skipped; re-walk on the fixed build.
+Not run: studio-service tests (need test DB), the scripted installed-app acceptance.
+Next eligible: Jordan's call on D1/D2 (in-app fixture setup and packaging), else runbook
+step 6.
+
 ## Test-mode checkout review fixes (PR #60 review, 7 Lows) — October 27, 2026
 
 Fresh review of #60 (merged) found no High or Medium; all seven Lows fixed here. L1:

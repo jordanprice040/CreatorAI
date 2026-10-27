@@ -22,6 +22,7 @@ import { Search } from './search.js';
 import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
 import { DesktopDevices } from './desktop.js';
+import { DesktopApp } from './desktop-app.js';
 import { Operations } from './operations.js';
 import { Settings } from './settings.js';
 import { GitHub } from './github.js';
@@ -418,10 +419,18 @@ function App() {
       return (
         <section className="panel">
           <h2>No workspace yet</h2>
-          <p>
-            Create a fixture workspace to explore with synthetic data, or run{' '}
-            <code>pnpm cli seed-selection</code> for a filled-in demonstration.
-          </p>
+          {auth.managed ? (
+            <p>
+              Create a fixture workspace to explore with synthetic data, or a
+              real workspace for your own records.
+            </p>
+          ) : (
+            <p>
+              Create a fixture workspace to explore with synthetic data, or run{' '}
+              <code>pnpm cli seed-selection</code> for a filled-in
+              demonstration.
+            </p>
+          )}
           <NewWorkspace
             csrf={auth.session.csrf_token}
             created={(w) => void loadWorkspaces(w.id)}
@@ -726,9 +735,11 @@ function App() {
             {signedIn && (
               <span className="who">
                 {auth.session!.display_name} ·{' '}
-                {auth.session!.method === 'dev_local'
-                  ? 'local development'
-                  : 'OIDC'}{' '}
+                {auth.managed
+                  ? 'this computer'
+                  : auth.session!.method === 'dev_local'
+                    ? 'local development'
+                    : 'OIDC'}{' '}
                 <button className="text" onClick={() => void auth.signOut()}>
                   Sign out
                 </button>
@@ -748,15 +759,17 @@ function App() {
           </p>
         )}
         <main id="content" tabIndex={-1}>
-          {inStudio && auth.session ? (
-            <PageDrafts
-              key={`${auth.session.csrf_token}:${workspace?.id}`}
-              route={route}
-              render={body}
-            />
-          ) : (
-            body()
-          )}
+          <DesktopApp.Provider value={auth.managed}>
+            {inStudio && auth.session ? (
+              <PageDrafts
+                key={`${auth.session.csrf_token}:${workspace?.id}`}
+                route={route}
+                render={body}
+              />
+            ) : (
+              body()
+            )}
+          </DesktopApp.Provider>
         </main>
         {!inStudio && (
           <footer className="foot">

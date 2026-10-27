@@ -959,7 +959,7 @@ impl Supervisor {
                 return Err("This studio is already set up".into());
             }
             let kind = req["kind"].as_str().ok_or("Choose a setup option")?;
-            let close = req["close_behavior"].as_str().unwrap_or("quit");
+            let close = req["close_behavior"].as_str().unwrap_or("background");
             let login = req["launch_at_login"].as_bool().unwrap_or(false);
             let pg_bin = req["pg_bin"].as_str().ok_or("Choose the PostgreSQL 18 folder")?.to_string();
             let version = postgres::verify_bin(Path::new(&pg_bin))?;

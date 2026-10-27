@@ -24,6 +24,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
+import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
@@ -103,6 +104,7 @@ export function Submit({
   workspace: Workspace;
   open: (view: View, id?: string) => void;
 }) {
+  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   const ctx = useLoad(async () => {
     let connectionError = '';
@@ -621,8 +623,18 @@ export function Submit({
               {c.claims.length === 0 ? (
                 <Empty>
                   No claims in this workspace yet. Record claims with source
-                  support first (Evidence view, or{' '}
-                  <code>pnpm cli seed-research</code>).
+                  support first (Evidence view
+                  {desktop ? (
+                    <>
+                      ; adding a new workspace's first sources and claims{' '}
+                      {NO_CLI_IN_DESKTOP}
+                    </>
+                  ) : (
+                    <>
+                      , or <code>pnpm cli seed-research</code>
+                    </>
+                  )}
+                  ).
                 </Empty>
               ) : (
                 <ul className="rows claims-pick">
@@ -907,7 +919,15 @@ export function Submit({
                   {(c.envelopes.length === 0 || c.pricing.length === 0) && (
                     <p className="error">
                       A discovery run needs an active budget (Budgets view) and
-                      a pricing snapshot (<code>pnpm cli pricing-add</code>).
+                      a pricing snapshot
+                      {desktop ? (
+                        <>; adding a pricing snapshot {NO_CLI_IN_DESKTOP}.</>
+                      ) : (
+                        <>
+                          {' '}
+                          (<code>pnpm cli pricing-add</code>).
+                        </>
+                      )}
                     </p>
                   )}
                 </>

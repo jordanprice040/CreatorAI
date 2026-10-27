@@ -16,6 +16,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { useDesktopApp } from './desktop-app.js';
 import {
   alternativeCounts,
   clip,
@@ -292,6 +293,7 @@ export function Scoring({
   onFocus: (problemId: string) => void;
   open: (view: View, id?: string) => void;
 }) {
+  const desktop = useDesktopApp();
   const workspace = current.id;
   const [problems, setProblems] = useState<StoredEntity[]>([]);
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
@@ -426,8 +428,16 @@ export function Scoring({
       {loading && <p className="small">Computing the report…</p>}
       {!loading && problems.length === 0 && (
         <p className="small">
-          No problem records yet. Run a discovery (or{' '}
-          <code>pnpm cli seed-selection</code>) to create candidates.
+          No problem records yet. Run a discovery
+          {desktop ? (
+            ''
+          ) : (
+            <>
+              {' '}
+              (or <code>pnpm cli seed-selection</code>)
+            </>
+          )}{' '}
+          to create candidates.
         </p>
       )}
       {report && (

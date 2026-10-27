@@ -13,12 +13,13 @@ function prefs(container, name) {
 }
 prefs($('prefs-setup'), 'close-setup');
 prefs($('prefs-running'), 'close-running');
-$('prefs-setup').querySelector('input[value=quit]').checked = true;
+$('prefs-setup').querySelector('input[value=background]').checked = true;
 
 function readPrefs(container) {
   return {
     close_behavior:
-      container.querySelector('input[type=radio]:checked')?.value ?? 'quit',
+      container.querySelector('input[type=radio]:checked')?.value ??
+      'background',
     launch_at_login: container.querySelector('.login').checked,
   };
 }

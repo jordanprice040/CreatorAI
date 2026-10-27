@@ -15,6 +15,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 
 const LABELS = {
@@ -40,6 +41,7 @@ export function Gallery({
   focus?: string | undefined;
   open: (view: View, id?: string) => void;
 }) {
+  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   const list = useLoad(
     () => api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
@@ -58,8 +60,15 @@ export function Gallery({
       <Status loading={list.loading} error={list.error} retry={list.reload}>
         {list.data && list.data.length === 0 && (
           <Empty>
-            No packaged artifacts yet. Package a verified build with{' '}
-            <code>pnpm cli artifact-package</code>.
+            No packaged artifacts yet.{' '}
+            {desktop ? (
+              <>Packaging a verified build {NO_CLI_IN_DESKTOP}.</>
+            ) : (
+              <>
+                Package a verified build with{' '}
+                <code>pnpm cli artifact-package</code>.
+              </>
+            )}
           </Empty>
         )}
         {list.data && list.data.length > 0 && (
