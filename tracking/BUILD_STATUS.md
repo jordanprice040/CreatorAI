@@ -1,3 +1,36 @@
+## Funding and reinvestment screen (runbook step 2) — October 27, 2026
+
+The Payments page has a new "Funding and reinvesting" section (apps/web/src/funding.tsx):
+owner funding (review then confirm, idempotency key), funding sources (add an attested or
+processor-balance source, record or read a balance, mark available/unavailable with a
+reason, freshness shown), commitments (add, list open and closed, close with confirm),
+the reinvestment policy (blank fields except the existing 30-day default; turning it on
+asks first and says what it allows), allocations (refuses over-limit amounts unless
+"take what the limits allow", confirm step, idempotency key), settled-earnings tranches
+and "Repay losses now". Controls show only for the workspace owner; the server still
+enforces owner-only, every capacity bound and the runtime ceiling. Added
+GET /workspaces/:ws/commitments (PaymentStore.listCommitments) and `pnpm cli commitments`.
+No migration, no ADR, no policy change: reinvestment stays off until Jordan sets a policy.
+Checks (cloud container, PostgreSQL 16): typecheck; full `pnpm test` 476 tests, 446 pass,
+25 skip, 5 fail (the known PowerShell-wrapper tests, no pwsh here); new
+tests/src/funding-api.test.ts (owner-funding retry posts once, reused key with another
+body is refused, commitments list/close, attested balance feeds usable cash, an enabled
+policy with no settled sale creates no budget); web-display covers percentToBps and
+railState; format:check. Browser walk in fixture mode (tracking/evidence/funding-ui/
+walk.mjs, walk.json, screens/): 9/9 steps, dark theme, no console errors, no horizontal
+scroll at 390 px. The walk answers the artifact list with [] because the seeded minimal
+release row fails the Gallery contract. Fixture only; no processor, provider or GitHub call.
+Review fixes (fresh review of #58: no High or Medium, 7 Lows, all fixed on #58): saving a
+policy that is already on asks first whenever it lets more be reinvested or sooner
+(`loosens`); adding a funding source or commitment sends an idempotency key and the store
+now runs both through `idempotent()`; the portfolio target is disabled without a portfolio
+policy; `listCommitments` returns every open commitment (capacity holds all of them back)
+plus the 100 latest closed; tests added for a second workspace, retried source/commitment
+adds, editor and viewer refusals on all nine writes, `requestKeys` retention and `loosens`.
+Walk re-run on the final code: 12/12 steps including a viewer pass (workspace list served
+with the role rewritten to viewer) and the loosened-policy confirm.
+Next eligible: runbook step 3 (checkout, test mode).
+
 ## Per-run and per-model spending limits (runbook step 4, ADR-0044) — October 27, 2026
 
 Settings now has optional per-run and per-model limits under the overall ceiling

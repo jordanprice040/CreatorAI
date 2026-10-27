@@ -1,11 +1,9 @@
 import { Fragment, useState, type FormEvent } from 'react';
 import {
   ArtifactSummarySchema,
-  CapacitySchema,
   EntitlementSchema,
   OfferSchema,
   PaymentConnectionSchema,
-  ReinvestmentPolicySchema,
   z,
   type PaymentConnection,
   type SessionInfo,
@@ -14,6 +12,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
 import { usdToNano } from './settings.js';
+import { Funding } from './funding.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 
 const BalancesSchema = z.strictObject({
@@ -95,8 +94,8 @@ function ArchiveOffer({
 /**
  * Payments, entitlements and reinvestment (X07, docs/PAYMENTS.md). Only fixture and processor
  * test mode exist; live payments are not built. Amounts and access come from the processor
- * as read by the server, never from this page. Reinvestment policy and allocation stay with
- * the CLI for now; this page shows their state.
+ * as read by the server, never from this page. Owner funding, funding sources, commitments
+ * and reinvestment are in funding.tsx.
  */
 export function Payments({
   session,
@@ -111,32 +110,15 @@ export function Payments({
   const fixture = workspace.record_mode === 'fixture';
   const viewer = workspace.role === 'viewer';
   const data = useLoad(async () => {
-    const [
-      connections,
-      offers,
-      balances,
-      entitlements,
-      capacity,
-      policy,
-      artifacts,
-    ] = await Promise.all([
-      api(z.array(PaymentConnectionSchema), `${base}/payment-connections`),
-      api(z.array(OfferSchema), `${base}/payment-offers`),
-      api(BalancesSchema, `${base}/ledger/balances`),
-      api(z.array(EntitlementSchema), `${base}/entitlements`),
-      api(CapacitySchema, `${base}/reinvestment`),
-      api(ReinvestmentPolicySchema.nullable(), `${base}/reinvestment/policy`),
-      api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
-    ]);
-    return {
-      connections,
-      offers,
-      balances,
-      entitlements,
-      capacity,
-      policy,
-      artifacts,
-    };
+    const [connections, offers, balances, entitlements, artifacts] =
+      await Promise.all([
+        api(z.array(PaymentConnectionSchema), `${base}/payment-connections`),
+        api(z.array(OfferSchema), `${base}/payment-offers`),
+        api(BalancesSchema, `${base}/ledger/balances`),
+        api(z.array(EntitlementSchema), `${base}/entitlements`),
+        api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
+      ]);
+    return { connections, offers, balances, entitlements, artifacts };
   }, [workspace.id]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -335,54 +317,13 @@ export function Payments({
               </ul>
             )}
 
-            <h3>Reinvesting earnings</h3>
-            {!d.policy ? (
-              <p className="small">
-                Off. No earnings become budget until you set a reinvestment
-                policy.
-              </p>
-            ) : (
-              <p className="small">
-                Policy v{d.policy.version}: {d.policy.enabled ? 'on' : 'off'} ·{' '}
-                {d.policy.eligible_bps / 100}% of retained earnings after{' '}
-                {d.policy.holdback_days} days · at most{' '}
-                {usd(d.policy.period_cap_nano_usd)} every {d.policy.period_days}{' '}
-                days · keeps {usd(d.policy.min_reserve_nano_usd)} in reserve.
-              </p>
-            )}
-            <dl className="facts">
-              <dt>Could become budget now</dt>
-              <dd>
-                <strong>{usd(d.capacity.capacity_nano)}</strong>{' '}
-                <small>limited by {words(d.capacity.binding)}</small>
-              </dd>
-              <dt>Eligible earnings</dt>
-              <dd>{usd(d.capacity.eligible_tranches_nano)}</dd>
-              <dt>Surplus after costs</dt>
-              <dd>{usd(d.capacity.surplus_nano)}</dd>
-              <dt>Usable cash for reinvesting</dt>
-              <dd>
-                {usd(d.capacity.usable_liquidity_nano)}{' '}
-                <small>
-                  fresh balances of funding sources you set up (command line:
-                  rail-add), less the reserve, commitments, reinvested budget
-                  not yet spent and any losses to repay; money at the bank
-                  counts only through a funding source
-                </small>
-              </dd>
-              {BigInt(d.capacity.outstanding_losses_nano) > 0n && (
-                <>
-                  <dt>Losses to repay first</dt>
-                  <dd>{usd(d.capacity.outstanding_losses_nano)}</dd>
-                </>
-              )}
-            </dl>
-            <p className="small">
-              Nothing reinvests automatically. Setting the policy and turning
-              earnings into a budget are done with the command line for now (
-              <code>pnpm cli reinvest-policy</code>,{' '}
-              <code>reinvest-allocate</code>).
-            </p>
+            <Funding
+              session={session}
+              workspace={workspace}
+              connections={d.connections}
+              changed={data.reload}
+              open={open}
+            />
           </>
         )}
       </Status>

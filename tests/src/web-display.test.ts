@@ -117,11 +117,146 @@ test('payments show credit accounts as positive amounts of what they name', asyn
     './budgets.js': {},
     './settings.js': {},
     './ui.js': {},
+    './funding.js': {},
   });
   assert.equal(asShown('revenue', '-25000000000'), '25000000000');
   assert.equal(asShown('owner_funding', '-5000000000'), '5000000000');
   assert.equal(asShown('bank', '5000000000'), '5000000000');
   assert.equal(asShown('refunds', '1000000000'), '1000000000');
+});
+
+test('funding reads percentages as basis points and says why a source does not count', async () => {
+  type Rail = {
+    kind: 'processor_balance' | 'owner_attested';
+    status: 'available' | 'unavailable';
+    status_reason: string | null;
+    connection_id: string | null;
+    available_nano: string | null;
+    observed_at: string | null;
+    expires_at: string | null;
+  };
+  const { percentToBps, railState } = await load<{
+    percentToBps: (text: string) => number | null;
+    railState: (
+      rail: Rail,
+      active: ReadonlySet<string>,
+      now: number,
+    ) => { counts: boolean; note: string };
+  }>('funding.tsx', {
+    './oversight.js': { when: (iso: string) => iso.slice(0, 10) },
+    './budgets.js': {},
+    './settings.js': {},
+    './ui.js': {},
+  });
+  assert.equal(percentToBps('25'), 2500);
+  assert.equal(percentToBps('12.5%'), 1250);
+  assert.equal(percentToBps('0.01'), 1);
+  assert.equal(percentToBps('100'), 10_000);
+  for (const bad of ['100.01', '-1', '1.234', '', 'ten'])
+    assert.equal(percentToBps(bad), null, bad);
+
+  const now = Date.parse('2026-10-27T12:00:00Z');
+  const fresh: Rail = {
+    kind: 'owner_attested',
+    status: 'available',
+    status_reason: null,
+    connection_id: null,
+    available_nano: '10000000000',
+    observed_at: '2026-10-27T11:00:00Z',
+    expires_at: '2026-10-28T11:00:00Z',
+  };
+  assert.equal(railState(fresh, new Set(), now).counts, true);
+  assert.match(
+    railState({ ...fresh, expires_at: '2026-10-27T11:59:00Z' }, new Set(), now)
+      .note,
+    /out of date/,
+  );
+  assert.equal(
+    railState(
+      { ...fresh, available_nano: null, expires_at: null },
+      new Set(),
+      now,
+    ).note,
+    'no balance recorded yet',
+  );
+  assert.match(
+    railState(
+      { ...fresh, status: 'unavailable', status_reason: 'Account frozen' },
+      new Set(),
+      now,
+    ).note,
+    /Account frozen/,
+  );
+  const processor: Rail = {
+    ...fresh,
+    kind: 'processor_balance',
+    connection_id: 'c1',
+  };
+  assert.equal(railState(processor, new Set(), now).counts, false);
+  assert.equal(railState(processor, new Set(['c1']), now).counts, true);
+});
+
+test('funding keeps one request key per request and asks before loosening a policy', async () => {
+  type Limits = {
+    enabled: boolean;
+    eligible_bps: number;
+    holdback_days: number;
+    period_days: number;
+    period_cap_nano_usd: string;
+    min_reserve_nano_usd: string;
+  };
+  const { requestKeys, loosens } = await load<{
+    requestKeys: (
+      prefix: string,
+      mint: () => string,
+    ) => { key: (body: unknown) => string; clear: () => void };
+    loosens: (prev: Limits | null, next: Limits) => boolean;
+  }>('funding.tsx', {
+    './oversight.js': {},
+    './budgets.js': {},
+    './settings.js': {},
+    './ui.js': {},
+  });
+  let n = 0;
+  const keys = requestKeys('fund', () => `k${++n}`);
+  assert.equal(keys.key({ a: 1 }), 'fund:k1');
+  assert.equal(keys.key({ a: 1 }), 'fund:k1', 'a retry reuses the key');
+  assert.equal(
+    keys.key({ a: 2 }),
+    'fund:k2',
+    'a changed request gets a new one',
+  );
+  keys.clear();
+  assert.equal(keys.key({ a: 2 }), 'fund:k3', 'after success the next is new');
+
+  const on: Limits = {
+    enabled: true,
+    eligible_bps: 2500,
+    holdback_days: 30,
+    period_days: 30,
+    period_cap_nano_usd: '5000000000',
+    min_reserve_nano_usd: '1000000000',
+  };
+  assert.equal(loosens(null, on), true);
+  assert.equal(loosens({ ...on, enabled: false }, on), true);
+  assert.equal(loosens(on, { ...on, enabled: false }), false);
+  assert.equal(loosens(on, on), false);
+  assert.equal(
+    loosens(on, { ...on, eligible_bps: 2400, holdback_days: 40 }),
+    false,
+  );
+  for (const change of [
+    { eligible_bps: 10_000 },
+    { holdback_days: 0 },
+    { period_days: 7 },
+    { period_cap_nano_usd: '5000000001' },
+    { min_reserve_nano_usd: '0' },
+  ])
+    assert.equal(
+      loosens(on, { ...on, ...change }),
+      true,
+      JSON.stringify(change),
+    );
 });
 
 test('Settings describes limit changes in plain words and flags any that widen spending', async () => {
