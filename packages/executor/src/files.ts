@@ -9,6 +9,7 @@ import {
 } from 'node:fs/promises';
 import { resolve, join, parse, relative, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { uptime } from 'node:os';
 import { pathSchema, checked, digest } from './contracts.js';
 
 export function contained(root: string, target: string): boolean {
@@ -69,6 +70,14 @@ export async function jsonWrite(path: string, value: unknown): Promise<void> {
 export async function readJson(path: string): Promise<unknown> {
   await canonical(path);
   return JSON.parse(await readFile(path, 'utf8'));
+}
+/**
+ * Whether a time (a lock's or a run's start) is from before this boot, with a margin for a
+ * clock step after boot. Its recorded process number may since belong to anything else.
+ */
+export function bootedBefore(iso: string): boolean {
+  const at = Date.parse(iso);
+  return Number.isFinite(at) && at < Date.now() - uptime() * 1000 - 10 * 60_000;
 }
 export async function withLock<T>(
   dir: string,

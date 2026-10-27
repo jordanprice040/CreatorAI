@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { execFile, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createApi } from '@creator/api';
@@ -321,12 +321,27 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   assert.equal(recovered.status, 200, JSON.stringify(recovered.body));
   assert.deepEqual(recovered.body.released, ['builds']);
   assert.deepEqual(recovered.body.reconciled, []);
+  // This process's own lock is held here, whatever time it records (a clock step after boot
+  // must not make it look dead).
+  await writeFile(
+    lock,
+    JSON.stringify({
+      pid: process.pid,
+      token: 'z',
+      at: '2000-01-01T00:00:00Z',
+    }),
+  );
+  const own = await http(`${base}/${p.id}/recover`, {});
+  assert.equal(own.status, 409, JSON.stringify(own.body));
+  assert.match(own.body.error.message, /held by work running now/);
+  await rm(lock);
   // Nothing left: recovery says nothing changed instead of claiming it recovered.
   const nothing = await http(`${base}/${p.id}/recover`, {});
   assert.deepEqual(nothing.body, {
     product_id: p.id,
     released: [],
     reconciled: [],
+    waiting: null,
   });
   // The studio-wide dispatch lock of a run that crashed before launching its worker (no
   // pending marker) is released too; with a marker it waits for reconciliation.
@@ -350,6 +365,66 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     JSON.stringify(freed.body),
   );
   holder.kill();
+
+  // A test run that ended unresolved while the app kept running (the bridge failed after
+  // launching): its supervisor is this process, which is not dispatching it any more.
+  // Recover must try to reconcile it, not answer "Supervisor still exists".
+  const execId = randomUUID();
+  const edir = join(products.dir(p.id), 'executions', execId);
+  await mkdir(join(edir, 'job'), { recursive: true });
+  const record = {
+    id: execId,
+    product_id: p.id,
+    task_id: task.body.id,
+    commit: 'a'.repeat(40),
+    recipe: 'python-build/1',
+    recipe_hash: 'b'.repeat(64),
+    policy_hash: 'c'.repeat(64),
+    input_hash: 'd'.repeat(64),
+    state: 'cleanup_required',
+    started_at: new Date().toISOString(),
+    finished_at: new Date().toISOString(),
+    environment: { supervisor_pid: process.pid },
+    log: '',
+    exit_code: null,
+    reason: 'Error: bridge failed (synthetic)',
+  };
+  await writeFile(join(edir, 'outcome.json'), JSON.stringify(record));
+  await writeFile(
+    join(edir, 'job', 'lease.json'),
+    JSON.stringify({ heartbeat_ms: Date.now() - 60000 }),
+  );
+  await writeFile(
+    marker,
+    JSON.stringify({
+      product_id: p.id,
+      execution_id: execId,
+      supervisor_pid: process.pid,
+    }),
+  );
+  const unresolved = await http(`${base}/${p.id}/recover`, {});
+  assert.doesNotMatch(
+    JSON.stringify(unresolved.body),
+    /Supervisor still exists/,
+  );
+  if (unresolved.status === 200)
+    // A working WSL2 worker verified the unit is gone.
+    assert.deepEqual(unresolved.body.reconciled, [execId]);
+  else {
+    // No verifiable worker here (no WSL, or WSL failing): it fails closed and says what to do.
+    assert.equal(unresolved.status, 409, JSON.stringify(unresolved.body));
+    assert.match(unresolved.body.error.message, /could not be verified.*WSL/);
+    // If the app died after recording the run as lost but before freeing its marker,
+    // Recover finishes that cleanup without claiming a new reconciliation.
+    await writeFile(
+      join(edir, 'reconciliation.json'),
+      JSON.stringify({ ...record, state: 'lost' }),
+    );
+    const finished = await http(`${base}/${p.id}/recover`, {});
+    assert.equal(finished.status, 200, JSON.stringify(finished.body));
+    assert.deepEqual(finished.body.reconciled, []);
+  }
+  await assert.rejects(readFile(marker), /ENOENT/);
   const unlocked = await start();
   assert.doesNotMatch(JSON.stringify(unlocked.body), /locked/i);
   if (unlocked.status === 202) await settled(unlocked.body.build_id);

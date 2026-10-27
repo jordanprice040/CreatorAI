@@ -542,9 +542,28 @@ export class StudioBuilds {
       await step(() => products.recoverDeadLock('product', p.id, ctx.actorId))
     )
       released.push('product');
-    const running = (await step(() => executor.executions(p.id))).filter((e) =>
-      ['running', 'cleanup_required'].includes(e.state),
-    );
+    // A reconciliation that cannot verify the worker stopped (WSL failing) says what to do.
+    const settle = async (product: string, execution: string) => {
+      const before = await executor.status(product, execution);
+      const record = await executor
+        .reconcile(product, execution, ctx.actorId)
+        .catch((e: unknown) =>
+          refusal(
+            /could not be verified/.test(reason(e))
+              ? new Error(
+                  `${reason(e)}. Check that WSL works (wsl.exe in a terminal), then Recover again.`,
+                )
+              : e,
+          ),
+        );
+      // Listed only when it changed now; an already settled run just had its marker freed.
+      if (before.state !== record.state) reconciled.push(execution);
+    };
+    for (const e of await step(() => executor.executions(p.id)))
+      if (['running', 'cleanup_required'].includes(e.state))
+        await settle(p.id, e.id);
+    if (await step(() => products.recoverDeadLock('builds', p.id, ctx.actorId)))
+      released.push('builds');
     // The studio-wide marker may name another product's run; only one of this owner's.
     const marker = await readFile(
       join(products.root, 'pending-worker.json'),
@@ -554,33 +573,40 @@ export class StudioBuilds {
         (t) => JSON.parse(t) as { product_id?: string; execution_id?: string },
       )
       .catch(() => null);
-    const targets = running.map((e) => [p.id, e.id] as const);
-    if (
-      marker?.product_id &&
-      marker.execution_id &&
-      !targets.some(([, id]) => id === marker.execution_id)
-    ) {
-      const other = await products.product(marker.product_id).catch(() => null);
+    if (marker?.product_id && marker.execution_id) {
+      const owner = await products.product(marker.product_id).catch(() => null);
       if (
-        other &&
-        other.binding.workspace_id === ws &&
-        other.integration_owner === ctx.actorId
-      )
-        targets.push([other.id, marker.execution_id]);
+        owner &&
+        owner.binding.workspace_id === ws &&
+        owner.integration_owner === ctx.actorId
+      ) {
+        // Another product's run that is genuinely still going: this product's own locks are
+        // already free; the studio waits for that run instead of failing the whole recovery.
+        const live = await executor
+          .status(owner.id, marker.execution_id)
+          .then(
+            (e) =>
+              e.state === 'running' &&
+              owner.id !== p.id &&
+              this.building.has(owner.id),
+          )
+          .catch(() => false);
+        if (live)
+          return {
+            product_id: p.id,
+            released,
+            reconciled,
+            waiting:
+              'Another product is running a test now; build again when it finishes.',
+          };
+        await settle(owner.id, marker.execution_id);
+      }
     }
-    for (const [product, execution] of targets) {
-      const record = await step(() =>
-        executor.reconcile(product, execution, ctx.actorId),
-      );
-      if (record.state === 'lost') reconciled.push(execution);
-    }
-    if (await step(() => products.recoverDeadLock('builds', p.id, ctx.actorId)))
-      released.push('builds');
     if (
       await step(() => products.recoverDeadLock('dispatch', p.id, ctx.actorId))
     )
       released.push('dispatch');
-    return { product_id: p.id, released, reconciled };
+    return { product_id: p.id, released, reconciled, waiting: null };
   }
 
   /** Packages a verified build in the worker, then lists it in Gallery. Runs in the background. */

@@ -1,3 +1,23 @@
+## PR #68 second re-review fixes (Recover) — October 27, 2026
+
+Second re-review of #68: one Medium (M-A), Lows A–D, nits. M-A: a run that ends
+`cleanup_required` while the app keeps running (bridge failure, e.g. WSL failing) could
+not be reconciled ("Supervisor still exists") and blocked every build. The executor now
+tracks the runs it is dispatching; a run recorded under this process's PID that it is not
+dispatching (or that started before this boot) counts as having no live supervisor, and
+reconcile still requires the expired lease and a verified reap. A reap that cannot be
+verified tells the owner to check WSL; "needs reconciliation" errors and failed builds
+show the Recover notice. Lows: own-PID locks count as held whatever time they record, and
+the pre-boot rule has a 10-minute margin (A); reconcile finishes freeing the marker of an
+already-settled run and Recover lists only runs it changed (B); reconcile applies the
+pre-boot rule to reused supervisor PIDs (C); every per-product action records its product
+for the lock notice (D). Nits: `execution.reconciled` records who; another product's live
+in-app run makes Recover return `waiting` instead of failing. Checks: studio-builds (own
+lock held, unresolved own-PID run → no "Supervisor still exists"; here WSL fails so it
+refuses with the WSL hint, then a settled run's marker is freed with nothing listed;
+disabling the own-PID rule fails the test), executor + web-display, typecheck,
+format:check. Real-WSL gated test still not run (WSL E_UNEXPECTED on this machine).
+
 ## PR #68 re-review fixes (Recover) — October 27, 2026
 
 Re-review of #68: M1 confirmed; one Medium left (N1) and four Lows. N1: Recover now also

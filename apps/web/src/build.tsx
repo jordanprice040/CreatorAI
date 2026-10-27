@@ -306,7 +306,10 @@ export function BuildView({
                   act={act}
                   post={post}
                   open={open}
-                  locked={failed === p.product.id && /locked/i.test(error)}
+                  locked={
+                    failed === p.product.id &&
+                    /locked|needs reconciliation/i.test(error)
+                  }
                 />
               ))
             )}
@@ -491,7 +494,10 @@ function Product({
 }) {
   const p = entry.product;
   // Only the newest: once a later build ran, an old interruption needs nothing more.
-  const interrupted = entry.builds[0]?.state === 'interrupted';
+  const newest = entry.builds[0];
+  const interrupted =
+    newest?.state === 'interrupted' ||
+    /locked|needs reconciliation/i.test(newest?.reason ?? '');
   const current =
     spec?.frozen_current && spec.spec.version === p.binding.spec_version;
   return (
@@ -510,7 +516,7 @@ function Product({
       {owner && (interrupted || locked) && (
         <p className="notice">
           {interrupted
-            ? 'A build stopped when the app closed. It is recorded and never resent.'
+            ? 'The last build stopped without finishing (the app closed, or a test run was left unresolved). It is recorded and never resent.'
             : 'This product may be locked by work that stopped.'}{' '}
           Recover releases its locks only if the process that held them is gone;
           the next build re-checks the task's files.{' '}
@@ -530,13 +536,16 @@ function Product({
                     .object({
                       released: z.array(z.string()),
                       reconciled: z.array(z.string()),
+                      waiting: z.string().nullable(),
                     })
                     .parse(await post(`products/${p.id}/recover`, {})),
                 (r: unknown) => {
-                  const { released, reconciled } = r as {
+                  const { released, reconciled, waiting } = r as {
                     released: string[];
                     reconciled: string[];
+                    waiting: string | null;
                   };
+                  if (waiting) return waiting;
                   if (!released.length && !reconciled.length)
                     return 'Nothing was locked, so nothing changed.';
                   return `Recovered: ${[
@@ -577,6 +586,7 @@ function Product({
                             expected_commit: p.initial_commit,
                           }),
                         `Task ${key} prepared.`,
+                        p.id,
                       )
                     }
                   >
@@ -671,6 +681,7 @@ function Product({
                                     build_id: b.id,
                                   }),
                                 'Packaging started. It reruns the build from its archive first.',
+                                p.id,
                               )
                             }
                           >

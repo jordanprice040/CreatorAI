@@ -7,7 +7,6 @@ import {
   rename,
   stat,
 } from 'node:fs/promises';
-import { uptime } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -29,6 +28,7 @@ import {
   jsonWrite,
   readJson,
   withLock,
+  bootedBefore,
   event,
   newFile,
 } from './files.js';
@@ -65,9 +65,9 @@ function lockHolder(raw: string, mtimeMs: number): 'dead' | 'writing' | number {
   }
   const pid = Number(lock.pid);
   if (!Number.isInteger(pid) || pid <= 0) return 'dead';
-  const at = Date.parse(String(lock.at));
-  const booted = Date.now() - uptime() * 1000;
-  if (Number.isFinite(at) && at < booted) return 'dead';
+  // This process's own lock is held here, whatever its time says.
+  if (pid === process.pid) return pid;
+  if (bootedBefore(String(lock.at))) return 'dead';
   return alive(pid) ? pid : 'dead';
 }
 
