@@ -17,6 +17,8 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
+// The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
+import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
 
 /**
  * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
@@ -224,6 +226,22 @@ export function Budgets({
     }
     await load();
   }
+  /** Adds the bundled fixture pricing (simulated units); the server refuses it elsewhere. */
+  async function addFixturePricing() {
+    setBusy(true);
+    setError('');
+    try {
+      await api(PricingSnapshotSchema, `workspaces/${workspace}/pricing`, {
+        csrf: session.csrf_token,
+        body: fixturePricing,
+      });
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+    await load();
+  }
   async function submit(e: FormEvent) {
     e.preventDefault();
     const price = pricing[0];
@@ -339,6 +357,45 @@ export function Budgets({
               </button>
             </form>
           )}
+          <h3>Pricing snapshots</h3>
+          {pricing.length === 0 ? (
+            <p className="small">
+              None yet. A model call or discovery run needs one to reserve its
+              maximum cost.
+            </p>
+          ) : (
+            <ul className="small">
+              {pricing.map((p) => (
+                <li key={p.id}>
+                  {p.body.provider}/{p.body.model_id} · {p.body.basis} · added{' '}
+                  {when(p.created_at)}
+                </li>
+              ))}
+            </ul>
+          )}
+          {current.role !== 'viewer' &&
+            (current.record_mode === 'fixture' ? (
+              !pricing.some(
+                (p) => p.body.model_id === fixturePricing.model_id,
+              ) && (
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void addFixturePricing()}
+                >
+                  Add fixture pricing (simulated units)
+                </button>
+              )
+            ) : (
+              <p className="small">
+                Real pricing is copied from a provider's published prices;
+                adding it{' '}
+                {desktop
+                  ? NO_CLI_IN_DESKTOP
+                  : 'uses pnpm cli pricing-add with a dated pricing file'}
+                .
+              </p>
+            ))}
           {current.record_mode === 'fixture' &&
             envelopes.length > 0 &&
             runs.length > 0 &&

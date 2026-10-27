@@ -1,3 +1,18 @@
+## Desktop first run without the CLI (D1) — October 27, 2026
+
+Jordan asked to build in-app setup and packaging next. Part 1 (D1): a new desktop studio
+can now reach a discovery run without the command line. Budgets lists pricing snapshots
+and, in a fixture workspace, adds the bundled fixture pricing (config/pricing/
+fixture-model-v1.json, imported at build time). Evidence can register a run whose only
+grant is public `source.fetch` for 24 hours, suggests fixture corpus pages, and lets each
+kept passage be cited in a new or existing claim (stance, kind, verbatim quote checked by
+the server, rationale). Submit's hints point there. No API, schema or policy change.
+Walked in the desktop shell on a fresh home: workspace → budget → fixture pricing →
+register run → fetch → cite → discovery run succeeded (evidence in
+tracking/evidence/desktop-shell-2026-10-27/). Checks: typecheck, format:check,
+web-display 8/8. Real-workspace pricing is still CLI-only. Next: D2 design (in-app build
+and package), which needs Jordan's decisions on the builder route before any live call.
+
 ## PR #63 re-review follow-ups (new PR) — October 27, 2026
 
 #63 merged before its review fixes landed, so 97184f5 (probe home guard, ADR-0041

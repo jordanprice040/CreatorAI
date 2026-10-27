@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   ClaimEvidenceSchema,
+  ClaimSupportSchema,
+  GrantSchema,
   RetrievalSchema,
   RunControlSchema,
   SourceBrokerStatusSchema,
@@ -14,12 +16,25 @@ import {
   type SessionInfo,
   type SourceDetail,
   type SourceSummary,
+  type SupportStance,
+  type SupportType,
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 
-const TYPE_LABEL: Record<string, string> = {
+type Passage = SourceDetail['passages'][number];
+
+/** A few pages of the server's synthetic corpus (packages/research/src/fixture.ts). */
+const FIXTURE_PAGES = [
+  'https://health.fixture.test/reports/clinic-access-2025',
+  'https://wire.fixture.test/stories/clinic-waits',
+  'https://journal.fixture.test/articles/wait-time-survey',
+  'https://health.fixture.test/reports/staffing-brief',
+  'https://forum.fixture.test/threads/clinic-tips',
+];
+
+const TYPE_LABEL: Record<SupportType, string> = {
   source_assertion: 'source asserts',
   quotation: 'quoted',
   observation: 'observed in source',
@@ -55,7 +70,9 @@ export function Evidence({
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [cite, setCite] = useState<Passage | null>(null);
   const base = `workspaces/${workspace}`;
+  const editor = current.role !== 'viewer';
 
   async function load() {
     if (!workspace) return;
@@ -149,6 +166,58 @@ export function Evidence({
       setBusy(false);
     }
   }
+  /**
+   * Registers a run whose only permission is fetching public pages for 24 hours, so sources
+   * can be gathered before any discovery. The grant is listed (and revocable) under Decisions.
+   */
+  async function registerRun() {
+    setBusy(true);
+    setError('');
+    try {
+      const run = await api(StoredEntitySchema, `${base}/entities`, {
+        csrf: session.csrf_token,
+        body: {
+          kind: 'run',
+          title: 'Evidence gathering',
+          body: {
+            state: 'queued',
+            experiment_condition: 'human_in_loop',
+            discovery_method: 'structured',
+            config_hash: null,
+          },
+        },
+      });
+      const control = await api(RunControlSchema, `${base}/runs`, {
+        csrf: session.csrf_token,
+        body: {
+          run: { id: run.id, version: 1 },
+          autonomy_mode: 'human_in_loop',
+          stage_gates: null,
+          initial_grants: [],
+        },
+      });
+      await api(GrantSchema, `${base}/grants`, {
+        csrf: session.csrf_token,
+        body: {
+          run_id: control.run_id,
+          action_types: ['source.fetch'],
+          target_kind: null,
+          max_amount_nano_usd: null,
+          allow_irreversible: false,
+          allow_external_effects: false,
+          data_classes: ['public'],
+          expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+          rationale: 'Fetch public pages from the Evidence view.',
+        },
+      });
+      await load();
+      setRunId(control.run_id);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
   const fixture = current.record_mode === 'fixture';
 
   return (
@@ -169,7 +238,8 @@ export function Evidence({
       {fixture && (
         <p className="notice">
           Fixture workspace: pages come from the synthetic corpus on
-          .fixture.test hosts. None of it is real reporting.
+          .fixture.test hosts (the address field suggests some). None of it is
+          real reporting.
         </p>
       )}
       <form className="fetch-row" onSubmit={(e) => void fetchSource(e)}>
@@ -180,9 +250,17 @@ export function Evidence({
           id="evurl"
           type="url"
           placeholder="https://approved.host/page"
+          list={fixture ? 'fixture-pages' : undefined}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
+        {fixture && (
+          <datalist id="fixture-pages">
+            {FIXTURE_PAGES.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
+        )}
         <select
           aria-label="Run"
           value={runId}
@@ -207,7 +285,23 @@ export function Evidence({
         >
           {busy ? 'Fetching…' : 'Fetch'}
         </button>
+        {editor && runs.length === 0 && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => void registerRun()}
+          >
+            Register a run for fetching
+          </button>
+        )}
       </form>
+      {editor && runs.length === 0 && (
+        <p className="small">
+          Registering a run lets it fetch public pages for 24 hours and nothing
+          else. You can revoke that under Decisions.
+        </p>
+      )}
       {last && (
         <p className={`small ret-${last.state}`} role="status">
           <span className="badge">{words(last.state)}</span>{' '}
@@ -360,9 +454,32 @@ export function Evidence({
                     {p.excerpt ?? (
                       <em>Not retained under this source’s policy.</em>
                     )}
+                    {editor && p.excerpt && (
+                      <>
+                        {' '}
+                        <button className="text" onClick={() => setCite(p)}>
+                          Cite in a claim
+                        </button>
+                      </>
+                    )}
                   </li>
                 ))}
               </ol>
+              {cite && source.passages.some((p) => p.id === cite.id) && (
+                <CiteForm
+                  key={cite.id}
+                  passage={cite}
+                  claims={claims}
+                  base={base}
+                  csrf={session.csrf_token}
+                  cancel={() => setCite(null)}
+                  done={async (claimId) => {
+                    setCite(null);
+                    await load();
+                    await openClaim(claimId);
+                  }}
+                />
+              )}
             </>
           )}
           {!evidence && !source && (
@@ -376,5 +493,195 @@ export function Evidence({
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Records a claim's evidence from one stored passage, for a new claim or an existing one.
+ * The server checks that a supporting or contradicting quote occurs verbatim in the passage.
+ */
+function CiteForm({
+  passage,
+  claims,
+  base,
+  csrf,
+  cancel,
+  done,
+}: {
+  passage: Passage;
+  claims: StoredEntity[];
+  base: string;
+  csrf: string;
+  cancel: () => void;
+  done: (claimId: string) => Promise<void>;
+}) {
+  const [claimId, setClaimId] = useState('new');
+  const [statement, setStatement] = useState('');
+  const [basis, setBasis] = useState<'observation' | 'inference'>(
+    'observation',
+  );
+  const [uncertainty, setUncertainty] = useState('');
+  const [stance, setStance] =
+    useState<Exclude<SupportStance, 'inaccessible'>>('supports');
+  const [type, setType] = useState<SupportType>('source_assertion');
+  const [quote, setQuote] = useState((passage.excerpt ?? '').slice(0, 1000));
+  const [rationale, setRationale] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  // Opening the form moves focus (and the view) to it; it sits below the passages.
+  useEffect(() => document.getElementById('cite-claim')?.focus(), []);
+  const existing = claims.find((c) => c.id === claimId);
+  const quoted = stance !== 'does_not_support';
+  const missing = [
+    !existing && !statement.trim() && 'a statement',
+    !existing && !uncertainty.trim() && 'what is still uncertain',
+    quoted && quote.trim().length < 8 && 'a quote of at least 8 characters',
+    !rationale.trim() && 'why it bears on the claim',
+  ].filter(Boolean);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (missing.length) return;
+    setBusy(true);
+    setError('');
+    try {
+      const claim =
+        existing ??
+        (await api(StoredEntitySchema, `${base}/entities`, {
+          csrf,
+          body: {
+            kind: 'claim',
+            title: statement.trim().slice(0, 120),
+            body: {
+              statement: statement.trim(),
+              basis,
+              uncertainty: uncertainty.trim(),
+            },
+          },
+        }));
+      await api(ClaimSupportSchema, `${base}/claims/${claim.id}/support`, {
+        csrf,
+        body: {
+          evidence: 'passage',
+          claim_version: claim.version,
+          passage_id: passage.id,
+          stance,
+          support_type: type,
+          quote: quote.trim() ? quote.trim() : null,
+          rationale: rationale.trim(),
+        },
+      });
+      await done(claim.id);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="cite" onSubmit={(e) => void submit(e)}>
+      <h4>Cite ¶{passage.locator.paragraph} in a claim</h4>
+      <label htmlFor="cite-claim">Claim</label>
+      <select
+        id="cite-claim"
+        value={claimId}
+        onChange={(e) => setClaimId(e.target.value)}
+      >
+        <option value="new">New claim</option>
+        {claims.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.title}
+          </option>
+        ))}
+      </select>
+      {!existing && (
+        <>
+          <label htmlFor="cite-statement">Statement</label>
+          <textarea
+            id="cite-statement"
+            rows={2}
+            maxLength={2000}
+            value={statement}
+            onChange={(e) => setStatement(e.target.value)}
+          />
+          <label htmlFor="cite-basis">Basis</label>
+          <select
+            id="cite-basis"
+            value={basis}
+            onChange={(e) =>
+              setBasis(e.target.value as 'observation' | 'inference')
+            }
+          >
+            <option value="observation">Observation</option>
+            <option value="inference">Inference</option>
+          </select>
+          <label htmlFor="cite-uncertainty">What is still uncertain</label>
+          <input
+            id="cite-uncertainty"
+            maxLength={2000}
+            value={uncertainty}
+            onChange={(e) => setUncertainty(e.target.value)}
+          />
+        </>
+      )}
+      <label htmlFor="cite-stance">This passage</label>
+      <select
+        id="cite-stance"
+        value={stance}
+        onChange={(e) =>
+          setStance(e.target.value as Exclude<SupportStance, 'inaccessible'>)
+        }
+      >
+        <option value="supports">supports the claim</option>
+        <option value="contradicts">contradicts the claim</option>
+        <option value="does_not_support">does not support it</option>
+      </select>
+      <label htmlFor="cite-type">Kind of evidence</label>
+      <select
+        id="cite-type"
+        value={type}
+        onChange={(e) => setType(e.target.value as SupportType)}
+      >
+        {Object.entries(TYPE_LABEL).map(([k, v]) => (
+          <option key={k} value={k}>
+            {v}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="cite-quote">
+        Quote{quoted ? '' : ' (optional)'}. Shorten it to the words that bear on
+        the claim, exactly as they appear in the passage.
+      </label>
+      <textarea
+        id="cite-quote"
+        rows={3}
+        maxLength={1000}
+        value={quote}
+        onChange={(e) => setQuote(e.target.value)}
+      />
+      <label htmlFor="cite-rationale">Why it bears on the claim</label>
+      <input
+        id="cite-rationale"
+        maxLength={1200}
+        value={rationale}
+        onChange={(e) => setRationale(e.target.value)}
+      />
+      {missing.length > 0 && (
+        <p className="small">Still needed: {missing.join(', ')}.</p>
+      )}
+      <div className="connection">
+        <button className="primary" disabled={busy || missing.length > 0}>
+          {busy ? 'Saving…' : 'Save evidence'}
+        </button>
+        <button type="button" className="secondary" onClick={cancel}>
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
   );
 }

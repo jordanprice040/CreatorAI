@@ -28,7 +28,11 @@ async function load<T>(file: string, stubs: Record<string, unknown> = {}) {
 test('money keeps every significant digit and drops trailing zeros', async () => {
   const { money } = await load<{
     money: (nano: string | null, fixture: boolean) => string;
-  }>('budgets.tsx', { './oversight.js': {}, './desktop-app.js': {} });
+  }>('budgets.tsx', {
+    './oversight.js': {},
+    './desktop-app.js': {},
+    '../../../config/pricing/fixture-model-v1.json': {},
+  });
   assert.equal(money('55770000', true), '0.05577 sim');
   assert.equal(money('0', true), '0.00 sim');
   assert.equal(money('100000000000', false), '$100.00');
