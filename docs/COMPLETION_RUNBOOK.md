@@ -23,7 +23,7 @@ study.
 | Evidence search                                | Bounded public search exists (PR #43). No live end-to-end discovery run yet.                                                                                                                                                                                                 | `docs/SEARCH_AND_AUDIT.md`                                                  |
 | Theme intake (C54)                             | Theme drafts and Submit page built. Installed app has the theme-intent candidate at schema 29 (Oct 24); `main` is now ahead of it. Full C54 is partial.                                                                                                                      | `C54_READINESS_AUDIT_2026-10-23.md`                                         |
 | GitHub (X04)                                   | Adapter plus GitHub page; walked in fixture mode. Never run against real GitHub.                                                                                                                                                                                             | `docs/GITHUB.md`                                                            |
-| Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Checkout, rails, commitments, owner funding and reinvestment policy are API/CLI only.                                                     | `docs/PAYMENTS.md`                                                          |
+| Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Owner funding, funding sources, commitments, reinvestment policy and allocation added Oct 27 (step 2). Checkout is API/CLI only.          | `docs/PAYMENTS.md`                                                          |
 | Desktop app (X05)                              | Tauri app; interactive Windows acceptance passed Oct 19. The installed copy is Jordan's operational studio and is off-limits for testing. The usability-pass build has not been packaged or exercised in the desktop shell.                                                  | `apps/desktop/INTERACTIVE_ACCEPTANCE.md`, `docs/DESKTOP_STUDIO.md`          |
 | Hosted (X06), campaigns (X08)                  | Code and fixture checks only. Not activated, by owner decision.                                                                                                                                                                                                              | `docs/HOSTED_OPERATION.md`, `docs/X06_X07_AUDIT.md`                         |
 | Central chat (C52), theme-free discovery (C53) | Not built.                                                                                                                                                                                                                                                                   | `config/readiness.json`                                                     |
@@ -63,9 +63,9 @@ Each step is a separate, bounded task. None of them needs live provider, GitHub 
 payment calls unless it says so, and those need Jordan's go-ahead first.
 
 1. **Clean up `main`.** Done Oct 27 (see `BUILD_STATUS`).
-2. **Funding and reinvestment in the app.** Bring owner funding, commitments and
-   reinvestment policy/allocation from the CLI into the Payments page, keeping
-   reinvestment off until Jordan sets a policy (#47–#49).
+2. **Funding and reinvestment in the app.** Done October 27 in the Payments page
+   ("Funding and reinvesting"), fixture-checked; reinvestment stays off until Jordan sets
+   a policy (#47–#49).
 3. **Checkout in the app (test mode only).** A buyer checkout flow against simulated or
    Stripe test mode, with signature checks, entitlements, refunds and duplicate or
    out-of-order events. Live mode stays a separate, disabled stage.

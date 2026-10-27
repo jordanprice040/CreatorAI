@@ -166,6 +166,8 @@ export async function paymentRoutes(r: {
         return send(200, await service.observeRail(ctx, ws, item), true);
       break;
     case 'commitments':
+      if (!item && get)
+        return send(200, await store.listCommitments(ctx, ws), false);
       if (!item && post)
         return send(
           201,
