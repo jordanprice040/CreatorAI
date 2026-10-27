@@ -1,3 +1,19 @@
+## PR #68 third re-review fixes — October 27, 2026
+
+Third re-review of #68: M-B, the new unresolved-run test assumed the Windows reap message
+and failed on Linux CI (`pnpm test:db`); now any unverifiable reap (WSL failing, or no
+WSL backend) is refused with the same "could not be confirmed stopped: check that WSL
+works" hint (L-3), and the test asserts that. L-1: reconcile on an already-settled run
+frees only that run's marker; `release` never unlinks a dispatch lock naming this process
+(always a live `withLock`); `withLock` removes the lock only if it still holds its own
+token; a finished run frees only its own marker. New test: a settled run whose live
+supervisor holds the dispatch lock → Recover frees the marker, refuses the live lock and
+leaves it (restoring the old release fails it). Nits: Recover's "waiting" result also
+lists what it released; the unfinished-build notice says to just build again when nothing
+is locked. L-2 (clock step over 10 minutes) left as recorded. Checks: studio-builds,
+executor, web-display; with CREATOR_TEST_ISOLATION=wsl2 from PowerShell: executor,
+studio-builds and studio-builds-wsl 14/14; typecheck; format:check.
+
 ## PR #68 second re-review fixes (Recover) — October 27, 2026
 
 Second re-review of #68: one Medium (M-A), Lows A–D, nits. M-A: a run that ends

@@ -411,9 +411,13 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     // A working WSL2 worker verified the unit is gone.
     assert.deepEqual(unresolved.body.reconciled, [execId]);
   else {
-    // No verifiable worker here (no WSL, or WSL failing): it fails closed and says what to do.
+    // No verifiable worker here (Linux CI has no WSL backend; a failing WSL cannot verify the
+    // stop): it fails closed, never treating the run as gone without the reap.
     assert.equal(unresolved.status, 409, JSON.stringify(unresolved.body));
-    assert.match(unresolved.body.error.message, /could not be verified.*WSL/);
+    assert.match(
+      unresolved.body.error.message,
+      /confirmed stopped: check that WSL works/,
+    );
     // If the app died after recording the run as lost but before freeing its marker,
     // Recover finishes that cleanup without claiming a new reconciliation.
     await writeFile(
@@ -425,6 +429,45 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     assert.deepEqual(finished.body.reconciled, []);
   }
   await assert.rejects(readFile(marker), /ENOENT/);
+
+  // A settled run whose supervisor is alive and holds the dispatch lock now: Recover frees
+  // that run's marker but never the live holder's lock.
+  const holder2 = spawn(process.execPath, [
+    '-e',
+    'setTimeout(() => {}, 60000)',
+  ]);
+  t.after(() => holder2.kill());
+  const settledId = randomUUID();
+  const sdir = join(products.dir(p.id), 'executions', settledId);
+  await mkdir(sdir, { recursive: true });
+  await writeFile(
+    join(sdir, 'outcome.json'),
+    JSON.stringify({
+      ...record,
+      id: settledId,
+      state: 'succeeded',
+      environment: { supervisor_pid: holder2.pid },
+    }),
+  );
+  await writeFile(
+    dispatch,
+    JSON.stringify({
+      pid: holder2.pid,
+      token: 'live',
+      at: new Date().toISOString(),
+    }),
+  );
+  await writeFile(
+    marker,
+    JSON.stringify({ product_id: p.id, execution_id: settledId }),
+  );
+  const liveLock = await http(`${base}/${p.id}/recover`, {});
+  assert.equal(liveLock.status, 409, JSON.stringify(liveLock.body));
+  assert.match(liveLock.body.error.message, /running process/);
+  assert.match(await readFile(dispatch, 'utf8'), /live/);
+  await assert.rejects(readFile(marker), /ENOENT/);
+  holder2.kill();
+  await rm(dispatch);
   const unlocked = await start();
   assert.doesNotMatch(JSON.stringify(unlocked.body), /locked/i);
   if (unlocked.status === 202) await settled(unlocked.body.build_id);

@@ -403,7 +403,7 @@ export class ExecutionSupervisor {
     }
     record.finished_at = new Date().toISOString();
     if (dispatchIntent && record.state !== 'cleanup_required')
-      await unlink(join(this.products.root, 'pending-worker.json'));
+      await this.release(executionId, null);
     checked(executionSchema, record);
     await jsonWrite(join(dir, 'outcome.json'), record);
     await event(this.products.dir(productId), 'execution.outcome', record);
@@ -518,8 +518,9 @@ export class ExecutionSupervisor {
     return withLock(this.products.dir(productId), async () => {
       const record = await this.status(productId, executionId);
       if (!['running', 'cleanup_required'].includes(record.state)) {
-        // Already settled (a crash after its record, before the cleanup): finish the cleanup.
-        await this.release(executionId, record.environment.supervisor_pid);
+        // Already settled (a crash after its record, before the cleanup): free only its marker.
+        // The dispatch lock is left to the liveness-checked recovery; someone may hold it now.
+        await this.release(executionId, null);
         return record;
       }
       const pid = record.environment.supervisor_pid;
@@ -575,16 +576,19 @@ export class ExecutionSupervisor {
       return record;
     });
   }
-  /** Frees the dispatch lock (if that supervisor's, and not held here) and this run's marker. */
-  private async release(executionId: string, pid: unknown) {
+  /**
+   * Frees this run's marker and, after a verified reap, the dispatch lock of its dead
+   * supervisor. A lock naming this process is always a live `withLock`, which removes itself.
+   */
+  private async release(executionId: string, deadSupervisor: unknown) {
     const lock = join(this.products.root, 'supervisor.lock');
-    try {
-      const lockOwner = (await readJson(lock)) as { pid: number };
-      if (lockOwner.pid === pid && !(pid === process.pid && this.active.size))
-        await unlink(lock);
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    }
+    if (deadSupervisor !== null && deadSupervisor !== process.pid)
+      try {
+        const lockOwner = (await readJson(lock)) as { pid: number };
+        if (lockOwner.pid === deadSupervisor) await unlink(lock);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      }
     const pending = join(this.products.root, 'pending-worker.json');
     try {
       const marker = (await readJson(pending)) as { execution_id: string };

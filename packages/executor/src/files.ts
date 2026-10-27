@@ -102,7 +102,9 @@ export async function withLock<T>(
   try {
     return await work();
   } finally {
-    await unlink(lock);
+    // Only our own lock: a recovery may have released it and someone else may hold it now.
+    const now = await readFile(lock, 'utf8').catch(() => '');
+    if (now.includes(token)) await unlink(lock);
   }
 }
 export async function event(

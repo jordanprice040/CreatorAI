@@ -549,11 +549,15 @@ export class StudioBuilds {
         .reconcile(product, execution, ctx.actorId)
         .catch((e: unknown) =>
           refusal(
-            /could not be verified/.test(reason(e))
-              ? new Error(
-                  `${reason(e)}. Check that WSL works (wsl.exe in a terminal), then Recover again.`,
-                )
-              : e,
+            // Refusals about the run itself stand as they are; anything else is the reap
+            // through WSL failing, which the owner can check.
+            /still exists|still being dispatched|Lease has not expired|Unknown supervisor/.test(
+              reason(e),
+            )
+              ? e
+              : new Error(
+                  `${reason(e).replace(/\.$/, '')}. The test run could not be confirmed stopped: check that WSL works (wsl.exe in a terminal), then Recover again.`,
+                ),
           ),
         );
       // Listed only when it changed now; an already settled run just had its marker freed.

@@ -516,7 +516,7 @@ function Product({
       {owner && (interrupted || locked) && (
         <p className="notice">
           {interrupted
-            ? 'The last build stopped without finishing (the app closed, or a test run was left unresolved). It is recorded and never resent.'
+            ? 'The last build did not finish (the app closed, or its test run was left unresolved). It is recorded and never resent; if Recover finds nothing locked, just build again.'
             : 'This product may be locked by work that stopped.'}{' '}
           Recover releases its locks only if the process that held them is gone;
           the next build re-checks the task's files.{' '}
@@ -545,7 +545,10 @@ function Product({
                     reconciled: string[];
                     waiting: string | null;
                   };
-                  if (waiting) return waiting;
+                  if (waiting)
+                    return released.length
+                      ? `Released: ${released.map((l) => `${l} lock`).join(', ')}. ${waiting}`
+                      : waiting;
                   if (!released.length && !reconciled.length)
                     return 'Nothing was locked, so nothing changed.';
                   return `Recovered: ${[
