@@ -1,3 +1,14 @@
+## Completion runbook rewritten — October 26, 2026
+
+docs/COMPLETION_RUNBOOK.md went from 1,829 lines of dated status snapshots and prompts to
+a 131-line page: a current-state table checked against main 54639a1 (PRs #1-#54 merged),
+known issues, nine ordered next steps (app first, then the theme-intent track, then the
+thesis) and what still needs Jordan. Removed history stays in git and in BUILD_STATUS.
+Checked in code: exportStudy still reads the whole workspace audit log; /api/health
+reports configuration, not verification; batch input files are deleted at the provider
+and child overruns reach the parent (both look done). Docs only; no tests run, no live calls.
+Next eligible: step 1 of the runbook (clean up main).
+
 ## Usability pass closed; final Lows — October 26, 2026
 
 Review of #53: no Medium or higher on GitHub, Payments, Settings or Scores, so the
