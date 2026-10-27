@@ -1003,6 +1003,8 @@ export class StudyStore extends CatalogStore {
           'select * from decision_requests where workspace_id=$1 and run_id=$2 order by created_at,id',
           [a.workspace_id, a.run_id],
         );
+        // a.workspace_id is the attempt's own workspace, created with the attempt, so this is
+        // the attempt's audit trail: never the study's home workspace or another attempt's.
         const audit = await c.query(
           'select * from audit_events where workspace_id=$1 order by sequence',
           [a.workspace_id],

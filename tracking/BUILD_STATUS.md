@@ -1,3 +1,30 @@
+## Main cleanup (runbook step 1) — October 27, 2026
+
+Tests and status only; no product behavior, schema, policy or migration change.
+(a) build.test "ChatGPT-plan Codex builder still goes through scoped patches" passes on
+Linux. Its last assertion keyed on CREATOR_TEST_ISOLATION, but the executor runs real QA
+whenever the host is Windows, so on Jordan's machine without that variable QA passed and
+the test expected a checkpoint (the Oct 26 failure). It now keys on the platform:
+verified_candidate on Windows, the QA checkpoint elsewhere. Not rerun on Windows here.
+(b) New payments test: with two verified builds of one spec, an offer for the older one
+is refused, the newer one is accepted, and after a spec revision both are refused; no
+refused offer is written. Removing the server check makes it fail (checked).
+(c) exportStudy already reads the attempt's own workspace (a.workspace_id, created per
+attempt), not the study's home workspace, so no cross-attempt or home-workspace events
+are exported; the older audit wording was wrong. Pinned by an assertion in study.test and
+a code comment. Residual: anything the owner does by hand inside an attempt workspace
+would be exported with that attempt.
+(d) config/readiness.json as_of 2026-10-27: plan-route rows cite the Oct 22-23 role 1.4
+live suites (synthetic, model-reviewed), C54 reflects theme drafts and the schema 29
+candidate, C40/C44 mention the pages, C41 notes main isn't packaged, C28 cites the
+runtime-ceiling test. No state changed. SHA-256 now
+e28d2728f8329273c8224669f112c7bbf8e3591ecf349d11c2fdfcf82ad5d7ea (was cb927b91...),
+so receipts that bound the old bytes are historical, not tampering.
+Checks: typecheck, format, pnpm test:db 445 pass, 25 skipped, 5 fail; the 5 are the
+PowerShell-wrapper tests (no PowerShell in this container) and fail identically on
+unchanged main. pnpm readiness: no register problems, verdict NOT READY.
+Next eligible: runbook step 2 (funding and reinvestment in the app).
+
 ## Completion runbook rewritten — October 26, 2026
 
 docs/COMPLETION_RUNBOOK.md went from 1,829 lines of dated status snapshots and prompts to

@@ -133,5 +133,31 @@ export async function verifiedRelease(
     artifact_id: manifestId,
     manifest_sha256: manifestSha,
     product_id: product,
+    spec_id: spec.id,
+    /** A later verified build of the same spec and version, which replaces this one. */
+    rebuild: async () => {
+      const id = randomUUID();
+      const sha = h(`manifest-${id}`);
+      await pool.query(
+        `insert into artifact_manifests (id, workspace_id, entity_id, product_id, spec_id,
+           spec_version, freeze_id, commit, state, manifest, manifest_sha256, archive_sha256,
+           previous_id, created_by)
+         values ($1,$2,$3,$4,$5,1,$6,$7,'verified','{}',$8,$9,$10,$11)`,
+        [
+          id,
+          ws,
+          artifact.id,
+          product,
+          spec.id,
+          freeze,
+          'b'.repeat(40),
+          sha,
+          h('archive-2'),
+          manifestId,
+          owner.actorId,
+        ],
+      );
+      return { artifact_id: id, manifest_sha256: sha };
+    },
   };
 }
