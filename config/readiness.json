@@ -27,7 +27,7 @@
         "tracking/evidence/t19",
         "docs/ARTIFACTS_AND_PREVIEW.md"
       ],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
     },
     {
       "id": "C02",
@@ -42,7 +42,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C03",
@@ -57,7 +57,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C04",
@@ -72,7 +72,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t08"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C05",
@@ -117,7 +117,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C08",
@@ -132,7 +132,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t07"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. No real source has been fetched or searched: needs an approved host list and a live search provider choice."
     },
     {
       "id": "C09",
@@ -162,7 +162,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t03", "tracking/evidence/t08"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C11",
@@ -177,7 +177,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["tracking/evidence/t03", "tracking/evidence/t07"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C12",
@@ -377,7 +377,7 @@
       },
       "required": ["implemented", "fixture", "live", "native"],
       "evidence": ["tracking/evidence/t12"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified. Builder and reviewer roles have only run as fixed synthetic roles."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. Builder and reviewer roles have only run as fixed synthetic roles."
     },
     {
       "id": "C24",
@@ -598,7 +598,7 @@
       },
       "required": ["implemented", "fixture", "live"],
       "evidence": ["docs/MODEL_ROUTING.md", "tracking/evidence/x01"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "C38",
@@ -613,7 +613,7 @@
       },
       "required": ["implemented", "fixture", "contract", "live"],
       "evidence": ["docs/CONTEXT_AND_CACHING.md", "tracking/evidence/x02"],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified. Caching, batch and compaction stay documented for gpt-6-astra."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified. Caching, batch and compaction stay documented for gpt-6-astra."
     },
     {
       "id": "C39",
@@ -895,7 +895,7 @@
         "config/provider-availability.json",
         "docs/AUDIT_FIXES_2026-10-20.md"
       ],
-      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research, candidate-generation and scoring discovery roles passed owner-approved live operational suites on synthetic cases over the plan route (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md); their outputs were reviewed by a model, not a person. None of this runs this requirement through its own live workflow with real sources, so live stays unverified. API-key Responses/embedding/batch access is separately unverified."
+      "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
     },
     {
       "id": "source-fetch",

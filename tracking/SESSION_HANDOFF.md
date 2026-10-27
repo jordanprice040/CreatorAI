@@ -5,7 +5,8 @@ Tests and status only; no product behavior, schema, policy or migration change.
 Linux. Its last assertion keyed on CREATOR_TEST_ISOLATION, but the executor runs real QA
 whenever the host is Windows, so on Jordan's machine without that variable QA passed and
 the test expected a checkpoint (the Oct 26 failure). It now keys on the platform:
-verified_candidate on Windows, the QA checkpoint elsewhere. Not rerun on Windows here.
+verified_candidate with the real WSL2 gate on, either state on Windows without it, the
+QA checkpoint elsewhere. Not rerun on Windows here.
 (b) New payments test: with two verified builds of one spec, an offer for the older one
 is refused, the newer one is accepted, and after a spec revision both are refused; no
 refused offer is written. Removing the server check makes it fail (checked).
@@ -18,11 +19,14 @@ would be exported with that attempt.
 live suites (synthetic, model-reviewed), C54 reflects theme drafts and the schema 29
 candidate, C40/C44 mention the pages, C41 notes main isn't packaged, C28 cites the
 runtime-ceiling test. No state changed. SHA-256 now
-e28d2728f8329273c8224669f112c7bbf8e3591ecf349d11c2fdfcf82ad5d7ea (was cb927b91...),
+30b903d9e5b1f840f0d9d624653d9b232160dcb621c48416aad22dca01c292e4 (was cb927b91...),
 so receipts that bound the old bytes are historical, not tampering.
 Checks: typecheck, format, pnpm test:db 445 pass, 25 skipped, 5 fail; the 5 are the
 PowerShell-wrapper tests (no PowerShell in this container) and fail identically on
 unchanged main. pnpm readiness: no register problems, verdict NOT READY.
+Review of #56: no High or Medium. Folded in L1 (Windows without the gate no longer fails)
+and L2 (plan-route rows keep "task qualification and end-to-end evidence remain missing"
+and cite the discovery-semantics-v2 evidence for candidate generation and scoring).
 Next eligible: runbook step 2 (funding and reinvestment in the app).
 
 ## Completion runbook rewritten — October 26, 2026
