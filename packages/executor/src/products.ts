@@ -1,4 +1,11 @@
-import { mkdir, readFile, writeFile, unlink, readdir } from 'node:fs/promises';
+import {
+  mkdir,
+  readFile,
+  writeFile,
+  unlink,
+  readdir,
+  rename,
+} from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -33,6 +40,16 @@ export const TEMPLATE = {
     'import json\nprint(json.dumps({"template": "checklist/1", "items": ["inspect", "build", "review"]}))\n',
 };
 export const TEMPLATE_HASH = digest(JSON.stringify(TEMPLATE));
+
+/** Whether a process exists (EPERM: it does, owned by someone else). */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
 
 /** Local owner-facing store. Never available to generated code or remote callers. */
 export class ProductSupervisor {
@@ -100,6 +117,46 @@ export class ProductSupervisor {
       throw new Error(
         'Frozen specification or task hashes changed; create a new bound product',
       );
+  }
+  /**
+   * Releases this product's locks whose recorded process is gone (a crash or a closed app
+   * mid-build). A lock held by this process or by a live process is never touched, and the
+   * management lock only once the integration repo is clean, so interrupted Git work is
+   * left for a person. Released locks are kept beside it as evidence, with an event.
+   */
+  async recoverDeadLocks(productId: string): Promise<string[]> {
+    const dir = this.dir(productId);
+    const released: string[] = [];
+    for (const [name, lock] of [
+      ['builds', join(dir, 'builds', 'supervisor.lock')],
+      ['product', join(dir, 'supervisor.lock')],
+    ] as const) {
+      const raw = await readFile(lock, 'utf8').catch(() => null);
+      if (raw === null) continue;
+      const pid = Number((JSON.parse(raw) as { pid?: unknown }).pid);
+      if (!Number.isInteger(pid) || pid <= 0)
+        throw new Error(
+          `The ${name} lock names no process; recover it by hand.`,
+        );
+      if (pid === process.pid)
+        throw new Error(`The ${name} lock is held by work running now.`);
+      if (alive(pid))
+        throw new Error(
+          `The ${name} lock is held by a running process (${pid}); close it first.`,
+        );
+      if (name === 'product') {
+        const repo = this.repo(productId);
+        await safeTree(repo);
+        await clean(repo);
+      }
+      await rename(
+        lock,
+        `${lock}.dead-${new Date().toISOString().replace(/[:.]/g, '-')}`,
+      );
+      await event(dir, 'lock.recovered', { lock: name, pid });
+      released.push(name);
+    }
+    return released;
   }
   async create(
     raw: unknown,

@@ -1268,8 +1268,9 @@ pub fn chrono_now() -> String {
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{m:02}:{s:02}Z")
 }
 
-/// Git for Windows, for the product store: from this app's own PATH, else the usual install
-/// folders. Only the resolved `git.exe` reaches the service, never the PATH itself.
+/// Git for Windows, for the product store: the usual install folders first (not writable by
+/// the user without elevation, for Program Files), then this app's own PATH. Only the
+/// resolved `git.exe` reaches the service, never the PATH itself.
 pub fn find_git() -> Option<PathBuf> {
     let on_path = std::env::var_os("PATH")
         .map(|p| {
@@ -1291,9 +1292,9 @@ pub fn find_git() -> Option<PathBuf> {
             );
         }
     }
-    on_path
+    usual
         .into_iter()
-        .chain(usual)
+        .chain(on_path)
         .find(|p| p.is_absolute() && p.is_file())
 }
 

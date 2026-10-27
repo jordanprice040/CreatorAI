@@ -82,7 +82,7 @@ export async function withLock<T>(
     f = await open(lock, 'wx', 0o600);
   } catch {
     throw new Error(
-      'Product is locked; inspect pending intents before manual recovery. Locks are never stolen.',
+      'Product is locked; inspect pending intents before recovery. A lock is released only by an explicit recovery once its process is gone (Build page: Recover), never by age.',
     );
   }
   await f.writeFile(

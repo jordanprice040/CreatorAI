@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createApi } from '@creator/api';
@@ -64,13 +65,17 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   };
   await cli('login', LOGIN_CODE);
   const auth = await login(`${origin}/api`);
-  const http = async (path: string, body?: unknown) => {
+  const http = async (path: string, body?: unknown, key?: string) => {
     const r = await fetch(`${origin}/api/${path}`, {
       ...(body === undefined
         ? { headers: auth.read }
         : {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...auth.write },
+            headers: {
+              'Content-Type': 'application/json',
+              ...auth.write,
+              ...(key ? { 'Idempotency-Key': key } : {}),
+            },
             body: JSON.stringify(body),
           }),
     });
@@ -192,12 +197,12 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     max_output_tokens: 3000,
     deadline: new Date(Date.now() + 600000).toISOString(),
   };
-  const start = () =>
-    http(`${base}/${p.id}/builds`, {
-      task_id: task.body.id,
-      expected_commit: p.initial_commit,
-      plan,
-    });
+  const start = (key?: string, product = p, taskId = task.body.id) =>
+    http(
+      `${base}/${product.id}/builds`,
+      { task_id: taskId, expected_commit: product.initial_commit, plan },
+      key,
+    );
   const build = async () => {
     const started = await start();
     assert.equal(started.status, 202, JSON.stringify(started.body));
@@ -212,15 +217,15 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
       await sleep(200);
     }
   };
-  const entry = async (buildId: string) => {
+  const entry = async (buildId: string, productId = p.id) => {
     const list = await http(base);
     assert.equal(list.status, 200, JSON.stringify(list.body));
-    const mine = list.body.find((x: any) => x.product.id === p.id);
+    const mine = list.body.find((x: any) => x.product.id === productId);
     return mine.builds.find((b: any) => b.id === buildId);
   };
-  const settled = (buildId: string) =>
+  const settled = (buildId: string, productId = p.id) =>
     until(async () => {
-      const b = await entry(buildId);
+      const b = await entry(buildId, productId);
       return b && b.state !== 'running' ? b : null;
     }, `build ${buildId}`);
 
@@ -230,23 +235,21 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   assert.equal(refused.state, 'checkpoint', JSON.stringify(refused));
   assert.match(refused.reason, /Build admission waiting_human; decision /);
 
+  // The owner approves exactly one build under Decisions.
+  const decisionId = /decision ([0-9a-f-]{36})/.exec(refused.reason)![1]!;
+  const decision = await cli('decision', ws, decisionId);
   await cli(
-    'grant-create',
+    'answer',
     ws,
-    JSON.stringify({
-      run_id: seed.run,
-      action_types: ['product.commit_build'],
-      target_kind: 'specification',
-      max_amount_nano_usd: null,
-      allow_irreversible: false,
-      allow_external_effects: false,
-      data_classes: ['synthetic'],
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-      rationale: 'Synthetic studio builds only',
-    }),
+    decision.id,
+    decision.coverage.coverage_hash,
+    'approve_once',
+    'Synthetic: one studio build',
   );
-  // Two starts at once: one runs, the other is refused instead of queueing behind it.
-  const pair = await Promise.all([start(), start()]);
+  // Two starts at once: one runs, the other is refused instead of queueing behind it. Both
+  // carry the same request key, as a client retry would.
+  const key = randomUUID();
+  const pair = await Promise.all([start(key), start(key)]);
   assert.deepEqual(
     pair.map((r) => r.status).sort(),
     [202, 409],
@@ -257,6 +260,19 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   );
   assert.equal(verified.state, 'verified_candidate', JSON.stringify(verified));
   assert.equal(verified.fixture, true);
+
+  // That approval was for one build. Another build sent with the same request key must not
+  // replay its admission: it stops and asks again.
+  const p2 = (await http(base, { spec_id: specId })).body;
+  const task2 = await http(`${base}/${p2.id}/tasks`, {
+    task_key: 'T1',
+    expected_commit: p2.initial_commit,
+  });
+  const again = await start(key, p2, task2.body.id);
+  assert.equal(again.status, 202, JSON.stringify(again.body));
+  const asked = await settled(again.body.build_id, p2.id);
+  assert.equal(asked.state, 'checkpoint', JSON.stringify(asked));
+  assert.match(asked.reason, /Build admission waiting_human/);
 
   // A checkpointed build cannot be packaged; a verified one can, into Gallery.
   const notVerified = await http(`${base}/${p.id}/package`, {
@@ -275,6 +291,26 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     gallery.body.some((a: any) => a.id === packaged.artifact_id),
     JSON.stringify(gallery.body),
   );
+
+  // The app closed mid-build: its lock stays. A live holder is never displaced; once the
+  // holder is gone, Recover releases it and the product can be built again.
+  const lock = join(products.dir(p.id), 'builds', 'supervisor.lock');
+  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)']);
+  t.after(() => holder.kill());
+  await writeFile(lock, JSON.stringify({ pid: holder.pid, token: 'x' }));
+  const locked = await start();
+  assert.equal(locked.status, 409, JSON.stringify(locked.body));
+  assert.match(JSON.stringify(locked.body), /locked/i);
+  const held = await http(`${base}/${p.id}/recover`, {});
+  assert.equal(held.status, 409, JSON.stringify(held.body));
+  holder.kill();
+  await once(holder, 'exit');
+  const recovered = await http(`${base}/${p.id}/recover`, {});
+  assert.equal(recovered.status, 200, JSON.stringify(recovered.body));
+  assert.deepEqual(recovered.body.released, ['builds']);
+  const unlocked = await start();
+  assert.doesNotMatch(JSON.stringify(unlocked.body), /locked/i);
+  if (unlocked.status === 202) await settled(unlocked.body.build_id);
 
   // A changed spec invalidates the build: packaging it again is refused before any work.
   await revise(

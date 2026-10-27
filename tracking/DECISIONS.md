@@ -28,6 +28,15 @@ Limits: job state is in memory; after a restart a build with no outcome shows as
 and is never resent. Generated code still runs only in the execution worker; a host without
 WSL cannot build. The first live Codex build remains a separate, owner-approved step.
 
+Amended October 27, 2026 (review of #67): the build ports run without the request's
+Idempotency-Key, since store commands replay on it and one approved-once admission must
+not cover a second build or round. `POST .../products/:id/recover` releases a product's
+locks whose recorded process is gone (never one held by this process or a live one; the
+management lock only with a clean integration repo), keeping the lock file and an event.
+A second package request for a build already packaging is refused. Known limit: a build
+already running continues after the owner signs out, like other started work; revoking
+its grant or stopping its run stops it at the next step.
+
 ## ADR-0045 — Test-mode checkout screen and simulated test buyer (accepted October 27, 2026)
 
 Runbook step 3 (Jordan asked to start it on 2026-10-27). The Payments page gets a

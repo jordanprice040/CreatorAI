@@ -40,7 +40,7 @@ import {
  * checks. Generated code still runs only in the execution worker.
  */
 export const PRODUCTS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(products)(?:\/([^/]+)(?:\/(tasks|builds|package))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(products)(?:\/([^/]+)(?:\/(tasks|builds|package|recover))?)?$/;
 
 const uuid = z.uuid();
 const CreateProductBody = z.strictObject({ spec_id: uuid });
@@ -72,6 +72,12 @@ type Job =
 /** A JSON round trip, then the contract: the same shapes the CLI reads over HTTP. */
 const via = <T>(schema: z.ZodType<T>, value: unknown): T =>
   parse(schema, JSON.parse(JSON.stringify(value)));
+/**
+ * The caller's context without its request Idempotency-Key. Store commands replay on that key,
+ * so a background build reusing it would replay one admission for every round and build.
+ */
+const bare = ({ idempotencyKey: _, ...ctx }: CommandContext): CommandContext =>
+  ctx;
 const reason = (e: unknown) =>
   (e instanceof Error ? e.message : String(e)).slice(0, 2000);
 /** Product-store errors say what is wrong (stale base, missing Git): pass them on. */
@@ -187,7 +193,12 @@ export class StudioBuilds {
   }
 
   /** The CLI's build ports, against the store and broker in this process (ADR-0046). */
-  private ports(ctx: CommandContext, ws: string, product: Product): BuildPorts {
+  private ports(
+    request: CommandContext,
+    ws: string,
+    product: Product,
+  ): BuildPorts {
+    const ctx = bare(request);
     let coverage: { grant_id: string; grant_version: number } | null = null;
     let humility: { id: string; version: number } | null = null;
     const ports: BuildPorts = {
@@ -497,6 +508,23 @@ export class StudioBuilds {
     });
   }
 
+  /**
+   * After the app closed or crashed mid-build: releases the product's locks whose process is
+   * gone. Never while a build of it runs here; interrupted builds stay recorded, never resent.
+   */
+  async recover(ctx: CommandContext, ws: string, productId: string) {
+    const p = await this.product(ctx, ws, productId);
+    if (this.building.has(p.id))
+      throw new ContractError(
+        'VERSION_CONFLICT',
+        'A build of this product is running; nothing to recover.',
+      );
+    const released = await this.artifacts.products
+      .recoverDeadLocks(p.id)
+      .catch(refusal);
+    return { product_id: p.id, released };
+  }
+
   /** Packages a verified build in the worker, then lists it in Gallery. Runs in the background. */
   async package(
     ctx: CommandContext,
@@ -511,6 +539,23 @@ export class StudioBuilds {
         'VERSION_CONFLICT',
         'That build is already being packaged.',
       );
+    // Reserved before the first await, so a second request for this build is refused.
+    const previous = this.packages.get(build_id);
+    this.packages.set(build_id, { state: 'running' });
+    try {
+      return await this.packageReserved(ctx, ws, p, build_id);
+    } catch (e) {
+      if (previous) this.packages.set(build_id, previous);
+      else this.packages.delete(build_id);
+      throw e;
+    }
+  }
+  private async packageReserved(
+    ctx: CommandContext,
+    ws: string,
+    p: Product,
+    build_id: string,
+  ): Promise<{ build_id: string; state: 'running' }> {
     const ports = this.ports(ctx, ws, p);
     // The same re-checks packaging starts with, so a stale build is refused now, not later.
     const outcome = await this.supervisor
@@ -523,7 +568,6 @@ export class StudioBuilds {
         'INVALID_TRANSITION',
         'Only a verified build can be packaged.',
       );
-    this.packages.set(build_id, { state: 'running' });
     void (async () => {
       try {
         const packaged = await this.artifacts.package(p.id, build_id, ports);
@@ -534,7 +578,12 @@ export class StudioBuilds {
           packaged.manifest_sha256,
         );
         await this.artifacts.open(p.id, packaged.manifest.id, manifest_sha256);
-        await this.store.registerArtifact(ctx, ws, manifest, manifest_sha256);
+        await this.store.registerArtifact(
+          bare(ctx),
+          ws,
+          manifest,
+          manifest_sha256,
+        );
         this.packages.set(build_id, {
           state: 'done',
           artifact_id: packaged.manifest.id,
@@ -578,6 +627,8 @@ export async function productRoutes(o: {
       await service.startBuild(ctx, ws, item, await o.body()),
       true,
     );
+  if (item && action === 'recover' && method === 'POST')
+    return send(200, await service.recover(ctx, ws, item), true);
   if (item && action === 'package' && method === 'POST')
     return send(
       202,

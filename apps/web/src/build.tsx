@@ -298,6 +298,7 @@ export function BuildView({
                   act={act}
                   post={post}
                   open={open}
+                  locked={/locked/i.test(error)}
                 />
               ))
             )}
@@ -462,6 +463,7 @@ function Product({
   act,
   post,
   open,
+  locked,
 }: {
   entry: ProductEntry;
   spec: SpecStatus | undefined;
@@ -472,8 +474,12 @@ function Product({
   act: (what: () => Promise<unknown>, done?: string) => Promise<void>;
   post: (path: string, body: unknown) => Promise<unknown>;
   open: (view: View, id?: string) => void;
+  /** The last action said a product was locked. */
+  locked: boolean;
 }) {
   const p = entry.product;
+  // Only the newest: once a later build ran, an old interruption needs nothing more.
+  const interrupted = entry.builds[0]?.state === 'interrupted';
   const current =
     spec?.frozen_current && spec.spec.version === p.binding.spec_version;
   return (
@@ -487,6 +493,29 @@ function Product({
           The spec changed or was unfrozen after this product was made, so it
           cannot be built or packaged. Create a product from the current frozen
           version.
+        </p>
+      )}
+      {owner && (interrupted || locked) && (
+        <p className="notice">
+          {interrupted
+            ? 'A build stopped when the app closed. It is recorded and never resent.'
+            : 'This product may be locked by work that stopped.'}{' '}
+          Recover releases its locks only if the process that held them is gone;
+          the next build re-checks the task's files.{' '}
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() =>
+              act(async () => {
+                const r = z
+                  .object({ released: z.array(z.string()) })
+                  .parse(await post(`products/${p.id}/recover`, {}));
+                return r;
+              }, 'Recovered. You can build this product again.')
+            }
+          >
+            Recover
+          </button>
         </p>
       )}
       {p.binding.tasks.map(({ key }) => {

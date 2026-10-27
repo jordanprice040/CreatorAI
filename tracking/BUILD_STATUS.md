@@ -1,3 +1,18 @@
+## PR #67 review fixes (in-app builds) — October 27, 2026
+
+Review of #67: 2 Medium, 4 Low. M1: the build ports drop the request's Idempotency-Key,
+so an approved-once admission can't be replayed for a second build or round (test: a
+second build with the same key stops and asks again; restoring the key makes it pass
+admission). M2: `POST .../products/:id/recover` and a Recover button release a product's
+locks whose process is gone (refuses a live holder or this process; management lock only
+with a clean repo; keeps the lock file and an event) (test: live holder refused, dead
+holder released, build no longer locked; disabling the liveness check fails it). Lows: a
+second package request is refused (reserved before the first await); find_git prefers the
+install folders over PATH; the cite form starts a new key when choosing another claim;
+running builds continuing after sign-out is documented in ADR-0046. Checks: studio-builds
+(both mutations fail it), executor + web-display, cargo test 17/17, typecheck,
+format:check.
+
 ## Build and package in the app (D2, ADR-0046) — October 27, 2026
 
 Jordan approved the design's five recommendations. The studio service now builds and
