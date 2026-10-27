@@ -24,6 +24,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 
 type Passage = SourceDetail['passages'][number];
+const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 /** A few pages of the server's synthetic corpus (packages/research/src/fixture.ts). */
 const FIXTURE_PAGES = [
@@ -73,6 +74,8 @@ export function Evidence({
   const [cite, setCite] = useState<Passage | null>(null);
   const base = `workspaces/${workspace}`;
   const editor = current.role !== 'viewer';
+  // Registering runs and granting permissions is the workspace owner's (server-enforced).
+  const owner = current.role === 'owner';
 
   async function load() {
     if (!workspace) return;
@@ -285,7 +288,7 @@ export function Evidence({
         >
           {busy ? 'Fetching…' : 'Fetch'}
         </button>
-        {editor && runs.length === 0 && (
+        {owner && runs.length === 0 && (
           <button
             type="button"
             className="secondary"
@@ -296,10 +299,12 @@ export function Evidence({
           </button>
         )}
       </form>
-      {editor && runs.length === 0 && (
+      {owner && runs.length === 0 && (
         <p className="small">
           Registering a run lets it fetch public pages for 24 hours and nothing
           else. You can revoke that under Decisions.
+          {!fixture &&
+            ' Real pages are fetched only while live fetching is on.'}
         </p>
       )}
       {last && (
@@ -528,20 +533,31 @@ function CiteForm({
   const [rationale, setRationale] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // A claim this form already created: a retry adds evidence to it instead of a duplicate.
+  const [created, setCreated] = useState<StoredEntity | null>(null);
   // Opening the form moves focus (and the view) to it; it sits below the passages.
   useEffect(() => document.getElementById('cite-claim')?.focus(), []);
-  const existing = claims.find((c) => c.id === claimId);
+  const existing = created ?? claims.find((c) => c.id === claimId);
   const quoted = stance !== 'does_not_support';
+  const q = squash(quote);
   const missing = [
     !existing && !statement.trim() && 'a statement',
     !existing && !uncertainty.trim() && 'what is still uncertain',
-    quoted && quote.trim().length < 8 && 'a quote of at least 8 characters',
+    (quoted || q) && q.length < 8 && 'a quote of at least 8 characters',
     !rationale.trim() && 'why it bears on the claim',
   ].filter(Boolean);
+  // The server's check (quoteInPassage): the quote must occur in the passage, spaces aside.
+  const verbatim = !q || squash(passage.excerpt ?? '').includes(q);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (missing.length) return;
+    if (!verbatim) {
+      setError(
+        'The quote must appear exactly in the passage. Copy it from the passage text.',
+      );
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -559,6 +575,7 @@ function CiteForm({
             },
           },
         }));
+      if (!existing) setCreated(claim);
       await api(ClaimSupportSchema, `${base}/claims/${claim.id}/support`, {
         csrf,
         body: {
@@ -567,7 +584,7 @@ function CiteForm({
           passage_id: passage.id,
           stance,
           support_type: type,
-          quote: quote.trim() ? quote.trim() : null,
+          quote: q ? quote.trim() : null,
           rationale: rationale.trim(),
         },
       });
@@ -582,18 +599,25 @@ function CiteForm({
     <form className="cite" onSubmit={(e) => void submit(e)}>
       <h4>Cite ¶{passage.locator.paragraph} in a claim</h4>
       <label htmlFor="cite-claim">Claim</label>
-      <select
-        id="cite-claim"
-        value={claimId}
-        onChange={(e) => setClaimId(e.target.value)}
-      >
-        <option value="new">New claim</option>
-        {claims.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.title}
-          </option>
-        ))}
-      </select>
+      {created ? (
+        <p className="small" id="cite-claim" tabIndex={-1}>
+          Saved “{created.title}” without evidence yet. Fix what is below and
+          save again to attach this passage to it.
+        </p>
+      ) : (
+        <select
+          id="cite-claim"
+          value={claimId}
+          onChange={(e) => setClaimId(e.target.value)}
+        >
+          <option value="new">New claim</option>
+          {claims.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+      )}
       {!existing && (
         <>
           <label htmlFor="cite-statement">Statement</label>
@@ -669,7 +693,7 @@ function CiteForm({
       {missing.length > 0 && (
         <p className="small">Still needed: {missing.join(', ')}.</p>
       )}
-      <div className="connection">
+      <div className="actions">
         <button className="primary" disabled={busy || missing.length > 0}>
           {busy ? 'Saving…' : 'Save evidence'}
         </button>
