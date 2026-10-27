@@ -321,6 +321,6 @@ test('checkout screen routes: test buyer, signed delivery, duplicates, out-of-or
         action: 'pay',
       })
     ).body.error?.message ?? '',
-    'The simulated processor restarted and forgot this checkout; open a new one.',
+    'The simulated processor no longer has this checkout (the studio restarted, or newer test checkouts replaced it); open a new one.',
   );
 });

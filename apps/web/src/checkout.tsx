@@ -457,9 +457,9 @@ function SimulatedBuyer({
           )}
           {!s.available && (
             <p className="notice">
-              The studio restarted, so the simulated processor forgot this
-              checkout. Open a new one to keep testing; what was already
-              delivered stays in the ledger.
+              The simulated processor no longer has this checkout: the studio
+              restarted, or newer test checkouts replaced it. Open a new one to
+              keep testing; what was already delivered stays in the ledger.
             </p>
           )}
           {s.available && !s.payment && (
