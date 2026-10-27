@@ -2068,6 +2068,25 @@ export class PaymentStore extends DesktopJobStore {
       return { id, ...req, status: 'open' as const };
     });
   }
+  /** Open commitments first, then the most recently closed. */
+  async listCommitments(ctx: CommandContext, ws: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        `select id, kind, label, amount_nano::text as amount_nano_usd, status, created_at, closed_at
+         from finance_commitments where workspace_id = $1
+         order by status = 'closed', coalesce(closed_at, created_at) desc limit 200`,
+        [ws],
+      );
+      return rows.map((r) => ({
+        ...(r as Row),
+        created_at: iso(r.created_at),
+        closed_at: r.closed_at ? iso(r.closed_at) : null,
+      }));
+    });
+  }
   async closeCommitment(ctx: CommandContext, ws: string, id: string) {
     ctx = normalize(ctx);
     ws = uuid(ws);
