@@ -232,6 +232,8 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
       return 'Recorded selection';
     case 'spending.ceiling_changed':
       return `Changed the overall spending ceiling from $${amount(p.previous_nano)} to $${amount(p.ceiling_nano)} (version ${String(p.version)})`;
+    case 'spending.limits_changed':
+      return `Changed the per-run and per-model spending limits (version ${String(p.version)})`;
     case 'deployment.environment_claimed':
       return `Claimed this database for the ${String(p.environment)} environment`;
     case 'workspace.created':

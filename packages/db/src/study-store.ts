@@ -41,7 +41,11 @@ import {
   taskHashes,
 } from '@creator/domain';
 import { CatalogStore } from './catalog-store.js';
-import { ceilingRefusal, runtimeExposure } from './runtime-ceiling.js';
+import {
+  ceilingRefusal,
+  currentSpendLimits,
+  runtimeExposure,
+} from './runtime-ceiling.js';
 import {
   AUDIT_CHAIN_LOCK,
   fail,
@@ -314,6 +318,22 @@ export class StudyStore extends CatalogStore {
           ledger_cap_nano_usd: runtime.ceiling_nano_usd,
           attempt_cap_nano_usd: cap.toString(),
           exposure_before_nano_usd: runtime.exposure_nano_usd,
+        };
+        await this.event(c, ctx, a.study_id, a.id, 'budget_refused', over);
+        return over;
+      }
+      // An attempt whose frozen cap is above the owner's per-run limit (ADR-0044) would be cut
+      // off part-way by dispatch, so it is refused before it starts instead.
+      const { limits } = await currentSpendLimits(c);
+      if (
+        limits.per_run_nano_usd !== null &&
+        cap > BigInt(limits.per_run_nano_usd)
+      ) {
+        const over = {
+          ledger: 'runtime-run-limit',
+          ledger_cap_nano_usd: limits.per_run_nano_usd,
+          attempt_cap_nano_usd: cap.toString(),
+          exposure_before_nano_usd: '0',
         };
         await this.event(c, ctx, a.study_id, a.id, 'budget_refused', over);
         return over;

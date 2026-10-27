@@ -5,6 +5,8 @@ import {
   currentCeiling,
   readSpendingConfig,
   runtimeExposure,
+  currentSpendLimits,
+  spendLimitRefusal,
 } from './runtime-ceiling.js';
 import type { Pool, PoolClient } from 'pg';
 import {
@@ -16,6 +18,8 @@ import {
   ReconcileRequestSchema,
   RuntimeCeilingSchema,
   SetRuntimeCeilingRequestSchema,
+  SetSpendLimitsRequestSchema,
+  SpendLimitsViewSchema,
   UsageSchema,
   parse,
   type Admission,
@@ -27,6 +31,8 @@ import {
   type Provider,
   type Reservation,
   type RuntimeCeiling,
+  type SpendLimits,
+  type SpendLimitsView,
   type Usage,
 } from '@creator/contracts';
 import {
@@ -320,7 +326,7 @@ export class BudgetStore extends OversightStore {
     if (!r || r.kind !== 'human' || !r.owner)
       throw fail(
         'ACCESS_DENIED',
-        'Only a person who owns a workspace can view or change the spending ceiling; create a workspace first if you have none.',
+        'Only a person who owns a workspace can view or change the spending ceiling and limits; create a workspace first if you have none.',
       );
   }
   private async ceilingView(c: PoolClient): Promise<RuntimeCeiling> {
@@ -418,6 +424,174 @@ export class BudgetStore extends OversightStore {
         ],
       );
       return this.ceilingView(c);
+    });
+  }
+
+  // ---- Owner's narrower spending limits (Settings, ADR-0044) -------------------------------
+
+  private async limitsView(c: PoolClient): Promise<SpendLimitsView> {
+    // The same lock a dispatch takes, so limits and counted spending are one moment.
+    await c.query("select pg_advisory_xact_lock(hashtext('runtime-ceiling'))");
+    const ceiling = await currentCeiling(c, this.spending);
+    const cur = await currentSpendLimits(c);
+    const since = this.spending.effective_from;
+    const counted = `coalesce(sum(case when r.status = 'settled' then coalesce(r.incurred_nano, 0)
+      when r.status in ('in_flight', 'unknown') then r.reserved_nano else 0 end), 0)::text`;
+    // Every model that has a limit, a real pricing snapshot or counted real spending.
+    const models = await c.query<{
+      provider: string;
+      model_id: string;
+      exposure: string;
+    }>(
+      `with keys as (
+         select provider, model_id from budget_reservations where not fixture
+         union select p.body->>'provider', p.body->>'model_id'
+           from pricing_snapshots p join workspaces w on w.id = p.workspace_id
+          where not w.fixture
+         union select x->>'provider', x->>'model_id'
+           from jsonb_array_elements($2::jsonb) x)
+       select k.provider, k.model_id, (select ${counted} from budget_reservations r
+          where not r.fixture and r.created_at >= $1 and r.provider = k.provider
+            and r.model_id = k.model_id) as exposure
+         from keys k where k.provider in ('openai', 'brave')
+        order by k.provider, k.model_id limit 200`,
+      [since, JSON.stringify(cur.limits.per_model)],
+    );
+    const runs = await c.query<{ ws: string; run: string; exposure: string }>(
+      `select r.workspace_id as ws, r.run_id as run, ${counted} as exposure
+         from budget_reservations r where not r.fixture and r.created_at >= $1
+        group by r.workspace_id, r.run_id
+        order by sum(case when r.status = 'settled' then coalesce(r.incurred_nano, 0)
+          when r.status in ('in_flight', 'unknown') then r.reserved_nano else 0 end) desc
+        limit 10`,
+      [since],
+    );
+    const history = await c.query(
+      `select version, limits, previous, reason, actor_id, created_at
+         from runtime_limit_changes order by version desc limit 50`,
+    );
+    return parse(SpendLimitsViewSchema, {
+      version: cur.version,
+      limits: cur.limits,
+      ceiling_nano_usd: ceiling.ceiling_nano_usd,
+      counted_since: iso(since),
+      models: models.rows.map((m) => ({
+        provider: m.provider,
+        model_id: m.model_id,
+        limit_nano_usd:
+          cur.limits.per_model.find(
+            (l) => l.provider === m.provider && l.model_id === m.model_id,
+          )?.limit_nano_usd ?? null,
+        exposure_nano_usd: m.exposure,
+      })),
+      top_runs: runs.rows
+        .filter((r) => BigInt(r.exposure) > 0n)
+        .map((r) => ({
+          workspace_id: r.ws,
+          run_id: r.run,
+          exposure_nano_usd: r.exposure,
+        })),
+      history: history.rows.map((r: Row) => ({
+        version: Number(r.version),
+        limits: r.limits,
+        previous: r.previous,
+        reason: String(r.reason),
+        actor_id: String(r.actor_id),
+        created_at: iso(r.created_at),
+      })),
+    });
+  }
+  /** Same audience as the ceiling: a signed-in person who owns a workspace. */
+  async spendLimits(ctx: CommandContext): Promise<SpendLimitsView> {
+    ctx = normalize(ctx);
+    return this.tx(async (c) => {
+      await this.requireCeilingOwner(c, ctx.actorId);
+      return this.limitsView(c);
+    });
+  }
+  /**
+   * Records a new version of the whole limit set. Each limit must fit under the ceiling in
+   * force, one model appears once, and the caller names the version it saw. The change, its
+   * reason and its audit event commit together under the lock every paid dispatch takes.
+   * A later lower ceiling still wins: dispatch checks the ceiling and these limits both.
+   */
+  async setSpendLimits(
+    ctx: CommandContext,
+    raw: unknown,
+  ): Promise<SpendLimitsView> {
+    ctx = normalize(ctx);
+    const body = parse(SetSpendLimitsRequestSchema, raw);
+    const limits: SpendLimits = {
+      per_run_nano_usd: body.limits.per_run_nano_usd,
+      per_model: [...body.limits.per_model].sort((a, b) =>
+        `${a.provider}/${a.model_id}`.localeCompare(
+          `${b.provider}/${b.model_id}`,
+        ),
+      ),
+    };
+    const keys = limits.per_model.map((m) => `${m.provider}/${m.model_id}`);
+    if (new Set(keys).size !== keys.length)
+      throw fail('INVALID_CONTRACT', 'Each model can have only one limit.');
+    return this.tx(async (c) => {
+      await this.requireCeilingOwner(c, ctx.actorId);
+      await c.query(
+        "select pg_advisory_xact_lock(hashtext('runtime-ceiling'))",
+      );
+      const cur = await currentSpendLimits(c);
+      if (body.expected_version !== cur.version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The limits changed since this page loaded them; reload and decide again.',
+        );
+      if (canonicalHash(limits) === canonicalHash(cur.limits))
+        throw fail('INVALID_CONTRACT', 'These are the current limits.');
+      const ceiling = BigInt(
+        (await currentCeiling(c, this.spending)).ceiling_nano_usd,
+      );
+      const over = [
+        ...(limits.per_run_nano_usd === null
+          ? []
+          : [{ name: 'The per-run limit', nano: limits.per_run_nano_usd }]),
+        ...limits.per_model.map((m) => ({
+          name: `The limit for ${m.provider}/${m.model_id}`,
+          nano: m.limit_nano_usd,
+        })),
+      ].find((l) => BigInt(l.nano) > ceiling);
+      if (over)
+        throw fail(
+          'INVALID_CONTRACT',
+          `${over.name} is above the overall ceiling of ${ceiling} nano-USD; narrower limits must fit under it.`,
+        );
+      const version = cur.version + 1;
+      const payload = {
+        version,
+        limits,
+        previous: cur.limits,
+        reason: body.reason,
+      };
+      const eventId = await this.append(c, ctx, {
+        workspaceId: null,
+        action: 'spending.limits_changed',
+        subjectKind: 'runtime_limits',
+        subjectId: '00000000-0000-0000-0000-000000000000',
+        subjectVersion: version,
+        contentHash: canonicalHash(payload),
+        payload,
+      });
+      await c.query(
+        `insert into runtime_limit_changes
+           (version, limits, previous, reason, actor_id, event_id)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          version,
+          JSON.stringify(limits),
+          JSON.stringify(cur.limits),
+          body.reason,
+          ctx.actorId,
+          eventId,
+        ],
+      );
+      return this.limitsView(c);
     });
   }
 
@@ -1213,6 +1387,14 @@ export class BudgetStore extends OversightStore {
           amount,
         );
         if (over) return deny(over.reason_code, over.explanation, extra);
+        // The owner's narrower per-run and per-model limits under that ceiling (ADR-0044).
+        const narrow = await spendLimitRefusal(
+          c,
+          this.spending,
+          { ws, runId, provider: plan.provider, modelId: plan.model_id },
+          amount,
+        );
+        if (narrow) return deny(narrow.reason_code, narrow.explanation, extra);
       }
       // 4–5. Grants, mode, stage gates (T03). The bound amount is the maximum exposure.
       const admission = await this.admitIn(
