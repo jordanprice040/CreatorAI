@@ -3,7 +3,9 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { createApi } from '../api/dist/index.js';
 
 // A disposable stateless fixture API and built UI. No personal browser, DB or paid adapter.
@@ -11,6 +13,25 @@ const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const api = createApi({ CREATOR_WORKER: 'off' });
 let web;
 let native;
+// A throwaway studio home: the probe never touches the installed app's WebView2 data.
+const home = await mkdtemp(join(tmpdir(), 'creator-probe-'));
+
+// Removes the throwaway home once the probe has exited. Its WebView2 helper processes can
+// hold the profile a little longer, so busy files are retried (linear backoff, about 11 s).
+async function removeHome() {
+  if (native && native.exitCode === null && native.signalCode === null) {
+    native.kill();
+    await once(native, 'close');
+  }
+  await rm(home, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
+  }).catch((e) =>
+    console.error(`Throwaway home left at ${home}: ${e.message}`),
+  );
+}
 try {
   api.server.listen(4310, '127.0.0.1');
   await once(api.server, 'listening');
@@ -60,7 +81,12 @@ try {
         ),
     ),
     ['--startup-probe'],
-    { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    {
+      cwd: root,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, CREATOR_STUDIO_HOME: home },
+    },
   );
   let output = '';
   let errors = '';
@@ -97,7 +123,7 @@ try {
     ),
   );
 } finally {
-  native?.kill();
+  await removeHome();
   web?.kill();
   await api.close();
 }

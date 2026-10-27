@@ -3,8 +3,9 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createApi, DEFAULT_OWNER_ACTOR_ID } from '../api/dist/index.js';
 import { migrate } from '../../packages/db/dist/index.js';
@@ -27,6 +28,25 @@ let pool;
 let api;
 let web;
 let native;
+// A throwaway studio home: the probe never touches the installed app's WebView2 data.
+const home = await mkdtemp(join(tmpdir(), 'creator-probe-'));
+
+// Removes the throwaway home once the probe has exited. Its WebView2 helper processes can
+// hold the profile a little longer, so busy files are retried (linear backoff, about 11 s).
+async function removeHome() {
+  if (native && native.exitCode === null && native.signalCode === null) {
+    native.kill();
+    await once(native, 'close');
+  }
+  await rm(home, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
+  }).catch((e) =>
+    console.error(`Throwaway home left at ${home}: ${e.message}`),
+  );
+}
 const secure = process.env.CREATOR_TEST_NATIVE_SECURE === '1';
 const code = 'test-login-code-0123456789abcdefghij';
 try {
@@ -80,7 +100,11 @@ try {
   native = spawn(
     resolve('apps/desktop/src-tauri/target/debug/creator-desktop.exe'),
     ['--signin-probe'],
-    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, CREATOR_STUDIO_HOME: home },
+    },
   );
   let output = '';
   let errors = '';
@@ -132,7 +156,7 @@ try {
   );
   console.log(JSON.stringify(evidence));
 } finally {
-  native?.kill();
+  await removeHome();
   web?.kill();
   if (api) await api.close();
   if (pool) await pool.end();

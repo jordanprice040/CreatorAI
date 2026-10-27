@@ -567,6 +567,7 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
               CREATOR_NATIVE_PROBE_WORKSPACE: ws,
               CREATOR_NATIVE_PROBE_ARTIFACT: a1.id,
               CREATOR_NATIVE_PROBE_COOKIE: auth.cookie,
+              CREATOR_STUDIO_HOME: join(dir, 'native-home'),
             },
           },
         );

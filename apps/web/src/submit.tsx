@@ -622,19 +622,18 @@ export function Submit({
               </p>
               {c.claims.length === 0 ? (
                 <Empty>
-                  No claims in this workspace yet. Record claims with source
-                  support first (Evidence view
                   {desktop ? (
                     <>
-                      ; adding a new workspace's first sources and claims{' '}
-                      {NO_CLI_IN_DESKTOP}
+                      No claims in this workspace yet. Adding sources and claims{' '}
+                      {NO_CLI_IN_DESKTOP}.
                     </>
                   ) : (
                     <>
-                      , or <code>pnpm cli seed-research</code>
+                      No claims in this workspace yet. Record claims with source
+                      support first (Evidence view, or{' '}
+                      <code>pnpm cli seed-research</code>).
                     </>
                   )}
-                  ).
                 </Empty>
               ) : (
                 <ul className="rows claims-pick">
