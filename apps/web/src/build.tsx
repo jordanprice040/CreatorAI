@@ -1,0 +1,797 @@
+import { useEffect, useState, type FormEvent } from 'react';
+import {
+  EnvelopeSchema,
+  PlanConnectionSchema,
+  PlanModelAccessSchema,
+  PricingSnapshotSchema,
+  RunControlSchema,
+  SelectionSchema,
+  SpecStatusSchema,
+  StoredEntitySchema,
+  z,
+  type SessionInfo,
+  type SpecStatus,
+  type StoredEntity,
+  type Workspace,
+} from '@creator/contracts';
+import { api, message, when, words } from './oversight.js';
+import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+
+// What GET /products returns (apps/api/src/products.ts, ADR-0046).
+const sha = z.string().regex(/^[0-9a-f]{40}$/);
+const JobSchema = z.object({
+  state: z.enum(['running', 'failed', 'done']),
+  error: z.string().optional(),
+  artifact_id: z.string().optional(),
+});
+const BuildSchema = z.object({
+  id: z.string(),
+  task_id: z.string(),
+  started_at: z.string(),
+  state: z.enum([
+    'running',
+    'failed',
+    'interrupted',
+    'verified_candidate',
+    'checkpoint',
+  ]),
+  reason: z.string().nullable(),
+  commit: sha.nullable(),
+  fixture: z.boolean().nullable(),
+  finished_at: z.string().nullable(),
+  package: JobSchema.nullable(),
+});
+const ProductEntrySchema = z.object({
+  product: z.object({
+    id: z.string(),
+    initial_commit: sha,
+    binding: z.object({
+      spec_id: z.string(),
+      spec_version: z.number(),
+      tasks: z.array(z.object({ key: z.string() })),
+    }),
+  }),
+  tasks: z.array(
+    z.object({ id: z.string(), key: z.string(), base_commit: sha }),
+  ),
+  builds: z.array(BuildSchema),
+});
+type ProductEntry = z.infer<typeof ProductEntrySchema>;
+type Build = z.infer<typeof BuildSchema>;
+const Started = z.object({ build_id: z.string(), state: z.literal('running') });
+
+const STATE_LABEL: Record<Build['state'], string> = {
+  running: 'running',
+  failed: 'failed',
+  interrupted: 'interrupted (not resent)',
+  verified_candidate: 'verified',
+  checkpoint: 'stopped at a checkpoint',
+};
+
+/**
+ * Builds and packages from frozen specs, run by the studio itself (ADR-0046). Every gate is on
+ * the server: owner, frozen spec, admission with a grant and humility review, budgets. Generated
+ * code runs only in the execution worker; this page starts work and shows what happened.
+ */
+export function BuildView({
+  workspace,
+  session,
+  open,
+}: {
+  workspace: Workspace;
+  session: SessionInfo;
+  open: (view: View, id?: string) => void;
+}) {
+  const base = `workspaces/${workspace.id}`;
+  const fixture = workspace.record_mode === 'fixture';
+  const owner = workspace.role === 'owner';
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [note, setNote] = useState('');
+  const data = useLoad(async () => {
+    const [specs, products, reviews, runs, budgets, pricing] =
+      await Promise.all([
+        api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
+        api(z.array(ProductEntrySchema), `${base}/products`),
+        api(
+          z.array(StoredEntitySchema),
+          `${base}/entities?kind=humility_review`,
+        ),
+        api(z.array(RunControlSchema), `${base}/runs`),
+        api(z.array(EnvelopeSchema), `${base}/budgets`),
+        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+      ]);
+    const status = await Promise.all(
+      specs.map((s) => api(SpecStatusSchema, `${base}/specs/${s.id}`)),
+    );
+    // Current selections that chose an option to build: a spec can be written from one.
+    const problems = fixture
+      ? await api(z.array(StoredEntitySchema), `${base}/entities?kind=problem`)
+      : [];
+    const selections = (
+      await Promise.all(
+        problems.map((p) =>
+          api(z.array(SelectionSchema), `${base}/problems/${p.id}/selections`),
+        ),
+      )
+    )
+      .flat()
+      .filter((x) => x.current)
+      .flatMap((x) =>
+        x.dispositions
+          .filter((d) => d.disposition === 'select_for_build')
+          .map((d) => ({ selection_id: x.id, alternative: d.alternative })),
+      );
+    // Codex builders: plan connections with a verified Codex model (real workspaces only).
+    const connections = fixture
+      ? []
+      : await api(z.array(PlanConnectionSchema), `${base}/plan-connections`);
+    const access = await Promise.all(
+      connections.map((c) =>
+        api(
+          z.object({ model_access: z.array(PlanModelAccessSchema) }),
+          `${base}/plan-connections/${c.id}`,
+        ),
+      ),
+    );
+    const builders = connections.flatMap((c, i) =>
+      access[i]!.model_access.filter(
+        (m) => m.path === 'codex' && m.access === 'verified',
+      ).map((m) => ({
+        key: `${c.id}:${m.model_id}`,
+        connection_id: c.id,
+        model_id: m.model_id,
+        label: `${c.label} · ${m.model_id}`,
+      })),
+    );
+    return {
+      specs: status,
+      selections,
+      products,
+      reviews,
+      runs: runs.filter((r) => r.state === 'active'),
+      budgets: budgets.filter((b) => b.status === 'active'),
+      pricing,
+      builders,
+    };
+  }, [workspace.id]);
+  const d = data.data;
+  // While a build or package runs on the server, keep the page current.
+  const running = d?.products.some((p) =>
+    p.builds.some(
+      (b) => b.state === 'running' || b.package?.state === 'running',
+    ),
+  );
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(data.reload, 2000);
+    return () => clearInterval(t);
+  }, [running]);
+
+  async function act(what: () => Promise<unknown>, done?: string) {
+    setBusy(true);
+    setError('');
+    setNote('');
+    try {
+      await what();
+      if (done) setNote(done);
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+      data.reload();
+    }
+  }
+  const post = (path: string, body: unknown) =>
+    api(z.unknown(), `${base}/${path}`, {
+      csrf: session.csrf_token,
+      body,
+      timeoutMs: 60_000,
+    });
+
+  return (
+    <section className="panel" aria-labelledby="build-title">
+      <h2 id="build-title">Build and package</h2>
+      <p className="small">
+        A product is built from a frozen spec, one task at a time. The studio
+        writes the patch through the builder, runs the acceptance cases in the
+        isolated worker and has the result reviewed; a verified build can then
+        be packaged into Gallery. Closing this page stops nothing.
+      </p>
+      {fixture && (
+        <p className="notice">
+          Fixture workspace: the deterministic builder only answers for the
+          synthetic checklist sample, and every amount is simulated.
+        </p>
+      )}
+      {!owner && <p className="notice">Only the workspace owner can build.</p>}
+      <Status
+        loading={data.loading && !d}
+        error={data.error}
+        retry={data.reload}
+      >
+        {d && (
+          <>
+            {fixture && owner && (
+              <Sample
+                specs={d.specs}
+                selections={d.selections}
+                write={(body) =>
+                  act(
+                    () => post('products/sample-spec', body),
+                    'Sample spec written; freeze it next.',
+                  )
+                }
+                reviews={d.reviews}
+                busy={busy}
+                run={(path, specId, done) =>
+                  act(() => post(`products/${path}`, { spec_id: specId }), done)
+                }
+                open={open}
+              />
+            )}
+            <h3>Specs</h3>
+            {d.specs.length === 0 ? (
+              <Empty>
+                No specs yet. In a fixture workspace the sample above can write
+                one; writing a spec for a real option still uses the command
+                line (<code>pnpm cli spec-create</code>).
+              </Empty>
+            ) : (
+              <ul className="rows">
+                {d.specs.map((s) => {
+                  const made = d.products.filter(
+                    (p) =>
+                      p.product.binding.spec_id === s.spec.id &&
+                      p.product.binding.spec_version === s.spec.version,
+                  );
+                  return (
+                    <li key={s.spec.id}>
+                      <strong>{s.spec.title}</strong> v{s.spec.version} ·{' '}
+                      {s.frozen_current
+                        ? 'frozen'
+                        : s.latest_freeze
+                          ? 'changed since its last freeze'
+                          : 'not frozen'}
+                      {s.blockers.length > 0 && (
+                        <small> · {s.blockers.join('; ')}</small>
+                      )}{' '}
+                      {owner && s.frozen_current && made.length === 0 && (
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            act(
+                              () => post('products', { spec_id: s.spec.id }),
+                              'Product created from the frozen spec.',
+                            )
+                          }
+                        >
+                          Create product
+                        </button>
+                      )}
+                      {!s.frozen_current && (
+                        <button className="text" onClick={() => open('scores')}>
+                          Freeze it under Scores and specs
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <h3>Products</h3>
+            {d.products.length === 0 ? (
+              <Empty>No products yet. Create one from a frozen spec.</Empty>
+            ) : (
+              d.products.map((p) => (
+                <Product
+                  key={p.product.id}
+                  entry={p}
+                  spec={d.specs.find(
+                    (s) => s.spec.id === p.product.binding.spec_id,
+                  )}
+                  data={d}
+                  owner={owner}
+                  fixture={fixture}
+                  busy={busy}
+                  act={act}
+                  post={post}
+                  open={open}
+                />
+              ))
+            )}
+          </>
+        )}
+      </Status>
+      {note && (
+        <p className="small" role="status">
+          {note}
+        </p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** The $0 sample's three owner steps, in order, each saying what it does. */
+function Sample({
+  specs,
+  selections,
+  write,
+  reviews,
+  busy,
+  run,
+  open,
+}: {
+  specs: SpecStatus[];
+  selections: {
+    selection_id: string;
+    alternative: { id: string; version: number };
+  }[];
+  write: (body: unknown) => void;
+  reviews: StoredEntity[];
+  busy: boolean;
+  run: (path: string, specId: string, done: string) => void;
+  open: (view: View, id?: string) => void;
+}) {
+  const [specId, setSpecId] = useState('');
+  const spec = specs.find((s) => s.spec.id === specId) ?? specs[0];
+  if (!spec)
+    return selections[0] ? (
+      <div className="cite">
+        <h3>Try the $0 sample</h3>
+        <p className="small">
+          Write the synthetic checklist as a spec for the option you selected to
+          build. Then freeze it, add the sample review and build it here.
+        </p>
+        <button
+          className="secondary"
+          disabled={busy}
+          onClick={() => write(selections[0])}
+        >
+          Write the sample spec
+        </button>
+      </div>
+    ) : (
+      <Empty>
+        The sample needs a spec, or a selection that chose an option to build
+        (Compare and decide).
+      </Empty>
+    );
+  const isSample = spec.spec.title === 'Synthetic checklist sample';
+  const reviewed = reviews.some((r) => reviewOf(r, spec));
+  return (
+    <div className="cite">
+      <h3>Try the $0 sample</h3>
+      <label htmlFor="sample-spec">Spec</label>
+      <select
+        id="sample-spec"
+        value={spec.spec.id}
+        onChange={(e) => setSpecId(e.target.value)}
+      >
+        {specs.map((s) => (
+          <option key={s.spec.id} value={s.spec.id}>
+            {s.spec.title} v{s.spec.version}
+          </option>
+        ))}
+      </select>
+      <ol className="small">
+        <li>
+          Put the synthetic checklist into this spec as a new version.{' '}
+          <button
+            className="secondary"
+            disabled={busy || isSample}
+            onClick={() =>
+              run(
+                'sample-spec',
+                spec.spec.id,
+                'The spec now holds the synthetic checklist; freeze it next.',
+              )
+            }
+          >
+            {isSample ? 'Done' : 'Use the sample content'}
+          </button>
+        </li>
+        <li>
+          Freeze it under Scores and specs.{' '}
+          {spec.frozen_current ? (
+            'Done.'
+          ) : (
+            <button className="text" onClick={() => open('scores')}>
+              Go to Scores and specs
+            </button>
+          )}
+        </li>
+        <li>
+          Add the sample humility review of this version.{' '}
+          <button
+            className="secondary"
+            disabled={busy || reviewed}
+            onClick={() =>
+              run(
+                'sample-review',
+                spec.spec.id,
+                'Sample humility review added.',
+              )
+            }
+          >
+            {reviewed ? 'Done' : 'Add the sample review'}
+          </button>
+        </li>
+        <li>Create the product, prepare its task and start a build below.</li>
+      </ol>
+    </div>
+  );
+}
+
+const reviewOf = (r: StoredEntity, s: SpecStatus) => {
+  const subject = (r.body as { subject?: { id?: string; version?: number } })
+    .subject;
+  return (
+    r.status === 'active' &&
+    subject?.id === s.spec.id &&
+    subject.version === s.spec.version
+  );
+};
+
+type Data = {
+  reviews: StoredEntity[];
+  runs: z.infer<typeof RunControlSchema>[];
+  budgets: z.infer<typeof EnvelopeSchema>[];
+  pricing: z.infer<typeof PricingSnapshotSchema>[];
+  builders: {
+    key: string;
+    connection_id: string;
+    model_id: string;
+    label: string;
+  }[];
+};
+
+function Product({
+  entry,
+  spec,
+  data,
+  owner,
+  fixture,
+  busy,
+  act,
+  post,
+  open,
+}: {
+  entry: ProductEntry;
+  spec: SpecStatus | undefined;
+  data: Data;
+  owner: boolean;
+  fixture: boolean;
+  busy: boolean;
+  act: (what: () => Promise<unknown>, done?: string) => Promise<void>;
+  post: (path: string, body: unknown) => Promise<unknown>;
+  open: (view: View, id?: string) => void;
+}) {
+  const p = entry.product;
+  const current =
+    spec?.frozen_current && spec.spec.version === p.binding.spec_version;
+  return (
+    <article className="artifact">
+      <h4>
+        {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version} · product{' '}
+        {shortId(p.id)}
+      </h4>
+      {!current && (
+        <p className="notice">
+          The spec changed or was unfrozen after this product was made, so it
+          cannot be built or packaged. Create a product from the current frozen
+          version.
+        </p>
+      )}
+      {p.binding.tasks.map(({ key }) => {
+        const task = entry.tasks.find((t) => t.key === key);
+        const builds = entry.builds.filter((b) => b.task_id === task?.id);
+        return (
+          <div key={key}>
+            <p>
+              <strong>Task {key}</strong>{' '}
+              {!task &&
+                owner &&
+                current &&
+                // A fresh product's tasks start from its first commit.
+                (entry.tasks.length === 0 ? (
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      act(
+                        () =>
+                          post(`products/${p.id}/tasks`, {
+                            task_key: key,
+                            expected_commit: p.initial_commit,
+                          }),
+                        `Task ${key} prepared.`,
+                      )
+                    }
+                  >
+                    Prepare task
+                  </button>
+                ) : (
+                  <small>one task per product for now</small>
+                ))}
+            </p>
+            {task && owner && current && (
+              <StartBuild
+                key={task.id}
+                specId={p.binding.spec_id}
+                specVersion={p.binding.spec_version}
+                data={data}
+                fixture={fixture}
+                busy={busy || builds.some((b) => b.state === 'running')}
+                start={(plan) =>
+                  act(async () => {
+                    const r = Started.parse(
+                      await post(`products/${p.id}/builds`, {
+                        task_id: task.id,
+                        expected_commit: task.base_commit,
+                        plan,
+                      }),
+                    );
+                    return r;
+                  }, 'Build started. This page updates while it runs.')
+                }
+              />
+            )}
+            {builds.length > 0 && (
+              <ul className="rows">
+                {builds.map((b) => (
+                  <li key={b.id}>
+                    <span className="badge">{STATE_LABEL[b.state]}</span> build{' '}
+                    {shortId(b.id)} · started {when(b.started_at)}
+                    {b.fixture && ' · fixture'}
+                    {b.reason && (
+                      <small> · {b.reason.replace(/^Error: /, '')}</small>
+                    )}
+                    {b.state === 'checkpoint' &&
+                      b === builds[0] &&
+                      /admission/i.test(b.reason ?? '') && (
+                        <>
+                          {' '}
+                          <button
+                            className="text"
+                            onClick={() => open('decisions')}
+                          >
+                            Answer it under Decisions, then build again
+                          </button>
+                        </>
+                      )}
+                    {b.package?.state === 'running' && (
+                      <small> · packaging…</small>
+                    )}
+                    {b.package?.state === 'failed' && (
+                      <small> · packaging failed: {b.package.error}</small>
+                    )}
+                    {b.package?.state === 'done' && (
+                      <>
+                        {' '}
+                        <button
+                          className="text"
+                          onClick={() =>
+                            open('gallery', b.package?.artifact_id)
+                          }
+                        >
+                          Packaged: open in Gallery
+                        </button>
+                      </>
+                    )}
+                    {b.state === 'verified_candidate' &&
+                      owner &&
+                      current &&
+                      b.package?.state !== 'running' &&
+                      b.package?.state !== 'done' && (
+                        <>
+                          {' '}
+                          <button
+                            className="secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              act(
+                                () =>
+                                  post(`products/${p.id}/package`, {
+                                    build_id: b.id,
+                                  }),
+                                'Packaging started. It reruns the build from its archive first.',
+                              )
+                            }
+                          >
+                            Package
+                          </button>
+                        </>
+                      )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </article>
+  );
+}
+
+/** The build plan: which run, budget, pricing, humility review and builder; limits in range. */
+function StartBuild({
+  specId,
+  specVersion,
+  data,
+  fixture,
+  busy,
+  start,
+}: {
+  specId: string;
+  specVersion: number;
+  data: Data;
+  fixture: boolean;
+  busy: boolean;
+  start: (plan: unknown) => Promise<void>;
+}) {
+  const reviews = data.reviews.filter((r) => {
+    const s = (r.body as { subject?: { id?: string; version?: number } })
+      .subject;
+    return (
+      r.status === 'active' && s?.id === specId && s.version === specVersion
+    );
+  });
+  const [run, setRun] = useState('');
+  const [budget, setBudget] = useState('');
+  const [price, setPrice] = useState('');
+  const [review, setReview] = useState('');
+  const [builder, setBuilder] = useState('broker');
+  const [repairs, setRepairs] = useState(1);
+  const runId = data.runs.some((r) => r.run_id === run)
+    ? run
+    : (data.runs.find((r) => r.autonomy_mode !== 'human_only')?.run_id ?? '');
+  const budgetId = data.budgets.some((b) => b.id === budget)
+    ? budget
+    : (data.budgets[0]?.id ?? '');
+  const priceId = data.pricing.some((p) => p.id === price)
+    ? price
+    : (data.pricing[0]?.id ?? '');
+  const chosen = reviews.find((r) => r.id === review) ?? reviews[0];
+  const connection = data.builders.find((b) => b.key === builder);
+  const missing = [
+    !runId && 'an active run (register one under Evidence or Submit)',
+    !budgetId && 'an active budget (Budgets)',
+    !priceId && 'a pricing snapshot (Budgets)',
+    !chosen && 'a humility review of this spec version',
+  ].filter(Boolean);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (missing.length || !chosen) return;
+    void start({
+      format: 'build-plan/1',
+      run_id: runId,
+      envelope_id: budgetId,
+      pricing_snapshot_id: priceId,
+      humility_review: { id: chosen.id, version: chosen.version },
+      data_class: fixture ? 'synthetic' : 'public',
+      max_repairs: repairs,
+      max_calls: 2 + 2 * repairs,
+      timeout_ms: 30000,
+      max_output_tokens: 3000,
+      deadline: new Date(Date.now() + 30 * 60_000).toISOString(),
+      ...(connection
+        ? {
+            codex_plan_builder: {
+              connection_id: connection.connection_id,
+              model_id: connection.model_id,
+            },
+          }
+        : {}),
+    });
+  }
+  return (
+    <form className="cite" onSubmit={submit}>
+      <label htmlFor="bp-run">Run</label>
+      <select
+        id="bp-run"
+        value={runId}
+        onChange={(e) => setRun(e.target.value)}
+      >
+        {data.runs.length === 0 && <option value="">No active run</option>}
+        {data.runs.map((r) => (
+          <option key={r.run_id} value={r.run_id}>
+            {words(r.autonomy_mode)} run {shortId(r.run_id)}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="bp-budget">Budget</label>
+      <select
+        id="bp-budget"
+        value={budgetId}
+        onChange={(e) => setBudget(e.target.value)}
+      >
+        {data.budgets.length === 0 && (
+          <option value="">No active budget</option>
+        )}
+        {data.budgets.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="bp-price">Pricing</label>
+      <select
+        id="bp-price"
+        value={priceId}
+        onChange={(e) => setPrice(e.target.value)}
+      >
+        {data.pricing.length === 0 && (
+          <option value="">No pricing snapshot</option>
+        )}
+        {data.pricing.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.body.provider}/{p.body.model_id}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="bp-review">Humility review</label>
+      <select
+        id="bp-review"
+        value={chosen?.id ?? ''}
+        onChange={(e) => setReview(e.target.value)}
+      >
+        {reviews.length === 0 && (
+          <option value="">None for this version</option>
+        )}
+        {reviews.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.title}
+          </option>
+        ))}
+      </select>
+      <label htmlFor="bp-builder">Builder</label>
+      <select
+        id="bp-builder"
+        value={connection ? connection.key : 'broker'}
+        onChange={(e) => setBuilder(e.target.value)}
+      >
+        <option value="broker">
+          {fixture ? 'Fixture builder (simulated)' : 'Model broker (metered)'}
+        </option>
+        {data.builders.map((b) => (
+          <option key={b.key} value={b.key}>
+            Codex on ChatGPT plan · {b.label}
+          </option>
+        ))}
+      </select>
+      {connection && (
+        <p className="small">
+          This is a live call on your ChatGPT plan. It runs only if a grant you
+          approve covers this build; otherwise the build stops and asks under
+          Decisions.
+        </p>
+      )}
+      <label htmlFor="bp-repairs">Repair rounds after a failed check</label>
+      <select
+        id="bp-repairs"
+        value={repairs}
+        onChange={(e) => setRepairs(Number(e.target.value))}
+      >
+        <option value={0}>0</option>
+        <option value={1}>1</option>
+        <option value={2}>2</option>
+      </select>
+      {missing.length > 0 && (
+        <p className="small">Still needed: {missing.join(', ')}.</p>
+      )}
+      <div className="actions">
+        <button className="primary" disabled={busy || missing.length > 0}>
+          Start build
+        </button>
+      </div>
+    </form>
+  );
+}

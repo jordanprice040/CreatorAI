@@ -340,6 +340,10 @@ impl Supervisor {
         let system = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
         cmd.env("PATH", format!("{system}\\System32;{system}"));
         cmd.env("NODE_ENV", "production");
+        // Products are Git repositories (ADR-0046): Git is named by path, not found on PATH.
+        if let Some(git) = find_git() {
+            cmd.env("CREATOR_GIT", git);
+        }
         let mut child = cmd
             .spawn()
             .map_err(|_| "Could not start the studio service".to_string())?;
@@ -1262,6 +1266,35 @@ pub fn chrono_now() -> String {
     let mo = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if mo <= 2 { y + 1 } else { y };
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{m:02}:{s:02}Z")
+}
+
+/// Git for Windows, for the product store: from this app's own PATH, else the usual install
+/// folders. Only the resolved `git.exe` reaches the service, never the PATH itself.
+pub fn find_git() -> Option<PathBuf> {
+    let on_path = std::env::var_os("PATH")
+        .map(|p| {
+            std::env::split_paths(&p)
+                .map(|d| d.join("git.exe"))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let mut usual = Vec::new();
+    for k in ["ProgramFiles", "ProgramW6432", "LOCALAPPDATA"] {
+        if let Ok(v) = std::env::var(k) {
+            let base = PathBuf::from(v);
+            usual.push(base.join("Git").join("cmd").join("git.exe"));
+            usual.push(
+                base.join("Programs")
+                    .join("Git")
+                    .join("cmd")
+                    .join("git.exe"),
+            );
+        }
+    }
+    on_path
+        .into_iter()
+        .chain(usual)
+        .find(|p| p.is_absolute() && p.is_file())
 }
 
 #[cfg(test)]
