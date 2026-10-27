@@ -11,7 +11,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
-import { usdToNano } from './settings.js';
+import { usdToNano } from './amounts.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 
 const nano = z.string().regex(/^-?(0|[1-9][0-9]{0,29})$/);

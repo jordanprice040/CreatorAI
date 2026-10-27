@@ -21,6 +21,31 @@ checkout-ui/walk.json). The replaced-offer badge is not covered by the walk (its
 list is stubbed empty); it is the same `current` flag the offer picker already uses.
 Next eligible: runbook step 5 (exercise the current build in the desktop shell).
 
+## PR #57 review fixes (spending limits) — October 27, 2026
+
+Review of #57: 0 High, 1 Medium, 8 Low. Medium fixed: a new test fires 8 concurrent paid
+dispatches from two workspaces against a 3-call per-model limit and asserts exactly 3 are
+reserved; removing the dispatch's runtime-ceiling lock now fails it (3 of 3 runs). The old
+"serialize" test is renamed to what it checks (concurrent saves). Lows fixed: a direct
+holdBudget test for the study per-run and ceiling refusals (removing the per-run refusal
+fails it); a per-run limit can't be saved below an open final study hold's cap; limits
+above a later, lower ceiling say "the ceiling applies", and the over-ceiling error says to
+lower the limit or raise the ceiling; the review step warns when a limited model has no
+pricing or spending (exact-id match); the form says a reason is needed, keeps edits on a
+version conflict and has a Remove button per model; an API test covers no session (401),
+no workspace (403), missing CSRF (403) and a save; usdToNano moved to apps/web/src/amounts.ts
+to break the settings/spending-limits import cycle. L-6 (view spans all workspaces) is
+recorded in ADR-0044. Re-review of #59 (no High or Medium) lows: the save-side lock is load-bearing once the
+open-hold check exists (a save could otherwise read the holds before an uncommitted hold
+commits), so a test now holds an uncommitted final hold of 3 calls, starts a per-run save of
+2 and expects it refused once the hold commits; removing the lock fails it. The "no pricing
+or calls use this id" warning now also shows after a save (the view marks models named only
+by a limit). Recorded, not fixed: the study build path takes the audit-chain lock before
+holdBudget takes the runtime-ceiling lock, the reverse of ceiling and limit saves, so a final
+build racing an owner save could deadlock (PostgreSQL aborts one, 40P01). Unreachable while
+final builds are LIVE_DISABLED; reordering inside lockAttemptForWrite would invert against
+prepareAttempt's ceiling-then-run order, so fix it with the live final-build work.
+
 ## Test-mode checkout screen (runbook step 3, ADR-0045) — October 27, 2026
 
 The Payments page has a "Checkout (test mode)" section (apps/web/src/checkout.tsx), between

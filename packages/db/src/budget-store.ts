@@ -442,15 +442,20 @@ export class BudgetStore extends OversightStore {
       provider: string;
       model_id: string;
       exposure: string;
+      known: boolean;
     }>(
-      `with keys as (
+      `with seen as (
          select provider, model_id from budget_reservations where not fixture
          union select p.body->>'provider', p.body->>'model_id'
            from pricing_snapshots p join workspaces w on w.id = p.workspace_id
-          where not w.fixture
+          where not w.fixture),
+       keys as (
+         select provider, model_id from seen
          union select x->>'provider', x->>'model_id'
            from jsonb_array_elements($2::jsonb) x)
-       select k.provider, k.model_id, (select ${counted} from budget_reservations r
+       select k.provider, k.model_id,
+         exists(select 1 from seen s where s.provider = k.provider
+           and s.model_id = k.model_id) as known, (select ${counted} from budget_reservations r
           where not r.fixture and r.created_at >= $1 and r.provider = k.provider
             and r.model_id = k.model_id) as exposure
          from keys k where k.provider in ('openai', 'brave')
@@ -483,6 +488,7 @@ export class BudgetStore extends OversightStore {
             (l) => l.provider === m.provider && l.model_id === m.model_id,
           )?.limit_nano_usd ?? null,
         exposure_nano_usd: m.exposure,
+        known: m.known,
       })),
       top_runs: runs.rows
         .filter((r) => BigInt(r.exposure) > 0n)
@@ -562,6 +568,21 @@ export class BudgetStore extends OversightStore {
           'INVALID_CONTRACT',
           `${over.name} is above the overall ceiling of ${ceiling} nano-USD; narrower limits must fit under it.`,
         );
+      // An open final study attempt already holds its frozen cap; a per-run limit below it
+      // would cut that attempt off part-way, so wait until it finishes.
+      if (limits.per_run_nano_usd !== null) {
+        const { rows: holds } = await c.query<{ cap: string | null }>(
+          `select max(h.cap_nano)::text as cap from study_budget_holds h
+            where h.ledger = 't15-final' and not exists (
+              select 1 from study_events e where e.attempt_id = h.attempt_id and e.kind = 'finished')`,
+        );
+        const cap = holds[0]?.cap;
+        if (cap && BigInt(limits.per_run_nano_usd) < BigInt(cap))
+          throw fail(
+            'INVALID_CONTRACT',
+            `An open final study attempt holds ${cap} nano-USD; a per-run limit below that would stop it part-way. Set it after the attempt finishes.`,
+          );
+      }
       const version = cur.version + 1;
       const payload = {
         version,
