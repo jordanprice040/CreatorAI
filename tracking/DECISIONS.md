@@ -1,5 +1,23 @@
 # Decision log
 
+## ADR-0044 — Per-run and per-model spending limits under the ceiling (accepted October 27, 2026)
+
+Implements the narrower limits from owner decision #10 as runbook step 4 (Jordan approved
+the step on 2026-10-27). One optional per-run limit and optional per-model limits
+(provider + model id) sit under the overall ceiling of ADR-0043. Each Settings save is an
+immutable version of the whole set in `runtime_limit_changes` (migration 31) with a reason
+and a `spending.limits_changed` audit event in the same transaction, taken under the
+`runtime-ceiling` advisory lock and naming the version it replaces. Same audience as the
+ceiling: only a signed-in human workspace owner. Every limit must be at or below the
+ceiling in force when saved; dispatch checks the ceiling and the limits both, so a later
+lower ceiling still wins. Limits count real (non-fixture) paid calls since the ceiling's
+start date, exactly as the ceiling does (settled cost, held exposure while in flight or
+unknown); ChatGPT-plan requests are subscription quota, not metered, and are not counted.
+They apply to study calls too, and a final study attempt whose frozen cap exceeds the
+per-run limit is refused before it starts rather than cut off part-way. Safe default: no
+narrower limits are set, so behaviour is unchanged until Jordan sets some; this work set no
+amounts. Still future work from #10: per-user, per-task, provider-wide and recurring limits.
+
 ## ADR-0043 — Owner-set runtime spending ceiling in Settings (accepted October 26, 2026)
 
 Implements owner decision #10's overall ceiling (tracking/OWNER_DECISIONS_2026-10-20.md);

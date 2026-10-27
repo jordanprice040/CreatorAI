@@ -525,6 +525,7 @@ export function createApi(
     }
   };
   const SETTINGS_SPENDING_ROUTE = /^\/api\/settings\/spending$/;
+  const SETTINGS_LIMITS_ROUTE = /^\/api\/settings\/spending-limits$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -533,7 +534,8 @@ export function createApi(
       CONNECTIONS_ROUTE.exec(url.pathname) ??
       MARKETING_ROUTE.exec(url.pathname) ??
       PORTFOLIO_ROUTE.exec(url.pathname) ??
-      SETTINGS_SPENDING_ROUTE.exec(url.pathname);
+      SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
+      SETTINGS_LIMITS_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -575,6 +577,18 @@ export function createApi(
         return send(
           200,
           await store.setRuntimeCeiling(ctx, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown settings route.');
+    }
+    // Narrower per-run and per-model limits under that ceiling (ADR-0044); same audience.
+    if (SETTINGS_LIMITS_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.spendLimits(ctx), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.setSpendLimits(ctx, await readJson(req)),
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown settings route.');

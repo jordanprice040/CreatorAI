@@ -767,6 +767,29 @@ label.claim-attach input {
 dl.ceiling {
   margin: 12px 0 4px;
 }
+table.limits {
+  margin: 8px 0;
+  max-width: 520px;
+}
+fieldset.limits {
+  border: 0;
+  margin: 12px 0 4px;
+  padding: 0;
+}
+fieldset.limits legend {
+  padding: 0;
+}
+.limit-row {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr) 8em;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+@media (max-width: 520px) {
+  .limit-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .row-actions {
   display: inline-flex;
   flex-wrap: wrap;

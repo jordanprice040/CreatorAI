@@ -99,6 +99,7 @@ test('dollar amounts typed in Settings become exact nano-USD', async () => {
     './budgets.js': {},
     './ui.js': {},
     './page-drafts.js': {},
+    './spending-limits.js': {},
   });
   assert.equal(usdToNano('20'), '20000000000');
   assert.equal(usdToNano('$12.5'), '12500000000');
@@ -256,4 +257,44 @@ test('funding keeps one request key per request and asks before loosening a poli
       true,
       JSON.stringify(change),
     );
+});
+
+test('Settings describes limit changes in plain words and flags any that widen spending', async () => {
+  const { limitChanges } = await load<{
+    limitChanges: (
+      before: unknown,
+      after: unknown,
+    ) => { lines: string[]; widens: boolean };
+  }>('spending-limits.tsx', {
+    './oversight.js': {},
+    './budgets.js': {
+      money: (n: string) => `$${(Number(n) / 1e9).toFixed(2)}`,
+    },
+    './settings.js': {},
+    './ui.js': {},
+    './page-drafts.js': {},
+  });
+  const none = { per_run_nano_usd: null, per_model: [] };
+  const astra = (n: string) => ({
+    provider: 'openai',
+    model_id: 'gpt-6-astra',
+    limit_nano_usd: n,
+  });
+  const set = {
+    per_run_nano_usd: '2000000000',
+    per_model: [astra('5000000000')],
+  };
+  assert.deepEqual(limitChanges(none, set), {
+    lines: [
+      'Per run: no limit → $2.00',
+      'openai/gpt-6-astra: no limit → $5.00',
+    ],
+    widens: false,
+  });
+  assert.deepEqual(limitChanges(set, none).widens, true);
+  assert.deepEqual(
+    limitChanges(set, { ...set, per_model: [astra('6000000000')] }),
+    { lines: ['openai/gpt-6-astra: $5.00 → $6.00'], widens: true },
+  );
+  assert.deepEqual(limitChanges(set, set), { lines: [], widens: false });
 });
