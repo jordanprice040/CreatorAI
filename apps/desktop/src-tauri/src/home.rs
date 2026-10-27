@@ -88,6 +88,38 @@ pub fn check_home(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// The path as the file system resolves it (junctions, 8.3 names, separators), without
+/// creating anything: the deepest existing ancestor is canonicalized and the rest appended.
+fn resolved(path: &Path) -> PathBuf {
+    let mut rest = Vec::new();
+    let mut cur = path.to_path_buf();
+    loop {
+        if let Ok(c) = std::fs::canonicalize(&cur) {
+            return rest.into_iter().rev().fold(c, |p: PathBuf, n| p.join(n));
+        }
+        match (cur.file_name().map(|n| n.to_os_string()), cur.parent()) {
+            (Some(name), Some(parent)) => {
+                rest.push(name);
+                cur = parent.to_path_buf();
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
+}
+
+/// True when one folder is the other or contains it (case-insensitive, as on Windows).
+pub fn overlaps(a: &Path, b: &Path) -> bool {
+    let parts = |p: &Path| -> Vec<String> {
+        resolved(p)
+            .components()
+            .filter(|c| !matches!(c, std::path::Component::CurDir))
+            .map(|c| c.as_os_str().to_string_lossy().to_lowercase())
+            .collect()
+    };
+    let (a, b) = (parts(a), parts(b));
+    a.starts_with(&b) || b.starts_with(&a)
+}
+
 #[derive(Clone)]
 pub struct Home {
     pub root: PathBuf,
@@ -202,5 +234,34 @@ mod tests {
         std::fs::write(home.config_path(), v.to_string()).unwrap();
         assert!(home.load().is_err());
         let _ = std::fs::remove_dir_all(root);
+    }
+    #[test]
+    fn overlap_sees_through_spelling_and_nesting() {
+        let base = std::env::temp_dir().join(format!(
+            "creator-overlap-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        let installed = base.join("com.creatoragent.studio");
+        std::fs::create_dir_all(&installed).unwrap();
+        let s = installed.to_string_lossy().to_string();
+        for same in [
+            format!("{s}\\"),
+            s.replace('\\', "/"),
+            s.to_uppercase(),
+            format!("{s}\\.\\"),
+        ] {
+            assert!(overlaps(Path::new(&same), &installed), "{same}");
+        }
+        assert!(overlaps(
+            &installed.join("nested").join("deeper"),
+            &installed
+        ));
+        assert!(overlaps(&base, &installed));
+        assert!(!overlaps(
+            &base.join("com.creatoragent.studio-probe"),
+            &installed
+        ));
+        assert!(!overlaps(&base.join("other"), &installed));
+        let _ = std::fs::remove_dir_all(base);
     }
 }

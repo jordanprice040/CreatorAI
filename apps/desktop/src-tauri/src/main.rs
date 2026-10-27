@@ -43,10 +43,13 @@ fn probe_home() -> Result<home::Home, String> {
         Ok(p) if !p.is_empty() => std::path::PathBuf::from(p),
         _ => return Err("Debug probes need CREATOR_STUDIO_HOME set to a throwaway folder".into()),
     };
+    home::check_home(&root)?;
     if let Ok(local) = std::env::var("LOCALAPPDATA") {
-        let installed = std::path::Path::new(&local).join(IDENTIFIER);
-        if root.to_string_lossy().to_lowercase() == installed.to_string_lossy().to_lowercase() {
-            return Err("Debug probes must not use the installed app's folder".into());
+        if home::overlaps(&root, &std::path::Path::new(&local).join(IDENTIFIER)) {
+            return Err(
+                "Debug probes must not use, contain or sit inside the installed app's folder"
+                    .into(),
+            );
         }
     }
     home::Home::new(root)

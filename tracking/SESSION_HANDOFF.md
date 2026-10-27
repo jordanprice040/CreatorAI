@@ -1,3 +1,20 @@
+## PR #63 re-review follow-ups (new PR) — October 27, 2026
+
+#63 merged before its review fixes landed, so 97184f5 (probe home guard, ADR-0041
+amendment, Lows) goes in a new PR with the re-review's items. L1: the probe guard now
+compares file-system-resolved paths component by component (canonicalizing the deepest
+existing ancestor, so nothing is created) and refuses a home that is, contains or sits
+inside the installed folder. Checked on this machine: a junction to the installed home, a
+trailing slash, forward slashes, the 8.3 short name, a `\?\` prefix, a nested folder and
+LOCALAPPDATA itself are all refused (exit 101), nothing was created and no file in the
+installed home changed; new unit test `overlap_sees_through_spelling_and_nesting`. L2: both probe
+scripts wait for the probe to exit before removing the throwaway home and retry busy
+WebView2 files (about 11 s). Nits: "on a new computer" in DESKTOP_STUDIO.md; a comment that
+the close fallback also covers an invalid studio.json.
+Checks: cargo test 17/17 (1 ignored), cargo fmt --check, typecheck, format:check;
+native-startup.mjs passed and left no probe folder. signin-acceptance.mjs started but needs
+a person to approve the sign-in in the browser, so it timed out unattended (not a pass).
+
 ## PR #63 review fixes (desktop walkthrough) — October 27, 2026
 
 Review of #63: 1 Medium, 4 Low, 1 nit, all addressed. M1: debug probes no longer fall back

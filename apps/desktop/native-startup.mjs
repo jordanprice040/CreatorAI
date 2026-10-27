@@ -15,6 +15,23 @@ let web;
 let native;
 // A throwaway studio home: the probe never touches the installed app's WebView2 data.
 const home = await mkdtemp(join(tmpdir(), 'creator-probe-'));
+
+// Removes the throwaway home once the probe has exited. Its WebView2 helper processes can
+// hold the profile a little longer, so busy files are retried (linear backoff, about 11 s).
+async function removeHome() {
+  if (native && native.exitCode === null && native.signalCode === null) {
+    native.kill();
+    await once(native, 'close');
+  }
+  await rm(home, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
+  }).catch((e) =>
+    console.error(`Throwaway home left at ${home}: ${e.message}`),
+  );
+}
 try {
   api.server.listen(4310, '127.0.0.1');
   await once(api.server, 'listening');
@@ -106,8 +123,7 @@ try {
     ),
   );
 } finally {
-  native?.kill();
+  await removeHome();
   web?.kill();
   await api.close();
-  await rm(home, { recursive: true, force: true, maxRetries: 5 });
 }

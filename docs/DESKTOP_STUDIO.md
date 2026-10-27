@@ -1,6 +1,6 @@
 # Installed desktop studio (§2.1)
 
-Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. Since October 27, 2026 setup recommends and preselects a new, empty studio and preselects Keep running in the background (existing installs keep their saved choice). An upgrade keeps an install's saved choice, so the installed studio (set up with `quit`) still quits on close after step 7 unless Jordan switches it in the status window. Restoring a studio backup from setup is not built yet. Historical evidence below predates these defaults.
+Owner update after implementation: [register #1–#3](../tracking/OWNER_DECISIONS_2026-10-20.md) settles new/restore/connect and configurable close-to-tray as the target default, first-close explanation, explicit Quit and login startup off/opt-in. Since October 27, 2026 setup recommends (on a new computer) and preselects a new, empty studio and preselects Keep running in the background (existing installs keep their saved choice). An upgrade keeps an install's saved choice, so the installed studio (set up with `quit`) still quits on close after step 7 unless Jordan switches it in the status window. Restoring a studio backup from setup is not built yet. Historical evidence below predates these defaults.
 
 October 20, 2026. Design: ADR-0041 in `tracking/DECISIONS.md`. Evidence:
 `tracking/evidence/desktop-2-1/`.
