@@ -1,3 +1,23 @@
+## PR #68 re-review fixes (Recover) — October 27, 2026
+
+Re-review of #68: M1 confirmed; one Medium left (N1) and four Lows. N1: Recover now also
+reconciles acceptance runs a closed app left in the worker (this product's running
+executions and the studio-wide pending marker's run if it is this owner's) through
+`ExecutionSupervisor.reconcile`, which refuses while the supervisor lives or the lease is
+fresh and verifies the WSL2 unit stopped before freeing the dispatch lock and marker; a
+dispatch lock with no worker launched is released; the page says "Nothing was locked"
+when nothing changed and lists what it released or reconciled. Lows: recovery holds the
+product (no build or second recovery meanwhile) and re-reads each lock before releasing;
+a lock written before this boot is dead whatever process has its number now; the
+management lock needs clean task worktrees and no leftover Git index lock (else: create a
+new product); the lock notice shows only on the product that failed, Recover asks to
+confirm, and the event records who; an empty fresh lock is "being written"; CREATOR_GIT
+must be absolute. Checks: studio-builds (live holder, writing, pre-boot, nothing-to-do,
+dispatch with/without marker), executor + web-display, cargo test 17/17, typecheck,
+format:check. New gated test studio-builds-wsl (real WSL2 crash → Recover refuses while
+the supervisor lives, then reconciles) could not run: wsl.exe on this machine now fails
+with Wsl/Service/E_UNEXPECTED (the existing real-worker executor tests fail the same way).
+
 ## PR #67 review fixes (in-app builds) — October 27, 2026
 
 Review of #67: 2 Medium, 4 Low. M1: the build ports drop the request's Idempotency-Key,

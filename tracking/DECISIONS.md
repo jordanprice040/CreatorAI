@@ -33,7 +33,10 @@ Idempotency-Key, since store commands replay on it and one approved-once admissi
 not cover a second build or round. `POST .../products/:id/recover` releases a product's
 locks whose recorded process is gone (never one held by this process or a live one; the
 management lock only with a clean integration repo), keeping the lock file and an event.
-A second package request for a build already packaging is refused. Known limit: a build
+A second package request for a build already packaging is refused. Recover also reconciles an
+acceptance run the app left in the worker (only after its supervisor is gone and the
+executor verifies the WSL2 unit stopped) and releases a dispatch lock no worker was
+launched under; a lock written before the current boot counts as dead. Known limit: a build
 already running continues after the owner signs out, like other started work; revoking
 its grant or stopping its run stops it at the next step.
 

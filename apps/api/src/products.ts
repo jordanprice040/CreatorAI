@@ -90,8 +90,7 @@ const refusal = (e: unknown): never => {
 export class StudioBuilds {
   /** Builds and packages started by this process; restarts forget them (state is on disk). */
   private readonly builds = new Map<string, Job>();
-  /** Products with a build starting or running here: the supervisor's lock would make a
-   * second start wait for the first to finish, so it is refused instead. */
+  /** Products with a build or recovery running here; a second start is refused, not queued. */
   private readonly building = new Set<string>();
   private readonly packages = new Map<string, Job>();
   constructor(
@@ -517,12 +516,71 @@ export class StudioBuilds {
     if (this.building.has(p.id))
       throw new ContractError(
         'VERSION_CONFLICT',
-        'A build of this product is running; nothing to recover.',
+        'A build or recovery of this product is running; wait for it.',
       );
-    const released = await this.artifacts.products
-      .recoverDeadLocks(p.id)
-      .catch(refusal);
-    return { product_id: p.id, released };
+    // Held for the whole recovery: no build of it starts, and no second recovery runs.
+    this.building.add(p.id);
+    try {
+      return await this.recoverHeld(bare(ctx), ws, p);
+    } finally {
+      this.building.delete(p.id);
+    }
+  }
+  /**
+   * In order: the management lock (reconciliation needs it), then every acceptance run the
+   * crash left running, reconciled by the executor, which verifies the WSL2 worker stopped and
+   * then frees the dispatch lock and pending marker, then the build lock, then a dispatch lock
+   * left with no worker. A refusal stops recovery there, saying why; nothing is resent.
+   */
+  private async recoverHeld(ctx: CommandContext, ws: string, p: Product) {
+    const products = this.artifacts.products,
+      executor = this.artifacts.executor;
+    const released: string[] = [];
+    const reconciled: string[] = [];
+    const step = async <T>(work: () => Promise<T>) => work().catch(refusal);
+    if (
+      await step(() => products.recoverDeadLock('product', p.id, ctx.actorId))
+    )
+      released.push('product');
+    const running = (await step(() => executor.executions(p.id))).filter((e) =>
+      ['running', 'cleanup_required'].includes(e.state),
+    );
+    // The studio-wide marker may name another product's run; only one of this owner's.
+    const marker = await readFile(
+      join(products.root, 'pending-worker.json'),
+      'utf8',
+    )
+      .then(
+        (t) => JSON.parse(t) as { product_id?: string; execution_id?: string },
+      )
+      .catch(() => null);
+    const targets = running.map((e) => [p.id, e.id] as const);
+    if (
+      marker?.product_id &&
+      marker.execution_id &&
+      !targets.some(([, id]) => id === marker.execution_id)
+    ) {
+      const other = await products.product(marker.product_id).catch(() => null);
+      if (
+        other &&
+        other.binding.workspace_id === ws &&
+        other.integration_owner === ctx.actorId
+      )
+        targets.push([other.id, marker.execution_id]);
+    }
+    for (const [product, execution] of targets) {
+      const record = await step(() =>
+        executor.reconcile(product, execution, ctx.actorId),
+      );
+      if (record.state === 'lost') reconciled.push(execution);
+    }
+    if (await step(() => products.recoverDeadLock('builds', p.id, ctx.actorId)))
+      released.push('builds');
+    if (
+      await step(() => products.recoverDeadLock('dispatch', p.id, ctx.actorId))
+    )
+      released.push('dispatch');
+    return { product_id: p.id, released, reconciled };
   }
 
   /** Packages a verified build in the worker, then lists it in Gallery. Runs in the background. */

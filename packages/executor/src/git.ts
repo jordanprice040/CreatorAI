@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { readdir, lstat } from 'node:fs/promises';
 import { canonical, fileAt } from './files.js';
 
@@ -9,7 +9,9 @@ export async function git(cwd: string, args: string[]): Promise<string> {
   return await new Promise((resolve, reject) => {
     // The installed studio runs with a minimal PATH; its supervisor names Git (ADR-0046).
     const child = spawn(
-      process.env.CREATOR_GIT || 'git',
+      process.env.CREATOR_GIT && isAbsolute(process.env.CREATOR_GIT)
+        ? process.env.CREATOR_GIT
+        : 'git',
       [
         '-c',
         'core.hooksPath=/dev/null',

@@ -88,6 +88,8 @@ export function BuildView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // The product the last failed action was about, so a lock notice shows only there.
+  const [failed, setFailed] = useState('');
   const data = useLoad(async () => {
     const [specs, products, reviews, runs, budgets, pricing] =
       await Promise.all([
@@ -168,15 +170,21 @@ export function BuildView({
     return () => clearInterval(t);
   }, [running]);
 
-  async function act(what: () => Promise<unknown>, done?: string) {
+  async function act(
+    what: () => Promise<unknown>,
+    done?: string | ((result: unknown) => string),
+    product?: string,
+  ) {
     setBusy(true);
     setError('');
     setNote('');
+    setFailed('');
     try {
-      await what();
-      if (done) setNote(done);
+      const result = await what();
+      if (done) setNote(typeof done === 'string' ? done : done(result));
     } catch (e) {
       setError(message(e));
+      setFailed(product ?? '');
     } finally {
       setBusy(false);
       data.reload();
@@ -298,7 +306,7 @@ export function BuildView({
                   act={act}
                   post={post}
                   open={open}
-                  locked={/locked/i.test(error)}
+                  locked={failed === p.product.id && /locked/i.test(error)}
                 />
               ))
             )}
@@ -471,7 +479,11 @@ function Product({
   owner: boolean;
   fixture: boolean;
   busy: boolean;
-  act: (what: () => Promise<unknown>, done?: string) => Promise<void>;
+  act: (
+    what: () => Promise<unknown>,
+    done?: string | ((result: unknown) => string),
+    product?: string,
+  ) => Promise<void>;
   post: (path: string, body: unknown) => Promise<unknown>;
   open: (view: View, id?: string) => void;
   /** The last action said a product was locked. */
@@ -505,14 +517,38 @@ function Product({
           <button
             className="secondary"
             disabled={busy}
-            onClick={() =>
-              act(async () => {
-                const r = z
-                  .object({ released: z.array(z.string()) })
-                  .parse(await post(`products/${p.id}/recover`, {}));
-                return r;
-              }, 'Recovered. You can build this product again.')
-            }
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Release this product's locks? Only locks whose process is gone are released, and an interrupted test run is first checked to have stopped.",
+                )
+              )
+                return;
+              void act(
+                async () =>
+                  z
+                    .object({
+                      released: z.array(z.string()),
+                      reconciled: z.array(z.string()),
+                    })
+                    .parse(await post(`products/${p.id}/recover`, {})),
+                (r: unknown) => {
+                  const { released, reconciled } = r as {
+                    released: string[];
+                    reconciled: string[];
+                  };
+                  if (!released.length && !reconciled.length)
+                    return 'Nothing was locked, so nothing changed.';
+                  return `Recovered: ${[
+                    ...released.map((l) => `${l} lock released`),
+                    ...reconciled.map(
+                      (id) => `test run ${shortId(id)} confirmed stopped`,
+                    ),
+                  ].join(', ')}. You can build this product again.`;
+                },
+                p.id,
+              );
+            }}
           >
             Recover
           </button>
@@ -559,16 +595,20 @@ function Product({
                 fixture={fixture}
                 busy={busy || builds.some((b) => b.state === 'running')}
                 start={(plan) =>
-                  act(async () => {
-                    const r = Started.parse(
-                      await post(`products/${p.id}/builds`, {
-                        task_id: task.id,
-                        expected_commit: task.base_commit,
-                        plan,
-                      }),
-                    );
-                    return r;
-                  }, 'Build started. This page updates while it runs.')
+                  act(
+                    async () => {
+                      const r = Started.parse(
+                        await post(`products/${p.id}/builds`, {
+                          task_id: task.id,
+                          expected_commit: task.base_commit,
+                          plan,
+                        }),
+                      );
+                      return r;
+                    },
+                    'Build started. This page updates while it runs.',
+                    p.id,
+                  )
                 }
               />
             )}

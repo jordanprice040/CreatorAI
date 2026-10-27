@@ -297,17 +297,59 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   const lock = join(products.dir(p.id), 'builds', 'supervisor.lock');
   const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)']);
   t.after(() => holder.kill());
-  await writeFile(lock, JSON.stringify({ pid: holder.pid, token: 'x' }));
+  const now = new Date().toISOString();
+  await writeFile(
+    lock,
+    JSON.stringify({ pid: holder.pid, token: 'x', at: now }),
+  );
   const locked = await start();
   assert.equal(locked.status, 409, JSON.stringify(locked.body));
   assert.match(JSON.stringify(locked.body), /locked/i);
   const held = await http(`${base}/${p.id}/recover`, {});
   assert.equal(held.status, 409, JSON.stringify(held.body));
-  holder.kill();
-  await once(holder, 'exit');
+  // An empty lock just created is its holder mid-write, not a crash.
+  await writeFile(lock, '');
+  const writing = await http(`${base}/${p.id}/recover`, {});
+  assert.equal(writing.status, 409, JSON.stringify(writing.body));
+  assert.match(writing.body.error.message, /being written/);
+  // Written before this boot, a lock is dead whatever process now has its number.
+  await writeFile(
+    lock,
+    JSON.stringify({ pid: holder.pid, token: 'x', at: '2000-01-01T00:00:00Z' }),
+  );
   const recovered = await http(`${base}/${p.id}/recover`, {});
   assert.equal(recovered.status, 200, JSON.stringify(recovered.body));
   assert.deepEqual(recovered.body.released, ['builds']);
+  assert.deepEqual(recovered.body.reconciled, []);
+  // Nothing left: recovery says nothing changed instead of claiming it recovered.
+  const nothing = await http(`${base}/${p.id}/recover`, {});
+  assert.deepEqual(nothing.body, {
+    product_id: p.id,
+    released: [],
+    reconciled: [],
+  });
+  // The studio-wide dispatch lock of a run that crashed before launching its worker (no
+  // pending marker) is released too; with a marker it waits for reconciliation.
+  const dispatch = join(products.root, 'supervisor.lock');
+  const marker = join(products.root, 'pending-worker.json');
+  const dead = JSON.stringify({
+    pid: holder.pid,
+    token: 'y',
+    at: '2000-01-01T00:00:00Z',
+  });
+  await writeFile(dispatch, dead);
+  await writeFile(marker, JSON.stringify({ product_id: randomUUID() }));
+  const waiting = await http(`${base}/${p.id}/recover`, {});
+  assert.equal(waiting.status, 409, JSON.stringify(waiting.body));
+  assert.match(waiting.body.error.message, /reconciliation first/);
+  await rm(marker);
+  const freed = await http(`${base}/${p.id}/recover`, {});
+  assert.deepEqual(
+    freed.body.released,
+    ['dispatch'],
+    JSON.stringify(freed.body),
+  );
+  holder.kill();
   const unlocked = await start();
   assert.doesNotMatch(JSON.stringify(unlocked.body), /locked/i);
   if (unlocked.status === 202) await settled(unlocked.body.build_id);
