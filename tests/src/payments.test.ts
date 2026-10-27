@@ -588,6 +588,48 @@ test('X07 reinvestment: seed, pending and payouts are not profit; partial, concu
   assert.equal((await store.ledgerBalances(owner, ws)).total_nano, '0');
 });
 
+test('X07 an offer for a replaced release is refused: a newer build or a newer spec version replaces it', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store } = s;
+  const ws = await s.workspace();
+  const { conn } = await s.connected(ws);
+  const first = await verifiedRelease(store, s.db.pool, ws, owner);
+  const second = await first.rebuild();
+  const create = (release: { artifact_id: string; manifest_sha256: string }) =>
+    store.createOffer(owner, ws, {
+      connection_id: conn.id,
+      artifact_id: release.artifact_id,
+      manifest_sha256: release.manifest_sha256,
+      label: 'Fixture app',
+      price_nano_usd: c(1000).toString(),
+    });
+  // Both builds are verified; only the latest of the spec is current.
+  await rejects('INVALID_TRANSITION', create(first));
+  const offer = await create(second);
+  assert.equal(offer.artifact_id, second.artifact_id);
+  // A new spec version replaces every build made for the old one, including the latest.
+  const spec = (
+    await s.db.pool.query('select body from entities where id=$1', [
+      first.spec_id,
+    ])
+  ).rows[0] as { body: unknown };
+  await store.reviseEntity(owner, ws, first.spec_id, {
+    expected_version: 1,
+    title: 'Spec v2',
+    body: spec.body,
+    reason: 'Replaces the version both builds were made for.',
+    corrects_version: null,
+  });
+  await rejects('INVALID_TRANSITION', create(second));
+  // The refusals wrote no offers.
+  const count = await s.db.pool.query(
+    'select count(*)::int as n from payment_offers where workspace_id=$1',
+    [ws],
+  );
+  assert.equal(count.rows[0].n, 1);
+});
+
 test('X07 one processor account and funding balance cannot be registered twice', async (t) => {
   const s = await setup(t);
   if (!s) return;

@@ -34,9 +34,10 @@ study.
 
 Checked against the code on October 26 unless noted.
 
-- **Study export over-shares the audit log.** `exportStudy` reads every audit event in
-  the workspace, not just the study's (`packages/db/src/study-store.ts`, the
-  `audit_events where workspace_id=$1` query).
+- **Study export audit scope (rechecked Oct 27).** `exportStudy` reads the audit events of
+  each attempt's own workspace, which is created with the attempt, so it does not leak the
+  home workspace or other attempts (now pinned by `study.test`). Anything done by hand
+  inside an attempt workspace would still be exported with that attempt.
 - **Health is configuration, not verification.** `/api/health` reports `live_configured`
   when a live adapter is configured and `fixture` otherwise. It never says whether a
   connection actually works.
@@ -48,12 +49,9 @@ Checked against the code on October 26 unless noted.
 - **Overrun guard.** T17 fixed child overruns so they count against every ancestor. It
   also recorded that the guard isn't serialized against a concurrent settle. Not
   rechecked here.
-- **A test fails on `main`.** `build.test` "ChatGPT-plan Codex builder still goes through
-  scoped patches" was reported failing on Oct 26. Not rerun here.
-- **Missing test.** Nothing tests that an offer for a replaced release is refused (needs
-  two builds of one spec).
-- **Stale status files.** `config/readiness.json` is dated Oct 20; `docs/CURRENT_STATUS.md`
-  stops at Oct 23. Use `BUILD_STATUS` until they're refreshed.
+- **Fixed Oct 27:** the Codex-builder test failure on Windows (its assertion ignored that
+  Windows runs real QA) and the missing replaced-release offer test; `config/readiness.json`
+  refreshed to Oct 27. `docs/CURRENT_STATUS.md` still stops at Oct 23; use `BUILD_STATUS`.
 
 Two items from older audit lists look done in code: batch input files are deleted at the
 provider once no item is in flight or unknown (`packages/broker/src/context.ts`), and
@@ -64,9 +62,7 @@ child overruns reach the parent (T17).
 Each step is a separate, bounded task. None of them needs live provider, GitHub or
 payment calls unless it says so, and those need Jordan's go-ahead first.
 
-1. **Clean up `main`.** Fix or explain the failing Codex-builder test, add the
-   replaced-release refusal test, and scope `exportStudy` to the study's own audit events.
-   Refresh `config/readiness.json` from current evidence.
+1. **Clean up `main`.** Done Oct 27 (see `BUILD_STATUS`).
 2. **Funding and reinvestment in the app.** Done October 27 in the Payments page
    ("Funding and reinvesting"), fixture-checked; reinvestment stays off until Jordan sets
    a policy (#47–#49).
