@@ -27,6 +27,8 @@ export interface PaymentServiceOptions {
   fixture?: (connection: PaymentConnection) => FixtureProcessor;
   /** Test seam: the HTTP client a Stripe test-mode adapter uses. */
   stripeFetch?: typeof fetch;
+  /** Test seam: how many test buyers are kept (default 100). */
+  testBuyerLimit?: number;
 }
 const reason = (e: unknown) =>
   e instanceof Error ? e.message.slice(0, 300) : 'unknown error';
@@ -37,6 +39,9 @@ interface TestBuyer {
   events: TestCheckoutState['events'];
   /** Event bodies by event id; signed only when delivered. */
   bodies: Map<string, { type: string; object: Record<string, unknown> }>;
+  /** Where the checkout lives, so forgetting the buyer also closes its simulated session. */
+  fx: FixtureProcessor;
+  session: string;
 }
 const TEST_EVENT_LIMIT = 40;
 const TEST_DELIVERY_LIMIT = 20;
@@ -141,12 +146,21 @@ export class PaymentService {
     const session = target.checkout.processor_session_id!;
     // Get-or-create with no await after it, so concurrent requests share one buyer and the
     // caller's allowed-check and processor change run without interleaving.
+    // A checkout the processor no longer has gets a throwaway buyer, so looking at it never
+    // sets a live one aside.
+    const available = fx.checkouts.has(session);
     let buyer = this.#buyers.get(target.checkout.id);
+    if (!buyer && !available)
+      buyer = { payment: null, events: [], bodies: new Map(), fx, session };
     if (!buyer) {
-      buyer = { payment: null, events: [], bodies: new Map() };
+      buyer = { payment: null, events: [], bodies: new Map(), fx, session };
       this.#buyers.set(target.checkout.id, buyer);
-      for (const old of this.#buyers.keys()) {
-        if (this.#buyers.size <= TEST_BUYER_LIMIT) break;
+      // A forgotten buyer's session is closed too, so its checkout reads as forgotten (as
+      // after a restart) and can never be paid a second time.
+      const limit = this.opts.testBuyerLimit ?? TEST_BUYER_LIMIT;
+      for (const [old, gone] of this.#buyers) {
+        if (this.#buyers.size <= limit) break;
+        gone.fx.checkouts.delete(gone.session);
         this.#buyers.delete(old);
       }
     }
@@ -155,7 +169,7 @@ export class PaymentService {
       fx,
       session,
       buyer,
-      available: fx.checkouts.has(session),
+      available,
     };
   }
   #state(
@@ -216,7 +230,7 @@ export class PaymentService {
     if (!t.available)
       throw new ContractError(
         'INVALID_TRANSITION',
-        'The simulated processor restarted and forgot this checkout; open a new one.',
+        'The simulated processor no longer has this checkout (the studio restarted, or newer test checkouts replaced it); open a new one.',
       );
     if (!this.#state(t.checkout.id, fx, buyer, true).allowed.includes(action))
       throw new ContractError(

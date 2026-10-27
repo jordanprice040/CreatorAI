@@ -16,8 +16,9 @@ same signature, mode, de-duplication and backend-read path real deliveries use, 
 webhook actor identity. The owner chooses the order and can repeat a delivery, which
 exercises duplicate and out-of-order events. Each buyer step or delivery records a
 `payment.test_buyer_requested` audit event (state reads do not). Test-buyer state lives in
-API memory like the fixture processor (the latest 100 checkouts' test buyers are kept);
-after a restart it says so and offers nothing. Stripe test-mode checkouts
+API memory like the fixture processor. At most 100 test buyers are kept (the oldest is
+forgotten first, and its simulated checkout session is closed with it); a forgotten
+checkout, like one after a restart, says so and offers nothing. Stripe test-mode checkouts
 show only Stripe's hosted `https://checkout.stripe.com/` link and a "read a payment by id"
 recovery (the existing reconcile route); no Stripe call was made by this work. Also:
 `checkoutTarget` now refuses an offer whose release has since been replaced (later build or
