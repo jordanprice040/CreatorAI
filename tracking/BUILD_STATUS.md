@@ -1,3 +1,21 @@
+## PR #57 review fixes (spending limits) — October 27, 2026
+
+Review of #57: 0 High, 1 Medium, 8 Low. Medium fixed: a new test fires 8 concurrent paid
+dispatches from two workspaces against a 3-call per-model limit and asserts exactly 3 are
+reserved; removing the dispatch's runtime-ceiling lock now fails it (3 of 3 runs). The old
+"serialize" test is renamed to what it checks (concurrent saves). Lows fixed: a direct
+holdBudget test for the study per-run and ceiling refusals (removing the per-run refusal
+fails it); a per-run limit can't be saved below an open final study hold's cap; limits
+above a later, lower ceiling say "the ceiling applies", and the over-ceiling error says to
+lower the limit or raise the ceiling; the review step warns when a limited model has no
+pricing or spending (exact-id match); the form says a reason is needed, keeps edits on a
+version conflict and has a Remove button per model; an API test covers no session (401),
+no workspace (403), missing CSRF (403) and a save; usdToNano moved to apps/web/src/amounts.ts
+to break the settings/spending-limits import cycle. L-6 (view spans all workspaces) is
+recorded in ADR-0044. Not changed: the save-side lock has no dedicated test; saves are also
+serialized by the version key, and a dispatch that reads the old limits just before a save
+is ordered before it, so no test can show money at risk without it.
+
 ## Per-run and per-model spending limits (runbook step 4, ADR-0044) — October 27, 2026
 
 Settings now has optional per-run and per-model limits under the overall ceiling

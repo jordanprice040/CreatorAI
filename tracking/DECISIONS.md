@@ -14,7 +14,10 @@ lower ceiling still wins. Limits count real (non-fixture) paid calls since the c
 start date, exactly as the ceiling does (settled cost, held exposure while in flight or
 unknown); ChatGPT-plan requests are subscription quota, not metered, and are not counted.
 They apply to study calls too, and a final study attempt whose frozen cap exceeds the
-per-run limit is refused before it starts rather than cut off part-way. Safe default: no
+per-run limit is refused before it starts rather than cut off part-way, and a per-run limit
+cannot be saved below the cap an open final attempt already holds. The Settings view lists
+runs and models from every workspace, like the ceiling; that fits the single-owner app and
+must be narrowed if more than one owner is ever supported. Safe default: no
 narrower limits are set, so behaviour is unchanged until Jordan sets some; this work set no
 amounts. Still future work from #10: per-user, per-task, provider-wide and recurring limits.
 

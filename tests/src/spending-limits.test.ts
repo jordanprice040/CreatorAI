@@ -2,9 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import type { BrokerCallRequest } from '@creator/contracts';
-import { BudgetStore, type CommandContext } from '@creator/db';
-import { freshDatabase } from './pg-harness.js';
+import { once } from 'node:events';
+import type { PoolClient } from 'pg';
+import type {
+  BrokerCallRequest,
+  StudyAttempt,
+  StudyInput,
+} from '@creator/contracts';
+import { createApi } from '@creator/api';
+import { BudgetStore, StudyStore, type CommandContext } from '@creator/db';
+import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
 const owner: CommandContext = { actorId: randomUUID() };
 const pricingFile = (name: string) =>
@@ -129,7 +136,33 @@ async function setup(t: test.TestContext) {
     version = view.version;
     return view;
   };
-  return { db, store, workspace, setLimits };
+  /** What StudyStore.holdBudget writes for an open final attempt: a t15-final hold at its cap. */
+  const openFinalHold = async (
+    ws: string,
+    runId: string,
+    cap: bigint | null,
+  ) => {
+    const studyId = randomUUID();
+    const attemptId = randomUUID();
+    await db.pool.query(
+      `insert into studies(id, workspace_id, manifest, manifest_hash, created_by)
+       values ($1, $2, '{}', $3, $4)`,
+      [studyId, ws, 'b'.repeat(64), owner.actorId],
+    );
+    await db.pool.query(
+      `insert into study_attempts(id, study_id, workspace_id, run_id, assignment, context, context_hash, ordinal)
+       values ($1, $2, $3, $4, '{}', '{}', $5, 1)`,
+      [attemptId, studyId, ws, runId, 'c'.repeat(64)],
+    );
+    if (cap !== null)
+      await db.pool.query(
+        `insert into study_budget_holds(attempt_id, ledger, cap_nano, ledger_cap_nano)
+         values ($1, 't15-final', $2, $3)`,
+        [attemptId, String(cap), '20000000000'],
+      );
+    return { studyId, attemptId };
+  };
+  return { db, store, workspace, setLimits, openFinalHold };
 }
 
 const reason = (p: { kind: string; reservation: { reason_code: string } }) =>
@@ -332,7 +365,7 @@ test('only a workspace owner changes limits, with a reason, never above the ceil
   );
 });
 
-test('a limit change and a paid dispatch serialize: concurrent saves from one version, one wins', async (t) => {
+test('concurrent saves from one version: exactly one wins, the other gets a version conflict', async (t) => {
   const s = await setup(t);
   if (!s) return;
   await s.workspace('real');
@@ -346,4 +379,143 @@ test('a limit change and a paid dispatch serialize: concurrent saves from one ve
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
   const lost = results.find((r) => r.status === 'rejected');
   assert.equal((lost as PromiseRejectedResult).reason.code, 'VERSION_CONFLICT');
+});
+
+test('concurrent dispatches from different workspaces never pass a per-model limit', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // Each workspace has its own envelope, so only the runtime-ceiling lock serializes them.
+  const a = await s.workspace('real');
+  const b = await s.workspace('real');
+  await s.setLimits(null, [{ ...ASTRA, calls: 3n }]);
+  const runs = await Promise.all([a.run(), a.run(), b.run(), b.run()]);
+  const calls = [...runs, ...runs].map((run, i) =>
+    (i % 4 < 2 ? a : b).prepare(run),
+  );
+  const outcomes = (await Promise.all(calls)).map(reason);
+  assert.equal(outcomes.filter((r) => r === 'reserved').length, 3);
+  assert.equal(
+    outcomes.filter((r) => r === 'runtime_model_limit').length,
+    outcomes.length - 3,
+  );
+  const view = await s.store.spendLimits(owner);
+  assert.equal(
+    view.models.find((m) => m.model_id === ASTRA.model_id)?.exposure_nano_usd,
+    String(EXPOSURE * 3n),
+  );
+});
+
+test("a per-run limit cannot be set below an open final study attempt's held cap", async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const a = await s.workspace('real');
+  await s.openFinalHold(a.ws.id, await a.run(), EXPOSURE * 3n);
+  await assert.rejects(s.setLimits(2n), { code: 'INVALID_CONTRACT' });
+  assert.equal((await s.setLimits(3n)).version, 1);
+});
+
+class HoldProbe extends StudyStore {
+  hold(c: PoolClient, ws: string, a: StudyAttempt, input: StudyInput) {
+    return this.holdBudget(c, owner, ws, a, input);
+  }
+}
+
+test('a final study attempt whose cap is above the per-run limit is refused before it starts', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const a = await s.workspace('real');
+  await s.setLimits(2n);
+  const probe = new HoldProbe(s.db.pool);
+  probe.spending = s.store.spending;
+  const attempt = async (cap: bigint) => {
+    const { studyId, attemptId } = await s.openFinalHold(
+      a.ws.id,
+      await a.run(),
+      null,
+    );
+    const c = await s.db.pool.connect();
+    try {
+      await c.query('begin');
+      const refused = await probe.hold(
+        c,
+        a.ws.id,
+        { id: attemptId, study_id: studyId } as StudyAttempt,
+        {
+          governance: {},
+          synthetic: false,
+          config: { max_cost_nano_usd: String(cap) },
+        } as unknown as StudyInput,
+      );
+      await c.query('commit');
+      return { refused, attemptId };
+    } catch (e) {
+      await c.query('rollback');
+      throw e;
+    } finally {
+      c.release();
+    }
+  };
+  const over = await attempt(EXPOSURE * 3n);
+  assert.equal(over.refused?.ledger, 'runtime-run-limit');
+  const events = await s.db.pool.query(
+    "select payload from study_events where attempt_id = $1 and kind = 'budget_refused'",
+    [over.attemptId],
+  );
+  assert.equal(events.rows[0]?.payload.ledger, 'runtime-run-limit');
+  // Above the overall ceiling, the ceiling refuses first.
+  assert.equal(
+    (await attempt(EXPOSURE * 11n)).refused?.ledger,
+    'runtime-ceiling',
+  );
+  // At the limit it is held.
+  const fits = await attempt(EXPOSURE * 2n);
+  assert.equal(fits.refused, null);
+});
+
+test('the limits route needs a signed-in session, and a write needs its CSRF token', async (t) => {
+  let closeApi = async () => {};
+  t.after(() => closeApi());
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const api = createApi({
+    CREATOR_DATABASE_URL: db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  closeApi = api.close;
+  await api.ready();
+  const port = (api.server.address() as { port: number }).port;
+  const base = `http://127.0.0.1:${port}/api`;
+  const url = `${base}/settings/spending-limits`;
+  const body = JSON.stringify({
+    expected_version: 0,
+    limits: { per_run_nano_usd: '1000000000', per_model: [] },
+    reason: 'Route test.',
+  });
+  assert.equal((await fetch(url)).status, 401);
+  const auth = await login(base);
+  // Signed in but owning no workspace: refused by the store.
+  assert.equal((await fetch(url, { headers: auth.read })).status, 403);
+  await fetch(`${base}/workspaces`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth.write },
+    body: JSON.stringify({ name: 'Limits route', record_mode: 'real' }),
+  });
+  const view = await fetch(url, { headers: auth.read });
+  assert.equal(view.status, 200);
+  assert.equal(((await view.json()) as { version: number }).version, 0);
+  const noCsrf = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth.read },
+    body,
+  });
+  assert.equal(noCsrf.status, 403);
+  const saved = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth.write },
+    body,
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(((await saved.json()) as { version: number }).version, 1);
 });

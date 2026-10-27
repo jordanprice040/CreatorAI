@@ -94,13 +94,7 @@ test('problem pickers prefer a problem with options and clip labels at words', a
 test('dollar amounts typed in Settings become exact nano-USD', async () => {
   const { usdToNano } = await load<{
     usdToNano: (text: string) => string | null;
-  }>('settings.tsx', {
-    './oversight.js': {},
-    './budgets.js': {},
-    './ui.js': {},
-    './page-drafts.js': {},
-    './spending-limits.js': {},
-  });
+  }>('amounts.ts');
   assert.equal(usdToNano('20'), '20000000000');
   assert.equal(usdToNano('$12.5'), '12500000000');
   assert.equal(usdToNano(' 0.000000001 '), '1');
@@ -115,7 +109,7 @@ test('payments show credit accounts as positive amounts of what they name', asyn
   }>('payments.tsx', {
     './oversight.js': {},
     './budgets.js': {},
-    './settings.js': {},
+    './amounts.js': {},
     './ui.js': {},
   });
   assert.equal(asShown('revenue', '-25000000000'), '25000000000');
@@ -135,7 +129,7 @@ test('Settings describes limit changes in plain words and flags any that widen s
     './budgets.js': {
       money: (n: string) => `$${(Number(n) / 1e9).toFixed(2)}`,
     },
-    './settings.js': {},
+    './amounts.js': {},
     './ui.js': {},
     './page-drafts.js': {},
   });

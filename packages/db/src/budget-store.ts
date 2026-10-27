@@ -562,6 +562,21 @@ export class BudgetStore extends OversightStore {
           'INVALID_CONTRACT',
           `${over.name} is above the overall ceiling of ${ceiling} nano-USD; narrower limits must fit under it.`,
         );
+      // An open final study attempt already holds its frozen cap; a per-run limit below it
+      // would cut that attempt off part-way, so wait until it finishes.
+      if (limits.per_run_nano_usd !== null) {
+        const { rows: holds } = await c.query<{ cap: string | null }>(
+          `select max(h.cap_nano)::text as cap from study_budget_holds h
+            where h.ledger = 't15-final' and not exists (
+              select 1 from study_events e where e.attempt_id = h.attempt_id and e.kind = 'finished')`,
+        );
+        const cap = holds[0]?.cap;
+        if (cap && BigInt(limits.per_run_nano_usd) < BigInt(cap))
+          throw fail(
+            'INVALID_CONTRACT',
+            `An open final study attempt holds ${cap} nano-USD; a per-run limit below that would stop it part-way. Set it after the attempt finishes.`,
+          );
+      }
       const version = cur.version + 1;
       const payload = {
         version,
