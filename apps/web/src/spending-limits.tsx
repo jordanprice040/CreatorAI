@@ -7,7 +7,7 @@ import {
 import { ApiError, api, message, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { money } from './budgets.js';
-import { usdToNano } from './settings.js';
+import { usdToNano } from './amounts.js';
 import { Status, useLoad } from './ui.js';
 
 type Provider = SpendLimits['per_model'][number]['provider'];
@@ -104,6 +104,8 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
   // The draft as limits, or the first problem with it. Blank means no limit.
   let proposed: SpendLimits | null = null;
   let problem = '';
+  let need = '';
+  let unmatched: string[] = [];
   if (draft && v) {
     const ceiling = BigInt(v.ceiling_nano_usd);
     const parse = (name: string, text: string) => {
@@ -114,7 +116,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
         return null;
       }
       if (BigInt(nano) > ceiling)
-        problem ||= `${name} is above the overall ceiling of ${money(v.ceiling_nano_usd, false)}. Raise the ceiling first if you need more.`;
+        problem ||= `${name} is above the overall ceiling of ${money(v.ceiling_nano_usd, false)}. Lower it to that or less, or raise the ceiling first.`;
       return nano;
     };
     const perRun = parse('Per run', draft.perRun);
@@ -139,6 +141,16 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
         });
     }
     proposed = { per_run_nano_usd: perRun, per_model: perModel };
+    if (!problem && !reason.trim()) need = 'Add a reason to review the change.';
+    // A limit only applies to calls with exactly this provider and model id.
+    unmatched = perModel
+      .map((m) => label(m.provider, m.model_id))
+      .filter(
+        (key) =>
+          !v.models.some(
+            (m) => m.known && label(m.provider, m.model_id) === key,
+          ),
+      );
   }
   const diff =
     v && proposed ? limitChanges(snap?.limits ?? v.limits, proposed) : null;
@@ -169,10 +181,9 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
       data.reload();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'VERSION_CONFLICT') {
-        setDraft(null);
         data.reload();
         setError(
-          'The limits changed elsewhere while you were deciding. The page now shows the latest; make your change again.',
+          'The limits changed elsewhere while you were deciding. Your edits are kept and the changes listed are now against the latest limits; review them again, or cancel to see the latest.',
         );
       } else setError(message(err));
       setSnap(null);
@@ -189,6 +200,8 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
         },
     );
   const reviewing = snap !== null;
+  const aboveCeiling = (nano: string) =>
+    v !== null && BigInt(nano) > BigInt(v.ceiling_nano_usd);
 
   return (
     <>
@@ -217,7 +230,12 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                     No limit <small>the overall ceiling applies</small>
                   </>
                 ) : (
-                  <strong>{money(v.limits.per_run_nano_usd, false)}</strong>
+                  <>
+                    <strong>{money(v.limits.per_run_nano_usd, false)}</strong>
+                    {aboveCeiling(v.limits.per_run_nano_usd) && (
+                      <small> above the ceiling, so the ceiling applies</small>
+                    )}
+                  </>
                 )}
                 {v.top_runs[0] && (
                   <small>
@@ -245,12 +263,29 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                 <tbody>
                   {v.models.map((m) => (
                     <tr key={label(m.provider, m.model_id)}>
-                      <td>{label(m.provider, m.model_id)}</td>
+                      <td>
+                        {label(m.provider, m.model_id)}
+                        {!m.known && (
+                          <small>
+                            {' '}
+                            no pricing or calls use this id yet; check the
+                            spelling
+                          </small>
+                        )}
+                      </td>
                       <td>
                         {m.limit_nano_usd === null ? (
                           <small>no limit</small>
                         ) : (
-                          money(m.limit_nano_usd, false)
+                          <>
+                            {money(m.limit_nano_usd, false)}
+                            {aboveCeiling(m.limit_nano_usd) && (
+                              <small>
+                                {' '}
+                                above the ceiling, so the ceiling applies
+                              </small>
+                            )}
+                          </>
                         )}
                       </td>
                       <td>{money(m.exposure_nano_usd, false)}</td>
@@ -305,6 +340,19 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                     value={m.amount}
                     onChange={(e) => setModel(i, { amount: e.target.value })}
                   />
+                  <button
+                    className="text"
+                    type="button"
+                    aria-label={`Remove ${m.model_id || 'this model'}`}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        models: draft.models.filter((_, j) => j !== i),
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
                 </div>
               ))}
               <button
@@ -326,6 +374,13 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
             {problem && <p className="error">{problem}</p>}
             {!problem && diff && diff.lines.length === 0 && (
               <p className="small">No changes yet.</p>
+            )}
+            {unmatched.length > 0 && (
+              <p className="small">
+                No pricing or spending is recorded yet for{' '}
+                {unmatched.join(', ')}. A limit applies only to calls with
+                exactly that provider and model id, so check the spelling.
+              </p>
             )}
             <label htmlFor="limits-reason">Why</label>
             <textarea
@@ -352,6 +407,7 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                 >
                   Review changes
                 </button>
+                {need && diff?.lines.length ? <small> {need}</small> : null}
               </div>
             ) : (
               <div className="notice" role="group" aria-label="Confirm">
