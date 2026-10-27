@@ -146,7 +146,10 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
     unmatched = perModel
       .map((m) => label(m.provider, m.model_id))
       .filter(
-        (key) => !v.models.some((m) => label(m.provider, m.model_id) === key),
+        (key) =>
+          !v.models.some(
+            (m) => m.known && label(m.provider, m.model_id) === key,
+          ),
       );
   }
   const diff =
@@ -260,7 +263,16 @@ export function SpendingLimits({ session }: { session: SessionInfo }) {
                 <tbody>
                   {v.models.map((m) => (
                     <tr key={label(m.provider, m.model_id)}>
-                      <td>{label(m.provider, m.model_id)}</td>
+                      <td>
+                        {label(m.provider, m.model_id)}
+                        {!m.known && (
+                          <small>
+                            {' '}
+                            no pricing or calls use this id yet; check the
+                            spelling
+                          </small>
+                        )}
+                      </td>
                       <td>
                         {m.limit_nano_usd === null ? (
                           <small>no limit</small>

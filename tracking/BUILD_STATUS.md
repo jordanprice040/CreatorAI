@@ -12,9 +12,16 @@ pricing or spending (exact-id match); the form says a reason is needed, keeps ed
 version conflict and has a Remove button per model; an API test covers no session (401),
 no workspace (403), missing CSRF (403) and a save; usdToNano moved to apps/web/src/amounts.ts
 to break the settings/spending-limits import cycle. L-6 (view spans all workspaces) is
-recorded in ADR-0044. Not changed: the save-side lock has no dedicated test; saves are also
-serialized by the version key, and a dispatch that reads the old limits just before a save
-is ordered before it, so no test can show money at risk without it.
+recorded in ADR-0044. Re-review of #59 (no High or Medium) lows: the save-side lock is load-bearing once the
+open-hold check exists (a save could otherwise read the holds before an uncommitted hold
+commits), so a test now holds an uncommitted final hold of 3 calls, starts a per-run save of
+2 and expects it refused once the hold commits; removing the lock fails it. The "no pricing
+or calls use this id" warning now also shows after a save (the view marks models named only
+by a limit). Recorded, not fixed: the study build path takes the audit-chain lock before
+holdBudget takes the runtime-ceiling lock, the reverse of ceiling and limit saves, so a final
+build racing an owner save could deadlock (PostgreSQL aborts one, 40P01). Unreachable while
+final builds are LIVE_DISABLED; reordering inside lockAttemptForWrite would invert against
+prepareAttempt's ceiling-then-run order, so fix it with the live final-build work.
 
 ## Per-run and per-model spending limits (runbook step 4, ADR-0044) — October 27, 2026
 

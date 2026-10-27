@@ -370,6 +370,8 @@ export const SpendLimitsViewSchema = z.strictObject({
         ...modelKey,
         limit_nano_usd: limitNano.nullable(),
         exposure_nano_usd: nanoUsd,
+        /** False when only a limit names it: no real pricing snapshot or call uses that id. */
+        known: z.boolean(),
       }),
     )
     .max(200),

@@ -231,8 +231,11 @@ test('a per-model limit counts that model across every workspace; other models a
   const astra = view.models.find((m) => m.model_id === ASTRA.model_id);
   assert.equal(astra?.limit_nano_usd, String(EXPOSURE * 3n));
   assert.equal(astra?.exposure_nano_usd, String(EXPOSURE * 3n));
+  assert.equal(astra?.known, true);
   const other = view.models.find((m) => m.model_id === 'some-other-model');
   assert.equal(other?.exposure_nano_usd, '0');
+  // Only the limit names it, so Settings can say no pricing or call uses that id.
+  assert.equal(other?.known, false);
 });
 
 test('every applicable limit applies: run, model and the overall ceiling', async (t) => {
@@ -470,6 +473,45 @@ test('a final study attempt whose cap is above the per-run limit is refused befo
   // At the limit it is held.
   const fits = await attempt(EXPOSURE * 2n);
   assert.equal(fits.refused, null);
+});
+
+test('a limit save waits for an uncommitted study hold and then sees it', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const a = await s.workspace('real');
+  const probe = new HoldProbe(s.db.pool);
+  probe.spending = s.store.spending;
+  const { studyId, attemptId } = await s.openFinalHold(
+    a.ws.id,
+    await a.run(),
+    null,
+  );
+  const c = await s.db.pool.connect();
+  try {
+    // A final attempt places a hold of three calls and has not committed yet.
+    await c.query('begin');
+    const refused = await probe.hold(
+      c,
+      a.ws.id,
+      { id: attemptId, study_id: studyId } as StudyAttempt,
+      {
+        governance: {},
+        synthetic: false,
+        config: { max_cost_nano_usd: String(EXPOSURE * 3n) },
+      } as unknown as StudyInput,
+    );
+    assert.equal(refused, null);
+    // A per-run limit of two calls must not slip in underneath it.
+    const save = s.setLimits(2n).then(
+      () => 'saved',
+      (e: { code?: string }) => e.code,
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    await c.query('commit');
+    assert.equal(await save, 'INVALID_CONTRACT');
+  } finally {
+    c.release();
+  }
 });
 
 test('the limits route needs a signed-in session, and a write needs its CSRF token', async (t) => {
