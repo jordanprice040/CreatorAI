@@ -34,6 +34,9 @@ import {
 export const REVIEWED_ARTIFACT_BACKEND = 'wsl2-bwrap-systemd';
 /** Simultaneous live previews per workspace: each holds the single local worker on use. */
 export const MAX_ACTIVE_PREVIEWS = 2;
+/** Model calls behind a manifest: broker calls, or ChatGPT-plan requests on the plan route. */
+const calls = (m: BuildManifest) =>
+  m.costs.broker_calls + (m.costs.plan_requests?.request_ids.length ?? 0);
 const secretHash = (v: string) => createHash('sha256').update(v).digest('hex');
 const same = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -881,8 +884,8 @@ export class ArtifactStore extends StudyBuildStore {
         costs: {
           base_nano_usd: base.manifest.costs.settled_nano_usd,
           candidate_nano_usd: cand.manifest.costs.settled_nano_usd,
-          base_calls: base.manifest.costs.broker_calls,
-          candidate_calls: cand.manifest.costs.broker_calls,
+          base_calls: calls(base.manifest),
+          candidate_calls: calls(cand.manifest),
         },
         feedback: fb.rows.map((r) => this.feedback(r as Row)),
       };
