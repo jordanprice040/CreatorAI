@@ -107,6 +107,7 @@ import {
   connectionRoutes,
   runCodexBuild,
   runPlanBuildCall,
+  planBuildRolesReady,
 } from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
@@ -356,6 +357,8 @@ export function createApi(
             ),
           (ctx, ws, connection, body) =>
             runPlanBuildCall(planService, ctx, ws, connection, body),
+          (ctx, ws, connection, body) =>
+            planBuildRolesReady(planService, ctx, ws, connection, body),
         )
       : null;
   // X07: payments. Fixture and test-mode processors only; live payments are not built.

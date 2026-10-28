@@ -652,6 +652,17 @@ export async function runCli(
             request.timeout_ms + 5000,
           );
         },
+        planRolesReady: async (target) => {
+          const p = await local.product(productId);
+          return (
+            await call(
+              z.strictObject({ blockers: z.array(z.string()) }),
+              `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/build-roles-ready`,
+              { model_id: target.model_id, data_class: target.data_class },
+              10_000,
+            )
+          ).blockers;
+        },
       };
     };
     let data: unknown;

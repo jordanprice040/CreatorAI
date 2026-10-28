@@ -1107,9 +1107,65 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   const human = await entity('human_only', 'human_only');
   await rejects('NOT_FOUND', call('reviewer', randomUUID()));
   await rejects('INVALID_TRANSITION', call('reviewer', human));
-  // Qualified for review is not qualified for building.
+  // Qualified for review is not qualified for building, and the build preflight says so.
   await rejects('ACCESS_DENIED', call('builder', live));
+  assert.deepEqual(
+    await service.buildRolesReady(owner, ws.id, conn.id, {
+      model_id: 'm',
+      data_class: 'synthetic',
+    }),
+    ['Model m is not qualified for patch_build (the T12 builder).'],
+  );
+  // A frozen study assignment keeps its adopted route.
+  const studyRun = await entity('human_in_loop', 'human_in_loop');
+  const studyId = randomUUID();
+  await s.db.pool.query(
+    `insert into studies(id, workspace_id, manifest, manifest_hash, created_by)
+     values ($1, $2, '{}', $3, $4)`,
+    [studyId, ws.id, 'b'.repeat(64), owner.actorId],
+  );
+  await s.db.pool.query(
+    `insert into study_attempts(id, study_id, workspace_id, run_id, assignment, context, context_hash, ordinal)
+     values ($1, $2, $3, $4, '{}', '{}', $5, 1)`,
+    [randomUUID(), studyId, ws.id, studyRun, 'c'.repeat(64)],
+  );
+  await rejects('SCOPE_EXCEEDED', call('reviewer', studyRun));
+  // Owner only: an editor cannot send build-role requests.
+  const editor = { actorId: randomUUID() };
+  await store.ensureActor({
+    id: editor.actorId,
+    kind: 'human',
+    display_name: 'editor',
+  });
+  await store.addMember(owner, ws.id, editor.actorId, 'editor');
+  await rejects(
+    'ACCESS_DENIED',
+    service.buildRole(editor, ws.id, conn.id, {
+      role: 'reviewer',
+      model_id: 'm',
+      run_id: live,
+      data_class: 'synthetic',
+      input: '{"candidate":"x"}',
+      timeout_ms: 120000,
+      logical_operation_id: randomUUID(),
+    }),
+  );
   const before = s.fake.responseRequests.length;
+  // Without a grant covering model requests on this run, the run's admission stops it.
+  const held = await call('reviewer', live);
+  assert.equal(held.status, 'failed');
+  assert.equal(s.fake.responseRequests.length, before, 'nothing was sent');
+  await store.createStandingGrant(owner, ws.id, {
+    run_id: live,
+    action_types: ['model.generate'],
+    target_kind: null,
+    max_amount_nano_usd: '0',
+    allow_irreversible: false,
+    allow_external_effects: false,
+    data_classes: ['synthetic'],
+    expires_at: new Date(Date.now() + 3600_000).toISOString(),
+    rationale: 'Plan build-role requests for this run.',
+  });
   const r = await call('reviewer', live);
   assert.equal(r.status, 'succeeded');
   assert.equal(r.text, APPROVE);
@@ -1122,4 +1178,94 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   );
   await store.cancelRun(owner, ws.id, live, { reason: 'stop' });
   await rejects('INVALID_TRANSITION', call('reviewer', live));
+});
+
+test('a patch-build qualification is graded by the studio scorer, and a scorer crash never wedges the connection', async (t) => {
+  const s = await setup(t, {
+    responses: [
+      { kind: 'text', text: 'ok' },
+      { kind: 'text', text: '{}' },
+    ],
+  });
+  if (!s) return;
+  const { store, ws } = s;
+  await s.signIn();
+  let conn = await s.ready();
+  conn = await store.updatePlanSettings(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings: {
+      ...conn.settings,
+      allowed_task_classes: [
+        ...conn.settings.allowed_task_classes,
+        'patch_build',
+      ],
+    },
+  });
+  conn = await store.acceptPlanCaps(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings_hash: conn.settings_hash,
+  });
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await s.service.verifyModel(owner, ws.id, conn.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  const manifest = {
+    ...reviewManifest(BUILD_ROLE_PROMPTS.builder),
+    task_class: 'patch_build',
+    cases: reviewManifest(BUILD_ROLE_PROMPTS.builder).cases.map((c) => ({
+      ...c,
+      check: {
+        kind: 'patch_cases',
+        file_scope: ['src'],
+        cases: [
+          { check_key: 'A1', args: [], stdin: '', stdout: '', exit_code: 0 },
+        ],
+      },
+    })),
+  };
+  const withScorer = (scorer: () => Promise<string>) =>
+    new PlanConnectionService({
+      store,
+      vault: s.vault,
+      fixtureEndpoints: {
+        auth_base: s.fake.auth_base,
+        api_base: s.fake.api_base,
+      },
+      openBrowser: () => {},
+      callbackPort: 0,
+      patchScorer: scorer,
+    });
+  const start = async () =>
+    store.startPlanQualification(owner, ws.id, conn.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      manifest,
+      min_held_out_cases: 3,
+      floor: { numerator: 3, denominator: 3 },
+    });
+  const crashed = await withScorer(async () => {
+    throw new Error('scorer crashed');
+  }).runQualification(owner, ws.id, (await start()).id);
+  assert.equal(
+    crashed.state === 'decided' && crashed.qualification.state,
+    'failed',
+  );
+  let d = await store.planConnectionDetail(owner, ws.id, conn.id);
+  assert.equal(d.usage.in_flight, 0);
+  assert.equal(d.usage.unresolved, 0);
+  const graded: string[] = [];
+  const ok = await withScorer(async () => {
+    graded.push('case');
+    return 'accepted';
+  }).runQualification(owner, ws.id, (await start()).id);
+  assert.equal(ok.state === 'decided' && ok.qualification.state, 'qualified');
+  assert.equal(graded.length, 4, 'every case went through the scorer');
+  d = await store.planConnectionDetail(owner, ws.id, conn.id);
+  assert.equal(d.usage.in_flight, 0);
 });

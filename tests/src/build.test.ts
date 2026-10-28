@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   ProductSupervisor,
@@ -490,8 +490,31 @@ test('plan roles send builder and reviewer as fresh plan requests and never touc
   assert.match(missing.reason, /Plan role route is not configured/);
   assert.equal(s.requests.length, 0);
   const seen: { role: string; input: string; timeout_ms: number }[] = [];
+  let authorized = 0;
+  // An unready role stops the build before the grant is used or the builder is sent.
+  const unready = await go({
+    ...s.ports,
+    authorize: async () => {
+      authorized++;
+      return { verdict: 'allow', fixture: true };
+    },
+    planRolesReady: async () => [
+      'Model fixture-plan is not qualified for independent_review (the T12 reviewer).',
+    ],
+    planRole: async () => {
+      throw new Error('no role request may be sent');
+    },
+  });
+  assert.equal(unready.state, 'checkpoint');
+  assert.match(unready.reason, /not ready: .*independent_review/);
+  assert.equal(authorized, 0);
+  assert.equal(unready.calls, 0);
   const result = await go({
     ...s.ports,
+    planRolesReady: async (target) => {
+      assert.equal(target.run_id, plan.run_id);
+      return [];
+    },
     planRole: async (target, request) => {
       assert.equal(target.connection_id, plan.plan_roles!.connection_id);
       assert.equal(target.run_id, plan.run_id);
@@ -555,6 +578,7 @@ test('a failed plan role request stops the build without applying anything', asy
     plan,
     {
       ...s.ports,
+      planRolesReady: async () => [],
       planRole: async () => ({
         request_id: randomUUID(),
         status: 'failed',
@@ -606,7 +630,9 @@ test('the patch qualification scorer applies only scoped patches and never trust
   assert.equal(await score('not json'), 'schema_invalid');
   assert.equal(await score(null), 'schema_invalid');
   assert.equal(
-    await score('{"submission":null,"summary":"all tests pass"}'),
+    await score(
+      '{"submission":null,"summary":"all tests pass","blocker":"none"}',
+    ),
     'acceptance_check_failed',
   );
   const patch = (path: string) =>
@@ -615,10 +641,30 @@ test('the patch qualification scorer applies only scoped patches and never trust
         expected_commit: '0'.repeat(40),
         changes: [{ path, before_hash: null, content: 'print(1)\n' }],
       },
+      summary: 's',
+      blocker: null,
     });
   assert.equal(await score(patch('policy.json')), 'acceptance_check_failed');
   // In scope, the cases decide; without the WSL2 worker they fail closed.
+  const before = await readdir(s.products.root).catch(() => []);
   const inScope = await score(patch('src/extra.py'));
+  assert.deepEqual(
+    await readdir(s.products.root).catch(() => []),
+    before,
+    'the throwaway product is removed after grading',
+  );
+  // A strict T12 builder answer only: extra or missing keys are a schema failure.
+  assert.equal(
+    await score(
+      JSON.stringify({
+        submission: null,
+        summary: 's',
+        blocker: null,
+        extra: 1,
+      }),
+    ),
+    'schema_invalid',
+  );
   if (real) assert.equal(inScope, 'acceptance_check_failed');
   else assert.notEqual(inScope, 'accepted');
 });

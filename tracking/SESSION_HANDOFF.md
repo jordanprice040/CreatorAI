@@ -1,3 +1,14 @@
+## PR #71 review fixes (ADR-0048) — October 28, 2026
+
+Review of #71: no High, M-1 and L-1 to L-5, all fixed (details under ADR-0048). A crashing
+patch scorer now settles the request as `provider_error` instead of blocking the connection;
+builds preflight both plan roles before using their grant; build-role requests are
+owner-only and pass the run's `model.generate` admission (so a real build needs a grant
+covering model requests on its run); qualification uses T12's strict schemas; throwaway
+qualification products are removed; the form explains budget/pricing are unused on this
+route. Also: the #69 lock-staleness test now re-checks like Recover (it was flaky in CI;
+it still fails on the M-1 regression it guards). Checks: see the PR.
+
 ## $0 plan route for T12 builder and reviewer (ADR-0048) — October 28, 2026
 
 A build plan can now name `plan_roles`, sending the T12 builder and reviewer as fresh

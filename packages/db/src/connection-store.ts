@@ -863,12 +863,13 @@ export class ConnectionStore extends PortfolioStore {
       }
       if (wf) await this.lockRun(c, ws, String(wf.run_id));
       // A build-role task outside a workflow (ADR-0048) still needs a live, AI-enabled run.
-      if (
+      const buildRole =
         req.purpose === 'task' &&
         !workflow &&
         (req.task_class === 'patch_build' ||
-          req.task_class === 'independent_review')
-      ) {
+          req.task_class === 'independent_review');
+      if (buildRole) {
+        await this.requireOwner(c, uuid(ws), ctx.actorId);
         if (!req.run_id)
           throw fail(
             'INVALID_CONTRACT',
@@ -974,6 +975,23 @@ export class ConnectionStore extends PortfolioStore {
           humility_review: null,
           flags: [],
           justification: `Subscription discovery task ${task.kind}; connection ${conn.id}; model ${req.model_id}.`,
+        });
+        if (admission.verdict !== 'allow')
+          return { request_id: '', connection: conn, admission };
+      }
+      if (buildRole) {
+        // Like a broker build call: the run's own admission for a model request (ADR-0048).
+        const admission = await this.admitIn(c, ctx, ws, req.run_id!, {
+          action_type: 'model.generate',
+          task_id: null,
+          target: null,
+          spec_hash: null,
+          amount_nano_usd: null,
+          data_class: req.data_class,
+          assumption_ids: [],
+          humility_review: null,
+          flags: [],
+          justification: `T12 ${req.task_class} request on plan connection ${conn.id}; model ${req.model_id}; no metered spend.`,
         });
         if (admission.verdict !== 'allow')
           return { request_id: '', connection: conn, admission };

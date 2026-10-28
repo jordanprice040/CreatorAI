@@ -77,12 +77,32 @@ export async function runPlanBuildCall(
     );
   return service.buildRole(ctx, ws, connectionId, b);
 }
+const BuildRolesReadyBody = z.strictObject({
+  model_id: z.string().min(1).max(120),
+  data_class: z.enum(['synthetic', 'public', 'private_approved']),
+});
+/** Why a build's plan roles would be refused now (ADR-0048); sends no model request. */
+export async function planBuildRolesReady(
+  service: PlanConnectionService | null,
+  ctx: CommandContext,
+  ws: string,
+  connectionId: string,
+  raw: unknown,
+) {
+  const b = parse(BuildRolesReadyBody, raw);
+  if (!service)
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'The ChatGPT plan service is not configured.',
+    );
+  return { blockers: await service.buildRolesReady(ctx, ws, connectionId, b) };
+}
 /** Codex turns per build in this process; the per-build request cap is the durable limit. */
 const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|run|finish))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|build-roles-ready|run|finish))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -311,6 +331,12 @@ export async function connectionRoutes(r: {
         200,
         await runPlanBuildCall(r.service, ctx, ws, item, await r.body()),
         true,
+      );
+    case 'build-roles-ready':
+      return send(
+        200,
+        await planBuildRolesReady(r.service, ctx, ws, item, await r.body()),
+        false,
       );
     case 'quota-recheck': {
       const b = parse(RecheckBody, await r.body());
