@@ -1,6 +1,13 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { accessSync, constants, mkdirSync } from 'node:fs';
+import {
+  accessSync,
+  constants,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { delimiter, extname, isAbsolute, join } from 'node:path';
 import type { ClaudeCodeStatusObservation } from '@creator/db';
 import type { PlanObservedOutcome } from './plan-responses.js';
@@ -131,6 +138,10 @@ export function claudeCodeEnv(
     if (typeof v === 'string') out[k] = v;
   }
   out.CLAUDE_CONFIG_DIR = host.config_dir;
+  // Review L-2: an active Anthropic profile (Workload Identity Federation) in the owner's
+  // %APPDATA%\Anthropic or ~/.config/anthropic outranks the subscription login. The child
+  // looks in an empty studio folder instead, which prepare() keeps empty.
+  out.ANTHROPIC_CONFIG_DIR = anthropicConfigDir(host);
   out.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
   out.DISABLE_AUTOUPDATER = '1';
   // Contract tests only: a loopback stand-in for Anthropic's API, set by the caller for
@@ -202,9 +213,22 @@ function run(
   });
 }
 
+export const anthropicConfigDir = (host: ClaudeCodeHost) =>
+  join(host.config_dir, 'studio-anthropic-config');
+const promptDir = (host: ClaudeCodeHost) =>
+  join(host.config_dir, 'studio-prompts');
+
+/** Creates the studio folders. Throws when the Anthropic profile folder is not empty. */
 function prepare(host: ClaudeCodeHost) {
   mkdirSync(host.config_dir, { recursive: true });
   mkdirSync(host.work_dir, { recursive: true });
+  mkdirSync(promptDir(host), { recursive: true });
+  const anthropic = anthropicConfigDir(host);
+  mkdirSync(anthropic, { recursive: true });
+  if (readdirSync(anthropic).length)
+    throw new Error(
+      `The studio's Anthropic profile folder (${anthropic}) must stay empty: an Anthropic profile there could take requests off the Claude subscription.`,
+    );
 }
 
 /**
@@ -214,9 +238,10 @@ function prepare(host: ClaudeCodeHost) {
 export async function claudeCodeStatus(
   host: ClaudeCodeHost,
   base?: Record<string, string | undefined>,
+  fixtureEnv?: Record<string, string>,
 ): Promise<ClaudeCodeStatusObservation> {
   prepare(host);
-  const env = claudeCodeEnv(host, base);
+  const env = claudeCodeEnv(host, base, fixtureEnv);
   const v = await run(host, ['--version'], env, STATUS_TIMEOUT_MS);
   if (v.spawn_error || v.code !== 0)
     throw new Error(
@@ -278,7 +303,7 @@ export interface ClaudeCodeCallInput {
   base_env?: Record<string, string | undefined>;
 }
 
-export function claudeCodeArgs(model: string, instructions: string) {
+export function claudeCodeArgs(model: string, systemPromptFile: string) {
   return [
     '-p',
     '--output-format',
@@ -298,8 +323,10 @@ export function claudeCodeArgs(model: string, instructions: string) {
     '1',
     '--permission-mode',
     'dontAsk',
-    '--system-prompt',
-    instructions,
+    // Review L-3: from a file, so the instructions are not on the command line (process
+    // listings, and Windows' 32,767-character limit).
+    '--system-prompt-file',
+    systemPromptFile,
   ];
 }
 
@@ -332,13 +359,17 @@ export function callClaudeCode(
         'Request cancelled before dispatch.',
       ),
     );
+  const promptFile = join(promptDir(o.host), `${randomUUID()}.txt`);
   try {
     prepare(o.host);
-  } catch {
+    writeFileSync(promptFile, o.instructions, { mode: 0o600 });
+  } catch (e) {
     return Promise.resolve(
       rejected(
         'claude_code_folder_unavailable',
-        'The studio Claude Code folder could not be created.',
+        e instanceof Error
+          ? e.message.slice(0, 300)
+          : 'The studio Claude Code folder could not be prepared.',
       ),
     );
   }
@@ -355,6 +386,7 @@ export function callClaudeCode(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      rmSync(promptFile, { force: true });
       o.signal?.removeEventListener('abort', onAbort);
       resolve(v);
     };
@@ -374,7 +406,7 @@ export function callClaudeCode(
       retry_allowed: false,
     });
     try {
-      child = spawn(o.host.bin, claudeCodeArgs(o.model, o.instructions), {
+      child = spawn(o.host.bin, claudeCodeArgs(o.model, promptFile), {
         cwd: o.host.work_dir,
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -382,6 +414,7 @@ export function callClaudeCode(
         shell: false,
       });
     } catch (e) {
+      rmSync(promptFile, { force: true });
       resolve(
         rejected(
           'claude_code_start_failed',
@@ -425,15 +458,13 @@ export function callClaudeCode(
               'Claude Code started with tools or MCP servers; stopped.',
             ),
           );
-        else if (
-          typeof m.apiKeySource === 'string' &&
-          /api_?key|auth_token|helper/i.test(m.apiKeySource) &&
-          !o.fixture_env
-        )
+        // Review L-1: only `none` (no API key; a claude.ai login) is accepted, rather than a
+        // list of what to refuse. The per-request `auth status` check is the main gate.
+        else if (m.apiKeySource !== 'none' && !o.fixture_env)
           stop(
             unknown(
               'claude_code_not_subscription',
-              `Claude Code started with ${m.apiKeySource}, not the Claude subscription; stopped.`,
+              `Claude Code started with ${typeof m.apiKeySource === 'string' ? m.apiKeySource.slice(0, 60) : 'an unreported credential'}, not the Claude subscription; stopped.`,
             ),
           );
         return;

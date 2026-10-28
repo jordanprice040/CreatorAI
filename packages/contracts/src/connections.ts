@@ -120,6 +120,21 @@ export const CREDITS_OFF_STATEMENT =
  */
 export const CLAUDE_EXTRA_USAGE_OFF_STATEMENT =
   'I checked Claude Settings > Usage: extra usage (usage credits) is turned off, so Claude Code cannot spend money after reaching my plan limits.' as const;
+/**
+ * ADR-0050 review L-4: `--restricted`, which keeps user settings, hooks and plugins out of the
+ * studio's runs, needs Claude Code 2.1.248 or later. Older versions are refused with a reason.
+ */
+export const CLAUDE_CODE_MIN_VERSION = '2.1.248' as const;
+export function claudeCodeVersionSupported(version: string): boolean {
+  const parse = (v: string) =>
+    /^(\d+)\.(\d+)\.(\d+)/.exec(v)?.slice(1).map(Number);
+  const have = parse(version);
+  const need = parse(CLAUDE_CODE_MIN_VERSION)!;
+  if (!have) return false;
+  for (let i = 0; i < 3; i++)
+    if (have[i] !== need[i]) return have[i]! > need[i]!;
+  return true;
+}
 export const usageOffStatement = (kind: PlanProvider) =>
   kind === 'claude_code'
     ? CLAUDE_EXTRA_USAGE_OFF_STATEMENT

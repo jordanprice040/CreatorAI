@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { preview as vitePreview } from 'vite';
 import { createApi } from '../../../apps/api/dist/index.js';
+import { PlanConnectionService } from '../../../packages/broker/dist/index.js';
 import { SUBSCRIBED, fakeCalls, setFake, writeFakeClaude } from '../../../tests/dist/claude-fake.js';
 
 const [, , pwPath = 'playwright', chromiumPath] = process.argv;
@@ -30,13 +31,19 @@ const bin = writeFakeClaude(join(tmp, 'bin'));
 const configDir = join(tmp, 'claude-code');
 // Starts signed in with an API key, to show the refusal, then switches to a subscription login.
 setFake(configDir, { status: { loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty' } });
-const env = {
-  ...process.env,
-  CREATOR_WORKER: 'off',
-  CREATOR_CLAUDE_CODE_BIN: bin,
-  CREATOR_CLAUDE_CODE_CONFIG_DIR: configDir,
-};
-const api = createApi(env);
+const env = { ...process.env, CREATOR_WORKER: 'off' };
+// A fixture workspace runs Claude Code only against an explicit stand-in (review M-1): the
+// fake binary and its marker come in through the test seam, never from the studio's env.
+const api = createApi(env, {
+  planService: (store, { patchScorer }) =>
+    new PlanConnectionService({
+      store,
+      vault: null,
+      claudeCode: { bin, config_dir: configDir, work_dir: join(configDir, 'empty-workdir') },
+      claudeCodeFixtureEnv: { CREATOR_CLAUDE_STAND_IN: 'fake' },
+      patchScorer,
+    }),
+});
 const { config } = api;
 api.server.listen(config.api_port, config.host);
 await once(api.server, 'listening');

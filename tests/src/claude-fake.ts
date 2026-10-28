@@ -40,7 +40,9 @@ if (args[0] === 'auth') {
   process.exit(cfg.status.loggedIn ? 0 : 1);
 }
 const stdin = fs.readFileSync(0, 'utf8');
-record({ args, env: Object.keys(process.env).sort(), cwd: process.cwd(), stdin });
+const pf = args.indexOf('--system-prompt-file');
+const system = pf >= 0 ? fs.readFileSync(args[pf + 1], 'utf8') : null;
+record({ args, env: Object.keys(process.env).sort(), cwd: process.cwd(), stdin, system });
 const model = args[args.indexOf('--model') + 1];
 const out = (o) => process.stdout.write(JSON.stringify(o) + '\n');
 const sid = 'fake-session-1';
@@ -94,6 +96,7 @@ export function fakeCalls(configDir: string): {
   env: string[];
   cwd: string;
   stdin?: string;
+  system?: string | null;
 }[] {
   try {
     return readFileSync(join(configDir, 'calls.jsonl'), 'utf8')

@@ -304,13 +304,14 @@ export function Models({
                 </p>
                 <pre>
                   <code>
-                    {`$env:CLAUDE_CONFIG_DIR = "${claudeFolder || '<folder shown after the check>'}"\nclaude auth login`}
+                    {`$env:CLAUDE_CONFIG_DIR = "${claudeFolder || '<folder shown after the check>'}"\nclaude auth login\nRemove-Item Env:CLAUDE_CONFIG_DIR`}
                   </code>
                 </pre>
                 <p>
-                  Choose your Claude account (not Console), then check again. An
-                  API key or long-lived token is refused so nothing is billed
-                  outside your plan.
+                  The last line puts that PowerShell window back on your own
+                  Claude Code. Choose your Claude account (not Console), then
+                  check again. An API key or long-lived token is refused so
+                  nothing is billed outside your plan.
                 </p>
               </fieldset>
             )}

@@ -1,6 +1,8 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
+  CLAUDE_CODE_MIN_VERSION,
+  claudeCodeVersionSupported,
   ContractError,
   type PlanConnection,
   type PlanTaskClass,
@@ -184,6 +186,20 @@ export class PlanConnectionService {
   }
 
   /**
+   * Review M-1: like endpointsFor, a fixture connection runs only against a stand-in. Without
+   * one it is refused, never sent to the owner's real Claude Code and labelled fixture.
+   */
+  #claudeFixtureEnv(conn: PlanConnection): Record<string, string> | undefined {
+    if (!conn.fixture) return undefined;
+    if (!this.deps.claudeCodeFixtureEnv)
+      throw new ContractError(
+        'LIVE_DISABLED',
+        'Fixture connections need a stand-in Claude Code; this studio has none, so nothing was run.',
+      );
+    return this.deps.claudeCodeFixtureEnv;
+  }
+
+  /**
    * ADR-0050: checks the owner's Claude Code sign-in (`claude auth status`) and records what it
    * reported. Sends no model request and reads no credential.
    */
@@ -195,9 +211,10 @@ export class PlanConnectionService {
         'This check is for Claude Code connections.',
       );
     const host = this.#claudeHost();
+    const fixtureEnv = this.#claudeFixtureEnv(connection);
     let observed;
     try {
-      observed = await claudeCodeStatus(host);
+      observed = await claudeCodeStatus(host, undefined, fixtureEnv);
     } catch (e) {
       throw new ContractError(
         'STORAGE_UNAVAILABLE',
@@ -656,41 +673,47 @@ export class PlanConnectionService {
     r: InvokeRequest,
   ): Promise<PlanObservedOutcome> {
     const host = this.#claudeHost();
-    const fixtureEnv = connection.fixture
-      ? this.deps.claudeCodeFixtureEnv
-      : undefined;
-    if (!fixtureEnv) {
-      let status;
-      try {
-        status = await claudeCodeStatus(host);
-      } catch (e) {
-        return {
-          kind: 'rejected',
-          reason_code: 'claude_code_unavailable',
-          message:
-            e instanceof Error
-              ? e.message.slice(0, 200)
-              : 'Claude Code could not be checked.',
-          response_id: null,
-          output_chars: null,
-          retry_allowed: false,
-        };
-      }
-      if (
-        !status.logged_in ||
-        status.auth_method !== 'claude.ai' ||
-        (status.api_provider !== null && status.api_provider !== 'firstParty')
-      )
-        return {
-          kind: 'rejected',
-          reason_code: 'claude_code_not_subscription',
-          message: `Claude Code is ${status.logged_in ? `signed in with ${status.auth_method}` : 'not signed in'}, not a Claude subscription login.`,
-          response_id: null,
-          output_chars: null,
-          retry_allowed: false,
-          sign_in_invalid: true,
-        };
+    const fixtureEnv = this.#claudeFixtureEnv(connection);
+    let status;
+    try {
+      status = await claudeCodeStatus(host, undefined, fixtureEnv);
+    } catch (e) {
+      return {
+        kind: 'rejected',
+        reason_code: 'claude_code_unavailable',
+        message:
+          e instanceof Error
+            ? e.message.slice(0, 200)
+            : 'Claude Code could not be checked.',
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+      };
     }
+    if (!claudeCodeVersionSupported(status.cli_version))
+      return {
+        kind: 'rejected',
+        reason_code: 'claude_code_outdated',
+        message: `Claude Code ${status.cli_version} is older than ${CLAUDE_CODE_MIN_VERSION}; run claude update.`,
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+        sign_in_invalid: true,
+      };
+    if (
+      !status.logged_in ||
+      status.auth_method !== 'claude.ai' ||
+      (status.api_provider !== null && status.api_provider !== 'firstParty')
+    )
+      return {
+        kind: 'rejected',
+        reason_code: 'claude_code_not_subscription',
+        message: `Claude Code is ${status.logged_in ? `signed in with ${status.auth_method}` : 'not signed in'}, not a Claude subscription login.`,
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+        sign_in_invalid: true,
+      };
     const caps = connection.settings.caps.responses;
     return callClaudeCode({
       host,

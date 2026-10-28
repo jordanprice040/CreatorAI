@@ -31,6 +31,8 @@ import {
   type PlanProvider,
   type PlanSettings,
   usageOffStatement,
+  CLAUDE_CODE_MIN_VERSION,
+  claudeCodeVersionSupported,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -673,16 +675,20 @@ export class ConnectionStore extends PortfolioStore {
           'INVALID_TRANSITION',
           'This check is for Claude Code connections.',
         );
+      const supported = claudeCodeVersionSupported(s.cli_version);
       const subscription =
+        supported &&
         s.logged_in &&
         s.auth_method === 'claude.ai' &&
         (s.api_provider === null || s.api_provider === 'firstParty');
       const state = s.logged_in ? 'signed_in' : 'not_signed_in';
-      const reason = !s.logged_in
-        ? 'Claude Code reported that it is not signed in.'
-        : subscription
-          ? null
-          : `Claude Code is signed in with ${s.auth_method}${s.api_provider && s.api_provider !== 'firstParty' ? ` (${s.api_provider})` : ''}, not a Claude subscription login.`;
+      const reason = !supported
+        ? `Claude Code ${s.cli_version} is older than ${CLAUDE_CODE_MIN_VERSION}; run claude update, then check again.`
+        : !s.logged_in
+          ? 'Claude Code reported that it is not signed in.'
+          : subscription
+            ? null
+            : `Claude Code is signed in with ${s.auth_method}${s.api_provider && s.api_provider !== 'firstParty' ? ` (${s.api_provider})` : ''}, not a Claude subscription login.`;
       await c.query(
         `update plan_connections set version = version + 1, updated_at = clock_timestamp(),
            sign_in = $2, status_reason = $3 where id = $1`,

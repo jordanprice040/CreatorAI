@@ -5,7 +5,11 @@ import type {
   PlanQualification,
   PlanVerificationGrant,
 } from '@creator/contracts';
-import { pathForTaskClass } from '@creator/contracts';
+import {
+  CLAUDE_CODE_MIN_VERSION,
+  claudeCodeVersionSupported,
+  pathForTaskClass,
+} from '@creator/contracts';
 
 // Deterministic admission for ChatGPT-plan requests (§2.4). The store evaluates this under a
 // row lock with the counts it just read; a model never supplies any of these facts.
@@ -61,6 +65,10 @@ export function connectionBlockers(c: PlanConnection): string[] {
  * check the studio ran; it only counts when Claude Code reported a claude.ai subscription
  * login, because an API key or other credential would bill elsewhere.
  */
+/** The CLI version the last check recorded (`claude-code/<version>`). */
+const claudeCodeVersion = (c: PlanConnection) =>
+  c.sign_in.issued_client_id?.replace(/^claude-code\//, '') ?? '';
+
 function claudeCodeBlockers(c: PlanConnection): string[] {
   const out: string[] = [];
   if (c.sign_in.state !== 'signed_in')
@@ -68,6 +76,10 @@ function claudeCodeBlockers(c: PlanConnection): string[] {
       c.sign_in.state === 'reauthorization_required'
         ? "Claude Code on this computer stopped accepting its sign-in. Run claude auth login in the studio's Claude Code folder, then check again."
         : 'Claude Code on this computer has not been checked, or is not signed in. Sign in with claude auth login, then check again.',
+    );
+  else if (!claudeCodeVersionSupported(claudeCodeVersion(c)))
+    out.push(
+      `Claude Code ${claudeCodeVersion(c) || '(unknown version)'} is older than ${CLAUDE_CODE_MIN_VERSION}, which the studio needs for its locked-down runs. Run claude update, then check again.`,
     );
   else if (!c.sign_in.plan_usage_granted)
     out.push(

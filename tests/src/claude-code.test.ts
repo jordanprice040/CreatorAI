@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -9,6 +15,7 @@ import { join } from 'node:path';
 import {
   CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
   CREDITS_OFF_STATEMENT,
+  claudeCodeVersionSupported,
   ContractError,
   PlanConnectionSchema,
   type ErrorCode,
@@ -18,6 +25,7 @@ import { ConnectionStore, type CommandContext } from '@creator/db';
 import {
   CLAUDE_CODE_FOREIGN_ENV,
   PlanConnectionService,
+  anthropicConfigDir,
   callClaudeCode,
   claudeCodeArgs,
   claudeCodeEnv,
@@ -111,10 +119,15 @@ test('the child gets an allowlisted environment: no API key, token, gateway or p
   assert.equal('CLAUDE_CODE_SOMETHING' in env, false);
   assert.equal(env.PATH, '/usr/bin');
   assert.equal(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, '1');
+  // Anthropic profiles come from an empty studio folder, never the owner's APPDATA/~/.config.
+  assert.equal(
+    env.ANTHROPIC_CONFIG_DIR,
+    join('/studio/claude-code', 'studio-anthropic-config'),
+  );
 });
 
 test('runs are locked down: restricted, no tools, no MCP, one turn, no saved session', () => {
-  const a = claudeCodeArgs('claude-test-model', 'instr');
+  const a = claudeCodeArgs('claude-test-model', '/studio/prompt.txt');
   const after = (f: string) => a[a.indexOf(f) + 1];
   for (const f of [
     '-p',
@@ -129,7 +142,12 @@ test('runs are locked down: restricted, no tools, no MCP, one turn, no saved ses
   assert.equal(after('--max-turns'), '1');
   assert.equal(after('--permission-mode'), 'dontAsk');
   assert.equal(after('--model'), 'claude-test-model');
-  assert.equal(after('--system-prompt'), 'instr');
+  assert.equal(after('--system-prompt-file'), '/studio/prompt.txt');
+  assert.equal(
+    a.includes('--system-prompt'),
+    false,
+    'instructions not in argv',
+  );
   assert.equal(a.includes('--bare'), false, 'bare mode would ignore the login');
   assert.equal(a.includes('--fallback-model'), false);
 });
@@ -203,6 +221,30 @@ test('a successful run returns the text, with the prompt on stdin and no tools',
   const run = fakeCalls(host.config_dir).at(-1)!;
   assert.equal(run.stdin, 'Reply with exactly: ok');
   assert.ok(run.args.includes('--restricted'));
+  // The instructions reach Claude Code from a file that is removed afterwards.
+  assert.equal(run.system, 'Reply with exactly the word: ok');
+  assert.equal(run.args.includes('Reply with exactly the word: ok'), false);
+  assert.deepEqual(readdirSync(join(host.config_dir, 'studio-prompts')), []);
+});
+
+test('Claude Code older than the restricted-mode release is refused with an update reason', () => {
+  assert.equal(claudeCodeVersionSupported('2.1.248'), true);
+  assert.equal(claudeCodeVersionSupported('2.1.312'), true);
+  assert.equal(claudeCodeVersionSupported('2.2.0'), true);
+  assert.equal(claudeCodeVersionSupported('2.1.247'), false);
+  assert.equal(claudeCodeVersionSupported('1.9.999'), false);
+  assert.equal(claudeCodeVersionSupported('garbage'), false);
+});
+
+test('an Anthropic profile in the studio profile folder stops the check and the run', async () => {
+  const host = fakeHost({ status: SUBSCRIBED });
+  mkdirSync(join(anthropicConfigDir(host), 'configs'), { recursive: true });
+  writeFileSync(join(anthropicConfigDir(host), 'active_config'), 'federated\n');
+  await assert.rejects(claudeCodeStatus(host), /must stay empty/);
+  const o = await call(host);
+  assert.equal(o.kind, 'rejected');
+  assert.equal(refusal(o).reason_code, 'claude_code_folder_unavailable');
+  assert.equal(fakeCalls(host.config_dir).length, 0, 'nothing was started');
 });
 
 test('refusals end at the first retry notice and say what they mean', async () => {
@@ -242,6 +284,13 @@ test('a different answering model, an oversized answer, tools or an API key are 
   });
   const keyed = await call(host);
   assert.equal(refusal(keyed).reason_code, 'claude_code_not_subscription');
+  // A Console login key does not look like "api key" by name; only `none` is accepted.
+  setFake(host.config_dir, {
+    status: SUBSCRIBED,
+    apiKeySource: '/login managed key',
+  });
+  const consoleKey = await call(host);
+  assert.equal(refusal(consoleKey).reason_code, 'claude_code_not_subscription');
 });
 
 test('timeouts and runs without a result are unknown; a crash before the session is rejected', async () => {
@@ -259,7 +308,13 @@ test('timeouts and runs without a result are unknown; a crash before the session
   assert.equal((await call(host, { signal: ac.signal })).kind, 'rejected');
 });
 
-async function setup(t: test.TestContext, cfg: FakeClaudeConfig) {
+/** The stand-in marker a fixture connection needs (review M-1); null = a studio without one. */
+const STAND_IN = { CREATOR_CLAUDE_STAND_IN: 'fake' };
+async function setup(
+  t: test.TestContext,
+  cfg: FakeClaudeConfig,
+  fixtureEnv: Record<string, string> | null = STAND_IN,
+) {
   const db = await freshDatabase(t);
   if (!db) return null;
   const store = new ConnectionStore(db.pool);
@@ -273,6 +328,7 @@ async function setup(t: test.TestContext, cfg: FakeClaudeConfig) {
     store,
     vault: null,
     claudeCode: host,
+    ...(fixtureEnv ? { claudeCodeFixtureEnv: fixtureEnv } : {}),
   });
   const ws = await store.createWorkspace(owner, {
     name: 'Claude fixture',
@@ -525,6 +581,89 @@ test('verification runs through the gates, and a sign-in that changed since the 
   );
 });
 
+test('a fixture connection with no stand-in is refused and starts nothing (never a live call)', async (t) => {
+  const s = await setup(t, { status: SUBSCRIBED }, null);
+  if (!s) return;
+  await rejects(
+    'LIVE_DISABLED',
+    s.service.checkClaudeCode(owner, s.ws.id, s.conn.id),
+    /stand-in/,
+  );
+  assert.equal(fakeCalls(s.host.config_dir).length, 0);
+  // Ready the connection through a studio that has the stand-in, then invoke without it.
+  const withStandIn = new PlanConnectionService({
+    store: s.store,
+    vault: null,
+    claudeCode: s.host,
+    claudeCodeFixtureEnv: STAND_IN,
+  });
+  await withStandIn.checkClaudeCode(owner, s.ws.id, s.conn.id);
+  let c = await s.current();
+  await s.store.attestPlanCredits(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    statement: CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
+    checked_on: '2026-10-28',
+  });
+  c = await s.current();
+  await s.store.acceptPlanCaps(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    settings_hash: c.settings_hash,
+  });
+  c = await s.current();
+  const before = fakeCalls(s.host.config_dir).length;
+  const g = await s.store.createPlanVerificationGrant(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'claude-test-model',
+    path: 'responses',
+    expires_in_minutes: 30,
+  });
+  const v = await s.service.verifyModel(owner, s.ws.id, c.id, {
+    id: g.id,
+    model_id: 'claude-test-model',
+  });
+  assert.equal(v.verified, false);
+  assert.equal(fakeCalls(s.host.config_dir).length, before, 'nothing started');
+  const requests = await s.store.planRequests(owner, s.ws.id, c.id);
+  assert.deepEqual(
+    requests.map((r) => [r.state, r.reason_code]),
+    [['rejected', 'live_disabled']],
+  );
+});
+
+test('an outdated Claude Code is not counted as signed in and is refused per request', async (t) => {
+  const s = await setup(t, { status: SUBSCRIBED });
+  if (!s) return;
+  const c = await s.ready();
+  setFake(s.host.config_dir, {
+    status: SUBSCRIBED,
+    version: '2.1.100 (Claude Code)',
+  });
+  const g = await s.store.createPlanVerificationGrant(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'claude-test-model',
+    path: 'responses',
+    expires_in_minutes: 30,
+  });
+  const v = await s.service.verifyModel(owner, s.ws.id, c.id, {
+    id: g.id,
+    model_id: 'claude-test-model',
+  });
+  assert.equal(v.verified, false);
+  assert.equal(
+    fakeCalls(s.host.config_dir).filter((x) => x.args[0] === '-p').length,
+    0,
+  );
+  const r = await s.service.checkClaudeCode(owner, s.ws.id, s.conn.id);
+  assert.equal(r.connection.sign_in.plan_usage_granted, false);
+  assert.match(r.connection.status_reason ?? '', /claude update/);
+  assert.ok(
+    connectionBlockers(r.connection).some((b) =>
+      /older than 2\.1\.248/.test(b),
+    ),
+    connectionBlockers(r.connection).join(' | '),
+  );
+});
+
 test('a usage limit pauses the connection instead of falling back to anything paid', async (t) => {
   const s = await setup(t, { status: SUBSCRIBED });
   if (!s) return;
@@ -638,6 +777,11 @@ test('real Claude Code CLI against a loopback stand-in (optional, never live)', 
   const sent = seen.at(-1)!;
   assert.deepEqual(sent.tools, []);
   assert.equal(sent.model, 'claude-opus-5-5');
+  // The system prompt reached the API from --system-prompt-file.
+  assert.ok(
+    JSON.stringify(sent.system).includes('Reply with exactly the word: ok'),
+    JSON.stringify(sent.system).slice(0, 300),
+  );
   mode = '429';
   const started = Date.now();
   const limited = await call(host, {

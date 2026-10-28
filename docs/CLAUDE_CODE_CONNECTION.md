@@ -42,21 +42,27 @@ personal studio, never in a build given to other people.
 
 `packages/broker/src/claude-code.ts`:
 
-1. **Fresh sign-in check.** Before every request, `claude auth status --json` runs in the
-   studio's dedicated folder. Only `authMethod: "claude.ai"` with the first-party provider
-   counts. An API key, long-lived OAuth token, key helper or cloud provider is refused before
+1. **Fresh sign-in check.** Before every request, `claude --version` and
+   `claude auth status --json` run in the studio's dedicated folder. Claude Code older than
+   2.1.248 (the first with `--restricted`) is refused with "run claude update". Only
+   `authMethod: "claude.ai"` with the first-party provider counts. An API key, long-lived OAuth token, key helper or cloud provider is refused before
    anything is sent, and the connection moves to "check again".
 2. **Clean environment.** The child gets an allowlist (PATH, home and temp folders, locale,
-   proxy settings) plus `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and
-   `DISABLE_AUTOUPDATER=1`. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
+   proxy settings) plus `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`,
+   `DISABLE_AUTOUPDATER=1` and `ANTHROPIC_CONFIG_DIR` pointing at an empty
+   `studio-anthropic-config` folder, so an active Anthropic (Workload Identity Federation)
+   profile in `%APPDATA%\Anthropic` cannot outrank the subscription login. If anything appears
+   in that folder, checks and requests stop. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
    `CLAUDE_CODE_OAUTH_TOKEN` and provider switches never reach it.
 3. **Locked-down run.** `claude -p --output-format stream-json --verbose --model <id>
 --restricted --tools "" --strict-mcp-config --disallowedTools "mcp__*"
 --disable-slash-commands --no-session-persistence --max-turns 1 --permission-mode dontAsk
---system-prompt <instructions>`, prompt on stdin, in an empty working folder. `--bare` is
+--system-prompt-file <file>`, prompt on stdin, in an empty working folder. The instructions
+   go in a per-request file in `studio-prompts` that is deleted afterwards, so they are not on
+   the command line. `--bare` is
    not used because it ignores the subscription login. No `--fallback-model`.
 4. **Checks on what came back.** The start event must list no tools and no MCP servers and
-   must not report an API key as its credential, or the run is stopped. The answering model
+   must report `apiKeySource: "none"`, or the run is stopped. The answering model
    must be the requested one (`modelUsage`), or the result is `model_substituted`. Answers
    over the output cap are refused.
 5. **Outcomes** follow the plan ledger. A usage limit, sign-in, account or model refusal is
@@ -74,11 +80,14 @@ Spend is recorded as $0 only because extra usage is confirmed off; Claude Code's
 2. Studio configuration: the installed app sets `CREATOR_CLAUDE_CODE_CONFIG_DIR` to a
    `claude-code` folder beside its data. For the dev studio set it yourself, for example
    `$env:CREATOR_CLAUDE_CODE_CONFIG_DIR = "C:\dev\creator_agent\.creator\studio\claude-code"`.
-   `CREATOR_CLAUDE_CODE_BIN` is optional (default: `claude.exe` on PATH, then
+   A fixture workspace never runs the real Claude Code: without a test stand-in it is refused
+   (`live_disabled`), like a fixture ChatGPT connection. Use a real-mode workspace for live
+   steps. `CREATOR_CLAUDE_CODE_BIN` is optional (default: `claude.exe` on PATH, then
    `%USERPROFILE%\.local\bin\claude.exe`).
 3. Models and connections → **Add Claude Code on this computer** → **Check Claude Code**. It
    shows the folder. In PowerShell:
-   `$env:CLAUDE_CONFIG_DIR = "<that folder>"; claude auth login` and pick the Claude account.
+   `$env:CLAUDE_CONFIG_DIR = "<that folder>"; claude auth login; Remove-Item Env:CLAUDE_CONFIG_DIR`
+   and pick the Claude account (the last part returns that window to your own Claude Code).
    Check again.
 4. In Claude Settings → Usage, make sure extra usage (usage credits) is off, then record the
    confirmation. Accept the caps.
@@ -102,6 +111,9 @@ and specification. The limits are shared with Jordan's own Claude and Claude Cod
   usage limit, sign-in, model refusal, substituted model, output cap, unsafe session, API-key
   session, timeout, crash), settings and statement checks per kind, the immutable kind, a
   sign-in change between check and request (refused, nothing sent), and the usage-limit pause.
+  Review fixes add tests for: a fixture connection with no stand-in (refused, no process
+  started), a Console `/login managed key` source, a non-empty Anthropic profile folder, the
+  instructions arriving by file, and an outdated Claude Code.
 - An optional contract check runs the **real** Claude Code CLI against a loopback stand-in for
   Anthropic's API (`CREATOR_TEST_CLAUDE_BIN=<path>`); it never contacts Anthropic.
 - Browser walk: `tracking/evidence/claude-code-ui/walk.mjs` (fake `claude`).

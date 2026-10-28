@@ -30,6 +30,15 @@ usage" and may enforce without notice, so caps are low and the route is for Jord
 studio only. The fully clear alternative remains a metered Claude API key. Details:
 `docs/CLAUDE_CODE_CONNECTION.md`.
 
+Review amendment (PR #76 review, same day, before merge):
+- A fixture connection runs Claude Code only against an explicit stand-in. Without one it is
+  refused with `LIVE_DISABLED`, the same as `endpointsFor` for ChatGPT, and nothing starts.
+- The start event must report `apiKeySource: "none"`.
+- The child's `ANTHROPIC_CONFIG_DIR` is an empty studio folder (checked before each run), so
+  an Anthropic federation profile cannot outrank the login.
+- Instructions go through `--system-prompt-file`.
+- Claude Code older than 2.1.248 is refused with an update reason.
+
 ## ADR-0049 — Reviewer prompt states T12's answer rules; reviewer benchmark v2 (accepted October 28, 2026)
 
 Context: Jordan's first live T12 role qualifications on gpt-6-astra (ChatGPT plan, $0):
