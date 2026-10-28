@@ -949,12 +949,18 @@ export class PlanConnectionService {
       out.push(
         `Model ${b.model_id} has no verified access on the responses path.`,
       );
+    // Only qualifications decided on the current role prompts count (ADR-0049).
+    const admitting = await this.deps.store.planAdmittingQualifications(
+      ctx,
+      ws,
+      connectionId,
+    );
     for (const role of ['builder', 'reviewer'] as const) {
       const tc = BUILD_ROLE_TASK_CLASSES[role];
       if (!d.connection.settings.allowed_task_classes.includes(tc))
         out.push(`Task class ${tc} is not allowed on this connection.`);
       if (
-        !d.qualifications.some(
+        !admitting.some(
           (q) =>
             q.model_id === b.model_id &&
             q.task_class === tc &&
@@ -962,7 +968,7 @@ export class PlanConnectionService {
         )
       )
         out.push(
-          `Model ${b.model_id} is not qualified for ${tc} (the T12 ${role}).`,
+          `Model ${b.model_id} is not qualified for ${tc} (the T12 ${role}) under its current prompt.`,
         );
     }
     return out;

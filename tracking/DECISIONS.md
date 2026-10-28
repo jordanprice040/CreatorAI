@@ -30,7 +30,7 @@ usage" and may enforce without notice, so caps are low and the route is for Jord
 studio only. The fully clear alternative remains a metered Claude API key. Details:
 `docs/CLAUDE_CODE_CONNECTION.md`.
 
-## ADR-0049 — Reviewer prompt states T12's answer rules; reviewer benchmark v2 (proposed October 28, 2026)
+## ADR-0049 — Reviewer prompt states T12's answer rules; reviewer benchmark v2 (accepted October 28, 2026)
 
 Context: Jordan's first live T12 role qualifications on gpt-6-astra (ChatGPT plan, $0):
 `t12-builder-v1` qualified (1/1 development, 3/3 held out; an earlier 0/4 was the jsonb
@@ -56,6 +56,14 @@ now keep their answer text in `plan_requests.output_text` (existing column, no m
 failed case can be explained; other plan answers are still not kept.
 
 Needs Jordan: approve `t12-reviewer-v2` as frozen, then one 4-request qualification run.
+
+Follow-up (PR #74 review M-1): a build-role qualification now admits work, and counts in the
+`build-roles-ready` preflight, only if its stored manifest still hashes to `manifest_hash` and
+every case's system prompt is the current T12 role prompt. A future `builder/2` therefore
+needs its own qualification. Qualification history is still shown in full. Review Lows L-1
+(the prompt does not say `changes_requested` needs a finding) and L-2 (the strict key set is
+not spelled out) are deferred on purpose: any prompt change now withdraws the reviewer
+qualification Jordan just earned, so they wait for the next deliberate prompt revision.
 
 ## ADR-0048 — T12 builder and reviewer on the ChatGPT plan's direct route (accepted October 28, 2026)
 
