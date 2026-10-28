@@ -169,7 +169,15 @@ export class StudyBuildStore extends StudyStore {
     ws = uuid(ws);
     attemptId = uuid(attemptId);
     const data = await this.tx(async (c) => {
-      const a = await this.lockAttemptForWrite(c, ctx, ws, attemptId, true);
+      // Budget locks before the audit-chain lock, the order ceiling saves use (ADR-0047).
+      const a = await this.lockAttemptForWrite(
+        c,
+        ctx,
+        ws,
+        attemptId,
+        true,
+        true,
+      );
       if (a.condition === 'human_only') {
         await this.event(c, ctx, a.study_id, a.id, 'helper_denied', {
           helper: 'build',

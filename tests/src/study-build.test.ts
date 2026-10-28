@@ -25,7 +25,7 @@ import {
   fixtureHumilityReview,
   frozenCases,
 } from '@creator/domain';
-import { readEvaluationConfig } from '@creator/db';
+import { AUDIT_CHAIN_LOCK, readEvaluationConfig } from '@creator/db';
 import type { StudyInput } from '@creator/contracts';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 import { TestDoubleExecutor } from './artifact-double.js';
@@ -602,6 +602,45 @@ test('final (non-synthetic) records are refused until every owner answer is in a
     store.prepareStudyExecution(owner, real, ai.id),
     (e: { code?: string }) => e.code === 'LIVE_DISABLED',
   );
+  // Lock order (ADR-0047): a final build takes the study-ledger and runtime-ceiling locks
+  // before the audit-chain lock, as ceiling and limit saves do, so the two cannot deadlock.
+  // While the build waits on either, another transaction can still take the audit lock.
+  for (const key of ['study-ledger:t15-final', 'runtime-ceiling']) {
+    const holder: import('pg').PoolClient = await s.db.pool.connect();
+    try {
+      await holder.query('begin');
+      await holder.query('select pg_advisory_xact_lock(hashtext($1))', [key]);
+      const build = store.prepareStudyBuild(owner, real, ai.id);
+      const settled = build.then(
+        () => 'resolved',
+        (e: { code?: string }) => e.code,
+      );
+      let waiting = false;
+      for (let i = 0; i < 200 && !waiting; i++) {
+        const w = await s.db.pool.query(
+          "select 1 from pg_locks where locktype='advisory' and not granted and objid = hashtext($1)::oid",
+          [key],
+        );
+        waiting = Boolean(w.rowCount);
+        if (!waiting) await new Promise((r) => setTimeout(r, 25));
+      }
+      assert.ok(waiting, `the final build never waited on ${key}`);
+      const audit: { rows: { ok: boolean }[] } = await holder.query(
+        'select pg_try_advisory_xact_lock($1) as ok',
+        [AUDIT_CHAIN_LOCK],
+      );
+      assert.equal(
+        audit.rows[0]!.ok,
+        true,
+        `audit lock held while waiting on ${key}`,
+      );
+      await holder.query('rollback');
+      assert.equal(await settled, 'LIVE_DISABLED');
+    } finally {
+      await holder.query('rollback').catch(() => undefined);
+      holder.release();
+    }
+  }
   // Human-only work records normally on the final path.
   await store.writeAttempt(owner, real, human.id, 'artifacts', {
     kind: 'document',

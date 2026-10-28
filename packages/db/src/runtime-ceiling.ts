@@ -72,6 +72,14 @@ export interface RuntimeExposure {
 }
 
 /**
+ * The lock every ceiling and limit change and every real paid dispatch takes. A transaction
+ * that also appends audit events must take it before the audit-chain lock (ADR-0047).
+ */
+export async function lockRuntimeCeiling(c: PoolClient) {
+  await c.query("select pg_advisory_xact_lock(hashtext('runtime-ceiling'))");
+}
+
+/**
  * Locks the ceiling and reads what already counts against it: settled cost, held exposure of
  * in-flight and unknown paid calls since `effective_from`, and open final study attempts at
  * their full cap (their own calls are not counted twice). Call inside the deciding transaction.
@@ -81,7 +89,7 @@ export async function runtimeExposure(
   config: SpendingConfig,
   scope: { ws: string; runId: string } | null = null,
 ): Promise<RuntimeExposure> {
-  await c.query("select pg_advisory_xact_lock(hashtext('runtime-ceiling'))");
+  await lockRuntimeCeiling(c);
   const ceiling = await currentCeiling(c, config);
   const { rows } = await c.query<{
     exposure: string;

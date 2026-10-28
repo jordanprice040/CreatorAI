@@ -1,5 +1,22 @@
 # Decision log
 
+## ADR-0047 — Study budget locks before the audit-chain lock (accepted October 28, 2026)
+
+Jordan approved fixing the gap ADR-0044 recorded before the first real run. The study build
+path (`prepareStudyBuild`) took the audit-chain lock in `lockAttemptForWrite`, then the
+study-ledger lock and, for final records, the runtime-ceiling lock in `holdBudget`. Ceiling
+and limit saves take runtime-ceiling then audit-chain, and `prepareStudyExecution` takes
+study-ledger then audit-chain, so either pair could deadlock (PostgreSQL would abort one
+transaction). It also applied to synthetic builds against concurrent synthetic execution in
+the same workspace. Now `lockAttemptForWrite(..., budget = true)` takes `holdBudget`'s locks
+(study ledger, then the runtime ceiling for final records) after the run and attempt row
+locks and before the audit-chain lock; `holdBudget` re-takes them (advisory locks are
+re-entrant). Order everywhere: run row, attempt row, study ledger, runtime ceiling, audit
+chain. New `lockRuntimeCeiling` in runtime-ceiling.ts. Test (study-build, final-record
+gate): while another transaction holds the study-ledger or runtime-ceiling lock, a final
+build waits on it without holding the audit-chain lock, then refuses LIVE_DISABLED; it fails
+on the old order. Final builds are still LIVE_DISABLED; no migration, no amounts changed.
+
 ## ADR-0046 — Builds and packaging started from the studio (accepted October 27, 2026)
 
 Jordan approved the five recommendations of the in-app build and package design on
@@ -85,7 +102,7 @@ runs and models from every workspace, like the ceiling; that fits the single-own
 must be narrowed if more than one owner is ever supported. Known lock-order gap (pre-existing
 since ADR-0043): the study build path takes the audit-chain lock before holdBudget takes the
 runtime-ceiling lock, the reverse of ceiling and limit saves; unreachable while final builds
-are LIVE_DISABLED, and must be fixed before live final builds are enabled. Safe default: no
+are LIVE_DISABLED, and must be fixed before live final builds are enabled (fixed by ADR-0047). Safe default: no
 narrower limits are set, so behaviour is unchanged until Jordan sets some; this work set no
 amounts. Still future work from #10: per-user, per-task, provider-wide and recurring limits.
 
