@@ -1,0 +1,38 @@
+{
+  "when": "2026-10-28T11:13:10.342Z",
+  "mode": "fixture",
+  "fake_claude": true,
+  "steps": [
+    {
+      "name": "sign in and open Models and connections",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "add Claude Code; there is no Claude sign-in button, only a status check",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "a Claude Code signed in with an API key is refused",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "after the owner signs in with their Claude account, check, confirm and accept",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "approve and run one verification call",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "phone width: no horizontal page scroll",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "problems": []
+}

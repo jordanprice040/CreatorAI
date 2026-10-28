@@ -289,28 +289,31 @@ export function Models({
               ChatGPT sign-in failed ({attempt.code}): {attempt.message}
             </p>
           )}
-          {claude && (
-            <fieldset>
-              <legend>Sign in to Claude Code yourself</legend>
-              <p>
-                Creator Agent never asks for your Claude password or token.
-                Claude Code keeps its own sign-in in a folder used only for the
-                studio, so your personal Claude Code settings, plugins and
-                history are not used. Press <b>Check Claude Code</b> to see that
-                folder, then sign in once in PowerShell:
-              </p>
-              <pre>
-                <code>
-                  {`$env:CLAUDE_CONFIG_DIR = "${claudeFolder || '<folder shown after the check>'}"\nclaude auth login`}
-                </code>
-              </pre>
-              <p>
-                Choose your Claude account (not Console), then check again. An
-                API key or long-lived token is refused so nothing is billed
-                outside your plan.
-              </p>
-            </fieldset>
-          )}
+          {claude &&
+            !(
+              c.sign_in.state === 'signed_in' && c.sign_in.plan_usage_granted
+            ) && (
+              <fieldset>
+                <legend>Sign in to Claude Code yourself</legend>
+                <p>
+                  Creator Agent never asks for your Claude password or token.
+                  Claude Code keeps its own sign-in in a folder used only for
+                  the studio, so your personal Claude Code settings, plugins and
+                  history are not used. Press <b>Check Claude Code</b> to see
+                  that folder, then sign in once in PowerShell:
+                </p>
+                <pre>
+                  <code>
+                    {`$env:CLAUDE_CONFIG_DIR = "${claudeFolder || '<folder shown after the check>'}"\nclaude auth login`}
+                  </code>
+                </pre>
+                <p>
+                  Choose your Claude account (not Console), then check again. An
+                  API key or long-lived token is refused so nothing is billed
+                  outside your plan.
+                </p>
+              </fieldset>
+            )}
           <dl>
             <dt>Sign-in</dt>
             <dd>

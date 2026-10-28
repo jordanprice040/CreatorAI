@@ -121,7 +121,7 @@ await step('after the owner signs in with their Claude account, check, confirm a
   await page.screenshot({ path: join(shots, '03-ready.png'), fullPage: true });
 });
 await step('approve and run one verification call', async () => {
-  await page.getByLabel('Model').fill('claude-test-model');
+  await page.getByLabel('Model', { exact: true }).fill('claude-test-model');
   await button('Approve one call').click();
   await button('Run the verification call').click();
   await see('claude-test-model · responses · verified');
@@ -134,7 +134,8 @@ await step('phone width: no horizontal page scroll', async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await page.locator('#models-title').waitFor();
-  await see('Sign in to Claude Code yourself');
+  await see('claude-test-model · responses · verified');
+  assert((await page.getByText('Sign in to Claude Code yourself').count()) === 0, 'sign-in help still shown once signed in');
   const extra = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   await page.screenshot({ path: join(shots, '05-phone.png'), fullPage: true });
   assert(extra <= 0, `scrolls by ${extra}px`);
