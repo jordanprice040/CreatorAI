@@ -59,10 +59,13 @@ personal studio, never in a build given to other people.
 --disable-slash-commands --no-session-persistence --max-turns 1 --permission-mode dontAsk
 --system-prompt-file <file>`, prompt on stdin, in an empty working folder. The instructions
    go in a per-request file in `studio-prompts` that is deleted afterwards, so they are not on
-   the command line. `--bare` is
+   the command line. Files left by a crash are swept after 15 minutes, and a failed delete
+   never stops the studio. `--bare` is
    not used because it ignores the subscription login. No `--fallback-model`.
 4. **Checks on what came back.** The start event must list no tools and no MCP servers and
-   must report `apiKeySource: "none"`, or the run is stopped. The answering model
+   must report `apiKeySource: "none"`, or the run is stopped. (No real claude.ai-login run has
+   confirmed that value yet; it fails closed. If the first live verification is refused with
+   `claude_code_not_subscription`, check this rule first.) The answering model
    must be the requested one (`modelUsage`), or the result is `model_substituted`. Answers
    over the output cap are refused.
 5. **Outcomes** follow the plan ledger. A usage limit, sign-in, account or model refusal is

@@ -694,11 +694,12 @@ export class PlanConnectionService {
       return {
         kind: 'rejected',
         reason_code: 'claude_code_outdated',
-        message: `Claude Code ${status.cli_version} is older than ${CLAUDE_CODE_MIN_VERSION}; run claude update.`,
+        message: `Claude Code ${status.cli_version} is older than ${CLAUDE_CODE_MIN_VERSION}; run claude update, then Check Claude Code.`,
         response_id: null,
         output_chars: null,
         retry_allowed: false,
-        sign_in_invalid: true,
+        // Not a sign-in problem (review L-B): this gate refuses every request until the
+        // owner updates, and the next check records the version reason.
       };
     if (
       !status.logged_in ||

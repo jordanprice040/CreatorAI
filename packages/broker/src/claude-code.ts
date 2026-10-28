@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { delimiter, extname, isAbsolute, join } from 'node:path';
@@ -39,6 +40,8 @@ type Refusal = Extract<
 const SHIMS = new Set(['.cmd', '.bat', '.ps1', '.vbs', '.com']);
 const STATUS_TIMEOUT_MS = 20_000;
 const MAX_STDOUT_BYTES = 8 * 1024 * 1024;
+/** Longer than any request may run (the timeout cap is 300 s), so only leftovers match. */
+const STALE_PROMPT_MS = 15 * 60_000;
 /** Environment names copied from the studio into the child; everything else is dropped. */
 const ENV_ALLOW = [
   'PATH',
@@ -218,11 +221,35 @@ export const anthropicConfigDir = (host: ClaudeCodeHost) =>
 const promptDir = (host: ClaudeCodeHost) =>
   join(host.config_dir, 'studio-prompts');
 
+/** Never throws: a file Windows briefly holds (antivirus, indexer) is left for a later sweep. */
+function removeQuietly(path: string) {
+  try {
+    rmSync(path, { force: true, maxRetries: 3, retryDelay: 50 });
+  } catch {
+    // Swept by a later request once it is old enough.
+  }
+}
+
+/** Review L-A: instruction files left by a crash or a failed delete are removed later. */
+function sweepStalePrompts(host: ClaudeCodeHost) {
+  const dir = promptDir(host);
+  const now = Date.now();
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    try {
+      if (now - statSync(p).mtimeMs > STALE_PROMPT_MS) removeQuietly(p);
+    } catch {
+      // Gone already.
+    }
+  }
+}
+
 /** Creates the studio folders. Throws when the Anthropic profile folder is not empty. */
 function prepare(host: ClaudeCodeHost) {
   mkdirSync(host.config_dir, { recursive: true });
   mkdirSync(host.work_dir, { recursive: true });
   mkdirSync(promptDir(host), { recursive: true });
+  sweepStalePrompts(host);
   const anthropic = anthropicConfigDir(host);
   mkdirSync(anthropic, { recursive: true });
   if (readdirSync(anthropic).length)
@@ -386,7 +413,7 @@ export function callClaudeCode(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      rmSync(promptFile, { force: true });
+      removeQuietly(promptFile);
       o.signal?.removeEventListener('abort', onAbort);
       resolve(v);
     };
@@ -414,7 +441,7 @@ export function callClaudeCode(
         shell: false,
       });
     } catch (e) {
-      rmSync(promptFile, { force: true });
+      removeQuietly(promptFile);
       resolve(
         rejected(
           'claude_code_start_failed',

@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
@@ -225,6 +226,20 @@ test('a successful run returns the text, with the prompt on stdin and no tools',
   assert.equal(run.system, 'Reply with exactly the word: ok');
   assert.equal(run.args.includes('Reply with exactly the word: ok'), false);
   assert.deepEqual(readdirSync(join(host.config_dir, 'studio-prompts')), []);
+});
+
+test('instruction files left by a crash are swept; recent ones are left alone', async () => {
+  const host = fakeHost({ status: SUBSCRIBED });
+  const dir = join(host.config_dir, 'studio-prompts');
+  mkdirSync(dir, { recursive: true });
+  const stale = join(dir, 'left-by-crash.txt');
+  const recent = join(dir, 'in-use.txt');
+  writeFileSync(stale, 'old instructions');
+  writeFileSync(recent, 'current instructions');
+  const hourAgo = new Date(Date.now() - 60 * 60_000);
+  utimesSync(stale, hourAgo, hourAgo);
+  assert.equal((await call(host)).kind, 'completed');
+  assert.deepEqual(readdirSync(dir), ['in-use.txt']);
 });
 
 test('Claude Code older than the restricted-mode release is refused with an update reason', () => {
@@ -652,6 +667,13 @@ test('an outdated Claude Code is not counted as signed in and is refused per req
   assert.equal(
     fakeCalls(s.host.config_dir).filter((x) => x.args[0] === '-p').length,
     0,
+  );
+  // Not treated as a sign-in problem, so the screen never says "claude auth login" for it.
+  assert.equal((await s.current()).sign_in.state, 'signed_in');
+  const requests = await s.store.planRequests(owner, s.ws.id, c.id);
+  assert.deepEqual(
+    requests.map((x) => [x.state, x.reason_code]),
+    [['rejected', 'claude_code_outdated']],
   );
   const r = await s.service.checkClaudeCode(owner, s.ws.id, s.conn.id);
   assert.equal(r.connection.sign_in.plan_usage_granted, false);
