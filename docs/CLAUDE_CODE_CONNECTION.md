@@ -1,7 +1,10 @@
 # Claude subscription through Claude Code on this computer (ADR-0050)
 
-Status on 2026-10-28: **implemented and fixture-verified; not activated.** Nothing has run
-against a real Claude account. Decision: ADR-0050 in `tracking/DECISIONS.md`. Migration 32
+Status on 2026-10-28: **live on Jordan's dev studio for one verified model.** At 12:29 UTC
+Jordan's real workspace verified `claude-sonnet-5-5` through his own signed-in Claude Code
+2.1.252. That was one request (46d11105…, completed), made with his typed OK and with extra
+usage confirmed off. No task class is qualified yet, so no real work runs on it. The installed
+app is not set up for it. Decision: ADR-0050 in `tracking/DECISIONS.md`. Migration 32
 (`plan_connection_kinds`).
 
 ## What it is
@@ -63,9 +66,8 @@ personal studio, never in a build given to other people.
    never stops the studio. `--bare` is
    not used because it ignores the subscription login. No `--fallback-model`.
 4. **Checks on what came back.** The start event must list no tools and no MCP servers and
-   must report `apiKeySource: "none"`, or the run is stopped. (No real claude.ai-login run has
-   confirmed that value yet; it fails closed. If the first live verification is refused with
-   `claude_code_not_subscription`, check this rule first.) The answering model
+   must report `apiKeySource: "none"`, or the run is stopped. The first live verification
+   (2026-10-28) confirmed that a claude.ai login reports `none`. The answering model
    must be the requested one (`modelUsage`), or the result is `model_substituted`. Answers
    over the output cap are refused.
 5. **Outcomes** follow the plan ledger. A usage limit, sign-in, account or model refusal is

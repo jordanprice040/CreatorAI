@@ -1,3 +1,15 @@
+## Claude Code connection live on the dev studio — October 28, 2026
+
+PR #76 is merged. On Jordan's device, the dev studio is on main 64f42c1. The database was backed
+up, then migrated to 32, and `CREATOR_CLAUDE_CODE_CONFIG_DIR` was added to start-dev.ps1.
+
+Jordan's real workspace has a claude_code connection (95f918a6…, v6) that is signed in, with
+extra usage off and caps accepted. `claude-sonnet-5-5` is verified (1 request, completed).
+
+Next, each step with Jordan's typed OK:
+- Frozen-benchmark qualification for summarization and specification (`pnpm cli plan-qualify`).
+- Setting up the installed app later.
+
 ## Claude Code connection (ADR-0050) — October 28, 2026
 
 Jordan asked whether Creator Agent can use a Claude subscription like the ChatGPT plan. The
