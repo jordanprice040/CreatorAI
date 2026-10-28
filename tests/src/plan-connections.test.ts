@@ -29,6 +29,7 @@ import {
 } from '@creator/broker';
 import {
   BUILD_ROLE_PROMPTS,
+  canonicalHash,
   admissionBlockers,
   connectionBlockers,
 } from '@creator/domain';
@@ -1122,7 +1123,7 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   assert.match(missing[0]!, /would not admit model requests/);
   assert.equal(
     missing[1],
-    'Model m is not qualified for patch_build (the T12 builder).',
+    'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
   );
   assert.match((await ready(human))[0]!, /human-only/);
   // A frozen study assignment keeps its adopted route.
@@ -1177,7 +1178,7 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     rationale: 'Plan build-role requests for this run.',
   });
   assert.deepEqual(await ready(live), [
-    'Model m is not qualified for patch_build (the T12 builder).',
+    'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
   ]);
   assert.match(
     (await ready(live, editor)).join(' '),
@@ -1192,6 +1193,26 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     s.fake.responseRequests.at(-1)!.body.instructions,
     BUILD_ROLE_PROMPTS.reviewer,
     'the role prompt is fixed by the studio, not the caller',
+  );
+  // A qualification decided on an older reviewer prompt no longer admits the current one.
+  const { rows } = await s.db.pool.query(
+    "select id, manifest from plan_qualifications where connection_id = $1 and task_class = 'independent_review' and state = 'qualified'",
+    [conn.id],
+  );
+  const older = rows[0].manifest;
+  for (const k of older.cases)
+    k.input[0].text = 'independent-reviewer/1: an earlier contract.';
+  await s.db.pool.query(
+    'update plan_qualifications set manifest = $2, manifest_hash = $3 where id = $1',
+    [rows[0].id, older, canonicalHash(older)],
+  );
+  const sentBefore = s.fake.responseRequests.length;
+  await rejects('ACCESS_DENIED', call('reviewer', live));
+  assert.equal(s.fake.responseRequests.length, sentBefore, 'nothing was sent');
+  assert.ok(
+    (await ready(live)).includes(
+      'Model m is not qualified for independent_review (the T12 reviewer) under its current prompt.',
+    ),
   );
   await store.cancelRun(owner, ws.id, live, { reason: 'stop' });
   await rejects('INVALID_TRANSITION', call('reviewer', live));

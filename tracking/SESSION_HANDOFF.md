@@ -1,3 +1,13 @@
+## Build-role qualifications bound to the current prompt — October 28, 2026
+
+t12-reviewer-v2 QUALIFIED live (94ed329e…, 1/1 development, 3/3 held out), so both T12 plan roles
+are qualified for gpt-6-astra (17 plan requests, $0). PR #74 review M-1 fix: plan admission and the
+build-roles-ready preflight count a build-role qualification only when its stored manifest matches
+its hash and uses the current role prompt. A negative test tampers the stored reviewer prompt; the
+build-role call is refused with nothing sent, and the preflight names it. This test fails with the
+admission change reverted. test:db 478 pass / 5 known pwsh failures. CSV run: 8 documentation
+pages fetched live from the six approved hosts (run 001ad495…, source.fetch grant d61ba81b…).
+
 ## Live role qualifications and reviewer prompt v2 — October 28, 2026
 
 On Jordan's dev studio, gpt-6-astra over the ChatGPT plan ($0, 13 plan requests so far):
