@@ -17,8 +17,8 @@ envelope and pricing ids (U04, $0 envelopes used); the dev launcher's products r
 CLI's; a re-run select opened a duplicate decision (rejected). Optional review Lows still open:
 #75 L-1/L-2, #77 L-1/L-2.
 
-Next eligible: runbook step 5 (desktop-shell walkthrough) or 7 (upgrade the installed app), each
-needing Jordan's go-ahead.
+Next eligible: runbook step 7 (upgrade the installed app), which needs Jordan's go-ahead. Step 5
+(desktop-shell walkthrough) was done on October 27 in PRs #63–#69.
 
 ## First real CSV-checker build, and packaging for plan-route builds — October 28, 2026
 

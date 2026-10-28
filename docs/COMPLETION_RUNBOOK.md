@@ -76,6 +76,8 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
 5. **Exercise the current build in the desktop shell.** Package `main` with its own data
    home (never the installed app's database or data home) and walk sign-in, a run,
    download, quit and relaunch.
+   **Done October 27, 2026** (PRs #63–#69: walkthrough fixes, in-app first-run setup,
+   in-app build and package, Recover).
 6. **One real end-to-end run (Group 3).** The accepted example is a CSV quality checker
    for a research team (#22–#24): real sources, compare existing tools first, then spec,
    build, review, QA, package, download, one round of Jordan's feedback and one revision.
