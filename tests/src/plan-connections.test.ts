@@ -1109,13 +1109,22 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   await rejects('INVALID_TRANSITION', call('reviewer', human));
   // Qualified for review is not qualified for building, and the build preflight says so.
   await rejects('ACCESS_DENIED', call('builder', live));
-  assert.deepEqual(
-    await service.buildRolesReady(owner, ws.id, conn.id, {
+  const ready = (run_id: string, ctx = owner) =>
+    service.buildRolesReady(ctx, ws.id, conn.id, {
       model_id: 'm',
+      run_id,
       data_class: 'synthetic',
-    }),
-    ['Model m is not qualified for patch_build (the T12 builder).'],
+    });
+  // The preflight also names the missing model-request grant on the run, before any grant
+  // is used or anything is sent.
+  const missing = await ready(live);
+  assert.equal(missing.length, 2, missing.join(' | '));
+  assert.match(missing[0]!, /would not admit model requests/);
+  assert.equal(
+    missing[1],
+    'Model m is not qualified for patch_build (the T12 builder).',
   );
+  assert.match((await ready(human))[0]!, /human-only/);
   // A frozen study assignment keeps its adopted route.
   const studyRun = await entity('human_in_loop', 'human_in_loop');
   const studyId = randomUUID();
@@ -1130,6 +1139,7 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     [randomUUID(), studyId, ws.id, studyRun, 'c'.repeat(64)],
   );
   await rejects('SCOPE_EXCEEDED', call('reviewer', studyRun));
+  assert.match((await ready(studyRun))[0]!, /study assignments/);
   // Owner only: an editor cannot send build-role requests.
   const editor = { actorId: randomUUID() };
   await store.ensureActor({
@@ -1166,6 +1176,13 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     expires_at: new Date(Date.now() + 3600_000).toISOString(),
     rationale: 'Plan build-role requests for this run.',
   });
+  assert.deepEqual(await ready(live), [
+    'Model m is not qualified for patch_build (the T12 builder).',
+  ]);
+  assert.match(
+    (await ready(live, editor)).join(' '),
+    /Only the workspace owner/,
+  );
   const r = await call('reviewer', live);
   assert.equal(r.status, 'succeeded');
   assert.equal(r.text, APPROVE);
@@ -1249,9 +1266,20 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
       min_held_out_cases: 3,
       floor: { numerator: 3, denominator: 3 },
     });
+  const crashedQ = await start();
   const crashed = await withScorer(async () => {
     throw new Error('scorer crashed');
-  }).runQualification(owner, ws.id, (await start()).id);
+  }).runQualification(owner, ws.id, crashedQ.id);
+  // The grader's own failure is recorded, so it is not mistaken for the model's.
+  const reasons = await s.db.pool.query(
+    'select signal, reason_code from plan_requests where qualification_id = $1',
+    [crashedQ.id],
+  );
+  assert.equal(reasons.rows.length, 4);
+  for (const r of reasons.rows) {
+    assert.equal(r.signal, 'provider_error');
+    assert.equal(r.reason_code, 'grader_error: scorer crashed');
+  }
   assert.equal(
     crashed.state === 'decided' && crashed.qualification.state,
     'failed',

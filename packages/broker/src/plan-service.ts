@@ -584,8 +584,9 @@ export class PlanConnectionService {
           outcome.kind === 'completed' ? outcome.text : null,
           outcome,
         );
-      } catch {
+      } catch (e) {
         observed.signal = 'provider_error';
+        observed.grader_error = e instanceof Error ? e.message : String(e);
       }
     await this.deps.store.settlePlanRequest(
       admitted.request_id,
@@ -768,11 +769,20 @@ export class PlanConnectionService {
     connectionId: string,
     b: {
       model_id: string;
+      run_id: string;
       data_class: 'synthetic' | 'public' | 'private_approved';
     },
   ): Promise<string[]> {
     const d = await this.deps.store.planConnectionDetail(ctx, ws, connectionId);
-    const out = [...d.blockers];
+    const out = [
+      ...d.blockers,
+      ...(await this.deps.store.planBuildRolesRunBlockers(
+        ctx,
+        ws,
+        b.run_id,
+        b.data_class,
+      )),
+    ];
     if (!d.connection.settings.allowed_data_classes.includes(b.data_class))
       out.push(`Data class ${b.data_class} is not allowed on this connection.`);
     if (

@@ -658,7 +658,11 @@ export async function runCli(
             await call(
               z.strictObject({ blockers: z.array(z.string()) }),
               `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/build-roles-ready`,
-              { model_id: target.model_id, data_class: target.data_class },
+              {
+                model_id: target.model_id,
+                run_id: target.run_id,
+                data_class: target.data_class,
+              },
               10_000,
             )
           ).blockers;

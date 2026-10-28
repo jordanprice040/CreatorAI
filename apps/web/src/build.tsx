@@ -873,8 +873,10 @@ function StartBuild({
           {2 + 2 * repairs} builder and reviewer requests, each counted against
           the plan caps in Settings. Both roles must be qualified first; if
           either is not, the build stops before anything is sent or any approval
-          is used. The budget and pricing chosen above are recorded with the
-          build, but nothing is reserved or charged on this route.
+          is used. The run also needs a standing grant covering model requests,
+          because each role request is admitted on it. The budget and pricing
+          chosen above are recorded with the build, but nothing is reserved or
+          charged on this route.
         </p>
       )}
       <label htmlFor="bp-repairs">Repair rounds after a failed check</label>

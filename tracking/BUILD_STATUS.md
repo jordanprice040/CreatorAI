@@ -1,3 +1,13 @@
+## PR #72 re-review follow-ups — October 28, 2026
+
+Re-review of #72: no High/Medium. N-1 fixed: the plan-role preflight now also checks owner,
+run state, study assignment and dry-runs the run's `model.generate` admission (read-only),
+so a missing standing grant stops the build before its commit grant is used. Nits: grader
+errors are stored in the request reason; failed throwaway creates are cleaned up; stale
+"not tested" note removed. Open (pre-existing): a worker crash under the qualification
+products root leaves `pending-worker.json` that the API reconcile path does not see; follow
+up before real qualification runs on Jordan's device.
+
 ## PR #71 review fixes (ADR-0048) — October 28, 2026
 
 Review of #71: no High, M-1 and L-1 to L-5, all fixed (details under ADR-0048). A crashing

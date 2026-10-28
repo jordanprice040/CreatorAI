@@ -42,6 +42,7 @@ import {
   type PlanUsageCounts,
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
+import { toRun } from './oversight-store.js';
 import {
   fail,
   iso,
@@ -65,6 +66,8 @@ export interface PlanObservation {
   upstream_request_id?: string | null;
   /** Qualification only: the objective signal the service computed from the output. */
   signal?: string;
+  /** Qualification only: why the studio's grader failed, kept so it is not mistaken for the model's. */
+  grader_error?: string;
   workflow_output_text?: string;
 }
 
@@ -781,6 +784,70 @@ export class ConnectionStore extends PortfolioStore {
       );
   }
 
+  /**
+   * Why T12 plan build-role requests for this run would be refused or held now (ADR-0048),
+   * without writing anything: owner, run state, study assignment and the run's own
+   * model.generate admission. Both roles need it, so a once-scoped grant is not enough.
+   */
+  async planBuildRolesRunBlockers(
+    ctxIn: CommandContext,
+    ws: string,
+    runId: string,
+    dataClass: PlanAdmissionRequest['data_class'],
+  ): Promise<string[]> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      const out: string[] = [];
+      const role = await this.role(c, uuid(ws), ctx.actorId, false);
+      if (role !== 'owner')
+        out.push('Only the workspace owner can run plan roles.');
+      const r = (
+        await c.query(
+          'select * from run_controls where workspace_id = $1 and run_id = $2',
+          [uuid(ws), uuid(runId)],
+        )
+      ).rows[0];
+      if (!r) return [...out, 'The run is not registered for oversight.'];
+      const run = toRun(r as Row);
+      if (
+        run.state !== 'active' ||
+        run.experiment_condition === 'human_only' ||
+        run.autonomy_mode === 'human_only'
+      )
+        out.push(
+          'The run is cancelled or human-only; no model request is admitted.',
+        );
+      const study = await c.query(
+        'select 1 from study_attempts where workspace_id=$1 and run_id=$2',
+        [uuid(ws), run.run_id],
+      );
+      if (study.rows[0])
+        out.push('Plan build roles are not used for frozen study assignments.');
+      if (out.length) return out;
+      const v = await this.wouldAdmit(c, uuid(ws), run.run_id, {
+        action_type: 'model.generate',
+        task_id: null,
+        target: null,
+        spec_hash: null,
+        amount_nano_usd: null,
+        data_class: dataClass,
+        assumption_ids: [],
+        humility_review: null,
+        flags: [],
+        justification: 'Plan build-role preflight (read-only).',
+      });
+      if (v.verdict !== 'allow')
+        out.push(
+          `The run would not admit model requests for ${dataClass} data (${v.reason_code}); add a standing grant covering model.generate on this run.`,
+        );
+      else if (v.covered_by?.scope === 'once')
+        out.push(
+          'Only a one-time grant covers model requests on this run; the builder and reviewer each need one, so add a standing grant covering model.generate.',
+        );
+      return out;
+    });
+  }
+
   async admitPlanRequest(
     ctxIn: CommandContext,
     ws: string,
@@ -1062,7 +1129,11 @@ export class ConnectionStore extends PortfolioStore {
         [
           r.id,
           s.state,
-          s.state === 'completed' ? null : s.reason_code,
+          s.state === 'completed'
+            ? observed.grader_error
+              ? `grader_error: ${observed.grader_error}`.slice(0, 200)
+              : null
+            : s.reason_code,
           s.upstream_request_id,
           s.state === 'completed' ? s.output_tokens : null,
           s.output_chars,

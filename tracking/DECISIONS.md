@@ -58,9 +58,14 @@ broker builds). L-3: qualification grades with T12's strict builder and review s
 L-4: the form says budget and pricing are recorded but unused on this route (plan hash
 unchanged). L-5: throwaway qualification products are removed after grading; new tests for
 the study-assignment refusal, owner-only, the run admission, the preflight and a
-service-level patch qualification with an accepting and a crashing scorer. Shared
+service-level patch qualification with an accepting and a crashing scorer. Re-review of
+#72 (no High/Medium): N-1, the preflight now also checks owner, run state, study assignment
+and a read-only dry run of the run's `model.generate` admission (`wouldAdmit`; nothing is
+consumed or raised), and asks for a standing grant when only a one-time grant covers it
+(each role request needs one). Nits: a grader error is stored as `grader_error: <message>`
+in the request's reason; a failed throwaway create leaves no partial directory. Shared
 model ancestry can correlate builder and reviewer errors; QA on held-out cases is the guard.
-Not tested here: the study-assignment refusal (it mirrors the existing workflow check).
+The study-assignment refusal is tested (added in #72).
 
 ## ADR-0047 — Study budget locks before the audit-chain lock (accepted October 28, 2026)
 

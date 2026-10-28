@@ -335,6 +335,7 @@ export class StudioBuilds {
           z.strictObject({ blockers: z.array(z.string()) }),
           await ready(ctx, ws, target.connection_id, {
             model_id: target.model_id,
+            run_id: target.run_id,
             data_class: target.data_class,
           }),
         ).blockers;

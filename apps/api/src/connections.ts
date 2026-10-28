@@ -79,6 +79,7 @@ export async function runPlanBuildCall(
 }
 const BuildRolesReadyBody = z.strictObject({
   model_id: z.string().min(1).max(120),
+  run_id: z.uuid(),
   data_class: z.enum(['synthetic', 'public', 'private_approved']),
 });
 /** Why a build's plan roles would be refused now (ADR-0048); sends no model request. */

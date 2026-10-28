@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { rm } from 'node:fs/promises';
+import { readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from '@creator/contracts';
 import { digest, type Binding } from './contracts.js';
 import type { ProductSupervisor } from './products.js';
@@ -53,9 +54,18 @@ export async function scorePatchCase(
     tasks: [{ key: 'T1', hash: taskHash, file_scope: check.file_scope }],
   };
   let product;
+  // A failed create can leave a partial directory; this root holds only throwaway products
+  // and plan requests run one at a time, so anything new here after a failure is its debris.
+  const before = new Set(await readdir(sup.products.root).catch(() => []));
   try {
     product = await sup.products.create(binding);
   } catch {
+    for (const name of await readdir(sup.products.root).catch(() => []))
+      if (!before.has(name) && /^[0-9a-f-]{36}$/.test(name))
+        await rm(join(sup.products.root, name), {
+          recursive: true,
+          force: true,
+        }).catch(() => {});
     return 'provider_error';
   }
   try {
