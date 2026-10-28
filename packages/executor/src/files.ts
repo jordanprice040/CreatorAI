@@ -79,6 +79,39 @@ export function bootedBefore(iso: string): boolean {
   const at = Date.parse(iso);
   return Number.isFinite(at) && at < Date.now() - uptime() * 1000 - 10 * 60_000;
 }
+/** Whether a process exists (EPERM: it does, owned by someone else). */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+/** Tokens of the locks this process holds right now. */
+const held = new Set<string>();
+/**
+ * Who holds a lock file: 'dead', a live process number, or 'writing' (empty and fresh: its
+ * holder is between creating and filling it). An empty lock older than a minute is a crash.
+ * This process's own lock is held only while its token is live here, whatever the clock
+ * says; another process's lock from before this boot is dead (its number may be reused).
+ */
+export function lockHolder(
+  raw: string,
+  mtimeMs: number,
+): 'dead' | 'writing' | number {
+  let lock: { pid?: unknown; at?: unknown; token?: unknown };
+  try {
+    lock = JSON.parse(raw) as typeof lock;
+  } catch {
+    return Date.now() - mtimeMs > 60_000 ? 'dead' : 'writing';
+  }
+  const pid = Number(lock.pid);
+  if (!Number.isInteger(pid) || pid <= 0) return 'dead';
+  if (pid === process.pid) return held.has(String(lock.token)) ? pid : 'dead';
+  if (bootedBefore(String(lock.at))) return 'dead';
+  return alive(pid) ? pid : 'dead';
+}
 export async function withLock<T>(
   dir: string,
   work: () => Promise<T>,
@@ -86,25 +119,49 @@ export async function withLock<T>(
   await canonical(dir);
   const lock = join(dir, 'supervisor.lock');
   const token = randomUUID();
+  // Live from before the file exists until after it is gone, so lockHolder never sees this
+  // process's lock as stale while it is being written or removed.
+  held.add(token);
   let f;
   try {
     f = await open(lock, 'wx', 0o600);
   } catch {
+    held.delete(token);
     throw new Error(
       'Product is locked; inspect pending intents before recovery. A lock is released only by an explicit recovery once its process is gone (Build page: Recover), never by age.',
     );
   }
-  await f.writeFile(
-    JSON.stringify({ pid: process.pid, token, at: new Date().toISOString() }),
-  );
-  await f.sync();
-  await f.close();
+  let failed = false;
   try {
+    await f.writeFile(
+      JSON.stringify({ pid: process.pid, token, at: new Date().toISOString() }),
+    );
+    await f.sync();
+    await f.close();
     return await work();
+  } catch (e) {
+    failed = true;
+    throw e;
   } finally {
-    // Only our own lock: a recovery may have released it and someone else may hold it now.
-    const now = await readFile(lock, 'utf8').catch(() => '');
-    if (now.includes(token)) await unlink(lock);
+    try {
+      // Only our own lock: a recovery may have released it and someone else may hold it
+      // now. Only a missing file is "not ours"; any other read error is surfaced.
+      const now = await readFile(lock, 'utf8').catch(
+        (e: NodeJS.ErrnoException) => {
+          if (e.code === 'ENOENT') return '';
+          throw e;
+        },
+      );
+      if (now.includes(token))
+        await unlink(lock).catch((e: NodeJS.ErrnoException) => {
+          if (e.code !== 'ENOENT') throw e;
+        });
+    } catch (e) {
+      // A cleanup failure never hides the work's own error.
+      if (!failed) throw e;
+    } finally {
+      held.delete(token);
+    }
   }
 }
 export async function event(

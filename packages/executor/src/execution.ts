@@ -7,6 +7,7 @@ import {
   rm,
   readdir,
   unlink,
+  stat,
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +34,7 @@ import {
   fileAt,
   newFile,
   bootedBefore,
+  lockHolder,
 } from './files.js';
 import type { PackageFile } from './tar.js';
 
@@ -45,6 +47,10 @@ function wslPath(p: string): string {
   if (!/^[A-Za-z]:\\/.test(full))
     throw new Error('Reviewed backend requires a Windows drive path');
   return `/mnt/${full[0]!.toLowerCase()}/${full.slice(3).replaceAll('\\', '/')}`;
+}
+/** The worker could not be confirmed stopped (the reap through WSL failed or said no). */
+export class ReapUnverified extends Error {
+  override readonly name = 'ReapUnverified';
 }
 export class ExecutionSupervisor {
   /** Runs this process is dispatching now; any other run recorded under its PID is over. */
@@ -552,12 +558,16 @@ export class ExecutionSupervisor {
         Date.now() - lease.heartbeat_ms < 6000
       )
         throw new Error('Lease has not expired');
-      const messages = await this.launch(job, executionId, true);
+      const messages = await this.launch(job, executionId, true).catch(
+        (e: unknown) => {
+          throw new ReapUnverified(String(e));
+        },
+      );
       const result = messages.find(
         (m) => (m as { type: string }).type === 'result',
       ) as { value: { cleaned: boolean; unit_state: string } } | undefined;
       if (!result?.value.cleaned)
-        throw new Error(
+        throw new ReapUnverified(
           'Worker cleanup could not be verified; outcome remains unresolved',
         );
       record.state = 'lost';
@@ -584,8 +594,15 @@ export class ExecutionSupervisor {
     const lock = join(this.products.root, 'supervisor.lock');
     if (deadSupervisor !== null && deadSupervisor !== process.pid)
       try {
-        const lockOwner = (await readJson(lock)) as { pid: number };
-        if (lockOwner.pid === deadSupervisor) await unlink(lock);
+        const raw = await readFile(lock, 'utf8');
+        const lockOwner = JSON.parse(raw) as { pid: number };
+        // The same liveness rule recovery uses: after a reboot the number may be reused by a
+        // live holder, whose lock stays.
+        if (
+          lockOwner.pid === deadSupervisor &&
+          lockHolder(raw, (await stat(lock)).mtimeMs) === 'dead'
+        )
+          await unlink(lock);
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       }
