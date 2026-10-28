@@ -16,6 +16,8 @@ import {
   BuildSupervisor,
   digest,
   scorePatchCase,
+  qaCaseSchema,
+  type Execution,
   type Binding,
   type BuildPlan,
   type BuildPorts,
@@ -674,6 +676,64 @@ test('the patch qualification scorer applies only scoped patches and never trust
   );
   if (real) assert.equal(inScope, 'acceptance_check_failed');
   else assert.notEqual(inScope, 'accepted');
+});
+
+test('the patch scorer grades a manifest read back from jsonb, and an unrun case is no verdict', async (t) => {
+  const s = await setup(t);
+  // PostgreSQL jsonb orders keys by length then bytes; the stored manifest comes back so.
+  const first = structuredClone(BUILD_FIXTURE_CASES)[0]!;
+  const jsonbOrdered = {
+    args: first.args,
+    stdin: first.stdin,
+    stdout: first.stdout,
+    check_key: first.check_key,
+    exit_code: first.exit_code,
+  };
+  const check = {
+    kind: 'patch_cases' as const,
+    file_scope: ['src'],
+    cases: [jsonbOrdered],
+  };
+  let state: Execution['state'] = 'succeeded';
+  // Stands in for the WSL worker exactly where it matters: the acceptance hash it records.
+  const worker = {
+    run: async (
+      _p: string,
+      _t: string,
+      commit: string,
+      _b: unknown,
+      _s: unknown,
+      qa: unknown,
+    ) => {
+      const c = qaCaseSchema.parse(qa);
+      return {
+        commit,
+        state,
+        reason: state === 'succeeded' ? null : 'Isolation unavailable',
+        exit_code: c.exit_code,
+        log: c.stdout,
+        environment: { acceptance_hash: digest(JSON.stringify(c)) },
+      };
+    },
+  } as unknown as ExecutionSupervisor;
+  const answer = JSON.stringify({
+    submission: {
+      expected_commit: '0'.repeat(40),
+      changes: [{ path: 'src/extra.py', before_hash: null, content: 'x\n' }],
+    },
+    summary: 's',
+    blocker: null,
+  });
+  const score = () =>
+    scorePatchCase(
+      { products: s.products, executor: worker },
+      s.binding.owner_id,
+      check,
+      answer,
+    );
+  assert.equal(await score(), 'accepted');
+  state = 'blocked';
+  assert.equal(await score(), 'provider_error');
 });
 
 test('a worker run an earlier grading left unresolved blocks grading until it is settled', async (t) => {
