@@ -25,6 +25,7 @@ export interface PlanUsageCounts {
 
 /** Reasons the connection as a whole cannot serve inference now, independent of a request. */
 export function connectionBlockers(c: PlanConnection): string[] {
+  if (c.kind === 'claude_code') return claudeCodeBlockers(c);
   const out: string[] = [];
   if (c.sign_in.state !== 'signed_in')
     out.push(
@@ -55,6 +56,42 @@ export function connectionBlockers(c: PlanConnection): string[] {
   return out;
 }
 
+/**
+ * ADR-0050: the owner's own Claude Code CLI. "Signed in" is the last `claude auth status`
+ * check the studio ran; it only counts when Claude Code reported a claude.ai subscription
+ * login, because an API key or other credential would bill elsewhere.
+ */
+function claudeCodeBlockers(c: PlanConnection): string[] {
+  const out: string[] = [];
+  if (c.sign_in.state !== 'signed_in')
+    out.push(
+      c.sign_in.state === 'reauthorization_required'
+        ? "Claude Code on this computer stopped accepting its sign-in. Run claude auth login in the studio's Claude Code folder, then check again."
+        : 'Claude Code on this computer has not been checked, or is not signed in. Sign in with claude auth login, then check again.',
+    );
+  else if (!c.sign_in.plan_usage_granted)
+    out.push(
+      'Claude Code is using an API key or another credential, not your Claude subscription. Remove it and sign in with your Claude account.',
+    );
+  if (c.credits.state !== 'confirmed_off')
+    out.push(
+      'Extra usage after the Claude plan limit is not confirmed off in Claude Settings > Usage.',
+    );
+  if (!c.caps_accepted_at)
+    out.push(
+      'The owner has not accepted the current request, daily, time and output caps.',
+    );
+  if (c.eligibility.state === 'not_eligible')
+    out.push(
+      `Claude reported this account as unable to use Claude Code (${c.eligibility.reason_code ?? 'no code'}).`,
+    );
+  if (c.quota.state === 'exhausted')
+    out.push(
+      'The Claude plan usage limit was reached. Requests pause until it resets; check Claude Settings > Usage.',
+    );
+  return out;
+}
+
 export function admissionBlockers(input: {
   connection: PlanConnection;
   request: PlanAdmissionRequest;
@@ -67,6 +104,10 @@ export function admissionBlockers(input: {
   const { connection: c, request: r, usage: u } = input;
   const caps = c.settings.caps;
   const out = connectionBlockers(c);
+  if (c.kind === 'claude_code' && r.path !== 'responses')
+    out.push(
+      'Claude Code connections have the direct path only (no Codex builds).',
+    );
   if (!c.settings.allowed_data_classes.includes(r.data_class))
     out.push(`Data class ${r.data_class} is not allowed on this connection.`);
   if (r.task_class && !c.settings.allowed_task_classes.includes(r.task_class))

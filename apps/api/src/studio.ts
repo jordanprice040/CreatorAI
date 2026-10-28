@@ -534,6 +534,13 @@ export async function serveStudio(
     CREATOR_DESKTOP_MANAGED: '1',
     // ADR-0042: DPAPI-protected ChatGPT sign-in, beside the studio's products folder.
     CREATOR_PLAN_VAULT_DIR: join(input.products_root, '..', 'plan-credentials'),
+    // ADR-0050: the studio's own Claude Code sign-in folder (the owner runs claude auth login
+    // there); Creator Agent never reads the credential inside it.
+    CREATOR_CLAUDE_CODE_CONFIG_DIR: join(
+      input.products_root,
+      '..',
+      'claude-code',
+    ),
     ...(input.worker_distro
       ? { CREATOR_WORKER_DISTRO: input.worker_distro }
       : {}),

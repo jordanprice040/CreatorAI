@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   z,
   CREDITS_OFF_STATEMENT,
+  CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
   PlanConnectionDetailSchema,
   PlanConnectionSchema,
   type PlanConnection,
@@ -13,7 +14,9 @@ import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
-// separate states; nothing here can enable credits or a paid fallback.
+// separate states; nothing here can enable credits or a paid fallback. A Claude Code
+// connection (ADR-0050) uses the owner's own signed-in Claude Code on this computer: the
+// studio never offers Claude sign-in or holds a Claude credential, it only checks status.
 
 const Detail = PlanConnectionDetailSchema.extend({
   sign_in_attempt: z
@@ -58,6 +61,30 @@ const PROPOSED_SETTINGS = {
   },
 } as const;
 
+const PROPOSED_CLAUDE_SETTINGS = {
+  format: 'chatgpt-plan-settings/1',
+  plan_type: 'unknown',
+  shared_allowance_note:
+    "Claude Pro/Max: the five-hour and weekly usage limits are shared with Jordan's own Claude and Claude Code use. Extra usage after the limit stays off.",
+  allowed_data_classes: ['synthetic', 'public'],
+  allowed_task_classes: ['summarization', 'specification'],
+  caps: {
+    responses: {
+      max_requests_per_run: 10,
+      request_timeout_ms: 180000,
+      max_output_chars: 16000,
+      max_input_chars: 24000,
+    },
+    codex: {
+      max_builds_per_day: 0,
+      max_turns_per_build: 1,
+      max_model_requests_per_build: 1,
+      build_timeout_ms: 60000,
+    },
+    shared: { max_model_requests_per_day: 30, max_in_flight: 1 },
+  },
+} as const;
+
 const SIGN_IN_TEXT: Record<PlanConnection['sign_in']['state'], string> = {
   not_signed_in: 'Not signed in',
   signed_in: 'Signed in',
@@ -91,6 +118,7 @@ export function Models({
     'model_access' | 'availability_recheck'
   >('model_access');
   const [grantModel, setGrantModel] = useState('');
+  const [claudeFolder, setClaudeFolder] = useState('');
   const loadSequence = useRef(0);
   async function load(id = selected) {
     const sequence = ++loadSequence.current;
@@ -161,6 +189,11 @@ export function Models({
   const c = detail?.connection;
   const attempt = detail?.sign_in_attempt;
   const p = c ? `plan-connections/${c.id}` : '';
+  const claude = c?.kind === 'claude_code';
+  const usageStatement = claude
+    ? CLAUDE_EXTRA_USAGE_OFF_STATEMENT
+    : CREDITS_OFF_STATEMENT;
+  const hasKind = (k: PlanConnection['kind']) => list.some((x) => x.kind === k);
   return (
     <section className="panel" aria-labelledby="models-title">
       <h2 id="models-title">Models and connections</h2>
@@ -185,20 +218,44 @@ export function Models({
         </li>
         <li>Local models (Ollama): not available yet.</li>
       </ul>
-      <h3>ChatGPT plan</h3>
+      <h3>Plan connections</h3>
+      <p>
+        These use the usage included in a plan you already pay for, with no
+        per-request charge, while extra paid usage stays off.
+      </p>
       {!loaded && <p role="status">Loading saved connections…</p>}
-      {loaded && !list.length && (
-        <button
-          disabled={busy || !session}
-          onClick={() =>
-            void act('plan-connections', {
-              label: 'ChatGPT plan',
-              settings: PROPOSED_SETTINGS,
-            })
-          }
-        >
-          Add a ChatGPT plan connection
-        </button>
+      {loaded && (!hasKind('chatgpt_plan') || !hasKind('claude_code')) && (
+        <div className="actions">
+          {!hasKind('chatgpt_plan') && (
+            <button
+              disabled={busy || !session}
+              onClick={() =>
+                void act('plan-connections', {
+                  kind: 'chatgpt_plan',
+                  label: 'ChatGPT plan',
+                  settings: PROPOSED_SETTINGS,
+                })
+              }
+            >
+              Add a ChatGPT plan connection
+            </button>
+          )}
+          {!hasKind('claude_code') && (
+            <button
+              className={list.length ? 'secondary' : undefined}
+              disabled={busy || !session}
+              onClick={() =>
+                void act('plan-connections', {
+                  kind: 'claude_code',
+                  label: 'Claude Code on this computer',
+                  settings: PROPOSED_CLAUDE_SETTINGS,
+                })
+              }
+            >
+              Add Claude Code on this computer
+            </button>
+          )}
+        </div>
       )}
       {list.length > 1 && (
         <label>
@@ -213,6 +270,7 @@ export function Models({
             {list.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.label}
+                {x.kind === 'claude_code' ? ' (Claude)' : ' (ChatGPT)'}
               </option>
             ))}
           </select>
@@ -231,30 +289,76 @@ export function Models({
               ChatGPT sign-in failed ({attempt.code}): {attempt.message}
             </p>
           )}
+          {claude && (
+            <fieldset>
+              <legend>Sign in to Claude Code yourself</legend>
+              <p>
+                Creator Agent never asks for your Claude password or token.
+                Claude Code keeps its own sign-in in a folder used only for the
+                studio, so your personal Claude Code settings, plugins and
+                history are not used. Press <b>Check Claude Code</b> to see that
+                folder, then sign in once in PowerShell:
+              </p>
+              <pre>
+                <code>
+                  {`$env:CLAUDE_CONFIG_DIR = "${claudeFolder || '<folder shown after the check>'}"\nclaude auth login`}
+                </code>
+              </pre>
+              <p>
+                Choose your Claude account (not Console), then check again. An
+                API key or long-lived token is refused so nothing is billed
+                outside your plan.
+              </p>
+            </fieldset>
+          )}
           <dl>
             <dt>Sign-in</dt>
             <dd>
-              {SIGN_IN_TEXT[c.sign_in.state]}
+              {claude && c.sign_in.state === 'not_signed_in'
+                ? 'Not checked or not signed in'
+                : SIGN_IN_TEXT[c.sign_in.state]}
               {c.sign_in.account_label ? ` · ${c.sign_in.account_label}` : ''}
               {c.sign_in.state === 'signed_in' && !c.sign_in.plan_usage_granted
-                ? ' · plan usage was not granted'
+                ? claude
+                  ? ' · not a Claude subscription login'
+                  : ' · plan usage was not granted'
+                : ''}
+              {claude && c.sign_in.issued_client_id
+                ? ` · ${c.sign_in.issued_client_id.replace('/', ' ')}`
+                : ''}
+              {claude && c.sign_in.verified_at
+                ? ` · checked ${new Date(c.sign_in.verified_at).toLocaleString()}`
                 : ''}
             </dd>
-            <dt>Plan eligibility</dt>
+            {c.status_reason && (
+              <>
+                <dt>Note</dt>
+                <dd>{c.status_reason}</dd>
+              </>
+            )}
+            <dt>{claude ? 'Account status' : 'Plan eligibility'}</dt>
             <dd>{c.eligibility.state.replaceAll('_', ' ')}</dd>
             <dt>Usage allowance</dt>
             <dd>
-              {c.quota.state.replaceAll('_', ' ')} · shared with your own
-              ChatGPT and Codex use ·{' '}
+              {c.quota.state.replaceAll('_', ' ')} · shared with your own{' '}
+              {claude ? 'Claude and Claude Code' : 'ChatGPT and Codex'} use ·{' '}
               <a
-                href="https://chatgpt.com/settings/usage"
+                href={
+                  claude
+                    ? 'https://claude.ai/settings/usage'
+                    : 'https://chatgpt.com/settings/usage'
+                }
                 target="_blank"
                 rel="noreferrer"
               >
-                ChatGPT usage settings
+                {claude ? 'Claude usage settings' : 'ChatGPT usage settings'}
               </a>
             </dd>
-            <dt>Credits after the limit</dt>
+            <dt>
+              {claude
+                ? 'Extra usage after the limit'
+                : 'Credits after the limit'}
+            </dt>
             <dd>
               {c.credits.state === 'confirmed_off'
                 ? `Confirmed off on ${c.credits.checked_on ?? ''}`
@@ -267,8 +371,10 @@ export function Models({
               · {c.settings.caps.responses.max_requests_per_run} per run ·{' '}
               {Math.round(c.settings.caps.responses.request_timeout_ms / 1000)}s
               timeout · {c.settings.caps.responses.max_output_chars} output
-              characters · {c.settings.caps.codex.max_builds_per_day} Codex
-              builds a day
+              characters
+              {claude
+                ? ''
+                : ` · ${c.settings.caps.codex.max_builds_per_day} Codex builds a day`}
             </dd>
             <dt>Allowed</dt>
             <dd>
@@ -287,16 +393,32 @@ export function Models({
             </>
           )}
           <div className="actions">
-            <button
-              disabled={busy || !session || attempt?.state === 'pending'}
-              onClick={() =>
-                void act(`${p}/sign-in`, { open_browser: true }, 20000)
-              }
-            >
-              {c.sign_in.state === 'signed_in'
-                ? 'Sign in again'
-                : 'Continue with ChatGPT'}
-            </button>
+            {claude ? (
+              <button
+                disabled={busy || !session}
+                onClick={async () => {
+                  const out = (await act(
+                    `${p}/claude-code-check`,
+                    {},
+                    60000,
+                  )) as { config_dir?: string } | null;
+                  if (out?.config_dir) setClaudeFolder(out.config_dir);
+                }}
+              >
+                Check Claude Code
+              </button>
+            ) : (
+              <button
+                disabled={busy || !session || attempt?.state === 'pending'}
+                onClick={() =>
+                  void act(`${p}/sign-in`, { open_browser: true }, 20000)
+                }
+              >
+                {c.sign_in.state === 'signed_in'
+                  ? 'Sign in again'
+                  : 'Continue with ChatGPT'}
+              </button>
+            )}
             {!c.caps_accepted_at && (
               <button
                 disabled={busy || !session}
@@ -322,10 +444,15 @@ export function Models({
           </div>
           {c.credits.state !== 'confirmed_off' ? (
             <fieldset>
-              <legend>Confirm credits are off</legend>
+              <legend>
+                {claude
+                  ? 'Confirm extra usage is off'
+                  : 'Confirm credits are off'}
+              </legend>
               <p>
-                Open ChatGPT Settings, then Usage, and make sure Creator Agent
-                is not allowed to use credits after reaching plan limits.
+                {claude
+                  ? 'Open Claude Settings, then Usage, and make sure extra usage (usage credits) is turned off, so reaching your plan limit stops requests instead of charging you.'
+                  : 'Open ChatGPT Settings, then Usage, and make sure Creator Agent is not allowed to use credits after reaching plan limits.'}
               </p>
               <label>
                 <input
@@ -333,7 +460,7 @@ export function Models({
                   checked={confirmCredits}
                   onChange={(e) => setConfirmCredits(e.target.checked)}
                 />{' '}
-                {CREDITS_OFF_STATEMENT}
+                {usageStatement}
               </label>
               <label>
                 Checked on
@@ -348,7 +475,7 @@ export function Models({
                 onClick={() =>
                   void act(`${p}/credits`, {
                     expected_version: c.version,
-                    statement: CREDITS_OFF_STATEMENT,
+                    statement: usageStatement,
                     checked_on: checkedOn,
                   })
                 }
@@ -363,11 +490,15 @@ export function Models({
               onClick={() =>
                 void act(`${p}/credits-withdraw`, {
                   expected_version: c.version,
-                  reason: 'Owner withdrew the credits confirmation.',
+                  reason: claude
+                    ? 'Owner withdrew the extra-usage confirmation.'
+                    : 'Owner withdrew the credits confirmation.',
                 })
               }
             >
-              Withdraw credits confirmation
+              {claude
+                ? 'Withdraw extra-usage confirmation'
+                : 'Withdraw credits confirmation'}
             </button>
           )}
           <h4>Model access</h4>
@@ -393,7 +524,13 @@ export function Models({
             </p>
             <label>
               Model
-              <input value={model} onChange={(e) => setModel(e.target.value)} />
+              <input
+                value={model}
+                placeholder={
+                  claude ? 'Full model id, e.g. claude-sonnet-5-5' : ''
+                }
+                onChange={(e) => setModel(e.target.value)}
+              />
             </label>
             <button
               disabled={

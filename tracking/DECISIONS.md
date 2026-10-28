@@ -1,5 +1,35 @@
 # Decision log
 
+## ADR-0050 — Claude subscription through the owner's own Claude Code CLI (accepted October 28, 2026)
+
+Context: Jordan asked whether Creator Agent can use a Claude subscription the way it uses the
+ChatGPT plan. Anthropic's terms (Claude Code legal and compliance page, Agent SDK overview,
+Consumer Terms; read 2026-10-28) forbid apps from offering Claude.ai login, routing requests
+through Free/Pro/Max credentials for their users, or collecting, storing or intermediating
+Claude.ai credentials or session tokens. They do allow a user to sign in to the unmodified
+Claude Code binary with their own subscription, and they document scripted use (`claude -p`).
+Jordan chose "Build it as designed" on the feasibility design.
+
+Decision: plan connections get a fixed `kind` (`chatgpt_plan` or `claude_code`, migration 32,
+immutable by trigger; a `claude_code` row can never hold a credential reference). A
+`claude_code` connection runs the owner's own signed-in Claude Code on this computer, in a
+dedicated `CLAUDE_CONFIG_DIR` (`CREATOR_CLAUDE_CODE_CONFIG_DIR`), never the owner's personal
+folder. The studio has no Claude sign-in flow and never reads a Claude credential; "signed in"
+is the last `claude auth status` result, and only a `claude.ai` login with the first-party
+provider grants plan usage. The status is re-read before every request. Runs use restricted
+mode with no tools, MCP, skills, session persistence or fallback model, one turn, an
+allowlisted environment, stream output checked for tools, credential source and the answering
+model. Refusals are cut at the first retry notice. Everything else reuses the ChatGPT-plan
+gates unchanged: owner caps, a Claude-specific "extra usage is off" attestation, one-shot
+model verification, frozen-benchmark qualification, the request ledger and reconcile. Direct
+path only; `code_build` and Codex builds are refused for this kind.
+
+Consequences: no money moves while extra usage is off; requests share Jordan's Claude limits.
+Policy risk stays: Anthropic may judge studio automation as outside "ordinary, individual
+usage" and may enforce without notice, so caps are low and the route is for Jordan's personal
+studio only. The fully clear alternative remains a metered Claude API key. Details:
+`docs/CLAUDE_CODE_CONNECTION.md`.
+
 ## ADR-0049 — Reviewer prompt states T12's answer rules; reviewer benchmark v2 (proposed October 28, 2026)
 
 Context: Jordan's first live T12 role qualifications on gpt-6-astra (ChatGPT plan, $0):

@@ -104,6 +104,7 @@ import {
 import { batchesOf, readCorpus } from './context-index.js';
 import {
   CREDITS_OFF_STATEMENT,
+  CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
   PlanConnectionSchema,
   PlanConnectionDetailSchema,
   PlanQualificationSchema,
@@ -285,6 +286,9 @@ const USAGE = `Usage:
   pnpm cli plan-requests <workspace> <connection-id>
   pnpm cli plan-reconcile <workspace> <connection-id> <request-id> <expected-version> <did_not_run|ran> <note>
   pnpm cli plan-quota-recheck <workspace> <connection-id> <expected-version>
+  pnpm cli claude-connect <workspace> <label> [config/connections/claude-code.json]
+  pnpm cli claude-check <workspace> <connection-id>
+  pnpm cli claude-usage-off <workspace> <connection-id> <expected-version> <checked-on YYYY-MM-DD>
   pnpm cli route-outcome <workspace> <decision-id> <outcome-json|file.json>
   pnpm cli route-escalate <workspace> <decision-id> [new-operation-id]
   pnpm cli context-capabilities-add <workspace> <config/context/provider-capabilities*.json>
@@ -1818,6 +1822,40 @@ export async function runCli(
               rest[2] ?? 'config/connections/chatgpt-plan.json',
               'Plan settings',
             ),
+          },
+        );
+        break;
+      case 'claude-connect':
+        // ADR-0050: the owner's own signed-in Claude Code CLI; the plan-* commands then apply.
+        data = await call(
+          PlanConnectionSchema,
+          `${ws(rest[0])}/plan-connections`,
+          {
+            kind: 'claude_code',
+            label: rest[1],
+            settings: jsonArg(
+              rest[2] ?? 'config/connections/claude-code.json',
+              'Claude Code settings',
+            ),
+          },
+        );
+        break;
+      case 'claude-check':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/claude-code-check`,
+          {},
+          60000,
+        );
+        break;
+      case 'claude-usage-off':
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/credits`,
+          {
+            expected_version: version(rest[2]),
+            statement: CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
+            checked_on: rest[3],
           },
         );
         break;

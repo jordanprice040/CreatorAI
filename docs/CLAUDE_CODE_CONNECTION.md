@@ -1,0 +1,107 @@
+# Claude subscription through Claude Code on this computer (ADR-0050)
+
+Status on 2026-10-28: **implemented and fixture-verified; not activated.** Nothing has run
+against a real Claude account. Decision: ADR-0050 in `tracking/DECISIONS.md`. Migration 32
+(`plan_connection_kinds`).
+
+## What it is
+
+A second kind of plan connection on **System → Models and connections**. Instead of the
+studio holding a ChatGPT token, it starts the owner's own, unmodified Claude Code CLI, which
+the owner signed in to personally with their Claude Pro or Max account. Requests then use the
+plan's included usage, with no per-request charge while extra usage stays off.
+
+Everything after the sign-in is the same as the ChatGPT plan route: caps the owner accepts,
+a confirmation that paid overflow is off, one approved verification call per model, and a
+frozen-benchmark qualification per task class before real work. Only the direct path exists
+(no Codex, no `code_build`).
+
+## Why it is built this way (terms read 2026-10-28)
+
+- [Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance):
+  third-party developers may not offer Claude.ai login in their apps, route requests through
+  Free/Pro/Max credentials on behalf of their users, or "collect, store, or intermediate
+  Claude.ai credentials or session tokens". It does not prevent "an end user from signing in
+  to the unmodified Claude Code binary with their own Claude subscription". Pro/Max limits
+  "assume ordinary, individual usage of Claude Code and the Agent SDK", and Anthropic may
+  enforce "without prior notice".
+- [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview): apps may not
+  offer claude.ai login or rate limits for their products.
+- [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) (effective Oct 8, 2025):
+  no automated access except by API key or where Anthropic explicitly permits it. Claude Code
+  documents scripted use (`claude -p`, [headless](https://code.claude.com/docs/en/headless)).
+
+So the studio never offers a Claude sign-in, never reads `.credentials.json`, never uses
+`claude setup-token`, and never calls Anthropic's API with a subscription credential. It only
+runs `claude` and reads what it prints. This is a reading of public documents, not legal
+advice. Heavy unattended use is the part most likely to be judged outside "ordinary,
+individual usage"; the low default caps exist partly for that. Use it only for Jordan's own
+personal studio, never in a build given to other people.
+
+## How a request runs
+
+`packages/broker/src/claude-code.ts`:
+
+1. **Fresh sign-in check.** Before every request, `claude auth status --json` runs in the
+   studio's dedicated folder. Only `authMethod: "claude.ai"` with the first-party provider
+   counts. An API key, long-lived OAuth token, key helper or cloud provider is refused before
+   anything is sent, and the connection moves to "check again".
+2. **Clean environment.** The child gets an allowlist (PATH, home and temp folders, locale,
+   proxy settings) plus `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and
+   `DISABLE_AUTOUPDATER=1`. `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`,
+   `CLAUDE_CODE_OAUTH_TOKEN` and provider switches never reach it.
+3. **Locked-down run.** `claude -p --output-format stream-json --verbose --model <id>
+--restricted --tools "" --strict-mcp-config --disallowedTools "mcp__*"
+--disable-slash-commands --no-session-persistence --max-turns 1 --permission-mode dontAsk
+--system-prompt <instructions>`, prompt on stdin, in an empty working folder. `--bare` is
+   not used because it ignores the subscription login. No `--fallback-model`.
+4. **Checks on what came back.** The start event must list no tools and no MCP servers and
+   must not report an API key as its credential, or the run is stopped. The answering model
+   must be the requested one (`modelUsage`), or the result is `model_substituted`. Answers
+   over the output cap are refused.
+5. **Outcomes** follow the plan ledger. A usage limit, sign-in, account or model refusal is
+   cut at Claude Code's first retry notice and recorded as rejected (usage limit pauses the
+   connection; no paid fallback). A timeout or a run that ended without a result is unknown
+   and blocks the connection until Jordan reconciles it.
+
+Spend is recorded as $0 only because extra usage is confirmed off; Claude Code's own
+`total_cost_usd` is a client-side estimate and is not stored as spend.
+
+## Owner steps (each live step needs Jordan's typed OK)
+
+1. Install Claude Code with the **native installer** (`claude.exe`; the npm `claude.cmd` shim
+   is refused because the studio never starts a shell).
+2. Studio configuration: the installed app sets `CREATOR_CLAUDE_CODE_CONFIG_DIR` to a
+   `claude-code` folder beside its data. For the dev studio set it yourself, for example
+   `$env:CREATOR_CLAUDE_CODE_CONFIG_DIR = "C:\dev\creator_agent\.creator\studio\claude-code"`.
+   `CREATOR_CLAUDE_CODE_BIN` is optional (default: `claude.exe` on PATH, then
+   `%USERPROFILE%\.local\bin\claude.exe`).
+3. Models and connections → **Add Claude Code on this computer** → **Check Claude Code**. It
+   shows the folder. In PowerShell:
+   `$env:CLAUDE_CONFIG_DIR = "<that folder>"; claude auth login` and pick the Claude account.
+   Check again.
+4. In Claude Settings → Usage, make sure extra usage (usage credits) is off, then record the
+   confirmation. Accept the caps.
+5. Approve one verification call for a full model id (for example the model you want from
+   your plan) and run it. Then qualify task classes with frozen benchmarks
+   (`pnpm cli plan-qualify`), as for ChatGPT.
+
+CLI: `pnpm cli claude-connect`, `claude-check`, `claude-usage-off`; every `plan-*` command
+works on either kind.
+
+## Proposed caps (need Jordan's acceptance)
+
+`config/connections/claude-code.json`: one request at a time, 30 a day, 10 per run, 180 s
+timeout, 16,000 output and 24,000 input characters, synthetic and public data, summarization
+and specification. The limits are shared with Jordan's own Claude and Claude Code use.
+
+## Tests
+
+- `tests/src/claude-code.test.ts` with a fake `claude` (`tests/src/claude-fake.ts`):
+  environment allowlist, locked-down flags, shim refusal, status parsing, outcomes (success,
+  usage limit, sign-in, model refusal, substituted model, output cap, unsafe session, API-key
+  session, timeout, crash), settings and statement checks per kind, the immutable kind, a
+  sign-in change between check and request (refused, nothing sent), and the usage-limit pause.
+- An optional contract check runs the **real** Claude Code CLI against a loopback stand-in for
+  Anthropic's API (`CREATOR_TEST_CLAUDE_BIN=<path>`); it never contacts Anthropic.
+- Browser walk: `tracking/evidence/claude-code-ui/walk.mjs` (fake `claude`).

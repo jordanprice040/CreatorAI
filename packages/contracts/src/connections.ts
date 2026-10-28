@@ -11,11 +11,20 @@ import {
 // inference and Codex app-server for code_build. Sign-in, model access and task
 // qualification are separate verified states; none implies another. Tokens never appear in
 // these records: the database stores only a vault reference.
+//
+// A claude_code connection (ADR-0050) instead drives the unmodified Claude Code CLI that the
+// owner installed and signed in to personally on this computer. The studio never sees,
+// stores or forwards a Claude credential; it only reads `claude auth status`. Anthropic does
+// not allow apps to offer Claude sign-in or hold Claude subscription tokens, so there is no
+// sign-in flow for this kind. It has the direct path only (no Codex, no code_build).
 
 export const CONNECTIONS_POLICY_VERSION = 'connections/1.0' as const;
 const short = z.string().trim().min(1).max(200);
 const note = z.string().trim().min(1).max(1200);
 const label = z.string().trim().min(1).max(80);
+
+export const PlanProviderSchema = z.enum(['chatgpt_plan', 'claude_code']);
+export type PlanProvider = z.infer<typeof PlanProviderSchema>;
 
 export const PlanPathSchema = z.enum(['responses', 'codex']);
 export type PlanPath = z.infer<typeof PlanPathSchema>;
@@ -64,7 +73,7 @@ export const PlanCapsSchema = z.strictObject({
 });
 export type PlanCaps = z.infer<typeof PlanCapsSchema>;
 
-export const PlanTypeSchema = z.enum(['plus', 'pro', 'unknown']);
+export const PlanTypeSchema = z.enum(['plus', 'pro', 'max', 'unknown']);
 export const PlanSettingsSchema = z
   .strictObject({
     format: z.literal('chatgpt-plan-settings/1'),
@@ -86,6 +95,7 @@ export const PlanSettingsSchema = z
 export type PlanSettings = z.infer<typeof PlanSettingsSchema>;
 
 export const CreatePlanConnectionRequestSchema = z.strictObject({
+  kind: PlanProviderSchema.default('chatgpt_plan'),
   label,
   settings: PlanSettingsSchema,
 });
@@ -104,9 +114,22 @@ export const AcceptPlanCapsRequestSchema = z.strictObject({
  */
 export const CREDITS_OFF_STATEMENT =
   'I checked ChatGPT Settings > Usage: Creator Agent is not allowed to use credits after reaching plan limits.' as const;
+/**
+ * The Claude equivalent (ADR-0050): Pro and Max can buy extra usage after the plan limit, which
+ * the studio cannot see per request either. The statement must match the connection's kind.
+ */
+export const CLAUDE_EXTRA_USAGE_OFF_STATEMENT =
+  'I checked Claude Settings > Usage: extra usage (usage credits) is turned off, so Claude Code cannot spend money after reaching my plan limits.' as const;
+export const usageOffStatement = (kind: PlanProvider) =>
+  kind === 'claude_code'
+    ? CLAUDE_EXTRA_USAGE_OFF_STATEMENT
+    : CREDITS_OFF_STATEMENT;
 export const AttestCreditsRequestSchema = z.strictObject({
   expected_version: version,
-  statement: z.literal(CREDITS_OFF_STATEMENT),
+  statement: z.union([
+    z.literal(CREDITS_OFF_STATEMENT),
+    z.literal(CLAUDE_EXTRA_USAGE_OFF_STATEMENT),
+  ]),
   checked_on: z.iso.date(),
 });
 export const WithdrawCreditsRequestSchema = z.strictObject({
@@ -136,7 +159,7 @@ export const PlanConnectionSchema = z.strictObject({
   id,
   workspace_id: id,
   fixture: z.boolean(),
-  kind: z.literal('chatgpt_plan'),
+  kind: PlanProviderSchema,
   label,
   version,
   settings: PlanSettingsSchema,

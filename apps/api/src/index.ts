@@ -60,6 +60,7 @@ import {
   BRAVE_SEARCH_ID,
   PlanConnectionService,
   planVaultFromEnv,
+  claudeCodeHostFromEnv,
   type PlanServiceDeps,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
@@ -312,6 +313,8 @@ export function createApi(
       new PlanConnectionService({
         store,
         vault: planVaultFromEnv(env),
+        // ADR-0050: the owner's own signed-in Claude Code CLI, in its dedicated folder.
+        claudeCode: claudeCodeHostFromEnv(env),
         patchScorer,
       }))
     : null;

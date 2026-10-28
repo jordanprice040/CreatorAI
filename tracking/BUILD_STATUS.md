@@ -1,3 +1,18 @@
+## Claude Code connection (ADR-0050) — October 28, 2026
+
+Creator Agent can now add **Claude Code on this computer** on Models and connections: Claude
+subscription usage through Jordan's own signed-in, unmodified Claude Code CLI. The studio never
+offers Claude sign-in or holds a Claude credential (Anthropic's terms forbid that); it reads
+`claude auth status` and runs locked-down `claude -p` requests. Same gates as the ChatGPT
+plan (caps, extra-usage-off confirmation, verification, qualification, ledger). Migration 32.
+
+Checks: `tests/src/claude-code.test.ts` 14/14 with a fake `claude` plus the real Claude Code
+2.1.312 against a loopback stand-in (no Anthropic contact); key guards mutation-checked; browser
+walk `tracking/evidence/claude-code-ui/walk.mjs`. Not activated: no real Claude account used.
+
+Next (each needs Jordan's typed OK): install Claude Code (native), sign in in the studio folder,
+confirm extra usage off, accept caps, one verification call, then qualifications.
+
 ## Live role qualifications and reviewer prompt v2 — October 28, 2026
 
 On Jordan's dev studio, gpt-6-astra over the ChatGPT plan ($0, 13 plan requests so far):

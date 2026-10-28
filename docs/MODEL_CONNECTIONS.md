@@ -1,5 +1,9 @@
 # Model connections: ChatGPT plan and the Codex builder (§2.2 / §2.4)
 
+October 28 update: a second plan connection kind, **Claude Code on this computer**, uses a
+Claude Pro/Max subscription through the owner's own signed-in Claude Code CLI, with the same
+gates. See [CLAUDE_CODE_CONNECTION.md](CLAUDE_CODE_CONNECTION.md) (ADR-0050, migration 32).
+
 October 20 live update: owner sign-in and one gpt-6-astra direct verification succeeded.
 The owner-authorized initial summarization qualification also passed (2/2 development,
 6/6 held-out, eight new plan requests). This is limited to synthetic structured event

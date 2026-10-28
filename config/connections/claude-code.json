@@ -1,0 +1,25 @@
+{
+  "format": "chatgpt-plan-settings/1",
+  "plan_type": "unknown",
+  "shared_allowance_note": "Claude Pro/Max: the five-hour and weekly usage limits are shared with Jordan's own Claude and Claude Code use. Extra usage after the limit stays off. Studio caps below are proposals pending Jordan's acceptance.",
+  "allowed_data_classes": ["synthetic", "public"],
+  "allowed_task_classes": ["summarization", "specification"],
+  "caps": {
+    "responses": {
+      "max_requests_per_run": 10,
+      "request_timeout_ms": 180000,
+      "max_output_chars": 16000,
+      "max_input_chars": 24000
+    },
+    "codex": {
+      "max_builds_per_day": 0,
+      "max_turns_per_build": 1,
+      "max_model_requests_per_build": 1,
+      "build_timeout_ms": 60000
+    },
+    "shared": {
+      "max_model_requests_per_day": 30,
+      "max_in_flight": 1
+    }
+  }
+}
