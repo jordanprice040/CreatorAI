@@ -18,7 +18,12 @@ import {
 } from './contracts.js';
 import { ProductSupervisor, TEMPLATE_HASH, inputHash } from './products.js';
 import { ExecutionSupervisor } from './execution.js';
-import { BuildSupervisor, type BuildPlan, type BuildPorts } from './build.js';
+import {
+  BuildSupervisor,
+  planRoleResultSchema,
+  type BuildPlan,
+  type BuildPorts,
+} from './build.js';
 import { canonical, jsonWrite, readJson, event } from './files.js';
 import { readTar, writeTar, type PackageFile } from './tar.js';
 
@@ -93,11 +98,16 @@ export class ArtifactSupervisor {
     }
     let settled = 0n,
       unsettled = 0;
+    const planRequests: string[] = [];
     for (let n = 1; n <= outcome.calls; n++) {
-      const call = checked(
-        BrokerCallResultSchema,
-        await readJson(join(buildDir, `call-${n}-outcome.json`)),
-      );
+      const raw = await readJson(join(buildDir, `call-${n}-outcome.json`));
+      if (intent.plan.plan_roles) {
+        // Plan requests settle no dollars; record which ones the candidate rests on instead.
+        const call = checked(planRoleResultSchema, raw);
+        planRequests.push(call.request_id);
+        continue;
+      }
+      const call = checked(BrokerCallResultSchema, raw);
       for (const a of call.attempts)
         if (a.status === 'settled' && a.incurred !== null)
           settled += BigInt(a.incurred);
@@ -275,10 +285,18 @@ export class ArtifactSupervisor {
         package: packageChecks,
       },
       costs: {
-        broker_calls: outcome.calls,
+        broker_calls: intent.plan.plan_roles ? 0 : outcome.calls,
         settled_nano_usd: settled.toString(),
         unsettled_attempts: unsettled,
         local_compute: 'not_metered_by_studio',
+        ...(intent.plan.plan_roles
+          ? {
+              plan_requests: {
+                ...intent.plan.plan_roles,
+                request_ids: planRequests,
+              },
+            }
+          : {}),
       },
       lineage,
       limitations: [
@@ -286,6 +304,11 @@ export class ArtifactSupervisor {
         'Python standard-library CLI only: no web UI, persistence or dependency recipe.',
         'No native installer; the runnable demo exists only as a private preview in the isolated worker.',
         'Local compute is bounded but not monetarily metered by the studio.',
+        ...(intent.plan.plan_roles
+          ? [
+              'Builder and reviewer ran as ChatGPT-plan requests: no dollars are settled, but they use the plan quota.',
+            ]
+          : []),
         ...(outcome.fixture
           ? [
               'Builder and reviewer were fixed synthetic fixture roles, not model reasoning.',
