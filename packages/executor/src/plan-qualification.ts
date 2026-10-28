@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from '@creator/contracts';
-import { digest, type Binding } from './contracts.js';
+import { digest, qaCaseSchema, type Binding } from './contracts.js';
 import type { ProductSupervisor } from './products.js';
 import type { ExecutionSupervisor } from './execution.js';
 import { builderSchema, qaPassed } from './build.js';
@@ -131,7 +131,10 @@ export async function scorePatchCase(
     } catch {
       return 'acceptance_check_failed';
     }
-    for (const c of check.cases) {
+    for (const stored of check.cases) {
+      // The worker hashes the case in schema key order; a manifest read back from jsonb has
+      // its keys reordered, so compare against the same normalized case.
+      const c = qaCaseSchema.parse(stored);
       let execution;
       try {
         execution = await sup.executor.run(
@@ -146,6 +149,9 @@ export async function scorePatchCase(
         // The worker could not run the case. That is never a pass; the owner sees the reason.
         return 'provider_error';
       }
+      // A run the worker could not carry out (blocked, lost, cleanup pending) judged nothing.
+      if (!['succeeded', 'failed'].includes(execution.state))
+        return 'provider_error';
       if (!qaPassed(execution, commit, c)) return 'acceptance_check_failed';
     }
     return 'accepted';
