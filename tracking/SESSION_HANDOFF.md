@@ -15,6 +15,12 @@ gate): while another transaction holds the study-ledger or runtime-ceiling lock,
 build waits on it without holding the audit-chain lock, then refuses LIVE_DISABLED; it fails
 on the old order. Final builds are still LIVE_DISABLED; no migration, no amounts changed.
 
+Review of #70 (no High/Medium): L1, the test covered only final records; it now also checks
+a synthetic build against a holder of `study-ledger:synthetic:<ws>` (the inversion that
+deadlocked on main) and fails if the synthetic early lock is dropped. N2: budget-store uses
+`lockRuntimeCeiling`. N1 kept: a final build takes the T15 ledger and ceiling locks before
+refusing LIVE_DISABLED; brief, and it is the order live final builds will need.
+
 ## PR #69 review fixes — October 28, 2026
 
 Review of #69: one Medium (M-1, a regression): `withLock` added its token to the live set

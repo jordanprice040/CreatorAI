@@ -3,6 +3,7 @@ import { portfolioEnvelopeGate } from './portfolio-gates.js';
 import {
   ceilingRefusal,
   currentCeiling,
+  lockRuntimeCeiling,
   readSpendingConfig,
   runtimeExposure,
   currentSpendLimits,
@@ -380,9 +381,7 @@ export class BudgetStore extends OversightStore {
     const body = parse(SetRuntimeCeilingRequestSchema, raw);
     return this.tx(async (c) => {
       await this.requireCeilingOwner(c, ctx.actorId);
-      await c.query(
-        "select pg_advisory_xact_lock(hashtext('runtime-ceiling'))",
-      );
+      await lockRuntimeCeiling(c);
       const cur = await currentCeiling(c, this.spending);
       if (body.expected_version !== cur.version)
         throw fail(
@@ -431,7 +430,7 @@ export class BudgetStore extends OversightStore {
 
   private async limitsView(c: PoolClient): Promise<SpendLimitsView> {
     // The same lock a dispatch takes, so limits and counted spending are one moment.
-    await c.query("select pg_advisory_xact_lock(hashtext('runtime-ceiling'))");
+    await lockRuntimeCeiling(c);
     const ceiling = await currentCeiling(c, this.spending);
     const cur = await currentSpendLimits(c);
     const since = this.spending.effective_from;
@@ -540,9 +539,7 @@ export class BudgetStore extends OversightStore {
       throw fail('INVALID_CONTRACT', 'Each model can have only one limit.');
     return this.tx(async (c) => {
       await this.requireCeilingOwner(c, ctx.actorId);
-      await c.query(
-        "select pg_advisory_xact_lock(hashtext('runtime-ceiling'))",
-      );
+      await lockRuntimeCeiling(c);
       const cur = await currentSpendLimits(c);
       if (body.expected_version !== cur.version)
         throw fail(

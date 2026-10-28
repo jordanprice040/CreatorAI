@@ -48,6 +48,49 @@ const SYNTHETIC_GOVERNANCE = {
 // The held-out case's input; it must never reach a role packet, participant or study record.
 const HELD_OUT_ARG = '"unexpected"';
 
+/**
+ * Holds advisory lock `key` in another transaction, starts `build`, waits until it blocks on
+ * `key`, and checks the holder can still take the audit-chain lock (the build does not hold
+ * it, so a holder that takes ledger or ceiling then audit cannot deadlock with it). Returns
+ * the build's result once the holder lets go.
+ */
+async function buildWaitsBeforeAudit<T>(
+  pool: import('pg').Pool,
+  key: string,
+  build: () => Promise<T>,
+): Promise<T> {
+  const holder = await pool.connect();
+  try {
+    await holder.query('begin');
+    await holder.query('select pg_advisory_xact_lock(hashtext($1))', [key]);
+    const result = build();
+    let waiting = false;
+    for (let i = 0; i < 200 && !waiting; i++) {
+      const w = await pool.query(
+        "select 1 from pg_locks where locktype='advisory' and not granted and objid = hashtext($1)::oid",
+        [key],
+      );
+      waiting = Boolean(w.rowCount);
+      if (!waiting) await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.ok(waiting, `the build never waited on ${key}`);
+    const audit = await holder.query<{ ok: boolean }>(
+      'select pg_try_advisory_xact_lock($1) as ok',
+      [AUDIT_CHAIN_LOCK],
+    );
+    assert.equal(
+      audit.rows[0]!.ok,
+      true,
+      `audit lock held while waiting on ${key}`,
+    );
+    await holder.query('rollback');
+    return await result;
+  } finally {
+    await holder.query('rollback').catch(() => undefined);
+    holder.release();
+  }
+}
+
 async function setup(t: test.TestContext, real: boolean) {
   let closeApi = async () => {};
   t.after(() => closeApi());
@@ -359,7 +402,14 @@ test('synthetic implementation attempts: A/B build in isolated per-attempt produ
   assert.equal(aiCode.status, 409);
 
   // Budget: each prepared AI attempt holds its whole cap; a third open one does not fit.
-  assert.equal((await http(`${attempt(A.id)}/build`, {})).status, 201);
+  // Lock order (ADR-0047): a synthetic build takes its workspace ledger lock before the
+  // audit-chain lock, as synthetic execution does; on the old order this deadlocked (500).
+  const first = await buildWaitsBeforeAudit(
+    s.db.pool,
+    `study-ledger:synthetic:${ws}`,
+    () => http(`${attempt(A.id)}/build`, {}),
+  );
+  assert.equal(first.status, 201, JSON.stringify(first.body));
   assert.equal((await http(`${attempt(B.id)}/build`, {})).status, 201);
   const over = await http(`${attempt(A2.id)}/build`, {});
   assert.equal(over.status, 409, JSON.stringify(over.body));
@@ -604,43 +654,16 @@ test('final (non-synthetic) records are refused until every owner answer is in a
   );
   // Lock order (ADR-0047): a final build takes the study-ledger and runtime-ceiling locks
   // before the audit-chain lock, as ceiling and limit saves do, so the two cannot deadlock.
-  // While the build waits on either, another transaction can still take the audit lock.
-  for (const key of ['study-ledger:t15-final', 'runtime-ceiling']) {
-    const holder: import('pg').PoolClient = await s.db.pool.connect();
-    try {
-      await holder.query('begin');
-      await holder.query('select pg_advisory_xact_lock(hashtext($1))', [key]);
-      const build = store.prepareStudyBuild(owner, real, ai.id);
-      const settled = build.then(
-        () => 'resolved',
-        (e: { code?: string }) => e.code,
-      );
-      let waiting = false;
-      for (let i = 0; i < 200 && !waiting; i++) {
-        const w = await s.db.pool.query(
-          "select 1 from pg_locks where locktype='advisory' and not granted and objid = hashtext($1)::oid",
-          [key],
-        );
-        waiting = Boolean(w.rowCount);
-        if (!waiting) await new Promise((r) => setTimeout(r, 25));
-      }
-      assert.ok(waiting, `the final build never waited on ${key}`);
-      const audit: { rows: { ok: boolean }[] } = await holder.query(
-        'select pg_try_advisory_xact_lock($1) as ok',
-        [AUDIT_CHAIN_LOCK],
-      );
-      assert.equal(
-        audit.rows[0]!.ok,
-        true,
-        `audit lock held while waiting on ${key}`,
-      );
-      await holder.query('rollback');
-      assert.equal(await settled, 'LIVE_DISABLED');
-    } finally {
-      await holder.query('rollback').catch(() => undefined);
-      holder.release();
-    }
-  }
+  for (const key of ['study-ledger:t15-final', 'runtime-ceiling'])
+    assert.equal(
+      await buildWaitsBeforeAudit(s.db.pool, key, () =>
+        store.prepareStudyBuild(owner, real, ai.id).then(
+          () => 'resolved',
+          (e: { code?: string }) => String(e.code),
+        ),
+      ),
+      'LIVE_DISABLED',
+    );
   // Human-only work records normally on the final path.
   await store.writeAttempt(owner, real, human.id, 'artifacts', {
     kind: 'document',
