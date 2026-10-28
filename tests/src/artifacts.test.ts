@@ -18,6 +18,7 @@ import {
 import {
   BUILD_FIXTURE_CASES,
   BUILD_FIXTURE_SOURCE,
+  BUILD_ROLE_PROMPTS,
   BUILD_FIXTURE_SPEC,
   buildFixtureAnswer,
   taskHashes,
@@ -69,7 +70,10 @@ test('source archives are deterministic and the reader refuses anything it did n
 });
 
 /** A verified fixture build using the test double; returns everything a package needs. */
-export async function verifiedBuild(t: test.TestContext) {
+export async function verifiedBuild(
+  t: test.TestContext,
+  opts: { planRoles?: boolean } = {},
+) {
   const parent = resolve('.verification/artifact-tests');
   await mkdir(parent, { recursive: true });
   const root = await mkdtemp(join(parent, 'case-'));
@@ -114,6 +118,11 @@ export async function verifiedBuild(t: test.TestContext) {
     max_output_tokens: 3000,
     deadline: new Date(Date.now() + 300000).toISOString(),
     cases: structuredClone(BUILD_FIXTURE_CASES),
+    ...(opts.planRoles
+      ? {
+          plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+        }
+      : {}),
   };
   const ports: BuildPorts = {
     current: async () => ({ binding, spec }),
@@ -133,6 +142,22 @@ export async function verifiedBuild(t: test.TestContext) {
         replayed: false,
       } satisfies BrokerCallResult;
     },
+    ...(opts.planRoles
+      ? {
+          planRolesReady: async () => [],
+          planRole: async (target, request) => ({
+            request_id: randomUUID(),
+            status: 'succeeded',
+            reason_code: 'ok',
+            // The server adds the fixed role prompt; the fixture needs it to pick an answer.
+            text: buildFixtureAnswer([
+              { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+              { role: 'user', text: request.input },
+            ]),
+            fixture: true,
+          }),
+        }
+      : {}),
   };
   const build = await new BuildSupervisor(products, double).run(
     product.id,
@@ -142,8 +167,63 @@ export async function verifiedBuild(t: test.TestContext) {
     ports,
   );
   assert.equal(build.state, 'verified_candidate', build.reason);
-  return { root, products, double, product, task, binding, spec, ports, build };
+  return {
+    root,
+    products,
+    double,
+    product,
+    task,
+    binding,
+    spec,
+    plan,
+    ports,
+    build,
+  };
 }
+
+test('a plan-route build packages with its plan requests and no dollar broker calls', async (t) => {
+  const s = await verifiedBuild(t, { planRoles: true });
+  assert.equal(s.build.calls, 2);
+  const outcomes = await Promise.all(
+    [1, 2].map(
+      async (n) =>
+        JSON.parse(
+          await readFile(
+            join(
+              s.products.dir(s.product.id),
+              'builds',
+              s.build.id,
+              `call-${n}-outcome.json`,
+            ),
+            'utf8',
+          ),
+        ) as { request_id: string },
+    ),
+  );
+  const artifacts = new ArtifactSupervisor(s.products, s.double);
+  const { manifest } = await artifacts.package(
+    s.product.id,
+    s.build.id,
+    s.ports,
+  );
+  assert.equal(manifest.state, 'verified');
+  assert.equal(manifest.costs.broker_calls, 0);
+  assert.equal(manifest.costs.settled_nano_usd, '0');
+  assert.equal(manifest.costs.unsettled_attempts, 0);
+  assert.deepEqual(manifest.costs.plan_requests, {
+    ...s.plan.plan_roles,
+    request_ids: outcomes.map((o) => o.request_id),
+  });
+  assert.ok(manifest.limitations.some((l) => /ChatGPT-plan requests/.test(l)));
+  // A broker build keeps its manifest shape: no plan field.
+  const broker = await verifiedBuild(t);
+  const b = await new ArtifactSupervisor(
+    broker.products,
+    broker.double,
+  ).package(broker.product.id, broker.build.id, broker.ports);
+  assert.equal(b.manifest.costs.broker_calls, 2);
+  assert.equal('plan_requests' in b.manifest.costs, false);
+});
 
 test('a verified candidate packages to a manifest bound to its commit, spec, task, QA and package checks', async (t) => {
   const s = await verifiedBuild(t);

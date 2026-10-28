@@ -114,6 +114,15 @@ export const BuildManifestSchema = z.strictObject({
     settled_nano_usd: z.string().regex(/^(0|[1-9][0-9]*)$/),
     unsettled_attempts: z.number().int().min(0),
     local_compute: z.literal('not_metered_by_studio'),
+    // ADR-0048 plan route: the roles ran as ChatGPT-plan requests, which spend no dollars but
+    // use plan quota. Absent on broker builds, so existing manifests are unchanged.
+    plan_requests: z
+      .strictObject({
+        connection_id: id,
+        model_id: z.string().min(1).max(120),
+        request_ids: z.array(z.string().min(1).max(80)).min(1).max(6),
+      })
+      .optional(),
   }),
   lineage: z.strictObject({
     previous: z

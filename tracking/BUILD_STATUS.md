@@ -1,3 +1,20 @@
+## First real CSV-checker build, and packaging for plan-route builds — October 28, 2026
+
+On Jordan's dev studio (main 90638dc), the CSV-checker spec 7527c318…@1 is frozen with the 8
+approved cases (freeze 2327cfb4…). Build 7352660b… on the ChatGPT plan with gpt-6-astra reached
+verified_candidate: 2 plan requests (builder, then reviewer), $0, reviewer approve, QA 8/8
+including held-out A8, candidate commit 28acd8cf…. Packaging it was refused (INVALID_CONTRACT),
+because `ArtifactSupervisor.package` read every call outcome as a broker result. This change
+reads plan-role outcomes on plan_roles builds. The manifest records `costs.plan_requests`
+(connection, model, request ids) with 0 broker calls and $0 settled, and adds a plan-quota
+limitation. Broker manifests are unchanged. The gallery and artifact comparison count plan
+requests. The new test reproduces the device error with the change reverted. test:db 479 pass /
+5 known pwsh failures. No migration, no ADR (follow-up to ADR-0048).
+
+Next: merge, update the device, package and download the candidate, Jordan's feedback round,
+then one bounded revision (needs its own OK). Dev launcher note: the studio's
+CREATOR_PRODUCTS_ROOT must match the CLI's `.creator\products`.
+
 ## Build-role qualifications bound to the current prompt — October 28, 2026
 
 t12-reviewer-v2 QUALIFIED live (94ed329e…, 1/1 development, 3/3 held out), so both T12 plan roles

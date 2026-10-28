@@ -364,6 +364,9 @@ function Facts({ d }: { d: ArtifactDetail }) {
         </dd>
         <dt>Cost</dt>
         <dd>
+          {m.costs.plan_requests
+            ? `${m.costs.plan_requests.request_ids.length} ChatGPT-plan requests (${m.costs.plan_requests.model_id}, plan quota), `
+            : ''}
           {m.costs.broker_calls} broker calls, {nano(m.costs.settled_nano_usd)}{' '}
           settled
           {m.costs.unsettled_attempts
