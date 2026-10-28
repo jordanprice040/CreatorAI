@@ -318,11 +318,28 @@ export function checkOutput(
         verdict?: unknown;
         findings?: unknown;
       } | null;
+      // The same shape T12's strict review schema accepts (executor build.ts reviewSchema).
+      const keys = [
+        'candidate',
+        'spec_hash',
+        'task_hash',
+        'verdict',
+        'findings',
+      ];
       if (
         !r ||
         typeof r !== 'object' ||
+        Array.isArray(r) ||
+        Object.keys(r).length !== keys.length ||
+        !keys.every((k) => k in r) ||
+        !['approve', 'changes_requested', 'blocked'].includes(
+          r.verdict as string,
+        ) ||
         !Array.isArray(r.findings) ||
-        !r.findings.every((f) => typeof f === 'string' && f.length > 0)
+        r.findings.length > 20 ||
+        !r.findings.every(
+          (f) => typeof f === 'string' && f.length > 0 && f.length <= 2000,
+        )
       )
         return 'schema_invalid';
       if (

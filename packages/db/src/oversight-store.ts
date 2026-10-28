@@ -1180,6 +1180,50 @@ export class OversightStore extends Store {
   }
 
   /** Admission inside the caller's transaction, so the broker can reserve atomically with it. */
+  /**
+   * Read-only dry run of a target-free admission: the verdict admitIn would reach from the
+   * current grants, without consuming a grant, raising a decision or writing anything.
+   */
+  protected async wouldAdmit(
+    c: PoolClient,
+    ws: string,
+    runId: string,
+    req: ActionRequest,
+  ) {
+    const run = toRun(
+      (
+        await c.query(
+          'select * from run_controls where workspace_id = $1 and run_id = $2',
+          [ws, runId],
+        )
+      ).rows[0] ??
+        (() => {
+          throw fail('NOT_FOUND', 'Run is not registered for oversight.');
+        })(),
+    );
+    const { binding } = await this.bind(c, ws, runId, req);
+    const grants = (
+      await c.query(
+        `select * from grants where workspace_id = $1 and status = 'active'
+           and (run_id is null or run_id = $2) order by scope, created_at`,
+        [ws, runId],
+      )
+    ).rows.map((r: Row) => toGrant(r));
+    return evaluateAction({
+      mode: run.autonomy_mode,
+      runState: run.state,
+      stageGates: run.stage_gates,
+      binding,
+      grants,
+      initialGrants: run.initial_grants,
+      assumptions: [],
+      humility: null,
+      flags: [],
+      resolvedReasons: [],
+      now: Date.now(),
+    });
+  }
+
   protected async admitIn(
     c: PoolClient,
     ctx: CommandContext,

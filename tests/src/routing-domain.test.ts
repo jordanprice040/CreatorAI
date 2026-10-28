@@ -484,6 +484,23 @@ test('a reviewer benchmark answer binds the exact candidate and is scored like T
     'accepted',
   );
   assert.equal(check('approve', { verdict: 'approve' }), 'schema_invalid');
+  // Graded with T12's strict review shape: extra keys or an unknown verdict never qualify.
+  assert.equal(
+    check('approve', { ...bound, verdict: 'approve', findings: [], note: 'x' }),
+    'schema_invalid',
+  );
+  assert.equal(
+    check('approve', { ...bound, verdict: 'lgtm', findings: [] }),
+    'schema_invalid',
+  );
+  assert.equal(
+    check('changes_requested', {
+      ...bound,
+      verdict: 'changes_requested',
+      findings: Array.from({ length: 21 }, () => 'f'),
+    }),
+    'schema_invalid',
+  );
   assert.throws(
     () =>
       checkOutput(

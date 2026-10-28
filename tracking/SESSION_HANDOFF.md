@@ -1,3 +1,35 @@
+## Live plan steps and qualification-root reconcile — October 28, 2026
+
+Live, on Jordan's dev studio (creator_studio, not the installed app): gpt-6-astra verified on the
+direct Responses path (1 request, $0, 08:49 UTC; eligible, quota available). Jordan added
+patch_build and independent_review via `pnpm cli plan-settings` and re-accepted caps (connection
+v7). Nothing is qualified yet. Code: `scorePatchCase` now keeps a throwaway product while the
+qualification root's pending-worker marker names it, and before grading reconciles a leftover run
+through the executor's verified reap; an unreconcilable marker is refused with what to check.
+Checks: build tests 14/14 (mutation-checked), test:db 476 pass / 5 known pwsh failures.
+Next: merge #72 and update the device checkout before the two qualification runs (owner OK each).
+
+## PR #72 re-review follow-ups — October 28, 2026
+
+Re-review of #72: no High/Medium. N-1 fixed: the plan-role preflight now also checks owner,
+run state, study assignment and dry-runs the run's `model.generate` admission (read-only),
+so a missing standing grant stops the build before its commit grant is used. Nits: grader
+errors are stored in the request reason; failed throwaway creates are cleaned up; stale
+"not tested" note removed. Open (pre-existing): a worker crash under the qualification
+products root leaves `pending-worker.json` that the API reconcile path does not see; follow
+up before real qualification runs on Jordan's device.
+
+## PR #71 review fixes (ADR-0048) — October 28, 2026
+
+Review of #71: no High, M-1 and L-1 to L-5, all fixed (details under ADR-0048). A crashing
+patch scorer now settles the request as `provider_error` instead of blocking the connection;
+builds preflight both plan roles before using their grant; build-role requests are
+owner-only and pass the run's `model.generate` admission (so a real build needs a grant
+covering model requests on its run); qualification uses T12's strict schemas; throwaway
+qualification products are removed; the form explains budget/pricing are unused on this
+route. Also: the #69 lock-staleness test now re-checks like Recover (it was flaky in CI;
+it still fails on the M-1 regression it guards). Checks: see the PR.
+
 ## $0 plan route for T12 builder and reviewer (ADR-0048) — October 28, 2026
 
 A build plan can now name `plan_roles`, sending the T12 builder and reviewer as fresh
@@ -453,6 +485,7 @@ release refusal (needs two builds of one spec).
 Open items outside this pass: payments checkout/rails/reinvestment policy and allocation
 are still CLI-only; ADR-0043 per-user and narrower limits; desktop shell and live
 integrations not exercised.
+
 ## PR #52 review fixes — October 26, 2026
 
 Review of #52: the #51 Medium is fixed (reproduced in the browser); one pre-existing
@@ -463,6 +496,7 @@ repositories; each managed repository names its connection or says it was revoke
 usable-cash note lists everything it subtracts and that funding sources are added on the
 command line; add-connection and create-offer forms close and reset after success so a
 double click can't add twice. Checks: typecheck, format; checked in the dev studio.
+
 ## PR #51 review fixes — October 26, 2026
 
 Review of #51: no High; one Medium fixed. GitHub "Ask for a change" now lists only the
@@ -474,6 +508,7 @@ on retry; the token expiry is marked required; the Payments ledger note covers o
 funding and "Usable cash for reinvesting" explains what counts. Not changed: the spec-freeze
 run lookup still reads each problem's selections (there is no selection-by-id route).
 Checks: typecheck, format; checked in the dev studio.
+
 ## PR #50 review fixes — October 26, 2026
 
 Review of #50 (same model family): #49 fixes hold; three Mediums fixed. GitHub and Payments
@@ -487,6 +522,7 @@ instead of a run picker; failed webhook-delivery loads show the error; a token c
 needs its expiry; revoke confirms say what happens, have a visible label and focus the
 reason; price label no longer says US dollars. Not added: a restore test for older dumps
 (restore tests need pg tools, skipped here). Checks: typecheck, format, web-display 4/4.
+
 ## PR #49 review fixes — October 26, 2026
 
 Independent review of #49 (same model family): no High; server-side ceiling confirmed
@@ -517,6 +553,7 @@ buyer access and reinvestment capacity in simulated units for fixture workspaces
 simulated processor added and verified; offers need a packaged build, which this workspace
 has none of. Checkout, rails, commitments, owner funding and reinvestment policy/allocation
 stay API/CLI. Checks: typecheck and format pass.
+
 ## Spending ceiling in Settings; round 1 review fixes — October 26, 2026
 
 Jordan asked for Settings (user-adjustable spending ceiling), GitHub and Payments screens in
@@ -536,6 +573,7 @@ most M at once", an address without a workspace opens the starting workspace. Ac
 is: up to 20 comparison reads to choose the default problem (a count endpoint can follow);
 older history rows keep raw nano amounts.
 Next: re-review of these commits; then GitHub and Payments screens.
+
 ## Studio usability pass, round 2 — October 26, 2026
 
 Scores and specs can now freeze the shown specification version in the app: pick the run,
@@ -547,6 +585,7 @@ revising a specification still goes through the CLI/API. Submit a theme explains
 entry points and collapses the claim matrix to a tick per claim with role chips only for
 ticked claims (page 4,876px to about 4,100px with one claim ticked); the theme-intent draft
 form itself is unchanged. Checks: typecheck and format pass.
+
 ## Studio usability pass, round 1 — October 26, 2026
 
 Hands-on walk of every reachable studio flow in the dev studio (Docker PostgreSQL, fixture
@@ -572,6 +611,7 @@ Not covered: desktop shell (installed app off-limits, dev shell not built), Gall
 (needs the WSL build chain), payments (no screen). Open for Jordan: Settings page with the
 user-adjustable spending ceiling; whether Payments and GitHub screens belong in this pass.
 Next: round 1 independent re-review; round 2 (Submit restructure, spec freeze in the app).
+
 ## CW-01 operational adapter design v1.3 note re-reviewed; review loop closed — October 26, 2026
 
 CW-01 adapter design v1.3 note independently re-reviewed 2026-10-26 (review 163f92c0...aec7,
@@ -869,7 +909,7 @@ v1.2 note closing R1-R3, carry R1-R3 into a later implementation design, or defe
 ## CW-01 implementation design v1.1 repair note prepared — October 26, 2026
 
 Jordan authorized the additive repository-only repair. Added
- docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md;
+docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_V1_1_NOTE_2026-10-26.md;
 receipt/input map: tracking/evidence/theme-intent-cw01-implementation-design-v1-1-2026-10-26/.
 Proposed M1/M2 and L1-L4 fixes, I-a-I-f dispositions; independent exact review pending.
 M1 uses host(inet_server_addr()), requires boolean true; NULL blocks. M2 defines
@@ -921,7 +961,7 @@ note (prompt in review) or defer; no automatic milestone.
 ## CW-01 implementation design prepared — October 26, 2026
 
 Jordan explicitly selected Prepare implementation design. Added
- docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md;
+docs/THEME_INTENT_CW01_IMPLEMENTATION_DESIGN_2026-10-26.md;
 receipt/input map: tracking/evidence/theme-intent-cw01-implementation-design-2026-10-26/.
 Repository-only specification, not code or execution. Pins direct hash-bound start
 argv with manifest port/listen_addresses=127.0.0.1 and smart/wait/90s stop; no adopt,
@@ -1083,7 +1123,7 @@ installed UI identity/role procedure. Historical evidence reusable: reviewer che
 unchanged. Parent independently rechecked the 384 hashes before tracking updates.
 
 Preserved original plan and proposed v1. Added successor
- docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_2026-10-26.md,
+docs/THEME_INTENT_POST_LAUNCH_ACCEPTANCE_AMENDMENT_V2_2026-10-26.md,
 SHA256 555a54faa9f5f33efbb912dd5170e3794577fa18a3bdd6716e07755aed55ad8d.
 Current-work safety is mandatory before every launch, including identification;
 owner risk acceptance, PR-01 and M3 cannot substitute. Exact-ID default block
@@ -1143,7 +1183,6 @@ eligible: bounded reconciliation proposal before acceptance, using repository an
 owner evidence; no automatic operational read/relaunch/recovery. Native acceptance
 remains blocked; M3 unchanged, H unverified, full C54 partial.
 
-
 ## Owner workspace/role replies and reported launch — October 26, 2026
 
 Jordan reports workspace Jordan's Creator Studio, role owner; workspace ID unknown.
@@ -1157,7 +1196,6 @@ appearance does not establish unchanged database/work state. No damage or dispat
 is inferred. Next: clarify launch details and prepare scoped reconciliation before
 acceptance; no automatic relaunch, SQL, helper or recovery. No agent app interaction
 performed. M3 unchanged, H unverified, full C54 partial.
-
 
 ## Targeted owner-input inspection — October 26, 2026
 
@@ -1176,7 +1214,6 @@ Asked Jordan for continuity and intended workspace/last-known role; replies pend
 Original template remains blank. Next: incorporate answers and resolve missing
 field evidence through owner input or separately reviewed adapter. M3 unchanged;
 no collector; native acceptance blocked, H unverified, full C54 partial.
-
 
 ## Owner-attestation template v1.1 clarification — October 26, 2026
 
@@ -1206,7 +1243,6 @@ review claimed. Next eligible: Jordan supplies nonsecret owner inputs under the
 clarified template, leaving unknowns explicit; assess them without treating the
 template as an execution grant or automatically starting a collector milestone.
 
-
 ## Claude collector owner-attestation template independent review — October 25, 2026
 
 Separate-session Claude U02 review (did not author the template or its tracking
@@ -1232,7 +1268,7 @@ resolving L1-L3, or Jordan fills the template as is accepting them.
 ## Blank collector owner-attestation template prepared — October 25, 2026
 
 Owner authorized the exact next prompt from the supported L12/L13 review. Added
- docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md using
+docs/THEME_INTENT_COLLECTOR_OWNER_ATTESTATIONS_TEMPLATE_2026-10-25.md using
 repository text only. Nine blank response fields cover exact launch LOCALAPPDATA,
 CREATOR_STUDIO_HOME/launch paths, database port, pg_bin, separate pg_ctl/postgres
 identity provenance, historical continuity, existing workspace ID and current role.
@@ -1249,7 +1285,6 @@ after preparation (113 distinct paths, zero mismatches). No runtime tests rerun 
 this documentation-only change. Next eligible: review the blank template against
 its named repository sources, without filling values or expanding access. The
 template contains that bounded next prompt; no automatic collector milestone.
-
 
 ## Claude verifier-L12/L13 repair independent review — October 25, 2026
 
@@ -1295,7 +1330,6 @@ alias analysis is a documented limit. No operational access, collector, adapter,
 launch or activation. M3 unchanged; N1-N4 and L1/L4 remain later scope. Native
 acceptance blocked, H unverified, full C54 partial.
 
-
 ## Claude verifier-L11 repair independent review — October 25, 2026
 
 Separate-session Claude U02 review (did not author the L11 verify.mjs, REPAIR.md or
@@ -1336,7 +1370,6 @@ analysis. No operational access, collector, adapter, launch or activation. M3
 unchanged; N1-N4 and L1/L4 remain later scope. Native acceptance blocked, H unverified,
 full C54 partial. No automatic next implementation.
 
-
 ## Claude observation-classifier v4 / v4.4-note independent review — October 25, 2026
 
 Separate-session Claude U02 review (did not author classifier v4, tests, repair
@@ -1375,7 +1408,6 @@ Author involved, independent review pending. Next eligible: separate uninvolved 
 review of those exact bytes; no next implementation authorized. No collector or
 operational adapter, config/OS/credential read, launch or activation. M3 unchanged;
 N1-N4 and L1/L4 later scope. Full C54 partial, native acceptance blocked, H unverified.
-
 
 ## Claude observation-classifier v3 / v4.3-note independent review — October 25, 2026
 
@@ -1418,7 +1450,7 @@ closed_ms=now_ms bounds closure within original15s/90s windows. No operational d
 Report/review prompt: docs/THEME_INTENT_OBSERVATION_CLASSIFIER_V3_REPAIR_2026-10-25.md.
 Additive note: docs/THEME_INTENT_ACCEPTANCE_OBSERVATION_PROPOSAL_V4_3_NOTE_2026-10-25.md.
 New code/tests: scripts/theme-intent-observation-classifier-fixture-v3.mjs and
- tests/theme-intent-observation-classifier-fixture-v3.test.mjs. Static whitelisted
+tests/theme-intent-observation-classifier-fixture-v3.test.mjs. Static whitelisted
 field folding replaces computed property accesses for the stronger AST guard.
 L7 verifier rejects all computed element access, Math/crypto/Reflect/Proxy and
 import.meta; these remain supplemental guards, not an arbitrary-code purity proof.
@@ -1440,7 +1472,6 @@ review using report prompt. No collector/operational adapter exists; reader N1-N
 classifier L1/L4 and informational collector limits remain later scope. Active-home/
 continuity/workspace/role/tool provenance/reviewed scope/operational-session grants
 still pending. Full C54 partial; native/H unverified. Author involved, not independent.
-
 
 ## Claude observation-classifier v2 / v4.2-note independent review — October 25, 2026
 
@@ -1464,7 +1495,7 @@ unverified.
 
 Owner authorized bounded M1-M3 repair after Claude's partial review. New module/tests:
 scripts/theme-intent-observation-classifier-fixture-v2.mjs and
- tests/theme-intent-observation-classifier-fixture-v2.test.mjs. Explicit launch
+tests/theme-intent-observation-classifier-fixture-v2.test.mjs. Explicit launch
 pre-scans every supplied sample and window before any rejection; SH-01 requires
 recorded running/planned Quit and exact quit_request_ms=start_ms; pg_ctl0 with
 postgres_processes0 invalidates the whole window. OneDrive-prefixed components
@@ -1492,7 +1523,6 @@ review using report prompt. L1/L4 remain future collector, reader N1-N4 future
 adapter. Active home/continuity/workspace/current role/tool provenance, reviewed
 scope and concrete operational/session grants remain pending. No next milestone
 execution; author involved in implementation, not independent support.
-
 
 ## Claude observation-classifier / v4.1-note independent review — October 25, 2026
 
@@ -1541,7 +1571,6 @@ active-home/continuity/workspace/current role/tool provenance/reviewed scope and
 operational/session grants remain pending. Full C54 partial, native/H unverified.
 Author implemented these bytes and cannot give independent support.
 
-
 ## Claude reader-v2 / proposal-v4 independent review — October 25, 2026
 
 Separate-session Claude U02 review (did not author reader v2, tests, repair report,
@@ -1567,7 +1596,7 @@ Owner authorized assessment and eligible fixes after separate Claude v5 review.
 New files preserve reader v1/tests/checklist v5/proposal v3 and prior receipts.
 Report/review prompt: docs/THEME_INTENT_CONFIG_READER_V2_REPAIR_2026-10-24.md.
 New code/tests: scripts/theme-intent-config-reader-fixture-v2.mjs and
- tests/theme-intent-config-reader-fixture-v2.test.mjs. F1 fixed with nlink1 across
+tests/theme-intent-config-reader-fixture-v2.test.mjs. F1 fixed with nlink1 across
 pre/open/post/final stats for config and marker; BigInt identity/time comparisons;
 Windows ReparsePoint attribute query on fixture ancestry, fail closed. F4 strict
 printable-ASCII pg_bin path components. F3 native-accepted hash provenance required;
@@ -1591,7 +1620,6 @@ launch/session, activation, recovery or retired checkout access. Concrete adapte
 scope/read grant, active home/continuity/workspace/current role/tool provenance
 remain pending. Author involved in repair; no independent support claimed.
 
-
 ## Claude config-reader / v5 / proposal-v3 independent review — October 24, 2026
 
 Separate-session Claude U02 review (did not write the reader, tests, v5, proposal v3
@@ -1614,7 +1642,6 @@ PR-01/SH-01 do not exist; native acceptance not executed. Full C54 partial.
 Next eligible: new-file reader v2 (nlink/reparse/pg_bin fixes + tests on Windows)
 and proposal v4 (fold S1-S4, bind exact key input) with check-only receipt, then a
 separate uninvolved review. No operational execution.
-
 
 ## V4 findings repaired; field-limited fixture reader prepared — October 24, 2026
 
@@ -1645,7 +1672,6 @@ Next eligible: separate uninvolved exact reader/tests/v5/proposal-v3 review usin
 embedded preparation-report prompt; no further document-only review required as a
 separate step from that combined implementation review. Then separately scope an
 operational adapter; no execution now. Author involved, not independent support.
-
 
 ## Claude exact-v4/proposal-v2 independent review — October 24, 2026
 
@@ -1684,7 +1710,6 @@ launch, implementation, activation or retired checkout access. Full C54 partial.
 Next eligible: run the prepared prompt in a separate uninvolved Claude session;
 bring back its exact report/receipt before repairs or inspector implementation.
 
-
 ## Claude v3 findings reconciled; v4/proposal v2 prepared — October 24, 2026
 
 Owner authorized assessment/eligible fixes and explicitly selected exact-bundle
@@ -1713,7 +1738,6 @@ full C54 partial, R/N/H unverified. Author involved in revisions, not independen
 Next eligible: separate uninvolved exact-v4/proposal-v2/decision review; concrete
 port/tool/active-home bindings and workspace/current role/continuity/session scope
 remain necessary before operational execution. No automatic milestone advance.
-
 
 ## Exact checklist v3 and observation proposal independently reviewed; execution blocked — October 24, 2026
 
@@ -1761,7 +1785,6 @@ studio, activation, recovery, cleanup or retired checkout access. Full C54 parti
 Next eligible: separate uninvolved exact-v3/proposal review using its embedded
 review prompt. No operational inspection or native acceptance execution yet.
 
-
 ## Exact checklist v2 independently reviewed; execution blocked — October 24, 2026
 
 User-requested separate review completed with no prior implementation involvement
@@ -1785,7 +1808,6 @@ writes, activation, recovery, cleanup or retired checkout access. Frozen artifac
 preserved. Full C54 partial. Next eligible: versioned M2 correction and bounded
 prelaunch scheduling/continuity inspection/control proposal, then independent
 review; no native session execution or automatic next milestone.
-
 
 ## Native acceptance readiness assessed; session remains blocked — October 24, 2026
 
@@ -1814,7 +1836,7 @@ need separate read-only scope; /NS skips creation; Jordan H remains separate.
 No operational/credential access, launch/sign-in, acceptance writes, helper execution,
 provider/workflow activation, recovery/stale release, cleanup or retired checkout
 access. R/N/H remain unverified; full C54 partial. Next eligible: use
- docs/THEME_INTENT_ACCEPTANCE_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md in a separate
+docs/THEME_INTENT_ACCEPTANCE_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md in a separate
 review session. Resolve scheduling/continuity gates before requesting native session
 execution. No automatic next milestone or authority granted by this assessment.
 

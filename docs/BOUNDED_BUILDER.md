@@ -30,7 +30,9 @@ A plan may instead name `plan_roles` (ADR-0048): builder and reviewer then go as
 requests on a ChatGPT-plan connection's direct Responses route (`patch_build` and
 `independent_review` task classes), with no dollar broker call. The packets, prompts,
 scoped patch tool and QA are the same; admission needs each role qualified, an active
-non-human-only run outside any study assignment, and the plan caps. The call timeout may be
+non-human-only run outside any study assignment, the run's own `model.generate` admission
+(a grant covering model requests on that run), the owner as caller, and the plan caps. The
+build checks both roles before it uses its commit grant or sends the builder. The call timeout may be
 up to 120 s on this route only; broker builds keep 60 s. `plan_roles` and
 `codex_plan_builder` cannot both be set. Plans without `plan_roles` hash as before.
 

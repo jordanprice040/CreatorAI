@@ -577,11 +577,17 @@ export class PlanConnectionService {
             reason_code: outcome.reason_code,
             upstream_request_id: outcome.response_id,
           };
+    // A grader that throws (disk, git, worker) is a non-pass, never an unsettled request.
     if (r.score)
-      observed.signal = await r.score(
-        outcome.kind === 'completed' ? outcome.text : null,
-        outcome,
-      );
+      try {
+        observed.signal = await r.score(
+          outcome.kind === 'completed' ? outcome.text : null,
+          outcome,
+        );
+      } catch (e) {
+        observed.signal = 'provider_error';
+        observed.grader_error = e instanceof Error ? e.message : String(e);
+      }
     await this.deps.store.settlePlanRequest(
       admitted.request_id,
       outcome.kind === 'completed'
@@ -750,6 +756,63 @@ export class PlanConnectionService {
       text: r.outcome.kind === 'completed' ? r.outcome.text : null,
       fixture: connection.fixture,
     };
+  }
+
+  /**
+   * Why a T12 build's plan roles would be refused right now (ADR-0048), checked before the
+   * build uses its grant or sends the builder. Empty means both roles are admissible; the
+   * run's own admission and caps are still checked per request.
+   */
+  async buildRolesReady(
+    ctx: CommandContext,
+    ws: string,
+    connectionId: string,
+    b: {
+      model_id: string;
+      run_id: string;
+      data_class: 'synthetic' | 'public' | 'private_approved';
+    },
+  ): Promise<string[]> {
+    const d = await this.deps.store.planConnectionDetail(ctx, ws, connectionId);
+    const out = [
+      ...d.blockers,
+      ...(await this.deps.store.planBuildRolesRunBlockers(
+        ctx,
+        ws,
+        b.run_id,
+        b.data_class,
+      )),
+    ];
+    if (!d.connection.settings.allowed_data_classes.includes(b.data_class))
+      out.push(`Data class ${b.data_class} is not allowed on this connection.`);
+    if (
+      !d.model_access.some(
+        (a) =>
+          a.model_id === b.model_id &&
+          a.path === 'responses' &&
+          a.access === 'verified',
+      )
+    )
+      out.push(
+        `Model ${b.model_id} has no verified access on the responses path.`,
+      );
+    for (const role of ['builder', 'reviewer'] as const) {
+      const tc = BUILD_ROLE_TASK_CLASSES[role];
+      if (!d.connection.settings.allowed_task_classes.includes(tc))
+        out.push(`Task class ${tc} is not allowed on this connection.`);
+      if (
+        !d.qualifications.some(
+          (q) =>
+            q.model_id === b.model_id &&
+            q.task_class === tc &&
+            q.state === 'qualified',
+        )
+      )
+        out.push(
+          `Model ${b.model_id} is not qualified for ${tc} (the T12 ${role}).`,
+        );
+    }
+    return out;
   }
 
   /** Uses the owner's one-shot approval for one live call that verifies model access. */

@@ -112,6 +112,12 @@ export class StudioBuilds {
       connectionId: string,
       body: unknown,
     ) => Promise<unknown>,
+    private readonly planRolesReady?: (
+      ctx: CommandContext,
+      ws: string,
+      connectionId: string,
+      body: unknown,
+    ) => Promise<unknown>,
   ) {}
   private get supervisor() {
     return new BuildSupervisor(
@@ -321,6 +327,18 @@ export class StudioBuilds {
             ...request,
           }),
         );
+    }
+    if (this.planRolesReady) {
+      const ready = this.planRolesReady;
+      ports.planRolesReady = async (target) =>
+        via(
+          z.strictObject({ blockers: z.array(z.string()) }),
+          await ready(ctx, ws, target.connection_id, {
+            model_id: target.model_id,
+            run_id: target.run_id,
+            data_class: target.data_class,
+          }),
+        ).blockers;
     }
     return ports;
   }

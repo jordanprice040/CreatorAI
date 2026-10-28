@@ -58,12 +58,12 @@ export const buildPlanSchema = z.strictObject({
     .optional(),
 });
 export type BuildPlan = z.infer<typeof buildPlanSchema>;
-const builderSchema = z.strictObject({
+export const builderSchema = z.strictObject({
   summary: z.string().max(2000),
   submission: changesSchema.nullable(),
   blocker: z.string().max(2000).nullable(),
 });
-const reviewSchema = z.strictObject({
+export const reviewSchema = z.strictObject({
   candidate: sha,
   spec_hash: hash,
   task_hash: hash,
@@ -124,6 +124,13 @@ export interface BuildPorts {
       logical_operation_id: string;
     },
   ): Promise<PlanRoleResult>;
+  /** Why the plan roles would be refused now (empty: both admissible); sends nothing. */
+  planRolesReady?(target: {
+    connection_id: string;
+    model_id: string;
+    run_id: string;
+    data_class: BuildPlan['data_class'];
+  }): Promise<string[]>;
 }
 export const planRoleResultSchema = z.strictObject({
   request_id: z.string().max(80),
@@ -433,6 +440,19 @@ export class BuildSupervisor {
       };
       let feedback: unknown = null;
       try {
+        if (plan.plan_roles) {
+          // Both roles must be admissible before the grant is used or the builder is sent.
+          if (!ports.planRole || !ports.planRolesReady)
+            throw new Error('Plan role route is not configured');
+          const blockers = await ports.planRolesReady({
+            ...plan.plan_roles,
+            run_id: plan.run_id,
+            data_class: plan.data_class,
+          });
+          await jsonWrite(join(dir, 'plan-roles-preflight.json'), { blockers });
+          if (blockers.length)
+            throw new Error(`Plan roles are not ready: ${blockers.join(' ')}`);
+        }
         for (let cycle = 0; cycle <= plan.max_repairs; cycle++) {
           repairs = cycle;
           await active();
