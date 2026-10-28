@@ -14,6 +14,7 @@ import {
   type RouteRequest,
 } from '@creator/contracts';
 import {
+  BUILD_ROLE_PROMPTS,
   canonicalHash,
   checkOutput,
   chooseRoute,
@@ -518,4 +519,47 @@ test('build-role checks only appear under their own task class with JSON output'
     with_('independent_review', { kind: 'json_keys', keys: ['a'] }),
     false,
   );
+});
+
+test('the T12 plan-role benchmarks carry exact T12 packets and never leak held-out outputs', () => {
+  for (const [file, role] of [
+    ['t12-builder-v1', 'builder'],
+    ['t12-reviewer-v1', 'reviewer'],
+  ] as const) {
+    const m = BenchmarkManifestSchema.parse(
+      read(`config/connections/benchmarks/${file}.json`),
+    );
+    assert.equal(m.fixture, false);
+    assert.equal(m.cases.filter((c) => c.split === 'held_out').length, 3);
+    for (const c of m.cases) {
+      assert.deepEqual(
+        c.input.map((x) => x.role),
+        ['system', 'user'],
+      );
+      assert.equal(c.input[0]!.text, BUILD_ROLE_PROMPTS[role]);
+      const packet = JSON.parse(c.input[1]!.text) as {
+        format: string;
+        candidate: string;
+        spec_hash: string;
+        task_hash: string;
+        held_out_cases: number;
+        cases: { stdout: string }[];
+      };
+      assert.equal(packet.format, 'build-task/1');
+      assert.ok(packet.held_out_cases >= 1);
+      if (c.check.kind === 'review_verdict') {
+        assert.equal(c.check.candidate, packet.candidate);
+        assert.equal(c.check.spec_hash, packet.spec_hash);
+        assert.equal(c.check.task_hash, packet.task_hash);
+      } else {
+        assert.equal(c.check.kind, 'patch_cases');
+        // Graded on every frozen case; the packet shows only the visible ones.
+        const visible = new Set(packet.cases.map((x) => x.stdout));
+        const hidden = c.check.cases.filter((x) => !visible.has(x.stdout));
+        assert.equal(hidden.length, packet.held_out_cases);
+        for (const h of hidden)
+          assert.ok(!c.input[1]!.text.includes(JSON.stringify(h.stdout)));
+      }
+    }
+  }
 });
