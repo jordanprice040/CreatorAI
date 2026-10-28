@@ -1,3 +1,25 @@
+## Runbook step 6 done: CSV checker built, packaged and revised — October 28, 2026
+
+All on Jordan's dev studio (main 224c917), gpt-6-astra over the ChatGPT plan, $0, nothing
+released. Discovery: 8 pages fetched from the 6 approved hosts, 8 claims, 7 alternatives
+(csvkit recorded as the recommended alternative; build selected only under owner decision #22),
+humility gate passed, and Jordan rated urgency 2 and benefit 3 himself. Spec v1 (8 cases, A8 held
+out) frozen. Build 7352660b… verified (2 plan requests, reviewer approve, QA 8/8). Artifact
+c955b648… verified after PR #77, and it ran from a clean folder with Windows Python 3.13. Jordan's
+feedback 4e096111… ("detect NA or N/A or similar values as missing": penguins.csv showed 19
+NA cells as clean) became spec v2 (adds A9 and held-out A10; NA, N/A, NULL, NaN case-insensitive),
+frozen as 5e39903a…. Revision build c52ec200… verified with a one-line change (2 plan requests,
+QA 10/10). Artifact 93473b32… verified, lineage previous c955b648… plus the feedback; penguins now
+reports missing 19. Connection total: 21 plan requests.
+
+Gaps found along the way: plan-route packaging (fixed in #77); the plan route still needs
+envelope and pricing ids (U04, $0 envelopes used); the dev launcher's products root must match the
+CLI's; a re-run select opened a duplicate decision (rejected). Optional review Lows still open:
+#75 L-1/L-2, #77 L-1/L-2.
+
+Next eligible: runbook step 5 (desktop-shell walkthrough) or 7 (upgrade the installed app), each
+needing Jordan's go-ahead.
+
 ## First real CSV-checker build, and packaging for plan-route builds — October 28, 2026
 
 On Jordan's dev studio (main 90638dc), the CSV-checker spec 7527c318…@1 is frozen with the 8

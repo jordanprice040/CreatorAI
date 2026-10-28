@@ -80,6 +80,8 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
    for a research team (#22–#24): real sources, compare existing tools first, then spec,
    build, review, QA, package, download, one round of Jordan's feedback and one revision.
    Needs Jordan's approval of the exact scope and model route. Plan route, $0 metered.
+   **Done October 28, 2026** on the dev studio: artifacts c955b648… (v1) and 93473b32…
+   (revision for Jordan's NA-as-missing feedback), both verified, 4 plan requests, $0.
 7. **Upgrade the installed app.** Decide with Jordan when to move the installed studio
    from the schema 29 candidate to current `main`, given that it also protects the
    theme-intent acceptance chain. Back up first; this needs an exact owner decision.
