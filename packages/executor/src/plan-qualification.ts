@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readdir, rm } from 'node:fs/promises';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from '@creator/contracts';
 import { digest, type Binding } from './contracts.js';
@@ -22,6 +22,49 @@ export interface PatchCasesCheck {
 
 // Graded with the builder schema a real build uses, so a qualified answer is one T12 accepts.
 const answerSchema = builderSchema;
+
+/** The qualification root's pending-worker marker, if a crash or failed reap left one. */
+async function pendingMarker(root: string) {
+  const raw = await readFile(join(root, 'pending-worker.json'), 'utf8').catch(
+    (e: NodeJS.ErrnoException) => {
+      if (e.code === 'ENOENT') return null;
+      throw e;
+    },
+  );
+  return raw === null
+    ? null
+    : (JSON.parse(raw) as { product_id?: string; execution_id?: string });
+}
+
+/**
+ * Settles a worker outcome an earlier grading left unresolved (the app closed mid-case, or the
+ * reap could not be verified), the way product Recover does: the executor verifies the worker
+ * stopped before freeing the marker and the dead dispatch lock. That throwaway product is then
+ * removed. Refuses, saying why, when the worker cannot be shown stopped; nothing is resent.
+ */
+async function settleLeftover(
+  sup: { products: ProductSupervisor; executor: ExecutionSupervisor },
+  ownerId: string,
+) {
+  const marker = await pendingMarker(sup.products.root);
+  if (marker) {
+    const { product_id: productId, execution_id: executionId } = marker;
+    const exists =
+      productId &&
+      executionId &&
+      (await sup.products.product(productId).then(
+        () => true,
+        () => false,
+      ));
+    if (!exists)
+      throw new Error(
+        `An earlier qualification case left an unresolved worker run that cannot be reconciled (${join(sup.products.root, 'pending-worker.json')}). Check in WSL that no creator worker unit is running, then remove that file.`,
+      );
+    await sup.executor.reconcile(productId, executionId, ownerId);
+    await rm(sup.products.dir(productId), { recursive: true, force: true });
+  }
+  await sup.products.recoverDeadLock('dispatch', '', ownerId);
+}
 
 /**
  * Grades one patch_build qualification answer the way T12 QA grades a build: the scoped patch
@@ -53,6 +96,7 @@ export async function scorePatchCase(
     freeze_id: randomUUID(),
     tasks: [{ key: 'T1', hash: taskHash, file_scope: check.file_scope }],
   };
+  await settleLeftover(sup, ownerId);
   let product;
   // A failed create can leave a partial directory; this root holds only throwaway products
   // and plan requests run one at a time, so anything new here after a failure is its debris.
@@ -109,9 +153,15 @@ export async function scorePatchCase(
     return 'provider_error';
   } finally {
     // Throwaway product: the plan request ledger keeps the signal; the files are not evidence.
-    await rm(sup.products.dir(product.id), {
-      recursive: true,
-      force: true,
-    }).catch(() => {});
+    // Kept while the worker marker names it (or the marker is unreadable): reconciliation
+    // needs its execution record.
+    const marker = await pendingMarker(sup.products.root).catch(() => ({
+      product_id: product.id,
+    }));
+    if (marker?.product_id !== product.id)
+      await rm(sup.products.dir(product.id), {
+        recursive: true,
+        force: true,
+      }).catch(() => {});
   }
 }

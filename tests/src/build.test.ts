@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, readFile, readdir } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  readFile,
+  readdir,
+  writeFile,
+} from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import {
   ProductSupervisor,
@@ -667,4 +674,41 @@ test('the patch qualification scorer applies only scoped patches and never trust
   );
   if (real) assert.equal(inScope, 'acceptance_check_failed');
   else assert.notEqual(inScope, 'accepted');
+});
+
+test('a worker run an earlier grading left unresolved blocks grading until it is settled', async (t) => {
+  const s = await setup(t);
+  const check = {
+    kind: 'patch_cases' as const,
+    file_scope: ['src'],
+    cases: structuredClone(BUILD_FIXTURE_CASES).slice(0, 1),
+  };
+  const answer = JSON.stringify({
+    submission: {
+      expected_commit: '0'.repeat(40),
+      changes: [{ path: 'src/extra.py', before_hash: null, content: 'x\n' }],
+    },
+    summary: 's',
+    blocker: null,
+  });
+  // A marker whose throwaway product is gone cannot be shown stopped: refused, never cleared.
+  const marker = join(s.products.root, 'pending-worker.json');
+  const body = JSON.stringify({
+    product_id: randomUUID(),
+    execution_id: randomUUID(),
+    supervisor_pid: 1,
+  });
+  await writeFile(marker, body);
+  const before = await readdir(s.products.root);
+  await assert.rejects(
+    scorePatchCase(
+      { products: s.products, executor: s.executor },
+      s.binding.owner_id,
+      check,
+      answer,
+    ),
+    /unresolved worker run.*no creator worker unit is running/,
+  );
+  assert.equal(await readFile(marker, 'utf8'), body);
+  assert.deepEqual(await readdir(s.products.root), before, 'nothing created');
 });
