@@ -64,79 +64,79 @@ The pilot may not start:
 
 ## Requirements
 
-| ID  | What                                              | implemented      | fixture      | contract     | live             | activated    | native           | Row       |
-| --- | ------------------------------------------------- | ---------------- | ------------ | ------------ | ---------------- | ------------ | ---------------- | --------- |
-| C01 | Discovery-to-product workflow                     | **yes**          | **yes**      | –            | **not verified** | not verified | **yes**          | not ready |
-| C02 | Directed locator                                  | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C03 | Cross-field ideation                              | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C04 | Urgency and software influence                    | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C05 | Source provenance and claim support               | **yes**          | **yes**      | **yes**      | **not verified** | not verified | –                | not ready |
-| C06 | Corroboration and counterevidence                 | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C07 | Competing concepts and critique                   | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C08 | Deduplication and existing alternatives           | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C09 | Versioned rubric and override                     | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C10 | Non-code and hybrid options                       | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C11 | Assumptions and reconsideration                   | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C12 | Human clarification and approval                  | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C13 | Configurable bounded autonomy                     | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C14 | Version-bound approvals and dissent               | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C15 | Autonomous / assisted / human-only comparison     | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C16 | No hidden AI in human-only condition              | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C17 | Structured vs open-ended comparison               | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C18 | Reproducible protocol and blinded ratings         | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C19 | Intervention quality and human effort             | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C20 | Requirements, specs and task DAGs                 | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C21 | Bounded specialist delegation                     | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C22 | Persistent run state and recovery                 | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C23 | Independent review and executed QA                | **yes**          | **yes**      | –            | **not verified** | not verified | **yes**          | not ready |
-| C24 | Tested artifacts and downloads                    | **yes**          | **yes**      | –            | –                | –            | **yes**          | ready     |
-| C25 | Feedback revision                                 | **yes**          | **yes**      | –            | –                | –            | **yes**          | ready     |
-| C26 | Searchable provenance                             | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C27 | Observable audit with costs                       | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C28 | Exact budgets and reservations                    | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C29 | Cancellation and partial results                  | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C30 | Restricted generated-code execution               | **yes**          | **yes**      | –            | –                | –            | **yes**          | ready     |
-| C31 | Privacy, credentials and injection boundaries     | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C32 | Local-first control mode                          | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C33 | Local Git for generated products                  | **yes**          | **yes**      | –            | –                | –            | **yes**          | ready     |
-| C34 | Context and token accounting                      | **yes**          | **yes**      | **yes**      | –                | –            | –                | ready     |
-| C35 | Web catalog, decisions and run controls           | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C36 | Thesis, demo, defense and archive                 | **yes**          | **yes**      | –            | **not verified** | –            | –                | not ready |
-| C37 | Model routing with quality floor                  | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C38 | Caching, compaction and batches                   | **yes**          | **yes**      | **yes**      | **not verified** | not verified | –                | not ready |
-| C39 | Semantic search and audit questions               | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C40 | GitHub management                                 | **yes**          | **yes**      | **yes**      | **not verified** | not verified | –                | not ready |
-| C41 | Windows desktop app                               | **yes**          | yes          | –            | –                | not verified | **yes**          | ready     |
-| C42 | Paired worker and offline state                   | **yes**          | **yes**      | –            | –                | not verified | **not verified** | not ready |
-| C43 | Hosted control and recovery                       | **yes**          | **yes**      | –            | **not verified** | not verified | –                | not ready |
-| C44 | Payments and reconciled revenue                   | **yes**          | **yes**      | **yes**      | **not verified** | deferred     | –                | not ready |
-| C45 | Reinvestment from eligible earnings               | **yes**          | **yes**      | –            | **not verified** | deferred     | –                | not ready |
-| C46 | Marketing and authorized campaigns                | **yes**          | **yes**      | –            | **unsupported**  | deferred     | –                | not ready |
-| C47 | Scheduling and conservation modes                 | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C48 | Reviewed reusable knowledge                       | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C49 | Real-vs-fixture status                            | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C50 | Owner control without repeated prompts            | **yes**          | **yes**      | –            | –                | –            | –                | ready     |
-| C51 | Declared-scale performance                        | **yes**          | **yes**      | –            | not verified     | –            | –                | ready     |
-| C52 | Central studio chat                               | **not verified** | not verified | not verified | **not verified** | not verified | **not verified** | not ready |
-| C53 | Theme-free problem discovery                      | **not verified** | not verified | not verified | **not verified** | not verified | **not verified** | not ready |
+| ID | What | implemented | fixture | contract | live | activated | native | Row |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| C01 | Discovery-to-product workflow | **yes** | **yes** | – | **not verified** | not verified | **yes** | not ready |
+| C02 | Directed locator | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C03 | Cross-field ideation | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C04 | Urgency and software influence | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C05 | Source provenance and claim support | **yes** | **yes** | **yes** | **not verified** | not verified | – | not ready |
+| C06 | Corroboration and counterevidence | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C07 | Competing concepts and critique | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C08 | Deduplication and existing alternatives | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C09 | Versioned rubric and override | **yes** | **yes** | – | – | – | – | ready |
+| C10 | Non-code and hybrid options | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C11 | Assumptions and reconsideration | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C12 | Human clarification and approval | **yes** | **yes** | – | – | – | – | ready |
+| C13 | Configurable bounded autonomy | **yes** | **yes** | – | – | – | – | ready |
+| C14 | Version-bound approvals and dissent | **yes** | **yes** | – | – | – | – | ready |
+| C15 | Autonomous / assisted / human-only comparison | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C16 | No hidden AI in human-only condition | **yes** | **yes** | – | – | – | – | ready |
+| C17 | Structured vs open-ended comparison | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C18 | Reproducible protocol and blinded ratings | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C19 | Intervention quality and human effort | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C20 | Requirements, specs and task DAGs | **yes** | **yes** | – | – | – | – | ready |
+| C21 | Bounded specialist delegation | **yes** | **yes** | – | – | – | – | ready |
+| C22 | Persistent run state and recovery | **yes** | **yes** | – | – | – | – | ready |
+| C23 | Independent review and executed QA | **yes** | **yes** | – | **not verified** | not verified | **yes** | not ready |
+| C24 | Tested artifacts and downloads | **yes** | **yes** | – | – | – | **yes** | ready |
+| C25 | Feedback revision | **yes** | **yes** | – | – | – | **yes** | ready |
+| C26 | Searchable provenance | **yes** | **yes** | – | – | – | – | ready |
+| C27 | Observable audit with costs | **yes** | **yes** | – | – | – | – | ready |
+| C28 | Exact budgets and reservations | **yes** | **yes** | – | – | – | – | ready |
+| C29 | Cancellation and partial results | **yes** | **yes** | – | – | – | – | ready |
+| C30 | Restricted generated-code execution | **yes** | **yes** | – | – | – | **yes** | ready |
+| C31 | Privacy, credentials and injection boundaries | **yes** | **yes** | – | – | – | – | ready |
+| C32 | Local-first control mode | **yes** | **yes** | – | – | – | – | ready |
+| C33 | Local Git for generated products | **yes** | **yes** | – | – | – | **yes** | ready |
+| C34 | Context and token accounting | **yes** | **yes** | **yes** | – | – | – | ready |
+| C35 | Web catalog, decisions and run controls | **yes** | **yes** | – | – | – | – | ready |
+| C36 | Thesis, demo, defense and archive | **yes** | **yes** | – | **not verified** | – | – | not ready |
+| C37 | Model routing with quality floor | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C38 | Caching, compaction and batches | **yes** | **yes** | **yes** | **not verified** | not verified | – | not ready |
+| C39 | Semantic search and audit questions | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C40 | GitHub management | **yes** | **yes** | **yes** | **not verified** | not verified | – | not ready |
+| C41 | Windows desktop app | **yes** | yes | – | – | not verified | **yes** | ready |
+| C42 | Paired worker and offline state | **yes** | **yes** | – | – | not verified | **not verified** | not ready |
+| C43 | Hosted control and recovery | **yes** | **yes** | – | **not verified** | not verified | – | not ready |
+| C44 | Payments and reconciled revenue | **yes** | **yes** | **yes** | **not verified** | deferred | – | not ready |
+| C45 | Reinvestment from eligible earnings | **yes** | **yes** | – | **not verified** | deferred | – | not ready |
+| C46 | Marketing and authorized campaigns | **yes** | **yes** | – | **unsupported** | deferred | – | not ready |
+| C47 | Scheduling and conservation modes | **yes** | **yes** | – | – | – | – | ready |
+| C48 | Reviewed reusable knowledge | **yes** | **yes** | – | – | – | – | ready |
+| C49 | Real-vs-fixture status | **yes** | **yes** | – | – | – | – | ready |
+| C50 | Owner control without repeated prompts | **yes** | **yes** | – | – | – | – | ready |
+| C51 | Declared-scale performance | **yes** | **yes** | – | not verified | – | – | ready |
+| C52 | Central studio chat | **not verified** | not verified | not verified | **not verified** | not verified | **not verified** | not ready |
+| C53 | Theme-free problem discovery | **not verified** | not verified | not verified | **not verified** | not verified | **not verified** | not ready |
 | C54 | Billing-aware intake and complete in-app workflow | **not verified** | not verified | not verified | **not verified** | not verified | **not verified** | not ready |
 
 ## Integrations
 
-| ID                      | What                                            | implemented     | fixture | contract | live             | activated    | native       | Row       |
-| ----------------------- | ----------------------------------------------- | --------------- | ------- | -------- | ---------------- | ------------ | ------------ | --------- |
-| openai-models           | OpenAI Responses, embeddings and batch adapters | **yes**         | yes     | **yes**  | **not verified** | not verified | –            | not ready |
-| source-fetch            | HTTP source fetch                               | **yes**         | yes     | **yes**  | **not verified** | not verified | –            | not ready |
-| source-search           | Live web search provider                        | **yes**         | yes     | yes      | **not verified** | not verified | –            | not ready |
-| postgresql              | PostgreSQL persistence                          | **yes**         | **yes** | yes      | **yes**          | yes          | –            | ready     |
-| backup-restore          | pg_dump backup and restore                      | **yes**         | **yes** | –        | –                | –            | –            | ready     |
-| oidc-sign-in            | OIDC owner sign-in                              | **yes**         | yes     | **yes**  | **not verified** | not verified | –            | not ready |
-| wsl2-isolation          | WSL2 isolated execution worker                  | **yes**         | yes     | –        | –                | –            | **yes**      | ready     |
-| windows-desktop         | Windows desktop app and paired worker           | **yes**         | yes     | –        | –                | not verified | **yes**      | ready     |
-| desktop-signing-updates | Signed installer and automatic updates          | **unsupported** | –       | –        | –                | –            | not verified | not ready |
-| github                  | GitHub REST and Git-over-HTTPS                  | **yes**         | yes     | **yes**  | **not verified** | not verified | –            | not ready |
-| hosted-operation        | Hosted deployment                               | **yes**         | yes     | –        | **not verified** | not verified | –            | not ready |
-| alert-delivery          | External alert delivery                         | **unsupported** | –       | –        | not verified     | not verified | –            | not ready |
-| stripe-payments         | Stripe processor                                | **yes**         | yes     | **yes**  | **not verified** | deferred     | –            | not ready |
-| campaign-delivery       | Outbound campaign delivery                      | **yes**         | yes     | –        | **unsupported**  | deferred     | –            | not ready |
-| paid-ads                | Paid advertising                                | **unsupported** | –       | –        | unsupported      | –            | –            | not ready |
+| ID | What | implemented | fixture | contract | live | activated | native | Row |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| openai-models | OpenAI Responses, embeddings and batch adapters | **yes** | yes | **yes** | **not verified** | not verified | – | not ready |
+| source-fetch | HTTP source fetch | **yes** | yes | **yes** | **not verified** | not verified | – | not ready |
+| source-search | Live web search provider | **yes** | yes | yes | **not verified** | not verified | – | not ready |
+| postgresql | PostgreSQL persistence | **yes** | **yes** | yes | **yes** | yes | – | ready |
+| backup-restore | pg_dump backup and restore | **yes** | **yes** | – | – | – | – | ready |
+| oidc-sign-in | OIDC owner sign-in | **yes** | yes | **yes** | **not verified** | not verified | – | not ready |
+| wsl2-isolation | WSL2 isolated execution worker | **yes** | yes | – | – | – | **yes** | ready |
+| windows-desktop | Windows desktop app and paired worker | **yes** | yes | – | – | not verified | **yes** | ready |
+| desktop-signing-updates | Signed installer and automatic updates | **unsupported** | – | – | – | – | not verified | not ready |
+| github | GitHub REST and Git-over-HTTPS | **yes** | yes | **yes** | **not verified** | not verified | – | not ready |
+| hosted-operation | Hosted deployment | **yes** | yes | – | **not verified** | not verified | – | not ready |
+| alert-delivery | External alert delivery | **unsupported** | – | – | not verified | not verified | – | not ready |
+| stripe-payments | Stripe processor | **yes** | yes | **yes** | **not verified** | deferred | – | not ready |
+| campaign-delivery | Outbound campaign delivery | **yes** | yes | – | **unsupported** | deferred | – | not ready |
+| paid-ads | Paid advertising | **unsupported** | – | – | unsupported | – | – | not ready |
