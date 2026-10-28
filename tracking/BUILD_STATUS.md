@@ -1,3 +1,15 @@
+## Claude Code connection live on the dev studio — October 28, 2026
+
+Jordan's dev studio (main 64f42c1; creator_studio backed up to
+`C:\CreatorAgentBackups\creator_studio-20261028-082335-pre-migration32.dump`, then migrated to
+schema 32) now has a `claude_code` connection in Jordan's real workspace (95f918a6…).
+
+- Claude Code 2.1.252 is the native install. Jordan signed in himself in
+  `.creator\studio\claude-code`, confirmed extra usage off and accepted the caps.
+- With his typed OK, one verification call on `claude-sonnet-5-5` completed (request 46d11105…).
+  That call also confirmed the `apiKeySource: "none"` rule on a real login.
+- Not yet qualified for any task class. Each qualification needs its own OK.
+
 ## Claude Code connection (ADR-0050) — October 28, 2026
 
 Creator Agent can now add **Claude Code on this computer** on Models and connections: Claude
