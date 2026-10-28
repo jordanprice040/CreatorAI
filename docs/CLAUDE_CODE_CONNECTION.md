@@ -3,8 +3,12 @@
 Status on 2026-10-28: **live on Jordan's dev studio for one verified model.** At 12:29 UTC
 Jordan's real workspace verified `claude-sonnet-5-5` through his own signed-in Claude Code
 2.1.252. That was one request (46d11105…, completed), made with his typed OK and with extra
-usage confirmed off. No task class is qualified yet, so no real work runs on it. The installed
-app is not set up for it. Decision: ADR-0050 in `tracking/DECISIONS.md`. Migration 32
+usage confirmed off. With his typed OKs it then qualified for **summarization**
+(`summarization-synthetic-v1`, qualification a3c6a8cd…, 2/2 development, 6/6 held out) and
+**specification** (`specification-synthetic-v1` from PR #80, af46b4e5…, 2/2, 6/6), at 8
+requests each. In total that was 17 requests that day, all completed. The specification benchmark is
+narrow (one acceptance-check record per request) and had only Jordan's review before freezing.
+The installed app is not set up for it. Decision: ADR-0050 in `tracking/DECISIONS.md`. Migration 32
 (`plan_connection_kinds`).
 
 ## What it is

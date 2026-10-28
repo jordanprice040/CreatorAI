@@ -8,7 +8,10 @@ schema 32) now has a `claude_code` connection in Jordan's real workspace (95f918
   `.creator\studio\claude-code`, confirmed extra usage off and accepted the caps.
 - With his typed OK, one verification call on `claude-sonnet-5-5` completed (request 46d11105…).
   That call also confirmed the `apiKeySource: "none"` rule on a real login.
-- Not yet qualified for any task class. Each qualification needs its own OK.
+- With Jordan's typed OKs, claude-sonnet-5-5 then qualified for summarization (a3c6a8cd…,
+  `summarization-synthetic-v1`, 2/2 development, 6/6 held out). It also qualified for
+  specification (af46b4e5…, the new `specification-synthetic-v1` from PR #80, 2/2 and 6/6).
+  Each run took 8 requests; the connection is at version 8, with 17 of 30 daily requests used.
 
 ## Claude Code connection (ADR-0050) — October 28, 2026
 

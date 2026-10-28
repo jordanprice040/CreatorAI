@@ -6,9 +6,9 @@ up, then migrated to 32, and `CREATOR_CLAUDE_CODE_CONFIG_DIR` was added to start
 Jordan's real workspace has a claude_code connection (95f918a6…, v6) that is signed in, with
 extra usage off and caps accepted. `claude-sonnet-5-5` is verified (1 request, completed).
 
-Next, each step with Jordan's typed OK:
-- Frozen-benchmark qualification for summarization and specification (`pnpm cli plan-qualify`).
-- Setting up the installed app later.
+claude-sonnet-5-5 then qualified for summarization (a3c6a8cd…) and specification (af46b4e5…,
+benchmark frozen in PR #80, reviewed only by Jordan). Each run was 8 requests with 6/6 held out.
+Next, with Jordan's typed OK: set up the installed app, or qualify more models.
 
 ## Claude Code connection (ADR-0050) — October 28, 2026
 
