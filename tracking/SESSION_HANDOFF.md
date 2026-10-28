@@ -9,7 +9,7 @@ WSL worker). API `plan-connections/:id/build-calls`, CLI port, and a web build-f
 No migration. Checks run: build (15 incl. 4 new), plan-connections (new build-role admission
 and qualification test), plan-connections-api (build-calls refusals), routing-domain (review
 verdict and manifest pairing), plus the suites listed in the PR. Fixture-verified only: no
-live plan request was sent. Role benchmarks `t12-builder-v1` / `t12-reviewer-v1` drafted (scripts/author-plan-role-benchmarks.mjs; 4 cases each, 3 held out). Jordan OK'd the CSV-checker cases and hosts (October 28). Next: Jordan's OK on the role benchmarks and the CSV
+live plan request was sent. Role benchmarks `t12-builder-v1` / `t12-reviewer-v1` drafted (scripts/author-plan-role-benchmarks.mjs; 4 cases each, 3 held out). Jordan OK'd the CSV-checker cases and hosts (October 28). Jordan approved the role benchmarks as drafted with a 3 of 3 held-out bar per role (October 28). Next: after #71 merges and the CSV
 checker cases/hosts, then each live step with its exact command and request count.
 
 ## Study-build lock order fixed (ADR-0044 gap) — October 28, 2026
