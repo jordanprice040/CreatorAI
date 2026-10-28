@@ -1,3 +1,26 @@
+## Study-build lock order fixed (ADR-0044 gap) — October 28, 2026
+
+Jordan approved fixing the gap ADR-0044 recorded before the first real run. The study build
+path (`prepareStudyBuild`) took the audit-chain lock in `lockAttemptForWrite`, then the
+study-ledger lock and, for final records, the runtime-ceiling lock in `holdBudget`. Ceiling
+and limit saves take runtime-ceiling then audit-chain, and `prepareStudyExecution` takes
+study-ledger then audit-chain, so either pair could deadlock (PostgreSQL would abort one
+transaction). It also applied to synthetic builds against concurrent synthetic execution in
+the same workspace. Now `lockAttemptForWrite(..., budget = true)` takes `holdBudget`'s locks
+(study ledger, then the runtime ceiling for final records) after the run and attempt row
+locks and before the audit-chain lock; `holdBudget` re-takes them (advisory locks are
+re-entrant). Order everywhere: run row, attempt row, study ledger, runtime ceiling, audit
+chain. New `lockRuntimeCeiling` in runtime-ceiling.ts. Test (study-build, final-record
+gate): while another transaction holds the study-ledger or runtime-ceiling lock, a final
+build waits on it without holding the audit-chain lock, then refuses LIVE_DISABLED; it fails
+on the old order. Final builds are still LIVE_DISABLED; no migration, no amounts changed.
+
+Review of #70 (no High/Medium): L1, the test covered only final records; it now also checks
+a synthetic build against a holder of `study-ledger:synthetic:<ws>` (the inversion that
+deadlocked on main) and fails if the synthetic early lock is dropped. N2: budget-store uses
+`lockRuntimeCeiling`. N1 kept: a final build takes the T15 ledger and ceiling locks before
+refusing LIVE_DISABLED; brief, and it is the order live final builds will need.
+
 ## PR #69 review fixes — October 28, 2026
 
 Review of #69: one Medium (M-1, a regression): `withLock` added its token to the live set

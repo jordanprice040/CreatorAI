@@ -44,6 +44,7 @@ import { CatalogStore } from './catalog-store.js';
 import {
   ceilingRefusal,
   currentSpendLimits,
+  lockRuntimeCeiling,
   runtimeExposure,
 } from './runtime-ceiling.js';
 import {
@@ -266,12 +267,9 @@ export class StudyStore extends CatalogStore {
     input: StudyInput,
   ) {
     if (!input.governance) return null;
-    const ledger = input.synthetic ? `synthetic:${ownerWs}` : 't15-final';
+    const ledger = await this.lockBudget(c, ownerWs, input);
     const total = BigInt(this.evaluation.budget.t15_total_cap_nano_usd);
     const cap = BigInt(input.config.max_cost_nano_usd);
-    await c.query('select pg_advisory_xact_lock(hashtext($1))', [
-      `study-ledger:${ledger}`,
-    ]);
     const held = await c.query(
       'select 1 from study_budget_holds where attempt_id=$1',
       [a.id],
@@ -345,6 +343,23 @@ export class StudyStore extends CatalogStore {
     );
     await this.event(c, ctx, a.study_id, a.id, 'budget_held', detail);
     return null;
+  }
+  /**
+   * Takes holdBudget's locks in its order: the study ledger, then for final records the
+   * runtime ceiling. Ceiling and limit saves take the ceiling before the audit-chain lock, so a
+   * caller that will hold a budget takes these first (ADR-0047). Returns the ledger name.
+   */
+  protected async lockBudget(
+    c: PoolClient,
+    ownerWs: string,
+    input: StudyInput,
+  ) {
+    const ledger = input.synthetic ? `synthetic:${ownerWs}` : 't15-final';
+    await c.query('select pg_advisory_xact_lock(hashtext($1))', [
+      `study-ledger:${ledger}`,
+    ]);
+    if (!input.synthetic) await lockRuntimeCeiling(c);
+    return ledger;
   }
   protected async freezeIn(
     c: PoolClient,
@@ -716,6 +731,7 @@ export class StudyStore extends CatalogStore {
     ws: string,
     attemptId: string,
     ownerOnly = false,
+    budget = false,
   ) {
     const a = await this.accessAttempt(c, ctx, ws, attemptId, ownerOnly);
     await this.lockRun(c, a.workspace_id, a.run_id);
@@ -723,6 +739,11 @@ export class StudyStore extends CatalogStore {
       'select id from study_attempts where id=$1 for no key update',
       [attemptId],
     );
+    if (budget && a.condition !== 'human_only') {
+      const input = (await this.study(c, ws, a.study_id))
+        .manifest as StudyInput;
+      if (input.governance) await this.lockBudget(c, ws, input);
+    }
     await c.query('select pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK]);
     return this.accessAttempt(c, ctx, ws, attemptId, ownerOnly);
   }
