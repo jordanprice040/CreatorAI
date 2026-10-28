@@ -23,6 +23,7 @@ import {
 } from '@creator/domain';
 import {
   BuildSupervisor,
+  ReapUnverified,
   bindingSchema,
   buildOutcomeSchema,
   buildPlanSchema,
@@ -549,15 +550,13 @@ export class StudioBuilds {
         .reconcile(product, execution, ctx.actorId)
         .catch((e: unknown) =>
           refusal(
-            // Refusals about the run itself stand as they are; anything else is the reap
-            // through WSL failing, which the owner can check.
-            /still exists|still being dispatched|Lease has not expired|Unknown supervisor/.test(
-              reason(e),
-            )
-              ? e
-              : new Error(
+            // Only a failed reap (WSL failing, or no WSL backend) gets the WSL advice; locks,
+            // missing files and ownership refusals stand as they are.
+            e instanceof ReapUnverified
+              ? new Error(
                   `${reason(e).replace(/\.$/, '')}. The test run could not be confirmed stopped: check that WSL works (wsl.exe in a terminal), then Recover again.`,
-                ),
+                )
+              : e,
           ),
         );
       // Listed only when it changed now; an already settled run just had its marker freed.

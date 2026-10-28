@@ -28,7 +28,7 @@ import {
   jsonWrite,
   readJson,
   withLock,
-  bootedBefore,
+  lockHolder,
   event,
   newFile,
 } from './files.js';
@@ -42,34 +42,6 @@ export const TEMPLATE = {
     'import json\nprint(json.dumps({"template": "checklist/1", "items": ["inspect", "build", "review"]}))\n',
 };
 export const TEMPLATE_HASH = digest(JSON.stringify(TEMPLATE));
-
-/** Whether a process exists (EPERM: it does, owned by someone else). */
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
-  }
-}
-/**
- * Who holds a lock file: 'dead', a live process number, or 'writing' (empty and fresh: its
- * holder is between creating and filling it). An empty lock older than a minute is a crash.
- */
-function lockHolder(raw: string, mtimeMs: number): 'dead' | 'writing' | number {
-  let lock: { pid?: unknown; at?: unknown };
-  try {
-    lock = JSON.parse(raw) as typeof lock;
-  } catch {
-    return Date.now() - mtimeMs > 60_000 ? 'dead' : 'writing';
-  }
-  const pid = Number(lock.pid);
-  if (!Number.isInteger(pid) || pid <= 0) return 'dead';
-  // This process's own lock is held here, whatever its time says.
-  if (pid === process.pid) return pid;
-  if (bootedBefore(String(lock.at))) return 'dead';
-  return alive(pid) ? pid : 'dead';
-}
 
 /** Local owner-facing store. Never available to generated code or remote callers. */
 export class ProductSupervisor {

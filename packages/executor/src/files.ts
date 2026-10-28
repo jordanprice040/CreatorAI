@@ -79,6 +79,39 @@ export function bootedBefore(iso: string): boolean {
   const at = Date.parse(iso);
   return Number.isFinite(at) && at < Date.now() - uptime() * 1000 - 10 * 60_000;
 }
+/** Whether a process exists (EPERM: it does, owned by someone else). */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+/** Tokens of the locks this process holds right now. */
+const held = new Set<string>();
+/**
+ * Who holds a lock file: 'dead', a live process number, or 'writing' (empty and fresh: its
+ * holder is between creating and filling it). An empty lock older than a minute is a crash.
+ * This process's own lock is held only while its token is live here, whatever the clock
+ * says; another process's lock from before this boot is dead (its number may be reused).
+ */
+export function lockHolder(
+  raw: string,
+  mtimeMs: number,
+): 'dead' | 'writing' | number {
+  let lock: { pid?: unknown; at?: unknown; token?: unknown };
+  try {
+    lock = JSON.parse(raw) as typeof lock;
+  } catch {
+    return Date.now() - mtimeMs > 60_000 ? 'dead' : 'writing';
+  }
+  const pid = Number(lock.pid);
+  if (!Number.isInteger(pid) || pid <= 0) return 'dead';
+  if (pid === process.pid) return held.has(String(lock.token)) ? pid : 'dead';
+  if (bootedBefore(String(lock.at))) return 'dead';
+  return alive(pid) ? pid : 'dead';
+}
 export async function withLock<T>(
   dir: string,
   work: () => Promise<T>,
@@ -99,11 +132,19 @@ export async function withLock<T>(
   );
   await f.sync();
   await f.close();
+  held.add(token);
   try {
     return await work();
   } finally {
+    held.delete(token);
     // Only our own lock: a recovery may have released it and someone else may hold it now.
-    const now = await readFile(lock, 'utf8').catch(() => '');
+    // Only a missing file is "not ours"; any other read error is surfaced, never a silent leak.
+    const now = await readFile(lock, 'utf8').catch(
+      (e: NodeJS.ErrnoException) => {
+        if (e.code === 'ENOENT') return '';
+        throw e;
+      },
+    );
     if (now.includes(token)) await unlink(lock);
   }
 }

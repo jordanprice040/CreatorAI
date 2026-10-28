@@ -321,20 +321,19 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   assert.equal(recovered.status, 200, JSON.stringify(recovered.body));
   assert.deepEqual(recovered.body.released, ['builds']);
   assert.deepEqual(recovered.body.reconciled, []);
-  // This process's own lock is held here, whatever time it records (a clock step after boot
-  // must not make it look dead).
+  // A lock naming this process but no lock it holds now (left by a leak, or a PID that
+  // matched across a reboot) is stale, not "held by work running now".
   await writeFile(
     lock,
     JSON.stringify({
       pid: process.pid,
       token: 'z',
-      at: '2000-01-01T00:00:00Z',
+      at: new Date().toISOString(),
     }),
   );
   const own = await http(`${base}/${p.id}/recover`, {});
-  assert.equal(own.status, 409, JSON.stringify(own.body));
-  assert.match(own.body.error.message, /held by work running now/);
-  await rm(lock);
+  assert.equal(own.status, 200, JSON.stringify(own.body));
+  assert.deepEqual(own.body.released, ['builds']);
   // Nothing left: recovery says nothing changed instead of claiming it recovered.
   const nothing = await http(`${base}/${p.id}/recover`, {});
   assert.deepEqual(nothing.body, {

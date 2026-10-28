@@ -1,3 +1,22 @@
+## Recover edge cases from the #68 fourth re-review (N-1 to N-4) — October 28, 2026
+
+Jordan asked for the follow-up now. N-1: after a verified reap, the dispatch lock is freed
+only if it is dead by the same rule recovery uses, so a live holder that reused the PID
+after a reboot keeps it. N-2: the process keeps the tokens of the locks it holds; a lock
+naming this process with any other token is stale and can be recovered without an app
+restart. N-3: `withLock` cleanup treats only a missing file as "not ours" and surfaces any
+other read error instead of leaking the lock. N-4: reconcile throws `ReapUnverified` only
+for a failed or unconfirmed reap, and only that gets the "check that WSL works" advice.
+The #66 re-review first-run Lows were already fixed in #67. New tests/src/locks.test.ts
+(own lock held only by live token, other PIDs by liveness and boot, empty locks by age,
+cleanup never deletes another holder's lock); studio-builds now expects an own-PID lock
+with a foreign token to be released. Checks: locks, studio-builds, executor, web-display;
+with CREATOR_TEST_ISOLATION=wsl2: executor, studio-builds and studio-builds-wsl pass;
+typecheck; format:check. Observed: after the killed-supervisor crash tests, wsl.exe on this
+machine sometimes fails with Wsl/Service/E_UNEXPECTED until `wsl --shutdown`; the gated
+test passed after a restart. Worth watching on Jordan's machine: if a real closed-app
+crash does the same, Recover will correctly refuse until WSL is restarted.
+
 ## PR #68 third re-review fixes — October 27, 2026
 
 Third re-review of #68: M-B, the new unresolved-run test assumed the Windows reap message
