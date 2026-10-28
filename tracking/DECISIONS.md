@@ -1,5 +1,50 @@
 # Decision log
 
+## ADR-0048 — T12 builder and reviewer on the ChatGPT plan's direct route (accepted October 28, 2026)
+
+Context: no real T12 build is $0 today. The Codex builder path is blocked in code (no
+Codex-path verification or `code_build` qualification), and even with it the independent
+reviewer always went through the metered dollar broker. CODEX_INTEGRATION §4.2 also barred a
+reviewer on the same connection as the builder. Jordan chose "plan for a fully $0 route
+first", then "Yes, build option 1" on the design (both roles as plan Responses requests,
+with the §4.2 change).
+
+Decision: a build plan may name `plan_roles: {connection_id, model_id}`. The builder and
+reviewer then go as fresh direct Responses requests on that ChatGPT-plan connection under
+new task class `patch_build` and existing `independent_review` (both added to the Responses
+classes; the owner adds them to a connection's allowed classes in Settings). The role
+prompts (`builder/1`, `independent-reviewer/1`, moved unchanged to domain `build-roles.ts`)
+are fixed server-side; the caller sends only the packet. Packets, scoped patch tool, held-out
+QA in the WSL worker and `verified_candidate` rules are unchanged. §4.2 now allows the
+reviewer on the same connection and model as a fresh request (no builder conversation or
+claims); executed QA still decides.
+
+Admission (plan request ledger, no migration): each role's class must be allowed and
+qualified for the model; a build-role request outside a workflow must name a registered run
+that is active, not human-only, and not a study assignment (frozen study arms keep their
+routes). Responses caps apply (10 per run, 40 a day shared, 120 s, 16,000 output chars).
+Build plans allow `timeout_ms` up to 120 s only with `plan_roles`; broker builds keep 60 s;
+`plan_roles` and `codex_plan_builder` are exclusive. Plans without `plan_roles` hash the same
+as before. Each call writes an intent (route `chatgpt_plan_responses`, task class, prompt,
+context hash) and the outcome to the build record.
+
+Qualification: new benchmark checks. `review_verdict` needs the answer to bind the case's
+candidate, spec and task hashes and give the expected verdict (approve with no findings, as
+T12 requires; changes_requested with at least one finding). `patch_cases` is graded by the
+studio's patch scorer (executor `scorePatchCase`): the patch is applied to a throwaway product
+from the reviewed template (its own products root, `plan-qualification-products`) and every
+case runs in the worker as QA does. Without the scorer the qualification stops before any
+request (`patch_scorer_unavailable`). Route benchmarks refuse `patch_cases`. Every case of a
+build-role qualification must use exactly the T12 role prompt. Build-role checks need their
+own task class and JSON output. The web build form offers "Builder and reviewer on ChatGPT
+plan" for verified Responses models; the CLI posts to `plan-connections/:id/build-calls`.
+
+Consequences: a real build can cost $0 metered once Jordan signs in, verifies one model,
+adds the two classes and qualifies both roles; until then admission refuses it. No frozen
+benchmark manifests for the two roles are written yet; their cases need Jordan's OK. Shared
+model ancestry can correlate builder and reviewer errors; QA on held-out cases is the guard.
+Not tested here: the study-assignment refusal (it mirrors the existing workflow check).
+
 ## ADR-0047 — Study budget locks before the audit-chain lock (accepted October 28, 2026)
 
 Jordan approved fixing the gap ADR-0044 recorded before the first real run. The study build

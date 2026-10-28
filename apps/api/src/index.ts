@@ -34,7 +34,7 @@ import {
   sourcePolicyHash,
   prepareThemeResearchPlan,
 } from '@creator/domain';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import {
   OPERATIONS_ACTOR_ID,
@@ -60,6 +60,7 @@ import {
   BRAVE_SEARCH_ID,
   PlanConnectionService,
   planVaultFromEnv,
+  type PlanServiceDeps,
 } from '@creator/broker';
 import { Worker } from '@creator/orchestrator';
 import {
@@ -80,6 +81,7 @@ import {
   checkStudyCode,
   digest,
   readStudyBuild,
+  scorePatchCase,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
 import { desktopRoutes, visitorKey } from './desktop.js';
@@ -104,6 +106,7 @@ import {
   codexLauncherFromEnv,
   connectionRoutes,
   runCodexBuild,
+  runPlanBuildCall,
 } from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
@@ -216,7 +219,10 @@ export function createApi(
     /** Test seam: the fixture processor for a payment connection. */
     paymentFixture?: (connection: PaymentConnection) => FixtureProcessor;
     /** Test seam: ChatGPT-plan service with loopback stand-in endpoints (ADR-0042). */
-    planService?: (store: ConnectionStore) => PlanConnectionService;
+    planService?: (
+      store: ConnectionStore,
+      extra: { patchScorer: PlanServiceDeps['patchScorer'] },
+    ) => PlanConnectionService;
   } = {},
 ) {
   // X06: NAME_FILE secrets (Docker/systemd credentials) are loaded before anything reads env.
@@ -259,11 +265,6 @@ export function createApi(
   const sourceConfig = sourceConfigFromEnv(env);
   const publicSearch = publicSearchFromEnv(env, sourceConfig.policy);
   const store = pool ? new ConnectionStore(pool) : null;
-  // ADR-0042: ChatGPT plan usage. Tokens live in the protected vault, never in the database.
-  const planService = store
-    ? (deps.planService?.(store) ??
-      new PlanConnectionService({ store, vault: planVaultFromEnv(env) }))
-    : null;
   const codexLauncher = codexLauncherFromEnv(env);
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
@@ -281,6 +282,38 @@ export function createApi(
         ),
       );
     })();
+  // ADR-0048: patch_build qualification answers run in a throwaway product store beside the
+  // studio's, through the same isolated worker; never in the studio's own products.
+  const qualificationProducts = new ProductSupervisor(
+    resolve(
+      dirname(resolve(env.CREATOR_PRODUCTS_ROOT ?? '.creator/products')),
+      'plan-qualification-products',
+    ),
+  );
+  const qualificationExecutor = new ExecutionSupervisor(
+    qualificationProducts,
+    env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
+  );
+  const patchScorer = (
+    ctx: CommandContext,
+    check: Parameters<typeof scorePatchCase>[2],
+    text: string | null,
+  ) =>
+    scorePatchCase(
+      { products: qualificationProducts, executor: qualificationExecutor },
+      ctx.actorId,
+      check,
+      text,
+    );
+  // ADR-0042: ChatGPT plan usage. Tokens live in the protected vault, never in the database.
+  const planService = store
+    ? (deps.planService?.(store, { patchScorer }) ??
+      new PlanConnectionService({
+        store,
+        vault: planVaultFromEnv(env),
+        patchScorer,
+      }))
+    : null;
   const broker = store
     ? new ModelBroker(
         store,
@@ -321,6 +354,8 @@ export function createApi(
               connection,
               body,
             ),
+          (ctx, ws, connection, body) =>
+            runPlanBuildCall(planService, ctx, ws, connection, body),
         )
       : null;
   // X07: payments. Fixture and test-mode processors only; live payments are not built.

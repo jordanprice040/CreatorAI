@@ -310,6 +310,41 @@ export function checkOutput(
       return output.text.trim() === check.label
         ? 'accepted'
         : 'acceptance_check_failed';
+    case 'review_verdict': {
+      const r = output.json as {
+        candidate?: unknown;
+        spec_hash?: unknown;
+        task_hash?: unknown;
+        verdict?: unknown;
+        findings?: unknown;
+      } | null;
+      if (
+        !r ||
+        typeof r !== 'object' ||
+        !Array.isArray(r.findings) ||
+        !r.findings.every((f) => typeof f === 'string' && f.length > 0)
+      )
+        return 'schema_invalid';
+      if (
+        r.candidate !== check.candidate ||
+        r.spec_hash !== check.spec_hash ||
+        r.task_hash !== check.task_hash
+      )
+        return 'acceptance_check_failed';
+      // T12 accepts only an approve with no findings, so the benchmark scores the same way.
+      if (check.verdict === 'approve')
+        return r.verdict === 'approve' && r.findings.length === 0
+          ? 'accepted'
+          : 'review_rejected';
+      return r.verdict === 'changes_requested' && r.findings.length > 0
+        ? 'accepted'
+        : 'acceptance_check_failed';
+    }
+    case 'patch_cases':
+      // Grading runs code in the isolated worker; only the studio's patch scorer may do it.
+      throw new Error(
+        'patch_cases checks are graded by the studio patch scorer',
+      );
   }
 }
 

@@ -126,13 +126,23 @@ sent somewhere else.
 ### 4.2 Path A (direct Responses) task classes
 
 Eligible after X01 qualification for the class: `research_synthesis`,
-`candidate_generation`, `scoring`, `specification`, `summarization`. Not eligible:
-`embedding` (no embeddings on this route), `independent_review` of work produced by
-the same connection (a reviewer must be a different route, keeping T12's independence
-rule), and anything needing hosted tools the preview rejects (file search, Code
-Interpreter, hosted MCP/connectors, image generation, `tool_search`). Web search is
-"subject to model and account/workspace policy", so `tool.search_public` stays on the
-existing research adapter (#8).
+`candidate_generation`, `scoring`, `specification`, `summarization`, and (ADR-0048) the T12
+build roles `patch_build` and `independent_review`. Not eligible: `embedding` (no
+embeddings on this route) and anything needing hosted tools the preview rejects (file
+search, Code Interpreter, hosted MCP/connectors, image generation, `tool_search`). Web
+search is "subject to model and account/workspace policy", so `tool.search_public` stays on
+the existing research adapter (#8).
+
+**Rule change (ADR-0048, Jordan, October 28, 2026).** This section first said a reviewer
+must use a different route from the builder. Jordan accepted that the reviewer may use the
+same connection and model **as a fresh request**: no builder conversation, summary or
+claimed test results, only the candidate files, diff and frozen task (T12's packet is
+unchanged). Independence now rests on fresh context, the fixed reviewer prompt, binding to
+the exact candidate and frozen hashes, and executed QA on held-out cases in the WSL worker,
+which decides `verified_candidate` regardless of either role. Shared model ancestry can
+correlate errors; the reviewer prompt says so and the build record names the route. Both
+roles need their own qualification on a benchmark that uses the exact T12 prompt. Plan
+build roles are refused for frozen study assignments (§4.1).
 
 ### 4.3 Path B (Codex) work
 
@@ -370,6 +380,12 @@ broker, T11 and T12 paths are unchanged.
 - **Accounting** is a separate `plan_requests` ledger with studio caps (migration 26),
   not an extension of the dollar budget contracts; no provider enum or registry entry
   was added, so the X01 router and the dollar broker are unchanged.
+- **T12 roles on Path A (ADR-0048).** A build plan with `plan_roles` sends the builder and
+  the reviewer as fresh direct Responses requests on one connection, under task classes
+  `patch_build` and `independent_review`, instead of the dollar broker. A `patch_build`
+  qualification answer is graded by applying the patch to a throwaway copy of the reviewed
+  template and running its cases in the WSL worker, exactly like QA; a `review_verdict`
+  answer must bind the case's candidate and hashes and give the expected verdict.
 - **Codex path activation** needs two steps that do not exist yet: a one-call
   verification on the Codex path and a `code_build` qualification. Until both are built
   and run, admission refuses every Codex build request.

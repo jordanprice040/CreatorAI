@@ -58,20 +58,20 @@ unknown (timeout, cut stream) blocks the connection until Jordan reconciles it.
 Plus shares its five-hour allowance with Jordan's own ChatGPT and Codex use, so these
 are set low. They are studio limits; OpenAI can still refuse earlier.
 
-| Cap                            | Proposed                     | Why                                                                        |
-| ------------------------------ | ---------------------------- | -------------------------------------------------------------------------- |
-| Requests in flight             | 1                            | Fixed; no parallel plan usage.                                             |
-| Requests per day, both paths   | 40                           | Leaves most of the shared allowance for Jordan.                            |
-| Direct requests per run        | 10                           | A summarization or specification run needs a few calls.                    |
-| Direct request timeout         | 120 s                        | Long enough for a streamed answer; then the outcome is unknown.            |
-| Output per direct request      | 16,000 characters            | The plan route refuses `max_output_tokens`, so the studio ends the stream. |
-| Input per direct request       | 24,000 characters            | Keeps prompts small; larger inputs are refused before sending.             |
-| Codex builds per day           | 2                            | Path B is not active yet (see below).                                      |
-| Codex turns per build          | 1                            | One supervised turn per T12 build cycle.                                   |
-| Codex model requests per build | 25                           | Each Codex tool round trip is one request.                                 |
-| Codex build timeout            | 10 minutes                   | Then the jail is killed and the build is a checkpoint.                     |
-| Data classes                   | public, synthetic            | Jordan's answer Q6.                                                        |
-| Task classes                   | summarization, specification | Jordan's answer Q7; `code_build` is not enabled.                           |
+| Cap                            | Proposed                     | Why                                                                                                                                          |
+| ------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requests in flight             | 1                            | Fixed; no parallel plan usage.                                                                                                               |
+| Requests per day, both paths   | 40                           | Leaves most of the shared allowance for Jordan.                                                                                              |
+| Direct requests per run        | 10                           | A summarization or specification run needs a few calls.                                                                                      |
+| Direct request timeout         | 120 s                        | Long enough for a streamed answer; then the outcome is unknown.                                                                              |
+| Output per direct request      | 16,000 characters            | The plan route refuses `max_output_tokens`, so the studio ends the stream.                                                                   |
+| Input per direct request       | 24,000 characters            | Keeps prompts small; larger inputs are refused before sending.                                                                               |
+| Codex builds per day           | 2                            | Path B is not active yet (see below).                                                                                                        |
+| Codex turns per build          | 1                            | One supervised turn per T12 build cycle.                                                                                                     |
+| Codex model requests per build | 25                           | Each Codex tool round trip is one request.                                                                                                   |
+| Codex build timeout            | 10 minutes                   | Then the jail is killed and the build is a checkpoint.                                                                                       |
+| Data classes                   | public, synthetic            | Jordan's answer Q6.                                                                                                                          |
+| Task classes                   | summarization, specification | Jordan's answer Q7; `code_build` is not enabled. `patch_build` and `independent_review` (T12 plan roles, ADR-0048) can be added in Settings. |
 
 ## Command blocking in the Codex builder
 
@@ -127,12 +127,13 @@ checks both package hashes and installs the two binaries to
 
 ## What is still blocked, and on what
 
-| Blocked                  | Needs                                                                                                                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any live request         | Database at migration 26 (owner-approved backed-up upgrade), the studio running this build, Jordan's sign-in, credits confirmation and cap acceptance                                 |
-| Eligibility              | Only a real sign-in and one verification request show whether OpenAI accepts a private client on Plus. If refused, the exact code is recorded and shown; Creator Agent stays private. |
-| Path A real work         | A verified model, then a qualification run on a frozen summarization or specification benchmark                                                                                       |
-| Path B (Codex) real work | A Codex-path verification call and a `code_build` qualification, neither built yet; `code_build` is not in the allowed task classes                                                   |
+| Blocked                   | Needs                                                                                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Any live request          | Database at migration 26 (owner-approved backed-up upgrade), the studio running this build, Jordan's sign-in, credits confirmation and cap acceptance                                       |
+| Eligibility               | Only a real sign-in and one verification request show whether OpenAI accepts a private client on Plus. If refused, the exact code is recorded and shown; Creator Agent stays private.       |
+| Path A real work          | A verified model, then a qualification run on a frozen summarization or specification benchmark                                                                                             |
+| Path B (Codex) real work  | A Codex-path verification call and a `code_build` qualification, neither built yet; `code_build` is not in the allowed task classes                                                         |
+| T12 plan roles (ADR-0048) | A verified Responses model, both classes added in Settings, and qualifications on frozen `patch_build` and `independent_review` benchmarks (none written yet; their cases need Jordan's OK) |
 
 ## Proposed bounded live verification (needs Jordan's approval)
 

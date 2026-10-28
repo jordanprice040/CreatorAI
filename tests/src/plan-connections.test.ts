@@ -27,7 +27,11 @@ import {
   verifyIdToken,
   exchangeCode,
 } from '@creator/broker';
-import { admissionBlockers, connectionBlockers } from '@creator/domain';
+import {
+  BUILD_ROLE_PROMPTS,
+  admissionBlockers,
+  connectionBlockers,
+} from '@creator/domain';
 import { freshDatabase } from './pg-harness.js';
 import { fakePlan } from './plan-fakes.js';
 
@@ -936,4 +940,186 @@ test('production discovery-contract qualification grades role outputs through th
     assert.equal(result.qualification.held_out.passed, 4);
   }
   assert.equal(s.fake.responseRequests.length, 7);
+});
+
+const BOUND = {
+  candidate: 'a'.repeat(40),
+  spec_hash: 'b'.repeat(64),
+  task_hash: 'c'.repeat(64),
+};
+const reviewCase = (case_id: string, split: string, prompt: string) => ({
+  case_id,
+  split,
+  input: [
+    { role: 'system', text: prompt },
+    {
+      role: 'user',
+      text: `{"candidate":"${BOUND.candidate}","case":"${case_id}"}`,
+    },
+  ],
+  output_format: 'json',
+  max_output_tokens: 400,
+  check: { kind: 'review_verdict', verdict: 'approve', ...BOUND },
+});
+const reviewManifest = (prompt: string = BUILD_ROLE_PROMPTS.reviewer) => ({
+  format: 'route-benchmark/1',
+  name: 'fixture-review-v1',
+  fixture: true,
+  task_class: 'independent_review',
+  data_class: 'synthetic',
+  cases: [
+    reviewCase('rv-01', 'development', prompt),
+    reviewCase('rv-02', 'held_out', prompt),
+    reviewCase('rv-03', 'held_out', prompt),
+    reviewCase('rv-04', 'held_out', prompt),
+  ],
+  provenance: 'Synthetic test manifest; checks written before any result.',
+});
+const APPROVE = JSON.stringify({ ...BOUND, verdict: 'approve', findings: [] });
+
+test('build-role plan requests need the exact role prompt, a qualification and a live AI run', async (t) => {
+  const s = await setup(t, {
+    responses: [
+      { kind: 'text', text: 'ok' },
+      { kind: 'text', text: APPROVE },
+    ],
+  });
+  if (!s) return;
+  const { store, service, ws } = s;
+  await s.signIn();
+  let conn = await s.ready();
+  conn = await store.updatePlanSettings(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings: {
+      ...conn.settings,
+      allowed_task_classes: [
+        ...conn.settings.allowed_task_classes,
+        'independent_review',
+        'patch_build',
+      ],
+    },
+  });
+  conn = await store.acceptPlanCaps(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    settings_hash: conn.settings_hash,
+  });
+  const grant = await store.createPlanVerificationGrant(owner, ws.id, conn.id, {
+    expected_version: conn.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await service.verifyModel(owner, ws.id, conn.id, {
+    id: grant.id,
+    model_id: 'm',
+  });
+  conn = await s.current();
+  const start = (manifest: unknown) =>
+    store.startPlanQualification(owner, ws.id, conn.id, {
+      expected_version: conn.version,
+      model_id: 'm',
+      manifest,
+      min_held_out_cases: 3,
+      floor: { numerator: 1, denominator: 1 },
+    });
+  // A reviewer qualification must use the very prompt T12 sends.
+  await rejects(
+    'INVALID_CONTRACT',
+    start(reviewManifest('route-benchmark/1: review this.')),
+  );
+  // Patch cases run code, so they are never a route benchmark and need the studio grader.
+  await rejects(
+    'INVALID_CONTRACT',
+    store.registerBenchmark(owner, ws.id, {
+      ...reviewManifest(BUILD_ROLE_PROMPTS.builder),
+      task_class: 'patch_build',
+      cases: reviewManifest(BUILD_ROLE_PROMPTS.builder).cases.map((c) => ({
+        ...c,
+        check: {
+          kind: 'patch_cases',
+          file_scope: ['src'],
+          cases: [
+            { check_key: 'A1', args: [], stdin: '', stdout: '', exit_code: 0 },
+          ],
+        },
+      })),
+    }),
+  );
+  const patch = await start({
+    ...reviewManifest(BUILD_ROLE_PROMPTS.builder),
+    task_class: 'patch_build',
+    cases: reviewManifest(BUILD_ROLE_PROMPTS.builder).cases.map((c) => ({
+      ...c,
+      check: {
+        kind: 'patch_cases',
+        file_scope: ['src'],
+        cases: [
+          { check_key: 'A1', args: [], stdin: '', stdout: '', exit_code: 0 },
+        ],
+      },
+    })),
+  });
+  const sent = s.fake.responseRequests.length;
+  assert.deepEqual(await service.runQualification(owner, ws.id, patch.id), {
+    state: 'stopped',
+    reason: 'patch_scorer_unavailable',
+  });
+  assert.equal(s.fake.responseRequests.length, sent, 'nothing was sent');
+  conn = await s.current();
+  const q = await start(reviewManifest());
+  const done = await service.runQualification(owner, ws.id, q.id);
+  assert.equal(
+    done.state === 'decided' && done.qualification.state,
+    'qualified',
+  );
+  const entity = async (condition: string, mode: string) => {
+    const r = await store.createEntity(owner, ws.id, {
+      kind: 'run',
+      title: `${mode} run`,
+      body: {
+        state: 'queued',
+        experiment_condition: condition,
+        discovery_method:
+          mode === 'human_only' ? 'human_defined' : 'structured',
+        config_hash: null,
+      },
+    });
+    return (
+      await store.registerRun(owner, ws.id, {
+        run: { id: r.id, version: 1 },
+        autonomy_mode: mode as 'human_in_loop',
+        stage_gates: null,
+        initial_grants: [],
+      })
+    ).run_id;
+  };
+  const call = (role: 'builder' | 'reviewer', run_id: string) =>
+    service.buildRole(owner, ws.id, conn.id, {
+      role,
+      model_id: 'm',
+      run_id,
+      data_class: 'synthetic',
+      input: '{"candidate":"x"}',
+      timeout_ms: 120000,
+      logical_operation_id: randomUUID(),
+    });
+  const live = await entity('human_in_loop', 'human_in_loop');
+  const human = await entity('human_only', 'human_only');
+  await rejects('NOT_FOUND', call('reviewer', randomUUID()));
+  await rejects('INVALID_TRANSITION', call('reviewer', human));
+  // Qualified for review is not qualified for building.
+  await rejects('ACCESS_DENIED', call('builder', live));
+  const before = s.fake.responseRequests.length;
+  const r = await call('reviewer', live);
+  assert.equal(r.status, 'succeeded');
+  assert.equal(r.text, APPROVE);
+  assert.equal(r.fixture, true);
+  assert.equal(s.fake.responseRequests.length, before + 1);
+  assert.equal(
+    s.fake.responseRequests.at(-1)!.body.instructions,
+    BUILD_ROLE_PROMPTS.reviewer,
+    'the role prompt is fixed by the studio, not the caller',
+  );
+  await store.cancelRun(owner, ws.id, live, { reason: 'stop' });
+  await rejects('INVALID_TRANSITION', call('reviewer', live));
 });

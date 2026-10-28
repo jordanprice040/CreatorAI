@@ -44,6 +44,8 @@ export const TaskClassSchema = z.enum([
   'scoring',
   'specification',
   'code_build',
+  /** A T12 builder on a direct model route: one JSON scoped-patch answer (ADR-0048). */
+  'patch_build',
   'independent_review',
   'summarization',
   'embedding',
@@ -430,6 +432,37 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
     phrases: z.array(short).min(1).max(20),
   }),
   z.strictObject({ kind: z.literal('exact_label'), label: short }),
+  /**
+   * T12 reviewer (ADR-0048): the answer binds the case's candidate and frozen hashes and gives
+   * the expected verdict; approve needs no findings, changes_requested at least one.
+   */
+  z.strictObject({
+    kind: z.literal('review_verdict'),
+    verdict: z.enum(['approve', 'changes_requested']),
+    candidate: z.string().regex(/^[0-9a-f]{40}$/),
+    spec_hash: hash,
+    task_hash: hash,
+  }),
+  /**
+   * T12 builder (ADR-0048): the scoped patch is applied to the reviewed template and every case
+   * runs in the isolated worker, scored like QA. Only a trusted studio scorer can grade it.
+   */
+  z.strictObject({
+    kind: z.literal('patch_cases'),
+    file_scope: z.array(z.string().min(1).max(300)).min(1).max(20),
+    cases: z
+      .array(
+        z.strictObject({
+          check_key: z.string().regex(/^A[1-9][0-9]?$/),
+          args: z.array(z.string().max(500)).max(12),
+          stdin: z.string().max(4000),
+          stdout: z.string().max(12000),
+          exit_code: z.number().int().min(0).max(125),
+        }),
+      )
+      .min(1)
+      .max(10),
+  }),
 ]);
 export type BenchmarkCheck = z.infer<typeof BenchmarkCheckSchema>;
 export const BenchmarkCaseSchema = z.strictObject({
@@ -473,6 +506,24 @@ export const BenchmarkManifestSchema = z
             message: 'Discovery check task class/output format mismatch.',
           });
       }
+    // Build-role checks belong to their own task classes and answer in JSON (ADR-0048).
+    const roleCheck = {
+      patch_build: 'patch_cases',
+      independent_review: 'review_verdict',
+    } as const;
+    for (const c of b.cases) {
+      const want = roleCheck[b.task_class as keyof typeof roleCheck];
+      const isRole =
+        c.check.kind === 'patch_cases' || c.check.kind === 'review_verdict';
+      if (
+        (want !== undefined || isRole) &&
+        (c.check.kind !== want || c.output_format !== 'json')
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Build-role check task class/output format mismatch.',
+        });
+    }
     const ids = b.cases.map((c) => c.case_id);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: 'custom', message: 'Case ids must be unique.' });

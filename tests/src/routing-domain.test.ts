@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import {
+  BenchmarkManifestSchema,
   ContractError,
   PromotionCriteriaSchema,
   RoutePolicyBodySchema,
@@ -422,5 +423,99 @@ test('objective checks decide acceptance, never model confidence', () => {
       reason_code: 'malformed_output',
     }),
     'schema_invalid',
+  );
+});
+
+test('a reviewer benchmark answer binds the exact candidate and is scored like T12 approval', () => {
+  const ok = { succeeded: true, reason_code: 'succeeded' };
+  const bound = {
+    candidate: 'a'.repeat(40),
+    spec_hash: 'b'.repeat(64),
+    task_hash: 'c'.repeat(64),
+  };
+  const check = (verdict: 'approve' | 'changes_requested', json: unknown) =>
+    checkOutput(
+      { kind: 'review_verdict', verdict, ...bound },
+      { text: '', json },
+      ok,
+    );
+  assert.equal(
+    check('approve', { ...bound, verdict: 'approve', findings: [] }),
+    'accepted',
+  );
+  // An approval that still lists findings is not a T12 approval.
+  assert.equal(
+    check('approve', { ...bound, verdict: 'approve', findings: ['x'] }),
+    'review_rejected',
+  );
+  assert.equal(
+    check('approve', {
+      ...bound,
+      verdict: 'changes_requested',
+      findings: ['x'],
+    }),
+    'review_rejected',
+  );
+  assert.equal(
+    check('approve', {
+      ...bound,
+      candidate: 'd'.repeat(40),
+      verdict: 'approve',
+      findings: [],
+    }),
+    'acceptance_check_failed',
+    'a review of another candidate never counts',
+  );
+  assert.equal(
+    check('changes_requested', {
+      ...bound,
+      verdict: 'changes_requested',
+      findings: [],
+    }),
+    'acceptance_check_failed',
+  );
+  assert.equal(
+    check('changes_requested', {
+      ...bound,
+      verdict: 'changes_requested',
+      findings: ['off by one'],
+    }),
+    'accepted',
+  );
+  assert.equal(check('approve', { verdict: 'approve' }), 'schema_invalid');
+  assert.throws(
+    () =>
+      checkOutput(
+        { kind: 'patch_cases', file_scope: ['src'], cases: [] } as never,
+        { text: '{}', json: {} },
+        ok,
+      ),
+    /patch scorer/,
+  );
+});
+
+test('build-role checks only appear under their own task class with JSON output', () => {
+  const base = read('config/routing/benchmark.fixture.json') as {
+    cases: Record<string, unknown>[];
+  };
+  const review = {
+    kind: 'review_verdict',
+    verdict: 'approve',
+    candidate: 'a'.repeat(40),
+    spec_hash: 'b'.repeat(64),
+    task_hash: 'c'.repeat(64),
+  };
+  const with_ = (task_class: string, check: unknown, output_format = 'json') =>
+    BenchmarkManifestSchema.safeParse({
+      ...base,
+      task_class,
+      cases: base.cases.map((c) => ({ ...c, check, output_format })),
+    }).success;
+  assert.equal(with_('independent_review', review), true);
+  assert.equal(with_('summarization', review), false);
+  assert.equal(with_('independent_review', review, 'text'), false);
+  assert.equal(
+    with_('independent_review', { kind: 'json_keys', keys: ['a'] }),
+    false,
   );
 });

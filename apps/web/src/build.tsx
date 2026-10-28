@@ -136,11 +136,15 @@ export function BuildView({
         ),
       ),
     );
+    // Plan roles (ADR-0048): a verified Responses model serves builder and reviewer requests.
     const builders = connections.flatMap((c, i) =>
       access[i]!.model_access.filter(
-        (m) => m.path === 'codex' && m.access === 'verified',
+        (m) =>
+          (m.path === 'codex' || m.path === 'responses') &&
+          m.access === 'verified',
       ).map((m) => ({
-        key: `${c.id}:${m.model_id}`,
+        key: `${m.path}:${c.id}:${m.model_id}`,
+        kind: m.path === 'codex' ? ('codex' as const) : ('roles' as const),
         connection_id: c.id,
         model_id: m.model_id,
         label: `${c.label} · ${m.model_id}`,
@@ -458,6 +462,7 @@ type Data = {
   pricing: z.infer<typeof PricingSnapshotSchema>[];
   builders: {
     key: string;
+    kind: 'codex' | 'roles';
     connection_id: string;
     model_id: string;
     label: string;
@@ -762,15 +767,17 @@ function StartBuild({
       data_class: fixture ? 'synthetic' : 'public',
       max_repairs: repairs,
       max_calls: 2 + 2 * repairs,
-      timeout_ms: 30000,
+      // A streamed plan answer can take up to the plan's 120 s request timeout.
+      timeout_ms: connection?.kind === 'roles' ? 120000 : 30000,
       max_output_tokens: 3000,
       deadline: new Date(Date.now() + 30 * 60_000).toISOString(),
       ...(connection
         ? {
-            codex_plan_builder: {
-              connection_id: connection.connection_id,
-              model_id: connection.model_id,
-            },
+            [connection.kind === 'roles' ? 'plan_roles' : 'codex_plan_builder']:
+              {
+                connection_id: connection.connection_id,
+                model_id: connection.model_id,
+              },
           }
         : {}),
     });
@@ -846,15 +853,26 @@ function StartBuild({
         </option>
         {data.builders.map((b) => (
           <option key={b.key} value={b.key}>
-            Codex on ChatGPT plan · {b.label}
+            {b.kind === 'roles'
+              ? 'Builder and reviewer on ChatGPT plan'
+              : 'Codex on ChatGPT plan'}{' '}
+            · {b.label}
           </option>
         ))}
       </select>
-      {connection && (
+      {connection?.kind === 'codex' && (
         <p className="small">
           This is a live call on your ChatGPT plan. It runs only if a grant you
           approve covers this build; otherwise the build stops and asks under
           Decisions.
+        </p>
+      )}
+      {connection?.kind === 'roles' && (
+        <p className="small">
+          Live requests on your ChatGPT plan, with no metered spend: up to{' '}
+          {2 + 2 * repairs} builder and reviewer requests, each counted against
+          the plan caps in Settings. Each role must be qualified first; an
+          unqualified role stops the build before anything is sent.
         </p>
       )}
       <label htmlFor="bp-repairs">Repair rounds after a failed check</label>

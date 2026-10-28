@@ -27,6 +27,7 @@ import {
   bindingSchema,
   buildOutcomeSchema,
   buildPlanSchema,
+  planRoleResultSchema,
   type ArtifactSupervisor,
   type Binding,
   type BuildOutcome,
@@ -99,6 +100,13 @@ export class StudioBuilds {
     private readonly broker: ModelBroker,
     private readonly artifacts: ArtifactSupervisor,
     private readonly codex?: (
+      ctx: CommandContext,
+      ws: string,
+      connectionId: string,
+      body: unknown,
+    ) => Promise<unknown>,
+    // ADR-0048: builder and reviewer as fresh plan Responses requests, when a plan names it.
+    private readonly planRole?: (
       ctx: CommandContext,
       ws: string,
       connectionId: string,
@@ -299,6 +307,20 @@ export class StudioBuilds {
         )) as Record<string, unknown>;
         return out;
       };
+    }
+    if (this.planRole) {
+      const planRole = this.planRole;
+      ports.planRole = async (target, request) =>
+        via(
+          planRoleResultSchema,
+          await planRole(ctx, ws, target.connection_id, {
+            role: target.role,
+            run_id: target.run_id,
+            model_id: target.model_id,
+            data_class: target.data_class,
+            ...request,
+          }),
+        );
     }
     return ports;
   }

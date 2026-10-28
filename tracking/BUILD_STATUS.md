@@ -1,3 +1,17 @@
+## $0 plan route for T12 builder and reviewer (ADR-0048) — October 28, 2026
+
+A build plan can now name `plan_roles`, sending the T12 builder and reviewer as fresh
+ChatGPT-plan Responses requests (`patch_build`, `independent_review`) instead of the dollar
+broker. Admission needs each role qualified on the exact T12 prompt, an active
+non-human-only run outside study assignments, and the plan caps. New benchmark checks
+`review_verdict` and `patch_cases` (graded by applying the patch and running the cases in the
+WSL worker). API `plan-connections/:id/build-calls`, CLI port, and a web build-form option.
+No migration. Checks run: build (15 incl. 4 new), plan-connections (new build-role admission
+and qualification test), plan-connections-api (build-calls refusals), routing-domain (review
+verdict and manifest pairing), plus the suites listed in the PR. Fixture-verified only: no
+live plan request was sent. Next: Jordan's OK on benchmark cases for both roles and the CSV
+checker cases/hosts, then each live step with its exact command and request count.
+
 ## Study-build lock order fixed (ADR-0044 gap) — October 28, 2026
 
 Jordan approved fixing the gap ADR-0044 recorded before the first real run. The study build

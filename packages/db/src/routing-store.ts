@@ -463,6 +463,12 @@ export class RoutingStore extends GitHubStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     const manifest = parse(BenchmarkManifestSchema, raw);
+    // Patch cases run code; only a plan qualification's studio scorer can grade them.
+    if (manifest.cases.some((k) => k.check.kind === 'patch_cases'))
+      throw fail(
+        'INVALID_CONTRACT',
+        'Patch-build benchmarks qualify plan connections only (ADR-0048).',
+      );
     const hash = canonicalHash(manifest);
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
