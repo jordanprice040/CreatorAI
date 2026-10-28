@@ -2390,6 +2390,28 @@ create index budget_reservations_model_spend on budget_reservations (provider, m
  where not fixture;
 `,
   },
+  {
+    // ADR-0050: a plan connection is either a ChatGPT plan (studio-held OAuth token in the
+    // vault) or the owner's own signed-in Claude Code CLI, which never gives the studio a
+    // credential. The kind is fixed for the life of the connection.
+    version: 32,
+    name: 'plan_connection_kinds',
+    sql: `
+alter table plan_connections add column kind text not null default 'chatgpt_plan'
+ check (kind in ('chatgpt_plan','claude_code'));
+alter table plan_connections add constraint plan_connections_claude_code_no_credential
+ check (kind = 'chatgpt_plan' or credential_ref is null);
+create function creator_plan_connection_kind_fixed() returns trigger language plpgsql as $$
+begin
+ if new.kind is distinct from old.kind then
+  raise exception 'plan connection kind is immutable' using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+create trigger plan_connections_kind_fixed before update on plan_connections
+ for each row execute function creator_plan_connection_kind_fixed();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

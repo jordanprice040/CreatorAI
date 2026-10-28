@@ -1,3 +1,26 @@
+## Claude Code connection (ADR-0050) — October 28, 2026
+
+Jordan asked whether Creator Agent can use a Claude subscription like the ChatGPT plan. The
+feasibility answer (Anthropic terms read 2026-10-28): apps may not offer Claude sign-in or hold
+Claude subscription tokens, but the owner may sign in to the unmodified Claude Code CLI, which
+the studio can then drive. Jordan chose "Build it as designed".
+
+Built: plan connection `kind` (migration 32, immutable), `packages/broker/src/claude-code.ts`
+(status check, allowlisted env, restricted no-tools run, stream checks, outcome mapping),
+`PlanConnectionService.checkClaudeCode` and kind dispatch in `invoke`, store checks per kind
+(settings, attestation statement, no studio sign-in), API `claude-code-check`, CLI
+`claude-connect|claude-check|claude-usage-off`, Models screen, installed app sets
+`CREATOR_CLAUDE_CODE_CONFIG_DIR`. Doc: `docs/CLAUDE_CODE_CONNECTION.md`.
+
+Checks: claude-code tests 14/14 (fake CLI; real CLI 2.1.312 against a loopback stand-in);
+browser walk with a fake CLI. Open: nothing live yet. Each live step needs Jordan's typed OK.
+Review fixes pushed to PR #76 (M-1 and L-1 to L-4, see ADR-0050's amendment). The re-review
+found no Medium or higher. Its two Lows are fixed too: the prompt-file delete can no longer crash
+the API and stale files are swept, and an outdated CLI no longer gives sign-in advice. The first
+live verification is also the first real check that a claude.ai login reports
+`apiKeySource: "none"`. GitHub Actions can't run until the monthly minutes reset, so the evidence is local
+runs. Next free migration 33 / ADR-0051 (verify on main).
+
 ## Runbook step 6 done: CSV checker built, packaged and revised — October 28, 2026
 
 All on Jordan's dev studio (main 224c917), gpt-6-astra over the ChatGPT plan, $0, nothing

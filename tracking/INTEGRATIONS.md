@@ -1,5 +1,13 @@
 # Integration readiness
 
+## Claude Code on this computer (ADR-0050) — October 28, 2026
+
+Implemented, fixture-verified, not activated. Uses Jordan's own signed-in Claude Code CLI
+(native installer) in the studio's dedicated `CREATOR_CLAUDE_CODE_CONFIG_DIR`; the studio holds
+no Claude credential. Activation needs, each with Jordan's typed OK: install, `claude auth login`
+in that folder, extra usage off in Claude Settings → Usage, caps accepted, one verification
+call. Policy note: Pro/Max limits assume ordinary, individual use; personal studio only.
+
 ## Native acceptance readiness assessed; session remains blocked — October 24, 2026
 
 Bounded repository-only reconciliation completed. No newer independent exact-v2

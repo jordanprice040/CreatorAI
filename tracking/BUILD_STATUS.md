@@ -1,3 +1,25 @@
+## Claude Code connection (ADR-0050) — October 28, 2026
+
+Creator Agent can now add **Claude Code on this computer** on Models and connections: Claude
+subscription usage through Jordan's own signed-in, unmodified Claude Code CLI. The studio never
+offers Claude sign-in or holds a Claude credential (Anthropic's terms forbid that); it reads
+`claude auth status` and runs locked-down `claude -p` requests. Same gates as the ChatGPT
+plan (caps, extra-usage-off confirmation, verification, qualification, ledger). Migration 32.
+
+Checks: `tests/src/claude-code.test.ts` 14/14 with a fake `claude` plus the real Claude Code
+2.1.312 against a loopback stand-in (no Anthropic contact); key guards mutation-checked; browser
+walk `tracking/evidence/claude-code-ui/walk.mjs`. Not activated: no real Claude account used.
+
+Review fixes (M-1, L-1 to L-4, nit N-2): a fixture workspace without a stand-in is refused and
+starts nothing; only `apiKeySource: "none"` is accepted; Anthropic profiles are isolated; the
+system prompt goes through a file; the minimum Claude Code version is 2.1.248. Checks after the
+fixes: claude-code tests 17 pass, 1 skipped (the optional real-CLI test, which also passes when
+run against Claude Code 2.1.312 on a loopback stand-in). The M-1 guard was mutation-checked.
+Browser walk 6/6. CI cannot run while the GitHub Actions monthly limit is used up.
+
+Next (each needs Jordan's typed OK): install Claude Code (native), sign in in the studio folder,
+confirm extra usage off, accept caps, one verification call, then qualifications.
+
 ## Runbook step 6 done: CSV checker built, packaged and revised — October 28, 2026
 
 All on Jordan's dev studio (main 224c917), gpt-6-astra over the ChatGPT plan, $0, nothing

@@ -1,6 +1,8 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
+  CLAUDE_CODE_MIN_VERSION,
+  claudeCodeVersionSupported,
   ContractError,
   type PlanConnection,
   type PlanTaskClass,
@@ -55,6 +57,11 @@ export interface CodexRelayOutcome {
   response_id: string | null;
 }
 import {
+  callClaudeCode,
+  claudeCodeStatus,
+  type ClaudeCodeHost,
+} from './claude-code.js';
+import {
   newCredentialRef,
   type PlanCredential,
   type PlanVault,
@@ -78,6 +85,13 @@ export interface PlanServiceDeps {
   openBrowser?: (url: string) => void;
   fetchImpl?: typeof fetch;
   callbackPort?: number;
+  /**
+   * ADR-0050: the owner's own Claude Code CLI and the studio's dedicated folder for it. Absent
+   * means claude_code connections are listed but cannot be checked or used.
+   */
+  claudeCode?: ClaudeCodeHost | null;
+  /** Loopback stand-in environment for fixture claude_code connections (contract tests). */
+  claudeCodeFixtureEnv?: Record<string, string>;
   /**
    * Trusted studio grader for patch_build qualification cases (ADR-0048): applies the patch to
    * the reviewed template and runs the cases in the isolated worker. Absent means those
@@ -111,6 +125,33 @@ export function openSystemBrowser(url: string) {
       .unref();
 }
 
+/** One direct request for invoke(); the connection's kind picks ChatGPT or Claude Code. */
+export interface InvokeRequest {
+  connection_id: string;
+  purpose: 'task' | 'verification' | 'availability_recheck' | 'qualification';
+  model_id: string;
+  task_class: PlanTaskClass | null;
+  data_class: 'synthetic' | 'public' | 'private_approved';
+  run_id: string | null;
+  grant_id?: string | null;
+  qualification_id?: string | null;
+  qualification_case?: {
+    case_id: string;
+    split: 'development' | 'held_out';
+  };
+  instructions: string;
+  input: string;
+  logical_operation_id?: string;
+  signal?: AbortSignal;
+  workflow?: { task_id: string; lease_token: string; input_hash: string };
+  timeout_ms?: number;
+  max_output_chars?: number;
+  score?: (
+    text: string | null,
+    outcome: PlanObservedOutcome,
+  ) => string | Promise<string>;
+}
+
 export class PlanConnectionService {
   readonly #signIns = new Map<string, SignInStatus>();
   readonly #refreshing = new Map<string, Promise<PlanCredential>>();
@@ -135,6 +176,64 @@ export class PlanConnectionService {
     return this.deps.vault;
   }
 
+  #claudeHost(): ClaudeCodeHost {
+    if (!this.deps.claudeCode)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'Claude Code is not set up for the studio. Install Claude Code (native installer) and set CREATOR_CLAUDE_CODE_CONFIG_DIR, or use the installed app.',
+      );
+    return this.deps.claudeCode;
+  }
+
+  /**
+   * Review M-1: like endpointsFor, a fixture connection runs only against a stand-in. Without
+   * one it is refused, never sent to the owner's real Claude Code and labelled fixture.
+   */
+  #claudeFixtureEnv(conn: PlanConnection): Record<string, string> | undefined {
+    if (!conn.fixture) return undefined;
+    if (!this.deps.claudeCodeFixtureEnv)
+      throw new ContractError(
+        'LIVE_DISABLED',
+        'Fixture connections need a stand-in Claude Code; this studio has none, so nothing was run.',
+      );
+    return this.deps.claudeCodeFixtureEnv;
+  }
+
+  /**
+   * ADR-0050: checks the owner's Claude Code sign-in (`claude auth status`) and records what it
+   * reported. Sends no model request and reads no credential.
+   */
+  async checkClaudeCode(ctx: CommandContext, ws: string, id: string) {
+    const { connection } = await this.deps.store.planCredentialRef(ctx, ws, id);
+    if (connection.kind !== 'claude_code')
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'This check is for Claude Code connections.',
+      );
+    const host = this.#claudeHost();
+    const fixtureEnv = this.#claudeFixtureEnv(connection);
+    let observed;
+    try {
+      observed = await claudeCodeStatus(host, undefined, fixtureEnv);
+    } catch (e) {
+      throw new ContractError(
+        'STORAGE_UNAVAILABLE',
+        e instanceof Error ? e.message : 'Claude Code could not be checked.',
+      );
+    }
+    const updated = await this.deps.store.recordClaudeCodeStatus(
+      ctx,
+      ws,
+      id,
+      observed,
+    );
+    return {
+      connection: updated,
+      config_dir: host.config_dir,
+      cli_version: observed.cli_version,
+    };
+  }
+
   signInStatus(id: string): SignInStatus | null {
     return this.#signIns.get(id) ?? null;
   }
@@ -146,9 +245,14 @@ export class PlanConnectionService {
     id: string,
     opts: { open_browser: boolean },
   ) {
-    const vault = this.#vault();
     const { connection: conn, credential_ref } =
       await this.deps.store.planCredentialRef(ctx, ws, id);
+    if (conn.kind !== 'chatgpt_plan')
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'Claude Code signs in by itself: run claude auth login, then check the connection.',
+      );
+    const vault = this.#vault();
     if (this.#signIns.get(conn.id)?.state === 'pending')
       throw new ContractError(
         'DUPLICATE',
@@ -301,6 +405,11 @@ export class PlanConnectionService {
   ): Promise<{ token: string; connection: PlanConnection }> {
     const { connection, credential_ref } =
       await this.deps.store.planCredentialRef(ctx, ws, id);
+    if (connection.kind !== 'chatgpt_plan')
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'Claude Code connections have no studio-held token.',
+      );
     if (!credential_ref || connection.sign_in.state !== 'signed_in')
       throw new ContractError('UNAUTHENTICATED', 'Sign in with ChatGPT first.');
     const vault = this.#vault();
@@ -410,32 +519,7 @@ export class PlanConnectionService {
   async invoke(
     ctx: CommandContext,
     ws: string,
-    r: {
-      connection_id: string;
-      purpose:
-        'task' | 'verification' | 'availability_recheck' | 'qualification';
-      model_id: string;
-      task_class: PlanTaskClass | null;
-      data_class: 'synthetic' | 'public' | 'private_approved';
-      run_id: string | null;
-      grant_id?: string | null;
-      qualification_id?: string | null;
-      qualification_case?: {
-        case_id: string;
-        split: 'development' | 'held_out';
-      };
-      instructions: string;
-      input: string;
-      logical_operation_id?: string;
-      signal?: AbortSignal;
-      workflow?: { task_id: string; lease_token: string; input_hash: string };
-      timeout_ms?: number;
-      max_output_chars?: number;
-      score?: (
-        text: string | null,
-        outcome: PlanObservedOutcome,
-      ) => string | Promise<string>;
-    },
+    r: InvokeRequest,
   ): Promise<{
     request_id: string;
     outcome: PlanObservedOutcome;
@@ -525,31 +609,16 @@ export class PlanConnectionService {
     }
     let outcome: PlanObservedOutcome;
     try {
-      const { token, connection } = await this.accessToken(
+      const { connection } = await this.deps.store.planCredentialRef(
         ctx,
         ws,
         r.connection_id,
       );
-      const caps = connection.settings.caps.responses;
-      outcome = await callPlanResponses({
-        api_base: this.endpointsFor(connection).api_base,
-        access_token: token,
-        model: r.model_id,
-        instructions: r.instructions,
-        input: r.input,
-        timeout_ms: Math.min(
-          caps.request_timeout_ms,
-          r.timeout_ms ?? caps.request_timeout_ms,
-        ),
-        max_output_chars: Math.min(
-          caps.max_output_chars,
-          r.max_output_chars ?? caps.max_output_chars,
-        ),
-        ...(r.signal ? { signal: r.signal } : {}),
-        ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
-      });
+      if (connection.kind === 'claude_code')
+        outcome = await this.#claudeCall(connection, r);
+      else outcome = await this.#chatgptCall(ctx, ws, r);
     } catch (e) {
-      // Nothing was sent: the token could not be obtained.
+      // Nothing was sent: the token or the Claude Code sign-in could not be confirmed.
       outcome = {
         kind: 'rejected',
         reason_code:
@@ -562,6 +631,114 @@ export class PlanConnectionService {
         retry_allowed: false,
       };
     }
+    return this.#settle(admitted.request_id, r, outcome);
+  }
+
+  async #chatgptCall(
+    ctx: CommandContext,
+    ws: string,
+    r: InvokeRequest,
+  ): Promise<PlanObservedOutcome> {
+    const { token, connection } = await this.accessToken(
+      ctx,
+      ws,
+      r.connection_id,
+    );
+    const caps = connection.settings.caps.responses;
+    return callPlanResponses({
+      api_base: this.endpointsFor(connection).api_base,
+      access_token: token,
+      model: r.model_id,
+      instructions: r.instructions,
+      input: r.input,
+      timeout_ms: Math.min(
+        caps.request_timeout_ms,
+        r.timeout_ms ?? caps.request_timeout_ms,
+      ),
+      max_output_chars: Math.min(
+        caps.max_output_chars,
+        r.max_output_chars ?? caps.max_output_chars,
+      ),
+      ...(r.signal ? { signal: r.signal } : {}),
+      ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+    });
+  }
+
+  /**
+   * ADR-0050: re-reads `claude auth status` right before each request, so a sign-in that
+   * changed to an API key or expired since the owner's check refuses before anything is sent.
+   */
+  async #claudeCall(
+    connection: PlanConnection,
+    r: InvokeRequest,
+  ): Promise<PlanObservedOutcome> {
+    const host = this.#claudeHost();
+    const fixtureEnv = this.#claudeFixtureEnv(connection);
+    let status;
+    try {
+      status = await claudeCodeStatus(host, undefined, fixtureEnv);
+    } catch (e) {
+      return {
+        kind: 'rejected',
+        reason_code: 'claude_code_unavailable',
+        message:
+          e instanceof Error
+            ? e.message.slice(0, 200)
+            : 'Claude Code could not be checked.',
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+      };
+    }
+    if (!claudeCodeVersionSupported(status.cli_version))
+      return {
+        kind: 'rejected',
+        reason_code: 'claude_code_outdated',
+        message: `Claude Code ${status.cli_version} is older than ${CLAUDE_CODE_MIN_VERSION}; run claude update, then Check Claude Code.`,
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+        // Not a sign-in problem (review L-B): this gate refuses every request until the
+        // owner updates, and the next check records the version reason.
+      };
+    if (
+      !status.logged_in ||
+      status.auth_method !== 'claude.ai' ||
+      (status.api_provider !== null && status.api_provider !== 'firstParty')
+    )
+      return {
+        kind: 'rejected',
+        reason_code: 'claude_code_not_subscription',
+        message: `Claude Code is ${status.logged_in ? `signed in with ${status.auth_method}` : 'not signed in'}, not a Claude subscription login.`,
+        response_id: null,
+        output_chars: null,
+        retry_allowed: false,
+        sign_in_invalid: true,
+      };
+    const caps = connection.settings.caps.responses;
+    return callClaudeCode({
+      host,
+      model: r.model_id,
+      instructions: r.instructions,
+      input: r.input,
+      timeout_ms: Math.min(
+        caps.request_timeout_ms,
+        r.timeout_ms ?? caps.request_timeout_ms,
+      ),
+      max_output_chars: Math.min(
+        caps.max_output_chars,
+        r.max_output_chars ?? caps.max_output_chars,
+      ),
+      ...(r.signal ? { signal: r.signal } : {}),
+      ...(fixtureEnv ? { fixture_env: fixtureEnv } : {}),
+    });
+  }
+
+  async #settle(
+    requestId: string,
+    r: InvokeRequest,
+    outcome: PlanObservedOutcome,
+  ): Promise<{ request_id: string; outcome: PlanObservedOutcome }> {
     const observed: PlanObservation =
       outcome.kind === 'completed'
         ? r.workflow || r.qualification_id
@@ -589,7 +766,7 @@ export class PlanConnectionService {
         observed.grader_error = e instanceof Error ? e.message : String(e);
       }
     await this.deps.store.settlePlanRequest(
-      admitted.request_id,
+      requestId,
       outcome.kind === 'completed'
         ? {
             state: 'completed',
@@ -606,7 +783,7 @@ export class PlanConnectionService {
           },
       observed,
     );
-    return { request_id: admitted.request_id, outcome };
+    return { request_id: requestId, outcome };
   }
 
   /**

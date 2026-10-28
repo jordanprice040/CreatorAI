@@ -28,6 +28,11 @@ import {
   type PlanRequest,
   type PlanSettlement,
   type PlanVerificationGrant,
+  type PlanProvider,
+  type PlanSettings,
+  usageOffStatement,
+  CLAUDE_CODE_MIN_VERSION,
+  claudeCodeVersionSupported,
 } from '@creator/contracts';
 import {
   BUILD_ROLE_PROMPTS,
@@ -72,6 +77,38 @@ export interface PlanObservation {
 }
 
 const PLAN_LOCK = 'creator:plan-connection:';
+
+/**
+ * Settings a connection kind cannot use (ADR-0050). Claude Code has no Codex path, so it can
+ * never take code_build or Codex builds, and its plan names are Claude's.
+ */
+function kindSettingsIssues(kind: PlanProvider, s: PlanSettings): string[] {
+  const out: string[] = [];
+  if (kind === 'claude_code') {
+    if (s.allowed_task_classes.includes('code_build'))
+      out.push(
+        'Claude Code connections cannot take code_build (no Codex path).',
+      );
+    if (s.caps.codex.max_builds_per_day !== 0)
+      out.push(
+        'Claude Code connections have no Codex builds; set max_builds_per_day to 0.',
+      );
+    if (s.plan_type === 'plus')
+      out.push('Claude plans are Pro or Max; plus is a ChatGPT plan.');
+  } else if (s.plan_type === 'max')
+    out.push('max is a Claude plan; ChatGPT plans are Plus or Pro.');
+  return out;
+}
+
+/** What `claude auth status` (and `claude --version`) reported, as the studio read it. */
+export interface ClaudeCodeStatusObservation {
+  logged_in: boolean;
+  /** Claude Code's documented values: none, claude.ai, oauth_token, api_key, api_key_helper, third_party. */
+  auth_method: string;
+  api_provider: string | null;
+  account_label: string | null;
+  cli_version: string;
+}
 const nullable = (v: unknown) =>
   v === null || v === undefined ? null : String(v);
 
@@ -80,7 +117,7 @@ function toConnection(r: Row): PlanConnection {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
     fixture: Boolean(r.fixture),
-    kind: 'chatgpt_plan',
+    kind: (r.kind ?? 'chatgpt_plan') as PlanConnection['kind'],
     label: String(r.label),
     version: Number(r.version),
     settings: r.settings as PlanConnection['settings'],
@@ -199,6 +236,13 @@ export class ConnectionStore extends PortfolioStore {
     const req = parse(CreatePlanConnectionRequestSchema, body);
     return this.tx(async (c) => {
       await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const issues = kindSettingsIssues(req.kind, req.settings);
+      if (issues.length)
+        throw new ContractError(
+          'INVALID_CONTRACT',
+          'These settings do not fit this connection type.',
+          issues,
+        );
       const w = await c.query('select fixture from workspaces where id = $1', [
         ws,
       ]);
@@ -211,8 +255,8 @@ export class ConnectionStore extends PortfolioStore {
         throw fail('DUPLICATE', 'A connection with this name exists.');
       await c.query(
         `insert into plan_connections (id, workspace_id, fixture, version, label, settings,
-           settings_hash, ext_agent_host_id, sign_in, credits, eligibility, quota, created_by)
-         values ($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+           settings_hash, ext_agent_host_id, sign_in, credits, eligibility, quota, created_by, kind)
+         values ($1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           id,
           ws,
@@ -245,13 +289,18 @@ export class ConnectionStore extends PortfolioStore {
           },
           { state: 'unknown', reason_code: null, observed_at: null },
           ctx.actorId,
+          req.kind,
         ],
       );
       await this.#event(
         c,
         id,
         'created',
-        { label: req.label, settings_hash: canonicalHash(req.settings) },
+        {
+          kind: req.kind,
+          label: req.label,
+          settings_hash: canonicalHash(req.settings),
+        },
         ctx,
       );
       await this.append(c, ctx, {
@@ -261,7 +310,7 @@ export class ConnectionStore extends PortfolioStore {
         subjectId: id,
         subjectVersion: 1,
         contentHash: canonicalHash(req.settings),
-        payload: { kind: 'chatgpt_plan', label: req.label },
+        payload: { kind: req.kind, label: req.label },
       });
       return this.#connection(c, ws, id);
     });
@@ -309,6 +358,13 @@ export class ConnectionStore extends PortfolioStore {
       req.expected_version,
       'settings_changed',
       async (c, conn) => {
+        const issues = kindSettingsIssues(conn.kind, req.settings);
+        if (issues.length)
+          throw new ContractError(
+            'INVALID_CONTRACT',
+            'These settings do not fit this connection type.',
+            issues,
+          );
         // Any change to the settings withdraws the owner's acceptance of the caps.
         await c.query(
           `update plan_connections set settings = $2, settings_hash = $3, caps_accepted_at = null,
@@ -364,6 +420,11 @@ export class ConnectionStore extends PortfolioStore {
       req.expected_version,
       'credits_confirmed_off',
       async (c, conn) => {
+        if (req.statement !== usageOffStatement(conn.kind))
+          throw fail(
+            'INVALID_CONTRACT',
+            'That statement is for the other kind of connection.',
+          );
         await c.query(
           `update plan_connections set credits = jsonb_build_object('state','confirmed_off',
            'checked_on', $2::text, 'confirmed_at', to_jsonb(clock_timestamp()), 'confirmed_by', $3::text)
@@ -417,6 +478,11 @@ export class ConnectionStore extends PortfolioStore {
         ? 'availability_recheck_approved'
         : 'verification_approved',
       async (c, conn) => {
+        if (conn.kind === 'claude_code' && req.path !== 'responses')
+          throw fail(
+            'INVALID_CONTRACT',
+            'Claude Code connections have the direct path only.',
+          );
         const blockers = connectionBlockers(conn);
         if (blockers.length)
           throw new ContractError(
@@ -537,6 +603,11 @@ export class ConnectionStore extends PortfolioStore {
     return this.tx(async (c) => {
       await this.requireOwner(c, uuid(ws), ctx.actorId);
       const conn = await this.#lock(c, ws, uuid(id));
+      if (conn.kind !== 'chatgpt_plan')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Only ChatGPT plan connections sign in through the studio.',
+        );
       if (
         conn.sign_in.issued_client_id &&
         conn.sign_in.issued_client_id !== s.issued_client_id
@@ -578,6 +649,80 @@ export class ConnectionStore extends PortfolioStore {
         subjectVersion: conn.version + 1,
         contentHash: null,
         payload: { plan_usage_granted: granted },
+      });
+      return this.#connection(c, ws, conn.id);
+    });
+  }
+
+  /**
+   * ADR-0050: records one `claude auth status` check of the owner's own Claude Code CLI. The
+   * studio holds no Claude credential; signed in means Claude Code reported a claude.ai login.
+   * Anything else (API key, long-lived token, helper, cloud provider) is recorded as not
+   * granting plan usage, so requests stay blocked rather than billing another account.
+   */
+  async recordClaudeCodeStatus(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    s: ClaudeCodeStatusObservation,
+  ) {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const conn = await this.#lock(c, ws, uuid(id));
+      if (conn.kind !== 'claude_code')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This check is for Claude Code connections.',
+        );
+      const supported = claudeCodeVersionSupported(s.cli_version);
+      const subscription =
+        supported &&
+        s.logged_in &&
+        s.auth_method === 'claude.ai' &&
+        (s.api_provider === null || s.api_provider === 'firstParty');
+      const state = s.logged_in ? 'signed_in' : 'not_signed_in';
+      const reason = !supported
+        ? `Claude Code ${s.cli_version} is older than ${CLAUDE_CODE_MIN_VERSION}; run claude update, then check again.`
+        : !s.logged_in
+          ? 'Claude Code reported that it is not signed in.'
+          : subscription
+            ? null
+            : `Claude Code is signed in with ${s.auth_method}${s.api_provider && s.api_provider !== 'firstParty' ? ` (${s.api_provider})` : ''}, not a Claude subscription login.`;
+      await c.query(
+        `update plan_connections set version = version + 1, updated_at = clock_timestamp(),
+           sign_in = $2, status_reason = $3 where id = $1`,
+        [
+          conn.id,
+          {
+            state,
+            // The CLI version that answered, so a later upgrade is visible in the record.
+            issued_client_id: `claude-code/${s.cli_version}`.slice(0, 200),
+            account_label: s.account_label,
+            scopes: [],
+            plan_usage_granted: subscription,
+            verified_at: new Date().toISOString(),
+            access_expires_at: null,
+          },
+          reason,
+        ],
+      );
+      const body = {
+        logged_in: s.logged_in,
+        auth_method: s.auth_method,
+        api_provider: s.api_provider,
+        cli_version: s.cli_version,
+        plan_usage_granted: subscription,
+      };
+      await this.#event(c, conn.id, 'claude_code_checked', body, ctx);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'connection.claude_code_checked',
+        subjectKind: 'plan_connection',
+        subjectId: conn.id,
+        subjectVersion: conn.version + 1,
+        contentHash: null,
+        payload: body,
       });
       return this.#connection(c, ws, conn.id);
     });
@@ -643,9 +788,11 @@ export class ConnectionStore extends PortfolioStore {
            status_reason = $2 where id = $1`,
         [
           conn.id,
-          remoteRevocationConfirmed
-            ? null
-            : 'Signed out locally; OpenAI did not confirm the revocation. You can also disconnect Creator Agent in ChatGPT Settings.',
+          conn.kind === 'claude_code'
+            ? 'Disconnected in the studio. Claude Code itself stays signed in; run claude auth logout to sign it out.'
+            : remoteRevocationConfirmed
+              ? null
+              : 'Signed out locally; OpenAI did not confirm the revocation. You can also disconnect Creator Agent in ChatGPT Settings.',
         ],
       );
       await this.#event(
