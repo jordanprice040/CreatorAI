@@ -163,6 +163,30 @@ const toRequest = (r: Row): PlanRequest => ({
   finished_at: r.finished_at ? iso(r.finished_at) : null,
 });
 
+/**
+ * A build-role qualification counts only for the exact current T12 role prompt: one decided on
+ * an older prompt (builder/1 after a builder/2, reviewer/1 now) never admits the new contract.
+ */
+function currentForBuildRole(r: Row): boolean {
+  const role = (
+    Object.entries(BUILD_ROLE_TASK_CLASSES) as [BuildRole, string][]
+  ).find(([, cls]) => cls === r.task_class)?.[0];
+  if (!role) return true;
+  const m = r.manifest as {
+    cases?: { input?: { role: string; text: string }[] }[];
+  };
+  return (
+    !!m.cases?.length &&
+    canonicalHash(m) === r.manifest_hash &&
+    m.cases.every((k) => {
+      const system = (k.input ?? []).filter((x) => x.role === 'system');
+      return (
+        system.length === 1 && system[0]!.text === BUILD_ROLE_PROMPTS[role]
+      );
+    })
+  );
+}
+
 export class ConnectionStore extends PortfolioStore {
   // ---- Owner configuration --------------------------------------------------------------
 
@@ -1000,7 +1024,7 @@ export class ConnectionStore extends PortfolioStore {
       const access = await this.#access(c, conn.id);
       const qualifications = wf
         ? await this.#discoveryQualifications(c, conn.id)
-        : await this.#qualifications(c, conn.id);
+        : await this.#qualifications(c, conn.id, true);
       let grant: PlanVerificationGrant | null = null;
       if (req.grant_id) {
         const g = await c.query(
@@ -1614,15 +1638,37 @@ export class ConnectionStore extends PortfolioStore {
     return rows.map((r) => toAccess(r as Row));
   }
 
+  /** All of a connection's qualifications, or with `current` only those that may admit work. */
   async #qualifications(
     c: PoolClient,
     id: string,
+    current = false,
   ): Promise<PlanQualification[]> {
     const { rows } = await c.query(
       'select * from plan_qualifications where connection_id = $1 order by created_at desc',
       [id],
     );
-    return rows.map((r) => toQualification(r as Row));
+    return (rows as Row[])
+      .filter((r) => !current || currentForBuildRole(r))
+      .map((r) => toQualification(r));
+  }
+
+  /** Qualifications that may admit work now: build-role ones only under the current prompts. */
+  async planAdmittingQualifications(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<PlanQualification[]> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const conn = await c.query(
+        'select id from plan_connections where id = $1 and workspace_id = $2',
+        [uuid(id), uuid(ws)],
+      );
+      if (!conn.rows[0]) throw fail('NOT_FOUND', 'Plan connection not found.');
+      return this.#qualifications(c, uuid(id), true);
+    });
   }
 
   async #event(
