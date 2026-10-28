@@ -1139,7 +1139,12 @@ export class ConnectionStore extends PortfolioStore {
           s.output_chars,
           s.state === 'completed' ? s.output_hash : null,
           observed.signal ?? null,
-          r.workflow_task_id && s.state === 'completed'
+          // Workflow answers feed their task; qualification answers (synthetic or public data
+          // only) are kept so a failed case can be explained (ADR-0049).
+          (r.workflow_task_id ||
+            (r.qualification_id &&
+              ['synthetic', 'public'].includes(String(r.data_class)))) &&
+          s.state === 'completed'
             ? (observed.workflow_output_text ?? null)
             : null,
         ],

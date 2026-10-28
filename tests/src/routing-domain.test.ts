@@ -541,7 +541,7 @@ test('build-role checks only appear under their own task class with JSON output'
 test('the T12 plan-role benchmarks carry exact T12 packets and never leak held-out outputs', () => {
   for (const [file, role] of [
     ['t12-builder-v1', 'builder'],
-    ['t12-reviewer-v1', 'reviewer'],
+    ['t12-reviewer-v2', 'reviewer'],
   ] as const) {
     const m = BenchmarkManifestSchema.parse(
       read(`config/connections/benchmarks/${file}.json`),
@@ -579,4 +579,23 @@ test('the T12 plan-role benchmarks carry exact T12 packets and never leak held-o
       }
     }
   }
+});
+
+test('reviewer v2 keeps v1 cases and verdicts; v1 no longer matches the reviewer prompt', () => {
+  const [v1, v2] = ['t12-reviewer-v1', 't12-reviewer-v2'].map((f) =>
+    BenchmarkManifestSchema.parse(
+      read(`config/connections/benchmarks/${f}.json`),
+    ),
+  );
+  const shape = (m: typeof v1) =>
+    m!.cases.map((c) => [
+      c.case_id,
+      c.split,
+      c.check.kind === 'review_verdict' ? c.check.verdict : null,
+    ]);
+  assert.deepEqual(shape(v2), shape(v1));
+  // Frozen v1 stays as recorded; qualification refuses it for the current prompt.
+  assert.ok(
+    v1!.cases.every((c) => c.input[0]!.text !== BUILD_ROLE_PROMPTS.reviewer),
+  );
 });
