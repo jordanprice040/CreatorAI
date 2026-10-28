@@ -119,33 +119,49 @@ export async function withLock<T>(
   await canonical(dir);
   const lock = join(dir, 'supervisor.lock');
   const token = randomUUID();
+  // Live from before the file exists until after it is gone, so lockHolder never sees this
+  // process's lock as stale while it is being written or removed.
+  held.add(token);
   let f;
   try {
     f = await open(lock, 'wx', 0o600);
   } catch {
+    held.delete(token);
     throw new Error(
       'Product is locked; inspect pending intents before recovery. A lock is released only by an explicit recovery once its process is gone (Build page: Recover), never by age.',
     );
   }
-  await f.writeFile(
-    JSON.stringify({ pid: process.pid, token, at: new Date().toISOString() }),
-  );
-  await f.sync();
-  await f.close();
-  held.add(token);
+  let failed = false;
   try {
-    return await work();
-  } finally {
-    held.delete(token);
-    // Only our own lock: a recovery may have released it and someone else may hold it now.
-    // Only a missing file is "not ours"; any other read error is surfaced, never a silent leak.
-    const now = await readFile(lock, 'utf8').catch(
-      (e: NodeJS.ErrnoException) => {
-        if (e.code === 'ENOENT') return '';
-        throw e;
-      },
+    await f.writeFile(
+      JSON.stringify({ pid: process.pid, token, at: new Date().toISOString() }),
     );
-    if (now.includes(token)) await unlink(lock);
+    await f.sync();
+    await f.close();
+    return await work();
+  } catch (e) {
+    failed = true;
+    throw e;
+  } finally {
+    try {
+      // Only our own lock: a recovery may have released it and someone else may hold it
+      // now. Only a missing file is "not ours"; any other read error is surfaced.
+      const now = await readFile(lock, 'utf8').catch(
+        (e: NodeJS.ErrnoException) => {
+          if (e.code === 'ENOENT') return '';
+          throw e;
+        },
+      );
+      if (now.includes(token))
+        await unlink(lock).catch((e: NodeJS.ErrnoException) => {
+          if (e.code !== 'ENOENT') throw e;
+        });
+    } catch (e) {
+      // A cleanup failure never hides the work's own error.
+      if (!failed) throw e;
+    } finally {
+      held.delete(token);
+    }
   }
 }
 export async function event(

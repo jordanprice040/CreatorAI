@@ -1,3 +1,18 @@
+## PR #69 review fixes — October 28, 2026
+
+Review of #69: one Medium (M-1, a regression): `withLock` added its token to the live set
+only after writing the lock and dropped it before removing it, so a same-process Recover
+could judge a lock being taken or released as stale and rename it away. The token is now
+live from before the file is created until after it is removed (an unlink that finds it
+gone is fine). New test: a Recover-like poller over 200 lock lifetimes never releases one
+(the old order lets it steal 135). Lows: a cleanup failure never hides the work's own
+error; a lock removed between Recover's read and its stat counts as nothing to recover.
+CI: the test:db job runs PostgreSQL 18 (ubuntu-latest now ships pg_dump 18.6, which the
+restore test cannot load into the old postgres:16 service; the desktop app also uses 18).
+Checks: locks (both tests), studio-builds, executor, web-display, artifact-api, typecheck,
+format:check. Real-WSL gated tests not rerun this round (withLock change only; they break
+WSL on this machine, see the previous entry).
+
 ## Recover edge cases from the #68 fourth re-review (N-1 to N-4) — October 28, 2026
 
 Jordan asked for the follow-up now. N-1: after a verified reap, the dispatch lock is freed

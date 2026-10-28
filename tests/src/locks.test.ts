@@ -1,7 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lockHolder, withLock } from '@creator/executor';
@@ -45,4 +52,35 @@ test('lock holders: own locks by live token, others by liveness and boot, empty 
     await writeFile(lock, JSON.stringify({ pid: child.pid, token: 'other' }));
   });
   assert.match(await readFile(lock, 'utf8'), /other/);
+});
+
+// #69 review M-1: a same-process Recover must never judge a lock this process is taking or
+// releasing as stale. A poller acts like Recover (judge, then rename if dead) throughout
+// many lock lifetimes; it must never release one, and no lock holder may fail.
+test('a lock this process is taking or releasing is never judged stale', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'creator-locks-race-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const lock = join(dir, 'supervisor.lock');
+  let stolen = 0;
+  for (let i = 0; i < 200; i++) {
+    let done = false;
+    const holder = withLock(dir, async () => {
+      await new Promise((r) => setImmediate(r));
+    }).finally(() => {
+      done = true;
+    });
+    while (!done) {
+      const raw = await readFile(lock, 'utf8').catch(() => null);
+      if (raw !== null) {
+        const st = await stat(lock).catch(() => null);
+        if (st && lockHolder(raw, st.mtimeMs) === 'dead') {
+          stolen++;
+          await rename(lock, `${lock}.dead-${i}`).catch(() => {});
+        }
+      }
+      await new Promise((r) => setImmediate(r));
+    }
+    await holder;
+  }
+  assert.equal(stolen, 0);
 });

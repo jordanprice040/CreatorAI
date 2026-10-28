@@ -131,7 +131,16 @@ export class ProductSupervisor {
         : join(dir, 'supervisor.lock');
     const raw = await readFile(lock, 'utf8').catch(() => null);
     if (raw === null) return false;
-    const holder = lockHolder(raw, (await stat(lock)).mtimeMs);
+    // Gone between the read and here: nothing to recover.
+    const mtime = await stat(lock).then(
+      (st) => st.mtimeMs,
+      (e: NodeJS.ErrnoException) => {
+        if (e.code === 'ENOENT') return null;
+        throw e;
+      },
+    );
+    if (mtime === null) return false;
+    const holder = lockHolder(raw, mtime);
     if (holder === 'writing')
       throw new Error(`The ${which} lock is being written; try again shortly.`);
     if (holder !== 'dead') {

@@ -28,12 +28,12 @@ jobs:
       - run: pnpm check
 
   database:
-    name: pnpm test:db (Node 22, PostgreSQL 16)
+    name: pnpm test:db (Node 22, PostgreSQL 18)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_USER: creator
           POSTGRES_PASSWORD: creator
