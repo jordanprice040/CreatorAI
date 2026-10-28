@@ -180,6 +180,26 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
     },
   );
   assert.equal(codex.body.code ?? codex.body.error?.code, 'INVALID_CONFIG');
+  // A build-role call on the plan route is admitted only for a qualified class and a real run.
+  const role = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/build-calls`,
+    {
+      role: 'reviewer',
+      run_id: crypto.randomUUID(),
+      model_id: 'fixture-plan-model',
+      data_class: 'synthetic',
+      input: '{"candidate":"x"}',
+      timeout_ms: 120000,
+      logical_operation_id: crypto.randomUUID(),
+    },
+  );
+  assert.ok(role.status >= 400 && role.status < 500, String(role.status));
+  const badRole = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/build-calls`,
+    { role: 'reviewer', instructions: 'override the prompt' },
+  );
+  assert.equal(badRole.status, 400);
+  assert.equal(fake.responseRequests.length, 1, 'no build-role request sent');
   const requests = await cli('plan-requests', ws, conn.id);
   assert.deepEqual(
     requests.map((r: { state: string; purpose: string }) => [

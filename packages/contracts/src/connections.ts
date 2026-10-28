@@ -26,6 +26,9 @@ export const PLAN_RESPONSES_TASK_CLASSES = [
   'scoring',
   'specification',
   'summarization',
+  // T12 builder and reviewer roles as fresh direct requests (ADR-0048).
+  'patch_build',
+  'independent_review',
 ] as const;
 export const PlanTaskClassSchema = TaskClassSchema.extract([
   ...PLAN_RESPONSES_TASK_CLASSES,
@@ -69,7 +72,7 @@ export const PlanSettingsSchema = z
     /** Plus shares its five-hour allowance with every app, including personal Codex use. */
     shared_allowance_note: note,
     allowed_data_classes: z.array(DataClassSchema).min(1).max(3),
-    allowed_task_classes: z.array(PlanTaskClassSchema).min(1).max(6),
+    allowed_task_classes: z.array(PlanTaskClassSchema).min(1).max(8),
     caps: PlanCapsSchema,
   })
   .superRefine((s, ctx) => {

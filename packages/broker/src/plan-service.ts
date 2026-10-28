@@ -5,8 +5,15 @@ import {
   type PlanConnection,
   type PlanTaskClass,
   type Admission,
+  type BenchmarkCheck,
 } from '@creator/contracts';
-import { canonicalHash, checkOutput } from '@creator/domain';
+import {
+  BUILD_ROLE_PROMPTS,
+  BUILD_ROLE_TASK_CLASSES,
+  canonicalHash,
+  checkOutput,
+  type BuildRole,
+} from '@creator/domain';
 import type {
   CommandContext,
   ConnectionStore,
@@ -71,6 +78,16 @@ export interface PlanServiceDeps {
   openBrowser?: (url: string) => void;
   fetchImpl?: typeof fetch;
   callbackPort?: number;
+  /**
+   * Trusted studio grader for patch_build qualification cases (ADR-0048): applies the patch to
+   * the reviewed template and runs the cases in the isolated worker. Absent means those
+   * qualifications refuse to start a run.
+   */
+  patchScorer?: (
+    ctx: CommandContext,
+    check: Extract<BenchmarkCheck, { kind: 'patch_cases' }>,
+    text: string | null,
+  ) => Promise<string>;
 }
 
 type SignInStatus =
@@ -414,7 +431,10 @@ export class PlanConnectionService {
       workflow?: { task_id: string; lease_token: string; input_hash: string };
       timeout_ms?: number;
       max_output_chars?: number;
-      score?: (text: string | null, outcome: PlanObservedOutcome) => string;
+      score?: (
+        text: string | null,
+        outcome: PlanObservedOutcome,
+      ) => string | Promise<string>;
     },
   ): Promise<{
     request_id: string;
@@ -558,7 +578,7 @@ export class PlanConnectionService {
             upstream_request_id: outcome.response_id,
           };
     if (r.score)
-      observed.signal = r.score(
+      observed.signal = await r.score(
         outcome.kind === 'completed' ? outcome.text : null,
         outcome,
       );
@@ -683,6 +703,55 @@ export class PlanConnectionService {
     };
   }
 
+  /**
+   * One T12 build-role call (ADR-0048): the fixed role prompt as a fresh direct request under
+   * the role's task class, so qualification, caps and the run's state all apply. No dollar
+   * broker is involved; the plan-request ledger records it.
+   */
+  async buildRole(
+    ctx: CommandContext,
+    ws: string,
+    connectionId: string,
+    b: {
+      role: BuildRole;
+      model_id: string;
+      run_id: string;
+      data_class: 'synthetic' | 'public' | 'private_approved';
+      input: string;
+      timeout_ms: number;
+      logical_operation_id: string;
+    },
+  ) {
+    const { connection } = await this.deps.store.planConnectionDetail(
+      ctx,
+      ws,
+      connectionId,
+    );
+    const r = await this.invoke(ctx, ws, {
+      connection_id: connectionId,
+      purpose: 'task',
+      model_id: b.model_id,
+      task_class: BUILD_ROLE_TASK_CLASSES[b.role],
+      data_class: b.data_class,
+      run_id: b.run_id,
+      instructions: BUILD_ROLE_PROMPTS[b.role],
+      input: b.input,
+      logical_operation_id: b.logical_operation_id,
+      timeout_ms: b.timeout_ms,
+    });
+    return {
+      request_id: r.request_id,
+      status:
+        r.outcome.kind === 'completed'
+          ? ('succeeded' as const)
+          : ('failed' as const),
+      reason_code:
+        r.outcome.kind === 'completed' ? 'ok' : r.outcome.reason_code,
+      text: r.outcome.kind === 'completed' ? r.outcome.text : null,
+      fixture: connection.fixture,
+    };
+  }
+
   /** Uses the owner's one-shot approval for one live call that verifies model access. */
   async verifyModel(
     ctx: CommandContext,
@@ -741,6 +810,13 @@ export class PlanConnectionService {
       attempted_cases,
     } = await this.deps.store.planQualificationManifest(ctx, ws, qid);
     const seen = new Set(attempted_cases);
+    const scorer = this.deps.patchScorer;
+    // Patch cases run code; without the studio's worker grader nothing is sent at all.
+    if (manifest.cases.some((c) => c.check.kind === 'patch_cases') && !scorer)
+      return {
+        state: 'stopped' as const,
+        reason: 'patch_scorer_unavailable',
+      };
     for (const c of manifest.cases) {
       if (seen.has(c.case_id)) continue;
       const system = c.input
@@ -763,6 +839,10 @@ export class PlanConnectionService {
         instructions: system || 'Follow the user instructions.',
         input: user,
         score: (text, outcome) => {
+          if (c.check.kind === 'patch_cases')
+            return outcome.kind === 'completed'
+              ? scorer!(ctx, c.check, text)
+              : 'provider_error';
           let json: unknown = null;
           if (text !== null && c.output_format === 'json')
             try {

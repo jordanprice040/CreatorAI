@@ -30,12 +30,15 @@ import {
   type PlanVerificationGrant,
 } from '@creator/contracts';
 import {
+  BUILD_ROLE_PROMPTS,
+  BUILD_ROLE_TASK_CLASSES,
   DISCOVERY_ROLE_VERSION,
   discoveryRoleInput,
   admissionBlockers,
   canonicalHash,
   connectionBlockers,
   qualificationDecision,
+  type BuildRole,
   type PlanUsageCounts,
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
@@ -859,6 +862,39 @@ export class ConnectionStore extends PortfolioStore {
           );
       }
       if (wf) await this.lockRun(c, ws, String(wf.run_id));
+      // A build-role task outside a workflow (ADR-0048) still needs a live, AI-enabled run.
+      if (
+        req.purpose === 'task' &&
+        !workflow &&
+        (req.task_class === 'patch_build' ||
+          req.task_class === 'independent_review')
+      ) {
+        if (!req.run_id)
+          throw fail(
+            'INVALID_CONTRACT',
+            'A plan build-role request names its run.',
+          );
+        const run = await this.lockRun(c, ws, req.run_id);
+        if (
+          run.state !== 'active' ||
+          run.experiment_condition === 'human_only' ||
+          run.autonomy_mode === 'human_only'
+        )
+          throw fail(
+            'INVALID_TRANSITION',
+            'The run is cancelled or human-only; no model request is admitted.',
+          );
+        // Frozen study arms keep their adopted routes (CODEX_INTEGRATION §4.1).
+        const study = await c.query(
+          'select 1 from study_attempts where workspace_id=$1 and run_id=$2',
+          [ws, req.run_id],
+        );
+        if (study.rows[0])
+          throw fail(
+            'SCOPE_EXCEEDED',
+            'Plan build roles are not used for frozen study assignments.',
+          );
+      }
       const conn = await this.#lock(c, ws, req.connection_id);
       if (
         wf &&
@@ -1131,6 +1167,23 @@ export class ConnectionStore extends PortfolioStore {
           throw fail(
             'SCOPE_EXCEEDED',
             `Task class ${tc} is not allowed for Responses qualification here.`,
+          );
+        // A build-role class is qualified for the exact T12 prompt it will serve (ADR-0048).
+        const role = (
+          Object.entries(BUILD_ROLE_TASK_CLASSES) as [BuildRole, string][]
+        ).find(([, cls]) => cls === tc)?.[0];
+        if (
+          role &&
+          req.manifest.cases.some(
+            (k) =>
+              k.input.filter((m) => m.role === 'system').length !== 1 ||
+              k.input.find((m) => m.role === 'system')!.text !==
+                BUILD_ROLE_PROMPTS[role],
+          )
+        )
+          throw fail(
+            'INVALID_CONTRACT',
+            `Every ${tc} case must use exactly the T12 ${role} prompt.`,
           );
         if (
           !conn.settings.allowed_data_classes.includes(req.manifest.data_class)

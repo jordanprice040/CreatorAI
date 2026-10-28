@@ -8,11 +8,13 @@ import {
   ExecutionSupervisor,
   BuildSupervisor,
   digest,
+  scorePatchCase,
   type Binding,
   type BuildPlan,
   type BuildPorts,
 } from '@creator/executor';
 import {
+  BUILD_ROLE_PROMPTS,
   BUILD_FIXTURE_SPEC,
   BUILD_FIXTURE_CASES,
   BUILD_FIXTURE_SOURCE,
@@ -466,4 +468,157 @@ test('a Codex builder change outside the task scope is refused by the scoped pat
   assert.match(result.reason, /scope/);
   assert.equal(result.commit, s.product.initial_commit);
   assert.equal(s.requests.length, 0);
+});
+
+test('plan roles send builder and reviewer as fresh plan requests and never touch the broker', async (t) => {
+  const s = await setup(t);
+  const plan: BuildPlan = {
+    ...s.plan,
+    timeout_ms: 120000,
+    plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+  };
+  const go = (ports: BuildPorts) =>
+    s.builds.run(
+      s.product.id,
+      s.task.id,
+      s.product.initial_commit,
+      plan,
+      ports,
+    );
+  const missing = await go(s.ports);
+  assert.equal(missing.state, 'checkpoint');
+  assert.match(missing.reason, /Plan role route is not configured/);
+  assert.equal(s.requests.length, 0);
+  const seen: { role: string; input: string; timeout_ms: number }[] = [];
+  const result = await go({
+    ...s.ports,
+    planRole: async (target, request) => {
+      assert.equal(target.connection_id, plan.plan_roles!.connection_id);
+      assert.equal(target.run_id, plan.run_id);
+      seen.push({ role: target.role, ...request });
+      // The server adds the fixed role prompt; the fixture needs it to pick an answer.
+      const text = buildFixtureAnswer([
+        { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+        { role: 'user', text: request.input },
+      ]);
+      return {
+        request_id: randomUUID(),
+        status: 'succeeded',
+        reason_code: 'ok',
+        text,
+        fixture: true,
+      };
+    },
+  });
+  assert.equal(s.requests.length, 0, 'no dollar broker call');
+  assert.deepEqual(
+    seen.map((x) => x.role),
+    ['builder', 'reviewer'],
+  );
+  assert.ok(seen.every((x) => x.timeout_ms <= 120000));
+  // The reviewer packet carries no builder summary or conversation.
+  assert.ok(!seen[1]!.input.includes('builder/1'));
+  const assigned = s.spec.tasks.find((x) => x.key === 'T1')!.acceptance;
+  for (const c of frozenCases(s.spec, assigned).filter((c) => c.held_out))
+    for (const x of seen)
+      assert.ok(!x.input.includes(JSON.stringify(c.stdout)));
+  const intent = JSON.parse(
+    await readFile(
+      join(
+        s.products.dir(s.product.id),
+        'builds',
+        result.id,
+        'call-2-intent.json',
+      ),
+      'utf8',
+    ),
+  ) as Record<string, unknown>;
+  assert.equal(intent.route, 'chatgpt_plan_responses');
+  assert.equal(intent.task_class, 'independent_review');
+  assert.equal(intent.instructions, BUILD_ROLE_PROMPTS.reviewer);
+  assert.equal(result.fixture, true);
+  if (real) assert.equal(result.state, 'verified_candidate');
+  else if (process.platform !== 'win32')
+    assert.equal(result.state, 'checkpoint');
+});
+
+test('a failed plan role request stops the build without applying anything', async (t) => {
+  const s = await setup(t);
+  const plan: BuildPlan = {
+    ...s.plan,
+    plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+  };
+  const result = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    {
+      ...s.ports,
+      planRole: async () => ({
+        request_id: randomUUID(),
+        status: 'failed',
+        reason_code: 'quota_exhausted',
+        text: null,
+        fixture: true,
+      }),
+    },
+  );
+  assert.equal(result.state, 'checkpoint');
+  assert.match(result.reason, /quota_exhausted/);
+  assert.equal(result.commit, s.product.initial_commit);
+  assert.equal(s.requests.length, 0);
+});
+
+test('plan roles exclude the Codex builder, and broker builds keep the 60 s call bound', async (t) => {
+  const s = await setup(t);
+  const target = { connection_id: randomUUID(), model_id: 'm' };
+  const go = (plan: BuildPlan) =>
+    s.builds.run(
+      s.product.id,
+      s.task.id,
+      s.product.initial_commit,
+      plan,
+      s.ports,
+    );
+  await assert.rejects(
+    go({ ...s.plan, plan_roles: target, codex_plan_builder: target }),
+    /not both/,
+  );
+  await assert.rejects(go({ ...s.plan, timeout_ms: 60001 }), /60 s/);
+  assert.equal(s.requests.length, 0);
+});
+
+test('the patch qualification scorer applies only scoped patches and never trusts a claim', async (t) => {
+  const s = await setup(t);
+  const check = {
+    kind: 'patch_cases' as const,
+    file_scope: ['src'],
+    cases: structuredClone(BUILD_FIXTURE_CASES).slice(0, 1),
+  };
+  const score = (text: string | null) =>
+    scorePatchCase(
+      { products: s.products, executor: s.executor },
+      s.binding.owner_id,
+      check,
+      text,
+    );
+  assert.equal(await score('not json'), 'schema_invalid');
+  assert.equal(await score(null), 'schema_invalid');
+  assert.equal(
+    await score('{"submission":null,"summary":"all tests pass"}'),
+    'acceptance_check_failed',
+  );
+  const patch = (path: string) =>
+    JSON.stringify({
+      submission: {
+        expected_commit: '0'.repeat(40),
+        changes: [{ path, before_hash: null, content: 'print(1)\n' }],
+      },
+    });
+  assert.equal(await score(patch('policy.json')), 'acceptance_check_failed');
+  // In scope, the cases decide; without the WSL2 worker they fail closed.
+  const inScope = await score(patch('src/extra.py'));
+  if (real) assert.equal(inScope, 'acceptance_check_failed');
+  else assert.notEqual(inScope, 'accepted');
 });

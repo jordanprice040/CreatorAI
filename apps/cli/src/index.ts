@@ -7,6 +7,7 @@ import {
   ExecutionSupervisor,
   BuildSupervisor,
   buildPlanSchema,
+  planRoleResultSchema,
   digest,
   pathSchema,
   runStudyBuild,
@@ -634,6 +635,22 @@ export async function runCli(
             1_900_000,
           );
           return out;
+        },
+        // ADR-0048: the API holds the ChatGPT sign-in and admits each fresh role request.
+        planRole: async (target, request) => {
+          const p = await local.product(productId);
+          return call(
+            planRoleResultSchema,
+            `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/build-calls`,
+            {
+              role: target.role,
+              run_id: target.run_id,
+              model_id: target.model_id,
+              data_class: target.data_class,
+              ...request,
+            },
+            request.timeout_ms + 5000,
+          );
         },
       };
     };

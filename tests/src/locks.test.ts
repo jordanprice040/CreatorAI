@@ -73,7 +73,13 @@ test('a lock this process is taking or releasing is never judged stale', async (
       const raw = await readFile(lock, 'utf8').catch(() => null);
       if (raw !== null) {
         const st = await stat(lock).catch(() => null);
-        if (st && lockHolder(raw, st.mtimeMs) === 'dead') {
+        // Like Recover, act only if the lock is unchanged since it was judged: a lock released
+        // between the read and the judgement is gone, not stolen.
+        if (
+          st &&
+          lockHolder(raw, st.mtimeMs) === 'dead' &&
+          (await readFile(lock, 'utf8').catch(() => null)) === raw
+        ) {
           stolen++;
           await rename(lock, `${lock}.dead-${i}`).catch(() => {});
         }

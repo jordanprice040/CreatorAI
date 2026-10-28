@@ -599,6 +599,16 @@ export const ContextEvaluationRequestSchema = z
     const ids = r.cases.map((c) => c.case_id);
     if (new Set(ids).size !== ids.length)
       ctx.addIssue({ code: 'custom', message: 'Case ids must be unique.' });
+    if (
+      r.cases.some(
+        (c) =>
+          c.check.kind === 'patch_cases' || c.check.kind === 'review_verdict',
+      )
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Build-role checks qualify plan connections only.',
+      });
   });
 export type ContextEvaluationRequest = z.infer<
   typeof ContextEvaluationRequestSchema

@@ -49,12 +49,40 @@ const CodexBuildBody = z.strictObject({
     })
     .passthrough(),
 });
+const BuildCallBody = z.strictObject({
+  role: z.enum(['builder', 'reviewer']),
+  run_id: z.uuid(),
+  model_id: z.string().min(1).max(120),
+  data_class: z.enum(['synthetic', 'public', 'private_approved']),
+  input: z.string().min(1).max(20000),
+  timeout_ms: z.number().int().min(100).max(120000),
+  logical_operation_id: z.uuid(),
+});
+/**
+ * One T12 build-role request on the plan's direct Responses path (ADR-0048), for the CLI's
+ * route and for builds the studio service runs itself. The role prompt is fixed server-side.
+ */
+export async function runPlanBuildCall(
+  service: PlanConnectionService | null,
+  ctx: CommandContext,
+  ws: string,
+  connectionId: string,
+  raw: unknown,
+) {
+  const b = parse(BuildCallBody, raw);
+  if (!service)
+    throw new ContractError(
+      'INVALID_CONFIG',
+      'The ChatGPT plan service is not configured.',
+    );
+  return service.buildRole(ctx, ws, connectionId, b);
+}
 /** Codex turns per build in this process; the per-build request cap is the durable limit. */
 const codexTurns = new Map<string, number>();
 
 /** ADR-0042 ChatGPT-plan routes under /api/workspaces/:ws/<collection>. Matched separately. */
 export const CONNECTIONS_ROUTE =
-  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|run|finish))?)?$/;
+  /^\/api\/workspaces\/([^/]+)\/(plan-connections|plan-qualifications)(?:\/([^/]+)(?:\/(settings|accept-caps|credits|credits-withdraw|sign-in|sign-out|verification-grants|verify|availability-recheck|qualifications|requests|reconcile|quota-recheck|codex-builds|build-calls|run|finish))?)?$/;
 
 const VerifyBody = z.strictObject({
   grant_id: z.uuid(),
@@ -275,6 +303,13 @@ export async function connectionRoutes(r: {
           item,
           await r.body(),
         ),
+        true,
+      );
+    case 'build-calls':
+      // One fresh builder or reviewer request for a T12 build (ADR-0048).
+      return send(
+        200,
+        await runPlanBuildCall(r.service, ctx, ws, item, await r.body()),
         true,
       );
     case 'quota-recheck': {

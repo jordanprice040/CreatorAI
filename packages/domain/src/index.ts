@@ -14,6 +14,7 @@ export * from './selection-fixture.js';
 
 export * from './study.js';
 export * from './build-fixture.js';
+export * from './build-roles.js';
 export * from './pilot.js';
 export * from './evaluation.js';
 export * from './evaluation-config.js';

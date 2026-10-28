@@ -7,4 +7,5 @@ export * from './artifacts.js';
 export * from './study-build.js';
 export * from './paired.js';
 export * from './codex-host.js';
+export * from './plan-qualification.js';
 export { lockHolder, withLock } from './files.js';
