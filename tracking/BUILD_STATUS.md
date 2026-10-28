@@ -1,3 +1,29 @@
+## patch_build grader fix after the first live qualification — October 28, 2026
+
+Jordan's first live patch_build qualification (5b95c8c6…, gpt-6-astra, t12-builder-v1, 4 plan
+requests, $0) was decided failed 0/4. A read-only diagnosis on his device found that every answer
+parsed, stayed in scope, applied and ran in the WSL worker, but grading could never pass:
+
+- The stored manifest is jsonb, which reorders each case's keys.
+- `qaPassed` hashed that jsonb order, while the worker hashed the schema order.
+
+The failed record stands as recorded; it says nothing about answer quality.
+
+Fix:
+
+- `scorePatchCase` normalizes each case through `qaCaseSchema` before running and comparing it.
+- A run the worker did not carry out (blocked, lost, cleanup pending) is `provider_error`, not a
+  failed check.
+
+review_verdict grading does not depend on key order. The benchmark, floor and pass rule are
+unchanged.
+
+Checks: build tests 15/15 (the new test fails on the old scorer); test:db 477 pass / 5 known pwsh
+failures.
+
+Next: merge, update the device, then a fresh patch_build qualification and the reviewer
+qualification, each with Jordan's OK.
+
 ## Live plan steps and qualification-root reconcile — October 28, 2026
 
 Live, on Jordan's dev studio (creator_studio, not the installed app): gpt-6-astra verified on the
