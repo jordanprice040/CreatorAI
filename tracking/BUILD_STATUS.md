@@ -1,3 +1,20 @@
+## Live role qualifications and reviewer prompt v2 — October 28, 2026
+
+On Jordan's dev studio, gpt-6-astra over the ChatGPT plan ($0, 13 plan requests so far):
+
+- patch_build: QUALIFIED with `t12-builder-v1` (08210fde…; 1/1 development, 3/3 held out).
+- independent_review: FAILED with `t12-reviewer-v1` (21f2ce7e…; 0/1 development, 2/3 held
+  out). Both changes_requested cases passed; both approve cases missed.
+
+This PR (ADR-0049) adds the `independent-reviewer/2` prompt, which states T12's two answer
+rules. It also adds frozen `t12-reviewer-v2` (same cases and verdicts) and keeps the answer text
+of synthetic/public qualification requests. Checks: test:db 478 pass / 5 known pwsh failures;
+the answer-retention test fails without the change.
+
+Next: merge, update the device, get Jordan's OK on v2 and run one 4-request reviewer
+qualification. After that come the standing model.generate grant and the CSV-checker build,
+each needing its own OK.
+
 ## patch_build grader fix after the first live qualification — October 28, 2026
 
 Jordan's first live patch_build qualification (5b95c8c6…, gpt-6-astra, t12-builder-v1, 4 plan

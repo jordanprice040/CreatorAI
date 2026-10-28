@@ -1272,14 +1272,24 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
   }).runQualification(owner, ws.id, crashedQ.id);
   // The grader's own failure is recorded, so it is not mistaken for the model's.
   const reasons = await s.db.pool.query(
-    'select signal, reason_code from plan_requests where qualification_id = $1',
+    'select signal, reason_code, output_text from plan_requests where qualification_id = $1',
     [crashedQ.id],
   );
   assert.equal(reasons.rows.length, 4);
   for (const r of reasons.rows) {
     assert.equal(r.signal, 'provider_error');
     assert.equal(r.reason_code, 'grader_error: scorer crashed');
+    // A synthetic qualification answer is kept, so a failed case can be explained.
+    assert.equal(r.output_text, '{}');
   }
+  const verification = await s.db.pool.query(
+    "select output_text from plan_requests where purpose = 'verification'",
+  );
+  assert.deepEqual(
+    verification.rows.map((r) => r.output_text),
+    [null],
+    'other answers are still not kept',
+  );
   assert.equal(
     crashed.state === 'decided' && crashed.qualification.state,
     'failed',

@@ -1278,7 +1278,7 @@ export class BudgetStore extends OversightStore {
             req.max_output_tokens > bound.max_output_tokens ||
             !(
               system.startsWith('builder/1:') ||
-              system.startsWith('independent-reviewer/1:')
+              system.startsWith('independent-reviewer/2:')
             )
           )
             return deny(

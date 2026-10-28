@@ -102,7 +102,7 @@ export function buildFixtureAnswer(
 ): string | null {
   if (
     !input[0]?.text.startsWith('builder/1:') &&
-    !input[0]?.text.startsWith('independent-reviewer/1:')
+    !input[0]?.text.startsWith('independent-reviewer/2:')
   )
     return null;
   const packet = JSON.parse(input[1]!.text) as {

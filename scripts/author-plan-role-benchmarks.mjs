@@ -2,7 +2,9 @@
 // BuildSupervisor on synthetic checklist tasks with a recording plan-role port, so every case
 // carries the exact packet T12 sends. It never dispatches a model; scripted answers stand in
 // only to reach the reviewer packet. Expected checks are fixed here before any result.
-// Usage: pnpm build:code && node scripts/author-plan-role-benchmarks.mjs <out-dir>
+// Usage: pnpm build:code && node scripts/author-plan-role-benchmarks.mjs <out-dir> [reviewer-v<N>]
+// With reviewer-v<N>, only a new reviewer version is authored (same cases and expected
+// verdicts, current prompt); the builder benchmark and earlier versions stay frozen.
 import { mkdir, mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -24,7 +26,11 @@ import {
 import { BenchmarkManifestSchema } from '../packages/contracts/dist/index.js';
 
 const out = process.argv[2];
-if (!out) throw new Error('usage: author-plan-role-benchmarks.mjs <out-dir>');
+const only = process.argv[3];
+if (!out || (only !== undefined && !/^reviewer-v[2-9]$/.test(only)))
+  throw new Error(
+    'usage: author-plan-role-benchmarks.mjs <out-dir> [reviewer-v<N>]',
+  );
 
 const ITEMS = '["inspect", "build", "review", "verify"]';
 const flagSpec = (key, name, flag, statement, stdout, heldOut) => ({
@@ -143,6 +149,8 @@ async function packets(root, spec, source) {
       call: async () => {
         throw new Error('authoring never uses the broker');
       },
+      // Offline: no connection exists, and readiness is not what is being authored.
+      planRolesReady: async () => [],
       planRole: async (target, request) => {
         seen[target.role] = request.input;
         if (target.role === 'reviewer')
@@ -265,6 +273,7 @@ try {
   }
   const provenance = (what) =>
     `Synthetic checklist tasks authored offline on ${new Date().toISOString().slice(0, 10)} by scripts/author-plan-role-benchmarks.mjs for ADR-0048. ${what} Packets are the exact T12 packets; expected checks were fixed before any model result. Measures only these synthetic tasks, not general coding or review quality.`;
+  const reviewerName = only ? `t12-${only}` : 't12-reviewer-v1';
   const manifests = {
     't12-builder-v1.json': {
       format: 'route-benchmark/1',
@@ -277,18 +286,19 @@ try {
         'Each answer is applied to the reviewed template and every frozen case runs in the WSL worker.',
       ),
     },
-    't12-reviewer-v1.json': {
+    [`${reviewerName}.json`]: {
       format: 'route-benchmark/1',
-      name: 't12-reviewer-v1',
+      name: reviewerName,
       fixture: false,
       task_class: 'independent_review',
       data_class: 'synthetic',
       cases: reviewerCases,
       provenance: provenance(
-        'Two candidates are correct (approve with no findings) and two break a stated acceptance check (changes requested).',
+        `Two candidates are correct (approve with no findings) and two break a stated acceptance check (changes requested).${only ? ` Same cases and expected verdicts as t12-reviewer-v1, re-authored for the ${BUILD_ROLE_PROMPTS.reviewer.split(':')[0]} prompt (ADR-0049) after v1 failed its live qualification.` : ''}`,
       ),
     },
   };
+  if (only) delete manifests['t12-builder-v1.json'];
   await mkdir(out, { recursive: true });
   for (const [name, m] of Object.entries(manifests)) {
     BenchmarkManifestSchema.parse(m);

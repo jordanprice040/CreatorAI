@@ -564,7 +564,7 @@ export class PlanConnectionService {
     }
     const observed: PlanObservation =
       outcome.kind === 'completed'
-        ? r.workflow
+        ? r.workflow || r.qualification_id
           ? { workflow_output_text: outcome.text }
           : {}
         : {

@@ -1,5 +1,32 @@
 # Decision log
 
+## ADR-0049 — Reviewer prompt states T12's answer rules; reviewer benchmark v2 (proposed October 28, 2026)
+
+Context: Jordan's first live T12 role qualifications on gpt-6-astra (ChatGPT plan, $0):
+`t12-builder-v1` qualified (1/1 development, 3/3 held out; an earlier 0/4 was the jsonb
+key-order grading bug fixed in #73). `t12-reviewer-v1` failed (0/1 development, 2/3 held out):
+both cases expecting `changes_requested` passed, while both expecting `approve` missed
+(rv-01 `review_rejected`; rv-03 `acceptance_check_failed`, an echoed hash not matching). The
+answers were not stored, so the cause is an inference. `independent-reviewer/1` never told
+the model the two rules T12 itself enforces on a review (build.ts: `approve` counts only with
+an empty findings list; candidate, spec and task hashes must match the packet). Real builds
+would hit the same gap.
+
+Decision: the reviewer prompt becomes `independent-reviewer/2`, which adds only those two
+rules (copy the three values exactly; approve only with no findings, otherwise
+`changes_requested` or `blocked`). The builder prompt is unchanged, so the builder
+qualification stays valid. `t12-reviewer-v2` is authored by the same script
+(`reviewer-v2` mode) with the same four cases, splits, candidates and expected verdicts as v1,
+new T12 packets, and the current prompt; the 3 of 3 held-out bar is unchanged. Nothing about
+the cases was tuned to the failed answers. v1 and its failed qualification stay recorded;
+qualification start refuses v1 now because its prompt no longer matches. The study build gate
+and the fixture reviewer accept the `/2` prefix (no final study has frozen; this changes the
+synthetic study build role prompt too). Qualification requests on synthetic or public data
+now keep their answer text in `plan_requests.output_text` (existing column, no migration) so a
+failed case can be explained; other plan answers are still not kept.
+
+Needs Jordan: approve `t12-reviewer-v2` as frozen, then one 4-request qualification run.
+
 ## ADR-0048 — T12 builder and reviewer on the ChatGPT plan's direct route (accepted October 28, 2026)
 
 Context: no real T12 build is $0 today. The Codex builder path is blocked in code (no
@@ -242,7 +269,6 @@ M3's previously accepted exact-bundle evidence standard remains unchanged. Any
 future operational adapter/read needs concrete separate reviewed scope; fixture
 projection cannot establish active home/workspace role/continuity or tool identity.
 
-
 ## THEME-ACCEPTANCE-M3-2026-10-24 — scoped scheduler evidence standard
 
 Jordan explicitly selected “Accept exact-bundle configuration evidence for this
@@ -256,7 +282,6 @@ startup-admission candidate selected. Concrete inspection/session scope separate
 Canonical scoped statement: docs/THEME_INTENT_ACCEPTANCE_SCHEDULING_DECISION_2026-10-24.md.
 No frozen study/protocol or wider policy change, operational read, activation or
 launch is authorized. V4/proposal v2 prepared for separate independent review.
-
 
 ## Native acceptance readiness assessed; session remains blocked — October 24, 2026
 
@@ -285,7 +310,7 @@ need separate read-only scope; /NS skips creation; Jordan H remains separate.
 No operational/credential access, launch/sign-in, acceptance writes, helper execution,
 provider/workflow activation, recovery/stale release, cleanup or retired checkout
 access. R/N/H remain unverified; full C54 partial. Next eligible: use
- docs/THEME_INTENT_ACCEPTANCE_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md in a separate
+docs/THEME_INTENT_ACCEPTANCE_INDEPENDENT_REVIEW_PROMPT_2026-10-24.md in a separate
 review session. Resolve scheduling/continuity gates before requesting native session
 execution. No automatic next milestone or authority granted by this assessment.
 
