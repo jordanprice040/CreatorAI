@@ -92,7 +92,7 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
    installed main ac0f3e4 and migrated 29 → 32 with all row counts unchanged.
 8. **Owner pilot (Group 4).** Seven days from the installed app under the accepted terms
    (#25–#32): $0 new metered spend, stop after three consecutive failures or 120 minutes
-   of intervention, manual runs only. Jordan still needs to give dates and RAM/VRAM limits.
+   of intervention, manual runs only. Jordan still needs to give dates; RAM/VRAM limits drafted Oct 29.
 9. **Final UX pass and exact-candidate acceptance.** Walk the installed app as a user
    (first launch, running work, errors, recovery, export), fix what blocks release,
    then repeat X10 on the exact candidate.
@@ -116,7 +116,7 @@ fill in participant, reviewer, IRB, task or model details that Jordan hasn't giv
 
 - Approval for any live call, spend, install or upgrade of the installed app, GitHub
   account use, payment account, publication or outbound message.
-- Dates and hardware limits for the pilot.
+- Dates for the pilot.
 - A reinvestment policy before reinvestment is turned on.
 - Attestations for the theme-intent track.
 

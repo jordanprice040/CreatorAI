@@ -12,6 +12,16 @@
   "max_model_jobs": 1,
   "max_builds": 1,
   "max_run_wall_seconds": 1800,
+  "hardware_limits": {
+    "decided": "2026-10-29, Jordan (thread reply), measured on his PC: 64 GB RAM, RTX 3090 24 GB VRAM, i9-11900K",
+    "studio_ram_max_gb": 16,
+    "pause_below_free_system_ram_gb": 8,
+    "wsl_ram_max_gb": 8,
+    "wsl_ram_note": "Recommended .wslconfig memory=8GB; not applied, Jordan's own change",
+    "vram_max_gb": 0,
+    "vram_note": "Pilot routes are subscription only; a later local-model route would start at 16 GB",
+    "worker_job_limits": "unchanged: 256 MiB, no swap, 32 tasks, 50% CPU, 20 s (packages/executor/worker/bridge.py)"
+  },
   "stop_on_unknown_cost": true,
   "stop_on_no_qualified_route": true,
   "permitted": [
@@ -32,7 +42,7 @@
     "exact start/end",
     "candidate-bound approval",
     "enabled qualified account identities",
-    "hardware RAM/VRAM limits",
+    "runtime enforcement of hardware_limits",
     "readiness gate support for manual schedules and subscription/local routes"
   ],
   "note": "Planning companion only. config/owner-pilot.json remains authoritative and not_started; no runtime consumer or activation introduced."
