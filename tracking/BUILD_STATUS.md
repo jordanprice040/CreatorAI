@@ -1,3 +1,13 @@
+## Owner pilot hardware limits drafted — October 29, 2026
+
+Jordan accepted these limits for the owner pilot (decision #31). They were measured on his PC
+(64 GB RAM, RTX 3090 24 GB, i9-11900K) and are recorded as `hardware_limits` in
+`config/owner-pilot.defaults.json`, which is still a draft that nothing reads at runtime: studio
+16 GB RAM, pause below 8 GB free system RAM, WSL 8 GB (recommended `.wslconfig`, not applied),
+VRAM 0 GB (subscription routes only). The worker per-job caps are unchanged. The Oct 23 C54
+audit's recorded hash of that file now describes the earlier version. Still open for step 8:
+pilot dates and runtime enforcement of these limits.
+
 ## Runbook step 7 done: installed app upgraded to main, schema 29 → 32 — October 29, 2026
 
 With Jordan's typed OKs ("Yes, please start step 7", then "OK install"), the installed app
