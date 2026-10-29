@@ -1,3 +1,35 @@
+## Runbook step 7 done: installed app upgraded to main, schema 29 → 32 — October 29, 2026
+
+With Jordan's typed OKs ("Yes, please start step 7", then "OK install"), the installed app
+(`%LOCALAPPDATA%\Creator Agent`, data home `%LOCALAPPDATA%\com.creatoragent.studio`, its own
+PostgreSQL 18 on 55440) moved from the theme-intent candidate (590aba3, dirty, schema 29) to
+main ac0f3e4 (clean build, schema 32).
+
+- Backup first, app quit, original cluster never started:
+  `C:\CreatorAgentBackups\installed-pre-v32-20261029-013747` holds a byte copy of the data home
+  (2,300 files) and program folder (83 files), all SHA-256 matching the source, plus
+  `database.dump` taken from a scratch copy of the copied cluster. The dump restored into a
+  fresh PG18 cluster with identical counts (schema 29, 115 tables, 403 rows). Rollback is the
+  program and home folders together, never the old program alone over schema 32.
+- Installer: `build-studio.mjs` + Tauri NSIS from ac0f3e4 (sha256 184e3488…1958); cargo test
+  17/17 (1 ignored). Rehearsal on a scratch copy of the home (port 55463, plan credentials
+  removed) migrated 29 → 32 via the status window with all row counts unchanged.
+- Real upgrade: `/S` install exit 0; the status window offered "layout 29 → 32"; the app saved
+  `backups\pre-migrate-v29-2026-10-29T05-43-11-618Z` and migrated. After: schema 32, every
+  table's row count equal to the backup (only `runtime_limit_changes` and
+  `runtime_ceiling_changes` added, empty). Sign-in worked; Monitor, Submit, Evidence, Runs,
+  Budgets, Activity, Build, Settings, Models, Desktop, Operations, Payments, GitHub and Studies
+  loaded. Jordan's workspace keeps its ChatGPT plan connection (signed in) and $5 budget.
+  Quit and relaunch from the Start shortcut reached running with /api/health ok.
+- No provider, GitHub or payment calls. The theme-intent native checks bound to the schema-29
+  candidate no longer describe the installed program and would need redoing on this build.
+
+Limits: Operations shows "development build (no commit recorded)" because the desktop does not
+set `CREATOR_BUILD_COMMIT` (cosmetic, pre-existing). The installed app now runs the Claude Code
+connection code, but no Claude Code connection was added there.
+
+Next eligible: runbook step 8 (owner pilot), which needs Jordan's dates and RAM/VRAM limits.
+
 ## Claude Code connection live on the dev studio — October 28, 2026
 
 PR #76 is merged. On Jordan's device, the dev studio is on main 64f42c1. The database was backed

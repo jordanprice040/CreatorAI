@@ -21,7 +21,7 @@ study.
 | Spending control                               | One owner-set runtime ceiling per workspace, editable in Settings (ADR-0043, migration 30). No per-model or per-run limits.                                                                                                                                                  | `tracking/DECISIONS.md` ADR-0043                                            |
 | Model connections                              | ChatGPT-plan connection and isolated Codex builder (PR #44, ADR-0042). Discovery role 1.4 passed live operational suites for design, scoring and research on the plan route (Oct 22–23); reviewed by a model, not by a person. Ollama shows as "not available yet".          | `DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md`, `apps/web/src/models.tsx` |
 | Evidence search                                | Bounded public search exists (PR #43). No live end-to-end discovery run yet.                                                                                                                                                                                                 | `docs/SEARCH_AND_AUDIT.md`                                                  |
-| Theme intake (C54)                             | Theme drafts and Submit page built. Installed app has the theme-intent candidate at schema 29 (Oct 24); `main` is now ahead of it. Full C54 is partial.                                                                                                                      | `C54_READINESS_AUDIT_2026-10-23.md`                                         |
+| Theme intake (C54)                             | Theme drafts and Submit page built. Installed app upgraded to main ac0f3e4, schema 32 (Oct 29); theme-intent native checks need redoing. Full C54 is partial.                                                                                                                | `C54_READINESS_AUDIT_2026-10-23.md`                                         |
 | GitHub (X04)                                   | Adapter plus GitHub page; walked in fixture mode. Never run against real GitHub.                                                                                                                                                                                             | `docs/GITHUB.md`                                                            |
 | Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Owner funding, funding sources, commitments, reinvestment policy and allocation added Oct 27 (step 2). Test-mode checkout screen with a simulated test buyer added Oct 27 (step 3).          | `docs/PAYMENTS.md`                                                          |
 | Desktop app (X05)                              | Tauri app; interactive Windows acceptance passed Oct 19. The installed copy is Jordan's operational studio and is off-limits for testing. The usability-pass build has not been packaged or exercised in the desktop shell.                                                  | `apps/desktop/INTERACTIVE_ACCEPTANCE.md`, `docs/DESKTOP_STUDIO.md`          |
@@ -87,6 +87,9 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
 7. **Upgrade the installed app.** Decide with Jordan when to move the installed studio
    from the schema 29 candidate to current `main`, given that it also protects the
    theme-intent acceptance chain. Back up first; this needs an exact owner decision.
+   **Done October 29, 2026** with Jordan's typed OK: verified backup at
+   `C:\CreatorAgentBackups\installed-pre-v32-20261029-013747`, rehearsal on a copy, then
+   installed main ac0f3e4 and migrated 29 → 32 with all row counts unchanged.
 8. **Owner pilot (Group 4).** Seven days from the installed app under the accepted terms
    (#25–#32): $0 new metered spend, stop after three consecutive failures or 120 minutes
    of intervention, manual runs only. Jordan still needs to give dates and RAM/VRAM limits.
@@ -115,7 +118,6 @@ fill in participant, reviewer, IRB, task or model details that Jordan hasn't giv
   account use, payment account, publication or outbound message.
 - Dates and hardware limits for the pilot.
 - A reinvestment policy before reinvestment is turned on.
-- When to upgrade the installed app (step 7).
 - Attestations for the theme-intent track.
 
 ## Rules for every session
