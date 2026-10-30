@@ -299,11 +299,11 @@ export function Submit({
             LIMITS.max_calls,
             plan?.connection.settings.caps.responses.max_requests_per_run ?? 10,
           ),
-          call_timeout_ms: Math.min(
-            LIMITS.call_timeout_ms,
+          // A plan call streams for up to the connection's accepted timeout (e.g. 120 s); the
+          // 10 s default would cut live calls off mid-stream and leave unknown outcomes.
+          call_timeout_ms:
             plan?.connection.settings.caps.responses.request_timeout_ms ??
-              LIMITS.call_timeout_ms,
-          ),
+            LIMITS.call_timeout_ms,
         }
       : LIMITS;
   const request = {
