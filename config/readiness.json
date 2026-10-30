@@ -833,7 +833,7 @@
         "docs/COMPLETION_RUNBOOK.md",
         "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md"
       ],
-      "blocked_on": "Owner-accepted planning only (\u00a72.17); implementation and exact-candidate acceptance remain outstanding."
+      "blocked_on": "Owner-accepted planning only (§2.17); implementation and exact-candidate acceptance remain outstanding."
     },
     {
       "id": "C53",
@@ -851,7 +851,7 @@
         "docs/COMPLETION_RUNBOOK.md",
         "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md"
       ],
-      "blocked_on": "Owner-accepted planning only (\u00a72.18); implementation and exact-candidate acceptance remain outstanding."
+      "blocked_on": "Owner-accepted planning only (§2.18); implementation and exact-candidate acceptance remain outstanding."
     },
     {
       "id": "C54",
@@ -896,6 +896,45 @@
         "docs/AUDIT_FIXES_2026-10-20.md"
       ],
       "blocked_on": "Direct ChatGPT-plan gpt-6-astra access and a narrow synthetic structured-summary qualification were verified October 20 (tracking/evidence/plan-summary-v1). On October 22-23 the research (tracking/evidence/discovery-research14-runner, docs/DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md), candidate-generation and scoring (tracking/evidence/discovery-semantics-v2-runner, tracking/evidence/discovery-semantics-v2-output-review-2026-10-22) discovery roles passed owner-approved live operational suites on synthetic cases over the plan route; their outputs were reviewed by a model, not a person. This does not verify this requirement through its own live workflow/role path; required task qualification and end-to-end evidence remain missing. API-key Responses/embedding/batch access is separately unverified."
+    },
+    {
+      "id": "chatgpt-plan",
+      "title": "ChatGPT plan connection (owner's signed-in subscription)",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "verified",
+        "activated": "verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": [
+        "tracking/evidence/subscription-workflow",
+        "tracking/evidence/plan-summary-v1",
+        "docs/OWNER_PILOT_LOG.md"
+      ],
+      "blocked_on": null
+    },
+    {
+      "id": "claude-code",
+      "title": "Claude Code on this computer (owner's signed-in Claude subscription)",
+      "states": {
+        "implemented": "verified",
+        "fixture": "verified",
+        "contract": "verified",
+        "live": "verified",
+        "activated": "verified",
+        "native": "not_applicable"
+      },
+      "required": ["implemented", "contract", "live"],
+      "evidence": [
+        "tests/src/claude-code.test.ts",
+        "tracking/evidence/claude-code-ui",
+        "tracking/BUILD_STATUS.md",
+        "docs/OWNER_PILOT_LOG.md"
+      ],
+      "blocked_on": null
     },
     {
       "id": "source-fetch",

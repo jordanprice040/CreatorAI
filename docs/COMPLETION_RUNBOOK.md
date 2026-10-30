@@ -93,6 +93,7 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
 8. **Owner pilot (Group 4).** Seven days from the installed app under the accepted terms
    (#25–#32): $0 new metered spend, stop after three consecutive failures or 120 minutes
    of intervention, manual runs only. Jordan still needs to give dates; RAM/VRAM limits drafted Oct 29.
+   Running Oct 30 03:15 EDT to Nov 6 03:15 EST; log in `docs/OWNER_PILOT_LOG.md`.
 9. **Final UX pass and exact-candidate acceptance.** Walk the installed app as a user
    (first launch, running work, errors, recovery, export), fix what blocks release,
    then repeat X10 on the exact candidate.

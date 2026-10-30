@@ -56,11 +56,32 @@ export const StudioInputSchema = z.strictObject({
     .string()
     .regex(/^[A-Za-z0-9._-]{1,64}$/)
     .nullable(),
+  // Websites the owner approved for evidence fetching; empty keeps live fetching off.
+  source_hosts: z
+    .array(
+      z
+        .string()
+        .max(253)
+        .regex(
+          /^(?=.*[a-z-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{1,63}$/,
+        ),
+    )
+    .max(20)
+    .default([]),
   source: z
     .strictObject({ database_url: url, products_root: absolute })
     .nullable(),
 });
 export type StudioInput = z.infer<typeof StudioInputSchema>;
+
+/** Live evidence fetching only when the owner approved websites; otherwise it stays off. */
+export function sourceFetchEnv(
+  hosts: readonly string[],
+): Record<string, string> {
+  return hosts.length
+    ? { CREATOR_SOURCE_FETCH: 'live', CREATOR_SOURCE_HOSTS: hosts.join(',') }
+    : {};
+}
 export type StudioEvent = Record<string, unknown> & { event: string };
 type Emit = (e: StudioEvent) => void;
 
@@ -544,6 +565,7 @@ export async function serveStudio(
     ...(input.worker_distro
       ? { CREATOR_WORKER_DISTRO: input.worker_distro }
       : {}),
+    ...sourceFetchEnv(input.source_hosts),
   };
   const api = createApi(env);
   const apiHandler = api.server.listeners('request')[0] as RequestListener;

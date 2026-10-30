@@ -260,7 +260,7 @@ impl Supervisor {
                 Ok(Some(c)) => json!({
                     "database": c.database, "pg_bin": c.pg_bin, "products_root": c.products_root,
                     "close_behavior": c.close_behavior, "launch_at_login": c.launch_at_login,
-                    "origin": c.origin,
+                    "origin": c.origin, "source_hosts": c.source_hosts,
                 }),
                 Ok(None) => Value::Null,
                 Err(e) => json!({"error": e}),
@@ -444,6 +444,7 @@ impl Supervisor {
             "owner_secret": if i.owner_secret.is_empty() { Value::Null } else { json!(i.owner_secret) },
             "login_code": if i.login_code.is_empty() { Value::Null } else { json!(i.login_code) },
             "worker_distro": Value::Null,
+            "source_hosts": c.source_hosts,
             "source": source,
         })
     }
@@ -1009,6 +1010,7 @@ impl Supervisor {
                 launch_at_login: login,
                 origin: Value::Null,
                 created_at: chrono_now(),
+                source_hosts: Vec::new(),
             };
             config.validate()?;
             let result = match kind {
@@ -1139,6 +1141,27 @@ impl Supervisor {
         self.note(&format!(
             "preferences saved: close={close}, launch_at_login={login}"
         ));
+        Ok(())
+    }
+
+    /// Saves the owner's approved evidence websites and restarts the studio service so the
+    /// source broker picks them up. Each fetch still needs a run grant that admits it.
+    pub fn set_source_hosts(self: &Arc<Self>, hosts: Vec<String>) -> Result<(), String> {
+        let mut c = self.home.load()?.ok_or("Run setup first")?;
+        let mut hosts: Vec<String> = hosts.into_iter().map(|h| h.trim().to_string()).collect();
+        hosts.retain(|h| !h.is_empty());
+        hosts.sort();
+        hosts.dedup();
+        c.source_hosts = hosts;
+        c.validate()?;
+        self.home.save(&c)?;
+        self.note(&format!(
+            "approved evidence websites saved ({}); restarting the studio service",
+            c.source_hosts.len()
+        ));
+        let generation = self.inner.lock().unwrap().generation;
+        self.stop_child(generation);
+        self.start();
         Ok(())
     }
 }

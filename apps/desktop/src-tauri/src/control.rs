@@ -90,6 +90,17 @@ pub async fn studio_preferences(
 }
 
 #[tauri::command]
+pub async fn studio_source_hosts(
+    window: WebviewWindow,
+    sup: State<'_, Shared>,
+    hosts: Vec<String>,
+) -> Result<(), String> {
+    local(&window)?;
+    let s = sup.inner().clone();
+    blocking(move || s.set_source_hosts(hosts)).await
+}
+
+#[tauri::command]
 pub async fn studio_sign_in(window: WebviewWindow, sup: State<'_, Shared>) -> Result<(), String> {
     local(&window)?;
     let s = sup.inner().clone();

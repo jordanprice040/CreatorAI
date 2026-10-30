@@ -1,3 +1,35 @@
+## Owner pilot run 1 failed; approved evidence websites added (ADR-0051) — October 30, 2026
+
+Run 1 (add evidence) failed in the installed app: live fetching could not be turned on there
+(failure 1 of 3, 5 owner minutes). Jordan chose to fix and reinstall. The status window now has
+"Websites approved for evidence"; `studio.json` `source_hosts` reaches the studio service, which
+sets `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS` only when the list is non-empty.
+Checks: cargo test 18 pass, 1 ignored (new host validation and old-file compatibility tests);
+studio-service "studio input" tests 2/2 (sourceFetchEnv feeds `sourceConfigFromEnv`). Not yet
+built into an installer or walked in the app; the installed app is unchanged.
+
+## Owner pilot running (runbook step 8) — October 30, 2026
+
+Jordan's thread reply (07:13 UTC) gave the inputs and approved running on the installed build
+as is (main ac0f3e4, schema 32). `config/owner-pilot.json` is now `running`: window
+2026-10-30 03:15 EDT to 2026-11-06 03:15 EST, $0 budget and spend cap, manual runs only
+(`schedules: []`), 3 failures / 120 owner minutes, platforms windows-desktop + wsl2-worker,
+accounts `chatgpt-plan` and `claude-code`. Workspace: Jordan's Creator Studio. Product idea: software to practice
+timing keyboard and mouse inputs, for gamers and speedrunners. Log: `docs/OWNER_PILOT_LOG.md`.
+
+- The readiness register gains `chatgpt-plan` (live from the Oct 20 plan qualification,
+  activated by Jordan's pilot decision) and `claude-code` (live on the dev studio Oct 28, not
+  activated: Jordan connected it in the installed app at 03:20 EDT and verified claude-sonnet-5-5;
+  now enabled for the pilot). With Jordan's typed OK it qualified on the installed app for
+  summarization (55220983…) and specification (db44619e…), each 2/2 + 6/6, 16 requests, $0.
+- `pilot-check` returns ready with no refusals; the full readiness verdict stays not ready.
+  `tests/dist/x10-readiness.test.js` 5/5 pass (1 DB test skipped). The gate now also accepts
+  `schedules: []` as manual-only (decision #29).
+- `%USERPROFILE%\.wslconfig` written with `memory=8GB` at Jordan's request (no file before);
+  WSL reports 7 GiB total.
+- Hardware limits are not enforced in the app (Jordan's choice); free RAM is watched by hand.
+- The Oct 23 C54 audit's recorded hash of `config/readiness.json` now describes the earlier file.
+
 ## Owner pilot hardware limits drafted — October 29, 2026
 
 Jordan accepted these limits for the owner pilot (decision #31). They were measured on his PC

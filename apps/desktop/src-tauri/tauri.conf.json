@@ -24,6 +24,7 @@
             "allow-studio-retry",
             "allow-studio-migrate",
             "allow-studio-preferences",
+            "allow-studio-source-hosts",
             "allow-studio-sign-in",
             "allow-studio-sign-out",
             "allow-studio-open-logs",

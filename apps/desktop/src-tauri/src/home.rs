@@ -32,6 +32,10 @@ pub struct StudioConfig {
     /// How the studio's records got here: adoption evidence, a new studio, or a connection.
     pub origin: serde_json::Value,
     pub created_at: String,
+    /// Websites the owner approved for evidence fetching (host names only). Empty means live
+    /// fetching stays off. Omitted when empty so an older app can still read this file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_hosts: Vec<String>,
 }
 
 impl StudioConfig {
@@ -53,7 +57,40 @@ impl StudioConfig {
         if !Path::new(&self.products_root).is_absolute() {
             return Err("Product folder must be absolute".into());
         }
+        if self.source_hosts.len() > MAX_SOURCE_HOSTS {
+            return Err(format!("Approve at most {MAX_SOURCE_HOSTS} websites"));
+        }
+        for h in &self.source_hosts {
+            valid_host(h)?;
+        }
         Ok(())
+    }
+}
+
+pub const MAX_SOURCE_HOSTS: usize = 20;
+
+/// A lowercase DNS host name such as `www.example.com`: no scheme, port, path or IP address.
+pub fn valid_host(h: &str) -> Result<(), String> {
+    let labels: Vec<&str> = h.split('.').collect();
+    let ok = h.len() <= 253
+        && labels.len() >= 2
+        && labels.iter().all(|l| {
+            !l.is_empty()
+                && l.len() <= 63
+                && !l.starts_with('-')
+                && !l.ends_with('-')
+                && l.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        })
+        && !labels
+            .last()
+            .is_some_and(|t| t.chars().all(|c| c.is_ascii_digit()));
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "\"{h}\" is not a website host name like www.example.com"
+        ))
     }
 }
 
@@ -197,6 +234,7 @@ mod tests {
             launch_at_login: false,
             origin: serde_json::json!({"kind":"new"}),
             created_at: "2026-10-20T00:00:00Z".into(),
+            source_hosts: Vec::new(),
         }
     }
     #[test]
@@ -216,6 +254,35 @@ mod tests {
         let mut c = sample(&root);
         c.products_root = "products".into();
         assert!(c.validate().is_err());
+        let mut c = sample(&root);
+        c.source_hosts = vec!["www.speedrun.com".into(), "tasvideos.org".into()];
+        assert!(c.validate().is_ok());
+        for bad in [
+            "https://www.speedrun.com",
+            "speedrun.com:443",
+            "speedrun.com/forum",
+            "Speedrun.com",
+            "localhost",
+            "127.0.0.1",
+            "-bad.com",
+            "",
+        ] {
+            c.source_hosts = vec![bad.into()];
+            assert!(c.validate().is_err(), "{bad} should be refused");
+        }
+        c.source_hosts = (0..=MAX_SOURCE_HOSTS)
+            .map(|i| format!("h{i}.example.com"))
+            .collect();
+        assert!(c.validate().is_err());
+    }
+    #[test]
+    fn source_hosts_are_omitted_when_empty_so_older_apps_can_read_the_file() {
+        let root = std::env::temp_dir();
+        let c = sample(&root);
+        assert!(!serde_json::to_string(&c).unwrap().contains("source_hosts"));
+        let old = serde_json::to_string(&c).unwrap();
+        let back: StudioConfig = serde_json::from_str(&old).unwrap();
+        assert!(back.source_hosts.is_empty());
     }
     #[test]
     fn saves_atomically_and_rejects_unknown_fields() {
