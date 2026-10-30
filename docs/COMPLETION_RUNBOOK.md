@@ -102,7 +102,36 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
 (C53); Ollama as a local model route; live GitHub verification on one new private
 `creator-agent-` repo (#33–#35); signed Windows distribution and updates, then the
 public-release package (#36–#43); hosted staging after a costed plan (#44–#46); live
-payments; campaigns (#50–#52).
+payments; campaigns (#50–#52); owner file uploads as evidence, a file library and
+downloads/exports (owner request Oct 20, planned as old runbook §2.6–§2.11 at d5337e3, not
+built; reconfirmed in the pilot Oct 30); pilot UX fixes F2 and Retry/reuse a saved brief
+from Submit and Catalog, re-running one failed step, Activity/Runs refresh (F6), telling
+reruns apart on Scores and specs (F7), and entering scorecards, ethics/access and humility
+reviews in the app instead of only the CLI (F8) (`docs/OWNER_PILOT_LOG.md`).
+
+**Planned: evidence gaps become searches (Jordan, pilot Oct 30).** When discovery reports a
+gap (no claim on urgency or frequency, current workarounds, a gap in existing tools, or a
+transferable mechanism), the app turns each gap into search queries, fetches matching pages
+only from the owner-approved websites, has the model draft each claim with an exact quote
+from a fetched passage, and lists the drafts for the owner to accept or reject. Only accepted
+claims count as evidence, and discovery can then rerun with them. Prerequisites: an owner
+decision on a live search provider (the Brave Web Search adapter is built and contract-tested
+but off; it needs an account, terms and per-request price check) and a bounded grant for
+search and fetch. Drafts never count as supported until accepted.
+
+**Planned: friction and flow pass after the pilot (Jordan, Oct 30).** Use the pilot log's
+findings and feedback as the backlog:
+- Fewer, task-shaped pages: a central chat, projects, sources, models and connections, and
+  monitor.
+- Every page says what's next, and every blocked action says why and how to unblock it.
+- Pages refresh themselves instead of needing "Reset fields".
+- Decisions survive score changes, with only changed options flagged for review.
+- Choose which options to decide; scorecards and humility reviews editable in the app,
+  with suggested fills and export/import.
+- Owner-initiated actions don't ask the owner for approval.
+- Dated, nameable runs.
+- A plan-usage and cost indicator.
+- An owner decision on warn-and-record overrides instead of hard blocks.
 
 **Separate track: theme-intent native acceptance.** Next is the v5 implementation design
 for the `cw01-native` helper and core (carrying CW-01 Lows K1–K3), then the collector,
