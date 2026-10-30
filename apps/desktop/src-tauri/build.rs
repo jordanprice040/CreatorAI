@@ -8,6 +8,7 @@ const COMMANDS: &[&str] = &[
     "studio_retry",
     "studio_migrate",
     "studio_preferences",
+    "studio_source_hosts",
     "studio_sign_in",
     "studio_sign_out",
     "studio_open_logs",

@@ -1,5 +1,25 @@
 # Decision log
 
+## ADR-0051 — Owner-approved evidence websites in the installed app (accepted October 30, 2026)
+
+Context: pilot run 1 (runbook step 8) could not add evidence. The installed app clears its
+environment and its `studio.json` had no host list, so `CREATOR_SOURCE_FETCH` was always off
+and every fetch in a real workspace was denied (`live_fetch_not_configured`). Claims count only
+with quoted passages from fetched pages, so discovery could not start. Jordan chose "fix and
+reinstall" over stopping the pilot.
+
+Decision: `studio.json` gains an optional `source_hosts` list (at most 20 lowercase DNS host
+names, no scheme, port, path or IP), edited in the status window ("Websites approved for
+evidence") and saved with a restart of the studio service. The desktop passes the list in the
+service input; a non-empty list sets `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS`.
+Empty keeps fetching off. The source broker's per-hop policy and the run's `source.fetch` grant
+are unchanged, so every fetch still needs a covering grant.
+
+Consequences: the owner, not a model, approves websites, in the app's local control window
+(no remote UI access). The field is omitted when empty, so a rollback to an older app still
+reads the file; with hosts saved, an older app refuses the file until the field is removed.
+Hash-only hosts are not exposed yet.
+
 ## ADR-0050 — Claude subscription through the owner's own Claude Code CLI (accepted October 28, 2026)
 
 Context: Jordan asked whether Creator Agent can use a Claude subscription the way it uses the
@@ -31,6 +51,7 @@ studio only. The fully clear alternative remains a metered Claude API key. Detai
 `docs/CLAUDE_CODE_CONNECTION.md`.
 
 Review amendment (PR #76 review, same day, before merge):
+
 - A fixture connection runs Claude Code only against an explicit stand-in. Without one it is
   refused with `LIVE_DISABLED`, the same as `endpointsFor` for ChatGPT, and nothing starts.
 - The start event must report `apiKeySource: "none"`.

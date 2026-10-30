@@ -549,6 +549,7 @@ fn main() {
             control::studio_retry,
             control::studio_migrate,
             control::studio_preferences,
+            control::studio_source_hosts,
             control::studio_sign_in,
             control::studio_sign_out,
             control::studio_open_logs,

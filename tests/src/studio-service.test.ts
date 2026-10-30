@@ -20,9 +20,11 @@ import {
   guardOwnership,
   ownershipMac,
   parseStudioInput,
+  sourceFetchEnv,
   STUDIO_PROTOCOL,
   webHandler,
 } from '@creator/api/studio';
+import { sourceConfigFromEnv } from '@creator/research';
 import { TEST_DB_ENV, freshDatabase } from './pg-harness.js';
 
 // §2.1 installed-studio service: the protocol the desktop supervisor relies on. Runs the
@@ -163,6 +165,43 @@ test('studio input refuses relative paths, unknown fields and a wrong protocol',
   ])
     assert.throws(() => parseStudioInput(JSON.stringify(bad)));
   assert.throws(() => parseStudioInput('not json'));
+});
+
+test('studio input turns on evidence fetching only for owner-approved host names', () => {
+  const ok = input('postgresql://u:p@127.0.0.1:5432/x', resolve('.'));
+  // An older desktop sends no list: fetching stays off.
+  assert.deepEqual(parseStudioInput(JSON.stringify(ok)).source_hosts, []);
+  assert.deepEqual(sourceFetchEnv([]), {});
+  const hosts = ['tasvideos.org', 'www.speedrun.com'];
+  const parsed = parseStudioInput(
+    JSON.stringify({ ...ok, source_hosts: hosts }),
+  );
+  assert.deepEqual(sourceFetchEnv(parsed.source_hosts), {
+    CREATOR_SOURCE_FETCH: 'live',
+    CREATOR_SOURCE_HOSTS: 'tasvideos.org,www.speedrun.com',
+  });
+  // The broker accepts exactly that configuration.
+  assert.ok(sourceConfigFromEnv(sourceFetchEnv(hosts)).adapter);
+  for (const bad of [
+    'https://www.speedrun.com',
+    'speedrun.com:443',
+    'speedrun.com/x',
+    'Speedrun.com',
+    '127.0.0.1',
+    'localhost',
+  ])
+    assert.throws(
+      () => parseStudioInput(JSON.stringify({ ...ok, source_hosts: [bad] })),
+      `${bad} should be refused`,
+    );
+  assert.throws(() =>
+    parseStudioInput(
+      JSON.stringify({
+        ...ok,
+        source_hosts: Array.from({ length: 21 }, (_, i) => `h${i}.example.com`),
+      }),
+    ),
+  );
 });
 
 test('UI origin serves the built app, falls back for routes and refuses traversal and foreign hosts', async (t) => {

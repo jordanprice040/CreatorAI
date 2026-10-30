@@ -95,6 +95,7 @@ function render(s) {
     const box = $('prefs-running');
     box.querySelector(`input[value=${s.config.close_behavior}]`).checked = true;
     box.querySelector('.login').checked = s.config.launch_at_login;
+    $('source-hosts').value = (s.config.source_hosts ?? []).join('\n');
   }
   const facts = $('facts');
   facts.replaceChildren();
@@ -194,6 +195,15 @@ $('save-prefs').addEventListener('click', () =>
       launchAtLogin: p.launch_at_login,
     });
   }),
+);
+$('save-sources').addEventListener('click', () =>
+  act($('save-sources'), () =>
+    invoke('studio_source_hosts', {
+      hosts: $('source-hosts')
+        .value.split(/\s+/)
+        .filter((h) => h),
+    }),
+  ),
 );
 $('retry').addEventListener('click', () =>
   act($('retry'), () => invoke('studio_retry')),

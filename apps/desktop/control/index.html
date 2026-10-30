@@ -137,6 +137,22 @@
           <div class="prefs"></div>
           <button id="save-prefs" type="button">Save</button>
         </fieldset>
+        <fieldset id="sources-running">
+          <legend>Websites approved for evidence</legend>
+          <p class="small">
+            The studio fetches evidence pages only from these websites, one host
+            name per line (for example www.speedrun.com). Leave it empty to keep
+            page fetching off. Each fetch still needs a run that allows it.
+            Saving restarts the studio service.
+          </p>
+          <textarea
+            id="source-hosts"
+            rows="5"
+            spellcheck="false"
+            aria-label="Approved websites, one per line"
+          ></textarea>
+          <button id="save-sources" type="button">Save websites</button>
+        </fieldset>
         <dl id="facts"></dl>
       </section>
 

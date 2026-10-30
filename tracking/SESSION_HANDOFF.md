@@ -1,3 +1,13 @@
+## Owner pilot run 1 failed; approved evidence websites added (ADR-0051) — October 30, 2026
+
+Run 1 (add evidence) failed in the installed app: live fetching could not be turned on there
+(failure 1 of 3, 5 owner minutes). Jordan chose to fix and reinstall. The status window now has
+"Websites approved for evidence"; `studio.json` `source_hosts` reaches the studio service, which
+sets `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS` only when the list is non-empty.
+Checks: cargo test 18 pass, 1 ignored (new host validation and old-file compatibility tests);
+studio-service "studio input" tests 2/2 (sourceFetchEnv feeds `sourceConfigFromEnv`). Not yet
+built into an installer or walked in the app; the installed app is unchanged.
+
 ## Owner pilot running (runbook step 8) — October 30, 2026
 
 Jordan's thread reply (07:13 UTC) gave the inputs and approved running on the installed build
