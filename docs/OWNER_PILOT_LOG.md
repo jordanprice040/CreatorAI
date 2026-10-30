@@ -56,6 +56,7 @@ Stop the pilot at the first of these, and record which one fired:
 - Jordan: the central chat should suggest answers for every scorecard field, and scorecards should export and import, for example so an independent reviewer can fill one in.
 - 2026-10-30 07:24 EDT, Jordan: Compare and decide makes you give a disposition and reasons for every option. You should be able to choose which options to decide, with checkboxes on the option cards or a select-all, and leave the rest undecided. Also, "Record under run" defaulted to the older run 30da9cde instead of the latest discovery's run f7f014a9.
 - 2026-10-30 07:26 EDT, Jordan: runs are identified only by short ids everywhere (run pickers, Scores and specs, Compare and decide). Show each run's date and time, and let the owner name runs. This goes with F7.
+- 2026-10-30 07:28 EDT: recording the hybrid selection created an authorization decision ("Allow candidate.select on problem v1?", run f7f014a9), because the run's grant covers only model.generate and model.summarize. The app asked the owner to approve an action the owner had just taken in Compare and decide. Jordan asked what determined that. Feedback: owner-initiated actions in the UI should not loop back to the owner as authorization requests.
 
 ## Runs
 
