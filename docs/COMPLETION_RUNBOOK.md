@@ -119,6 +119,20 @@ decision on a live search provider (the Brave Web Search adapter is built and co
 but off; it needs an account, terms and per-request price check) and a bounded grant for
 search and fetch. Drafts never count as supported until accepted.
 
+**Planned: friction and flow pass after the pilot (Jordan, Oct 30).** Use the pilot log's
+findings and feedback as the backlog:
+- Fewer, task-shaped pages: a central chat, projects, sources, models and connections, and
+  monitor.
+- Every page says what's next, and every blocked action says why and how to unblock it.
+- Pages refresh themselves instead of needing "Reset fields".
+- Decisions survive score changes, with only changed options flagged for review.
+- Choose which options to decide; scorecards and humility reviews editable in the app,
+  with suggested fills and export/import.
+- Owner-initiated actions don't ask the owner for approval.
+- Dated, nameable runs.
+- A plan-usage and cost indicator.
+- An owner decision on warn-and-record overrides instead of hard blocks.
+
 **Separate track: theme-intent native acceptance.** Next is the v5 implementation design
 for the `cw01-native` helper and core (carrying CW-01 Lows K1–K3), then the collector,
 the PR-01/SH-01 inspector, and Jordan's attestations from the blank template. M3 is
