@@ -51,4 +51,6 @@ around the studio; voluntary means ordinary use (reading, choosing, writing inpu
 
 Run 5 follow-up (2026-10-30 06:01 EDT): with Jordan's typed "OK reconcile", request 7890a83e was reconciled as ran (ChatGPT plan connection v31 to v32). The workflow then ended as failed on its own, so no cancel was needed.
 
+Second upgrade (2026-10-30 ~06:10 EDT, Jordan's typed "OK install"): fixes F3 and F4, installer from 09fc937 (sha256 764d92fb…0fca). Backup `C:\CreatorAgentBackups\installed-pre-f3f4-20261030-060148` (2,349 + 90 files, hashes match). Rehearsal on a credential-free copy reached healthy with the 6 approved websites; install exit 0; after launch: both workspaces, ChatGPT plan v32, Claude Code v12, 2 claims and 5 sources present.
+
 Totals: intervention 5+ / 120 min; consecutive failures 1 / 3; new metered spend $0.
