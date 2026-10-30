@@ -35,10 +35,7 @@ approved evidence websites; F3 claim-list refresh and F4 120 s plan-call timeout
 24,000→64,000; plan allows patch_build and independent_review; Claude Code qualified for
 summarization and specification.
 
-**Stop-rule counters:** failures in a row 0 (one failure each at runs 1 and 5); owner
-intervention about 5 minutes reported. Jordan's other time was not reported as intervention;
-much of it was working around findings and should be confirmed. New metered spend $0. Plan
-requests: ChatGPT about 30, Claude 19.
+**Stop-rule counters:** failures in a row 0 (one failure each at runs 1 and 5). Owner intervention: Jordan reported about 60 minutes in total for day 1 (figuring out problems, getting past stuck points, redoing work), which includes the 5 minutes from run 1. That leaves about 60 of 120 minutes for the rest of the pilot. New metered spend $0. Plan requests: ChatGPT about 30, Claude 19.
 
 **Findings:** F2 JavaScript-only pages give menus and no warning; F3 Submit's claim list goes
 stale (fixed); F4 10 s plan timeout (fixed); F5 skeptic packet bigger than the input cap
@@ -130,4 +127,4 @@ Run 5 follow-up (2026-10-30 06:01 EDT): with Jordan's typed "OK reconcile", requ
 
 Second upgrade (2026-10-30 ~06:10 EDT, Jordan's typed "OK install"): fixes F3 and F4, installer from 09fc937 (sha256 764d92fb…0fca). Backup `C:\CreatorAgentBackups\installed-pre-f3f4-20261030-060148` (2,349 + 90 files, hashes match). Rehearsal on a credential-free copy reached healthy with the 6 approved websites; install exit 0; after launch: both workspaces, ChatGPT plan v32, Claude Code v12, 2 claims and 5 sources present.
 
-Totals: intervention 5+ / 120 min; consecutive failures 0 / 3; new metered spend $0.
+Totals: intervention ~60 / 120 min (Jordan's day-1 estimate); consecutive failures 0 / 3; new metered spend $0.
