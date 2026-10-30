@@ -68,7 +68,8 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
   assert.equal(r.requirements.length, 54);
-  assert.equal(r.pilot.ready, false);
+  // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate.
+  assert.deepEqual(r.pilot, { ready: true, refusals: [] });
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(
     r.requirements.find((x) => x.id === 'C01')?.missing.includes('live'),
@@ -146,7 +147,32 @@ test('X10 readiness refuses unsupported claims, missing rows and inconsistent st
 
 test('X10 pilot gate: owner choices, stop rules and verified accounts are all required', () => {
   const base = register();
-  assert.ok(checkPilot(pilot(), base, exists).refusals.length >= 8);
+  const undecided: OwnerPilot = {
+    ...pilot(),
+    decided_by: null,
+    decided_at: null,
+    budget_nano_usd: null,
+    window: { starts_at: null, ends_at: null },
+    schedules: null,
+    enabled_accounts: [],
+    platforms: [],
+    stop_rules: {
+      max_spend_nano_usd: null,
+      max_consecutive_failures: null,
+      max_owner_minutes: null,
+      stop_on_unknown_cost: true,
+    },
+  };
+  assert.ok(checkPilot(undecided, base, exists).refusals.length >= 8);
+  // An account the owner has not activated is refused even though its live path is verified.
+  assert.match(
+    checkPilot(
+      { ...pilot(), enabled_accounts: ['claude-code'] },
+      base,
+      exists,
+    ).refusals.join('\n'),
+    /"claude-code" has not been activated/,
+  );
   // A register in which everything is verified, with a complete owner plan, may start.
   const all = register();
   all.requirements = all.requirements.map((r) => verifiedRow(r.id));

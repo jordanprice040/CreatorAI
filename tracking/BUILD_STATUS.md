@@ -1,18 +1,22 @@
-## Owner pilot prep (runbook step 8) — October 30, 2026
+## Owner pilot running (runbook step 8) — October 30, 2026
 
-Not started. Asked Jordan for the inputs the pilot still needs: start date/time, the product
-idea, workspace and the accounts it may use, approval of the installed build (main ac0f3e4,
-schema 32), how to handle the unenforced hardware limits, and the `.wslconfig` change.
-`config/owner-pilot.json` stays `not_started` with nothing filled in.
+Jordan's thread reply (07:13 UTC) gave the inputs and approved running on the installed build
+as is (main ac0f3e4, schema 32). `config/owner-pilot.json` is now `running`: window
+2026-10-30 03:15 EDT to 2026-11-06 03:15 EST, $0 budget and spend cap, manual runs only
+(`schedules: []`), 3 failures / 120 owner minutes, platforms windows-desktop + wsl2-worker,
+account `chatgpt-plan`. Workspace: Jordan's Creator Studio. Product idea: software to practice
+timing keyboard and mouse inputs, for gamers and speedrunners. Log: `docs/OWNER_PILOT_LOG.md`.
 
-- The pilot readiness check now accepts `schedules: []` as the owner's choice of manual runs
-  only (decision #29); `null` still means not chosen. Check: `tests/dist/x10-readiness.test.js`
-  5/5 pass (1 DB test skipped, no test DB set).
-- `docs/OWNER_PILOT_LOG.md`: blank run log with the stop rules and an intervention vs voluntary
-  minutes split (decision #27).
-- Still a gate blocker: the readiness register has no row for the ChatGPT plan or Claude Code
-  subscription connections, so `enabled_accounts` can only name `openai-models`-style rows that
-  are not live-verified. The pilot can't pass the gate until that is resolved honestly.
+- The readiness register gains `chatgpt-plan` (live from the Oct 20 plan qualification,
+  activated by Jordan's pilot decision) and `claude-code` (live on the dev studio Oct 28, not
+  activated: the installed app has no Claude Code connection yet, so it is not enabled).
+- `pilot-check` returns ready with no refusals; the full readiness verdict stays not ready.
+  `tests/dist/x10-readiness.test.js` 5/5 pass (1 DB test skipped). The gate now also accepts
+  `schedules: []` as manual-only (decision #29).
+- `%USERPROFILE%\.wslconfig` written with `memory=8GB` at Jordan's request (no file before);
+  WSL reports 7 GiB total.
+- Hardware limits are not enforced in the app (Jordan's choice); free RAM is watched by hand.
+- The Oct 23 C54 audit's recorded hash of `config/readiness.json` now describes the earlier file.
 
 ## Owner pilot hardware limits drafted — October 29, 2026
 

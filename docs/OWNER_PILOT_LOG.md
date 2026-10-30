@@ -1,17 +1,19 @@
 # Owner pilot log
 
 Runbook step 8. Accepted terms: tracking/OWNER_DECISIONS_2026-10-20.md #25–#32; hardware
-limits: `config/owner-pilot.defaults.json` `hardware_limits`. Not started: the window, product
-idea, accounts and build approval below are blank until Jordan gives them.
+limits: `config/owner-pilot.defaults.json` `hardware_limits`. Owner inputs below are Jordan's
+thread reply of 2026-10-30 07:13 UTC, which also approved running the pilot on the installed
+build as it is and asked Claude to set the WSL memory cap.
 
-| Field                     | Value                                                   |
-| ------------------------- | ------------------------------------------------------- |
-| Window (America/New_York) | _not given_                                             |
-| Product idea              | _not given_                                             |
-| Workspace                 | _not given_                                             |
-| Accounts the pilot uses   | _not given_                                             |
-| Build                     | _not approved_ (installed now: main ac0f3e4, schema 32) |
-| Hardware limit handling   | _not decided_ (the app does not enforce them yet)       |
+| Field                     | Value                                                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Window (America/New_York) | 2026-10-30 03:15 EDT to 2026-11-06 03:15 EST (clocks change Nov 1)                                                                                        |
+| Product idea              | Software to practice timing keyboard and mouse inputs, for gamers and speedrunners                                                                        |
+| Workspace                 | Jordan's Creator Studio (installed app)                                                                                                                   |
+| Accounts the pilot uses   | ChatGPT plan connection. Jordan also allowed the Claude subscription, but no Claude Code connection exists in the installed app yet, so it is not enabled |
+| Build                     | Approved as is: installed main ac0f3e4, schema 32                                                                                                         |
+| Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                         |
+| WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                      |
 
 ## Stop rules
 
