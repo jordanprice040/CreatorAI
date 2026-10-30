@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   ClaimEvidenceSchema,
   PlanConnectionSchema,
@@ -28,6 +28,7 @@ import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { usePageActive } from './page-drafts.js';
 
 const lines = (s: string) =>
   s
@@ -162,6 +163,14 @@ export function Submit({
       connectionError,
     };
   }, [workspace.id]);
+  // The page stays mounted while hidden (PageDrafts), so reload claims and run setup each time
+  // it is shown again; typed fields are kept.
+  const active = usePageActive();
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current) ctx.reload();
+    wasActive.current = active;
+  }, [active]);
 
   const [theme, setTheme] = useState('');
   const [fieldA, setFieldA] = useState('');
