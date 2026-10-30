@@ -41,7 +41,8 @@ Stop the pilot at the first of these, and record which one fired:
 One row per manual run. Intervention means time Jordan spent fixing, unblocking or working
 around the studio; voluntary means ordinary use (reading, choosing, writing inputs).
 
-| #   | Started (local) | What was run | Outcome | Failures in a row | Intervention min | Voluntary min | Lowest free RAM GB | Notes |
-| --- | --------------- | ------------ | ------- | ----------------- | ---------------- | ------------- | ------------------ | ----- |
+| #   | Started (local)  | What was run                                                         | Outcome                                                                                                                                                                | Failures in a row | Intervention min | Voluntary min | Lowest free RAM GB | Notes                                                     |
+| --- | ---------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ---------------- | ------------- | ------------------ | --------------------------------------------------------- |
+| 1   | 2026-10-30 04:30 | Add evidence: fetch https://www.idiocode.com/blog/frame-perfect.html | Failed: "live fetch not configured". The installed app has no setting to turn on source fetching (the desktop clears its environment and studio.json has no host list) | 1                 | _ask Jordan_     | _ask Jordan_  | 40.7 (at setup)    | Blocks discovery: claims count only with fetched passages |
 
-Totals: intervention 0 / 120 min; consecutive failures 0 / 3; new metered spend $0.
+Totals: intervention _pending_ / 120 min; consecutive failures 1 / 3; new metered spend $0.
