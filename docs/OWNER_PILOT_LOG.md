@@ -44,6 +44,7 @@ Stop the pilot at the first of these, and record which one fired:
 - 2026-10-30 06:14 EDT, Jordan: upload or give the app access to local files as evidence, and save/download files from Creator Agent. Planned Oct 20 (old runbook §2.6–§2.11) but not built; today only Gallery source-archive downloads and synthetic study exports exist. Added back to the runbook's later list.
 - 2026-10-30 06:18 EDT, Jordan: 120 s per plan call may be too strict for slow model answers. Measured completed gpt-6-astra plan calls in this app: research_synthesis n=15 median 23 s max 47 s; candidate_generation n=21 median 34 s max 69 s; scoring n=7 median 23 s max 37 s. The contract allows up to 300 s per call; the run's 900 s wall limit also applies. Kept at 120 s pending a real timeout unless Jordan says otherwise.
 - 2026-10-30 06:21 EDT, Jordan: allow re-running an individual failed step of a run instead of a whole new run.
+- 2026-10-30 06:25 EDT, Jordan: when discovery reports evidence gaps (urgency/frequency, workarounds, tool gaps), the app should search for evidence itself and propose claims for the owner to review and accept. Today only the building blocks exist: a disabled Brave Web Search adapter (contract-tested, not live; needs an account, terms and price check) and owner-approved page fetching; nothing turns gaps into searches or drafts claims.
 
 ## Runs
 
