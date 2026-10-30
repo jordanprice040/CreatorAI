@@ -15,6 +15,44 @@ build as it is and asked Claude to set the WSL memory cap.
 | Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                                                                                                                               |
 | WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                                                                                                                            |
 
+## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
+
+**Got through:** pilot set up → evidence (6 approved websites; idiocode, RTINGS, supercombo wiki,
+GitHub fetched; PMC refused with 403, Springer paywalled) → 3 claims → discovery (5 proposals
+plus skeptic review, run f7f014a9 / workflow 4cac3f42) → hybrid scored (suitability, plus an
+opportunity score of 54.2, rank 1), humility review passing → selected for a bounded build
+(selection 7910123e).
+
+**Stopped at:** the build. The reviewer job qualified on the ChatGPT plan, but the builder job
+failed twice (0/4 each). A correct answer passes the app's own grader, including in the
+installed environment, so the likely cause is the model's answers. Hypothesis: the stale Oct 28
+deadline frozen in the t12-builder-v1 packets.
+
+**Two reinstalls** (both with typed OKs, backups under `C:\CreatorAgentBackups`): ADR-0051
+approved evidence websites; F3 claim-list refresh and F4 120 s plan-call timeout.
+
+**Owner settings changed with OKs:** `.wslconfig` memory 8 GB; ChatGPT plan max input
+24,000→64,000; plan allows patch_build and independent_review; Claude Code qualified for
+summarization and specification.
+
+**Stop-rule counters:** failures in a row 0 (one failure each at runs 1 and 5); owner
+intervention about 5 minutes reported. Jordan's other time was not reported as intervention;
+much of it was working around findings and should be confirmed. New metered spend $0. Plan
+requests: ChatGPT about 30, Claude 19.
+
+**Findings:** F2 JavaScript-only pages give menus and no warning; F3 Submit's claim list goes
+stale (fixed); F4 10 s plan timeout (fixed); F5 skeptic packet bigger than the input cap
+(raised); F6 pages stay frozen while hidden (Activity, Runs, Compare); F7 reruns can't be told
+apart; F8 no in-app scorecard, ethics/access or humility entry; F9 the humility gate judges
+software-only for hybrids; F10 qualification answers and grading reasons are not visible. Also:
+no CLI command for scorecard revision; owner actions loop back as approval requests. Jordan's
+feedback is listed above and in the runbook's post-pilot friction and flow pass.
+
+**Next session:** show qualification answers and grading reasons (F10); confirm or rule out the
+deadline cause and fix the benchmark if needed; reinstall (typed OK); one 4-request builder
+retry; then the spec and acceptance cases for Jordan's approval, freeze, a humility review of
+the spec, the build and Gallery.
+
 ## Stop rules
 
 Stop the pilot at the first of these, and record which one fired:

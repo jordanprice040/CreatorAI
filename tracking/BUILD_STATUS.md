@@ -1,3 +1,15 @@
+## Owner pilot day 1 — October 30, 2026
+
+The pilot ran from 03:15 to 08:56 EDT in the installed app (now 09fc937, schema 32). Discovery
+through selection is complete for the input-timing idea: the hybrid was selected for a bounded
+build. The build is blocked because the ChatGPT plan's builder qualification failed twice (0/4
+each). A correct answer passes the app's own grader, also in the installed cleared environment,
+so the likely cause is the model's answers (hypothesis: the Oct 28 deadline frozen in the
+t12-builder-v1 packets). The answers are not visible in the app (F10). Two reinstalls with
+typed OKs: ADR-0051 approved evidence websites, then F3 and F4. Full log, findings F2–F10,
+Jordan's feedback and next steps are in `docs/OWNER_PILOT_LOG.md`. The runbook has added
+post-pilot items (evidence-gap search; a friction and flow pass). $0 new metered spend.
+
 ## Owner pilot run 1 failed; approved evidence websites added (ADR-0051) — October 30, 2026
 
 Run 1 (add evidence) failed in the installed app: live fetching could not be turned on there
