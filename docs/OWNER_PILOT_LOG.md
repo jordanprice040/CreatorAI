@@ -45,6 +45,10 @@ Stop the pilot at the first of these, and record which one fired:
 - 2026-10-30 06:18 EDT, Jordan: 120 s per plan call may be too strict for slow model answers. Measured completed gpt-6-astra plan calls in this app: research_synthesis n=15 median 23 s max 47 s; candidate_generation n=21 median 34 s max 69 s; scoring n=7 median 23 s max 37 s. The contract allows up to 300 s per call; the run's 900 s wall limit also applies. Kept at 120 s pending a real timeout unless Jordan says otherwise.
 - 2026-10-30 06:21 EDT, Jordan: allow re-running an individual failed step of a run instead of a whole new run.
 - 2026-10-30 06:25 EDT, Jordan: when discovery reports evidence gaps (urgency/frequency, workarounds, tool gaps), the app should search for evidence itself and propose claims for the owner to review and accept. Today only the building blocks exist: a disabled Brave Web Search adapter (contract-tested, not live; needs an account, terms and price check) and owner-approved page fetching; nothing turns gaps into searches or drafts claims.
+- 2026-10-30 06:41 EDT, Jordan (with screenshots):
+  - F6: Activity was stuck at 06:00 while runs continued until 06:30. The page loads only once and stays mounted while hidden; pressing Filter with the same text does not reload it. The Runs list also showed the 06:30 workflow as running after it had succeeded.
+  - F7: Scores and specs cannot tell reruns apart. Every discovery's candidates share the same titles, with no run, date or time shown.
+  - F8: Scores and specs shows every candidate as unscored, with no bounds or notes and "Ethics/access: not assessed". The desktop app has no way to enter a scorecard, an ethics/access assessment or a humility review; these exist only as CLI commands (`scorecard`, `humility-gate`, `select`). Scores are the owner's judgments and must come from Jordan.
 
 ## Runs
 

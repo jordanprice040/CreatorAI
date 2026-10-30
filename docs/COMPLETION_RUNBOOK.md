@@ -105,7 +105,19 @@ public-release package (#36–#43); hosted staging after a costed plan (#44–#4
 payments; campaigns (#50–#52); owner file uploads as evidence, a file library and
 downloads/exports (owner request Oct 20, planned as old runbook §2.6–§2.11 at d5337e3, not
 built; reconfirmed in the pilot Oct 30); pilot UX fixes F2 and Retry/reuse a saved brief
-from Submit and Catalog (`docs/OWNER_PILOT_LOG.md`).
+from Submit and Catalog, re-running one failed step, Activity/Runs refresh (F6), telling
+reruns apart on Scores and specs (F7), and entering scorecards, ethics/access and humility
+reviews in the app instead of only the CLI (F8) (`docs/OWNER_PILOT_LOG.md`).
+
+**Planned: evidence gaps become searches (Jordan, pilot Oct 30).** When discovery reports a
+gap (no claim on urgency or frequency, current workarounds, a gap in existing tools, or a
+transferable mechanism), the app turns each gap into search queries, fetches matching pages
+only from the owner-approved websites, has the model draft each claim with an exact quote
+from a fetched passage, and lists the drafts for the owner to accept or reject. Only accepted
+claims count as evidence, and discovery can then rerun with them. Prerequisites: an owner
+decision on a live search provider (the Brave Web Search adapter is built and contract-tested
+but off; it needs an account, terms and per-request price check) and a bounded grant for
+search and fetch. Drafts never count as supported until accepted.
 
 **Separate track: theme-intent native acceptance.** Next is the v5 implementation design
 for the `cw01-native` helper and core (carrying CW-01 Lows K1–K3), then the collector,
