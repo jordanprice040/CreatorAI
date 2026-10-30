@@ -49,7 +49,9 @@ Stop the pilot at the first of these, and record which one fired:
   - F6: Activity was stuck at 06:00 while runs continued until 06:30. The page loads only once and stays mounted while hidden; pressing Filter with the same text does not reload it. The Runs list also showed the 06:30 workflow as running after it had succeeded.
   - F7: Scores and specs cannot tell reruns apart. Every discovery's candidates share the same titles, with no run, date or time shown.
   - F6 also hits Compare and decide: it showed "No problems yet" although 3 active problem records exist. Its problem list loads once on first open, and its Refresh button reloads only the selected problem's detail. Workaround: Reset fields remounts the page.
+  - F8 blocks Compare and decide too: every option offers only Research further, Defer or Reject. Build, validate and recommend are disabled because ethics and access are not assessed, and there is no screen to assess them.
   - F8: Scores and specs shows every candidate as unscored, with no bounds or notes and "Ethics/access: not assessed". The desktop app has no way to enter a scorecard, an ethics/access assessment or a humility review; these exist only as CLI commands (`scorecard`, `humility-gate`, `select`). Scores are the owner's judgments and must come from Jordan.
+- 2026-10-30 06:56 EDT, Jordan: chose the hybrid option (human-verified practice with a gated local timing drill). Also wants to be able to keep exploring options the system flags as duplicate or insufficient evidence, rather than having them dropped.
 
 ## Runs
 
