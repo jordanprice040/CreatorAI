@@ -5,8 +5,18 @@ Run 1 (add evidence) failed in the installed app: live fetching could not be tur
 "Websites approved for evidence"; `studio.json` `source_hosts` reaches the studio service, which
 sets `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS` only when the list is non-empty.
 Checks: cargo test 18 pass, 1 ignored (new host validation and old-file compatibility tests);
-studio-service "studio input" tests 2/2 (sourceFetchEnv feeds `sourceConfigFromEnv`). Not yet
-built into an installer or walked in the app; the installed app is unchanged.
+studio-service "studio input" tests 2/2 (sourceFetchEnv feeds `sourceConfigFromEnv`). 
+Installed with Jordan's typed "OK install" (08:44 UTC): Jordan quit the app; cold copy of the
+data home (2,339 files) and program folder (90 files) to
+`C:\CreatorAgentBackups\installed-pre-sources-20261030-044533`, every SHA-256 matching.
+Installer from bce80cd (clean tree; sha256 80c77a23…9934). Rehearsal on a copy of the home
+without sign-ins (DB port 55463, release exe, CDP on the status window): a bad host was refused
+with its message; saving three hosts rewrote `studio.json` and restarted the service; health
+showed sources `configured_unverified`; clearing the list removed the field and showed `off`.
+Then `/S` install exit 0 (program `source_commit` bce80cd), launch from the program folder,
+health ok (PostgreSQL, sources off until Jordan adds hosts), both workspaces present, ChatGPT
+plan v31 and Claude Code v12 connections unchanged. No schema change (still 32). No live fetch
+has been made yet.
 
 ## Owner pilot running (runbook step 8) — October 30, 2026
 
