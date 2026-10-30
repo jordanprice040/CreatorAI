@@ -203,8 +203,11 @@ export function checkPilot(
     r.push('Pilot window ends before it starts.');
   else if (Date.parse(end) <= now.getTime())
     r.push('Pilot window has already ended.');
-  if (!Array.isArray(pilot.schedules) || pilot.schedules.length === 0)
-    r.push('Owner has not chosen pilot schedules.');
+  // null means not chosen; [] is the owner's choice of manual runs only (decision #29).
+  if (!Array.isArray(pilot.schedules))
+    r.push(
+      'Owner has not chosen pilot schedules (use [] for manual runs only).',
+    );
   if (!Array.isArray(pilot.platforms) || pilot.platforms.length === 0)
     r.push('Owner has not chosen supported platforms.');
   const integration = new Map(register.integrations.map((i) => [i.id, i]));

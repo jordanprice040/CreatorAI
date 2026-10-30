@@ -1,3 +1,19 @@
+## Owner pilot prep (runbook step 8) — October 30, 2026
+
+Not started. Asked Jordan for the inputs the pilot still needs: start date/time, the product
+idea, workspace and the accounts it may use, approval of the installed build (main ac0f3e4,
+schema 32), how to handle the unenforced hardware limits, and the `.wslconfig` change.
+`config/owner-pilot.json` stays `not_started` with nothing filled in.
+
+- The pilot readiness check now accepts `schedules: []` as the owner's choice of manual runs
+  only (decision #29); `null` still means not chosen. Check: `tests/dist/x10-readiness.test.js`
+  5/5 pass (1 DB test skipped, no test DB set).
+- `docs/OWNER_PILOT_LOG.md`: blank run log with the stop rules and an intervention vs voluntary
+  minutes split (decision #27).
+- Still a gate blocker: the readiness register has no row for the ChatGPT plan or Claude Code
+  subscription connections, so `enabled_accounts` can only name `openai-models`-style rows that
+  are not live-verified. The pilot can't pass the gate until that is resolved honestly.
+
 ## Owner pilot hardware limits drafted — October 29, 2026
 
 Jordan accepted these limits for the owner pilot (decision #31). They were measured on his PC

@@ -168,6 +168,12 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     /unknown billing is not zero/,
   );
   assert.match(refusals({ budget_nano_usd: '1.5' }), /pilot budget/);
+  // Manual runs only (decision #29) is an explicit empty schedule list; null is no choice.
+  assert.deepEqual(
+    checkPilot({ ...plan, schedules: [] }, all, exists).refusals,
+    [],
+  );
+  assert.match(refusals({ schedules: null }), /not chosen pilot schedules/);
   assert.match(
     refusals({
       window: {
