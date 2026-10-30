@@ -36,6 +36,10 @@ Stop the pilot at the first of these, and record which one fired:
 - The ChatGPT plan (gpt-6-astra) already had research_synthesis, candidate_generation and
   scoring qualified (Jordan's screenshot).
 
+## Owner feedback
+
+- 2026-10-30 06:05 EDT, Jordan: a failed run should offer a **Retry** option, instead of re-entering the whole brief on Submit (raised after run 5).
+
 ## Runs
 
 One row per manual run. Intervention means time Jordan spent fixing, unblocking or working
