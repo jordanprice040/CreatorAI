@@ -924,14 +924,15 @@
         "fixture": "verified",
         "contract": "verified",
         "live": "verified",
-        "activated": "not_verified",
+        "activated": "verified",
         "native": "not_applicable"
       },
       "required": ["implemented", "contract", "live"],
       "evidence": [
         "tests/src/claude-code.test.ts",
         "tracking/evidence/claude-code-ui",
-        "tracking/BUILD_STATUS.md"
+        "tracking/BUILD_STATUS.md",
+        "docs/OWNER_PILOT_LOG.md"
       ],
       "blocked_on": null
     },

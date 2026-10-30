@@ -165,12 +165,12 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
   };
   assert.ok(checkPilot(undecided, base, exists).refusals.length >= 8);
   // An account the owner has not activated is refused even though its live path is verified.
+  const unactivated = register();
+  unactivated.integrations.find(
+    (i) => i.id === 'claude-code',
+  )!.states.activated = 'not_verified';
   assert.match(
-    checkPilot(
-      { ...pilot(), enabled_accounts: ['claude-code'] },
-      base,
-      exists,
-    ).refusals.join('\n'),
+    checkPilot(pilot(), unactivated, exists).refusals.join('\n'),
     /"claude-code" has not been activated/,
   );
   // A register in which everything is verified, with a complete owner plan, may start.

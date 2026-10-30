@@ -9,7 +9,7 @@
     "ends_at": "2026-11-06T03:15:00-05:00"
   },
   "schedules": [],
-  "enabled_accounts": ["chatgpt-plan"],
+  "enabled_accounts": ["chatgpt-plan", "claude-code"],
   "platforms": ["windows-desktop", "wsl2-worker"],
   "stop_rules": {
     "max_spend_nano_usd": "0",

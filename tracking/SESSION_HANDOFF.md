@@ -4,12 +4,13 @@ Jordan's thread reply (07:13 UTC) gave the inputs and approved running on the in
 as is (main ac0f3e4, schema 32). `config/owner-pilot.json` is now `running`: window
 2026-10-30 03:15 EDT to 2026-11-06 03:15 EST, $0 budget and spend cap, manual runs only
 (`schedules: []`), 3 failures / 120 owner minutes, platforms windows-desktop + wsl2-worker,
-account `chatgpt-plan`. Workspace: Jordan's Creator Studio. Product idea: software to practice
+accounts `chatgpt-plan` and `claude-code`. Workspace: Jordan's Creator Studio. Product idea: software to practice
 timing keyboard and mouse inputs, for gamers and speedrunners. Log: `docs/OWNER_PILOT_LOG.md`.
 
 - The readiness register gains `chatgpt-plan` (live from the Oct 20 plan qualification,
   activated by Jordan's pilot decision) and `claude-code` (live on the dev studio Oct 28, not
-  activated: the installed app has no Claude Code connection yet, so it is not enabled).
+  activated: Jordan connected it in the installed app at 03:20 EDT and verified claude-sonnet-5-5;
+  now enabled for the pilot, with no task qualifications yet).
 - `pilot-check` returns ready with no refusals; the full readiness verdict stays not ready.
   `tests/dist/x10-readiness.test.js` 5/5 pass (1 DB test skipped). The gate now also accepts
   `schedules: []` as manual-only (decision #29).

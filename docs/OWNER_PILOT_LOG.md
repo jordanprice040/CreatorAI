@@ -5,15 +5,15 @@ limits: `config/owner-pilot.defaults.json` `hardware_limits`. Owner inputs below
 thread reply of 2026-10-30 07:13 UTC, which also approved running the pilot on the installed
 build as it is and asked Claude to set the WSL memory cap.
 
-| Field                     | Value                                                                                                                                                     |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Window (America/New_York) | 2026-10-30 03:15 EDT to 2026-11-06 03:15 EST (clocks change Nov 1)                                                                                        |
-| Product idea              | Software to practice timing keyboard and mouse inputs, for gamers and speedrunners                                                                        |
-| Workspace                 | Jordan's Creator Studio (installed app)                                                                                                                   |
-| Accounts the pilot uses   | ChatGPT plan connection. Jordan also allowed the Claude subscription, but no Claude Code connection exists in the installed app yet, so it is not enabled |
-| Build                     | Approved as is: installed main ac0f3e4, schema 32                                                                                                         |
-| Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                         |
-| WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                      |
+| Field                     | Value                                                                                                                                                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Window (America/New_York) | 2026-10-30 03:15 EDT to 2026-11-06 03:15 EST (clocks change Nov 1)                                                                                                                                                                                          |
+| Product idea              | Software to practice timing keyboard and mouse inputs, for gamers and speedrunners                                                                                                                                                                          |
+| Workspace                 | Jordan's Creator Studio (installed app)                                                                                                                                                                                                                     |
+| Accounts the pilot uses   | ChatGPT plan and Claude Code (Claude subscription). Jordan connected Claude Code in the installed app on 2026-10-30 03:20 EDT: signed in, extra usage confirmed off, caps accepted (30/day, 10/run), claude-sonnet-5-5 verified; no task qualifications yet |
+| Build                     | Approved as is: installed main ac0f3e4, schema 32                                                                                                                                                                                                           |
+| Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                                                                                                                           |
+| WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                                                                                                                        |
 
 ## Stop rules
 
