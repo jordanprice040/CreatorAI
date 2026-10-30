@@ -10,7 +10,8 @@ timing keyboard and mouse inputs, for gamers and speedrunners. Log: `docs/OWNER_
 - The readiness register gains `chatgpt-plan` (live from the Oct 20 plan qualification,
   activated by Jordan's pilot decision) and `claude-code` (live on the dev studio Oct 28, not
   activated: Jordan connected it in the installed app at 03:20 EDT and verified claude-sonnet-5-5;
-  now enabled for the pilot, with no task qualifications yet).
+  now enabled for the pilot). With Jordan's typed OK it qualified on the installed app for
+  summarization (55220983…) and specification (db44619e…), each 2/2 + 6/6, 16 requests, $0.
 - `pilot-check` returns ready with no refusals; the full readiness verdict stays not ready.
   `tests/dist/x10-readiness.test.js` 5/5 pass (1 DB test skipped). The gate now also accepts
   `schedules: []` as manual-only (decision #29).

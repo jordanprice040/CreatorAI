@@ -5,15 +5,15 @@ limits: `config/owner-pilot.defaults.json` `hardware_limits`. Owner inputs below
 thread reply of 2026-10-30 07:13 UTC, which also approved running the pilot on the installed
 build as it is and asked Claude to set the WSL memory cap.
 
-| Field                     | Value                                                                                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Window (America/New_York) | 2026-10-30 03:15 EDT to 2026-11-06 03:15 EST (clocks change Nov 1)                                                                                                                                                                                          |
-| Product idea              | Software to practice timing keyboard and mouse inputs, for gamers and speedrunners                                                                                                                                                                          |
-| Workspace                 | Jordan's Creator Studio (installed app)                                                                                                                                                                                                                     |
-| Accounts the pilot uses   | ChatGPT plan and Claude Code (Claude subscription). Jordan connected Claude Code in the installed app on 2026-10-30 03:20 EDT: signed in, extra usage confirmed off, caps accepted (30/day, 10/run), claude-sonnet-5-5 verified; no task qualifications yet |
-| Build                     | Approved as is: installed main ac0f3e4, schema 32                                                                                                                                                                                                           |
-| Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                                                                                                                           |
-| WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                                                                                                                        |
+| Field                     | Value                                                                                                                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Window (America/New_York) | 2026-10-30 03:15 EDT to 2026-11-06 03:15 EST (clocks change Nov 1)                                                                                                                                                                                              |
+| Product idea              | Software to practice timing keyboard and mouse inputs, for gamers and speedrunners                                                                                                                                                                              |
+| Workspace                 | Jordan's Creator Studio (installed app)                                                                                                                                                                                                                         |
+| Accounts the pilot uses   | ChatGPT plan and Claude Code (Claude subscription). Jordan connected Claude Code in the installed app on 2026-10-30 03:20 EDT: signed in, extra usage confirmed off, caps accepted (30/day, 10/run), claude-sonnet-5-5 verified and qualified (see setup below) |
+| Build                     | Approved as is: installed main ac0f3e4, schema 32                                                                                                                                                                                                               |
+| Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                                                                                                                               |
+| WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                                                                                                                            |
 
 ## Stop rules
 
@@ -24,6 +24,17 @@ Stop the pilot at the first of these, and record which one fired:
 - Any new metered spend (budget is $0), unknown cost, or no qualified route.
 - Free system RAM below 8 GB: pause until it recovers.
 - End of the 7-day window.
+
+## Setup before the first run
+
+- 2026-10-30 ~04:00 EDT, with Jordan's typed "OK qualify Claude": claude-sonnet-5-5 on the
+  installed Claude Code connection (147e77aa…) qualified for summarization (55220983…,
+  `summarization-synthetic-v1`, 2/2 development, 6/6 held out) and specification (db44619e…,
+  `specification-synthetic-v1`, 2/2 and 6/6). 16 Claude requests, $0 metered; 19 of the 30
+  daily requests used today including Jordan's verification checks. Run from the repo CLI
+  against the installed API with a session file Jordan created himself.
+- The ChatGPT plan (gpt-6-astra) already had research_synthesis, candidate_generation and
+  scoring qualified (Jordan's screenshot).
 
 ## Runs
 
