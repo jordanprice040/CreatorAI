@@ -102,7 +102,10 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
 (C53); Ollama as a local model route; live GitHub verification on one new private
 `creator-agent-` repo (#33–#35); signed Windows distribution and updates, then the
 public-release package (#36–#43); hosted staging after a costed plan (#44–#46); live
-payments; campaigns (#50–#52).
+payments; campaigns (#50–#52); owner file uploads as evidence, a file library and
+downloads/exports (owner request Oct 20, planned as old runbook §2.6–§2.11 at d5337e3, not
+built; reconfirmed in the pilot Oct 30); pilot UX fixes F2 and Retry/reuse a saved brief
+from Submit and Catalog (`docs/OWNER_PILOT_LOG.md`).
 
 **Separate track: theme-intent native acceptance.** Next is the v5 implementation design
 for the `cw01-native` helper and core (carrying CW-01 Lows K1–K3), then the collector,
