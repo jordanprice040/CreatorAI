@@ -40,6 +40,7 @@ Stop the pilot at the first of these, and record which one fired:
 
 - 2026-10-30 06:05 EDT, Jordan: a failed run should offer a **Retry** option, instead of re-entering the whole brief on Submit (raised after run 5).
 - 2026-10-30 06:08 EDT, Jordan: the submitted theme should be reusable. It is saved (search_brief 547dee68), but Submit cannot load a saved brief, so every resubmission means retyping all fields.
+- 2026-10-30 06:11 EDT, Jordan: Catalog should let you act on saved records, starting with "Start a run from this brief" on a saved search brief, so people can view what is saved and use it from there.
 
 ## Runs
 
