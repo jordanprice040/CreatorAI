@@ -25,6 +25,7 @@ import {
   type PlanConnectionDetail,
   type PlanModelAccess,
   type PlanQualification,
+  type PlanQualificationResults,
   type PlanRequest,
   type PlanSettlement,
   type PlanVerificationGrant,
@@ -73,6 +74,8 @@ export interface PlanObservation {
   signal?: string;
   /** Qualification only: why the studio's grader failed, kept so it is not mistaken for the model's. */
   grader_error?: string;
+  /** Qualification only: where a non-passing answer failed, in plain words (F10). */
+  grader_detail?: string;
   workflow_output_text?: string;
 }
 
@@ -1303,7 +1306,7 @@ export class ConnectionStore extends PortfolioStore {
           s.state === 'completed'
             ? observed.grader_error
               ? `grader_error: ${observed.grader_error}`.slice(0, 200)
-              : null
+              : (observed.grader_detail?.slice(0, 200) ?? null)
             : s.reason_code,
           s.upstream_request_id,
           s.state === 'completed' ? s.output_tokens : null,
@@ -1640,6 +1643,62 @@ export class ConnectionStore extends PortfolioStore {
         [qid],
       );
       return toQualification(after.rows[0] as Row);
+    });
+  }
+
+  /**
+   * A qualification with each benchmark case as it was graded (F10): the stored answer, the
+   * grader's signal and its reason, in manifest order. Readable by any workspace member; answers
+   * are kept only for synthetic or public data (ADR-0049).
+   */
+  async planQualificationResults(
+    ctxIn: CommandContext,
+    ws: string,
+    qid: string,
+  ): Promise<PlanQualificationResults> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const { rows } = await c.query(
+        `select q.* from plan_qualifications q join plan_connections p on p.id = q.connection_id
+         where q.id = $1 and p.workspace_id = $2`,
+        [uuid(qid), ws],
+      );
+      if (!rows[0]) throw fail('NOT_FOUND', 'Qualification not found.');
+      const manifest = rows[0].manifest as {
+        name?: unknown;
+        cases: { case_id: string; split: 'development' | 'held_out' }[];
+      };
+      const requests = await c.query(
+        `select id, case_id, state, signal, reason_code, output_chars, output_text, started_at
+         from plan_requests where qualification_id = $1`,
+        [qid],
+      );
+      const byCase = new Map(
+        requests.rows.map((r) => [String(r.case_id), r as Row]),
+      );
+      return {
+        qualification: toQualification(rows[0] as Row),
+        manifest_name:
+          typeof manifest.name === 'string'
+            ? manifest.name.slice(0, 200)
+            : null,
+        cases: manifest.cases.map((m) => {
+          const r = byCase.get(m.case_id);
+          return {
+            case_id: m.case_id,
+            split: m.split,
+            request_id: r ? String(r.id) : null,
+            state: r ? (r.state as PlanRequest['state']) : null,
+            signal: r ? nullable(r.signal) : null,
+            reason: r ? nullable(r.reason_code) : null,
+            output_chars:
+              r && r.output_chars !== null ? Number(r.output_chars) : null,
+            answer: r ? nullable(r.output_text) : null,
+            started_at: r ? iso(r.started_at) : null,
+          };
+        }),
+      };
     });
   }
 

@@ -82,7 +82,7 @@ import {
   checkStudyCode,
   digest,
   readStudyBuild,
-  scorePatchCase,
+  gradePatchCase,
 } from '@creator/executor';
 import { createAuth } from './auth.js';
 import { desktopRoutes, visitorKey } from './desktop.js';
@@ -298,10 +298,11 @@ export function createApi(
   );
   const patchScorer = (
     ctx: CommandContext,
-    check: Parameters<typeof scorePatchCase>[2],
+    check: Parameters<typeof gradePatchCase>[2],
     text: string | null,
   ) =>
-    scorePatchCase(
+    // F10: the grade keeps its reason, so a failed builder case says where it failed.
+    gradePatchCase(
       { products: qualificationProducts, executor: qualificationExecutor },
       ctx.actorId,
       check,

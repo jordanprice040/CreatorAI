@@ -1,3 +1,21 @@
+## Owner pilot day 2: builder failure cause found; F10 reasons visible (ADR-0052) — October 31, 2026
+
+The October 30 builder qualification failures (37752d2f, 31aae6c9) were not caused by the model or the
+stale deadline. All 8 stored answers are correct patches, each graded `provider_error`. The installed app
+had been started inside the Claude desktop app's MSIX container. There, the new
+`plan-qualification-products` folder was redirected to Claude's LocalCache, and `canonical()`
+refused it ("Noncanonical path refused"). The grader hid that message. A replay on Jordan's PC
+with the installed bundle, the service's cleared environment and a kill-on-close job accepted
+the same answer when the folder sat at its real path. With Jordan's typed OK, the real
+`studio.json` got back the 6 approved websites that had only been saved in the redirected
+copy (backup `studio.json.bak-20261031`). Jordan relaunched the app himself.
+
+PR #86 (draft): `gradePatchCase` records a reason per non-pass, `GET
+/plan-qualifications/{id}` returns the answers and reasons, and the Models page shows them. Checks:
+typecheck and format pass. The full suite on PostgreSQL 16 ran 530 tests: 498 passed, 27 skipped, and 5
+failed, all known PowerShell-wrapper tests (no pwsh). The targeted suites ran 40 tests: 38 passed, 2 skipped. CI can't run (Actions minutes).
+Not done: reasons for non-patch checks. The installed app does not have #86 yet.
+
 ## Owner pilot day 1 — October 30, 2026
 
 The pilot ran from 03:15 to 08:56 EDT in the installed app (now 09fc937, schema 32). Discovery

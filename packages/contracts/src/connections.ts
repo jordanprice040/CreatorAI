@@ -401,6 +401,34 @@ export const PlanQualificationSchema = z.strictObject({
 });
 export type PlanQualification = z.infer<typeof PlanQualificationSchema>;
 
+/**
+ * One benchmark case of a qualification as it was graded (F10): the stored answer (synthetic or
+ * public data only, ADR-0049), the grader's signal and, for a non-pass, where it failed. A case
+ * that never ran has no request and is shown as not run.
+ */
+export const PlanQualificationCaseResultSchema = z.strictObject({
+  case_id: short,
+  split: z.enum(['development', 'held_out']),
+  request_id: id.nullable(),
+  state: PlanRequestStateSchema.nullable(),
+  signal: short.nullable(),
+  reason: z.string().max(1200).nullable(),
+  output_chars: counter.nullable(),
+  answer: z.string().nullable(),
+  started_at: timestamp.nullable(),
+});
+export type PlanQualificationCaseResult = z.infer<
+  typeof PlanQualificationCaseResultSchema
+>;
+export const PlanQualificationResultsSchema = z.strictObject({
+  qualification: PlanQualificationSchema,
+  manifest_name: short.nullable(),
+  cases: z.array(PlanQualificationCaseResultSchema),
+});
+export type PlanQualificationResults = z.infer<
+  typeof PlanQualificationResultsSchema
+>;
+
 export const PlanConnectionDetailSchema = z.strictObject({
   connection: PlanConnectionSchema,
   model_access: z.array(PlanModelAccessSchema),

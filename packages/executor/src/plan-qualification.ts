@@ -66,26 +66,83 @@ async function settleLeftover(
   await sup.products.recoverDeadLock('dispatch', '', ownerId);
 }
 
+type PatchSignal =
+  'accepted' | 'schema_invalid' | 'acceptance_check_failed' | 'provider_error';
+
+/** A grading signal and, when it is not a pass, one plain sentence (at most 200 characters) saying where it failed (F10). */
+export interface PatchGrade {
+  signal: PatchSignal;
+  detail: string | null;
+}
+
+const said = (e: unknown) =>
+  (e instanceof Error ? e.message : String(e)).replace(/\s+/g, ' ').trim();
+const clip = (s: string, n: number) =>
+  s.length > n ? `${s.slice(0, n - 1)}…` : s;
+
 /**
  * Grades one patch_build qualification answer the way T12 QA grades a build: the scoped patch
  * goes onto the reviewed template in a throwaway product, and every case runs in the isolated
  * worker. Accepted only if all cases match exactly. Nothing here trusts the model's claims.
  */
 export async function scorePatchCase(
+  ...args: Parameters<typeof gradePatchCase>
+): Promise<PatchSignal> {
+  return (await gradePatchCase(...args)).signal;
+}
+
+/**
+ * scorePatchCase with the reason kept: which step a non-passing answer failed, in words the
+ * owner can act on. It names a failed check and its exit codes but never prints expected
+ * output, so a held-out case's answer key stays out of the record.
+ */
+export async function gradePatchCase(
   sup: { products: ProductSupervisor; executor: ExecutionSupervisor },
   ownerId: string,
   check: PatchCasesCheck,
   text: string | null,
-): Promise<
-  'accepted' | 'schema_invalid' | 'acceptance_check_failed' | 'provider_error'
-> {
+): Promise<PatchGrade> {
+  const g = await grade(sup, ownerId, check, text);
+  // The one place the 200-character bound (the request's reason field) is applied.
+  return { signal: g.signal, detail: g.detail && clip(g.detail, DETAIL_MAX) };
+}
+
+const DETAIL_MAX = 200;
+
+async function grade(
+  sup: { products: ProductSupervisor; executor: ExecutionSupervisor },
+  ownerId: string,
+  check: PatchCasesCheck,
+  text: string | null,
+): Promise<PatchGrade> {
   let answer: z.infer<typeof answerSchema>;
   try {
     answer = answerSchema.parse(JSON.parse(text ?? ''));
-  } catch {
-    return 'schema_invalid';
+  } catch (e) {
+    return {
+      signal: 'schema_invalid',
+      detail:
+        text === null
+          ? 'No answer text came back.'
+          : e instanceof z.ZodError
+            ? `The answer is JSON but not in the builder format: ${clip(
+                e.issues
+                  .map(
+                    (i) => `${i.path.join('.') || '(top level)'} ${i.message}`,
+                  )
+                  .join('; '),
+                300,
+              )}`
+            : 'The answer is not valid JSON.',
+    };
   }
-  if (!answer.submission) return 'acceptance_check_failed';
+  if (!answer.submission)
+    return {
+      signal: 'acceptance_check_failed',
+      detail: `The builder submitted no code change. Its stated blocker: ${
+        answer.blocker ? `"${answer.blocker}"` : 'none given'
+      }.`,
+    };
   const taskHash = digest(JSON.stringify(check));
   const binding: Binding = {
     workspace_id: randomUUID(),
@@ -103,14 +160,17 @@ export async function scorePatchCase(
   const before = new Set(await readdir(sup.products.root).catch(() => []));
   try {
     product = await sup.products.create(binding);
-  } catch {
+  } catch (e) {
     for (const name of await readdir(sup.products.root).catch(() => []))
       if (!before.has(name) && /^[0-9a-f-]{36}$/.test(name))
         await rm(join(sup.products.root, name), {
           recursive: true,
           force: true,
         }).catch(() => {});
-    return 'provider_error';
+    return {
+      signal: 'provider_error',
+      detail: `The studio could not set up the template to grade on: ${said(e)}`,
+    };
   }
   try {
     const task = await sup.products.createTask(
@@ -128,8 +188,13 @@ export async function scorePatchCase(
         { ...answer.submission, expected_commit: product.initial_commit },
         binding,
       ));
-    } catch {
-      return 'acceptance_check_failed';
+    } catch (e) {
+      return {
+        signal: 'acceptance_check_failed',
+        detail: `The code change was refused or did not apply (${answer.submission.changes
+          .map((c) => c.path)
+          .join(', ')}): ${said(e)}`,
+      };
     }
     for (const stored of check.cases) {
       // The worker hashes the case in schema key order; a manifest read back from jsonb has
@@ -145,18 +210,50 @@ export async function scorePatchCase(
           () => {},
           c,
         );
-      } catch {
+      } catch (e) {
         // The worker could not run the case. That is never a pass; the owner sees the reason.
-        return 'provider_error';
+        return {
+          signal: 'provider_error',
+          detail: `The worker could not run check ${c.check_key}: ${said(e)}`,
+        };
       }
       // A run the worker could not carry out (blocked, lost, cleanup pending) judged nothing.
       if (!['succeeded', 'failed'].includes(execution.state))
-        return 'provider_error';
-      if (!qaPassed(execution, commit, c)) return 'acceptance_check_failed';
+        return {
+          signal: 'provider_error',
+          detail: `The worker did not finish check ${c.check_key} (${execution.state}${
+            execution.reason ? `: ${execution.reason}` : ''
+          }).`,
+        };
+      if (!qaPassed(execution, commit, c)) {
+        const exit =
+          execution.exit_code === c.exit_code
+            ? `exit code ${String(execution.exit_code)} as expected`
+            : `exit code ${String(execution.exit_code)}, expected ${c.exit_code}`;
+        const output =
+          execution.log === c.stdout
+            ? 'output matched'
+            : 'output did not match';
+        const unbound =
+          execution.exit_code === c.exit_code &&
+          execution.log === c.stdout &&
+          execution.reason === null;
+        return {
+          signal: 'acceptance_check_failed',
+          detail: unbound
+            ? `Check ${c.check_key} failed: the worker's record is not bound to this exact check and commit.`
+            : `Check ${c.check_key} failed: ${exit}; ${output}${
+                execution.reason ? ` (${execution.reason})` : ''
+              }.`,
+        };
+      }
     }
-    return 'accepted';
-  } catch {
-    return 'provider_error';
+    return { signal: 'accepted', detail: null };
+  } catch (e) {
+    return {
+      signal: 'provider_error',
+      detail: `Grading stopped: ${said(e)}`,
+    };
   } finally {
     // Throwaway product: the plan request ledger keeps the signal; the files are not evidence.
     // Kept while the worker marker names it (or the marker is unreadable): reconciliation

@@ -205,6 +205,12 @@ export async function connectionRoutes(r: {
       );
     return r.service;
   };
+  if (collection === 'plan-qualifications' && item && get && !action)
+    return send(
+      200,
+      await store.planQualificationResults(ctx, ws, item),
+      false,
+    );
   if (collection === 'plan-qualifications' && item && post) {
     if (action === 'run')
       return send(200, await service().runQualification(ctx, ws, item), true);

@@ -101,7 +101,13 @@ export interface PlanServiceDeps {
     ctx: CommandContext,
     check: Extract<BenchmarkCheck, { kind: 'patch_cases' }>,
     text: string | null,
-  ) => Promise<string>;
+  ) => Promise<string | ScoreResult>;
+}
+
+/** A qualification grade with the grader's plain reason for a non-pass (F10). */
+export interface ScoreResult {
+  signal: string;
+  detail: string | null;
 }
 
 type SignInStatus =
@@ -149,7 +155,7 @@ export interface InvokeRequest {
   score?: (
     text: string | null,
     outcome: PlanObservedOutcome,
-  ) => string | Promise<string>;
+  ) => string | ScoreResult | Promise<string | ScoreResult>;
 }
 
 export class PlanConnectionService {
@@ -757,10 +763,15 @@ export class PlanConnectionService {
     // A grader that throws (disk, git, worker) is a non-pass, never an unsettled request.
     if (r.score)
       try {
-        observed.signal = await r.score(
+        const scored = await r.score(
           outcome.kind === 'completed' ? outcome.text : null,
           outcome,
         );
+        if (typeof scored === 'string') observed.signal = scored;
+        else {
+          observed.signal = scored.signal;
+          if (scored.detail) observed.grader_detail = scored.detail;
+        }
       } catch (e) {
         observed.signal = 'provider_error';
         observed.grader_error = e instanceof Error ? e.message : String(e);
