@@ -45,7 +45,7 @@ and grading reasons (F10).
 
 **Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
 
-**New findings (F11–F19):**
+**New findings (F11–F20):**
 
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
@@ -80,7 +80,12 @@ ADR and tests in the friction and flow pass.
 row, so you have to hunt for the one you're working on. Show the latest version by default, with a
 dropdown to switch to older ones (F19).
 
-**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F19 in the friction and flow pass.
+**Owner feedback:** 2026-10-31 07:03 EDT, Jordan: dropdowns such as Run default to the oldest
+entry; they should default to the most recent (F20). On the v4 product the build form also
+defaulted Builder to Model broker (metered) rather than the qualified $0 plan route, and Run to a
+run without the grant or request room. A paid default is the more serious part (priority).
+
+**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F20 in the friction and flow pass.
 
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 
