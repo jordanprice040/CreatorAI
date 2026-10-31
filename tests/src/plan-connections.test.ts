@@ -1239,11 +1239,11 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   // The studio states what the one approval covers; the caller cannot word it.
   assert.equal(
     decision.options.find((o) => o.id === 'approve')!.consequence,
-    'One approval covers this whole build (builder and reviewer on the ChatGPT plan): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 2 and 6).',
+    `One approval covers this whole build (builder and reviewer on the ChatGPT plan via connection "${conn.label}" (${conn.id.slice(0, 8)}) with model m): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 2 and 6).`,
   );
   // Review M-1: a one-time approval admits only a build within the scope it showed. A build
-  // with another route or more requests or repair rounds is refused, and the refusal leaves
-  // the approval unused for the build it describes.
+  // with another route or more requests or repair rounds is not covered by it: it asks for
+  // its own approval, and the approval stays unused for the build it describes.
   await store.answerDecision(owner, ws.id, decision.id, {
     choice: 'approve_once',
     option_id: null,
@@ -1253,13 +1253,20 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     time_spent_ms: 1000,
     interruption: 'useful',
   });
-  await rejects(
-    'SCOPE_EXCEEDED',
-    approve(live, { route: 'broker', connection_id: null, model_id: null }),
-  );
-  await rejects('SCOPE_EXCEEDED', approve(live, { request_limit: 4 }));
-  await rejects('SCOPE_EXCEEDED', approve(live, { max_repairs: 1 }));
-  await rejects('SCOPE_EXCEEDED', approve(live, { model_id: 'other' }));
+  for (const over of [
+    { route: 'broker', connection_id: null, model_id: null },
+    { request_limit: 4 },
+    { max_repairs: 1 },
+    { model_id: 'other' },
+  ]) {
+    const wider = await approve(live, over);
+    assert.equal(
+      wider.admission.verdict,
+      'request_human',
+      JSON.stringify(over),
+    );
+    assert.notEqual(wider.admission.decision_id, decision.id);
+  }
   // No build approval outlives a day, whatever deadline the build states.
   await rejects(
     'INVALID_CONTRACT',
@@ -1344,6 +1351,20 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     'ACCESS_DENIED',
     call('reviewer', live, brief.id),
     /ended at the build deadline/,
+  );
+  await rejects(
+    'ACCESS_DENIED',
+    service.buildRole(owner, ws.id, conn.id, {
+      role: 'reviewer',
+      model_id: 'm',
+      run_id: live,
+      build_id: third.id,
+      data_class: 'public',
+      input: '{"candidate":"x"}',
+      timeout_ms: 120000,
+      logical_operation_id: randomUUID(),
+    }),
+    /different data class/,
   );
   const coOwner = { actorId: randomUUID() };
   await store.ensureActor({
@@ -1436,6 +1457,201 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   );
   await store.cancelRun(owner, ws.id, live, { reason: 'stop' });
   await rejects('INVALID_TRANSITION', call('reviewer', live));
+});
+
+test('a one-time build approval goes only to the build it was asked for, never blocking others', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, ws } = s;
+  const conn = await s.current();
+  const second = await store.createPlanConnection(owner, ws.id, {
+    label: 'Second plan',
+    settings: SETTINGS,
+  });
+  const r = await store.createEntity(owner, ws.id, {
+    kind: 'run',
+    title: 'Live run',
+    body: {
+      state: 'queued',
+      experiment_condition: 'human_in_loop',
+      discovery_method: 'structured',
+      config_hash: null,
+    },
+  });
+  const run = (
+    await store.registerRun(owner, ws.id, {
+      run: { id: r.id, version: 1 },
+      autonomy_mode: 'human_in_loop',
+      stage_gates: null,
+      initial_grants: [],
+    })
+  ).run_id;
+  const idea = await store.createEntity(owner, ws.id, {
+    kind: 'idea',
+    title: 'Synthetic idea',
+    body: { summary: 'Synthetic.', uncertainty: 'Synthetic.' },
+  });
+  const target = await store.createEntity(owner, ws.id, {
+    kind: 'product',
+    title: 'Synthetic product',
+    body: { stage: 'captured', summary: 'Synthetic.' },
+  });
+  const review = await store.createEntity(owner, ws.id, {
+    kind: 'humility_review',
+    title: 'Synthetic humility review',
+    body: fixtureHumilityReview({ id: target.id, version: 1 }, [
+      { id: idea.id, version: 1 },
+    ]),
+  });
+  const build = (over: Record<string, unknown> = {}) => ({
+    build_id: randomUUID(),
+    product_id: randomUUID(),
+    task_id: randomUUID(),
+    spec: { id: target.id, version: 1 },
+    spec_hash: 'a'.repeat(64),
+    plan_hash: 'b'.repeat(64),
+    route: 'plan_roles',
+    connection_id: conn.id,
+    model_id: 'm',
+    data_class: 'synthetic',
+    humility_review: { id: review.id, version: 1 },
+    request_limit: 2,
+    max_repairs: 0,
+    expires_at: new Date(Date.now() + 600_000).toISOString(),
+    ...over,
+  });
+  const approve = (over: Record<string, unknown> = {}) =>
+    store.admitBuild(owner, ws.id, run, build(over));
+  const approveOnce = async (decisionId: string) => {
+    const d = await store.getDecision(owner, ws.id, decisionId);
+    await store.answerDecision(owner, ws.id, d.id, {
+      choice: 'approve_once',
+      option_id: null,
+      rationale: 'Synthetic: one build.',
+      coverage_hash: d.coverage.coverage_hash,
+      standing_expires_at: null,
+      time_spent_ms: 1000,
+      interruption: 'useful',
+    });
+    return (await store.listGrants(owner, ws.id)).find(
+      (g) => g.decision_id === decisionId,
+    )!.id;
+  };
+  const status = async (grantId: string) =>
+    (await store.listGrants(owner, ws.id)).find((g) => g.id === grantId)!
+      .status;
+  const asks = async (over: Record<string, unknown> = {}) => {
+    const a = await approve(over);
+    assert.equal(a.admission.verdict, 'request_human', JSON.stringify(over));
+    assert.equal(a.approval, null);
+    return a.admission.decision_id!;
+  };
+
+  // A one-time approval nobody's build asked for (a generic admission's decision) does not
+  // say what a build may do: the build asks for its own, and that grant stays unused.
+  const generic = await store.admitAction(owner, ws.id, run, {
+    action_type: 'product.commit_build',
+    task_id: null,
+    target: { id: target.id, version: 1 },
+    spec_hash: 'a'.repeat(64),
+    amount_nano_usd: null,
+    data_class: 'synthetic',
+    assumption_ids: [],
+    humility_review: { id: review.id, version: 1 },
+    flags: [],
+    justification: 'Synthetic generic admission.',
+  });
+  assert.equal(generic.verdict, 'request_human');
+  const genericGrant = await approveOnce(generic.decision_id!);
+  const d1 = await asks();
+  assert.notEqual(d1, generic.decision_id);
+  assert.equal(await status(genericGrant), 'active');
+
+  // Review L-B: the connection and the model are part of what the person approves, so a build
+  // on another connection with the same model, or another route, asks separately and never
+  // uses an approval it does not match.
+  const onSecond = await asks({ connection_id: second.id });
+  assert.notEqual(onSecond, d1);
+  assert.match(
+    (await store.getDecision(owner, ws.id, onSecond)).options.find(
+      (o) => o.id === 'approve',
+    )!.consequence,
+    /connection "Second plan"/,
+  );
+  const brokerAsk = await asks({
+    route: 'broker',
+    connection_id: null,
+    model_id: null,
+  });
+  const gBroker = await approveOnce(brokerAsk);
+  await asks({ route: 'codex_plan', connection_id: null, model_id: null });
+  assert.equal(await status(gBroker), 'active');
+
+  // Review L-A: two approvals for two builds of one spec each go to their own build, whatever
+  // order the person answered them in (here the wider one first).
+  const wide = { request_limit: 6, max_repairs: 2 };
+  const d2 = await asks(wide);
+  assert.notEqual(d2, d1);
+  const g2 = await approveOnce(d2);
+  const g1 = await approveOnce(d1);
+  assert.equal(await asks({ connection_id: second.id }), onSecond);
+  assert.notEqual(await asks({ model_id: 'other' }), d1);
+  const narrow = await approve();
+  assert.equal(narrow.approval?.decision_id, d1, 'the exact approval is used');
+  assert.equal(await status(g1), 'consumed');
+  assert.equal(await status(g2), 'active');
+  const big = await approve(wide);
+  assert.equal(big.approval?.decision_id, d2);
+  assert.equal(big.approval?.request_limit, 6);
+
+  // A standing grant is not shadowed by unused one-time approvals of other builds. Its
+  // approval ends when the grant ends, if that is before the build deadline.
+  const standingEnds = new Date(Date.now() + 300_000);
+  const standing = await store.createStandingGrant(owner, ws.id, {
+    run_id: run,
+    action_types: ['product.commit_build'],
+    target_kind: null,
+    max_amount_nano_usd: null,
+    allow_irreversible: false,
+    allow_external_effects: false,
+    data_classes: ['synthetic'],
+    expires_at: standingEnds.toISOString(),
+    rationale: 'Synthetic builds of this run.',
+  });
+  for (const over of [
+    wide,
+    { route: 'codex_plan', connection_id: null, model_id: null },
+    { connection_id: second.id },
+  ]) {
+    const a = await approve(over);
+    assert.equal(a.approval?.grant_id, standing.id, JSON.stringify(over));
+    assert.equal(
+      Date.parse(a.approval.expires_at),
+      standingEnds.getTime(),
+      'clamped to the grant',
+    );
+  }
+  assert.equal(await status(genericGrant), 'active');
+  // The matching leftover one-time approval is still taken by the build it describes.
+  const broker = await approve({
+    route: 'broker',
+    connection_id: null,
+    model_id: null,
+  });
+  assert.equal(broker.approval?.decision_id, brokerAsk);
+  assert.equal(await status(gBroker), 'consumed');
+
+  // Two starts of one build racing: exactly one approval, the others are duplicates.
+  const racing = build();
+  const results = await Promise.allSettled(
+    [0, 1, 2, 3].map(() => store.admitBuild(owner, ws.id, run, racing)),
+  );
+  assert.equal(results.filter((x) => x.status === 'fulfilled').length, 1);
+  for (const x of results)
+    if (x.status === 'rejected') {
+      assert.ok(x.reason instanceof ContractError, String(x.reason));
+      assert.equal(x.reason.code, 'DUPLICATE');
+    }
 });
 
 test('a patch-build qualification is graded by the studio scorer, and a scorer crash never wedges the connection', async (t) => {

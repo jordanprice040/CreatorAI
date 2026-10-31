@@ -53,11 +53,20 @@ const ROUTE_LABEL: Record<BuildApprovalRequest['route'], string> = {
 /**
  * What approving covers, written by the studio (never the caller) and shown as the Approve
  * option's consequence. A pending decision for the same spec keeps the text of the build that
- * first asked, so the ceiling every build is held to is stated as well.
+ * first asked, so the ceiling every build is held to is stated as well. Plan-role builds name
+ * the connection (label and short id) and model, so builds that differ in them raise separate
+ * decisions and the person sees what each one binds (re-review L-B).
  */
-export function buildApprovalScopeNote(r: BuildApprovalRequest): string {
+export function buildApprovalScopeNote(
+  r: BuildApprovalRequest,
+  connectionLabel?: string | null,
+): string {
+  const via =
+    r.route === 'plan_roles' && r.connection_id
+      ? ` via connection "${(connectionLabel ?? 'unnamed').slice(0, 80)}" (${r.connection_id.slice(0, 8)}) with model ${r.model_id ?? 'unknown'}`
+      : '';
   return (
-    `One approval covers this whole build (${ROUTE_LABEL[r.route]}): its repair rounds and ` +
+    `One approval covers this whole build (${ROUTE_LABEL[r.route]}${via}): its repair rounds and ` +
     `builder and reviewer requests, up to ${r.max_repairs} repair ` +
     `round${r.max_repairs === 1 ? '' : 's'} and ${r.request_limit} requests ` +
     `(never more than ${BUILD_APPROVAL_MAX_REPAIRS} and ${BUILD_APPROVAL_MAX_REQUESTS}).`

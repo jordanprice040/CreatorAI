@@ -1074,6 +1074,49 @@ export class ConnectionStore extends PortfolioStore {
       );
       if (prior.rows[0])
         throw fail('DUPLICATE', 'This build already has its approval.');
+      // Re-review L-A: a one-time approval belongs to the build that asked for it. Leave out
+      // one-time grants for this spec on this run whose ask does not cover this build (or that no build asked
+      // for), so they cannot shadow a standing grant or the approval this build did get; and
+      // when one was asked for exactly this scope, prefer it over a wider one. Leaving grants
+      // out only narrows authority; the scope check below still guards the grant that is used.
+      const exclude = new Set<string>();
+      const onceGrants = (
+        await c.query(
+          `select g.id, a.route, a.connection_id, a.model_id, a.request_limit, a.max_repairs,
+                  a.decision_id as asked
+             from grants g left join build_approval_asks a on a.decision_id = g.decision_id
+            where g.workspace_id = $1 and g.run_id = $2 and g.status = 'active'
+              and g.scope = 'once' and 'product.commit_build' = any(g.action_types)
+              and lower(g.target->>'id') = lower($3) and (g.target->>'version')::int = $4
+              and g.spec_hash = $5`,
+          [ws, runId, req.spec.id, req.spec.version, req.spec_hash],
+        )
+      ).rows as Row[];
+      const fitting: Row[] = [];
+      for (const g of onceGrants) {
+        const fits =
+          g.asked !== null &&
+          g.route === req.route &&
+          (g.connection_id ?? null) === req.connection_id &&
+          (g.model_id ?? null) === req.model_id &&
+          req.request_limit <= Number(g.request_limit) &&
+          req.max_repairs <= Number(g.max_repairs);
+        if (fits) fitting.push(g);
+        else exclude.add(String(g.id));
+      }
+      const exact = (g: Row) =>
+        Number(g.request_limit) === req.request_limit &&
+        Number(g.max_repairs) === req.max_repairs;
+      if (fitting.some(exact))
+        for (const g of fitting) if (!exact(g)) exclude.add(String(g.id));
+      const connectionLabel = req.connection_id
+        ? ((
+            await c.query<{ label: string }>(
+              'select label from plan_connections where id = $1 and workspace_id = $2',
+              [req.connection_id, ws],
+            )
+          ).rows[0]?.label ?? null)
+        : null;
       const admission = await this.admitIn(
         c,
         ctx,
@@ -1093,7 +1136,8 @@ export class ConnectionStore extends PortfolioStore {
             'T12 build of the frozen specification: scoped builder patches, a fresh independent review and isolated acceptance execution, under one approval (ADR-0054).',
         },
         undefined,
-        buildApprovalScopeNote(req),
+        buildApprovalScopeNote(req, connectionLabel),
+        exclude,
       );
       if (admission.verdict !== 'allow' || !admission.covered_by) {
         // The scope this build asks the person to approve. The decision is shared by builds of

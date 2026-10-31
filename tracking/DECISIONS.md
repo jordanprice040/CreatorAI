@@ -20,15 +20,22 @@ in the same transaction. The row binds the build id, product, task, spec id, ver
 plan hash, route, plan connection and model, data class, humility review, the admission and the
 grant that allowed it (and its decision), the deadline, and the build's stated limits: the plan's
 `max_repairs` (at most 2) and its `max_calls` as the request limit (at most 6). The studio writes
-the approval's wording; the Approve option on the decision says what one approval covers. A
-build id can be approved only once.
+the approval's wording; the Approve option on the decision says what one approval covers,
+including, for plan-role builds, the connection (label and short id) and model (re-review L-B).
+A build id can be approved only once; two racing starts of one build give one approval and
+`DUPLICATE` for the others.
 
 - A one-time approval is bound to the build scope it showed (review M-1). When a build asks,
   its route, connection, model, request limit and repair rounds are recorded against the
   decision it raised (`build_approval_asks`, first ask wins, like the wording). A one-time grant
   from that decision admits only a build with the same route, connection and model and no more
-  requests or repair rounds; any other build is refused and the grant stays unused. A one-time
-  grant not raised by a build is refused for builds (revoke it and ask again). Under a standing
+  requests or repair rounds. Before admission, `admitBuild` leaves out of the grant list every
+  one-time grant for that spec and run whose ask does not cover this build, or that no build
+  asked for, and, when one was asked for exactly this build's limits, the wider ones too
+  (re-review L-A). So an unused one-time approval of another build never shadows a standing
+  grant or the approval this build got: the build is admitted by those, or asks for its own
+  approval, and the other grant stays unused. Leaving grants out only narrows authority; the
+  scope check after admission still refuses a grant that does not fit. Under a standing
   `product.commit_build` grant the owner already authorized builds of that run, so the build's
   own stated scope is recorded as is (review L-2); the plan-side checks and the connection's
   per-run and daily caps bound it, no less than the standing `model.generate` grant it replaces.
@@ -60,9 +67,11 @@ admission and reservations, because they spend or have their own caps. Frozen st
 (T15) keep one admission per round (`perRoundAdmission`), so no study condition changes.
 Executed QA and the independent review still decide `verified_candidate`.
 
-Known limit: a pending decision for the same spec and run keeps the wording and scope of the
-build that first asked; a later build with a wider scope is refused that approval rather than
-widening it. An approval has no "build finished" state: requests left under its limit stay usable
+Known limit: the decision's wording names the route, connection, model, repair rounds and
+request limit, so builds that differ in any of them raise separate decisions, and several
+one-time approvals for one spec can coexist; each goes only to a build it covers. A build with
+the same wording shares the pending decision of the build that first asked (the first ask fixes
+its scope). An approval has no "build finished" state: requests left under its limit stay usable
 by the same owner, route and run until it ends (at most 24 hours, owner-only, $0, within plan caps). Approving in place, so that the build continues by itself, is separate work
 (the navigation thread). Keeping decisions when scores change is in the selection code, not here.
 
@@ -75,7 +84,15 @@ wording of the decision, a duplicate approval, and the F11 preflight; fails when
 skips the approval check). Review fixes add: a one-time approval refused to a build with
 another route, model, more requests or more repair rounds, then admitting the build it showed;
 a deadline over 24 hours refused; and per-request refusals for an expired approval, another
-owner and a revised humility review (each fails when its check is removed).
+owner and a revised humility review (each fails when its check is removed). Re-review follow-up
+adds `tests/src/plan-connections.test.ts` "a one-time build approval goes only to the build it was
+asked for": a one-time grant from a generic admission's decision, another connection with the
+same model, `codex_plan` against a `broker` approval, two approvals answered in reverse order
+each going to its own build, a standing grant used despite unused one-time approvals of other
+builds, the approval's expiry clamped to the standing grant's, four racing starts of one build,
+and the per-request data-class check. Each of the route, connection, exact-preference,
+exclusion, expiry-clamp, duplicate-mapping, data-class and wording checks fails a test when
+removed.
 `tests/src/studio-builds.test.ts` checks the recorded approval of a
 studio build, its immutability, and a second approval of the same build refused over HTTP.
 
