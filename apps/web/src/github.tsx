@@ -15,6 +15,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { newestFirst } from './versions.js';
 
 /** The simulated GitHub account fixture workspaces talk to (FixtureGitHub's default). */
 const FIXTURE_OWNER = { login: 'fixture-owner', id: 4_100_001 };
@@ -64,10 +65,10 @@ export function GitHub({
       api(z.array(RunControlSchema), `${base}/runs`),
     ]);
     return {
-      connections,
-      repositories,
+      connections: newestFirst(connections),
+      repositories: newestFirst(repositories),
       operations: [...operations].reverse(),
-      runs: runs.filter((r) => r.state === 'active'),
+      runs: newestFirst(runs.filter((r) => r.state === 'active')),
     };
   }, [workspace.id]);
   const [error, setError] = useState('');

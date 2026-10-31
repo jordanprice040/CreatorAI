@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { usePageActive } from './page-drafts.js';
 import {
   AuthStatusSchema,
   DecisionSchema,
@@ -568,6 +569,21 @@ export function Oversight({
   useEffect(() => {
     void load();
   }, [workspace, showAll, focus]);
+  // The page stays mounted while hidden, so coming back (another page sent you here, or the
+  // sidebar) loads again, and an open page picks up decisions that runs raise meanwhile.
+  const active = usePageActive();
+  const latestLoad = useRef(load);
+  latestLoad.current = load;
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current) void latestLoad.current();
+    wasActive.current = active;
+    if (!active) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void latestLoad.current();
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [active]);
   async function revoke(g: Grant) {
     try {
       await api(GrantSchema, `workspaces/${workspace}/grants/${g.id}/revoke`, {

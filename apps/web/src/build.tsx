@@ -1,6 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   EnvelopeSchema,
+  GrantSchema,
   PlanConnectionSchema,
   PlanModelAccessSchema,
   PricingSnapshotSchema,
@@ -16,6 +23,8 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { newestFirst, productVersions } from './versions.js';
+import { usePageActive } from './page-drafts.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
 const sha = z.string().regex(/^[0-9a-f]{40}$/);
@@ -91,7 +100,7 @@ export function BuildView({
   // The product the last failed action was about, so a lock notice shows only there.
   const [failed, setFailed] = useState('');
   const data = useLoad(async () => {
-    const [specs, products, reviews, runs, budgets, pricing] =
+    const [specs, products, reviews, runs, budgets, pricing, grants] =
       await Promise.all([
         api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
         api(z.array(ProductEntrySchema), `${base}/products`),
@@ -102,9 +111,14 @@ export function BuildView({
         api(z.array(RunControlSchema), `${base}/runs`),
         api(z.array(EnvelopeSchema), `${base}/budgets`),
         api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+        api(z.array(GrantSchema), `${base}/grants`),
       ]);
+    // The spec changed most recently first: that is the one being worked on.
+    const recent = [...specs].sort(
+      (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
+    );
     const status = await Promise.all(
-      specs.map((s) => api(SpecStatusSchema, `${base}/specs/${s.id}`)),
+      recent.map((s) => api(SpecStatusSchema, `${base}/specs/${s.id}`)),
     );
     // Current selections that chose an option to build: a spec can be written from one.
     const problems = fixture
@@ -137,6 +151,7 @@ export function BuildView({
       ),
     );
     // Plan roles (ADR-0048): a verified Responses model serves builder and reviewer requests.
+    // Listed first: the $0 plan route is the default builder when there is one.
     const builders = connections.flatMap((c, i) =>
       access[i]!.model_access.filter(
         (m) =>
@@ -150,18 +165,42 @@ export function BuildView({
         label: `${c.label} · ${m.model_id}`,
       })),
     );
+    const now = Date.now();
     return {
       specs: status,
       selections,
       products,
-      reviews,
-      runs: runs.filter((r) => r.state === 'active'),
-      budgets: budgets.filter((b) => b.status === 'active'),
-      pricing,
-      builders,
+      reviews: newestFirst(reviews),
+      // Newest first everywhere, so each choice opens on the latest one.
+      runs: newestFirst(runs.filter((r) => r.state === 'active')),
+      budgets: newestFirst(budgets.filter((b) => b.status === 'active')),
+      pricing: newestFirst(pricing),
+      builders: [
+        ...builders.filter((b) => b.kind === 'roles'),
+        ...builders.filter((b) => b.kind !== 'roles'),
+      ],
+      // Runs a standing model.generate grant covers: plan-role builds need one.
+      modelRuns: new Set(
+        grants
+          .filter(
+            (g) =>
+              g.status === 'active' &&
+              g.scope === 'standing' &&
+              g.action_types.includes('model.generate') &&
+              Date.parse(g.expires_at) > now,
+          )
+          .map((g) => g.run_id ?? '*'),
+      ),
     };
   }, [workspace.id]);
   const d = data.data;
+  // Coming back from Decisions (or anywhere) shows the current state without a manual refresh.
+  const active = usePageActive();
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current) data.reload();
+    wasActive.current = active;
+  }, [active]);
   // While a build or package runs on the server, keep the page current.
   const running = d?.products.some((p) =>
     p.builds.some(
@@ -296,24 +335,30 @@ export function BuildView({
             {d.products.length === 0 ? (
               <Empty>No products yet. Create one from a frozen spec.</Empty>
             ) : (
-              d.products.map((p) => (
-                <Product
-                  key={p.product.id}
-                  entry={p}
-                  spec={d.specs.find(
-                    (s) => s.spec.id === p.product.binding.spec_id,
+              productVersions(d.products).map((g) => (
+                <ProductVersions
+                  key={g.specId}
+                  versions={g.versions}
+                  render={(p) => (
+                    <Product
+                      key={p.product.id}
+                      entry={p}
+                      spec={d.specs.find(
+                        (s) => s.spec.id === p.product.binding.spec_id,
+                      )}
+                      data={d}
+                      owner={owner}
+                      fixture={fixture}
+                      busy={busy}
+                      act={act}
+                      post={post}
+                      open={open}
+                      locked={
+                        failed === p.product.id &&
+                        /locked|needs reconciliation/i.test(error)
+                      }
+                    />
                   )}
-                  data={d}
-                  owner={owner}
-                  fixture={fixture}
-                  busy={busy}
-                  act={act}
-                  post={post}
-                  open={open}
-                  locked={
-                    failed === p.product.id &&
-                    /locked|needs reconciliation/i.test(error)
-                  }
                 />
               ))
             )}
@@ -331,6 +376,53 @@ export function BuildView({
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * One spec's products: the latest is shown, older versions are a choice away (F19). A pick
+ * that disappears from the list falls back to the latest.
+ */
+function ProductVersions({
+  versions,
+  render,
+}: {
+  versions: ProductEntry[];
+  render: (entry: ProductEntry) => ReactNode;
+}) {
+  const [pick, setPick] = useState('');
+  const shown =
+    versions.find((v) => v.product.id === pick) ?? versions[0] ?? null;
+  if (!shown) return null;
+  const id = `pv-${shown.product.binding.spec_id}`;
+  return (
+    <div className="product-versions">
+      {versions.length > 1 && (
+        <p className="filters">
+          <label htmlFor={id} className="inline">
+            Version
+          </label>
+          <select
+            id={id}
+            value={shown.product.id}
+            onChange={(e) => setPick(e.target.value)}
+          >
+            {versions.map((v, i) => (
+              <option key={v.product.id} value={v.product.id}>
+                {`v${v.product.binding.spec_version} · product ${shortId(v.product.id)}${
+                  v.builds[0] ? ` · ${STATE_LABEL[v.builds[0].state]}` : ''
+                }${i === 0 ? ' (latest)' : ''}`}
+              </option>
+            ))}
+          </select>{' '}
+          <small>
+            {versions.length - 1} older{' '}
+            {versions.length === 2 ? 'version' : 'versions'}
+          </small>
+        </p>
+      )}
+      {render(shown)}
+    </div>
   );
 }
 
@@ -467,6 +559,8 @@ type Data = {
     model_id: string;
     label: string;
   }[];
+  /** Run ids a standing model.generate grant covers; '*' when one covers every run. */
+  modelRuns: ReadonlySet<string>;
 };
 
 function Product({
@@ -735,11 +829,23 @@ function StartBuild({
   const [budget, setBudget] = useState('');
   const [price, setPrice] = useState('');
   const [review, setReview] = useState('');
-  const [builder, setBuilder] = useState('broker');
+  // '' until chosen: the $0 plan route when one is verified, else the broker.
+  const [builder, setBuilder] = useState('');
   const [repairs, setRepairs] = useState(1);
+  const connection = builder
+    ? data.builders.find((b) => b.key === builder)
+    : data.builders.find((b) => b.kind === 'roles');
+  // The newest run that can build; on the plan route, preferably one whose standing grant
+  // admits the role requests, so the default is a run the build can actually use.
+  const usable = data.runs.filter((r) => r.autonomy_mode !== 'human_only');
+  const granted = usable.find(
+    (r) => data.modelRuns.has(r.run_id) || data.modelRuns.has('*'),
+  );
   const runId = data.runs.some((r) => r.run_id === run)
     ? run
-    : (data.runs.find((r) => r.autonomy_mode !== 'human_only')?.run_id ?? '');
+    : ((connection?.kind === 'roles' ? granted : undefined)?.run_id ??
+      usable[0]?.run_id ??
+      '');
   const budgetId = data.budgets.some((b) => b.id === budget)
     ? budget
     : (data.budgets[0]?.id ?? '');
@@ -747,7 +853,6 @@ function StartBuild({
     ? price
     : (data.pricing[0]?.id ?? '');
   const chosen = reviews.find((r) => r.id === review) ?? reviews[0];
-  const connection = data.builders.find((b) => b.key === builder);
   const missing = [
     !runId && 'an active run (register one under Evidence or Submit)',
     !budgetId && 'an active budget (Budgets)',
@@ -793,7 +898,13 @@ function StartBuild({
         {data.runs.length === 0 && <option value="">No active run</option>}
         {data.runs.map((r) => (
           <option key={r.run_id} value={r.run_id}>
-            {words(r.autonomy_mode)} run {shortId(r.run_id)}
+            {`${words(r.autonomy_mode)} run ${shortId(r.run_id)} · started ${when(r.created_at)}${
+              connection?.kind === 'roles' &&
+              !data.modelRuns.has(r.run_id) &&
+              !data.modelRuns.has('*')
+                ? ' · no model grant'
+                : ''
+            }`}
           </option>
         ))}
       </select>

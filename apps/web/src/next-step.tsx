@@ -1,0 +1,199 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  ArtifactSummarySchema,
+  OverviewSchema,
+  PlanConnectionSchema,
+  PricingSnapshotSchema,
+  SpecStatusSchema,
+  StoredEntitySchema,
+  z,
+  type Workspace,
+} from '@creator/contracts';
+import { api } from './oversight.js';
+import { useDesktopApp } from './desktop-app.js';
+import {
+  decisionsNote,
+  nextStep,
+  type BuildState,
+  type StudioFacts,
+} from './next-rules.js';
+import { productVersions } from './versions.js';
+import type { View } from './ui.js';
+
+// The products list as the build page reads it (apps/api/src/products.ts); only what the
+// next-step line needs.
+const ProductsSchema = z.array(
+  z.object({
+    product: z.object({
+      id: z.string(),
+      binding: z.object({ spec_id: z.string(), spec_version: z.number() }),
+    }),
+    builds: z.array(
+      z.object({
+        started_at: z.string(),
+        state: z.string(),
+        package: z.object({ state: z.string() }).nullable(),
+      }),
+    ),
+  }),
+);
+
+const BUILD_STATES: readonly string[] = [
+  'running',
+  'checkpoint',
+  'failed',
+  'interrupted',
+];
+
+async function readFacts(
+  workspace: Workspace,
+  desktop: boolean,
+): Promise<StudioFacts> {
+  const base = `workspaces/${workspace.id}`;
+  const fixture = workspace.record_mode === 'fixture';
+  const [overview, pricing, specs, products, artifacts, plans] =
+    await Promise.all([
+      api(OverviewSchema, `${base}/overview`),
+      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+      api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
+      api(ProductsSchema, `${base}/products`).catch(() => []),
+      api(z.array(ArtifactSummarySchema), `${base}/artifacts`).catch(() => []),
+      fixture
+        ? Promise.resolve(null)
+        : api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
+            () => null,
+          ),
+    ]);
+  // Freeze state for the specs changed most recently; a long tail of old specs adds nothing.
+  const recent = [...specs]
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+    .slice(0, 5);
+  const status = await Promise.all(
+    recent.map((s) =>
+      api(SpecStatusSchema, `${base}/specs/${s.id}`).catch(() => null),
+    ),
+  );
+  const frozen = status.filter((s) => s?.frozen_current);
+  const count = (kind: string) =>
+    overview.records.find((r) => r.kind === kind)?.active ?? 0;
+  const latest = productVersions(products)[0]?.versions[0];
+  const newest = latest?.builds[0];
+  const build: BuildState = !newest
+    ? 'none'
+    : newest.state === 'verified_candidate'
+      ? 'verified'
+      : BUILD_STATES.includes(newest.state)
+        ? (newest.state as BuildState)
+        : 'failed';
+  return {
+    fixture,
+    owner: workspace.role === 'owner',
+    desktop,
+    pending: overview.decisions.pending,
+    attention: overview.attention.length,
+    runs: overview.runs.active,
+    budgets: overview.budget.envelopes,
+    pricing: pricing.length,
+    sources: overview.sources.count,
+    claims: count('claim'),
+    problems: count('problem'),
+    alternatives: count('alternative'),
+    scorecards: count('scorecard'),
+    reviews: count('humility_review'),
+    specs: specs.length,
+    frozenSpecs: frozen.length,
+    product: latest
+      ? {
+          current: frozen.some(
+            (s) =>
+              s!.spec.id === latest.product.binding.spec_id &&
+              s!.spec.version === latest.product.binding.spec_version,
+          ),
+          build,
+          packaging: newest?.package?.state === 'running',
+          packaged: newest?.package?.state === 'done',
+        }
+      : null,
+    artifacts: artifacts.length,
+    planConnections: plans ? plans.length : null,
+  };
+}
+
+/**
+ * One line under the page title: what comes next on this page, or why it is blocked, with
+ * a button to the page that takes the step. Read again whenever the page changes and every
+ * 15 seconds while the window is visible; a failed read hides the line rather than guessing.
+ */
+export function NextStep({
+  workspace,
+  view,
+  open,
+}: {
+  workspace: Workspace;
+  view: View;
+  open: (view: View) => void;
+}) {
+  const desktop = useDesktopApp();
+  const [facts, setFacts] = useState<StudioFacts | null>(null);
+  const seq = useRef(0);
+  useEffect(() => {
+    const read = () => {
+      const mine = ++seq.current;
+      readFacts(workspace, desktop)
+        .then((f) => {
+          if (mine === seq.current) setFacts(f);
+        })
+        .catch(() => {
+          if (mine === seq.current) setFacts(null);
+        });
+    };
+    read();
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') read();
+    }, 15_000);
+    return () => {
+      clearInterval(t);
+      seq.current++;
+    };
+  }, [workspace.id, workspace.role, view, desktop]);
+  if (!facts) return null;
+  const step = nextStep(view, facts);
+  const note = decisionsNote(view, facts);
+  const lead =
+    step.tone === 'blocked'
+      ? 'Blocked'
+      : step.tone === 'clear'
+        ? 'All clear'
+        : 'Next';
+  return (
+    <aside
+      className={`next-step next-${step.tone}`}
+      aria-label="What's next on this page"
+    >
+      <p>
+        <strong>{lead}:</strong> {step.text}{' '}
+        {step.action && step.action.view !== view && (
+          <button
+            type="button"
+            className="text"
+            onClick={() => open(step.action!.view)}
+          >
+            {step.action.label}
+          </button>
+        )}
+      </p>
+      {note && (
+        <p className="small">
+          {note}.{' '}
+          <button
+            type="button"
+            className="text"
+            onClick={() => open('decisions')}
+          >
+            Open Decisions
+          </button>
+        </p>
+      )}
+    </aside>
+  );
+}

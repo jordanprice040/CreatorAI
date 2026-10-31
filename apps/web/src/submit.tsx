@@ -24,6 +24,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
+import { newestFirst } from './versions.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
@@ -151,14 +152,16 @@ export function Submit({
     return {
       claims,
       evidence,
-      runs: runs.filter(
-        (r) =>
-          r.state === 'active' &&
-          r.autonomy_mode !== 'human_only' &&
-          !busy.has(r.run_id),
+      runs: newestFirst(
+        runs.filter(
+          (r) =>
+            r.state === 'active' &&
+            r.autonomy_mode !== 'human_only' &&
+            !busy.has(r.run_id),
+        ),
       ),
-      envelopes: envelopes.filter((e) => e.status === 'active'),
-      pricing,
+      envelopes: newestFirst(envelopes.filter((e) => e.status === 'active')),
+      pricing: newestFirst(pricing),
       planDetails: planDetails.filter((p) => p !== null),
       connectionError,
     };

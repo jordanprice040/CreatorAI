@@ -18,6 +18,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { newestFirst } from './versions.js';
 import { money } from './budgets.js';
 import { usePageActive } from './page-drafts.js';
 
@@ -82,14 +83,16 @@ export function Workflows({
           x.autonomy_mode !== 'human_only' &&
           !busyRuns.has(x.run_id),
       );
-      setRuns(free);
-      setEnvelopes(b.filter((x) => x.status === 'active'));
-      setPricing(p);
+      setRuns(newestFirst(free));
+      setEnvelopes(newestFirst(b.filter((x) => x.status === 'active')));
+      setPricing(newestFirst(p));
       setSubject((c) =>
         subj.some((x) => x.id === c) ? c : (subj[0]?.id ?? ''),
       );
       setRunId((c) =>
-        free.some((x) => x.run_id === c) ? c : (free[0]?.run_id ?? ''),
+        free.some((x) => x.run_id === c)
+          ? c
+          : (newestFirst(free)[0]?.run_id ?? ''),
       );
       setSelected((c) => c || (w[0]?.id ?? ''));
     } catch (err) {
