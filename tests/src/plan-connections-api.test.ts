@@ -366,3 +366,61 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
     'manifest creation and rejection send no inference requests',
   );
 });
+
+test('the API wires the reason-keeping patch grader into the plan service (F10)', async (t) => {
+  let closeApi = async () => {};
+  t.after(() => closeApi());
+  const db = await freshDatabase(t);
+  if (!db) return;
+  let scorer: Parameters<
+    NonNullable<Parameters<typeof createApi>[1]>['planService'] & {}
+  >[1]['patchScorer'];
+  const api = createApi(
+    {
+      CREATOR_DATABASE_URL: db.url,
+      CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+      CREATOR_WORKER: 'off',
+      CREATOR_PRODUCTS_ROOT: join(
+        await mkdtemp(join(tmpdir(), 'f10-')),
+        'products',
+      ),
+    },
+    {
+      planService: (store, extra) => {
+        scorer = extra.patchScorer;
+        return new PlanConnectionService({
+          store,
+          vault: new MemoryVault(),
+          ...(extra.patchScorer ? { patchScorer: extra.patchScorer } : {}),
+        });
+      },
+    },
+  );
+  closeApi = api.close;
+  await api.ready();
+  assert.ok(scorer, 'the API hands the plan service a patch scorer');
+  const check = {
+    kind: 'patch_cases' as const,
+    file_scope: ['src'],
+    cases: [{ check_key: 'A1', args: [], stdin: '', stdout: '', exit_code: 0 }],
+  };
+  const ctx = { actorId: randomUUID() } as Parameters<typeof scorer>[0];
+  // Graded before any product is made, so this needs no worker.
+  assert.deepEqual(await scorer(ctx, check, 'not json'), {
+    signal: 'schema_invalid',
+    detail: 'The answer is not valid JSON.',
+  });
+  const declined = await scorer(
+    ctx,
+    check,
+    JSON.stringify({
+      submission: null,
+      summary: 's',
+      blocker: 'x'.repeat(500),
+    }),
+  );
+  assert.ok(typeof declined === 'object');
+  assert.equal(declined.signal, 'acceptance_check_failed');
+  assert.ok(declined.detail!.length <= 200, 'one 200-character bound');
+  assert.ok(declined.detail!.endsWith('…'));
+});

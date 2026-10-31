@@ -1,5 +1,30 @@
 # Decision log
 
+## ADR-0052 — Qualification answers and grading reasons are visible; held-out views bind prompt revisions (accepted October 31, 2026)
+
+Context: owner pilot finding F10. On October 30 the installed app's patch_build qualification
+failed 0/4 twice. The app showed only "failed", so the cause could not be seen. On October 31 the 8 stored
+answers turned out to be correct patches. Every case was `provider_error`, because the installed
+app had been started inside the Claude desktop app's MSIX container, which redirected the new
+`plan-qualification-products` folder. Node's realpath then differed and `canonical()` refused the
+path. The grader swallowed that message.
+
+Decision: the patch_build grader (`gradePatchCase`) returns a plain reason for every non-pass.
+The reason covers no submission (with the builder's blocker), a refused patch, a set-up failure, a worker
+failure, or the failed check's exit codes and whether its output matched. It never prints expected
+output. The reason is stored in the plan request's `reason_code` (at most 200 characters,
+clipped once). `GET /plan-qualifications/{id}` and the Models page show each case's outcome,
+reason and stored answer (synthetic or public data only, per ADR-0049), including held-out
+cases. Because held-out answers and reasons are now visible to the owner, invariant 9 applies:
+a role prompt revised after viewing a qualification's held-out results counts as tuned on those
+cases, and is requalified on fresh held-out cases. The page says so next to held-out answers.
+Reasons for the other check kinds (reviewer verdict, discovery contracts) are not added yet.
+Those still show only the signal.
+
+Consequences: no migration. The installed app must be launched by the owner, never from a Claude
+session. Settings saved while it ran in the container (`studio.json` with the approved websites)
+were copied back to the real home with the owner's OK on October 31.
+
 ## ADR-0051 — Owner-approved evidence websites in the installed app (accepted October 30, 2026)
 
 Context: pilot run 1 (runbook step 8) could not add evidence. The installed app clears its

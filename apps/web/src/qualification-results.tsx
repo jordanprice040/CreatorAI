@@ -88,7 +88,15 @@ export function QualificationResults({
       setLoading(false);
     }
   }
-  const failed = results?.cases.filter((c) => c.signal !== 'accepted') ?? [];
+  const cases = results?.cases ?? [];
+  const passed = cases.filter((c) => c.signal === 'accepted').length;
+  const notRun = cases.filter(
+    (c) => !c.state || c.state === 'in_flight' || c.state === 'unknown',
+  ).length;
+  const failed = cases.length - passed - notRun;
+  const heldOutShown = cases.some(
+    (c) => c.split === 'held_out' && c.answer !== null,
+  );
   return (
     <div className="qualification">
       <QualificationSummary q={q} />
@@ -105,10 +113,18 @@ export function QualificationResults({
                 Benchmark <code>{results.manifest_name}</code>.{' '}
               </>
             )}
-            {failed.length === 0
-              ? 'Every case passed.'
-              : `${failed.length} of ${results.cases.length} cases did not pass. The reason under each one says where it failed.`}
+            {passed} passed, {failed} failed
+            {notRun ? `, ${notRun} not run or still unresolved` : ''}.
+            {failed > 0 &&
+              ' The reason under each failed case says where it failed.'}
           </p>
+          {heldOutShown && (
+            <p className="muted">
+              Held-out answers are shown below. If the role's prompt is changed
+              after reading them, those held-out cases no longer test it fairly:
+              requalify on fresh held-out cases (ADR-0052).
+            </p>
+          )}
           <ol className="qualification-cases">
             {results.cases.map((c) => (
               <li key={c.case_id}>

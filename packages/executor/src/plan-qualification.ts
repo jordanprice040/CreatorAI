@@ -102,6 +102,19 @@ export async function gradePatchCase(
   check: PatchCasesCheck,
   text: string | null,
 ): Promise<PatchGrade> {
+  const g = await grade(sup, ownerId, check, text);
+  // The one place the 200-character bound (the request's reason field) is applied.
+  return { signal: g.signal, detail: g.detail && clip(g.detail, DETAIL_MAX) };
+}
+
+const DETAIL_MAX = 200;
+
+async function grade(
+  sup: { products: ProductSupervisor; executor: ExecutionSupervisor },
+  ownerId: string,
+  check: PatchCasesCheck,
+  text: string | null,
+): Promise<PatchGrade> {
   let answer: z.infer<typeof answerSchema>;
   try {
     answer = answerSchema.parse(JSON.parse(text ?? ''));
@@ -127,7 +140,7 @@ export async function gradePatchCase(
     return {
       signal: 'acceptance_check_failed',
       detail: `The builder submitted no code change. Its stated blocker: ${
-        answer.blocker ? `"${clip(answer.blocker, 120)}"` : 'none given'
+        answer.blocker ? `"${answer.blocker}"` : 'none given'
       }.`,
     };
   const taskHash = digest(JSON.stringify(check));
@@ -156,7 +169,7 @@ export async function gradePatchCase(
         }).catch(() => {});
     return {
       signal: 'provider_error',
-      detail: `The studio could not set up the template to grade on: ${clip(said(e), 120)}`,
+      detail: `The studio could not set up the template to grade on: ${said(e)}`,
     };
   }
   try {
@@ -180,7 +193,7 @@ export async function gradePatchCase(
         signal: 'acceptance_check_failed',
         detail: `The code change was refused or did not apply (${answer.submission.changes
           .map((c) => c.path)
-          .join(', ')}): ${clip(said(e), 120)}`,
+          .join(', ')}): ${said(e)}`,
       };
     }
     for (const stored of check.cases) {
@@ -201,7 +214,7 @@ export async function gradePatchCase(
         // The worker could not run the case. That is never a pass; the owner sees the reason.
         return {
           signal: 'provider_error',
-          detail: `The worker could not run check ${c.check_key}: ${clip(said(e), 120)}`,
+          detail: `The worker could not run check ${c.check_key}: ${said(e)}`,
         };
       }
       // A run the worker could not carry out (blocked, lost, cleanup pending) judged nothing.
@@ -209,7 +222,7 @@ export async function gradePatchCase(
         return {
           signal: 'provider_error',
           detail: `The worker did not finish check ${c.check_key} (${execution.state}${
-            execution.reason ? `: ${clip(execution.reason, 100)}` : ''
+            execution.reason ? `: ${execution.reason}` : ''
           }).`,
         };
       if (!qaPassed(execution, commit, c)) {
@@ -230,7 +243,7 @@ export async function gradePatchCase(
           detail: unbound
             ? `Check ${c.check_key} failed: the worker's record is not bound to this exact check and commit.`
             : `Check ${c.check_key} failed: ${exit}; ${output}${
-                execution.reason ? ` (${clip(execution.reason, 80)})` : ''
+                execution.reason ? ` (${execution.reason})` : ''
               }.`,
         };
       }
@@ -239,7 +252,7 @@ export async function gradePatchCase(
   } catch (e) {
     return {
       signal: 'provider_error',
-      detail: `Grading stopped: ${clip(said(e), 120)}`,
+      detail: `Grading stopped: ${said(e)}`,
     };
   } finally {
     // Throwaway product: the plan request ledger keeps the signal; the files are not evidence.
