@@ -72,6 +72,9 @@ again per repair cycle. "A lot of steps to do what is really one thing" (F18). D
 weigh: approve in place, with the action continuing automatically (same approvals); resume a
 stopped build (F12); one approval for a whole build of one frozen spec, or freeze and build
 together (these widen what one approval covers, so they need an owner decision first).
+Jordan's preference (06:57 EDT): one approval per build of one frozen spec, covering its repair
+rounds and both roles within a stated request limit. That changes oversight policy, so it needs an
+ADR and tests in the friction and flow pass.
 
 **Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F18 in the friction and flow pass.
 
