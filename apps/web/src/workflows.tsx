@@ -19,6 +19,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
+import { envelopeFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { usePageActive } from './page-drafts.js';
 
@@ -133,7 +134,8 @@ export function Workflows({
   async function start(e: FormEvent) {
     e.preventDefault();
     const entity = subjects.find((x) => x.id === subject);
-    const envelope = envelopes[0];
+    // A run or task budget belongs to its own run; use one this run may draw on.
+    const envelope = envelopeFor(envelopes, runId);
     const price = pricing[0];
     if (!entity || !envelope || !price || !runId) return;
     const list = perspectives

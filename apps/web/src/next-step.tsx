@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ArtifactSummarySchema,
+  EnvelopeSchema,
   OverviewSchema,
   PlanConnectionSchema,
   PricingSnapshotSchema,
@@ -13,11 +14,13 @@ import { api } from './oversight.js';
 import { useDesktopApp } from './desktop-app.js';
 import {
   decisionsNote,
+  failedNote,
   nextStep,
   type BuildState,
   type StudioFacts,
 } from './next-rules.js';
 import { productVersions } from './versions.js';
+import { artifactForBuild } from './build-defaults.js';
 import type { View } from './ui.js';
 
 // The products list as the build page reads it (apps/api/src/products.ts); only what the
@@ -32,6 +35,7 @@ const ProductsSchema = z.array(
       z.object({
         started_at: z.string(),
         state: z.string(),
+        commit: z.string().nullable(),
         package: z.object({ state: z.string() }).nullable(),
       }),
     ),
@@ -51,19 +55,29 @@ async function readFacts(
 ): Promise<StudioFacts> {
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
-  const [overview, pricing, specs, products, artifacts, plans] =
-    await Promise.all([
-      api(OverviewSchema, `${base}/overview`),
-      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-      api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
-      api(ProductsSchema, `${base}/products`).catch(() => []),
-      api(z.array(ArtifactSummarySchema), `${base}/artifacts`).catch(() => []),
-      fixture
-        ? Promise.resolve(null)
-        : api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
-            () => null,
-          ),
-    ]);
+  const [
+    overview,
+    pricing,
+    budgets,
+    specs,
+    reviews,
+    products,
+    artifacts,
+    plans,
+  ] = await Promise.all([
+    api(OverviewSchema, `${base}/overview`),
+    api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+    api(z.array(EnvelopeSchema), `${base}/budgets`),
+    api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
+    api(z.array(StoredEntitySchema), `${base}/entities?kind=humility_review`),
+    api(ProductsSchema, `${base}/products`).catch(() => []),
+    api(z.array(ArtifactSummarySchema), `${base}/artifacts`).catch(() => []),
+    fixture
+      ? Promise.resolve(null)
+      : api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
+          () => null,
+        ),
+  ]);
   // Freeze state for the specs changed most recently; a long tail of old specs adds nothing.
   const recent = [...specs]
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
@@ -74,6 +88,19 @@ async function readFacts(
     ),
   );
   const frozen = status.filter((s) => s?.frozen_current);
+  // A humility review counts only for the frozen version it reviews: a revision needs its own.
+  const reviewed = frozen.filter((s) =>
+    reviews.some((r) => {
+      const subject = (
+        r.body as { subject?: { id?: string; version?: number } }
+      ).subject;
+      return (
+        r.status === 'active' &&
+        subject?.id === s!.spec.id &&
+        subject.version === s!.spec.version
+      );
+    }),
+  );
   const count = (kind: string) =>
     overview.records.find((r) => r.kind === kind)?.active ?? 0;
   const latest = productVersions(products)[0]?.versions[0];
@@ -90,16 +117,18 @@ async function readFacts(
     owner: workspace.role === 'owner',
     desktop,
     pending: overview.decisions.pending,
-    attention: overview.attention.length,
+    // Only steps someone can still act on block; a failed step is finished and shown as a note.
+    attention: overview.attention.filter((a) => a.state !== 'failed').length,
+    failed: overview.attention.filter((a) => a.state === 'failed').length,
     runs: overview.runs.active,
-    budgets: overview.budget.envelopes,
+    budgets: budgets.filter((b) => b.status === 'active').length,
     pricing: pricing.length,
     sources: overview.sources.count,
     claims: count('claim'),
     problems: count('problem'),
     alternatives: count('alternative'),
     scorecards: count('scorecard'),
-    reviews: count('humility_review'),
+    reviews: reviewed.length,
     specs: specs.length,
     frozenSpecs: frozen.length,
     product: latest
@@ -111,7 +140,12 @@ async function readFacts(
           ),
           build,
           packaging: newest?.package?.state === 'running',
-          packaged: newest?.package?.state === 'done',
+          // Package jobs are forgotten when the API restarts; the Gallery artifact is the record.
+          packaged:
+            newest?.package?.state === 'done' ||
+            (newest !== undefined &&
+              artifactForBuild(artifacts, newest, latest.product.binding) !==
+                undefined),
         }
       : null,
     artifacts: artifacts.length,
@@ -159,6 +193,7 @@ export function NextStep({
   if (!facts) return null;
   const step = nextStep(view, facts);
   const note = decisionsNote(view, facts);
+  const failed = failedNote(view, facts);
   const lead =
     step.tone === 'blocked'
       ? 'Blocked'
@@ -192,6 +227,16 @@ export function NextStep({
           >
             Open Decisions
           </button>
+        </p>
+      )}
+      {failed && (
+        <p className="small">
+          {failed}.{' '}
+          {view !== 'runs' && (
+            <button type="button" className="text" onClick={() => open('runs')}>
+              Open Runs
+            </button>
+          )}
         </p>
       )}
     </aside>

@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  ArtifactSummarySchema,
   EnvelopeSchema,
   GrantSchema,
   PlanConnectionSchema,
@@ -24,6 +25,11 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 import { newestFirst, productVersions } from './versions.js';
+import {
+  artifactForBuild,
+  envelopeFor,
+  modelGrantCovers,
+} from './build-defaults.js';
 import { usePageActive } from './page-drafts.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
@@ -100,19 +106,26 @@ export function BuildView({
   // The product the last failed action was about, so a lock notice shows only there.
   const [failed, setFailed] = useState('');
   const data = useLoad(async () => {
-    const [specs, products, reviews, runs, budgets, pricing, grants] =
-      await Promise.all([
-        api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
-        api(z.array(ProductEntrySchema), `${base}/products`),
-        api(
-          z.array(StoredEntitySchema),
-          `${base}/entities?kind=humility_review`,
-        ),
-        api(z.array(RunControlSchema), `${base}/runs`),
-        api(z.array(EnvelopeSchema), `${base}/budgets`),
-        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-        api(z.array(GrantSchema), `${base}/grants`),
-      ]);
+    const [
+      specs,
+      products,
+      reviews,
+      runs,
+      budgets,
+      pricing,
+      grants,
+      artifacts,
+    ] = await Promise.all([
+      api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
+      api(z.array(ProductEntrySchema), `${base}/products`),
+      api(z.array(StoredEntitySchema), `${base}/entities?kind=humility_review`),
+      api(z.array(RunControlSchema), `${base}/runs`),
+      api(z.array(EnvelopeSchema), `${base}/budgets`),
+      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+      api(z.array(GrantSchema), `${base}/grants`),
+      // The record of what is packaged: the products route forgets package jobs on restart.
+      api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
+    ]);
     // The spec changed most recently first: that is the one being worked on.
     const recent = [...specs].sort(
       (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
@@ -179,18 +192,17 @@ export function BuildView({
         ...builders.filter((b) => b.kind === 'roles'),
         ...builders.filter((b) => b.kind !== 'roles'),
       ],
-      // Runs a standing model.generate grant covers: plan-role builds need one.
+      // Runs a standing grant admits plan-role model requests on: plan builds need one.
       modelRuns: new Set(
-        grants
-          .filter(
-            (g) =>
-              g.status === 'active' &&
-              g.scope === 'standing' &&
-              g.action_types.includes('model.generate') &&
-              Date.parse(g.expires_at) > now,
+        runs
+          .filter((r) =>
+            grants.some((g) =>
+              modelGrantCovers(g, r, fixture ? 'synthetic' : 'public', now),
+            ),
           )
-          .map((g) => g.run_id ?? '*'),
+          .map((r) => r.run_id),
       ),
+      artifacts,
     };
   }, [workspace.id]);
   const d = data.data;
@@ -559,8 +571,9 @@ type Data = {
     model_id: string;
     label: string;
   }[];
-  /** Run ids a standing model.generate grant covers; '*' when one covers every run. */
+  /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
+  artifacts: z.infer<typeof ArtifactSummarySchema>[];
 };
 
 function Product({
@@ -599,6 +612,11 @@ function Product({
     /locked|needs reconciliation/i.test(newest?.reason ?? '');
   const current =
     spec?.frozen_current && spec.spec.version === p.binding.spec_version;
+  /** The Gallery artifact for a build: this run's package job, else the artifact store. */
+  const packaged = (b: Build) =>
+    b.package?.state === 'done'
+      ? b.package.artifact_id
+      : artifactForBuild(data.artifacts, b, p.binding)?.id;
   return (
     <article className="artifact">
       <h4>
@@ -753,14 +771,12 @@ function Product({
                     {b.package?.state === 'failed' && (
                       <small> · packaging failed: {b.package.error}</small>
                     )}
-                    {b.package?.state === 'done' && (
+                    {packaged(b) && (
                       <>
                         {' '}
                         <button
                           className="text"
-                          onClick={() =>
-                            open('gallery', b.package?.artifact_id)
-                          }
+                          onClick={() => open('gallery', packaged(b))}
                         >
                           Packaged: open in Gallery
                         </button>
@@ -770,7 +786,7 @@ function Product({
                       owner &&
                       current &&
                       b.package?.state !== 'running' &&
-                      b.package?.state !== 'done' && (
+                      !packaged(b) && (
                         <>
                           {' '}
                           <button
@@ -832,23 +848,36 @@ function StartBuild({
   // '' until chosen: the $0 plan route when one is verified, else the broker.
   const [builder, setBuilder] = useState('');
   const [repairs, setRepairs] = useState(1);
-  const connection = builder
-    ? data.builders.find((b) => b.key === builder)
-    : data.builders.find((b) => b.kind === 'roles');
+  const planDefault = data.builders.find((b) => b.kind === 'roles');
+  // Once the plan route is shown as the default, it counts as chosen: if it later stops being
+  // verified, the form says so instead of quietly switching to the metered broker.
+  useEffect(() => {
+    if (!builder && planDefault) setBuilder(planDefault.key);
+  }, [builder, planDefault?.key]);
+  const connection =
+    builder && builder !== 'broker'
+      ? data.builders.find((b) => b.key === builder)
+      : builder
+        ? undefined
+        : planDefault;
+  /** A plan builder that was chosen and is no longer verified: nothing is sent until re-chosen. */
+  const lostBuilder =
+    builder !== '' && builder !== 'broker' && !connection ? builder : '';
   // The newest run that can build; on the plan route, preferably one whose standing grant
   // admits the role requests, so the default is a run the build can actually use.
   const usable = data.runs.filter((r) => r.autonomy_mode !== 'human_only');
-  const granted = usable.find(
-    (r) => data.modelRuns.has(r.run_id) || data.modelRuns.has('*'),
-  );
+  const granted = usable.find((r) => data.modelRuns.has(r.run_id));
   const runId = data.runs.some((r) => r.run_id === run)
     ? run
     : ((connection?.kind === 'roles' ? granted : undefined)?.run_id ??
       usable[0]?.run_id ??
       '');
-  const budgetId = data.budgets.some((b) => b.id === budget)
+  // A run or task budget belongs to its own run; the default is one this run may use.
+  const budgetId = data.budgets.some(
+    (b) => b.id === budget && (b.run_id === null || b.run_id === runId),
+  )
     ? budget
-    : (data.budgets[0]?.id ?? '');
+    : (envelopeFor(data.budgets, runId)?.id ?? '');
   const priceId = data.pricing.some((p) => p.id === price)
     ? price
     : (data.pricing[0]?.id ?? '');
@@ -858,6 +887,8 @@ function StartBuild({
     !budgetId && 'an active budget (Budgets)',
     !priceId && 'a pricing snapshot (Budgets)',
     !chosen && 'a humility review of this spec version',
+    lostBuilder &&
+      `a builder: the plan model chosen (${lostBuilder.split(':').slice(2).join(':')}) is no longer verified, so choose again (Models and connections shows why)`,
   ].filter(Boolean);
 
   function submit(e: FormEvent) {
@@ -899,9 +930,7 @@ function StartBuild({
         {data.runs.map((r) => (
           <option key={r.run_id} value={r.run_id}>
             {`${words(r.autonomy_mode)} run ${shortId(r.run_id)} · started ${when(r.created_at)}${
-              connection?.kind === 'roles' &&
-              !data.modelRuns.has(r.run_id) &&
-              !data.modelRuns.has('*')
+              connection?.kind === 'roles' && !data.modelRuns.has(r.run_id)
                 ? ' · no model grant'
                 : ''
             }`}
@@ -956,9 +985,14 @@ function StartBuild({
       <label htmlFor="bp-builder">Builder</label>
       <select
         id="bp-builder"
-        value={connection ? connection.key : 'broker'}
+        value={connection ? connection.key : lostBuilder || 'broker'}
         onChange={(e) => setBuilder(e.target.value)}
       >
+        {lostBuilder && (
+          <option value={lostBuilder} disabled>
+            Chosen plan model unavailable: choose again
+          </option>
+        )}
         <option value="broker">
           {fixture ? 'Fixture builder (simulated)' : 'Model broker (metered)'}
         </option>

@@ -533,9 +533,15 @@ export function Oversight({
   const [runs, setRuns] = useState<RunControl[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState('');
-  async function load() {
+  // Each load gets a number; only the latest may write, so a slow poll that started before a
+  // toggle cannot replace the list the toggle asked for.
+  const loadSeq = useRef(0);
+  /** `background`: a poll or return refresh, which keeps an error from an action on screen. */
+  async function load(background = false) {
     if (!workspace) return;
-    setError('');
+    const mine = ++loadSeq.current;
+    const stale = () => mine !== loadSeq.current;
+    if (!background) setError('');
     try {
       const list = await api(
         z.array(DecisionSchema),
@@ -551,19 +557,24 @@ export function Oversight({
               .then((d) => [d])
               .catch(() => [])
           : [];
+      const grants = await api(
+        z.array(GrantSchema),
+        `workspaces/${workspace}/grants`,
+      );
+      const runs = await api(
+        z.array(RunControlSchema),
+        `workspaces/${workspace}/runs`,
+      );
+      if (stale()) return;
       setDecisions(
         [...linked, ...list].sort(
           (a, b) => Number(b.id === focus) - Number(a.id === focus),
         ),
       );
-      setGrants(
-        await api(z.array(GrantSchema), `workspaces/${workspace}/grants`),
-      );
-      setRuns(
-        await api(z.array(RunControlSchema), `workspaces/${workspace}/runs`),
-      );
+      setGrants(grants);
+      setRuns(runs);
     } catch (e) {
-      setError(message(e));
+      if (!stale()) setError(message(e));
     }
   }
   useEffect(() => {
@@ -576,11 +587,11 @@ export function Oversight({
   latestLoad.current = load;
   const wasActive = useRef(active);
   useEffect(() => {
-    if (active && !wasActive.current) void latestLoad.current();
+    if (active && !wasActive.current) void latestLoad.current(true);
     wasActive.current = active;
     if (!active) return;
     const t = setInterval(() => {
-      if (document.visibilityState === 'visible') void latestLoad.current();
+      if (document.visibilityState === 'visible') void latestLoad.current(true);
     }, 15_000);
     return () => clearInterval(t);
   }, [active]);

@@ -24,6 +24,7 @@ type Step = {
   action?: { label: string; view: string };
 };
 type Rules = {
+  failedNote: (view: string, f: Facts) => string | null;
   nextStep: (view: string, f: Facts) => Step;
   pipelineStep: (f: Facts) => Step;
   decisionsNote: (view: string, f: Facts) => string | null;
@@ -36,6 +37,7 @@ const done: Facts = {
   desktop: false,
   pending: 0,
   attention: 0,
+  failed: 0,
   runs: 1,
   budgets: 1,
   pricing: 1,
@@ -198,4 +200,104 @@ test('products group by spec with the latest version first, unbuilt counting as 
     groups[0]!.versions.map((v) => v.product.id),
     ['v4-fresh', 'v4-old', 'v3', 'v2'],
   );
+});
+
+test('a failed run step is a note, not a permanent block', async () => {
+  const { nextStep, failedNote } = await load<Rules>('next-rules.ts');
+  const old = { ...done, failed: 3 };
+  assert.equal(nextStep('overview', old).tone, 'next');
+  assert.equal(nextStep('runs', old).action?.view, 'gallery');
+  assert.match(failedNote('overview', old) ?? '', /3 run steps failed/);
+  assert.equal(failedNote('build', old), null);
+  assert.equal(nextStep('overview', { ...done, attention: 1 }).tone, 'blocked');
+});
+
+type Defaults = {
+  modelGrantCovers: (
+    g: Record<string, unknown>,
+    run: Record<string, unknown>,
+    dataClass: string,
+    now: number,
+  ) => boolean;
+  envelopeFor: (
+    list: { id: string; run_id: string | null }[],
+    runId: string,
+  ) => { id: string } | undefined;
+  artifactForBuild: (
+    artifacts: {
+      id: string;
+      commit: string;
+      spec: { id: string; version: number };
+    }[],
+    build: { commit: string | null },
+    spec: { spec_id: string; spec_version: number },
+  ) => { id: string } | undefined;
+};
+
+test('the model-grant default follows the server: run, data class and autonomous initial grants', async () => {
+  const { modelGrantCovers } = await load<Defaults>('build-defaults.ts');
+  const now = Date.parse('2026-10-31T12:00:00Z');
+  const g = {
+    id: 'g1',
+    version: 1,
+    scope: 'standing',
+    status: 'active',
+    run_id: null,
+    action_types: ['model.generate'],
+    data_classes: ['public'],
+    expires_at: '2026-11-01T00:00:00Z',
+  };
+  const run = {
+    run_id: 'r1',
+    autonomy_mode: 'human_in_loop',
+    initial_grants: [],
+  };
+  assert.equal(modelGrantCovers(g, run, 'public', now), true);
+  assert.equal(modelGrantCovers(g, run, 'synthetic', now), false);
+  assert.equal(
+    modelGrantCovers({ ...g, run_id: 'r2' }, run, 'public', now),
+    false,
+  );
+  assert.equal(
+    modelGrantCovers({ ...g, scope: 'once' }, run, 'public', now),
+    false,
+  );
+  const auto = { ...run, autonomy_mode: 'autonomous_within_scope' };
+  assert.equal(modelGrantCovers(g, auto, 'public', now), false);
+  assert.equal(
+    modelGrantCovers(
+      g,
+      { ...auto, initial_grants: [{ id: 'g1', version: 1 }] },
+      'public',
+      now,
+    ),
+    true,
+  );
+  assert.equal(
+    modelGrantCovers(g, run, 'public', Date.parse('2026-11-02T00:00:00Z')),
+    false,
+  );
+});
+
+test('the default budget is never one bound to another run', async () => {
+  const { envelopeFor } = await load<Defaults>('build-defaults.ts');
+  const newest = [
+    { id: 'child-of-r2', run_id: 'r2' },
+    { id: 'shared', run_id: null },
+  ];
+  assert.equal(envelopeFor(newest, 'r1')?.id, 'shared');
+  assert.equal(envelopeFor(newest, 'r2')?.id, 'child-of-r2');
+  assert.equal(envelopeFor([{ id: 'x', run_id: 'r2' }], 'r1'), undefined);
+});
+
+test('a build counts as packaged when Gallery holds its commit, even after a restart', async () => {
+  const { artifactForBuild } = await load<Defaults>('build-defaults.ts');
+  const spec = { spec_id: 's', spec_version: 4 };
+  const artifacts = [
+    { id: 'a-v3', commit: 'c3', spec: { id: 's', version: 3 } },
+    { id: 'a-v4', commit: 'c4', spec: { id: 's', version: 4 } },
+  ];
+  assert.equal(artifactForBuild(artifacts, { commit: 'c4' }, spec)?.id, 'a-v4');
+  assert.equal(artifactForBuild(artifacts, { commit: 'c3' }, spec), undefined);
+  assert.equal(artifactForBuild(artifacts, { commit: null }, spec), undefined);
 });

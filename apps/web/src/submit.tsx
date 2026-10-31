@@ -25,6 +25,7 @@ import {
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
 import { newestFirst } from './versions.js';
+import { envelopeFor } from './build-defaults.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
@@ -253,7 +254,13 @@ export function Submit({
     .filter((p) => excluded[p] !== undefined)
     .map((p) => ({ perspective: p, reason: (excluded[p] ?? '').trim() }));
   const c = ctx.data;
-  const envelope = envelopeId || c?.envelopes[0]?.id || '';
+  // A run or task budget belongs to its own run; a new run can use only a shared one.
+  const envelope =
+    envelopeId ||
+    (c
+      ? envelopeFor(c.envelopes, runChoice === 'new' ? '' : runChoice)?.id
+      : '') ||
+    '';
   const price = pricingId || c?.pricing[0]?.id || '';
   const plan = connectionId
     ? c?.planDetails.find((p) => p.connection.id === connectionId)

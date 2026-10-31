@@ -39,8 +39,10 @@ export type StudioFacts = {
   /** The desktop app has no command line yet, so CLI-only steps say so. */
   desktop: boolean;
   pending: number;
-  /** Workflows waiting, paused, reconciling or failed. */
+  /** Workflow steps someone can still act on: waiting, paused or reconciling. */
   attention: number;
+  /** Failed workflow steps: finished, so they are noted rather than blocking. */
+  failed: number;
   runs: number;
   budgets: number;
   pricing: number;
@@ -210,7 +212,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       if (f.attention > 0)
         return {
           tone: 'blocked',
-          text: `${plural(f.attention, 'run step')} ${f.attention === 1 ? 'is' : 'are'} waiting, paused or failed.`,
+          text: `${plural(f.attention, 'run step')} ${f.attention === 1 ? 'is' : 'are'} waiting, paused or reconciling.`,
           action: { label: 'Open Runs', view: 'runs' },
         };
       return pipelineStep(f);
@@ -225,7 +227,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       if (f.attention > 0)
         return {
           tone: 'blocked',
-          text: `${plural(f.attention, 'run step')} ${f.attention === 1 ? 'is' : 'are'} waiting, paused or failed. Open one to see why.`,
+          text: `${plural(f.attention, 'run step')} ${f.attention === 1 ? 'is' : 'are'} waiting, paused or reconciling. Open one to see why.`,
         };
       if (f.runs === 0)
         return {
@@ -359,4 +361,10 @@ export function decisionsNote(view: StepView, f: StudioFacts) {
   if (f.pending === 0 || view === 'decisions' || view === 'overview')
     return null;
   return `${plural(f.pending, 'decision')} ${f.pending === 1 ? 'waits' : 'wait'} for you`;
+}
+
+/** Failed run steps, shown on the monitor and Runs as a note: they finished and block nothing. */
+export function failedNote(view: StepView, f: StudioFacts) {
+  if (f.failed === 0 || (view !== 'overview' && view !== 'runs')) return null;
+  return `${plural(f.failed, 'run step')} failed earlier; open ${f.failed === 1 ? 'it' : 'one'} under Runs to see why`;
 }
