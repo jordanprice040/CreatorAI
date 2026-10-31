@@ -316,7 +316,8 @@ export class BudgetStore extends OversightStore {
    * The ceiling spans every workspace, so it is a deployment setting: only a signed-in person
    * who owns at least one workspace may read or change it. Agents and system actors never can.
    */
-  private async requireCeilingOwner(c: PoolClient, actorId: string) {
+  /** A signed-in person who owns some workspace: the audience for the ceiling (ADR-0043). */
+  protected async isCeilingOwner(c: PoolClient, actorId: string) {
     const { rows } = await c.query<{ kind: string; owner: boolean }>(
       `select a.kind, exists(select 1 from workspace_members m
           where m.actor_id = a.id and m.role = 'owner') as owner
@@ -324,7 +325,10 @@ export class BudgetStore extends OversightStore {
       [actorId],
     );
     const r = rows[0];
-    if (!r || r.kind !== 'human' || !r.owner)
+    return !!r && r.kind === 'human' && r.owner;
+  }
+  private async requireCeilingOwner(c: PoolClient, actorId: string) {
+    if (!(await this.isCeilingOwner(c, actorId)))
       throw fail(
         'ACCESS_DENIED',
         'Only a person who owns a workspace can view or change the spending ceiling and limits; create a workspace first if you have none.',

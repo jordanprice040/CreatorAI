@@ -44,6 +44,7 @@ import { useTheme } from './theme.js';
 import './style.css';
 import { Studies } from './study.js';
 import { PageDrafts } from './page-drafts.js';
+import { UsageIndicator } from './usage.js';
 import { NextStep } from './next-step.js';
 
 const choices = [
@@ -748,6 +749,9 @@ function App() {
                   Sign out
                 </button>
               </span>
+            )}
+            {inStudio && signedIn && workspace && (
+              <UsageIndicator key={workspace.id} workspace={workspace} />
             )}
             {themeButton}
           </div>
