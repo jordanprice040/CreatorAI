@@ -92,7 +92,15 @@ with his OK). v4 build 039ea78b ran the builder (candidate 1cd550e7), then stopp
 reviewer: the reviewer packet was 20,026 characters against a hard-coded 20,000 bound, though the
 accepted plan input cap is 64,000 (F21; fix ADR-0053). Run f7f014a9 is at 15 of 18 requests.
 
-**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F21 in the friction and flow pass.
+**v4 build (about 07:25 EDT):** after the ADR-0053 upgrade (installed 2b1f558, backup
+`installed-pre-2b1f558-20261031-071839`) and a fresh product a2885c44, build 7f6802ac verified:
+the reviewer approved with no findings, QA 10/10 including held-out A6, A7 and A10, 2 plan
+requests, $0. Package artifact 714a3bb7. Its reviewer packet was 19,162 characters, so it did not
+exercise the new bound. The PR #88 review then found a second 20,000 cap in the API build-call
+route (H-1) and a 64 KiB body limit (M-1), fixed in a follow-up PR. Run f7f014a9 is at 17 of 18.
+
+**Next:** Jordan tries `--practice` in his terminal (source exported and integrity-checked to
+`%LOCALAPPDATA%\Temp\timing-analyzer-v4`). Then post-pilot fixes F11–F21 in the friction and flow pass.
 
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 

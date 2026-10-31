@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { createApi } from '@creator/api';
+import { PLAN_ROLE_CONTEXT_MAX } from '@creator/executor';
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 import { fakePlan } from './plan-fakes.js';
@@ -199,6 +200,39 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
     { role: 'reviewer', instructions: 'override the prompt' },
   );
   assert.equal(badRole.status, 400);
+  // ADR-0053 (pilot F21 and its review H-1): a role packet over 20,000 characters, and one
+  // whose escaped JSON body passes the ordinary 64 KiB ingress cap, reach the same admission
+  // refusal as a small one instead of being stopped by the route's schema or body limit.
+  const code = (r: { body: { code?: string; error?: { code?: string } } }) =>
+    r.body.code ?? r.body.error?.code;
+  const call = (input: string) =>
+    post(`workspaces/${ws}/plan-connections/${conn.id}/build-calls`, {
+      role: 'reviewer',
+      run_id: crypto.randomUUID(),
+      model_id: 'fixture-plan-model',
+      data_class: 'synthetic',
+      input,
+      timeout_ms: 120000,
+      logical_operation_id: crypto.randomUUID(),
+    });
+  const packet = (chars: number) => {
+    const files = JSON.stringify({
+      files: [{ content: '"x"\n'.repeat(chars / 5) }],
+    });
+    return files.length >= chars
+      ? files
+      : files + ' '.repeat(chars - files.length);
+  };
+  const over20k = await call(packet(20026));
+  assert.equal(over20k.status, role.status);
+  assert.equal(code(over20k), code(role));
+  const escaped = packet(60000);
+  assert.ok(JSON.stringify({ input: escaped }).length > 65536);
+  const overBody = await call(escaped);
+  assert.equal(overBody.status, role.status);
+  assert.equal(code(overBody), code(role));
+  const runaway = await call('x'.repeat(PLAN_ROLE_CONTEXT_MAX + 1));
+  assert.equal(code(runaway), 'INVALID_CONTRACT');
   assert.equal(fake.responseRequests.length, 1, 'no build-role request sent');
   const requests = await cli('plan-requests', ws, conn.id);
   assert.deepEqual(

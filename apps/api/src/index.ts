@@ -109,6 +109,7 @@ import {
   runCodexBuild,
   runPlanBuildCall,
   planBuildRolesReady,
+  PLAN_BUILD_CALL_MAX_BODY,
 } from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
@@ -777,16 +778,18 @@ export function createApi(
         item,
         action,
         method,
-        // Qualification manifests repeat bounded prompts and evidence for each case.
-        // Only this authenticated creation action gets the larger ingress allowance.
+        // Qualification manifests repeat bounded prompts and evidence for each case, and a
+        // build-role call carries a JSON packet as a JSON string (ADR-0053). Only these
+        // authenticated actions get larger ingress allowances.
         body: () =>
           readJson(
             req,
-            collection === 'plan-connections' &&
-              item &&
-              action === 'qualifications' &&
-              method === 'POST'
-              ? 128 * 1024
+            collection === 'plan-connections' && item && method === 'POST'
+              ? action === 'qualifications'
+                ? 128 * 1024
+                : action === 'build-calls'
+                  ? PLAN_BUILD_CALL_MAX_BODY
+                  : MAX_BODY
               : MAX_BODY,
           ),
         send,
