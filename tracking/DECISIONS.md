@@ -1,5 +1,28 @@
 # Decision log
 
+## ADR-0053 — Plan-role build packets are bounded by the accepted plan input cap (proposed October 31, 2026)
+
+Context: owner pilot finding F21. Build 039ea78b (timing analyzer spec v4, $0 ChatGPT plan route)
+ran the builder, then stopped before the reviewer with "Role context exceeds bounded packet". The
+reviewer packet was 20,026 characters: spec and task fields (7,894), the full file map (5,971)
+and the diff from the template (5,892). The executor's hard-coded 20,000-character role bound
+dates from the metered broker route. The connection's owner-accepted per-request input cap was
+64,000, and plan admission already enforces it on instructions plus input before any request is
+sent. The v3 build of the same program had fit with 36 characters to spare.
+
+Decision: on plan-role builds the executor's own bound is a runaway ceiling of 200,000 characters
+(the schema maximum for `max_input_chars`). The binding bound is the connection's accepted
+`caps.responses.max_input_chars`, which plan admission checks and records as a refusal. Metered
+broker builds keep the 20,000-character bound, because nothing else bounds their input. The error
+now states the packet size and the bound.
+
+Consequences: a plan-role build is limited only by the cap the owner accepted in Settings, and a
+packet over that cap is refused by admission without being sent. The file-map bound (14,000 bytes)
+is unchanged. The reviewer packet still carries both the file map and the diff; trimming that
+duplication is left for later. Test: `tests/src/build.test.ts` "plan-role packets are bounded by
+the accepted plan input cap, broker packets by 20,000" fails when the plan route uses the broker
+bound.
+
 ## ADR-0052 — Qualification answers and grading reasons are visible; held-out views bind prompt revisions (accepted October 31, 2026)
 
 Context: owner pilot finding F10. On October 30 the installed app's patch_build qualification

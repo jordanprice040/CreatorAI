@@ -1,3 +1,7 @@
+## Owner pilot revision round: plan-role packet bound (ADR-0053) — October 31, 2026
+
+Jordan's feedback on the analyzer (typing timings is too much friction) became spec v3 and then v4, adding a terminal `--practice` mode. v3 build 76a0b9ae passed QA 10/10, but the reviewer found a real capture-timing gap, which v4 fixes in the spec. The v4 build stopped before the reviewer because its packet (20,026 characters) passed the executor's hard-coded 20,000 bound. ADR-0053 now bounds plan-role packets by the owner-accepted plan input cap, which plan admission enforces, with a 200,000 runaway ceiling. Broker builds keep 20,000. Tests: build.test.ts 16 pass, 2 skipped (opt-in WSL). The new test fails when the plan route uses the broker bound. Findings F17–F21 are in `docs/OWNER_PILOT_LOG.md`. Next: Jordan's OK to reinstall, then a fresh v4 product and build.
+
 ## Owner pilot day 2: first verified build on the installed app — October 31, 2026
 
 The timing analyzer (spec ae20b026 v2) was built on the ChatGPT plan at $0: build 072d00a1 verified, reviewer approve, QA 7/7, package a05e1ae526 in the Gallery. Before that, the builder qualified (24adc57c, 3/3) once the app was launched outside Claude's MSIX container. Spec v1 missed the exact A7 wording, and the per-run cap of 10 blocked a reviewer; the cap is now 14. New findings F11–F15 and Jordan's Decisions-refresh feedback are in `docs/OWNER_PILOT_LOG.md` under "Day 2 summary". Next: Jordan's one feedback item, then one revision (needs an OK).

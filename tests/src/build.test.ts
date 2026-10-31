@@ -38,7 +38,10 @@ import type {
   BrokerCallResult,
 } from '@creator/contracts';
 
-async function setup(t: test.TestContext) {
+async function setup(
+  t: test.TestContext,
+  edit: (spec: SpecBody) => SpecBody = (spec) => spec,
+) {
   const parent = resolve('.verification/build-tests');
   await mkdir(parent, { recursive: true });
   const root = await mkdtemp(join(parent, 'case-'));
@@ -46,12 +49,12 @@ async function setup(t: test.TestContext) {
     assert.ok(root.startsWith(parent));
     await rm(root, { recursive: true, force: true });
   });
-  const spec: SpecBody = {
+  const spec: SpecBody = edit({
     ...structuredClone(BUILD_FIXTURE_SPEC),
     format: 'spec/1',
     alternative: { id: randomUUID(), version: 1 },
     selection_id: randomUUID(),
-  };
+  });
   const binding: Binding = {
     workspace_id: randomUUID(),
     owner_id: randomUUID(),
@@ -602,6 +605,57 @@ test('a failed plan role request stops the build without applying anything', asy
   assert.match(result.reason, /quota_exhausted/);
   assert.equal(result.commit, s.product.initial_commit);
   assert.equal(s.requests.length, 0);
+});
+
+test('plan-role packets are bounded by the accepted plan input cap, broker packets by 20,000', async (t) => {
+  // Owner pilot F21: a v4 spec plus a 5.5k program and its diff passed 20,000 characters and
+  // stopped a $0 plan build before the reviewer, though the accepted plan cap was 64,000.
+  const s = await setup(t, (spec) => ({
+    ...spec,
+    problem_statement: 'p'.repeat(1200),
+    scope: Array.from({ length: 20 }, (_, i) => `${i} ${'s'.repeat(290)}`),
+    non_goals: Array.from({ length: 20 }, (_, i) => `${i} ${'n'.repeat(290)}`),
+    risks: Array.from({ length: 20 }, () => ({
+      risk: 'r'.repeat(300),
+      mitigation: 'm'.repeat(300),
+    })),
+  }));
+  const ports = s.ports;
+  const broker = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    s.plan,
+    ports,
+  );
+  assert.equal(broker.state, 'checkpoint');
+  assert.match(broker.reason, /exceeds bounded packet \(\d+ > 20000/);
+  assert.equal(s.requests.length, 0);
+  const sizes: number[] = [];
+  const plan: BuildPlan = {
+    ...s.plan,
+    plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+  };
+  await s.builds.run(s.product.id, s.task.id, s.product.initial_commit, plan, {
+    ...ports,
+    planRolesReady: async () => [],
+    planRole: async (target, request) => {
+      sizes.push(request.input.length);
+      return {
+        request_id: randomUUID(),
+        status: 'succeeded',
+        reason_code: 'ok',
+        text: buildFixtureAnswer([
+          { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+          { role: 'user', text: request.input },
+        ]),
+        fixture: true,
+      };
+    },
+  });
+  assert.ok(sizes.length >= 1, 'the builder request was sent');
+  assert.ok(sizes.every((n) => n > 20000));
+  assert.equal(s.requests.length, 0, 'no dollar broker call');
 });
 
 test('plan roles exclude the Codex builder, and broker builds keep the 60 s call bound', async (t) => {

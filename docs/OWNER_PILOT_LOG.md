@@ -45,7 +45,7 @@ and grading reasons (F10).
 
 **Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
 
-**New findings (F11–F20):**
+**New findings (F11–F21):**
 
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
@@ -85,7 +85,14 @@ entry; they should default to the most recent (F20). On the v4 product the build
 defaulted Builder to Model broker (metered) rather than the qualified $0 plan route, and Run to a
 run without the grant or request room. A paid default is the more serious part (priority).
 
-**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F20 in the friction and flow pass.
+**v3 and v4 builds (07:03–07:08 EDT):** v3 build 76a0b9ae passed QA 10/10, but the reviewer
+requested changes. Practice mode only read Enter after the count-in, so early presses were buffered
+and timed late. That was a v3 spec gap, so spec v4 adds when capture starts (run cap raised 14→18
+with his OK). v4 build 039ea78b ran the builder (candidate 1cd550e7), then stopped before the
+reviewer: the reviewer packet was 20,026 characters against a hard-coded 20,000 bound, though the
+accepted plan input cap is 64,000 (F21; fix ADR-0053). Run f7f014a9 is at 15 of 18 requests.
+
+**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F21 in the friction and flow pass.
 
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 
