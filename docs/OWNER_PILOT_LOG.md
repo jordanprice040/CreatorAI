@@ -15,6 +15,56 @@ build as it is and asked Claude to set the WSL memory cap.
 | Hardware limit handling   | Run without enforcement (Jordan's choice); free RAM is watched and logged by hand                                                                                                                                                                               |
 | WSL memory                | `%USERPROFILE%\.wslconfig` `memory=8GB`, written 2026-10-30 (no prior file); WSL reports 7 GiB total                                                                                                                                                            |
 
+## Day 2 summary (2026-10-31, about 04:26–06:36 EDT)
+
+**Result: first full front-to-back pilot run.** Build 072d00a1 (product 938f16f1, spec
+ae20b026 v2) reached verified_candidate at commit a05e1ae5. The reviewer approved with no
+findings, and QA in the WSL worker passed 7/7, including held-out A6 and A7. Package a05e1ae526
+is integrity-checked in the Gallery, with the source archive and runnable demo available. New metered spend $0.
+
+**The builder failure from day 1 was not the model or the deadline.** All 8 stored answers
+(37752d2f, 31aae6c9) were correct patches, each graded `provider_error`. The installed app had
+been launched from inside the Claude desktop app's MSIX container, which redirected the new
+`plan-qualification-products` folder to Claude's LocalCache. `canonical()` then refused the
+path. A replay with the installed bundle confirmed it. Jordan relaunched the app himself, and
+the retry qualified (24adc57c, 1/1 and 3/3, 4 requests). With Jordan's typed OK, the 6 approved
+websites saved only in the redirected `studio.json` were copied back to the real one (backup
+`studio.json.bak-20261031`). PR #86 (ADR-0052) now records and shows qualification answers
+and grading reasons (F10).
+
+**Path to the build (each step with a typed OK or Jordan's own action):**
+
+1. Spec v1 was drafted with 7 exact cases (A6 and A7 held out), entered, and frozen by Jordan.
+2. A $0 run envelope de301296 and a pricing snapshot bc75a731 were created; a real workspace refuses fixture pricing.
+3. The spec humility review 74c77e50 was drafted, approved without edits and entered.
+4. Build 13c597f4: reviewer approve, QA 6/7. Held-out A7 failed because v1's visible scope said "> 0 and <= 1000" while A7 expected "above 0 and at most 1000". This was a spec-authoring miss: a held-out output must be derivable from the visible spec.
+5. Spec v2 changed only that line, with the cases unchanged; the review moved to v2.
+6. The model.generate grant e5f022aa (public, to 14:30 UTC) replaced the expiring 4e521670.
+7. Build 5525feed: the builder fixed A7, but the reviewer was refused by the per-run cap of 10 (F11). The cap was raised to 14 (settings v41, caps v42).
+8. A fresh product 938f16f1 led to build 072d00a1, verified.
+
+**Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
+
+**New findings (F11–F17):**
+
+- F11: the build-roles preflight passes when the run has room for only one of the two role requests.
+- F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
+- F13: the plan route needs a model.generate standing grant that the app can't create, and the preflight raises no decision for it.
+- F14: the installed app breaks when launched from a Claude session (MSIX path redirect). It should detect a redirected home and refuse with a clear message.
+- F16: the private preview gives no hint of what to type (arguments, stdin format). It should show the spec's usage and one visible example case.
+- F15: the $0 plan route still needs an envelope, a pricing snapshot and a commit_build approval per repair cycle (U04). That is a lot of setup.
+- F17: the studio can build only headless Python CLIs that are verified by fixed stdin/stdout cases. It has no interactive or web template, so a live input tester (real-time key capture plus a timing cue) can't be built or verified, and the preview can't run interactive programs.
+
+**Owner feedback:** 2026-10-31 06:25 EDT, Jordan: if the Decisions page stays, it must
+auto-refresh when another page sends you there to make a decision (related to F6).
+
+**Product feedback:** 2026-10-31 06:42 EDT, Jordan tried the analyzer in the private preview
+(fps 60, 3 inputs). The output was correct, checked by hand. His feedback: typing timings by hand
+is too much friction. It should have a built-in tester where you time your own inputs and it says
+whether each was on the frame, or how early or late (F17). Revision direction: pending his choice.
+
+**Next:** Jordan picks the revision direction for the feedback (needs its own OK). Then post-pilot fixes F11–F17 in the friction and flow pass.
+
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 
 **Got through:** pilot set up → evidence (6 approved websites; idiocode, RTINGS, supercombo wiki,
