@@ -30,6 +30,7 @@ import {
 import {
   BUILD_ROLE_PROMPTS,
   canonicalHash,
+  fixtureHumilityReview,
   admissionBlockers,
   connectionBlockers,
 } from '@creator/domain';
@@ -1108,11 +1109,17 @@ test('build-role plan requests need the exact role prompt, a qualification and a
       })
     ).run_id;
   };
-  const call = (role: 'builder' | 'reviewer', run_id: string) =>
+  // ADR-0054: every build-role request names its build, whose one approval covers it.
+  const call = (
+    role: 'builder' | 'reviewer',
+    run_id: string,
+    build_id: string = randomUUID(),
+  ) =>
     service.buildRole(owner, ws.id, conn.id, {
       role,
       model_id: 'm',
       run_id,
+      build_id,
       data_class: 'synthetic',
       input: '{"candidate":"x"}',
       timeout_ms: 120000,
@@ -1130,15 +1137,11 @@ test('build-role plan requests need the exact role prompt, a qualification and a
       run_id,
       data_class: 'synthetic',
     });
-  // The preflight also names the missing model-request grant on the run, before any grant
-  // is used or anything is sent.
-  const missing = await ready(live);
-  assert.equal(missing.length, 2, missing.join(' | '));
-  assert.match(missing[0]!, /would not admit model requests/);
-  assert.equal(
-    missing[1],
+  // The preflight no longer asks for a model-request grant on the run: the build's one
+  // approval covers its role requests.
+  assert.deepEqual(await ready(live), [
     'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
-  );
+  ]);
   assert.match((await ready(human))[0]!, /human-only/);
   // A frozen study assignment keeps its adopted route.
   const studyRun = await entity('human_in_loop', 'human_in_loop');
@@ -1169,36 +1172,91 @@ test('build-role plan requests need the exact role prompt, a qualification and a
       role: 'reviewer',
       model_id: 'm',
       run_id: live,
+      build_id: randomUUID(),
       data_class: 'synthetic',
       input: '{"candidate":"x"}',
       timeout_ms: 120000,
       logical_operation_id: randomUUID(),
     }),
   );
-  const before = s.fake.responseRequests.length;
-  // Without a grant covering model requests on this run, the run's admission stops it.
-  const held = await call('reviewer', live);
-  assert.equal(held.status, 'failed');
-  assert.equal(s.fake.responseRequests.length, before, 'nothing was sent');
-  await store.createStandingGrant(owner, ws.id, {
-    run_id: live,
-    action_types: ['model.generate'],
-    target_kind: null,
-    max_amount_nano_usd: '0',
-    allow_irreversible: false,
-    allow_external_effects: false,
-    data_classes: ['synthetic'],
-    expires_at: new Date(Date.now() + 3600_000).toISOString(),
-    rationale: 'Plan build-role requests for this run.',
-  });
-  assert.deepEqual(await ready(live), [
-    'Model m is not qualified for patch_build (the T12 builder) under its current prompt.',
-  ]);
   assert.match(
     (await ready(live, editor)).join(' '),
     /Only the workspace owner/,
   );
-  const r = await call('reviewer', live);
+  const before = s.fake.responseRequests.length;
+  // A build with no recorded approval is refused before anything is sent.
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', live),
+    /no recorded approval/,
+  );
+  assert.equal(s.fake.responseRequests.length, before, 'nothing was sent');
+  // The approval: one product.commit_build admission of the frozen target, recorded with the
+  // build's limits. Without a covering grant the person is asked and nothing is recorded.
+  const idea = await store.createEntity(owner, ws.id, {
+    kind: 'idea',
+    title: 'Synthetic idea',
+    body: { summary: 'Synthetic.', uncertainty: 'Synthetic.' },
+  });
+  const target = await store.createEntity(owner, ws.id, {
+    kind: 'product',
+    title: 'Synthetic product',
+    body: { stage: 'captured', summary: 'Synthetic.' },
+  });
+  const review = await store.createEntity(owner, ws.id, {
+    kind: 'humility_review',
+    title: 'Synthetic humility review',
+    body: fixtureHumilityReview({ id: target.id, version: 1 }, [
+      { id: idea.id, version: 1 },
+    ]),
+  });
+  const approve = (run_id: string, over: Record<string, unknown> = {}) =>
+    store.admitBuild(owner, ws.id, run_id, {
+      build_id: randomUUID(),
+      product_id: randomUUID(),
+      task_id: randomUUID(),
+      spec: { id: target.id, version: 1 },
+      spec_hash: 'a'.repeat(64),
+      plan_hash: 'b'.repeat(64),
+      route: 'plan_roles',
+      connection_id: conn.id,
+      model_id: 'm',
+      data_class: 'synthetic',
+      humility_review: { id: review.id, version: 1 },
+      request_limit: 2,
+      max_repairs: 0,
+      expires_at: new Date(Date.now() + 600_000).toISOString(),
+      ...over,
+    });
+  const asked = await approve(live);
+  assert.equal(asked.admission.verdict, 'request_human');
+  assert.equal(asked.approval, null);
+  const decision = await store.getDecision(
+    owner,
+    ws.id,
+    asked.admission.decision_id!,
+  );
+  // The studio states what the one approval covers; the caller cannot word it.
+  assert.equal(
+    decision.options.find((o) => o.id === 'approve')!.consequence,
+    'One approval covers this whole build (builder and reviewer on the ChatGPT plan): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 2 and 6).',
+  );
+  const commitGrant = await store.createStandingGrant(owner, ws.id, {
+    run_id: live,
+    action_types: ['product.commit_build'],
+    target_kind: null,
+    max_amount_nano_usd: null,
+    allow_irreversible: false,
+    allow_external_effects: false,
+    data_classes: ['synthetic'],
+    expires_at: new Date(Date.now() + 3600_000).toISOString(),
+    rationale: 'Synthetic builds of this run.',
+  });
+  const { approval } = await approve(live);
+  assert.ok(approval);
+  assert.equal(approval.request_limit, 2);
+  await rejects('DUPLICATE', approve(live, { build_id: approval.id }));
+  const r = await call('reviewer', live, approval.id);
   assert.equal(r.status, 'succeeded');
   assert.equal(r.text, APPROVE);
   assert.equal(r.fixture, true);
@@ -1207,6 +1265,69 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     s.fake.responseRequests.at(-1)!.body.instructions,
     BUILD_ROLE_PROMPTS.reviewer,
     'the role prompt is fixed by the studio, not the caller',
+  );
+  assert.equal((await call('reviewer', live, approval.id)).status, 'succeeded');
+  // The stated request limit is the ceiling: a third request is refused unsent.
+  const atLimit = s.fake.responseRequests.length;
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', live, approval.id),
+    /approved request limit \(2\) is reached/,
+  );
+  assert.equal(s.fake.responseRequests.length, atLimit, 'nothing was sent');
+  const { rows: ledger } = await s.db.pool.query(
+    'select count(*)::int as n from plan_requests where build_id = $1',
+    [approval.id],
+  );
+  assert.equal(ledger[0].n, 2);
+  // An approval covers only its own run, route, model and data class.
+  const other = await entity('human_in_loop', 'human_in_loop');
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', other, approval.id),
+    /different run/,
+  );
+  const broker = await approve(live, {
+    route: 'broker',
+    connection_id: null,
+    model_id: null,
+  });
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', live, broker.approval!.id),
+    /different route, connection or model/,
+  );
+  // Revoking the grant behind an approval stops the rest of that build.
+  const second = (await approve(live)).approval!;
+  await store.revokeGrant(owner, ws.id, commitGrant.id, {
+    expected_version: commitGrant.version,
+    reason: 'Stop synthetic builds.',
+  });
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', live, second.id),
+    /revoked, changed or has expired/,
+  );
+  assert.equal(s.fake.responseRequests.length, atLimit, 'nothing was sent');
+  // F11: the preflight refuses a run without room for both roles on this connection.
+  const room = conn.settings.caps.responses.max_requests_per_run;
+  const used = (
+    await s.db.pool.query(
+      "select count(*)::int as n from plan_requests where run_id = $1 and path = 'responses'",
+      [live],
+    )
+  ).rows[0].n as number;
+  for (let i = used; i < room - 1; i++)
+    await s.db.pool.query(
+      `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose, model_id,
+         task_class, data_class, run_id, state, created_by, started_at)
+       values ($1,$2,$3,'responses','task','m','independent_review','synthetic',$4,'completed',$5,
+         now() - interval '2 days')`,
+      [randomUUID(), conn.id, randomUUID(), live, owner.actorId],
+    );
+  assert.match(
+    (await ready(live)).join(' '),
+    /room for 1 more plan request on this connection; a build needs at least 2/,
   );
   // A qualification decided on an older reviewer prompt no longer admits the current one.
   const { rows } = await s.db.pool.query(

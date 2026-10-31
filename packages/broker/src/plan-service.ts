@@ -139,6 +139,8 @@ export interface InvokeRequest {
   task_class: PlanTaskClass | null;
   data_class: 'synthetic' | 'public' | 'private_approved';
   run_id: string | null;
+  /** ADR-0054: a T12 build-role request names its build, whose one approval covers it. */
+  build_id?: string | null;
   grant_id?: string | null;
   qualification_id?: string | null;
   qualification_case?: {
@@ -543,7 +545,7 @@ export class PlanConnectionService {
         task_class: r.task_class,
         data_class: r.data_class,
         run_id: r.run_id,
-        build_id: null,
+        build_id: r.build_id ?? null,
         grant_id: r.grant_id ?? null,
         qualification_id: r.qualification_id ?? null,
         input_chars: r.instructions.length + r.input.length,
@@ -910,6 +912,7 @@ export class PlanConnectionService {
       role: BuildRole;
       model_id: string;
       run_id: string;
+      build_id: string;
       data_class: 'synthetic' | 'public' | 'private_approved';
       input: string;
       timeout_ms: number;
@@ -928,6 +931,7 @@ export class PlanConnectionService {
       task_class: BUILD_ROLE_TASK_CLASSES[b.role],
       data_class: b.data_class,
       run_id: b.run_id,
+      build_id: b.build_id,
       instructions: BUILD_ROLE_PROMPTS[b.role],
       input: b.input,
       logical_operation_id: b.logical_operation_id,
@@ -968,7 +972,7 @@ export class PlanConnectionService {
         ctx,
         ws,
         b.run_id,
-        b.data_class,
+        connectionId,
       )),
     ];
     if (!d.connection.settings.allowed_data_classes.includes(b.data_class))

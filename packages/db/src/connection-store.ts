@@ -8,6 +8,7 @@ import {
   CreatePlanConnectionRequestSchema,
   CreateVerificationGrantRequestSchema,
   PlanAdmissionRequestSchema,
+  BuildApprovalRequestSchema,
   PlanSettlementSchema,
   ReconcilePlanRequestSchema,
   StartPlanQualificationRequestSchema,
@@ -20,6 +21,8 @@ import {
   type WorkflowLimits,
   type Workflow,
   type Admission,
+  type BuildApproval,
+  type BuildApprovalResult,
   type PlanAdmissionRequest,
   type PlanConnection,
   type PlanConnectionDetail,
@@ -49,6 +52,11 @@ import {
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
 import { toRun } from './oversight-store.js';
+import {
+  buildApprovalBlockers,
+  buildApprovalScopeNote,
+  toBuildApproval,
+} from './build-approvals.js';
 import {
   fail,
   iso,
@@ -959,15 +967,16 @@ export class ConnectionStore extends PortfolioStore {
   }
 
   /**
-   * Why T12 plan build-role requests for this run would be refused or held now (ADR-0048),
-   * without writing anything: owner, run state, study assignment and the run's own
-   * model.generate admission. Both roles need it, so a once-scoped grant is not enough.
+   * Why T12 plan build-role requests for this run would be refused now (ADR-0048, ADR-0054),
+   * without writing anything: owner, run state, study assignment, and room on this connection
+   * for at least one builder and one reviewer request (F11). The requests themselves are
+   * covered by the build's one approval, so no model.generate grant is needed on the run.
    */
   async planBuildRolesRunBlockers(
     ctxIn: CommandContext,
     ws: string,
     runId: string,
-    dataClass: PlanAdmissionRequest['data_class'],
+    connectionId: string,
   ): Promise<string[]> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
@@ -997,28 +1006,129 @@ export class ConnectionStore extends PortfolioStore {
       );
       if (study.rows[0])
         out.push('Plan build roles are not used for frozen study assignments.');
-      if (out.length) return out;
-      const v = await this.wouldAdmit(c, uuid(ws), run.run_id, {
-        action_type: 'model.generate',
-        task_id: null,
-        target: null,
-        spec_hash: null,
-        amount_nano_usd: null,
-        data_class: dataClass,
-        assumption_ids: [],
-        humility_review: null,
-        flags: [],
-        justification: 'Plan build-role preflight (read-only).',
-      });
-      if (v.verdict !== 'allow')
+      const conn = await this.#connection(c, uuid(ws), uuid(connectionId));
+      const usage = await this.#usage(c, conn.id, run.run_id, null);
+      const caps = conn.settings.caps;
+      const runRoom = caps.responses.max_requests_per_run - usage.run_requests;
+      const dayRoom =
+        caps.shared.max_model_requests_per_day - usage.last_24h_requests;
+      if (runRoom < 2)
         out.push(
-          `The run would not admit model requests for ${dataClass} data (${v.reason_code}); add a standing grant covering model.generate on this run.`,
+          `This run has room for ${Math.max(0, runRoom)} more plan request${runRoom === 1 ? '' : 's'} on this connection; a build needs at least 2 (builder and reviewer). Raise the per-run cap in Settings or use a fresh run.`,
         );
-      else if (v.covered_by?.scope === 'once')
+      if (dayRoom < 2)
         out.push(
-          'Only a one-time grant covers model requests on this run; the builder and reviewer each need one, so add a standing grant covering model.generate.',
+          `The connection's daily cap leaves room for ${Math.max(0, dayRoom)} more request${dayRoom === 1 ? '' : 's'}; a build needs at least 2.`,
         );
       return out;
+    });
+  }
+
+  /**
+   * ADR-0054: the one approval of one build. Admits product.commit_build for the build's frozen
+   * spec once and, when allowed, records the approval with the build's stated limits in the
+   * same transaction. Its repair rounds and plan role requests check this record instead of
+   * asking again. The studio writes the justification the person sees; the caller cannot.
+   */
+  async admitBuild(
+    ctxIn: CommandContext,
+    ws: string,
+    runId: string,
+    raw: unknown,
+  ): Promise<BuildApprovalResult> {
+    const ctx = normalize(ctxIn);
+    const req = parse(BuildApprovalRequestSchema, raw);
+    ws = uuid(ws);
+    runId = uuid(runId);
+    if (Date.parse(req.expires_at) <= Date.now())
+      throw fail('EXPIRED', 'The build deadline has already passed.');
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const prior = await c.query(
+        'select 1 from build_approvals where id = $1',
+        [req.build_id],
+      );
+      if (prior.rows[0])
+        throw fail('DUPLICATE', 'This build already has its approval.');
+      const admission = await this.admitIn(
+        c,
+        ctx,
+        ws,
+        runId,
+        {
+          action_type: 'product.commit_build',
+          task_id: null,
+          target: req.spec,
+          spec_hash: req.spec_hash,
+          amount_nano_usd: null,
+          data_class: req.data_class,
+          assumption_ids: [],
+          humility_review: req.humility_review,
+          flags: [],
+          justification:
+            'T12 build of the frozen specification: scoped builder patches, a fresh independent review and isolated acceptance execution, under one approval (ADR-0054).',
+        },
+        undefined,
+        buildApprovalScopeNote(req),
+      );
+      if (admission.verdict !== 'allow' || !admission.covered_by)
+        return { admission, approval: null };
+      const grant = (
+        await c.query('select decision_id from grants where id = $1', [
+          admission.covered_by.grant_id,
+        ])
+      ).rows[0] as Row | undefined;
+      const { rows } = await c.query(
+        `insert into build_approvals (id, workspace_id, run_id, product_id, task_id, spec_id,
+           spec_version, spec_hash, plan_hash, route, connection_id, model_id, data_class,
+           request_limit, max_repairs, humility_review_id, humility_review_version,
+           admission_id, grant_id, grant_version, decision_id, expires_at, created_by)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+         returning *`,
+        [
+          req.build_id,
+          ws,
+          runId,
+          req.product_id,
+          req.task_id,
+          req.spec.id,
+          req.spec.version,
+          req.spec_hash,
+          req.plan_hash,
+          req.route,
+          req.connection_id,
+          req.model_id,
+          req.data_class,
+          req.request_limit,
+          req.max_repairs,
+          req.humility_review.id,
+          req.humility_review.version,
+          admission.id,
+          admission.covered_by.grant_id,
+          admission.covered_by.grant_version,
+          grant?.decision_id ?? null,
+          req.expires_at,
+          ctx.actorId,
+        ],
+      );
+      const approval: BuildApproval = toBuildApproval(rows[0] as Row);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'build.approved',
+        subjectKind: 'build',
+        subjectId: approval.id,
+        subjectVersion: null,
+        contentHash: approval.plan_hash,
+        payload: {
+          route: approval.route,
+          request_limit: approval.request_limit,
+          max_repairs: approval.max_repairs,
+          admission_id: approval.admission_id,
+          grant_id: approval.grant_id,
+        },
+        relatedIds: [runId, approval.spec.id, approval.admission_id],
+      });
+      return { admission, approval };
     });
   }
 
@@ -1221,21 +1331,26 @@ export class ConnectionStore extends PortfolioStore {
           return { request_id: '', connection: conn, admission };
       }
       if (buildRole) {
-        // Like a broker build call: the run's own admission for a model request (ADR-0048).
-        const admission = await this.admitIn(c, ctx, ws, req.run_id!, {
-          action_type: 'model.generate',
-          task_id: null,
-          target: null,
-          spec_hash: null,
-          amount_nano_usd: null,
-          data_class: req.data_class,
-          assumption_ids: [],
-          humility_review: null,
-          flags: [],
-          justification: `T12 ${req.task_class} request on plan connection ${conn.id}; model ${req.model_id}; no metered spend.`,
-        });
-        if (admission.verdict !== 'allow')
-          return { request_id: '', connection: conn, admission };
+        // ADR-0054: covered by the build's one approval, within its stated request limit.
+        const blocked = await buildApprovalBlockers(
+          c,
+          uuid(ws),
+          ctx.actorId,
+          {
+            build_id: req.build_id!,
+            run_id: req.run_id!,
+            model_id: req.model_id,
+            data_class: req.data_class,
+          },
+          conn.id,
+          Date.now(),
+        );
+        if (blocked.length)
+          throw new ContractError(
+            'ACCESS_DENIED',
+            'This build-role request is not covered by its build approval.',
+            blocked,
+          );
       }
       if (grant)
         await c.query(

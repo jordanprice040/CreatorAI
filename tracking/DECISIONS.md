@@ -1,5 +1,66 @@
 # Decision log
 
+## ADR-0054 — One owner approval per build of a frozen spec (accepted October 31, 2026)
+
+Context: owner pilot findings F12, F13, F15 and F18. A supervised run holds
+`product.commit_build` at a stage gate, so each build needed a one-time grant, and the executor
+asked for it again before every repair round. A build that needed a repair stopped at
+"Build admission waiting_human", and building again then failed with "Stale build candidate",
+because the studio always sent the task's base commit. On the plan route each builder and
+reviewer request also needed the run's own `model.generate` admission, which in practice meant a
+standing grant the app could not create. Jordan's decision (October 31, 2026, 06:57 EDT): one
+approval per build of one frozen spec, covering its repair rounds and both plan roles within a
+stated request limit, with an ADR and tests.
+
+Decision: a build asks once, before its first round. `POST /workspaces/:ws/runs/:run/build-approvals`
+(store `admitBuild`, which the studio calls directly) runs the ordinary `product.commit_build`
+admission of the product's frozen spec (same target, humility review, stage gate, grants and
+decision flow) and, when it is allowed, writes an immutable `build_approvals` row (migration 33)
+in the same transaction. The row binds the build id, product, task, spec id, version and hash,
+plan hash, route, plan connection and model, data class, humility review, the admission and the
+grant that allowed it (and its decision), the deadline, and the build's stated limits: the plan's
+`max_repairs` (at most 2) and its `max_calls` as the request limit (at most 6). The studio writes
+the approval's wording; the Approve option on the decision says what one approval covers. A
+build id can be approved only once.
+
+- Repair rounds do not ask again. The executor still re-checks the run, the grant behind the
+  approval and the humility review at every step, so cancelling the run, revoking or changing
+  the grant, or revising the review stops the build before its next request.
+- Plan-role requests (`patch_build`, `independent_review`) now name their build. Plan admission
+  accepts one only when that build's approval exists, belongs to the caller, run, connection,
+  model and data class, has not passed its deadline, its grant still stands (a one-time grant
+  exactly as consumed, or a standing grant unchanged and unexpired), its humility review is
+  unchanged, and fewer than the request limit of requests already carry its build id. This is
+  checked under the connection lock, so two requests cannot take the last slot. The run's own
+  `model.generate` grant is no longer needed for them. Every other plan check (qualification for
+  the current role prompt, caps, owner, active non-human-only run, no study assignment) applies
+  as before.
+- The build-roles preflight no longer asks for a standing model grant. It now refuses a run
+  with room for fewer than 2 plan requests on the connection, per run or per day (F11).
+- A stopped build continues from the task's current candidate. `GET .../products` returns each
+  task's `head`, and the studio sends it as `expected_commit` (F12). The commit check still
+  refuses a build whose candidate changed underneath it.
+
+Not changed: metered broker builds and the Codex builder keep their per-call `model.generate`
+admission and reservations, because they spend or have their own caps. Frozen study builds
+(T15) keep one admission per round (`perRoundAdmission`), so no study condition changes.
+Executed QA and the independent review still decide `verified_candidate`.
+
+Known limit: a pending decision for the same spec and run keeps the wording of the build that
+first asked. If a later build states different limits, the wording on that decision is stale,
+but no build can exceed 2 repair rounds or 6 requests, and each build's own limits are recorded
+with its approval. Approving in place, so that the build continues by itself, is separate work
+(the navigation thread). Keeping decisions when scores change is in the selection code, not here.
+
+Tests: `tests/src/build.test.ts` "one approval covers a whole build" (a repair round with both
+roles asks once, the scope matches the recorded limits, a stop between rounds ends the build,
+study ports still ask per round; fails when the executor asks every round) and "a stopped build
+continues from its last candidate". `tests/src/plan-connections.test.ts` "build-role plan
+requests ..." (no approval, the request limit, another run, another route, a revoked grant, the
+wording of the decision, a duplicate approval, and the F11 preflight; fails when plan admission
+skips the approval check). `tests/src/studio-builds.test.ts` checks the recorded approval of a
+studio build, its immutability, and a second approval of the same build refused over HTTP.
+
 ## ADR-0053 — Plan-role build packets are bounded by the accepted plan input cap (accepted October 31, 2026)
 
 Context: owner pilot finding F21. Build 039ea78b (timing analyzer spec v4, $0 ChatGPT plan route)

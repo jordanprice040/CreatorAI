@@ -207,6 +207,69 @@ export const AdmissionSchema = z.strictObject({
 });
 export type Admission = z.infer<typeof AdmissionSchema>;
 
+/**
+ * ADR-0054: one owner approval per build of a frozen spec. The build asks once, before its
+ * first round; an allowed product.commit_build admission is recorded with the build's stated
+ * limits, and covers its repair rounds and (on the plan route) its builder and reviewer requests.
+ */
+export const BuildRouteSchema = z.enum(['broker', 'codex_plan', 'plan_roles']);
+export const BUILD_APPROVAL_MAX_REQUESTS = 6;
+export const BUILD_APPROVAL_MAX_REPAIRS = 2;
+export const BuildApprovalRequestSchema = z
+  .strictObject({
+    build_id: id,
+    product_id: id,
+    task_id: id,
+    spec: TargetRefSchema,
+    spec_hash: hash,
+    plan_hash: hash,
+    route: BuildRouteSchema,
+    connection_id: id.nullable(),
+    model_id: z.string().min(1).max(120).nullable(),
+    data_class: DataClassSchema,
+    humility_review: TargetRefSchema,
+    request_limit: z.number().int().min(2).max(BUILD_APPROVAL_MAX_REQUESTS),
+    max_repairs: z.number().int().min(0).max(BUILD_APPROVAL_MAX_REPAIRS),
+    expires_at: timestamp,
+  })
+  .refine(
+    (r) =>
+      (r.route === 'plan_roles') ===
+      (r.connection_id !== null && r.model_id !== null),
+    'Only a plan-roles build names a connection and model.',
+  );
+export type BuildApprovalRequest = z.infer<typeof BuildApprovalRequestSchema>;
+export const BuildApprovalSchema = z.strictObject({
+  id,
+  workspace_id: id,
+  run_id: id,
+  product_id: id,
+  task_id: id,
+  spec: TargetRefSchema,
+  spec_hash: hash,
+  plan_hash: hash,
+  route: BuildRouteSchema,
+  connection_id: id.nullable(),
+  model_id: z.string().max(120).nullable(),
+  data_class: DataClassSchema,
+  humility_review: TargetRefSchema,
+  request_limit: z.number().int(),
+  max_repairs: z.number().int(),
+  admission_id: id,
+  grant_id: id,
+  grant_version: version,
+  decision_id: id.nullable(),
+  expires_at: timestamp,
+  created_by: id,
+  created_at: timestamp,
+});
+export type BuildApproval = z.infer<typeof BuildApprovalSchema>;
+export const BuildApprovalResultSchema = z.strictObject({
+  admission: AdmissionSchema,
+  approval: BuildApprovalSchema.nullable(),
+});
+export type BuildApprovalResult = z.infer<typeof BuildApprovalResultSchema>;
+
 // Decision requests use the concise format from HUMAN_OVERSIGHT.md.
 export const DecisionOptionSchema = z.strictObject({
   id: z.string().regex(/^[a-z0-9_-]{1,40}$/),

@@ -20,9 +20,11 @@ import {
   qaCaseSchema,
   type Execution,
   type Binding,
+  type BuildApprovalScope,
   type BuildPlan,
   type BuildPorts,
 } from '@creator/executor';
+import { TestDoubleExecutor } from './artifact-double.js';
 import {
   BUILD_ROLE_PROMPTS,
   BUILD_FIXTURE_SPEC,
@@ -908,4 +910,162 @@ test('a worker run an earlier grading left unresolved blocks grading until it is
   );
   assert.equal(await readFile(marker, 'utf8'), body);
   assert.deepEqual(await readdir(s.products.root), before, 'nothing created');
+});
+
+// ADR-0054: one approval per build. The execution double stands in for the WSL2 worker
+// (its records say so) so repair rounds can run here; QA isolation is covered elsewhere.
+test('one approval covers a whole build: repair rounds and both roles never ask again', async (t) => {
+  const s = await setup(t);
+  const builds = new BuildSupervisor(
+    s.products,
+    new TestDoubleExecutor(s.products),
+  );
+  const plan: BuildPlan = {
+    ...s.plan,
+    max_repairs: 1,
+    max_calls: 4,
+    timeout_ms: 120000,
+    plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+  };
+  const scopes: BuildApprovalScope[] = [];
+  const roles: { role: string; build_id: string }[] = [];
+  let builderRound = 0,
+    drafts = 0;
+  const ports = (over: Partial<BuildPorts> = {}): BuildPorts => ({
+    ...s.ports,
+    authorize: async (_plan, scope) => {
+      scopes.push(scope);
+      return { verdict: 'allow', fixture: true };
+    },
+    planRolesReady: async () => [],
+    planRole: async (target, request) => {
+      roles.push({ role: target.role, build_id: target.build_id });
+      const answer = JSON.parse(
+        buildFixtureAnswer([
+          { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+          { role: 'user', text: request.input },
+        ])!,
+      );
+      // The first candidate is a draft the reviewer sends back; the repair round fixes it.
+      if (target.role === 'builder' && builderRound++ === 0)
+        answer.submission.changes[0].content = `print("draft ${++drafts}")\n`;
+      return {
+        request_id: randomUUID(),
+        status: 'succeeded',
+        reason_code: 'ok',
+        text: JSON.stringify(answer),
+        fixture: true,
+      };
+    },
+    ...over,
+  });
+  const result = await builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    ports(),
+  );
+  assert.equal(result.state, 'verified_candidate', JSON.stringify(result));
+  assert.equal(result.repairs, 1);
+  assert.equal(result.calls, 4);
+  assert.deepEqual(
+    roles.map((r) => r.role),
+    ['builder', 'reviewer', 'builder', 'reviewer'],
+  );
+  // Asked once, before the first round, with the limits the approval is recorded with.
+  assert.equal(scopes.length, 1);
+  assert.deepEqual(scopes[0], {
+    build_id: result.id,
+    product_id: s.product.id,
+    task_id: s.task.id,
+    plan_hash: result.plan_hash,
+    route: 'plan_roles',
+    connection_id: plan.plan_roles!.connection_id,
+    model_id: 'fixture-plan',
+    request_limit: 4,
+    max_repairs: 1,
+    expires_at: plan.deadline,
+  });
+  // Every role request names the build whose approval covers it.
+  assert.ok(roles.every((r) => r.build_id === result.id));
+
+  // Not asking again is not trusting blindly: the run, grant and humility review are still
+  // re-checked at every step, so a stop between rounds ends the build before the repair.
+  builderRound = 0;
+  scopes.length = roles.length = 0;
+  let checks = 0;
+  const stopped = await builds.run(
+    s.product.id,
+    s.task.id,
+    result.commit,
+    plan,
+    ports({
+      assertActive: async () => {
+        // Allow the first round (builder, reviewer, QA), then the authority is gone.
+        if (roles.length >= 2 && ++checks > 1)
+          throw new Error(
+            'Build authority or humility review changed or expired',
+          );
+      },
+    }),
+  );
+  assert.equal(stopped.state, 'checkpoint');
+  assert.match(stopped.reason, /authority .* changed or expired/);
+  assert.deepEqual(
+    roles.map((r) => r.role),
+    ['builder', 'reviewer'],
+  );
+  assert.equal(scopes.length, 1);
+
+  // A frozen study build keeps its admission per round (study conditions are unchanged).
+  builderRound = 0;
+  scopes.length = roles.length = 0;
+  const study = await builds.run(
+    s.product.id,
+    s.task.id,
+    stopped.commit,
+    plan,
+    ports({ perRoundAdmission: true }),
+  );
+  assert.equal(study.state, 'verified_candidate', JSON.stringify(study));
+  assert.equal(scopes.length, 2);
+});
+
+test('a stopped build continues from its last candidate; the original base is stale', async (t) => {
+  const s = await setup(t);
+  s.script((r) => {
+    const value = JSON.parse(buildFixtureAnswer(r.input)!);
+    if (r.input[0]!.text.startsWith('independent-reviewer/'))
+      value.verdict = 'blocked';
+    return value;
+  });
+  const first = await s.run();
+  assert.equal(first.state, 'checkpoint');
+  assert.match(first.reason, /Reviewer blocked/);
+  assert.notEqual(first.commit, s.product.initial_commit);
+  // The task's worktree moved on, so the base commit no longer names the candidate.
+  await assert.rejects(s.run(), /Stale build candidate/);
+  assert.equal(
+    await s.products.taskHead(s.product.id, s.task.id),
+    first.commit,
+  );
+  s.script((r) => {
+    const value = JSON.parse(buildFixtureAnswer(r.input)!);
+    if (r.input[0]!.text.startsWith('builder/'))
+      value.submission.changes[0].content = 'print("resumed")\n';
+    else value.verdict = 'blocked';
+    return value;
+  });
+  const resumed = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    first.commit,
+    s.plan,
+    s.ports,
+  );
+  assert.equal(resumed.state, 'checkpoint');
+  // The builder of the resumed build starts from the stopped build's candidate.
+  const builder = JSON.parse(s.requests.at(-2)!.input[1]!.text);
+  assert.equal(builder.candidate, first.commit);
 });

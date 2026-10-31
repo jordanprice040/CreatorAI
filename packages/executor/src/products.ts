@@ -517,6 +517,16 @@ export class ProductSupervisor {
       await newFile(join(destination, f.path), f.content.toString('utf8'));
     return inputHash(files);
   }
+  /**
+   * The task's current candidate: the commit a build continues from (F12, ADR-0054). After a
+   * stopped build this is its last candidate, not the task's base; a build still checks it.
+   */
+  async taskHead(productId: string, taskId: string): Promise<string> {
+    await this.task(productId, taskId);
+    const tree = this.worktree(productId, taskId);
+    await safeTree(tree);
+    return checked(sha, await head(tree));
+  }
   async tasks(productId: string): Promise<Task[]> {
     return Promise.all(
       (await readdir(join(this.dir(productId), 'tasks')))

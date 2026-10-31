@@ -90,7 +90,16 @@ export type BuildOutcome = z.infer<typeof buildOutcomeSchema>;
 export interface BuildPorts {
   current(): Promise<{ binding: Binding; spec: SpecBody }>;
   assertActive(runId: string): Promise<void>;
-  authorize(plan: BuildPlan): Promise<unknown>;
+  /**
+   * The build's one approval (ADR-0054): asked once, before the first round, and covering the
+   * repair rounds and role requests within `scope`. Throws (or rejects) when not allowed.
+   */
+  authorize(plan: BuildPlan, scope: BuildApprovalScope): Promise<unknown>;
+  /**
+   * Frozen study builds (T15) keep the admission per round they were frozen with; ADR-0054
+   * does not change a study condition.
+   */
+  perRoundAdmission?: boolean;
   call(runId: string, request: BrokerCallRequest): Promise<BrokerCallResult>;
   /** ChatGPT-plan Codex builder (ADR-0042). Review and QA still use the paths above. */
   codexBuilder?(
@@ -131,6 +140,20 @@ export interface BuildPorts {
     run_id: string;
     data_class: BuildPlan['data_class'];
   }): Promise<string[]>;
+}
+/** What one build approval covers (ADR-0054); the ports bind it to the product's frozen spec. */
+export interface BuildApprovalScope {
+  build_id: string;
+  product_id: string;
+  task_id: string;
+  plan_hash: string;
+  route: 'broker' | 'codex_plan' | 'plan_roles';
+  connection_id: string | null;
+  model_id: string | null;
+  /** The plan's max_calls: role requests the approval covers. */
+  request_limit: number;
+  max_repairs: number;
+  expires_at: string;
 }
 export const planRoleResultSchema = z.strictObject({
   request_id: z.string().max(80),
@@ -467,13 +490,32 @@ export class BuildSupervisor {
           if (blockers.length)
             throw new Error(`Plan roles are not ready: ${blockers.join(' ')}`);
         }
+        const scope: BuildApprovalScope = {
+          build_id: buildId,
+          product_id: product,
+          task_id: taskId,
+          plan_hash: digest(JSON.stringify(plan)),
+          route: plan.plan_roles
+            ? 'plan_roles'
+            : plan.codex_plan_builder
+              ? 'codex_plan'
+              : 'broker',
+          connection_id: plan.plan_roles?.connection_id ?? null,
+          model_id: plan.plan_roles?.model_id ?? null,
+          request_limit: plan.max_calls,
+          max_repairs: plan.max_repairs,
+          expires_at: plan.deadline,
+        };
         for (let cycle = 0; cycle <= plan.max_repairs; cycle++) {
           repairs = cycle;
           await active();
-          await jsonWrite(
-            join(dir, `admission-${cycle}.json`),
-            await ports.authorize(plan),
-          );
+          // ADR-0054: one approval per build, asked before the first round. Later rounds rely
+          // on it; active() re-checks its grant, the humility review and the run every step.
+          if (cycle === 0 || ports.perRoundAdmission)
+            await jsonWrite(
+              join(dir, `admission-${cycle}.json`),
+              await ports.authorize(plan, scope),
+            );
           await active();
           const builderPacket = {
             ...packet,

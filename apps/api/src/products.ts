@@ -1,8 +1,8 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  AdmissionSchema,
   BrokerCallResultSchema,
+  BuildApprovalResultSchema,
   ContractError,
   EntityDetailSchema,
   GrantSchema,
@@ -260,27 +260,31 @@ export class StudioBuilds {
             );
         }
       },
-      authorize: async (plan) => {
-        const admission = via(
-          AdmissionSchema,
-          await this.store.admitAction(ctx, ws, plan.run_id, {
-            action_type: 'product.commit_build',
-            task_id: null,
-            target: {
+      // ADR-0054: the build's one approval, recorded with its stated limits.
+      authorize: async (plan, scope) => {
+        const { admission, approval } = via(
+          BuildApprovalResultSchema,
+          await this.store.admitBuild(ctx, ws, plan.run_id, {
+            build_id: scope.build_id,
+            product_id: scope.product_id,
+            task_id: scope.task_id,
+            spec: {
               id: product.binding.spec_id,
               version: product.binding.spec_version,
             },
             spec_hash: product.binding.spec_hash,
-            amount_nano_usd: null,
+            plan_hash: scope.plan_hash,
+            route: scope.route,
+            connection_id: scope.connection_id,
+            model_id: scope.model_id,
             data_class: plan.data_class,
-            assumption_ids: [],
             humility_review: plan.humility_review,
-            flags: [],
-            justification:
-              'T12 scoped local builder patch and isolated acceptance execution for frozen specification',
+            request_limit: scope.request_limit,
+            max_repairs: scope.max_repairs,
+            expires_at: scope.expires_at,
           }),
         );
-        if (admission.verdict !== 'allow')
+        if (admission.verdict !== 'allow' || !approval)
           throw new Error(
             `Build admission ${admission.outcome}; decision ${admission.decision_id ?? 'none'}`,
           );
@@ -288,7 +292,7 @@ export class StudioBuilds {
           throw new Error('Build admission has no covering grant');
         coverage = admission.covered_by;
         humility = plan.humility_review;
-        return admission;
+        return { admission, approval };
       },
       call: async (runId, request) =>
         via(
@@ -322,6 +326,7 @@ export class StudioBuilds {
           await planRole(ctx, ws, target.connection_id, {
             role: target.role,
             run_id: target.run_id,
+            build_id: target.build_id,
             model_id: target.model_id,
             data_class: target.data_class,
             ...request,
@@ -397,9 +402,18 @@ export class StudioBuilds {
       if (!uuid.safeParse(name).success) continue;
       const p = await this.artifacts.products.product(name).catch(() => null);
       if (!p || p.binding.workspace_id !== ws) continue;
+      const tasks = await this.artifacts.products.tasks(p.id);
       out.push({
         product: p,
-        tasks: await this.artifacts.products.tasks(p.id),
+        // Each task's current candidate: where the next build continues (F12, ADR-0054).
+        tasks: await Promise.all(
+          tasks.map(async (t) => ({
+            ...t,
+            head: await this.artifacts.products
+              .taskHead(p.id, t.id)
+              .catch(() => null),
+          })),
+        ),
         builds: await this.buildList(p.id),
       });
     }

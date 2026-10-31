@@ -307,8 +307,14 @@ export const PlanAdmissionRequestSchema = z
       issue(
         'A qualification request names its qualification run, and only it does.',
       );
-    if ((r.purpose === 'codex_build') !== (r.build_id !== null))
-      issue('A Codex build request names its build, and only it does.');
+    // ADR-0054: a T12 build-role request names the build whose one approval covers it.
+    const buildRole =
+      r.purpose === 'task' &&
+      (r.task_class === 'patch_build' || r.task_class === 'independent_review');
+    if ((r.purpose === 'codex_build' || buildRole) !== (r.build_id !== null))
+      issue(
+        'A Codex build or T12 build-role request names its build, and only those do.',
+      );
     if ((r.purpose === 'codex_build') !== (r.path === 'codex'))
       issue('Only Codex builds use the Codex path.');
     if (r.purpose === 'task' && r.task_class === null)
