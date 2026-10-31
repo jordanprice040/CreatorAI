@@ -141,6 +141,15 @@ export const planRoleResultSchema = z.strictObject({
 });
 export type PlanRoleResult = z.infer<typeof planRoleResultSchema>;
 const PROMPTS = BUILD_ROLE_PROMPTS;
+/** Role packet bound for metered broker builds, where nothing else bounds the input. */
+export const BROKER_ROLE_CONTEXT_MAX = 20_000;
+/**
+ * Hard ceiling for plan-role builds (ADR-0053). The binding bound there is the connection's
+ * owner-accepted per-request input cap, which plan admission enforces on instructions plus
+ * input before anything is sent. This only stops a runaway packet; it equals the schema's
+ * maximum for that cap.
+ */
+export const PLAN_ROLE_CONTEXT_MAX = 200_000;
 
 /** One QA case passed: this exact commit ran to completion with the frozen output and exit. */
 export function qaPassed(execution: Execution, commit: string, c: QaCase) {
@@ -358,8 +367,13 @@ export class BuildSupervisor {
         if (Date.parse(plan.deadline) - Date.now() < 100)
           throw new Error('Build deadline reached');
         const text = JSON.stringify(data);
-        if (text.length > 20000)
-          throw new Error('Role context exceeds bounded packet');
+        const bound = plan.plan_roles
+          ? PLAN_ROLE_CONTEXT_MAX
+          : BROKER_ROLE_CONTEXT_MAX;
+        if (text.length > bound)
+          throw new Error(
+            `Role context exceeds bounded packet (${text.length} > ${bound} characters)`,
+          );
         const request: BrokerCallRequest = {
           envelope_id: plan.envelope_id,
           pricing_snapshot_id: plan.pricing_snapshot_id,

@@ -45,7 +45,7 @@ and grading reasons (F10).
 
 **Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
 
-**New findings (F11–F17):**
+**New findings (F11–F21):**
 
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
@@ -61,9 +61,38 @@ auto-refresh when another page sends you there to make a decision (related to F6
 **Product feedback:** 2026-10-31 06:42 EDT, Jordan tried the analyzer in the private preview
 (fps 60, 3 inputs). The output was correct, checked by hand. His feedback: typing timings by hand
 is too much friction. It should have a built-in tester where you time your own inputs and it says
-whether each was on the frame, or how early or late (F17). Revision direction: pending his choice.
+whether each was on the frame, or how early or late (F17). Revision direction (his choice, 06:43): both log F17 and build a v3 terminal practice mode
+(`--practice`: count-in, a beat cue, Enter presses timed and reported). He recorded the feedback
+(6dad7b20, accepted), approved spec v3 (ae20b026 v3, 10 cases, A10 held out) and humility review
+74c77e50 v3. Live timing is checked only by him in a real terminal; frozen cases cover the rest.
 
-**Next:** Jordan picks the revision direction for the feedback (needs its own OK). Then post-pilot fixes F11–F17 in the friction and flow pass.
+**Owner feedback:** 2026-10-31 06:55 EDT, Jordan: one intended action (freeze, or build) takes
+several trips: press, stop for a decision, go to Decisions, approve, come back, press again, and
+again per repair cycle. "A lot of steps to do what is really one thing" (F18). Directions to
+weigh: approve in place, with the action continuing automatically (same approvals); resume a
+stopped build (F12); one approval for a whole build of one frozen spec, or freeze and build
+together (these widen what one approval covers, so they need an owner decision first).
+Jordan's preference (06:57 EDT): one approval per build of one frozen spec, covering its repair
+rounds and both roles within a stated request limit. That changes oversight policy, so it needs an
+ADR and tests in the friction and flow pass.
+
+**Owner feedback:** 2026-10-31 07:01 EDT, Jordan: Build and package lists every spec version in a
+row, so you have to hunt for the one you're working on. Show the latest version by default, with a
+dropdown to switch to older ones (F19).
+
+**Owner feedback:** 2026-10-31 07:03 EDT, Jordan: dropdowns such as Run default to the oldest
+entry; they should default to the most recent (F20). On the v4 product the build form also
+defaulted Builder to Model broker (metered) rather than the qualified $0 plan route, and Run to a
+run without the grant or request room. A paid default is the more serious part (priority).
+
+**v3 and v4 builds (07:03–07:08 EDT):** v3 build 76a0b9ae passed QA 10/10, but the reviewer
+requested changes. Practice mode only read Enter after the count-in, so early presses were buffered
+and timed late. That was a v3 spec gap, so spec v4 adds when capture starts (run cap raised 14→18
+with his OK). v4 build 039ea78b ran the builder (candidate 1cd550e7), then stopped before the
+reviewer: the reviewer packet was 20,026 characters against a hard-coded 20,000 bound, though the
+accepted plan input cap is 64,000 (F21; fix ADR-0053). Run f7f014a9 is at 15 of 18 requests.
+
+**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F21 in the friction and flow pass.
 
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 
