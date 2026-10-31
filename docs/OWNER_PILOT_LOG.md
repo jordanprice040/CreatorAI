@@ -99,8 +99,15 @@ requests, $0. Package artifact 714a3bb7. Its reviewer packet was 19,162 characte
 exercise the new bound. The PR #88 review then found a second 20,000 cap in the API build-call
 route (H-1) and a 64 KiB body limit (M-1), fixed in a follow-up PR. Run f7f014a9 is at 17 of 18.
 
-**Next:** Jordan tries `--practice` in his terminal (source exported and integrity-checked to
-`%LOCALAPPDATA%\Temp\timing-analyzer-v4`). Then post-pilot fixes F11–F21 in the friction and flow pass.
+**Owner verdict on v4:** 2026-10-31 07:45 EDT, Jordan ran `--practice` from the exported source
+in PowerShell: "for a prototype that runs in powershell, it felt quite good to use". He liked changing the
+fps, beats and tempo ("almost feeling like a rhythm game"), and seeing each press's offset,
+early/late/on-frame status and the frame-perfect count. This closes the pilot's build → feedback →
+revision loop: two verified $0 builds (v2 analyzer, v4 practice mode), the revision driven by owner
+feedback, with the independent reviewer catching one real spec gap on the way.
+
+**Next:** post-pilot fixes F11–F21 and Jordan's flow feedback (one approval per build, approve in
+place, latest-version defaults, Decisions auto-refresh) in the friction and flow pass.
 
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 
