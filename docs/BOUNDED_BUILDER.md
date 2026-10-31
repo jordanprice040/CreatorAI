@@ -52,8 +52,9 @@ first round, through `POST /workspaces/:ws/runs/:run/build-approvals`. When allo
 studio records the approval (`build_approvals`) with the build's stated limits: its
 `max_repairs` and its `max_calls` as the request limit. Repair rounds do not ask again, and
 on the plan route each builder or reviewer request names the build and is covered by that
-record until the limit, the deadline, a revoked or changed grant, a changed humility review or
-a stopped run ends it. Broker and Codex model calls keep their own per-call admission, and
+record until the limit, the deadline (at most 24 hours), a revoked or changed standing grant, a
+changed humility review or a stopped run ends it. A one-time approval admits only a build with
+the route, model, request limit and repair rounds its decision showed. Broker and Codex model calls keep their own per-call admission, and
 frozen study builds keep one admission per round. A build that stopped continues from the
 task's current candidate (the studio passes it as `expected_commit`).
 

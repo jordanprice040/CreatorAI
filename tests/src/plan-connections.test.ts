@@ -1241,6 +1241,38 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     decision.options.find((o) => o.id === 'approve')!.consequence,
     'One approval covers this whole build (builder and reviewer on the ChatGPT plan): its repair rounds and builder and reviewer requests, up to 0 repair rounds and 2 requests (never more than 2 and 6).',
   );
+  // Review M-1: a one-time approval admits only a build within the scope it showed. A build
+  // with another route or more requests or repair rounds is refused, and the refusal leaves
+  // the approval unused for the build it describes.
+  await store.answerDecision(owner, ws.id, decision.id, {
+    choice: 'approve_once',
+    option_id: null,
+    rationale: 'Synthetic: this one build.',
+    coverage_hash: decision.coverage.coverage_hash,
+    standing_expires_at: null,
+    time_spent_ms: 1000,
+    interruption: 'useful',
+  });
+  await rejects(
+    'SCOPE_EXCEEDED',
+    approve(live, { route: 'broker', connection_id: null, model_id: null }),
+  );
+  await rejects('SCOPE_EXCEEDED', approve(live, { request_limit: 4 }));
+  await rejects('SCOPE_EXCEEDED', approve(live, { max_repairs: 1 }));
+  await rejects('SCOPE_EXCEEDED', approve(live, { model_id: 'other' }));
+  // No build approval outlives a day, whatever deadline the build states.
+  await rejects(
+    'INVALID_CONTRACT',
+    approve(live, {
+      expires_at: new Date(Date.now() + 365 * 86_400_000).toISOString(),
+    }),
+  );
+  const once = await approve(live);
+  assert.ok(once.approval, JSON.stringify(once.admission));
+  assert.equal(once.approval.decision_id, decision.id);
+  assert.equal(once.approval.request_limit, 2);
+  // Used once: the next build asks again.
+  assert.equal((await approve(live)).admission.verdict, 'request_human');
   const commitGrant = await store.createStandingGrant(owner, ws.id, {
     run_id: live,
     action_types: ['product.commit_build'],
@@ -1299,6 +1331,42 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   );
   // Revoking the grant behind an approval stops the rest of that build.
   const second = (await approve(live)).approval!;
+  const third = (await approve(live)).approval!;
+  // Review L-3: each request also checks the approval's deadline, its creator and that its
+  // humility review is unchanged.
+  const brief = (
+    await approve(live, {
+      expires_at: new Date(Date.now() + 1500).toISOString(),
+    })
+  ).approval!;
+  await new Promise((done) => setTimeout(done, 1700));
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', live, brief.id),
+    /ended at the build deadline/,
+  );
+  const coOwner = { actorId: randomUUID() };
+  await store.ensureActor({
+    id: coOwner.actorId,
+    kind: 'human',
+    display_name: 'co-owner',
+  });
+  await store.addMember(owner, ws.id, coOwner.actorId, 'owner');
+  await rejects(
+    'ACCESS_DENIED',
+    service.buildRole(coOwner, ws.id, conn.id, {
+      role: 'reviewer',
+      model_id: 'm',
+      run_id: live,
+      build_id: third.id,
+      data_class: 'synthetic',
+      input: '{"candidate":"x"}',
+      timeout_ms: 120000,
+      logical_operation_id: randomUUID(),
+    }),
+    /Only the owner whose build was approved/,
+  );
+  assert.equal(s.fake.responseRequests.length, atLimit, 'nothing was sent');
   await store.revokeGrant(owner, ws.id, commitGrant.id, {
     expected_version: commitGrant.version,
     reason: 'Stop synthetic builds.',
@@ -1309,6 +1377,23 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     /revoked, changed or has expired/,
   );
   assert.equal(s.fake.responseRequests.length, atLimit, 'nothing was sent');
+  await store.reviseEntity(owner, ws.id, review.id, {
+    expected_version: 1,
+    title: 'Synthetic humility review',
+    body: {
+      ...fixtureHumilityReview({ id: target.id, version: 1 }, [
+        { id: idea.id, version: 1 },
+      ]),
+      rationale: 'Revised after the approval.',
+    },
+    reason: 'Synthetic revision',
+    corrects_version: null,
+  });
+  await rejects(
+    'ACCESS_DENIED',
+    call('reviewer', live, third.id),
+    /humility review behind this build changed/,
+  );
   // F11: the preflight refuses a run without room for both roles on this connection.
   const room = conn.settings.caps.responses.max_requests_per_run;
   const used = (

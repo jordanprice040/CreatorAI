@@ -9,6 +9,7 @@ import {
   CreateVerificationGrantRequestSchema,
   PlanAdmissionRequestSchema,
   BuildApprovalRequestSchema,
+  BUILD_APPROVAL_MAX_MS,
   PlanSettlementSchema,
   ReconcilePlanRequestSchema,
   StartPlanQualificationRequestSchema,
@@ -60,6 +61,7 @@ import {
 import {
   fail,
   iso,
+  isPgError,
   normalize,
   uuid,
   type CommandContext,
@@ -1042,6 +1044,11 @@ export class ConnectionStore extends PortfolioStore {
     runId = uuid(runId);
     if (Date.parse(req.expires_at) <= Date.now())
       throw fail('EXPIRED', 'The build deadline has already passed.');
+    if (Date.parse(req.expires_at) > Date.now() + BUILD_APPROVAL_MAX_MS)
+      throw fail(
+        'INVALID_CONTRACT',
+        'A build approval lasts at most 24 hours; set an earlier build deadline.',
+      );
     return this.tx(async (c) => {
       await this.requireOwner(c, ws, ctx.actorId);
       const prior = await c.query(
@@ -1071,46 +1078,106 @@ export class ConnectionStore extends PortfolioStore {
         undefined,
         buildApprovalScopeNote(req),
       );
-      if (admission.verdict !== 'allow' || !admission.covered_by)
+      if (admission.verdict !== 'allow' || !admission.covered_by) {
+        // The scope this build asks the person to approve. The decision is shared by builds of
+        // the same spec and run; the first ask fixes its scope, as it fixes its wording.
+        if (admission.decision_id)
+          await c.query(
+            `insert into build_approval_asks (decision_id, workspace_id, route, connection_id,
+               model_id, request_limit, max_repairs, created_by)
+             values ($1,$2,$3,$4,$5,$6,$7,$8) on conflict (decision_id) do nothing`,
+            [
+              admission.decision_id,
+              ws,
+              req.route,
+              req.connection_id,
+              req.model_id,
+              req.request_limit,
+              req.max_repairs,
+              ctx.actorId,
+            ],
+          );
         return { admission, approval: null };
+      }
       const grant = (
-        await c.query('select decision_id from grants where id = $1', [
-          admission.covered_by.grant_id,
-        ])
-      ).rows[0] as Row | undefined;
-      const { rows } = await c.query(
-        `insert into build_approvals (id, workspace_id, run_id, product_id, task_id, spec_id,
+        await c.query(
+          'select scope, decision_id, expires_at from grants where id = $1',
+          [admission.covered_by.grant_id],
+        )
+      ).rows[0] as Row;
+      // Review M-1: a one-time grant from a build's decision admits only a build within the
+      // scope that decision showed: same route, connection and model, no more requests or
+      // repair rounds. Refusing rolls the whole admission back, so the grant is not used.
+      if (grant.scope === 'once') {
+        const ask = grant.decision_id
+          ? ((
+              await c.query(
+                'select * from build_approval_asks where decision_id = $1',
+                [grant.decision_id],
+              )
+            ).rows[0] as Row | undefined)
+          : undefined;
+        if (!ask)
+          throw fail(
+            'SCOPE_EXCEEDED',
+            'This one-time approval was not asked for by a build, so it does not say what a build may do. Revoke it under Grants and start the build again to ask.',
+          );
+        if (
+          ask.route !== req.route ||
+          (ask.connection_id ?? null) !== req.connection_id ||
+          (ask.model_id ?? null) !== req.model_id ||
+          req.request_limit > Number(ask.request_limit) ||
+          req.max_repairs > Number(ask.max_repairs)
+        )
+          throw fail(
+            'SCOPE_EXCEEDED',
+            `This build differs from the one you approved (${String(ask.route).replaceAll('_', ' ')}, up to ${Number(ask.max_repairs)} repair rounds and ${Number(ask.request_limit)} requests). Start it with those settings, or revoke that approval under Grants and ask again.`,
+          );
+      }
+      // The approval ends at the build deadline or when the grant behind it expires.
+      const expires = new Date(
+        Math.min(Date.parse(req.expires_at), Date.parse(iso(grant.expires_at))),
+      ).toISOString();
+      const { rows } = await c
+        .query(
+          `insert into build_approvals (id, workspace_id, run_id, product_id, task_id, spec_id,
            spec_version, spec_hash, plan_hash, route, connection_id, model_id, data_class,
            request_limit, max_repairs, humility_review_id, humility_review_version,
            admission_id, grant_id, grant_version, decision_id, expires_at, created_by)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
          returning *`,
-        [
-          req.build_id,
-          ws,
-          runId,
-          req.product_id,
-          req.task_id,
-          req.spec.id,
-          req.spec.version,
-          req.spec_hash,
-          req.plan_hash,
-          req.route,
-          req.connection_id,
-          req.model_id,
-          req.data_class,
-          req.request_limit,
-          req.max_repairs,
-          req.humility_review.id,
-          req.humility_review.version,
-          admission.id,
-          admission.covered_by.grant_id,
-          admission.covered_by.grant_version,
-          grant?.decision_id ?? null,
-          req.expires_at,
-          ctx.actorId,
-        ],
-      );
+          [
+            req.build_id,
+            ws,
+            runId,
+            req.product_id,
+            req.task_id,
+            req.spec.id,
+            req.spec.version,
+            req.spec_hash,
+            req.plan_hash,
+            req.route,
+            req.connection_id,
+            req.model_id,
+            req.data_class,
+            req.request_limit,
+            req.max_repairs,
+            req.humility_review.id,
+            req.humility_review.version,
+            admission.id,
+            admission.covered_by.grant_id,
+            admission.covered_by.grant_version,
+            grant.decision_id ?? null,
+            expires,
+            ctx.actorId,
+          ],
+        )
+        .catch((e: unknown) => {
+          // Two starts of one build racing: the loser is a duplicate, not a database error.
+          if (isPgError(e, '23505', 'build_approvals_pkey'))
+            throw fail('DUPLICATE', 'This build already has its approval.');
+          throw e;
+        });
       const approval: BuildApproval = toBuildApproval(rows[0] as Row);
       await this.append(c, ctx, {
         workspaceId: ws,

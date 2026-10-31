@@ -890,10 +890,11 @@ function StartBuild({
           {2 + 2 * repairs} builder and reviewer requests, each counted against
           the plan caps in Settings. One approval covers the whole build, its
           repair rounds and both roles within that limit. Both roles must be
-          qualified and the run must have room for them first; if not, the build
-          stops before anything is sent or any approval is used. The budget and
-          pricing chosen above are recorded with the build, but nothing is
-          reserved or charged on this route.
+          qualified and the run must have room for at least one of each first
+          (repair rounds need more room); if not, the build stops before
+          anything is sent or any approval is used. The budget and pricing
+          chosen above are recorded with the build, but nothing is reserved or
+          charged on this route.
         </p>
       )}
       <label htmlFor="bp-repairs">Repair rounds after a failed check</label>

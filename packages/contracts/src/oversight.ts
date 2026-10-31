@@ -215,6 +215,8 @@ export type Admission = z.infer<typeof AdmissionSchema>;
 export const BuildRouteSchema = z.enum(['broker', 'codex_plan', 'plan_roles']);
 export const BUILD_APPROVAL_MAX_REQUESTS = 6;
 export const BUILD_APPROVAL_MAX_REPAIRS = 2;
+/** The longest a build approval lasts, whatever deadline the build states (review L-1). */
+export const BUILD_APPROVAL_MAX_MS = 24 * 3_600_000;
 export const BuildApprovalRequestSchema = z
   .strictObject({
     build_id: id,
