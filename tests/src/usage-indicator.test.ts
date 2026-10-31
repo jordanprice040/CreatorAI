@@ -133,6 +133,106 @@ test('usage summary matches admission counts, the rolling window and the per-run
   near(full.daily.next_frees_at, now - 2 * HOUR + 24 * HOUR);
 });
 
+test('an active run at its lifetime cap stays listed after 24 hours; a stopped one does not', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new ConnectionStore(db.pool);
+  await store.ensureActor({
+    id: owner.actorId,
+    kind: 'human',
+    display_name: 'owner',
+  });
+  const ws = await store.createWorkspace(owner, {
+    name: 'Usage',
+    record_mode: 'real',
+  });
+  const conn = await store.createPlanConnection(owner, ws.id, {
+    label: 'ChatGPT plan',
+    settings: SETTINGS,
+  });
+  const run = async () => {
+    const r = await store.createEntity(owner, ws.id, {
+      kind: 'run',
+      title: 'run',
+      body: {
+        state: 'queued',
+        experiment_condition: 'human_in_loop',
+        discovery_method: 'structured',
+        config_hash: null,
+      },
+    });
+    return (
+      await store.registerRun(owner, ws.id, {
+        run: { id: r.id, version: 1 },
+        autonomy_mode: 'human_in_loop',
+        stage_gates: null,
+        initial_grants: [],
+      })
+    ).run_id;
+  };
+  const capped = await run();
+  const stopped = await run();
+  const under = await run();
+  const cap = SETTINGS.caps.responses.max_requests_per_run;
+  const add = (run_id: string, n: number) =>
+    db.pool.query(
+      `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose,
+         model_id, data_class, run_id, state, created_by, started_at)
+       select gen_random_uuid(), $1, gen_random_uuid(), 'responses', 'task', 'm', 'synthetic',
+              $2, 'completed', $3, clock_timestamp() - interval '30 hours'
+         from generate_series(1, $4)`,
+      [conn.id, run_id, owner.actorId, n],
+    );
+  await add(capped, cap);
+  await add(stopped, cap);
+  await add(under, cap - 1);
+  await store.cancelRun(owner, ws.id, stopped, { reason: 'stop' });
+  const p = (await store.usageSummary(owner, ws.id)).plans[0]!;
+  // Admission still refuses the capped run (it counts the run's whole life), so the panel keeps
+  // showing it; the stopped run and the run under its cap leave with the 24-hour window.
+  assert.deepEqual(
+    p.runs.map((r) => [r.run_id, r.requests]),
+    [[capped, cap]],
+  );
+});
+
+test('the usage summary does not wait for the runtime ceiling lock', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new ConnectionStore(db.pool);
+  await store.ensureActor({
+    id: owner.actorId,
+    kind: 'human',
+    display_name: 'owner',
+  });
+  const ws = await store.createWorkspace(owner, {
+    name: 'Usage',
+    record_mode: 'real',
+  });
+  // Another transaction (a paid dispatch or a ceiling save) holds the ceiling lock.
+  const holder = await db.pool.connect();
+  try {
+    await holder.query('begin');
+    await holder.query(
+      "select pg_advisory_xact_lock(hashtext('runtime-ceiling'))",
+    );
+    const read = store.usageSummary(owner, ws.id);
+    const timeout = new Promise<'blocked'>((resolve) =>
+      setTimeout(() => resolve('blocked'), 3000).unref(),
+    );
+    const outcome = await Promise.race([read, timeout]);
+    assert.notEqual(
+      outcome,
+      'blocked',
+      'the display read queued behind the lock',
+    );
+    assert.ok((outcome as Awaited<typeof read>).api_cost);
+  } finally {
+    await holder.query('rollback');
+    holder.release();
+  }
+});
+
 test('API cost follows the ceiling in force and is shown only to its audience', async (t) => {
   const db = await freshDatabase(t);
   if (!db) return;

@@ -54,8 +54,8 @@ studio records the approval (`build_approvals`) with the build's stated limits: 
 on the plan route each builder or reviewer request names the build and is covered by that
 record until the limit, the deadline (at most 24 hours), a revoked or changed standing grant, a
 changed humility review or a stopped run ends it. A one-time approval admits only a build with
-the route, connection, model, request limit and repair rounds its decision showed (the Approve
-option names them); any other build is admitted by a standing grant or asks for its own
+the route, connection and model its decision showed and no more requests or repair rounds (the
+Approve option names them), preferring a build that asked for exactly those limits; any other build is admitted by a standing grant or asks for its own
 approval, and an unused one-time approval never blocks it. Broker and Codex model calls keep their own per-call admission, and
 frozen study builds keep one admission per round. A build that stopped continues from the
 task's current candidate (the studio passes it as `expected_commit`).

@@ -69,7 +69,13 @@ Executed QA and the independent review still decide `verified_candidate`.
 
 Known limit: the decision's wording names the route, connection, model, repair rounds and
 request limit, so builds that differ in any of them raise separate decisions, and several
-one-time approvals for one spec can coexist; each goes only to a build it covers. A build with
+one-time approvals for one spec can coexist; each goes only to a build it covers. "Covers" means
+the same route, connection and model and no more requests or repair rounds, so when the only
+active one-time approval is a wider build's (its decision was answered first), a narrower build
+of the same spec that starts in between is admitted on it, within everything that card stated
+and recording its own smaller limits; the wider build then asks again, and the narrower build's
+own approval, if answered later, stays unused until it expires (PR #93 review L-1; fails
+closed). A build with
 the same wording shares the pending decision of the build that first asked (the first ask fixes
 its scope). An approval has no "build finished" state: requests left under its limit stay usable
 by the same owner, route and run until it ends (at most 24 hours, owner-only, $0, within plan caps). Approving in place, so that the build continues by itself, is separate work
@@ -85,8 +91,8 @@ skips the approval check). Review fixes add: a one-time approval refused to a bu
 another route, model, more requests or more repair rounds, then admitting the build it showed;
 a deadline over 24 hours refused; and per-request refusals for an expired approval, another
 owner and a revised humility review (each fails when its check is removed). Re-review follow-up
-adds `tests/src/plan-connections.test.ts` "a one-time build approval goes only to the build it was
-asked for": a one-time grant from a generic admission's decision, another connection with the
+adds `tests/src/plan-connections.test.ts` "a one-time build approval goes only to a build it
+covers, preferring the exact one, never blocking others": a one-time grant from a generic admission's decision, another connection with the
 same model, `codex_plan` against a `broker` approval, two approvals answered in reverse order
 each going to its own build, a standing grant used despite unused one-time approvals of other
 builds, the approval's expiry clamped to the standing grant's, four racing starts of one build,
@@ -116,16 +122,23 @@ Amendment (review of PR #88, H-1 and M-1): the API's build-call route had its ow
 input schema and the ordinary 64 KiB body limit, and the studio's own builds pass through that
 schema too. The route's input schema now uses the same 200,000 ceiling, and the `build-calls`
 action gets a 1 MiB ingress allowance (a JSON packet sent as a JSON string can roughly double when
-escaped). The accepted `max_input_chars` stays the binding bound through admission.
+escaped). The accepted `max_input_chars` stays the binding bound through admission. A
+`codex-builds` body carries the same builder packet (as an object) and gets the same 1 MiB
+allowance instead of 64 KiB (PR #89 re-review L-B).
 
 Consequences: a plan-role build is limited only by the cap the owner accepted in Settings, and a
 packet over that cap is refused by admission without being sent. The file-map bound (14,000 bytes)
 is unchanged. The reviewer packet still carries both the file map and the diff; trimming that
 duplication is left for later. Tests: `tests/src/build.test.ts` "plan-role packets are bounded by
 the accepted plan input cap, broker packets by 20,000" fails when the plan route uses the broker
-bound. `tests/src/plan-connections-api.test.ts` sends 20,026-character and over-64 KiB build-call
-bodies through HTTP and gets the same admission refusal as a small one; it fails when either the
-route schema or the body allowance is reverted. `tests/src/plan-connections.test.ts` checks that
+bound. `tests/src/plan-connections-api.test.ts` registers a real run and sends, through HTTP,
+build-call inputs over the connection's accepted `max_input_chars` (one also over 20,000
+characters, one whose escaped body is over 64 KiB): each reaches plan admission and is refused
+with the per-request input cap blocker, while a small input is refused without it (PR #89
+re-review L-A; before, every call used an unregistered run and stopped at the run lookup). It
+fails when the route schema, the body allowance or the admission check is reverted. It also sends
+an over-64 KiB `codex-builds` body, which reaches the Codex configuration check rather than a
+body-size refusal. `tests/src/plan-connections.test.ts` checks that
 admission refuses an input one character over the accepted cap.
 
 ## ADR-0052 — Qualification answers and grading reasons are visible; held-out views bind prompt revisions (accepted October 31, 2026)

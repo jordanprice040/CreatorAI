@@ -37,7 +37,10 @@ export const PlanConnectionUsageSchema = z.strictObject({
     clears_at: timestamp.nullable(),
   }),
   codex_builds: z.strictObject({ used: counter, cap: counter }),
-  /** Runs with a direct-path request in the last 24 hours, newest first (at most 10). */
+  /**
+   * Runs with a direct-path request in the last 24 hours, plus active runs already at their
+   * lifetime per-run cap however old their last request, newest first (at most 10).
+   */
   runs: z.array(PlanRunUsageSchema).max(10),
   in_flight: counter,
   /** Requests with an unknown outcome; they block new requests until reconciled. */

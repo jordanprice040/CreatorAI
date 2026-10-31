@@ -51,7 +51,11 @@ export type StudioFacts = {
   problems: number;
   alternatives: number;
   scorecards: number;
-  reviews: number;
+  /**
+   * The frozen spec the main path is about (the most recently changed one) has an active
+   * humility review of its exact frozen version. Another spec's review does not count.
+   */
+  reviewed: boolean;
   specs: number;
   frozenSpecs: number;
   /** The most recently worked-on product, or null when there is none. */
@@ -66,6 +70,46 @@ export type StudioFacts = {
   /** Model plan connections; null when not checked (fixture workspaces). */
   planConnections: number | null;
 };
+
+/**
+ * Workflow steps that block and that failed, from the overview's exact per-state counts. The
+ * overview's attention list is capped at 20 and includes failed steps, so counting from it
+ * lets many newer failures hide a waiting step (PR #90 re-review N-1).
+ */
+export function workflowCounts(states: Partial<Record<string, number>>): {
+  attention: number;
+  failed: number;
+} {
+  return {
+    attention:
+      (states.waiting_human ?? 0) +
+      (states.paused_operator ?? 0) +
+      (states.reconciling ?? 0),
+    failed: states.failed ?? 0,
+  };
+}
+
+/**
+ * Whether the spec the main path is about has its humility review: the first of `frozen`
+ * (frozen specs, most recently changed first) needs an active review naming its exact id and
+ * frozen version. A reviewed older spec does not stand in for it (PR #90 re-review N-2).
+ */
+export function pathSpecReviewed(
+  frozen: { id: string; version: number }[],
+  reviews: { status: string; body: unknown }[],
+): boolean {
+  const spec = frozen[0];
+  if (!spec) return false;
+  return reviews.some((r) => {
+    const subject = (r.body as { subject?: { id?: string; version?: number } })
+      ?.subject;
+    return (
+      r.status === 'active' &&
+      subject?.id === spec.id &&
+      subject.version === spec.version
+    );
+  });
+}
 
 export type Step = {
   tone: 'next' | 'blocked' | 'clear';
@@ -117,7 +161,7 @@ export function pipelineStep(f: StudioFacts): Step {
       text: 'Freeze the spec so it can be built.',
       action: { label: 'Open Scores and specs', view: 'scores' },
     };
-  if (f.reviews === 0)
+  if (!f.reviewed)
     return {
       tone: 'next',
       text: `Add a humility review of the frozen spec version ${cli(f, 'humility-gate')}. A build needs one.`,

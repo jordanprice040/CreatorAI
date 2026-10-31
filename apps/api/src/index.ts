@@ -787,15 +787,16 @@ export function createApi(
         action,
         method,
         // Qualification manifests repeat bounded prompts and evidence for each case, and a
-        // build-role call carries a JSON packet as a JSON string (ADR-0053). Only these
-        // authenticated actions get larger ingress allowances.
+        // build-role call carries a JSON packet as a JSON string (ADR-0053); a Codex build turn
+        // carries the same builder packet. Only these authenticated actions get larger ingress
+        // allowances.
         body: () =>
           readJson(
             req,
             collection === 'plan-connections' && item && method === 'POST'
               ? action === 'qualifications'
                 ? 128 * 1024
-                : action === 'build-calls'
+                : action === 'build-calls' || action === 'codex-builds'
                   ? PLAN_BUILD_CALL_MAX_BODY
                   : MAX_BODY
               : MAX_BODY,

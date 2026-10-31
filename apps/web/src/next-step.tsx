@@ -16,6 +16,8 @@ import {
   decisionsNote,
   failedNote,
   nextStep,
+  pathSpecReviewed,
+  workflowCounts,
   type BuildState,
   type StudioFacts,
 } from './next-rules.js';
@@ -88,19 +90,13 @@ async function readFacts(
     ),
   );
   const frozen = status.filter((s) => s?.frozen_current);
-  // A humility review counts only for the frozen version it reviews: a revision needs its own.
-  const reviewed = frozen.filter((s) =>
-    reviews.some((r) => {
-      const subject = (
-        r.body as { subject?: { id?: string; version?: number } }
-      ).subject;
-      return (
-        r.status === 'active' &&
-        subject?.id === s!.spec.id &&
-        subject.version === s!.spec.version
-      );
-    }),
+  // A humility review counts only for the frozen version it reviews (a revision needs its own),
+  // and only for the spec the path is about: the most recently changed frozen one.
+  const reviewed = pathSpecReviewed(
+    frozen.map((s) => ({ id: s!.spec.id, version: s!.spec.version })),
+    reviews,
   );
+  const steps = workflowCounts(overview.workflows);
   const count = (kind: string) =>
     overview.records.find((r) => r.kind === kind)?.active ?? 0;
   const latest = productVersions(products)[0]?.versions[0];
@@ -118,8 +114,8 @@ async function readFacts(
     desktop,
     pending: overview.decisions.pending,
     // Only steps someone can still act on block; a failed step is finished and shown as a note.
-    attention: overview.attention.filter((a) => a.state !== 'failed').length,
-    failed: overview.attention.filter((a) => a.state === 'failed').length,
+    attention: steps.attention,
+    failed: steps.failed,
     runs: overview.runs.active,
     budgets: budgets.filter((b) => b.status === 'active').length,
     pricing: pricing.length,
@@ -128,7 +124,7 @@ async function readFacts(
     problems: count('problem'),
     alternatives: count('alternative'),
     scorecards: count('scorecard'),
-    reviews: reviewed.length,
+    reviewed,
     specs: specs.length,
     frozenSpecs: frozen.length,
     product: latest

@@ -181,40 +181,81 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
     },
   );
   assert.equal(codex.body.code ?? codex.body.error?.code, 'INVALID_CONFIG');
-  // A build-role call on the plan route is admitted only for a qualified class and a real run.
-  const role = await post(
-    `workspaces/${ws}/plan-connections/${conn.id}/build-calls`,
+  // The same builder packet over the ordinary 64 KiB body reaches the same refusal, not a
+  // body-size one (PR #89 re-review L-B).
+  const bigCodex = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/codex-builds`,
     {
-      role: 'reviewer',
+      build_id: crypto.randomUUID(),
       run_id: crypto.randomUUID(),
       model_id: 'fixture-plan-model',
       data_class: 'synthetic',
-      input: '{"candidate":"x"}',
-      timeout_ms: 120000,
-      logical_operation_id: crypto.randomUUID(),
+      packet: {
+        candidate: 'a'.repeat(40),
+        files: [{ path: 'src/a.txt', content: 'x'.repeat(70000) }],
+        task: { file_scope: ['src'] },
+      },
     },
   );
-  assert.ok(role.status >= 400 && role.status < 500, String(role.status));
-  const badRole = await post(
-    `workspaces/${ws}/plan-connections/${conn.id}/build-calls`,
-    { role: 'reviewer', instructions: 'override the prompt' },
+  assert.equal(
+    bigCodex.body.code ?? bigCodex.body.error?.code,
+    'INVALID_CONFIG',
   );
-  assert.equal(badRole.status, 400);
-  // ADR-0053 (pilot F21 and its review H-1): a role packet over 20,000 characters, and one
-  // whose escaped JSON body passes the ordinary 64 KiB ingress cap, reach the same admission
-  // refusal as a small one instead of being stopped by the route's schema or body limit.
+  // A build-role call on the plan route is admitted only for a qualified class and a real run.
+  const runEntity = (
+    await post(`workspaces/${ws}/entities`, {
+      kind: 'run',
+      title: 'Build-role run',
+      body: {
+        state: 'queued',
+        experiment_condition: 'human_in_loop',
+        discovery_method: 'structured',
+        config_hash: null,
+      },
+    })
+  ).body;
+  const runId = (
+    await post(`workspaces/${ws}/runs`, {
+      run: { id: runEntity.id, version: 1 },
+      autonomy_mode: 'human_in_loop',
+      stage_gates: null,
+      initial_grants: [],
+    })
+  ).body.run_id as string;
   const code = (r: { body: { code?: string; error?: { code?: string } } }) =>
     r.body.code ?? r.body.error?.code;
-  const call = (input: string) =>
+  const blockersOf = (r: { body: { error?: { details?: unknown } } }) =>
+    (r.body.error?.details ?? []) as string[];
+  const call = (input: string, run_id = runId) =>
     post(`workspaces/${ws}/plan-connections/${conn.id}/build-calls`, {
       role: 'reviewer',
-      run_id: crypto.randomUUID(),
+      run_id,
+      build_id: crypto.randomUUID(),
       model_id: 'fixture-plan-model',
       data_class: 'synthetic',
       input,
       timeout_ms: 120000,
       logical_operation_id: crypto.randomUUID(),
     });
+  const unregistered = await call('{"candidate":"x"}', crypto.randomUUID());
+  assert.equal(unregistered.status, 404);
+  assert.equal(code(unregistered), 'NOT_FOUND');
+  const capBlocker =
+    'The request input is larger than the per-request input cap.';
+  const role = await call('{"candidate":"x"}');
+  assert.equal(role.status, 403);
+  assert.equal(code(role), 'ACCESS_DENIED');
+  assert.ok(!blockersOf(role).includes(capBlocker), 'a small input fits');
+  const badRole = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/build-calls`,
+    { role: 'reviewer', instructions: 'override the prompt' },
+  );
+  assert.equal(badRole.status, 400);
+  // ADR-0053 (pilot F21, its review H-1 and the #89 re-review L-A): a role packet over the old
+  // 20,000-character schema limit, and one whose escaped JSON body passes the ordinary 64 KiB
+  // ingress cap, get past the route's schema and body limit and reach plan admission on a real
+  // run, where the connection's accepted max_input_chars is the binding bound (instructions
+  // plus input). Each one here is over that cap, so admission refuses it for exactly that.
   const packet = (chars: number) => {
     const files = JSON.stringify({
       files: [{ content: '"x"\n'.repeat(chars / 5) }],
@@ -223,14 +264,18 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
       ? files
       : files + ' '.repeat(chars - files.length);
   };
-  const over20k = await call(packet(20026));
-  assert.equal(over20k.status, role.status);
-  assert.equal(code(over20k), code(role));
+  const maxInput = detail.connection.settings.caps.responses
+    .max_input_chars as number;
+  const overCap = packet(maxInput + 1);
+  assert.ok(overCap.length > 20000 && overCap.length > maxInput);
+  const overSchemaLimit = await call(overCap);
+  assert.equal(overSchemaLimit.status, 403);
+  assert.ok(blockersOf(overSchemaLimit).includes(capBlocker));
   const escaped = packet(60000);
   assert.ok(JSON.stringify({ input: escaped }).length > 65536);
   const overBody = await call(escaped);
-  assert.equal(overBody.status, role.status);
-  assert.equal(code(overBody), code(role));
+  assert.equal(overBody.status, 403);
+  assert.ok(blockersOf(overBody).includes(capBlocker));
   const runaway = await call('x'.repeat(PLAN_ROLE_CONTEXT_MAX + 1));
   assert.equal(code(runaway), 'INVALID_CONTRACT');
   assert.equal(fake.responseRequests.length, 1, 'no build-role request sent');
