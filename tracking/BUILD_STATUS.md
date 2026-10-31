@@ -1,3 +1,7 @@
+## Owner pilot day 2: first verified build on the installed app — October 31, 2026
+
+The timing analyzer (spec ae20b026 v2) was built on the ChatGPT plan at $0: build 072d00a1 verified, reviewer approve, QA 7/7, package a05e1ae526 in the Gallery. Before that, the builder qualified (24adc57c, 3/3) once the app was launched outside Claude's MSIX container. Spec v1 missed the exact A7 wording, and the per-run cap of 10 blocked a reviewer; the cap is now 14. New findings F11–F15 and Jordan's Decisions-refresh feedback are in `docs/OWNER_PILOT_LOG.md` under "Day 2 summary". Next: Jordan's one feedback item, then one revision (needs an OK).
+
 ## Owner pilot day 2: builder failure cause found; F10 reasons visible (ADR-0052) — October 31, 2026
 
 The October 30 builder qualification failures (37752d2f, 31aae6c9) were not caused by the model or the
