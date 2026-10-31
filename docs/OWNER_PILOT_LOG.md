@@ -45,7 +45,7 @@ and grading reasons (F10).
 
 **Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
 
-**New findings (F11–F17):**
+**New findings (F11–F18):**
 
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
@@ -61,9 +61,19 @@ auto-refresh when another page sends you there to make a decision (related to F6
 **Product feedback:** 2026-10-31 06:42 EDT, Jordan tried the analyzer in the private preview
 (fps 60, 3 inputs). The output was correct, checked by hand. His feedback: typing timings by hand
 is too much friction. It should have a built-in tester where you time your own inputs and it says
-whether each was on the frame, or how early or late (F17). Revision direction: pending his choice.
+whether each was on the frame, or how early or late (F17). Revision direction (his choice, 06:43): both log F17 and build a v3 terminal practice mode
+(`--practice`: count-in, a beat cue, Enter presses timed and reported). He recorded the feedback
+(6dad7b20, accepted), approved spec v3 (ae20b026 v3, 10 cases, A10 held out) and humility review
+74c77e50 v3. Live timing is checked only by him in a real terminal; frozen cases cover the rest.
 
-**Next:** Jordan picks the revision direction for the feedback (needs its own OK). Then post-pilot fixes F11–F17 in the friction and flow pass.
+**Owner feedback:** 2026-10-31 06:55 EDT, Jordan: one intended action (freeze, or build) takes
+several trips: press, stop for a decision, go to Decisions, approve, come back, press again, and
+again per repair cycle. "A lot of steps to do what is really one thing" (F18). Directions to
+weigh: approve in place, with the action continuing automatically (same approvals); resume a
+stopped build (F12); one approval for a whole build of one frozen spec, or freeze and build
+together (these widen what one approval covers, so they need an owner decision first).
+
+**Next:** Jordan freezes v3 and runs the revision build in the app, then tries `--practice` in his terminal. Then post-pilot fixes F11–F18 in the friction and flow pass.
 
 ## Day 1 summary (2026-10-30, 03:15–08:56 EDT)
 
