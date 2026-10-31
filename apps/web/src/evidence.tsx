@@ -22,6 +22,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import { newestFirst } from './versions.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -92,7 +93,7 @@ export function Evidence({
       setSources(s);
       setClaims(c);
       setRetrievals(r.slice(0, 12));
-      const active = runList.filter((x) => x.state === 'active');
+      const active = newestFirst(runList.filter((x) => x.state === 'active'));
       setRuns(active);
       setRunId((cur) =>
         active.some((x) => x.run_id === cur) ? cur : (active[0]?.run_id ?? ''),

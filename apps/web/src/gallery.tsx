@@ -17,6 +17,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { newestFirst } from './versions.js';
 
 const LABELS = {
   source_archive: 'Source archive',
@@ -43,12 +44,16 @@ export function Gallery({
 }) {
   const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
+  // Newest first: the latest package is listed on top and opens by default.
   const list = useLoad(
-    () => api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
+    async () =>
+      newestFirst(
+        await api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
+      ),
     [workspace.id],
   );
   const selected =
-    list.data?.find((a) => a.id === focus) ?? list.data?.at(-1) ?? null;
+    list.data?.find((a) => a.id === focus) ?? list.data?.[0] ?? null;
   return (
     <section className="panel" aria-labelledby="gal-title">
       <h2 id="gal-title">Gallery</h2>

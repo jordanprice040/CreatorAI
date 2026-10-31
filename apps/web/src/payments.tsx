@@ -15,6 +15,7 @@ import { usdToNano } from './amounts.js';
 import { Funding } from './funding.js';
 import { Checkout } from './checkout.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { newestFirst } from './versions.js';
 
 const BalancesSchema = z.strictObject({
   balances: z.record(z.string(), z.string()),
@@ -119,7 +120,14 @@ export function Payments({
         api(z.array(EntitlementSchema), `${base}/entitlements`),
         api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
       ]);
-    return { connections, offers, balances, entitlements, artifacts };
+    // Newest first, so each choice opens on the latest one.
+    return {
+      connections: newestFirst(connections),
+      offers: newestFirst(offers),
+      balances,
+      entitlements,
+      artifacts: newestFirst(artifacts),
+    };
   }, [workspace.id]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');

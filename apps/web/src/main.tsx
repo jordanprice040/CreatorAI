@@ -45,6 +45,7 @@ import './style.css';
 import { Studies } from './study.js';
 import { PageDrafts } from './page-drafts.js';
 import { UsageIndicator } from './usage.js';
+import { NextStep } from './next-step.js';
 
 const choices = [
   ['use_existing', 'Use an existing tool'],
@@ -767,6 +768,14 @@ function App() {
         )}
         <main id="content" tabIndex={-1}>
           <DesktopApp.Provider value={auth.managed}>
+            {inStudio && workspace && (
+              <NextStep
+                key={workspace.id}
+                workspace={workspace}
+                view={route.view}
+                open={(view) => open(view)}
+              />
+            )}
             {inStudio && auth.session ? (
               <PageDrafts
                 key={`${auth.session.csrf_token}:${workspace?.id}`}
