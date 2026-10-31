@@ -1,0 +1,74 @@
+// Pure helpers for the build form's defaults and the build's package state. No imports, so
+// they can be tested without a browser. They only choose what is shown first; every gate
+// stays on the server.
+
+type GrantLike = {
+  id: string;
+  version: number;
+  scope: string;
+  status: string;
+  run_id: string | null;
+  action_types: readonly string[];
+  data_classes: readonly string[];
+  expires_at: string;
+};
+type RunLike = {
+  run_id: string;
+  autonomy_mode: string;
+  initial_grants: readonly { id: string; version: number }[];
+};
+
+/**
+ * Whether a standing grant would admit plan-role model requests on this run: the parts of
+ * the server's grantCovers that apply to a model.generate request with no amount or target.
+ */
+export function modelGrantCovers(
+  g: GrantLike,
+  run: RunLike,
+  dataClass: string,
+  now: number,
+) {
+  return (
+    g.scope === 'standing' &&
+    g.status === 'active' &&
+    Date.parse(g.expires_at) > now &&
+    (g.run_id === null || g.run_id === run.run_id) &&
+    (run.autonomy_mode !== 'autonomous_within_scope' ||
+      run.initial_grants.some(
+        (i) => i.id === g.id && i.version === g.version,
+      )) &&
+    g.action_types.includes('model.generate') &&
+    g.data_classes.includes(dataClass)
+  );
+}
+
+/**
+ * The budget to offer for a run: the newest one that is not bound to another run. A run or
+ * task budget belongs to its own run, and the server refuses it for any other.
+ */
+export function envelopeFor<T extends { id: string; run_id: string | null }>(
+  newestFirst: readonly T[],
+  runId: string,
+): T | undefined {
+  return newestFirst.find((e) => e.run_id === null || e.run_id === runId);
+}
+
+/**
+ * The Gallery artifact packaged from this build, if any: same spec version and commit. The
+ * products route forgets package jobs on restart, so the artifact store is the record.
+ */
+export function artifactForBuild<
+  T extends { commit: string; spec: { id: string; version: number } },
+>(
+  artifacts: readonly T[],
+  build: { commit: string | null },
+  spec: { spec_id: string; spec_version: number },
+): T | undefined {
+  if (!build.commit) return undefined;
+  return artifacts.find(
+    (a) =>
+      a.commit === build.commit &&
+      a.spec.id === spec.spec_id &&
+      a.spec.version === spec.spec_version,
+  );
+}

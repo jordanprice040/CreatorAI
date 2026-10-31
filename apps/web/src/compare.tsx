@@ -29,6 +29,7 @@ import {
   useLoad,
   type View,
 } from './ui.js';
+import { newestFirst } from './versions.js';
 
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
@@ -171,7 +172,7 @@ export function Compare({
       cmp,
       report,
       selections,
-      runs: runs.filter((r) => r.state === 'active'),
+      runs: newestFirst(runs.filter((r) => r.state === 'active')),
       wf,
     };
   }, [workspace.id, focus]);
