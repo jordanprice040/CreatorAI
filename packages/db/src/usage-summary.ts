@@ -10,22 +10,25 @@ import { iso, type Row } from './store.js';
 
 /**
  * The usage indicator's read model (runbook step 9). Counts use the same rows and the same
- * rolling-window expression as plan admission (ConnectionStore #usage), so "remaining" here is
- * what admission would allow next, not an estimate. Nothing is written.
+ * rolling-window expression as plan admission (ConnectionStore #usage), so "remaining" is what
+ * the studio's daily cap still allows, not an estimate. Connection-wide refusals (sign-in,
+ * credits, caps, eligibility, provider limit) are reported separately as blockers, from the
+ * same connectionBlockers admission uses. Nothing is written.
  */
 export async function usageSummary(
   c: PoolClient,
   ws: string,
   spending: SpendingConfig,
   canSeeCost: boolean,
+  /** Why the connection as a whole refuses inference now (admission's connectionBlockers). */
+  blockersFor: (row: Row) => string[],
 ): Promise<UsageSummary> {
   const now = await c.query<{ now: Date }>('select clock_timestamp() as now');
   const conns = await c.query(
-    `select p.id, p.kind, p.label, p.fixture, p.settings, p.quota,
+    `select p.*,
        count(r.id) filter (where r.started_at > clock_timestamp() - interval '24 hours') as day,
        count(distinct r.build_id) filter (where r.path = 'codex'
          and r.started_at > clock_timestamp() - interval '24 hours') as builds,
-       min(r.started_at) filter (where r.started_at > clock_timestamp() - interval '24 hours') as oldest,
        max(r.started_at) filter (where r.started_at > clock_timestamp() - interval '24 hours') as newest,
        count(r.id) filter (where r.state = 'in_flight') as in_flight,
        count(r.id) filter (where r.state = 'unknown') as unresolved,
@@ -45,6 +48,14 @@ export async function usageSummary(
       order by max(started_at) desc`,
     [ws],
   );
+  // Start times in the window, oldest first, to find when admission would allow one more.
+  const inWindow = await c.query(
+    `select connection_id, started_at from plan_requests
+      where started_at > clock_timestamp() - interval '24 hours'
+        and connection_id in (select id from plan_connections where workspace_id = $1)
+      order by started_at`,
+    [ws],
+  );
   const later = (t: unknown) =>
     t
       ? new Date(new Date(t as Date).getTime() + 86_400_000).toISOString()
@@ -54,6 +65,12 @@ export async function usageSummary(
     const used = Number(r.day);
     const cap = caps.shared.max_model_requests_per_day;
     const quota = r.quota as { state: string; observed_at: string | null };
+    // One more request is admitted once used - cap + 1 requests have left the window, so the
+    // deciding one is the (used - cap)-th oldest (0-based); below the cap it is the oldest.
+    const starts = (inWindow.rows as Row[]).filter(
+      (x) => String(x.connection_id) === String(r.id),
+    );
+    const deciding = starts[Math.max(0, used - cap)]?.started_at ?? null;
     return {
       connection_id: String(r.id),
       kind: (r.kind ?? 'chatgpt_plan') as 'chatgpt_plan' | 'claude_code',
@@ -63,7 +80,7 @@ export async function usageSummary(
         used,
         cap,
         remaining: Math.max(0, cap - used),
-        next_frees_at: later(r.oldest),
+        next_frees_at: later(deciding),
         clears_at: later(r.newest),
       },
       codex_builds: {
@@ -88,6 +105,7 @@ export async function usageSummary(
           : null,
       },
       total_requests: Number(r.total),
+      blockers: blockersFor(r),
     };
   });
   const app = await c.query(

@@ -107,6 +107,10 @@ test('usage summary matches admission counts, the rolling window and the per-run
   assert.equal(p.unresolved, 1);
   assert.equal(p.total_requests, 5);
   assert.equal(p.provider_quota.state, conn.quota.state);
+  // A connection that is not signed in refuses every request whatever the count says; the
+  // indicator carries admission's own reasons.
+  assert.deepEqual(p.blockers, detail.blockers);
+  assert.ok(p.blockers.some((b) => /Not signed in/.test(b)));
   const q = u.plans.find((x) => x.connection_id === quiet.id)!;
   assert.equal(q.daily.used, 0);
   assert.equal(q.daily.next_frees_at, null);
@@ -122,7 +126,11 @@ test('usage summary matches admission counts, the rolling window and the per-run
     (x) => x.connection_id === conn.id,
   )!;
   assert.equal(full.daily.remaining, 0);
-  near(full.daily.next_frees_at, now - oldest + 24 * HOUR);
+  // Used is cap + 2 (a lowered cap gives the same shape), so admission allows one more only
+  // after three requests leave the window: the 20 h, 5 h and first 2 h old ones. The oldest
+  // leaving alone is not enough.
+  assert.equal(full.daily.used, cap + 2);
+  near(full.daily.next_frees_at, now - 2 * HOUR + 24 * HOUR);
 });
 
 test('API cost follows the ceiling in force and is shown only to its audience', async (t) => {

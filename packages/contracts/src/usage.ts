@@ -27,7 +27,11 @@ export const PlanConnectionUsageSchema = z.strictObject({
     used: counter,
     cap: counter,
     remaining: counter,
-    /** When the oldest request in the window leaves it (one more request becomes possible). */
+    /**
+     * When one more request becomes possible: the oldest request in the window leaving it, or,
+     * when a lowered cap sits below what is already used, the request whose leaving brings
+     * used back under the cap.
+     */
     next_frees_at: timestamp.nullable(),
     /** When every request now in the window has left it. */
     clears_at: timestamp.nullable(),
@@ -44,6 +48,11 @@ export const PlanConnectionUsageSchema = z.strictObject({
     observed_at: timestamp.nullable(),
   }),
   total_requests: counter,
+  /**
+   * Why the connection refuses every request now (signed out, credits not confirmed off,
+   * caps not accepted, not eligible, provider limit reached). Empty means none of these.
+   */
+  blockers: z.array(z.string().max(1200)).max(20),
 });
 export type PlanConnectionUsage = z.infer<typeof PlanConnectionUsageSchema>;
 

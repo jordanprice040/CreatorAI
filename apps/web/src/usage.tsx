@@ -52,6 +52,7 @@ const worst = (tones: Tone[]): Tone =>
 
 export function planTone(p: PlanConnectionUsage): Tone {
   if (
+    p.blockers.length > 0 ||
     p.daily.remaining === 0 ||
     p.unresolved > 0 ||
     p.provider_quota.state === 'exhausted'
@@ -103,6 +104,16 @@ function PlanBlock({ p, now }: { p: PlanConnectionUsage; now: number }) {
         {p.label}
         {p.fixture && <span className="usage-tag">fixture</span>}
       </h3>
+      {p.blockers.length > 0 && (
+        <div className="small usage-alert">
+          <p>No requests can run on this connection now:</p>
+          <ul>
+            {p.blockers.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <p className="usage-line">
         <strong>
           {p.daily.used} of {p.daily.cap}
