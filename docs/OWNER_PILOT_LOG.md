@@ -45,12 +45,13 @@ and grading reasons (F10).
 
 **Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
 
-**New findings:**
+**New findings (F11–F16):**
 
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
 - F13: the plan route needs a model.generate standing grant that the app can't create, and the preflight raises no decision for it.
 - F14: the installed app breaks when launched from a Claude session (MSIX path redirect). It should detect a redirected home and refuse with a clear message.
+- F16: the private preview gives no hint of what to type (arguments, stdin format). It should show the spec's usage and one visible example case.
 - F15: the $0 plan route still needs an envelope, a pricing snapshot and a commit_build approval per repair cycle (U04). That is a lot of setup.
 
 **Owner feedback:** 2026-10-31 06:25 EDT, Jordan: if the Decisions page stays, it must
