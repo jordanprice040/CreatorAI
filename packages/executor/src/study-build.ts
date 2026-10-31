@@ -84,6 +84,8 @@ export function studyBuildPorts(
           'An active non-human-only study run is required for this build',
         );
     },
+    // ADR-0054 leaves frozen study conditions as they were: one admission per round.
+    perRoundAdmission: true,
     authorize: async (plan) => {
       const s = await read();
       const admission = checked(

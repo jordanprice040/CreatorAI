@@ -59,6 +59,8 @@ export const PLAN_BUILD_CALL_MAX_BODY = 1024 * 1024;
 const BuildCallBody = z.strictObject({
   role: z.enum(['builder', 'reviewer']),
   run_id: z.uuid(),
+  // ADR-0054: the build whose one approval covers this request.
+  build_id: z.uuid(),
   model_id: z.string().min(1).max(120),
   data_class: z.enum(['synthetic', 'public', 'private_approved']),
   // ADR-0053: the executor's runaway ceiling. The binding bound is the connection's accepted

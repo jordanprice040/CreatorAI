@@ -30,9 +30,10 @@ A plan may instead name `plan_roles` (ADR-0048): builder and reviewer then go as
 requests on a ChatGPT-plan connection's direct Responses route (`patch_build` and
 `independent_review` task classes), with no dollar broker call. The packets, prompts,
 scoped patch tool and QA are the same; admission needs each role qualified, an active
-non-human-only run outside any study assignment, the run's own `model.generate` admission
-(a grant covering model requests on that run), the owner as caller, and the plan caps. The
-build checks both roles before it uses its commit grant or sends the builder. The call timeout may be
+non-human-only run outside any study assignment, the build's one approval (ADR-0054, below),
+the owner as caller, and the plan caps. The build checks both roles, and that the run has
+room for at least one builder and one reviewer request, before it uses its commit grant or
+sends the builder. The call timeout may be
 up to 120 s on this route only; broker builds keep 60 s. `plan_roles` and
 `codex_plan_builder` cannot both be set. Plans without `plan_roles` hash as before.
 
@@ -45,6 +46,17 @@ registered run, funded envelope, compatible pricing snapshot and model grants.
 specification version; supply a current humility review of that specification,
 not an alternative. Answer a concrete admission decision or use an existing
 authorized standing grant. No policy defaults need changing.
+
+One approval per build (ADR-0054): a build asks for `product.commit_build` once, before its
+first round, through `POST /workspaces/:ws/runs/:run/build-approvals`. When allowed, the
+studio records the approval (`build_approvals`) with the build's stated limits: its
+`max_repairs` and its `max_calls` as the request limit. Repair rounds do not ask again, and
+on the plan route each builder or reviewer request names the build and is covered by that
+record until the limit, the deadline (at most 24 hours), a revoked or changed standing grant, a
+changed humility review or a stopped run ends it. A one-time approval admits only a build with
+the route, model, request limit and repair rounds its decision showed. Broker and Codex model calls keep their own per-call admission, and
+frozen study builds keep one admission per round. A build that stopped continues from the
+task's current candidate (the studio passes it as `expected_commit`).
 
 Example plan (replace IDs and deadline; copy `cases` from the frozen spec):
 

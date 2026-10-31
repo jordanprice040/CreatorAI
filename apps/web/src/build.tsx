@@ -67,7 +67,13 @@ const ProductEntrySchema = z.object({
     }),
   }),
   tasks: z.array(
-    z.object({ id: z.string(), key: z.string(), base_commit: sha }),
+    z.object({
+      id: z.string(),
+      key: z.string(),
+      base_commit: sha,
+      // The task's current candidate; a build continues from it (F12, ADR-0054).
+      head: sha.nullable().optional(),
+    }),
   ),
   builds: z.array(BuildSchema),
 });
@@ -716,6 +722,17 @@ function Product({
                   <small>one task per product for now</small>
                 ))}
             </p>
+            {task &&
+              owner &&
+              current &&
+              task.head &&
+              task.head !== task.base_commit &&
+              builds[0]?.state === 'checkpoint' && (
+                <p className="small">
+                  The last build stopped. Building again continues from its last
+                  candidate ({task.head.slice(0, 8)}) under a new approval.
+                </p>
+              )}
             {task && owner && current && (
               <StartBuild
                 key={task.id}
@@ -730,7 +747,7 @@ function Product({
                       const r = Started.parse(
                         await post(`products/${p.id}/builds`, {
                           task_id: task.id,
-                          expected_commit: task.base_commit,
+                          expected_commit: task.head ?? task.base_commit,
                           plan,
                         }),
                       );
@@ -761,7 +778,7 @@ function Product({
                             className="text"
                             onClick={() => open('decisions')}
                           >
-                            Answer it under Decisions, then build again
+                            Approve it once under Decisions, then build again
                           </button>
                         </>
                       )}
@@ -1016,10 +1033,11 @@ function StartBuild({
         <p className="small">
           Live requests on your ChatGPT plan, with no metered spend: up to{' '}
           {2 + 2 * repairs} builder and reviewer requests, each counted against
-          the plan caps in Settings. Both roles must be qualified first; if
-          either is not, the build stops before anything is sent or any approval
-          is used. The run also needs a standing grant covering model requests,
-          because each role request is admitted on it. The budget and pricing
+          the plan caps in Settings. One approval covers the whole build, its
+          repair rounds and both roles within that limit. Both roles must be
+          qualified and the run must have room for at least one of each first
+          (repair rounds need more room); if not, the build stops before
+          anything is sent or any approval is used. The budget and pricing
           chosen above are recorded with the build, but nothing is reserved or
           charged on this route.
         </p>

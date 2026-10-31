@@ -24,6 +24,7 @@ import {
   PreviewSchema,
   PreviewStartSchema,
   AdmissionSchema,
+  BuildApprovalResultSchema,
   BrokerCallResultSchema,
   BrokerStatusSchema,
   EnvelopeSchema,
@@ -582,29 +583,33 @@ export async function runCli(
               );
           }
         },
-        authorize: async (plan) => {
+        // ADR-0054: the build's one approval, recorded by the studio with its stated limits.
+        authorize: async (plan, scope) => {
           const p = await local.product(productId);
-          const admission = await call(
-            AdmissionSchema,
-            `${ws(p.binding.workspace_id)}/runs/${plan.run_id}/actions`,
+          const { admission, approval } = await call(
+            BuildApprovalResultSchema,
+            `${ws(p.binding.workspace_id)}/runs/${plan.run_id}/build-approvals`,
             {
-              action_type: 'product.commit_build',
-              task_id: null,
-              target: {
+              build_id: scope.build_id,
+              product_id: scope.product_id,
+              task_id: scope.task_id,
+              spec: {
                 id: p.binding.spec_id,
                 version: p.binding.spec_version,
               },
               spec_hash: p.binding.spec_hash,
-              amount_nano_usd: null,
+              plan_hash: scope.plan_hash,
+              route: scope.route,
+              connection_id: scope.connection_id,
+              model_id: scope.model_id,
               data_class: plan.data_class,
-              assumption_ids: [],
               humility_review: plan.humility_review,
-              flags: [],
-              justification:
-                'T12 scoped local builder patch and isolated acceptance execution for frozen specification',
+              request_limit: scope.request_limit,
+              max_repairs: scope.max_repairs,
+              expires_at: scope.expires_at,
             },
           );
-          if (admission.verdict !== 'allow')
+          if (admission.verdict !== 'allow' || !approval)
             throw new Error(
               `Build admission ${admission.outcome}; decision ${admission.decision_id ?? 'none'}`,
             );
@@ -612,7 +617,7 @@ export async function runCli(
             throw new Error('Build admission has no covering grant');
           coverage = admission.covered_by;
           humility = plan.humility_review;
-          return admission;
+          return { admission, approval };
         },
         call: async (runId, request) => {
           const p = await local.product(productId);
@@ -649,6 +654,7 @@ export async function runCli(
             {
               role: target.role,
               run_id: target.run_id,
+              build_id: target.build_id,
               model_id: target.model_id,
               data_class: target.data_class,
               ...request,

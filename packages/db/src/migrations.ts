@@ -2412,6 +2412,62 @@ create trigger plan_connections_kind_fixed before update on plan_connections
  for each row execute function creator_plan_connection_kind_fixed();
 `,
   },
+  {
+    // ADR-0054: one owner approval per build of a frozen spec. The row is written in the same
+    // transaction as the build's single product.commit_build admission and never changes; the
+    // requests it covers are counted from plan_requests.build_id.
+    version: 33,
+    name: 'build_approvals',
+    sql: `
+create table build_approvals (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ run_id uuid not null,
+ product_id uuid not null,
+ task_id uuid not null,
+ spec_id uuid not null,
+ spec_version integer not null check (spec_version >= 1),
+ spec_hash char(64) not null,
+ plan_hash char(64) not null,
+ route text not null check (route in ('broker','codex_plan','plan_roles')),
+ connection_id uuid,
+ model_id text,
+ data_class text not null check (data_class in ('synthetic','public','private_approved')),
+ request_limit integer not null check (request_limit between 2 and 6),
+ max_repairs integer not null check (max_repairs between 0 and 2),
+ humility_review_id uuid not null,
+ humility_review_version integer not null check (humility_review_version >= 1),
+ admission_id uuid not null unique references action_admissions(id),
+ grant_id uuid not null references grants(id),
+ grant_version integer not null check (grant_version >= 1),
+ decision_id uuid,
+ expires_at timestamptz not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ check ((route = 'plan_roles') = (connection_id is not null and model_id is not null))
+);
+create trigger build_approvals_immutable before update or delete on build_approvals
+ for each row execute function creator_reject_change();
+-- The scope a build asked the person to approve, keyed by the decision it raised. A one-time
+-- grant from that decision admits only a build within this scope (review M-1).
+create table build_approval_asks (
+ decision_id uuid primary key references decision_requests(id),
+ workspace_id uuid not null references workspaces(id),
+ route text not null check (route in ('broker','codex_plan','plan_roles')),
+ connection_id uuid,
+ model_id text,
+ request_limit integer not null check (request_limit between 2 and 6),
+ max_repairs integer not null check (max_repairs between 0 and 2),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ check ((route = 'plan_roles') = (connection_id is not null and model_id is not null))
+);
+create trigger build_approval_asks_immutable before update or delete on build_approval_asks
+ for each row execute function creator_reject_change();
+create index plan_requests_build on plan_requests (build_id) where build_id is not null;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

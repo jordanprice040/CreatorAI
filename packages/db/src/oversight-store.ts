@@ -1232,6 +1232,8 @@ export class OversightStore extends Store {
     req: ActionRequest,
     /** What a person would be approving when there is no target record (e.g. a URL). */
     subjectLabel?: string,
+    /** What approving covers, when more than the bound action itself (ADR-0054 builds). */
+    approveConsequence?: string,
   ): Promise<Admission> {
     {
       await this.role(c, ws, ctx.actorId, true);
@@ -1377,7 +1379,8 @@ export class OversightStore extends Store {
                   {
                     id: 'approve',
                     label: 'Approve',
-                    consequence: 'The action may proceed as bound.',
+                    consequence:
+                      approveConsequence ?? 'The action may proceed as bound.',
                   },
                   {
                     id: 'reject',

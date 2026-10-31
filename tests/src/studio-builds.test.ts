@@ -238,6 +238,11 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   // The owner approves exactly one build under Decisions.
   const decisionId = /decision ([0-9a-f-]{36})/.exec(refused.reason)![1]!;
   const decision = await cli('decision', ws, decisionId);
+  // ADR-0054: the studio states what that one approval covers.
+  assert.match(
+    decision.options.find((o: any) => o.id === 'approve').consequence,
+    /^One approval covers this whole build \(metered model broker\): .*up to 0 repair rounds and 2 requests/,
+  );
   await cli(
     'answer',
     ws,
@@ -260,6 +265,43 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
   );
   assert.equal(verified.state, 'verified_candidate', JSON.stringify(verified));
   assert.equal(verified.fixture, true);
+  // It asked once, and its approval is recorded with the build's limits and the grant used.
+  const { rows: approvals } = await db.pool.query(
+    'select * from build_approvals where id = $1',
+    [verified.id],
+  );
+  assert.equal(approvals.length, 1);
+  assert.equal(approvals[0].route, 'broker');
+  assert.equal(approvals[0].request_limit, 2);
+  assert.equal(approvals[0].decision_id, decisionId);
+  assert.equal(approvals[0].product_id, p.id);
+  // The record is immutable, and one build cannot be approved twice.
+  await assert.rejects(
+    db.pool.query(
+      'update build_approvals set request_limit = 6 where id = $1',
+      [verified.id],
+    ),
+  );
+  const twice = await http(
+    `workspaces/${ws}/runs/${seed.run}/build-approvals`,
+    {
+      build_id: verified.id,
+      product_id: p.id,
+      task_id: task.body.id,
+      spec: { id: specId, version: v1.spec.version },
+      spec_hash: approvals[0].spec_hash,
+      plan_hash: approvals[0].plan_hash,
+      route: 'broker',
+      connection_id: null,
+      model_id: null,
+      data_class: 'synthetic',
+      humility_review: { id: review.id, version: review.version },
+      request_limit: 2,
+      max_repairs: 0,
+      expires_at: plan.deadline,
+    },
+  );
+  assert.equal(twice.status, 409, JSON.stringify(twice.body));
 
   // That approval was for one build. Another build sent with the same request key must not
   // replay its admission: it stops and asks again.
