@@ -395,6 +395,20 @@ test('pure admission keeps sign-in, credits, caps, model access and qualificatio
       now,
     }).some((x) => /one at a time/.test(x)),
   );
+  // ADR-0053: the accepted per-request input cap is the binding bound for plan-role packets.
+  const cap = SETTINGS.caps.responses.max_input_chars;
+  const sized = (input_chars: number) =>
+    admissionBlockers({
+      connection: ready,
+      request: { ...request, input_chars },
+      access: [],
+      qualifications: [],
+      grant: null,
+      usage,
+      now,
+    }).some((x) => /per-request input cap/.test(x));
+  assert.equal(sized(cap), false);
+  assert.equal(sized(cap + 1), true);
 });
 
 test('no vault means no sign-in, and file-dev is never chosen implicitly', () => {

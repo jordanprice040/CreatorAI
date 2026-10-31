@@ -2,6 +2,7 @@ import type { PlanConnectionService } from '@creator/broker';
 import { ContractError, parse, z } from '@creator/contracts';
 import type { CommandContext, ConnectionStore } from '@creator/db';
 import {
+  PLAN_ROLE_CONTEXT_MAX,
   PlanRelay,
   codexBuilder,
   linuxCodexLauncher,
@@ -49,12 +50,20 @@ const CodexBuildBody = z.strictObject({
     })
     .passthrough(),
 });
+/**
+ * Ingress allowance for a build-calls body. The input is a JSON packet sent as a JSON string, so
+ * escaping can roughly double it, and UTF-8 adds up to 3 bytes a character; 1 MiB covers an
+ * input at PLAN_ROLE_CONTEXT_MAX with room to spare.
+ */
+export const PLAN_BUILD_CALL_MAX_BODY = 1024 * 1024;
 const BuildCallBody = z.strictObject({
   role: z.enum(['builder', 'reviewer']),
   run_id: z.uuid(),
   model_id: z.string().min(1).max(120),
   data_class: z.enum(['synthetic', 'public', 'private_approved']),
-  input: z.string().min(1).max(20000),
+  // ADR-0053: the executor's runaway ceiling. The binding bound is the connection's accepted
+  // max_input_chars, which plan admission enforces on instructions plus input.
+  input: z.string().min(1).max(PLAN_ROLE_CONTEXT_MAX),
   timeout_ms: z.number().int().min(100).max(120000),
   logical_operation_id: z.uuid(),
 });

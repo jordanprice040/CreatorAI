@@ -1,6 +1,6 @@
 # Decision log
 
-## ADR-0053 — Plan-role build packets are bounded by the accepted plan input cap (proposed October 31, 2026)
+## ADR-0053 — Plan-role build packets are bounded by the accepted plan input cap (accepted October 31, 2026)
 
 Context: owner pilot finding F21. Build 039ea78b (timing analyzer spec v4, $0 ChatGPT plan route)
 ran the builder, then stopped before the reviewer with "Role context exceeds bounded packet". The
@@ -16,12 +16,21 @@ Decision: on plan-role builds the executor's own bound is a runaway ceiling of 2
 broker builds keep the 20,000-character bound, because nothing else bounds their input. The error
 now states the packet size and the bound.
 
+Amendment (review of PR #88, H-1 and M-1): the API's build-call route had its own 20,000-character
+input schema and the ordinary 64 KiB body limit, and the studio's own builds pass through that
+schema too. The route's input schema now uses the same 200,000 ceiling, and the `build-calls`
+action gets a 1 MiB ingress allowance (a JSON packet sent as a JSON string can roughly double when
+escaped). The accepted `max_input_chars` stays the binding bound through admission.
+
 Consequences: a plan-role build is limited only by the cap the owner accepted in Settings, and a
 packet over that cap is refused by admission without being sent. The file-map bound (14,000 bytes)
 is unchanged. The reviewer packet still carries both the file map and the diff; trimming that
-duplication is left for later. Test: `tests/src/build.test.ts` "plan-role packets are bounded by
+duplication is left for later. Tests: `tests/src/build.test.ts` "plan-role packets are bounded by
 the accepted plan input cap, broker packets by 20,000" fails when the plan route uses the broker
-bound.
+bound. `tests/src/plan-connections-api.test.ts` sends 20,026-character and over-64 KiB build-call
+bodies through HTTP and gets the same admission refusal as a small one; it fails when either the
+route schema or the body allowance is reverted. `tests/src/plan-connections.test.ts` checks that
+admission refuses an input one character over the accepted cap.
 
 ## ADR-0052 — Qualification answers and grading reasons are visible; held-out views bind prompt revisions (accepted October 31, 2026)
 
