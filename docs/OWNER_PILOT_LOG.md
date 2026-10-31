@@ -33,6 +33,7 @@ websites saved only in the redirected `studio.json` were copied back to the real
 and grading reasons (F10).
 
 **Path to the build (each step with a typed OK or Jordan's own action):**
+
 1. Spec v1 was drafted with 7 exact cases (A6 and A7 held out), entered, and frozen by Jordan.
 2. A $0 run envelope de301296 and a pricing snapshot bc75a731 were created; a real workspace refuses fixture pricing.
 3. The spec humility review 74c77e50 was drafted, approved without edits and entered.
@@ -45,6 +46,7 @@ and grading reasons (F10).
 **Plan requests on day 2:** 9 on the ChatGPT plan (4 qualification, 2 + 1 + 2 build).
 
 **New findings:**
+
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
 - F13: the plan route needs a model.generate standing grant that the app can't create, and the preflight raises no decision for it.
