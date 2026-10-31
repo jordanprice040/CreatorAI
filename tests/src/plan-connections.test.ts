@@ -1267,7 +1267,9 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
       },
     })),
   };
-  const withScorer = (scorer: () => Promise<string>) =>
+  const withScorer = (
+    scorer: () => Promise<string | { signal: string; detail: string | null }>,
+  ) =>
     new PlanConnectionService({
       store,
       vault: s.vault,
@@ -1327,4 +1329,44 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
   assert.equal(graded.length, 4, 'every case went through the scorer');
   d = await store.planConnectionDetail(owner, ws.id, conn.id);
   assert.equal(d.usage.in_flight, 0);
+  // F10: the grader's reason and the model's answer are readable per case, in manifest order.
+  const explained = await withScorer(async () => ({
+    signal: 'acceptance_check_failed',
+    detail: 'Check A1 failed: exit code 1, expected 0; output did not match.',
+  })).runQualification(owner, ws.id, (await start()).id);
+  assert.ok(explained.state === 'decided');
+  const results = await store.planQualificationResults(
+    owner,
+    ws.id,
+    explained.qualification.id,
+  );
+  assert.equal(results.qualification.state, 'failed');
+  assert.deepEqual(
+    results.cases.map((c) => [c.case_id, c.split]),
+    manifest.cases.map((c) => [c.case_id, c.split]),
+  );
+  for (const c of results.cases) {
+    assert.equal(c.state, 'completed');
+    assert.equal(c.signal, 'acceptance_check_failed');
+    assert.equal(
+      c.reason,
+      'Check A1 failed: exit code 1, expected 0; output did not match.',
+    );
+    assert.equal(c.answer, '{}');
+  }
+  const crashedResults = await store.planQualificationResults(
+    owner,
+    ws.id,
+    crashedQ.id,
+  );
+  assert.equal(crashedResults.cases[0]!.reason, 'grader_error: scorer crashed');
+  // Another workspace cannot read them.
+  const other = await store.createWorkspace(owner, {
+    name: 'Other',
+    record_mode: 'fixture',
+  });
+  await assert.rejects(
+    store.planQualificationResults(owner, other.id, crashedQ.id),
+    /not found/i,
+  );
 });

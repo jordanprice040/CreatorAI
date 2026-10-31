@@ -12,6 +12,7 @@ import {
 import { api, message } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
+import { QualificationResults } from './qualification-results.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -587,7 +588,7 @@ export function Models({
             <ul>
               {detail.qualifications.map((q) => (
                 <li key={q.id}>
-                  {q.model_id} · {q.task_class} · {q.state}
+                  <QualificationResults base={base} q={q} />
                 </li>
               ))}
             </ul>

@@ -16,6 +16,7 @@ import {
   BuildSupervisor,
   digest,
   scorePatchCase,
+  gradePatchCase,
   qaCaseSchema,
   type Execution,
   type Binding,
@@ -676,6 +677,30 @@ test('the patch qualification scorer applies only scoped patches and never trust
   );
   if (real) assert.equal(inScope, 'acceptance_check_failed');
   else assert.notEqual(inScope, 'accepted');
+  // F10: each non-pass says where it failed, so a decline is not mistaken for a broken grader.
+  const grade = (text: string | null) =>
+    gradePatchCase(
+      { products: s.products, executor: s.executor },
+      s.binding.owner_id,
+      check,
+      text,
+    );
+  assert.match((await grade('not json'))!.detail!, /not valid JSON/);
+  assert.match((await grade(null))!.detail!, /No answer text/);
+  assert.match(
+    (await grade('{"submission":null,"summary":"s","blocker":7}'))!.detail!,
+    /not in the builder format: blocker/,
+  );
+  const declined = await grade(
+    '{"submission":null,"summary":"s","blocker":"The task deadline has passed."}',
+  );
+  assert.equal(declined.signal, 'acceptance_check_failed');
+  assert.match(
+    declined.detail!,
+    /no code change.*"The task deadline has passed\."/,
+  );
+  const outOfScope = await grade(patch('policy.json'));
+  assert.match(outOfScope.detail!, /did not apply \(policy\.json\)/);
 });
 
 test('the patch scorer grades a manifest read back from jsonb, and an unrun case is no verdict', async (t) => {
@@ -732,8 +757,66 @@ test('the patch scorer grades a manifest read back from jsonb, and an unrun case
       answer,
     );
   assert.equal(await score(), 'accepted');
+  const grade = () =>
+    gradePatchCase(
+      { products: s.products, executor: worker },
+      s.binding.owner_id,
+      check,
+      answer,
+    );
+  assert.deepEqual(await grade(), { signal: 'accepted', detail: null });
   state = 'blocked';
   assert.equal(await score(), 'provider_error');
+  assert.deepEqual(await grade(), {
+    signal: 'provider_error',
+    detail: `The worker did not finish check ${first.check_key} (blocked: Isolation unavailable).`,
+  });
+  // A wrong program names the check and exit codes, never the expected output.
+  state = 'failed';
+  const wrong = await gradePatchCase(
+    {
+      products: s.products,
+      executor: {
+        run: async (...a: unknown[]) => ({
+          ...(await worker.run(
+            ...(a as Parameters<ExecutionSupervisor['run']>),
+          )),
+          state: 'failed',
+          reason: null,
+          exit_code: first.exit_code + 1,
+          log: 'something else\n',
+        }),
+      } as unknown as ExecutionSupervisor,
+    },
+    s.binding.owner_id,
+    check,
+    answer,
+  );
+  assert.equal(wrong.signal, 'acceptance_check_failed');
+  assert.equal(
+    wrong.detail,
+    `Check ${first.check_key} failed: exit code ${first.exit_code + 1}, expected ${first.exit_code}; output did not match.`,
+  );
+  if (first.stdout.trim())
+    assert.ok(!wrong.detail!.includes(first.stdout.trim()));
+  // A worker that throws is the studio's problem, and says so.
+  const thrown = await gradePatchCase(
+    {
+      products: s.products,
+      executor: {
+        run: async () => {
+          throw new Error('wsl.exe was not found');
+        },
+      } as unknown as ExecutionSupervisor,
+    },
+    s.binding.owner_id,
+    check,
+    answer,
+  );
+  assert.deepEqual(thrown, {
+    signal: 'provider_error',
+    detail: `The worker could not run check ${first.check_key}: wsl.exe was not found`,
+  });
 });
 
 test('a worker run an earlier grading left unresolved blocks grading until it is settled', async (t) => {
