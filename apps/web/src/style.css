@@ -1784,3 +1784,27 @@ form > .secondary {
 .product-versions + .product-versions {
   margin-top: 16px;
 }
+
+/* ---------- Carried decisions (Compare and decide) ---------- */
+.kind.flag {
+  color: var(--warn);
+  margin-left: 6px;
+}
+fieldset.flagged {
+  border-color: var(--warn-border);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.carry-flag {
+  background: var(--warn-bg);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+.carry-flag strong {
+  color: var(--warn);
+}
+.carry-flag ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
