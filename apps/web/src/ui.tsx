@@ -155,8 +155,10 @@ export function useRoute() {
     visited.current.set(`${now.ws}:${now.view}`, now);
     const r = { ...now, ...next };
     const previous = visited.current.get(`${r.ws}:${r.view}`);
+    // Decisions opens on what is waiting now, not a decision focused on an earlier visit
+    // (by now possibly answered), unless the link names one.
     if (next.view && next.view !== now.view && next.id === undefined)
-      r.id = previous?.id ?? '';
+      r.id = next.view === 'decisions' ? '' : (previous?.id ?? '');
     if (next.view && next.view !== now.view && next.q === undefined)
       r.q = previous?.q ?? '';
     const hash = routeHash(r);

@@ -117,6 +117,7 @@ test('payments show credit accounts as positive amounts of what they name', asyn
     './ui.js': {},
     './funding.js': {},
     './checkout.js': {},
+    './versions.js': {},
   });
   assert.equal(asShown('revenue', '-25000000000'), '25000000000');
   assert.equal(asShown('owner_funding', '-5000000000'), '5000000000');

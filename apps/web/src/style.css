@@ -1747,3 +1747,40 @@ form > .secondary {
   width: auto;
   max-width: 100%;
 }
+
+/* What's next on this page, or why it is blocked (step 9 friction pass). */
+.next-step {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--info-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--info-bg);
+  font-size: 14px;
+}
+.next-step p {
+  margin: 0;
+}
+.next-step p + p {
+  margin-top: 4px;
+}
+.next-step strong {
+  color: var(--info);
+}
+.next-step.next-blocked {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+.next-step.next-blocked strong {
+  color: var(--warn);
+}
+.next-step.next-clear {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+}
+.next-step.next-clear strong {
+  color: var(--ok);
+}
+.product-versions + .product-versions {
+  margin-top: 16px;
+}
