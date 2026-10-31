@@ -588,6 +588,7 @@ export function createApi(
   };
   const SETTINGS_SPENDING_ROUTE = /^\/api\/settings\/spending$/;
   const SETTINGS_LIMITS_ROUTE = /^\/api\/settings\/spending-limits$/;
+  const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -598,7 +599,8 @@ export function createApi(
       MARKETING_ROUTE.exec(url.pathname) ??
       PORTFOLIO_ROUTE.exec(url.pathname) ??
       SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
-      SETTINGS_LIMITS_ROUTE.exec(url.pathname);
+      SETTINGS_LIMITS_ROUTE.exec(url.pathname) ??
+      USAGE_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -643,6 +645,12 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown settings route.');
+    }
+    // The usage indicator (runbook step 9): read-only plan and API usage for one workspace.
+    if (ws && USAGE_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.usageSummary(ctx, ws), false);
+      throw new ContractError('NOT_FOUND', 'Unknown usage route.');
     }
     // Narrower per-run and per-model limits under that ceiling (ADR-0044); same audience.
     if (SETTINGS_LIMITS_ROUTE.test(url.pathname)) {

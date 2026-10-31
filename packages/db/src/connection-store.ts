@@ -31,6 +31,7 @@ import {
   type PlanVerificationGrant,
   type PlanProvider,
   type PlanSettings,
+  type UsageSummary,
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
@@ -48,6 +49,7 @@ import {
   type PlanUsageCounts,
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
+import { usageSummary } from './usage-summary.js';
 import { toRun } from './oversight-store.js';
 import {
   fail,
@@ -331,6 +333,19 @@ export class ConnectionStore extends PortfolioStore {
         [ws],
       );
       return rows.map((r) => toConnection(r as Row));
+    });
+  }
+
+  /**
+   * The usage indicator (runbook step 9): plan requests against the studio's caps, the app's
+   * own plan use, and API spending against the ceiling for those allowed to see it. Read-only.
+   */
+  async usageSummary(ctxIn: CommandContext, ws: string): Promise<UsageSummary> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const owner = await this.isCeilingOwner(c, ctx.actorId);
+      return usageSummary(c, ws, this.spending, owner);
     });
   }
 
