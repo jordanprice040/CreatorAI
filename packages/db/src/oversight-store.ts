@@ -1234,6 +1234,8 @@ export class OversightStore extends Store {
     subjectLabel?: string,
     /** What approving covers, when more than the bound action itself (ADR-0054 builds). */
     approveConsequence?: string,
+    /** Active grants this admission must not use (ADR-0054: one-time approvals of other builds). */
+    excludeGrantIds?: ReadonlySet<string>,
   ): Promise<Admission> {
     {
       await this.role(c, ws, ctx.actorId, true);
@@ -1248,7 +1250,9 @@ export class OversightStore extends Store {
              and (run_id is null or run_id = $2) order by scope, created_at for update`,
           [ws, runId],
         )
-      ).rows.map((r: Row) => toGrant(r));
+      ).rows
+        .map((r: Row) => toGrant(r))
+        .filter((g) => !excludeGrantIds?.has(g.id));
       const assumptions = [];
       for (const id of req.assumption_ids) {
         const { rows } = await c.query(
