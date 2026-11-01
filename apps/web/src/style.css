@@ -2117,3 +2117,24 @@ fieldset.flagged {
     max-width: 100%;
   }
 }
+
+/* Models page "Change caps" form: two columns of number fields, one on narrow screens. */
+.caps-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+.caps-form fieldset > legend,
+.caps-form fieldset > p,
+.caps-form fieldset > .actions {
+  grid-column: 1 / -1;
+}
+.caps-form .error {
+  display: block;
+  font-weight: 400;
+}
+@media (max-width: 620px) {
+  .caps-form fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
