@@ -79,7 +79,7 @@ closed). A build with
 the same wording shares the pending decision of the build that first asked (the first ask fixes
 its scope). An approval has no "build finished" state: requests left under its limit stay usable
 by the same owner, route and run until it ends (at most 24 hours, owner-only, $0, within plan caps). Approving in place, so that the build continues by itself, is separate work
-(the navigation thread). Keeping decisions when scores change is in the selection code, not here.
+(the navigation thread). Keeping decisions when scores change is in the selection code, not here (built later the same day in the Compare and decide form; web only).
 
 Tests: `tests/src/build.test.ts` "one approval covers a whole build" (a repair round with both
 roles asks once, the scope matches the recorded limits, a stop between rounds ends the build,

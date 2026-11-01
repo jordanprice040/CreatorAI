@@ -125,7 +125,8 @@ findings and feedback as the backlog:
   monitor.
 - Every page says what's next, and every blocked action says why and how to unblock it.
 - Pages refresh themselves instead of needing "Reset fields".
-- Decisions survive score changes, with only changed options flagged for review.
+- Decisions survive score changes, with only changed options flagged for review (built
+  Oct 31: Compare and decide carries the latest selection forward).
 - Choose which options to decide; scorecards and humility reviews editable in the app,
   with suggested fills and export/import.
 - Owner-initiated actions don't ask the owner for approval.

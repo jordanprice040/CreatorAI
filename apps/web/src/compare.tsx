@@ -30,6 +30,25 @@ import {
   type View,
 } from './ui.js';
 import { newestFirst } from './versions.js';
+import {
+  carryDecisions,
+  formGate,
+  needsReview,
+  rowReasons,
+} from './carry-decisions.js';
+
+/** What still needs the owner's look, in words, for the line above Record. */
+function pendingReviews(g: ReturnType<typeof formGate>): string[] {
+  const out: string[] = [];
+  const n = g.unreviewed.length;
+  if (n) out.push(`keep or change ${n} flagged option${n === 1 ? '' : 's'}`);
+  if (g.stale_reasons.length)
+    out.push('rewrite or keep the reasons written for an earlier choice');
+  if (g.rationale_review) out.push('review the overall rationale');
+  if (g.override_review) out.push('review the override reason');
+  if (g.problem_review) out.push('confirm the revised problem');
+  return out;
+}
 
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
@@ -120,6 +139,8 @@ type Row = {
   disposition: SelectionDisposition | '';
   reasons: string;
   reverse_if: string;
+  /** The recorded reasons while the joined text is untouched (see rowReasons). */
+  reasons_list?: string[];
 };
 
 /**
@@ -177,15 +198,27 @@ export function Compare({
     };
   }, [workspace.id, focus]);
 
+  // Only what the owner edits here; untouched options show the carried decision.
   const [rows, setRows] = useState<Record<string, Row>>({});
-  const [rationale, setRationale] = useState('');
-  const [override, setOverride] = useState('');
+  const [rationaleEdit, setRationale] = useState<string | null>(null);
+  const [overrideEdit, setOverride] = useState<string | null>(null);
+  const [problemConfirmed, setProblemConfirmed] = useState(false);
+  // "Keep" confirmations, bound to what they were pressed for (see formGate).
+  const [rationaleKept, setRationaleKept] = useState<string | null>(null);
+  const [overrideKept, setOverrideKept] = useState<string | null>(null);
+  const [reasonsKept, setReasonsKept] = useState<Record<string, string>>({});
   const [runId, setRunId] = useState('');
   const [outcome, setOutcome] = useState<SelectOutcome | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
     setRows({});
+    setRationale(null);
+    setOverride(null);
+    setProblemConfirmed(false);
+    setRationaleKept(null);
+    setOverrideKept(null);
+    setReasonsKept({});
     setOutcome(null);
     setError('');
   }, [focus]);
@@ -218,16 +251,68 @@ export function Compare({
     ),
   );
   const alts = d?.cmp.alternatives ?? [];
+  // The latest selection's decisions carry over to the current report; only options whose
+  // own inputs changed are flagged, and those need a look before recording.
+  const latest = d?.selections.find((s) => s.current) ?? null;
+  const carried = d
+    ? carryDecisions(
+        latest,
+        d.report,
+        alts.map((a) => ({ id: a.entity.id, version: a.entity.version })),
+      )
+    : null;
+  const review = carried ? needsReview(carried) : [];
+  const rationale = rationaleEdit ?? carried?.rationale ?? '';
+  const override = overrideEdit ?? carried?.override_reason ?? '';
   const row = (id: string): Row =>
-    rows[id] ?? { disposition: '', reasons: '', reverse_if: '' };
+    rows[id] ??
+    (carried?.options[id]?.row as Row | undefined) ?? {
+      disposition: '',
+      reasons: '',
+      reverse_if: '',
+    };
   const setRow = (id: string, patch: Partial<Row>) =>
     setRows((r) => ({ ...r, [id]: { ...row(id), ...patch } }));
+  const gate =
+    carried && d
+      ? formGate(carried, latest, d.report, {
+          edited: Object.keys(rows),
+          dispositions: Object.fromEntries(
+            alts.map((a) => [a.entity.id, row(a.entity.id).disposition]),
+          ),
+          rationale_edited: rationaleEdit !== null,
+          override_edited: overrideEdit !== null,
+          texts: Object.fromEntries(
+            alts.map((a) => {
+              const r = row(a.entity.id);
+              return [
+                a.entity.id,
+                { reasons: r.reasons, reverse_if: r.reverse_if },
+              ];
+            }),
+          ),
+          rationale_kept: rationaleKept,
+          override_kept: overrideKept,
+          reasons_kept: reasonsKept,
+          problem_confirmed: problemConfirmed,
+        })
+      : null;
+  const unreviewed = gate?.unreviewed ?? [];
+  // Recording the same decision on the same report under the same run would only
+  // duplicate it; another run is a different record.
+  const unchanged = !!gate?.unchanged && runId === latest?.run_id;
   const complete =
     alts.length > 0 &&
     alts.every((a) => {
       const r = row(a.entity.id);
       return r.disposition && r.reasons.trim() && r.reverse_if.trim();
     }) &&
+    unreviewed.length === 0 &&
+    !unchanged &&
+    !gate?.override_review &&
+    !gate?.problem_review &&
+    !gate?.rationale_review &&
+    !gate?.stale_reasons.length &&
     rationale.trim().length > 0 &&
     !!runId;
   const request = () => ({
@@ -238,7 +323,7 @@ export function Compare({
       return {
         alternative: { id: a.entity.id, version: a.entity.version },
         disposition: r.disposition,
-        reasons: [r.reasons.trim()],
+        reasons: rowReasons(r),
         reverse_if: r.reverse_if.trim(),
       };
     }),
@@ -262,7 +347,17 @@ export function Compare({
         },
       );
       setOutcome(r);
-      if (r.status === 'recorded') detail.reload();
+      if (r.status === 'recorded') {
+        // The new selection becomes the one carried forward.
+        setRows({});
+        setRationale(null);
+        setOverride(null);
+        setProblemConfirmed(false);
+        setRationaleKept(null);
+        setOverrideKept(null);
+        setReasonsKept({});
+        detail.reload();
+      }
     } catch (err) {
       setError(message(err));
     } finally {
@@ -421,6 +516,14 @@ export function Compare({
                       <span className="kind">
                         {words(String(a.entity.body?.kind ?? ''))}
                       </span>
+                      {carried?.from &&
+                        carried.options[a.entity.id]?.status !== 'kept' && (
+                          <span className="kind flag">
+                            {carried.options[a.entity.id]?.status === 'new'
+                              ? 'New since your decision'
+                              : 'Changed since your decision'}
+                          </span>
+                        )}
                       <h4 id={`alt-${a.entity.id}`}>{a.entity.title}</h4>
                       <p className="small">
                         {String(a.entity.body?.rationale ?? '')}
@@ -530,16 +633,104 @@ export function Compare({
                   Give every option a disposition, a reason and what would
                   reverse it. Blocked choices are disabled with the gate that
                   blocks them. This decision binds report{' '}
-                  {d.report.report_hash.slice(0, 12)}; a changed report needs a
-                  new decision.
+                  {d.report.report_hash.slice(0, 12)}.
                 </p>
+                {carried?.from && latest && (
+                  <p
+                    className={`notice${review.length === 0 ? ' ok' : ''}`}
+                    role="status"
+                  >
+                    {carried.same_report ? (
+                      <span>
+                        Filled in from your current decision of{' '}
+                        {when(latest.created_at)}. Nothing has changed since;
+                        edit any option and record again to replace it.
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>
+                          {review.length === 0
+                            ? 'Your decisions still apply.'
+                            : `${review.length} of ${alts.length} option${alts.length === 1 ? '' : 's'} changed since your decision.`}
+                        </strong>{' '}
+                        Filled in from your decision of{' '}
+                        {when(latest.created_at)}.{' '}
+                        {review.length === 0
+                          ? 'Scores or gates changed for no option you decided, so record it again to bind it to the current report.'
+                          : 'Look at the flagged options and keep or change them; the rest stay as you decided.'}
+                        {carried.problem_version_changed &&
+                          ' The problem itself was revised since: read it above and confirm your decision still fits it.'}
+                        {carried.dropped > 0 &&
+                          ` ${carried.dropped} option${carried.dropped === 1 ? ' you decided is' : 's you decided are'} no longer part of this problem.`}
+                      </span>
+                    )}
+                  </p>
+                )}
+                {carried?.problem_version_changed && (
+                  <p className="small">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={problemConfirmed}
+                        onChange={(e) => setProblemConfirmed(e.target.checked)}
+                      />
+                      I read the revised problem and my decision still applies
+                      (or I changed it below).
+                    </label>
+                  </p>
+                )}
                 {alts.map((a) => {
                   const s = suit.get(a.entity.id);
                   const r = row(a.entity.id);
                   const id = a.entity.id;
+                  const c = carried?.from ? carried.options[id] : undefined;
+                  const flagged = review.includes(id);
                   return (
-                    <fieldset key={id}>
+                    <fieldset
+                      key={id}
+                      className={
+                        flagged && !rows[id]
+                          ? 'flagged'
+                          : c?.status === 'new'
+                            ? 'flagged new'
+                            : undefined
+                      }
+                    >
                       <legend>{clip(a.entity.title, 120)}</legend>
+                      {c && c.status === 'kept' && (
+                        <p className="small">
+                          Kept from your last decision; nothing about this
+                          option changed.
+                          {c.notes.length > 0 && ` ${c.notes.join('; ')}.`}
+                        </p>
+                      )}
+                      {c && c.status !== 'kept' && (
+                        <div className="carry-flag">
+                          <strong>
+                            {c.status === 'new'
+                              ? 'New option: decide it.'
+                              : rows[id] && r.disposition
+                                ? 'Reviewed.'
+                                : 'Review: this changed since you decided it.'}
+                          </strong>
+                          {c.status !== 'new' && (
+                            <ul>
+                              {[...c.changes, ...c.notes].map((x) => (
+                                <li key={x}>{x}</li>
+                              ))}
+                            </ul>
+                          )}
+                          {c.status === 'changed' && !rows[id] && (
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() => setRow(id, {})}
+                            >
+                              Keep my decision
+                            </button>
+                          )}
+                        </div>
+                      )}
                       <label htmlFor={`dis-${id}`}>Disposition</label>
                       <select
                         id={`dis-${id}`}
@@ -567,6 +758,37 @@ export function Compare({
                           );
                         })}
                       </select>
+                      {gate?.stale_reasons.includes(id) && (
+                        <div className="carry-flag">
+                          <strong>
+                            These reasons were written for “
+                            {words(
+                              latest?.dispositions.find(
+                                (x) =>
+                                  x.alternative.id.toLowerCase() ===
+                                  id.toLowerCase(),
+                              )?.disposition ?? '',
+                            )}
+                            ”.
+                          </strong>{' '}
+                          Rewrite them for the new choice, or keep them if they
+                          still apply.
+                          <div>
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() =>
+                                setReasonsKept((k) => ({
+                                  ...k,
+                                  [id]: r.disposition,
+                                }))
+                              }
+                            >
+                              Keep these reasons
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="two">
                         <div>
                           <label htmlFor={`why-${id}`}>Reason</label>
@@ -602,6 +824,25 @@ export function Compare({
                   value={rationale}
                   onChange={(e) => setRationale(e.target.value)}
                 />
+                {gate?.rationale_review && rationale.trim() && (
+                  <div className="carry-flag">
+                    <strong>Review the overall rationale.</strong> It was
+                    written for your earlier choices, and some choices are
+                    different now. Keep it if it still explains this decision,
+                    or rewrite it.
+                    <div>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() =>
+                          setRationaleKept(gate.rationale_signature)
+                        }
+                      >
+                        Keep this rationale
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <label htmlFor="dec-override">
                   Override reason (needed when you advance a lower-ranked
                   option)
@@ -612,6 +853,27 @@ export function Compare({
                   value={override}
                   onChange={(e) => setOverride(e.target.value)}
                 />
+                {gate?.override_review && (
+                  <div className="carry-flag">
+                    <strong>Review the override reason.</strong>{' '}
+                    {override.trim()
+                      ? 'Your choices now advance an option over a different set of higher-ranked options than the reason was written for. Keep it if it still explains the choice, or rewrite it.'
+                      : 'Your choices now advance an option over higher-ranked options; give a reason.'}
+                    {override.trim() && (
+                      <div>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() =>
+                            gate && setOverrideKept(gate.override_signature)
+                          }
+                        >
+                          Keep this reason
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <label htmlFor="dec-run">Record under run</label>
                 <select
                   id="dec-run"
@@ -628,6 +890,11 @@ export function Compare({
                     </option>
                   ))}
                 </select>
+                {gate && pendingReviews(gate).length > 0 && (
+                  <p className="small">
+                    Before you can record: {pendingReviews(gate).join('; ')}.
+                  </p>
+                )}
                 <button
                   className="primary"
                   type="submit"
