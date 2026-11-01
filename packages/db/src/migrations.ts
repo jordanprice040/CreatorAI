@@ -2505,6 +2505,30 @@ create trigger chat_messages_immutable before update or delete on chat_messages
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    // ADR-0056: the owner's evidence websites, per workspace. Each change is an immutable row
+    // naming the version it replaced, with its reason and audit event. The latest row is the
+    // list in force; with none, the list the studio started with applies.
+    version: 35,
+    name: 'evidence_site_changes',
+    sql: `
+create table evidence_site_changes (
+ workspace_id uuid not null references workspaces(id),
+ version integer not null check (version > 0),
+ mode text not null check (mode in ('listed','any_public')),
+ hosts jsonb not null check (jsonb_typeof(hosts) = 'array' and jsonb_array_length(hosts) <= 100),
+ previous_mode text not null check (previous_mode in ('listed','any_public')),
+ previous_hosts jsonb not null check (jsonb_typeof(previous_hosts) = 'array'),
+ reason text not null check (length(reason) between 1 and 1200),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, version)
+);
+create trigger evidence_site_changes_immutable before update or delete on evidence_site_changes
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

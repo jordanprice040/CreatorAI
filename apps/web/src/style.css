@@ -2138,3 +2138,17 @@ fieldset.flagged {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Settings › Evidence websites: radio choices with their explanation on the same line. */
+.sites-form label.choice {
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+.sites-form label.choice input {
+  width: auto;
+  margin: 0 6px 0 0;
+}
+.sites-form label.choice small {
+  font-weight: 400;
+  color: var(--muted);
+}

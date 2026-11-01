@@ -153,3 +153,59 @@ test('Claude Code connections never see or change Codex caps', async () => {
   );
   assert.equal(out.caps?.codex.max_builds_per_day, 0);
 });
+
+type SiteList = {
+  parseSiteList: (text: string) => { hosts: string[]; invalid: string[] };
+  siteChanges: (
+    before: { mode: string; hosts: readonly string[] },
+    after: { mode: string; hosts: readonly string[] },
+  ) => string[];
+};
+async function siteList(): Promise<SiteList> {
+  const source = await readFile('apps/web/src/site-list.ts', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const exports = {} as SiteList;
+  new Function('exports', code)(exports);
+  return exports;
+}
+
+test('the evidence websites box keeps host names only and flags IPs, ports and sign-ins', async () => {
+  const { parseSiteList, siteChanges } = await siteList();
+  const out = parseSiteList(
+    'https://www.speedrun.com/games/x?y=1\n*.NIH.gov, tasvideos.org/\n\nwww.speedrun.com\n192.168.1.1 https://a.org:8443/ https://me@b.org/ localhost',
+  );
+  assert.deepEqual(out.hosts, [
+    'www.speedrun.com',
+    '*.nih.gov',
+    'tasvideos.org',
+  ]);
+  assert.deepEqual(out.invalid, [
+    '192.168.1.1',
+    'https://a.org:8443/',
+    'https://me@b.org/',
+    'localhost',
+  ]);
+  // Every accepted entry also passes the server's schema.
+  const { EvidenceSiteHostSchema } = await import('@creator/contracts');
+  for (const h of out.hosts)
+    assert.ok(EvidenceSiteHostSchema.safeParse(h).success, h);
+  assert.deepEqual(
+    siteChanges(
+      { mode: 'listed', hosts: ['a.org', 'b.org'] },
+      { mode: 'any_public', hosts: ['b.org', 'c.org'] },
+    ),
+    ['Turn on "Any public website"', 'Add c.org', 'Remove a.org'],
+  );
+  assert.deepEqual(
+    siteChanges(
+      { mode: 'listed', hosts: ['a.org'] },
+      { mode: 'listed', hosts: ['a.org'] },
+    ),
+    [],
+  );
+});

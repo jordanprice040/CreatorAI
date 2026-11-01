@@ -83,6 +83,7 @@ const COUNTED = [
   'artifact_feedback',
   'runtime_ceiling_changes',
   'runtime_limit_changes',
+  'evidence_site_changes',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */

@@ -1,23 +1,31 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { RuntimeCeilingSchema, type SessionInfo } from '@creator/contracts';
+import {
+  RuntimeCeilingSchema,
+  type SessionInfo,
+  type Workspace,
+} from '@creator/contracts';
 import { ApiError, api, message, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { money } from './budgets.js';
 import { usdToNano } from './amounts.js';
 import { SpendingLimits } from './spending-limits.js';
+import { EvidenceSites } from './evidence-sites.js';
 import { Status, useLoad, type View } from './ui.js';
 
 /**
  * Settings: the owner's overall ceiling on real spending (ADR-0043), the narrower per-run
- * and per-model limits under it (ADR-0044), plus pointers to the
+ * and per-model limits under it (ADR-0044), the workspace's evidence websites (ADR-0056),
+ * plus pointers to the
  * other places preferences live. Changing the ceiling is a deliberate, recorded act by the
  * signed-in person; agents and workers have no route to it.
  */
 export function Settings({
   session,
+  workspace,
   open,
 }: {
   session: SessionInfo;
+  workspace: Workspace;
   open: (view: View, id?: string) => void;
 }) {
   const data = useLoad(
@@ -264,6 +272,12 @@ export function Settings({
 
       <SpendingLimits session={session} />
 
+      <EvidenceSites
+        key={workspace.id}
+        session={session}
+        workspace={workspace}
+      />
+
       <h3>Elsewhere</h3>
       <ul className="rows">
         <li>
@@ -274,6 +288,12 @@ export function Settings({
         </li>
         <li>
           Model sign-in and connections:{' '}
+          <button className="text" onClick={() => open('models')}>
+            Models and connections
+          </button>
+        </li>
+        <li>
+          Model caps (requests a day, per run, timeouts): Change caps on{' '}
           <button className="text" onClick={() => open('models')}>
             Models and connections
           </button>
