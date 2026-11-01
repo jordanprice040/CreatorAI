@@ -21,9 +21,10 @@ import {
   alternativeCounts,
   clip,
   problemLabel,
-  richestProblem,
+  RecordOptions,
   type View,
 } from './ui.js';
+import { newestFirst } from './versions.js';
 
 const GATE_LABEL: Record<string, string> = {
   clear: 'clear',
@@ -323,18 +324,18 @@ export function Scoring({
         api(z.array(StoredEntitySchema), `${base}/entities?kind=alternative`),
         api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
       ]);
-      const active = p.filter((x) => x.status === 'active');
+      const active = newestFirst(p.filter((x) => x.status === 'active'));
       const c = await alternativeCounts(base, active);
       setProblems(active);
       setAllProblemIds(p.map((x) => x.id));
       setCounts(c);
       setAlternatives(a);
-      setSpecs(s.filter((x) => x.body?.format === 'spec/1'));
+      setSpecs(newestFirst(s.filter((x) => x.body?.format === 'spec/1')));
       // Read the address now, not when the load started: a pick made while the counts
       // were loading must not be replaced by the default.
       const cur = focusRef.current;
-      if (!active.some((x) => x.id === cur))
-        setProblem(richestProblem(active, c));
+      // Open on the newest problem unless the page was opened for a specific one.
+      if (!active.some((x) => x.id === cur)) setProblem(active[0]?.id ?? '');
     } catch (e) {
       setError(message(e));
     }
@@ -414,11 +415,10 @@ export function Scoring({
           onChange={(e) => setProblem(e.target.value)}
         >
           {problems.length === 0 && <option value="">No problems yet</option>}
-          {problems.map((p) => (
-            <option key={p.id} value={p.id}>
-              {problemLabel(p, counts, 80)}
-            </option>
-          ))}
+          <RecordOptions
+            list={problems}
+            label={(p) => problemLabel(p, counts)}
+          />
         </select>
         <button className="secondary" onClick={() => void loadWorkspace()}>
           Refresh

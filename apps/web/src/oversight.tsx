@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
+import { runLabel } from './labels.js';
 import {
   AuthStatusSchema,
   DecisionSchema,
@@ -531,6 +532,7 @@ export function Oversight({
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
+  const [runNames, setRunNames] = useState<Map<string, string>>(new Map());
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState('');
   // Each load gets a number; only the latest may write, so a slow poll that started before a
@@ -565,14 +567,24 @@ export function Oversight({
         z.array(RunControlSchema),
         `workspaces/${workspace}/runs`,
       );
+      // Run names come from the run records; a run without a readable record has none.
+      const named = await api(
+        z.array(z.object({ id: z.string(), title: z.string() })),
+        `workspaces/${workspace}/entities?kind=run`,
+      ).catch(() => []);
       if (stale()) return;
+      setRunNames(new Map(named.map((r) => [r.id, r.title])));
       setDecisions(
         [...linked, ...list].sort(
           (a, b) => Number(b.id === focus) - Number(a.id === focus),
         ),
       );
       setGrants(grants);
-      setRuns(runs);
+      setRuns(
+        [...runs].sort(
+          (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
+        ),
+      );
     } catch (e) {
       if (!stale()) setError(message(e));
     }
@@ -673,7 +685,7 @@ export function Oversight({
               {runs.map((r) => (
                 <li key={r.run_id}>
                   <span className="kind">{words(r.autonomy_mode)}</span>{' '}
-                  {r.run_id.slice(0, 8)} · {r.state}
+                  {runLabel(r, runNames)} · {r.state}
                   <small>
                     {' '}
                     gates: {r.stage_gates.map(words).join(', ') || 'none'}

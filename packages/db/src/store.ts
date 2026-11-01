@@ -1009,7 +1009,7 @@ export class Store {
       const { rows } = await c.query(
         `select * from entities where workspace_id = $1
            and ($2::text is null or kind = $2) and ($3::text is null or status = $3)
-         order by created_at, id limit 500`,
+         order by created_at desc, id desc limit 500`,
         [ws, kind, status],
       );
       return rows.map((r: Row) => toEntity(r));

@@ -36,7 +36,9 @@ test('browser session retains sign-in on failed logout and clears it after confi
         }
       : name === './page-drafts.js'
         ? { usePageActive: () => true }
-        : require(name);
+        : name === './labels.js'
+          ? {}
+          : require(name);
   let response: 'network' | 'server' | 'success' = 'network';
   const requests: { path: string; init: RequestInit }[] = [];
   const fetch = async (path: string, init: RequestInit) => {

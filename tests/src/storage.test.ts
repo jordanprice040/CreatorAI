@@ -594,3 +594,34 @@ test('redaction leaves a non-sensitive tombstone; links, hashes and audit chain 
     broken_at: '2',
   });
 });
+
+test('record lists come newest first, so a capped list keeps the newest', async (t) => {
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const store = new Store(db.pool);
+  await setup(store);
+  const ws = await store.createWorkspace(owner, {
+    name: 'Order',
+    record_mode: 'fixture',
+  });
+  const made: string[] = [];
+  // One more than the list's cap of 500: the oldest is the one left out.
+  for (let i = 0; i < 501; i++)
+    made.push(
+      (
+        await store.createEntity(owner, ws.id, {
+          kind: 'idea',
+          title: `Idea ${i}`,
+          body: bodies.idea,
+        })
+      ).id,
+    );
+  const listed = await store.listEntities(owner, ws.id, { kind: 'idea' });
+  assert.equal(listed.length, 500);
+  assert.equal(listed[0]!.id, made[500], 'the newest record leads');
+  assert.equal(listed[499]!.id, made[1]);
+  assert.ok(
+    !listed.some((e) => e.id === made[0]),
+    'the oldest is past the cap',
+  );
+});
