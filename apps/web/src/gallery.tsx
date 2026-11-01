@@ -501,26 +501,35 @@ function FeedbackPanel({
   const [category, setCategory] =
     useState<Feedback['category']>('change_request');
   const [text, setText] = useState('');
+  // One "works as intended" per version: a second click would only add a duplicate note.
+  const praised = d.feedback.some((f) => f.category === 'praise');
   return (
     <div className="feedback">
       <h4>Feedback on this exact version</h4>
-      <p className="small">
-        Recording feedback is what finishes trying a package. Nothing to change?
-        Say so in one click.{' '}
-        <button
-          type="button"
-          className="secondary"
-          disabled={busy}
-          onClick={() =>
-            void act(async () => {
-              await submit('praise', 'Tried it: works as intended.');
-              return 'Recorded: works as intended.';
-            })
-          }
-        >
-          It works as intended
-        </button>
-      </p>
+      {praised ? (
+        <p className="small">
+          You recorded that this version works as intended, so trying it is
+          done.
+        </p>
+      ) : (
+        <p className="small">
+          Recording feedback is what finishes trying a package. Nothing to
+          change? Say so in one click.{' '}
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() =>
+              void act(async () => {
+                await submit('praise', 'Tried it: works as intended.');
+                return 'Recorded: works as intended.';
+              })
+            }
+          >
+            It works as intended
+          </button>
+        </p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -564,7 +573,8 @@ function FeedbackPanel({
               {f.revision && (
                 <small> · became spec v{f.revision.version}</small>
               )}
-              {f.status === 'submitted' && (
+              {/* Praise is an answer, not a change to accept or decline (review M-1). */}
+              {f.status === 'submitted' && f.category !== 'praise' && (
                 <>
                   {' '}
                   <button

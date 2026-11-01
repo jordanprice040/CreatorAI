@@ -235,6 +235,22 @@ function productStep(f: StudioFacts): Step {
   }
 }
 
+/**
+ * Counts for the facts from one package's feedback list. Praise ("works as intended") is a
+ * finished answer, not something to accept or decline, so it never counts as waiting for a
+ * decision or as accepted for a revision (PR #101 review M-1).
+ */
+export function feedbackCounts(
+  list: readonly { category: string; status: string }[],
+): { total: number; accepted: number; undecided: number } {
+  const actionable = list.filter((f) => f.category !== 'praise');
+  return {
+    total: list.length,
+    accepted: actionable.filter((f) => f.status === 'accepted').length,
+    undecided: actionable.filter((f) => f.status === 'submitted').length,
+  };
+}
+
 /** Plain words for how much feedback there is, e.g. "1 feedback item". */
 const items = (n: number) => plural(n, 'feedback item');
 
@@ -416,13 +432,15 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
           text: 'Nothing is packaged yet. Package a verified build first.',
           action: { view: 'build' },
         };
-      // The newest package's own step: try it, then revise from feedback or finish.
+      // The newest package: the path's own step, so Try never says "All clear" while an
+      // earlier stage (a humility review, say) is still open. At Try or later that step is
+      // try it, then revise from feedback or finish (PR #101 review L-3).
       if (
         f.product?.current &&
         f.product.build === 'verified' &&
         f.product.packaged
       )
-        return tryStep(f, f.product.feedback);
+        return pathStages(f).step;
       return {
         tone: 'next',
         text: 'Try a package in its private preview and record your feedback; feedback can start a revision.',

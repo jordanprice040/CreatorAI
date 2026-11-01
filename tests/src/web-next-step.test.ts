@@ -620,3 +620,49 @@ test('the full line shows on Projects and on pages it is about; elsewhere a shor
     'revising from your feedback is next',
   );
 });
+
+test('"works as intended" alone finishes the path; praise never waits for a decision (PR #101 review M-1)', async () => {
+  const { feedbackCounts, pipelineStep, nextStep } = await load<
+    MoreRules & {
+      feedbackCounts: (list: { category: string; status: string }[]) => Facts;
+    }
+  >('next-rules.ts');
+  // What the one-click button records: a submitted praise item.
+  const praise = { category: 'praise', status: 'submitted' };
+  const finished = tried(feedbackCounts([praise]));
+  const step = pipelineStep(finished);
+  assert.equal(step.tone, 'clear');
+  assert.match(step.text, /path is finished/);
+  assert.doesNotMatch(step.text, /Accept one/);
+  assert.doesNotMatch(nextStep('settings', finished).text, /Revise/);
+  // Even an accepted praise item does not make a revision next.
+  assert.match(
+    pipelineStep(tried(feedbackCounts([{ ...praise, status: 'accepted' }])))
+      .text,
+    /path is finished/,
+  );
+  // A change request next to it still waits for a decision, and accepting it means revise.
+  const change = { category: 'change_request', status: 'submitted' };
+  assert.match(
+    pipelineStep(tried(feedbackCounts([praise, change]))).text,
+    /Accept one under Try/,
+  );
+  assert.match(
+    pipelineStep(
+      tried(feedbackCounts([praise, { ...change, status: 'accepted' }])),
+    ).text,
+    /Revise the spec/,
+  );
+});
+
+test('Try names an earlier open stage instead of "All clear" (PR #101 review L-3)', async () => {
+  const { nextStep, pathStages } = await load<MoreRules>('next-rules.ts');
+  const unreviewed = {
+    ...tried({ total: 1, accepted: 0, undecided: 0 }),
+    reviewed: false,
+  };
+  const gallery = nextStep('gallery', unreviewed);
+  assert.deepEqual(gallery, pathStages(unreviewed).step);
+  assert.match(gallery.text, /humility review/);
+  assert.notEqual(gallery.tone, 'clear');
+});

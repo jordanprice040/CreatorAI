@@ -30,7 +30,9 @@ export function PathView({
         <p className="small">Reading where this workspace stands…</p>
       </section>
     );
-  const { stages, step, finished } = pathStages(facts);
+  // When every stage is done, the line above the tabs carries the closing step (revise, or
+  // finished); repeating it under the list said the same thing twice (PR #101 review L-1).
+  const { stages } = pathStages(facts);
   return (
     <section className="panel">
       <h2>Path</h2>
@@ -80,24 +82,6 @@ export function PathView({
           </li>
         ))}
       </ol>
-      {finished && (
-        <p
-          className={`path-finished next-step next-${step.tone}`}
-          role="status"
-        >
-          <strong>{step.tone === 'next' ? 'Next' : 'Finished'}:</strong>{' '}
-          {step.text}{' '}
-          {step.action && (
-            <button
-              type="button"
-              className="text"
-              onClick={() => open(step.action!.view)}
-            >
-              Open {placeLabel(step.action.view, 'path')}
-            </button>
-          )}
-        </p>
-      )}
     </section>
   );
 }

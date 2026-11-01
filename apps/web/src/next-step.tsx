@@ -15,6 +15,7 @@ import { api, STUDIO_CHANGED } from './oversight.js';
 import {
   decisionsNote,
   failedNote,
+  feedbackCounts,
   lineStyle,
   nextStep,
   pathSummary,
@@ -110,11 +111,7 @@ async function readFacts(
       : undefined;
   const feedback = pkg
     ? await api(z.array(FeedbackSchema), `${base}/artifacts/${pkg.id}/feedback`)
-        .then((list) => ({
-          total: list.length,
-          accepted: list.filter((f) => f.status === 'accepted').length,
-          undecided: list.filter((f) => f.status === 'submitted').length,
-        }))
+        .then(feedbackCounts)
         .catch(() => undefined)
     : undefined;
   const build: BuildState = !newest
