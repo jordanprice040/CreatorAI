@@ -68,6 +68,13 @@ class FakeWindow extends EventEmitter {
     );
     await writeFile(join(this.job, 'result.json'), JSON.stringify(value));
   }
+  /** The bridge's identity record, written just before it starts the unit. */
+  async began() {
+    await writeFile(
+      join(this.job, 'environment.json'),
+      JSON.stringify({ unit: 'creator-term-x' }),
+    );
+  }
   close() {
     this.emit('exit');
   }
@@ -325,26 +332,50 @@ test('Stop reaches the worker through the lease; deadline and window close map t
 
 test('a window closed before the worker reports is reaped, and an unconfirmed reap is not called clean', async (t) => {
   const h = await harness(t);
+  const settledOf = async (productId: string) =>
+    until(async () => {
+      const [x] = await h.terminals.list(productId, owner);
+      return x?.state !== 'running' ? x : null;
+    });
+  // The bridge started the unit, then the window was closed: reaped and confirmed.
   const p = await h.product();
   await start(h.terminals, p);
+  await h.windows[0]!.began();
   h.windows[0]!.close();
-  const closed = await until(async () => {
-    const [x] = await h.terminals.list(p, owner);
-    return x?.state !== 'running' ? x : null;
-  });
+  const closed = await settledOf(p);
   assert.equal(closed.state, 'window_closed');
   assert.equal(h.reaps.length, 1);
   assert.ok(h.reaps[0]!.includes('--reap'));
   assert.ok(h.reaps[0]!.includes('--interactive'));
 
-  h.setReap(null);
+  // Live check 2026-11-01: WSL was shutting down, so the window closed before the bridge
+  // ran at all. That is "did not start", not "window closed".
   const q = await h.product();
   await start(h.terminals, q);
   h.windows[1]!.close();
-  const unknown = await until(async () => {
-    const [x] = await h.terminals.list(q, owner);
-    return x?.state !== 'running' ? x : null;
-  });
+  const never = await settledOf(q);
+  assert.equal(never.state, 'blocked');
+  assert.match(never.reason ?? '', /did not start.*try again/);
+
+  // A bridge check failed: its reason is shown.
+  const r = await h.product();
+  await start(h.terminals, r);
+  await writeFile(
+    join(h.windows[2]!.job, 'blocked.json'),
+    JSON.stringify({ reason: 'Missing isolation capability: /usr/bin/bwrap' }),
+  );
+  h.windows[2]!.close();
+  const refused = await settledOf(r);
+  assert.equal(refused.state, 'blocked');
+  assert.match(refused.reason ?? '', /refused to start: Missing isolation/);
+
+  // The unit started but the reap could not confirm it stopped.
+  h.setReap(null);
+  const u = await h.product();
+  await start(h.terminals, u);
+  await h.windows[3]!.began();
+  h.windows[3]!.close();
+  const unknown = await settledOf(u);
   assert.equal(unknown.state, 'cleanup_required');
 });
 

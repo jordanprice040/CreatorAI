@@ -272,4 +272,19 @@ if __name__ == '__main__':
         main()
     except Exception as error:
         emit({'type': 'blocked', 'value': str(error)})
+        if '--interactive' in sys.argv and '--reap' not in sys.argv:
+            # The console window is the only output: leave the reason for the studio and
+            # keep the window open long enough to read it.
+            try:
+                write_record(pathlib.Path(sys.argv[1]).resolve(strict=True) / 'blocked.json',
+                             {'reason': str(error)[:2000]})
+            except Exception:
+                pass
+            print('Press Enter to close this window.', flush=True)
+            try:
+                ready = selectors.DefaultSelector()
+                ready.register(sys.stdin, selectors.EVENT_READ)
+                ready.select(120)
+            except (OSError, ValueError):
+                pass
         sys.exit(2)

@@ -411,18 +411,30 @@ export class TerminalSupervisor {
     }
     // The window closed without the bridge's result (or the bridge never ran). Make sure
     // the unit is gone before calling the session over.
+    const blocked = (await readJson(join(job, 'blocked.json')).catch(
+      () => null,
+    )) as { reason?: unknown } | null;
     const reaped = await this.ports
       .reap([...this.bridgeArgs(job, record.id, record.recipe_hash), '--reap'])
       .catch(() => null);
+    const environmentWritten = typeof environment.unit === 'string';
+    // The bridge writes its identity just before it starts the unit, so without it the
+    // program never ran: for example WSL was starting or shutting down, or a check failed.
+    if (!environmentWritten && (reaped?.cleaned ?? true))
+      return this.settle({ ...record, environment: merged }, dir, job, {
+        state: 'blocked',
+        reason:
+          typeof blocked?.reason === 'string'
+            ? `The worker refused to start: ${blocked.reason}`.slice(0, 2000)
+            : 'The program did not start: the window closed before the WSL worker began (WSL may have been starting or shutting down). Nothing ran; try again.',
+      });
     return this.settle({ ...record, environment: merged }, dir, job, {
       state: reaped?.cleaned ? 'window_closed' : 'cleanup_required',
       reason: reaped
         ? reaped.cleaned
           ? 'The window closed before the worker reported; the session unit was stopped.'
           : `The session unit could not be confirmed stopped (state ${reaped.unit_state}).`
-        : environment.unit
-          ? 'The worker could not be reached to confirm the session stopped.'
-          : 'The worker did not start. Check that the WSL worker is set up (Settings shows its status).',
+        : 'The worker could not be reached to confirm the session stopped.',
     });
   }
 
