@@ -24,7 +24,7 @@ export function Operations() {
   const s = data.data;
   return (
     <section className="panel">
-      <h2>Operations</h2>
+      <h2>Workers</h2>
       <Status loading={data.loading} error={data.error} retry={data.reload} />
       {s && (
         <>

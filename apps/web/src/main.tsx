@@ -193,6 +193,8 @@ function FixtureDemo() {
 }
 
 const LAST_WORKSPACE = 'creator.workspace';
+/** The path step last seen on Projects, per workspace, for the Projects nav dot. */
+const SEEN_STEP = 'creator.path-seen';
 /** Remembers the open workspace in this browser only; a blocked store just forgets it. */
 function rememberWorkspace(id: string) {
   try {
@@ -439,6 +441,39 @@ function App() {
     route.view,
     auth.managed,
   );
+  // The Projects dot marks a path step the person has not seen yet: it shows when the
+  // step changes and clears once Projects is opened (PR #97 review L-2). Remembered in this
+  // browser only; a blocked store just shows the dot again.
+  const pathStep = facts ? nextStep('path', facts) : null;
+  const stepKey = pathStep ? `${pathStep.tone}:${pathStep.text}` : '';
+  const [seenStep, setSeenStep] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SEEN_STEP) ?? '{}') as Record<
+        string,
+        string
+      >;
+    } catch {
+      return {};
+    }
+  });
+  const onProjects = pageOf(route.view).key === 'projects';
+  useEffect(() => {
+    if (!workspace || !stepKey || !onProjects) return;
+    if (seenStep[workspace.id] === stepKey) return;
+    const next = { ...seenStep, [workspace.id]: stepKey };
+    setSeenStep(next);
+    try {
+      localStorage.setItem(SEEN_STEP, JSON.stringify(next));
+    } catch {
+      // Private windows: the dot comes back next time, which is harmless.
+    }
+  }, [workspace?.id, stepKey, onProjects]);
+  const newStep =
+    workspace !== null &&
+    pathStep !== null &&
+    pathStep.tone !== 'clear' &&
+    !onProjects &&
+    seenStep[workspace.id] !== stepKey;
   const open = (view: View, id?: string, q?: string) =>
     go({
       view,
@@ -732,10 +767,7 @@ function App() {
                 const here = pageOf(route.view).key === page.key;
                 const waiting =
                   page.key === 'monitor' && facts ? facts.pending : 0;
-                const ready =
-                  page.key === 'projects' &&
-                  facts !== null &&
-                  nextStep('path', facts).tone === 'next';
+                const ready = page.key === 'projects' && newStep;
                 return (
                   <li key={page.key}>
                     <a
@@ -763,9 +795,12 @@ function App() {
                         </span>
                       )}
                       {ready && (
-                        <span className="nav-dot" title="A next step is ready">
+                        <span
+                          className="nav-dot"
+                          title="The path has a new step for you"
+                        >
                           <span className="sr-only">
-                            : a next step is ready
+                            : the path has a new step
                           </span>
                         </span>
                       )}

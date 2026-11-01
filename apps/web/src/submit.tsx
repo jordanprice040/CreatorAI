@@ -466,7 +466,7 @@ export function Submit({
   const viewer = workspace.role === 'viewer';
   return (
     <section className="panel" aria-labelledby="sub-title">
-      <h2 id="sub-title">Submit a theme</h2>
+      <h2 id="sub-title">Discover</h2>
       <p>
         Two ways in: save a rough theme as a draft and plan it later, or fill in
         the full brief under{' '}

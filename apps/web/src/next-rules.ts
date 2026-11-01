@@ -388,6 +388,9 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
     case 'studies':
       return optional(f, 'The study runner');
     case 'path':
+      // The Path list's own step, budget and owner blocks included, so the line above the
+      // tabs and the list never disagree (PR #97 review M-1).
+      return pathStages(f).step;
     case 'catalog':
     case 'search':
     case 'activity':
@@ -416,7 +419,8 @@ export function failedNote(view: StepView, f: StudioFacts) {
   return `${plural(f.failed, 'run step')} failed earlier; open ${f.failed === 1 ? 'it' : 'one'} under Monitor › Runs to see why`;
 }
 
-export type StageState = 'done' | 'next' | 'running' | 'blocked' | 'later';
+export type StageState =
+  'done' | 'skipped' | 'next' | 'running' | 'blocked' | 'later';
 export type Stage = {
   key: string;
   label: string;
@@ -439,9 +443,13 @@ function stageNeeds(key: string, f: StudioFacts): Step | null {
       text: 'A discovery needs an active budget, even on the $0 plan route.',
       action: { view: 'budgets' },
     };
-  if (key === 'build' || key === 'package') {
-    if (!f.owner)
-      return { tone: 'blocked', text: 'Only the workspace owner can build.' };
+  if ((key === 'build' || key === 'package') && !f.owner)
+    return {
+      tone: 'blocked',
+      text: `Only the workspace owner can ${key}.`,
+    };
+  // Packaging needs only a verified build and its owner; budget and pricing are build-only.
+  if (key === 'build') {
     if (f.budgets === 0 || f.pricing === 0)
       return {
         tone: 'blocked',
@@ -512,10 +520,21 @@ export function pathStages(f: StudioFacts): { stages: Stage[]; step: Step } {
   let current = list.findIndex((s) => !s.done);
   if (current < 0) current = list.length - 1;
   const path = pipelineStep(f);
-  const needs = stageNeeds(list[current]!.key, f);
+  // A step in progress (a running build or packaging) needs no one, so nothing blocks it.
+  const needs =
+    path.tone === 'clear' ? null : stageNeeds(list[current]!.key, f);
   const step: Step = needs ?? path;
   const stages = list.map((s, i): Stage => {
-    if (i < current) return { ...s, state: 'done', text: null };
+    if (i < current)
+      return {
+        ...s,
+        // Scoring is skipped when discovery proposed no options: not done, not needed.
+        state:
+          s.key === 'scores' && f.alternatives === 0 && f.scorecards === 0
+            ? 'skipped'
+            : 'done',
+        text: null,
+      };
     if (i === current)
       return {
         key: s.key,

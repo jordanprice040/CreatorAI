@@ -903,7 +903,7 @@ function StartBuild({
   const missing = [
     !runId && 'an active run (register one under Sources or Discover)',
     !budgetId && 'an active budget (Monitor › Budgets)',
-    !priceId && 'a pricing snapshot (Budgets)',
+    !priceId && 'a pricing snapshot (Monitor › Budgets)',
     !chosen && 'a humility review of this spec version',
     lostBuilder &&
       `a builder: the plan model chosen (${lostBuilder.split(':').slice(2).join(':')}) is no longer verified, so choose again (Models and connections shows why)`,

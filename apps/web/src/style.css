@@ -598,7 +598,15 @@ mark {
   padding-right: 110px;
   min-height: 34px;
 }
+/* A tab without fields (Path) has no Reset button, so it keeps no room for one. */
+.no-reset .draft-content > .panel:first-child > h2:first-child {
+  padding-right: 0;
+  min-height: 0;
+}
 @media (max-width: 760px) {
+  .no-reset .draft-content > .panel:first-child {
+    padding-top: 18px;
+  }
   .page-reset {
     top: 18px;
     right: 16px;

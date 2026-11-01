@@ -56,7 +56,7 @@ export function Gallery({
     list.data?.find((a) => a.id === focus) ?? list.data?.[0] ?? null;
   return (
     <section className="panel" aria-labelledby="gal-title">
-      <h2 id="gal-title">Gallery</h2>
+      <h2 id="gal-title">Try</h2>
       <p className="small">
         Packages of verified task candidates. Each one was re-extracted from its
         archive and started again in the isolated worker before it is offered as

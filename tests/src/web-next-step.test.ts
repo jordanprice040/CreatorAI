@@ -441,3 +441,77 @@ test('the Path tab says why a stage is blocked and what later stages will need',
     /Only the workspace owner/,
   );
 });
+
+test('the line above the tabs on Path never contradicts the Path list (PR #97 review M-1)', async () => {
+  const { pathStages, nextStep } = await load<Rules>('next-rules.ts');
+  const early = {
+    ...done,
+    problems: 0,
+    alternatives: 0,
+    scorecards: 0,
+    specs: 0,
+    frozenSpecs: 0,
+    reviewed: false,
+    product: null,
+  };
+  const cases: Facts[] = [
+    { ...early, budgets: 0 },
+    {
+      ...done,
+      owner: false,
+      product: { ...(done.product as Facts), packaged: false },
+    },
+    {
+      ...done,
+      owner: false,
+      product: { ...(done.product as Facts), build: 'running' },
+    },
+    { ...done, frozenSpecs: 0 },
+    done,
+  ];
+  for (const f of cases) {
+    const { stages, step } = pathStages(f);
+    const line = nextStep('path', f);
+    assert.deepEqual(line, step);
+    const current = stages.find((s) =>
+      ['next', 'running', 'blocked'].includes(s.state),
+    )!;
+    assert.equal(current.text, line.text);
+    assert.equal(current.state === 'blocked', line.tone === 'blocked');
+  }
+  // No budget: both say discovery is blocked and point at Budgets.
+  const noBudget = nextStep('path', { ...early, budgets: 0 });
+  assert.equal(noBudget.tone, 'blocked');
+  assert.equal(noBudget.action?.view, 'budgets');
+  // A running build needs no one, so the owner rule does not turn it into a block.
+  const running = pathStages({
+    ...done,
+    owner: false,
+    product: { ...(done.product as Facts), build: 'running' },
+  });
+  assert.equal(running.stages.find((s) => s.key === 'build')?.state, 'running');
+});
+
+test('packaging needs no budget or pricing, and skipped scoring is not shown as done', async () => {
+  const { pathStages } = await load<Rules>('next-rules.ts');
+  // L-1: a verified, unpackaged build with no budget or pricing is ready to package.
+  const unpackaged = pathStages({
+    ...done,
+    budgets: 0,
+    pricing: 0,
+    product: { ...(done.product as Facts), packaged: false },
+  });
+  const pkg = unpackaged.stages.find((s) => s.key === 'package')!;
+  assert.equal(pkg.state, 'next');
+  assert.match(pkg.text ?? '', /Package it/);
+  // L-3: a discovery with no options skips scoring; the stage says so instead of Done.
+  const noOptions = pathStages({ ...done, alternatives: 0, scorecards: 0 });
+  assert.equal(
+    noOptions.stages.find((s) => s.key === 'scores')?.state,
+    'skipped',
+  );
+  assert.equal(
+    pathStages(done).stages.find((s) => s.key === 'scores')?.state,
+    'done',
+  );
+});

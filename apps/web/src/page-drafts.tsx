@@ -63,7 +63,12 @@ export function PageDrafts({
       )}
       {pages.map((page) => (
         <PageActive.Provider key={page.key} value={page.key === key}>
-          <div className="draft-page" hidden={page.key !== key}>
+          <div
+            className={
+              page.route.view === 'path' ? 'draft-page no-reset' : 'draft-page'
+            }
+            hidden={page.key !== key}
+          >
             {page.route.view !== 'path' && (
               <button
                 type="button"

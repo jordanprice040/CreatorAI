@@ -3,6 +3,7 @@ import { placeLabel, type View } from './pages.js';
 
 const STATE_TEXT = {
   done: 'Done',
+  skipped: 'Not needed',
   next: 'Next',
   running: 'In progress',
   blocked: 'Blocked',
@@ -44,11 +45,13 @@ export function PathView({
             key={s.key}
             className={`path-stage stage-${s.state}`}
             aria-current={
-              s.state !== 'done' && s.state !== 'later' ? 'step' : undefined
+              s.state !== 'done' && s.state !== 'skipped' && s.state !== 'later'
+                ? 'step'
+                : undefined
             }
           >
             <span className="path-mark" aria-hidden="true">
-              {s.state === 'done' ? '✓' : i + 1}
+              {s.state === 'done' ? '✓' : s.state === 'skipped' ? '–' : i + 1}
             </span>
             <div className="path-body">
               <p className="path-head">
