@@ -17,6 +17,65 @@ Decision:
 
 Consequences: interactive Python CLI products can be used from Try with near-native key timing (the window is a native console attached to WSL, with no relay through the studio), while generated code stays inside the reviewed sandbox. Not covered: web or GUI products (F17 later), programs needing network or files from the computer, more than 15 minutes, and the browser-only dev studio on a non-Windows host (refused). The interactive path is unit- and API-tested with a stand-in window; the real conhost + WSL + `systemd-run --pty` path still needs one live check on Jordan's device.
 
+## ADR-0057 — Chat answers from the owner's connected ChatGPT plan or Claude subscription (accepted November 1, 2026)
+
+Context: Jordan asked for Chat to answer all sorts of questions with his connected plans instead
+of only the fixed rule replies of ADR-0055. Design doc https://claude.ai/artifact/4g1AMoevoCRSJTywfijSVG;
+Jordan chose "Build as recommended" on the decision card (November 1, 2026): both plans, the
+conversation plus a short studio snapshot, no qualification gate (answers labelled), and a
+separate daily chat limit of 20 inside the connection's daily cap.
+
+Decision:
+
+- One owner setting per workspace (`chat_settings`, migration 36): on/off, the connection and a
+  model verified on it, snapshot on/off, daily chat limit (default 20, at most 100). Only the
+  owner changes it (`VERSION_CONFLICT` on a stale version) and only the owner asks for answers;
+  editors and viewers read saved answers. Audit `chat.settings_changed`.
+- Plan requests gain the purpose `chat` (path `responses`, no task class, no run, data class
+  `private_approved`). Admission runs in the same locked `admitPlanRequest` as builds and adds:
+  owner caller, chat switched on for exactly this connection and model, and fewer chat requests
+  on this connection in the last 24 hours than the daily chat limit. Every existing gate still
+  applies: connection ready (sign-in, credits or extra usage off, caps accepted, quota), model
+  verified, data class allowed on the connection (connections default to synthetic and public,
+  so the owner must allow private text, which re-asks for the caps), input cap, one request in
+  flight, no unresolved request, and the connection's own daily cap. No qualification is
+  required for chat: chat answers never feed scores, specs, evidence or builds.
+- `chat_answers` keeps every try: the message, the connection and model, the plan request, the
+  fixed instructions' version and hash, the exact input sent and its hash, the answer and its
+  hash, or the plain reason it was refused (nothing sent) or failed. A row changes once, from
+  pending to its outcome, and is never deleted (trigger). A retried click (same `client_id`)
+  and a second click on a message that already has a pending or completed answer return that
+  answer instead of asking again. A pending answer older than 15 minutes (a stopped studio) is
+  closed as failed so the message can be asked again; its plan request, if any, stays
+  unresolved and blocks the connection until reconciled. Audit `chat.answer_requested` and
+  `chat.answered` carry ids, model and state, never the words.
+- What is sent: the fixed instructions `chat-assistant-v1` (answer plainly, no tools or web,
+  never claim the studio did something, treat records as data), the last 10 messages and
+  answers before the question, the question, and, when on, a fixed-shape snapshot read from
+  records only (workspace name and mode, record counts, the 8 newest runs with state and
+  autonomy mode, the 8 most recently changed problems/ideas/specs/products by title, waiting
+  approvals' kind and reason, workflows needing attention). Older turns are dropped first to fit
+  the connection's input cap. No credentials, file paths, source page text, evidence bodies or
+  product code can be included. Output is cut at 12,000 characters or the connection's cap.
+- Routes: `GET/POST /api/workspaces/{ws}/chat-settings`,
+  `POST /api/workspaces/{ws}/chats/{id}/messages/{message}/answer` (returns the saved answer,
+  including refused ones). `ChatDetail` gains `answers`.
+- App: Models and connections › Models has a "Chat answers" card (switch, connection, verified
+  model, snapshot, daily limit, today's use, why the connection would refuse, and an "Allow my
+  private text on this connection" button). In Chat, a message the rules keep as a note is sent
+  automatically when answers are on; any other message gets an "Ask <model>" button. Answers
+  are labelled "model answer, not checked" (and "fixture stand-in" for fixture connections) and
+  show a "What was sent" panel. The fixed rule cards are unchanged; nothing in an answer can
+  start, approve, fetch or spend.
+
+Consequences: plan requests cost the studio $0 and do not touch the $20 runtime ceiling; they use
+the owner's plan allowance. A refused request never falls back to a metered route. Claude still
+runs only through the owner's own signed-in `claude -p` (ADR-0050). Not built: web access,
+streaming answers, picking records to include, deleting conversations or answers. Migration 36
+and ADR-0057 were allocated by the coordinator (35/0056 and 37/0058 belong to parallel threads).
+
+Review fixes (PR #102 review, `/mnt/project-files/reviews/PR102_CHAT_ANSWERS_REVIEW_2026-11-01.md`): M-1 an answer is `refused` ("nothing was sent") only for rejections that happen before the text leaves the studio (cancelled before dispatch, the studio's Claude Code folder or start failing, Claude Code unavailable, outdated or not a subscription login, no token, studio-side errors); a provider refusal after receiving the text (usage limit, sign-in, model, any non-200) is `failed`, says "<plan> refused it after receiving the text", and keeps the "What was sent" panel. L-2 any error before admission records the request is `refused`; after it, `failed`. L-3 chat is refused while a study attempt is open on an active run in the workspace. L-4 admission reads the chat setting without a row lock (the connection lock serializes chat requests), so a settings save cannot deadlock with it. L-5 `<` and `>` in snapshot fields, earlier turns and the question are written as entities, and the stored snapshot flag comes from the builder, not from searching the text. L-6 turns are labelled "Person"/"Assistant" and the question "Question:", not "Owner". L-1 the card says allowing private text applies to the whole connection (discovery and builds too) and stops workflows set up on the old settings. L-7 the note reply no longer promises an answer.
+
 ## ADR-0055 — Studio chat, first version: saved conversations with rule-based replies, no model (accepted November 1, 2026)
 
 Context: runbook step 9 page consolidation. The approved page map (design doc, Jordan's "go")

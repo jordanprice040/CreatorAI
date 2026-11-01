@@ -26,3 +26,4 @@ export * from './marketing-store.js';
 export * from './portfolio-store.js';
 export * from './runtime-ceiling.js';
 export * from './connection-store.js';
+export { chatInput, chatSnapshot } from './chat-store.js';

@@ -1,5 +1,9 @@
 # Integration readiness
 
+## Chat answers through plan connections (ADR-0057) — November 1, 2026
+
+Implemented and fixture-verified (fake `claude`), not activated. Uses the existing ChatGPT plan and Claude Code connections; no new credential, endpoint or sign-in. Activation on a studio: allow private text on the chosen connection, accept its caps again, turn chat answers on in Models and connections. Each live question uses the owner's plan allowance ($0 to the studio, outside the $20 runtime ceiling); refusals never fall back to a paid route.
+
 ## Claude Code on this computer (ADR-0050) — October 28, 2026
 
 Implemented, fixture-verified, not activated. Uses Jordan's own signed-in Claude Code CLI

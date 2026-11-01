@@ -2095,6 +2095,69 @@ fieldset.flagged {
   gap: 8px;
   margin-top: 8px !important;
 }
+.chat-model {
+  box-shadow: inset 3px 0 0 var(--info);
+}
+.chat-model-refused,
+.chat-model-failed {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.chat-sent {
+  margin-top: 8px;
+  font-size: 0.9em;
+}
+.chat-sent summary {
+  cursor: pointer;
+  color: var(--text-2);
+}
+.chat-sent pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  margin: 6px 0 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.chat-answers-card {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+}
+.chat-answers-card .form-grid {
+  display: grid;
+  gap: 10px;
+  max-width: 640px;
+}
+.chat-answers-card .form-grid > label {
+  display: grid;
+  gap: 4px;
+}
+.chat-answers-card .form-grid > label.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.chat-answers-card label.check input {
+  width: auto;
+  margin-top: 3px;
+}
+.chat-answers-card .form-grid > button {
+  justify-self: start;
+}
+.chat-problems {
+  padding: 8px 12px;
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  border-radius: var(--radius);
+}
+.chat-problems ul {
+  margin: 4px 0 8px;
+}
 .chat-compose {
   display: flex;
   gap: 8px;

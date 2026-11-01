@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
+  ChatAnswerSchema,
   ChatConversationSchema,
   ChatDetailSchema,
   ChatMessageSchema,
+  ChatSettingsSchema,
   z,
+  type ChatAnswer,
+  type ChatSettings,
   type ChatConversation,
   type ChatDetail,
   type ChatMessage,
@@ -19,6 +23,10 @@ import {
   type ReplyFacts,
 } from './chat-replies.js';
 import { placeLabel, type View } from './pages.js';
+import { AnswerView } from './chat-answers.js';
+
+/** A plan answer can take minutes (Claude Code's own timeout is up to 5 minutes). */
+const ANSWER_TIMEOUT_MS = 330_000;
 
 const EXAMPLES = [
   "What's next?",
@@ -70,6 +78,11 @@ export function Chat({
   const base = `workspaces/${workspace.id}/chats`;
   const active = usePageActive();
   const canWrite = workspace.role !== 'viewer';
+  const owner = workspace.role === 'owner';
+  const [settings, setSettings] = useState<ChatSettings | null>(null);
+  const [asking, setAsking] = useState('');
+  // One id per answer request, reused on retry so a resend never asks twice.
+  const askIds = useRef(new Map<string, string>());
   const [list, setList] = useState<ChatConversation[] | null>(null);
   const [query, setQuery] = useState('');
   const [detail, setDetail] = useState<ChatDetail | null>(null);
@@ -81,6 +94,8 @@ export function Chat({
   const listSeq = useRef(0);
   const detailSeq = useRef(0);
   const endRef = useRef<HTMLDivElement>(null);
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   async function loadList(q = query) {
@@ -116,7 +131,42 @@ export function Chat({
     if (!active) return;
     void loadList();
     void loadDetail(focus);
+    api(ChatSettingsSchema, `workspaces/${workspace.id}/chat-settings`)
+      .then(setSettings)
+      .catch(() => setSettings(null));
   }, [active, focus, workspace.id]);
+  const answersOn = Boolean(settings?.enabled && settings.model_id);
+
+  /** ADR-0057: asks the chosen plan to answer one saved message. */
+  async function ask(conversation: string, messageId: string) {
+    if (!owner || asking) return;
+    let cid = askIds.current.get(messageId);
+    if (!cid) {
+      cid = crypto.randomUUID();
+      askIds.current.set(messageId, cid);
+    }
+    setAsking(messageId);
+    setError('');
+    try {
+      await api(
+        ChatAnswerSchema,
+        `${base}/${conversation}/messages/${messageId}/answer`,
+        {
+          csrf: session.csrf_token,
+          body: { client_id: cid },
+          timeoutMs: ANSWER_TIMEOUT_MS,
+        },
+      );
+      askIds.current.delete(messageId);
+    } catch (err) {
+      setError(
+        `${errorText(err)} Ask again to retry; it will not be sent twice.`,
+      );
+    } finally {
+      setAsking('');
+      if (conversation === focusRef.current) await loadDetail(conversation);
+    }
+  }
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: 'end' });
   }, [detail?.messages.length]);
@@ -136,15 +186,20 @@ export function Chat({
         });
         id = created.id;
       }
-      await api(ChatMessageSchema, `${base}/${id}/messages`, {
+      const posted = await api(ChatMessageSchema, `${base}/${id}/messages`, {
         csrf: session.csrf_token,
         body: { client_id: clientId.current, text },
       });
       clientId.current = crypto.randomUUID();
       setDraft('');
-      if (id !== focus) onFocus(id);
-      else await loadDetail(id);
+      if (id !== focus) {
+        focusRef.current = id;
+        onFocus(id);
+      } else await loadDetail(id);
       await loadList();
+      // ADR-0057: a message the rules keep as a note goes to the chosen plan when answers are on.
+      if (answersOn && owner && posted.intent === 'note')
+        void ask(id, posted.id);
     } catch (err) {
       // The draft and its id stay, so sending again cannot add the message twice.
       setError(
@@ -166,6 +221,12 @@ export function Chat({
       : a.label;
 
   const messages = detail?.messages ?? [];
+  const answersFor = new Map<string, ChatAnswer[]>();
+  for (const a of detail?.answers ?? [])
+    answersFor.set(a.message_id, [...(answersFor.get(a.message_id) ?? []), a]);
+  const askLabel = settings?.connection_id
+    ? `Ask ${settings.model_id ?? 'the model'}`
+    : 'Ask the model';
   const latestOf = new Map<string, number>();
   for (const m of messages) latestOf.set(m.intent, m.seq);
 
@@ -174,9 +235,12 @@ export function Chat({
       <h2 id="chat-title">Chat</h2>
       <p className="small">
         Ask what&apos;s next or why something is blocked, paste a web address,
-        or save an idea. Answers come from your records by fixed rules, not a
-        model, and nothing here starts work: buttons open the tab where you do
-        it.
+        or save an idea. The studio answers those from your records by fixed
+        rules, and nothing here starts work: buttons open the tab where you do
+        it.{' '}
+        {answersOn
+          ? `Other questions are answered by ${settings?.model_id} through your plan, at no extra cost; those answers are labelled and never change anything.`
+          : 'The owner can let a connected ChatGPT or Claude plan answer other questions (Models and connections › Chat answers).'}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -292,9 +356,21 @@ export function Chat({
               <MessageItem
                 key={m.id}
                 m={m}
-                facts={replyFacts(facts, latestOf.get(m.intent) === m.seq)}
+                facts={{
+                  ...replyFacts(facts, latestOf.get(m.intent) === m.seq),
+                  model: answersOn ? (settings?.model_id ?? null) : null,
+                }}
                 act={act}
                 label={actionLabel}
+                answers={answersFor.get(m.id) ?? []}
+                ask={
+                  owner && answersOn && detail
+                    ? () => void ask(detail.conversation.id, m.id)
+                    : null
+                }
+                askLabel={askLabel}
+                asking={asking === m.id}
+                busy={Boolean(asking)}
               />
             ))}
           </ol>
@@ -344,13 +420,26 @@ function MessageItem({
   facts,
   act,
   label,
+  answers,
+  ask,
+  askLabel,
+  asking,
+  busy,
 }: {
   m: ChatMessage;
   facts: ReplyFacts;
   act: (a: ReplyAction) => void;
   label: (a: ReplyAction) => string;
+  answers: ChatAnswer[];
+  ask: (() => void) | null;
+  askLabel: string;
+  asking: boolean;
+  busy: boolean;
 }) {
   const reply = chatReply(m.intent, m.target, m.text, facts);
+  const live = answers.some(
+    (a) => a.state === 'completed' || a.state === 'pending',
+  );
   return (
     <li className="chat-turn">
       <div className="chat-you">
@@ -377,6 +466,26 @@ function MessageItem({
           </p>
         )}
       </div>
+      {answers.map((a) => (
+        <AnswerView key={a.id} a={a} />
+      ))}
+      {asking && !live && (
+        <div className="chat-studio chat-model">
+          <p role="status">Asking {askLabel.replace(/^Ask /, '')}…</p>
+        </div>
+      )}
+      {ask && !live && !asking && (
+        <p className="chat-actions">
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={ask}
+          >
+            {answers.length ? `${askLabel} again` : askLabel}
+          </button>
+        </p>
+      )}
     </li>
   );
 }

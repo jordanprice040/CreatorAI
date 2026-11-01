@@ -25,6 +25,7 @@ type Facts = {
   step: { tone: string; text: string; view: string | null } | null;
   blocked: { label: string; text: string; view: string } | null;
   pending: number | null;
+  model?: string | null;
 };
 type Mod = {
   chatReply: (
@@ -127,4 +128,16 @@ test('chat cards only open a tab or fill in a form there', async () => {
   );
   assert.match(idea.text, /Nothing has started/);
   assert.equal(chatReply('save_idea', {}, 'save', facts()).actions.length, 0);
+});
+
+test('a note says a plan answers it only when chat answers are on (ADR-0057)', async () => {
+  const { chatReply } = await load<Mod>('chat-replies.ts');
+  assert.match(
+    chatReply('note', {}, 'hi', facts()).text,
+    /can't answer in words/,
+  );
+  const on = chatReply('note', {}, 'hi', { ...facts(), model: 'gpt-6-astra' });
+  assert.match(on.text, /gpt-6-astra is asked through your plan/);
+  assert.doesNotMatch(on.text, /can't answer/);
+  assert.equal(on.actions[0]!.label, 'Make this a brief');
 });
