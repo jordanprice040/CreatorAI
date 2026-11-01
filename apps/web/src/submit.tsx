@@ -801,7 +801,8 @@ export function Submit({
                     {resourceKind === 'subscription'
                       ? 'within the subscription caps shown below; no API spending'
                       : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
-                    (a standing permission you can revoke under Decisions)
+                    (a standing permission you can revoke under Monitor ›
+                    Approvals)
                   </label>
                   {!allowCalls && (
                     <p className="small">
@@ -942,7 +943,7 @@ export function Submit({
                     <p className="error">
                       No active budget can be used by this run: a run or task
                       budget belongs to its own run. Choose another run, or add
-                      a shared budget in the Budgets view.
+                      a shared budget under Monitor › Budgets.
                     </p>
                   )}
                   {(c.envelopes.length === 0 || c.pricing.length === 0) && (

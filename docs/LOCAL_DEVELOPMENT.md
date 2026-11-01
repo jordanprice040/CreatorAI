@@ -59,11 +59,16 @@ pnpm cli seed-selection
 ```
 
 Seed commands create labelled synthetic workspaces. Select one in the web UI.
-Monitor, Catalog, Evidence, Search and Activity show recorded work and provenance.
-Submit a theme uses claims already recorded in the workspace. Configure the run,
-pricing, envelope and scoped authority before starting bounded discovery. Watch
-Runs, answer covered questions in Decisions, inspect Budgets, and use Compare and
-decide and Scores and specs to record a choice and freeze a plan.
+The studio has five pages, each with tabs: **Projects** (Path, Discover, Decide,
+Scores and specs, Build, Try, Launch), **Sources** (sources and claims, Library,
+Search), **Monitor** (Overview, Approvals, Runs, Activity, Budgets, Workers),
+**Models and connections** (Models, GitHub, Devices) and **Settings**. Projects ›
+Path shows which step of the main path is next or blocked, and why. Discover uses
+claims already recorded in the workspace. Configure the run, pricing, envelope and
+scoped authority before starting bounded discovery. Watch Monitor › Runs, answer
+covered questions under Monitor › Approvals, and use Decide and Scores and specs to
+record a choice and freeze a plan. Addresses from before the page map (`#/runs?ws=…`)
+still open the same screen.
 
 The [archived milestone command reference](LOCAL_DEVELOPMENT_HISTORY.md) retains
 record, grant, budget, workflow, source, discovery and selection examples. It

@@ -3,8 +3,9 @@
 // itself still enforces nothing: every gate stays on the server, and these lines only
 // point at the page where the next step happens.
 
-/** The page that can take the step. Mirrors the view keys in ui.tsx. */
+/** The tab that can take the step. Mirrors the view keys in pages.ts. */
 export type StepView =
+  | 'path'
   | 'overview'
   | 'submit'
   | 'catalog'
@@ -114,7 +115,8 @@ export function pathSpecReviewed(
 export type Step = {
   tone: 'next' | 'blocked' | 'clear';
   text: string;
-  action?: { label: string; view: StepView };
+  /** The tab that takes the step; the page names it from the page map ("Projects › Build"). */
+  action?: { view: StepView };
 };
 
 const plural = (n: number, one: string, many = `${one}s`) =>
@@ -135,37 +137,37 @@ export function pipelineStep(f: StudioFacts): Step {
     return {
       tone: 'next',
       text: 'Gather evidence: fetch approved sources and record the claims a discovery will use.',
-      action: { label: 'Open Evidence', view: 'evidence' },
+      action: { view: 'evidence' },
     };
   if (f.problems === 0)
     return {
       tone: 'next',
       text: 'Start a discovery from your claims to find problems and options.',
-      action: { label: 'Submit a theme', view: 'submit' },
+      action: { view: 'submit' },
     };
   if (f.alternatives > 0 && f.scorecards === 0)
     return {
       tone: 'next',
       text: `Score the proposed options. Scorecards are entered ${cli(f, 'scorecard')}.`,
-      action: { label: 'Compare the options', view: 'compare' },
+      action: { view: 'compare' },
     };
   if (f.specs === 0)
     return {
       tone: 'next',
-      text: `Record a selection under Compare and decide, then write its spec ${cli(f, 'spec-create')}.`,
-      action: { label: 'Compare and decide', view: 'compare' },
+      text: `Record a selection under Projects › Decide, then write its spec ${cli(f, 'spec-create')}.`,
+      action: { view: 'compare' },
     };
   if (f.frozenSpecs === 0)
     return {
       tone: 'next',
       text: 'Freeze the spec so it can be built.',
-      action: { label: 'Open Scores and specs', view: 'scores' },
+      action: { view: 'scores' },
     };
   if (!f.reviewed)
     return {
       tone: 'next',
       text: `Add a humility review of the frozen spec version ${cli(f, 'humility-gate')}. A build needs one.`,
-      action: { label: 'Open Build and package', view: 'build' },
+      action: { view: 'build' },
     };
   return productStep(f);
 }
@@ -173,7 +175,7 @@ export function pipelineStep(f: StudioFacts): Step {
 /** Where the latest product stands, and the one thing to do about it. */
 function productStep(f: StudioFacts): Step {
   const p = f.product;
-  const build = { label: 'Open Build and package', view: 'build' } as const;
+  const build = { view: 'build' } as const;
   if (!p || !p.current)
     return {
       tone: 'next',
@@ -192,7 +194,7 @@ function productStep(f: StudioFacts): Step {
     case 'running':
       return {
         tone: 'clear',
-        text: 'A build is running. Build and package updates while it runs.',
+        text: 'A build is running. The Build tab updates while it runs.',
         action: build,
       };
     case 'checkpoint':
@@ -212,24 +214,24 @@ function productStep(f: StudioFacts): Step {
       if (p.packaging)
         return {
           tone: 'clear',
-          text: 'Packaging is running. The package appears in Gallery when it finishes.',
+          text: 'Packaging is running. The package appears under Try when it finishes.',
           action: build,
         };
       if (!p.packaged)
         return {
           tone: 'next',
-          text: 'The build is verified. Package it to try it in Gallery.',
+          text: 'The build is verified. Package it, then try it under Try.',
           action: build,
         };
       return {
         tone: 'next',
         text: 'Try the newest package in its private preview and record your feedback; feedback can start a revision.',
-        action: { label: 'Open Gallery', view: 'gallery' },
+        action: { view: 'gallery' },
       };
   }
 }
 
-const decisionsAction = { label: 'Open Decisions', view: 'decisions' } as const;
+const decisionsAction = { view: 'decisions' } as const;
 
 /** Pages that are not on the main path: what they need, and otherwise where the path is. */
 function optional(f: StudioFacts, what: string, needsPackage = false): Step {
@@ -237,7 +239,7 @@ function optional(f: StudioFacts, what: string, needsPackage = false): Step {
     return {
       tone: 'blocked',
       text: `${what} needs a packaged product, and nothing is packaged yet.`,
-      action: { label: 'Open Build and package', view: 'build' },
+      action: { view: 'build' },
     };
   const path = pipelineStep(f);
   return { ...path, text: `${what} is optional. Main path: ${path.text}` };
@@ -257,7 +259,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         return {
           tone: 'blocked',
           text: `${plural(f.attention, 'run step')} ${f.attention === 1 ? 'is' : 'are'} waiting, paused or reconciling.`,
-          action: { label: 'Open Runs', view: 'runs' },
+          action: { view: 'runs' },
         };
       return pipelineStep(f);
     case 'decisions':
@@ -276,8 +278,8 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       if (f.runs === 0)
         return {
           tone: 'blocked',
-          text: 'There is no active run. A discovery registers one, or register one under Evidence.',
-          action: { label: 'Open Evidence', view: 'evidence' },
+          text: 'There is no active run. A discovery registers one, or register one under Sources.',
+          action: { view: 'evidence' },
         };
       return pipelineStep(f);
     case 'budgets':
@@ -304,13 +306,13 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         return {
           tone: 'blocked',
           text: 'A discovery works from recorded claims, and there are none yet.',
-          action: { label: 'Open Evidence', view: 'evidence' },
+          action: { view: 'evidence' },
         };
       if (f.budgets === 0)
         return {
           tone: 'blocked',
           text: 'A discovery needs an active budget.',
-          action: { label: 'Open Budgets', view: 'budgets' },
+          action: { view: 'budgets' },
         };
       if (f.problems === 0)
         return { tone: 'next', text: 'Start a discovery below.' };
@@ -320,7 +322,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         return {
           tone: 'blocked',
           text: 'There is nothing to compare until a discovery records problems and options.',
-          action: { label: 'Submit a theme', view: 'submit' },
+          action: { view: 'submit' },
         };
       if (f.specs === 0 && f.scorecards > 0)
         return {
@@ -333,7 +335,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         return {
           tone: 'blocked',
           text: 'There is nothing to score until a discovery records problems and options.',
-          action: { label: 'Submit a theme', view: 'submit' },
+          action: { view: 'submit' },
         };
       if (f.specs > 0 && f.frozenSpecs === 0)
         return {
@@ -346,13 +348,13 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         return {
           tone: 'blocked',
           text: 'Building needs a frozen spec, and none is frozen.',
-          action: { label: 'Open Scores and specs', view: 'scores' },
+          action: { view: 'scores' },
         };
       if (f.budgets === 0 || f.pricing === 0)
         return {
           tone: 'blocked',
           text: `A build records ${f.budgets === 0 ? 'an active budget' : 'a pricing snapshot'}, and there is none.`,
-          action: { label: 'Open Budgets', view: 'budgets' },
+          action: { view: 'budgets' },
         };
       if (!f.owner)
         return { tone: 'blocked', text: 'Only the workspace owner can build.' };
@@ -362,7 +364,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
         return {
           tone: 'blocked',
           text: 'Nothing is packaged yet. Package a verified build first.',
-          action: { label: 'Open Build and package', view: 'build' },
+          action: { view: 'build' },
         };
       return {
         tone: 'next',
@@ -385,6 +387,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       return optional(f, 'Maintaining products', true);
     case 'studies':
       return optional(f, 'The study runner');
+    case 'path':
     case 'catalog':
     case 'search':
     case 'activity':
@@ -407,8 +410,132 @@ export function decisionsNote(view: StepView, f: StudioFacts) {
   return `${plural(f.pending, 'decision')} ${f.pending === 1 ? 'waits' : 'wait'} for you`;
 }
 
-/** Failed run steps, shown on the monitor and Runs as a note: they finished and block nothing. */
+/** Failed run steps, shown on Monitor's Overview and Runs as a note: they finished and block nothing. */
 export function failedNote(view: StepView, f: StudioFacts) {
   if (f.failed === 0 || (view !== 'overview' && view !== 'runs')) return null;
-  return `${plural(f.failed, 'run step')} failed earlier; open ${f.failed === 1 ? 'it' : 'one'} under Runs to see why`;
+  return `${plural(f.failed, 'run step')} failed earlier; open ${f.failed === 1 ? 'it' : 'one'} under Monitor › Runs to see why`;
+}
+
+export type StageState = 'done' | 'next' | 'running' | 'blocked' | 'later';
+export type Stage = {
+  key: string;
+  label: string;
+  state: StageState;
+  /** For the current stage, what to do or why it is blocked; for a later one, what it will need. */
+  text: string | null;
+  /** The tab where this stage happens. */
+  view: StepView;
+};
+
+/**
+ * Prerequisites outside the path itself that would stop a stage, as the server enforces them
+ * (budgets, pricing, owner role). Shown on the current stage as the reason it is blocked and on
+ * later stages as what they will need, so a block is never a surprise.
+ */
+function stageNeeds(key: string, f: StudioFacts): Step | null {
+  if (key === 'discovery' && f.budgets === 0)
+    return {
+      tone: 'blocked',
+      text: 'A discovery needs an active budget, even on the $0 plan route.',
+      action: { view: 'budgets' },
+    };
+  if (key === 'build' || key === 'package') {
+    if (!f.owner)
+      return { tone: 'blocked', text: 'Only the workspace owner can build.' };
+    if (f.budgets === 0 || f.pricing === 0)
+      return {
+        tone: 'blocked',
+        text: `A build records ${f.budgets === 0 ? 'an active budget' : 'a pricing snapshot'}, and there is none.`,
+        action: { view: 'budgets' },
+      };
+  }
+  return null;
+}
+
+/**
+ * The main path as stages for Projects › Path: which are done, which one is next (or blocked,
+ * and why), and what the later ones will need. It reads the same facts and wording as the
+ * what's-next line, so the two never disagree; the server still enforces every gate.
+ */
+export function pathStages(f: StudioFacts): { stages: Stage[]; step: Step } {
+  const p = f.product;
+  const built = p !== null && p.current && p.build === 'verified';
+  const list: { key: string; label: string; done: boolean; view: StepView }[] =
+    [
+      {
+        key: 'evidence',
+        label: 'Evidence',
+        done: f.claims > 0,
+        view: 'evidence',
+      },
+      {
+        key: 'discovery',
+        label: 'Discovery',
+        done: f.problems > 0,
+        view: 'submit',
+      },
+      {
+        key: 'scores',
+        label: 'Scores',
+        // Mirrors pipelineStep: scoring is due only while options exist and none is scored.
+        done: f.problems > 0 && !(f.alternatives > 0 && f.scorecards === 0),
+        view: 'compare',
+      },
+      {
+        key: 'spec',
+        label: 'Selection and spec',
+        done: f.specs > 0,
+        view: 'compare',
+      },
+      {
+        key: 'freeze',
+        label: 'Freeze',
+        done: f.frozenSpecs > 0,
+        view: 'scores',
+      },
+      {
+        key: 'review',
+        label: 'Humility review',
+        done: f.frozenSpecs > 0 && f.reviewed,
+        view: 'build',
+      },
+      { key: 'build', label: 'Build', done: built, view: 'build' },
+      {
+        key: 'package',
+        label: 'Package',
+        done: built && p !== null && p.packaged,
+        view: 'build',
+      },
+      { key: 'try', label: 'Try', done: false, view: 'gallery' },
+    ];
+  // Stages are done in order: a later record does not count past an earlier gap.
+  let current = list.findIndex((s) => !s.done);
+  if (current < 0) current = list.length - 1;
+  const path = pipelineStep(f);
+  const needs = stageNeeds(list[current]!.key, f);
+  const step: Step = needs ?? path;
+  const stages = list.map((s, i): Stage => {
+    if (i < current) return { ...s, state: 'done', text: null };
+    if (i === current)
+      return {
+        key: s.key,
+        label: s.label,
+        view: step.action?.view ?? s.view,
+        state:
+          step.tone === 'blocked'
+            ? 'blocked'
+            : step.tone === 'clear'
+              ? 'running'
+              : 'next',
+        text: step.text,
+      };
+    return {
+      key: s.key,
+      label: s.label,
+      view: s.view,
+      state: 'later',
+      text: stageNeeds(s.key, f)?.text ?? null,
+    };
+  });
+  return { stages, step };
 }

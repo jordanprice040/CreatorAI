@@ -255,24 +255,18 @@ a:hover {
   display: grid;
   gap: 10px;
 }
-.nav-group h2 {
-  margin: 0 0 4px;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: var(--text-3);
-}
-.nav-group ul {
+.page-nav {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 1px;
+  gap: 2px;
 }
-.nav-group a {
-  display: block;
-  padding: 5px 10px;
+.page-nav a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   color: var(--text-2);
   font-size: 14px;
@@ -281,15 +275,36 @@ a:hover {
     background-color var(--fast) var(--ease),
     color var(--fast) var(--ease);
 }
-.nav-group a:hover {
+.page-nav a > span:first-child {
+  flex: 1;
+}
+.page-nav a:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
-.nav-group a[aria-current='page'] {
+.page-nav a[aria-current='page'] {
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-weight: 600;
   box-shadow: inset 2px 0 0 var(--accent);
+}
+.nav-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.nav-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 .sidebar-foot {
   margin-top: auto;
@@ -1807,4 +1822,139 @@ fieldset.flagged {
 .carry-flag ul {
   margin: 4px 0;
   padding-left: 18px;
+}
+
+/* ---------- Page tabs (step 9 page map) ---------- */
+.page-tabs {
+  margin: 0 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+.page-tabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+}
+.page-tabs .tabs a {
+  display: block;
+  padding: 8px 12px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  text-decoration: none;
+  transition:
+    color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease);
+}
+.page-tabs .tabs a:hover {
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
+}
+.page-tabs .tabs a[aria-current='page'] {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.page-tabs .subtabs {
+  padding: 8px 0 10px;
+  gap: 6px;
+}
+.page-tabs .subtabs a {
+  display: block;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 13px;
+  text-decoration: none;
+}
+.page-tabs .subtabs a:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.page-tabs .subtabs a[aria-current='page'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+/* ---------- Projects › Path ---------- */
+.path-stages {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.path-stage {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.path-stage p {
+  margin: 0;
+}
+.path-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.path-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.path-stage.stage-done .path-mark {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+.path-stage.stage-next,
+.path-stage.stage-running {
+  border-color: var(--info-border);
+  box-shadow: inset 3px 0 0 var(--info);
+}
+.path-stage.stage-blocked {
+  border-color: var(--warn-border);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.path-stage.stage-later {
+  background: transparent;
+}
+.path-stage.stage-later .path-head strong {
+  color: var(--text-2);
+}
+.path-state.state-done {
+  color: var(--ok);
+}
+.path-state.state-next,
+.path-state.state-running {
+  color: var(--info);
+}
+.path-state.state-blocked {
+  color: var(--warn);
+}
+@media (max-width: 560px) {
+  .path-stage {
+    grid-template-columns: 28px 1fr;
+  }
+  .path-stage > button {
+    grid-column: 2;
+    justify-self: start;
+  }
 }

@@ -258,7 +258,10 @@ export function Marketing({
       </form>
       <h3>Review campaigns</h3>
       {campaigns.length === 0 && (
-        <p>No campaigns. Create a verified artifact in Gallery first.</p>
+        <p>
+          No campaigns. Package a verified build first; it then appears under
+          Projects › Try.
+        </p>
       )}
       <label>
         Campaign

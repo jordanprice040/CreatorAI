@@ -8,55 +8,30 @@ import {
   type Snippet,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
+import {
+  pageOf,
+  parseRoute,
+  routeHash,
+  type PageKey,
+  type Route,
+  type View,
+} from './pages.js';
 
 // Shared pieces for every view. They take plain props and fetch through `api`, so a future
 // desktop shell can host the same views around its own navigation.
 
-export const VIEWS = [
-  ['overview', 'Monitor'],
-  ['submit', 'Submit a theme'],
-  ['catalog', 'Catalog'],
-  ['compare', 'Compare and decide'],
-  ['evidence', 'Evidence'],
-  ['decisions', 'Decisions'],
-  ['runs', 'Runs'],
-  ['budgets', 'Budgets'],
-  ['scores', 'Scores and specs'],
-  ['search', 'Search'],
-  ['activity', 'Activity'],
-  ['studies', 'Studies'],
-  ['build', 'Build and package'],
-  ['gallery', 'Gallery'],
-  ['desktop', 'Desktop and workers'],
-  ['operations', 'Operations'],
-  ['marketing', 'Campaigns'],
-  ['portfolio', 'Portfolio'],
-  ['models', 'Models and connections'],
-  ['settings', 'Settings'],
-  ['github', 'GitHub'],
-  ['payments', 'Payments'],
-] as const;
-export type View = (typeof VIEWS)[number][0];
-
-/** Navigation groups for the shell. Every view in VIEWS appears in exactly one group. */
-export const VIEW_GROUPS: readonly { label: string; views: readonly View[] }[] =
-  [
-    { label: 'Studio', views: ['overview', 'submit', 'compare', 'portfolio'] },
-    { label: 'Evidence', views: ['catalog', 'evidence', 'scores', 'search'] },
-    { label: 'Oversight', views: ['decisions', 'runs', 'budgets', 'activity'] },
-    {
-      label: 'Build and study',
-      views: ['build', 'gallery', 'github', 'payments', 'marketing', 'studies'],
-    },
-    {
-      label: 'System',
-      views: ['settings', 'models', 'desktop', 'operations'],
-    },
-  ];
-export const viewLabel = (view: View) =>
-  VIEWS.find(([k]) => k === view)?.[1] ?? view;
-export const viewGroup = (view: View) =>
-  VIEW_GROUPS.find((g) => g.views.includes(view))?.label ?? '';
+export {
+  PAGES,
+  pageOf,
+  placeLabel,
+  sectionOf,
+  tabsOf,
+  viewLabel,
+  type Page,
+  type PageKey,
+  type Route,
+  type View,
+} from './pages.js';
 
 const ICONS = {
   menu: 'M4 7h16M4 12h16M4 17h16',
@@ -97,50 +72,35 @@ export function subjectTarget(kind: string, id: string): [View, string] | null {
     return ['catalog', id];
   return null;
 }
-export type Route = {
-  view: View;
-  ws: string;
-  /** The item the view has open (a record, workflow, decision, `claim:<id>` …). */
-  id: string;
-  q: string;
-};
-const isView = (v: string): v is View => VIEWS.some(([k]) => k === v);
-
-/** Reads the route from `#/view?ws=…&id=…&q=…`, so a refresh reopens the same place. */
-export function parseRoute(hash: string): Route {
-  const m = /^#\/([a-z]+)(?:\?(.*))?$/.exec(hash);
-  const p = new URLSearchParams(m?.[2] ?? '');
-  const view = m?.[1] ?? '';
-  return {
-    view: isView(view) ? view : 'overview',
-    ws: p.get('ws') ?? '',
-    id: p.get('id') ?? '',
-    q: p.get('q') ?? '',
-  };
-}
-export function routeHash(r: Route): string {
-  const p = new URLSearchParams();
-  if (r.ws) p.set('ws', r.ws);
-  if (r.id) p.set('id', r.id);
-  if (r.q) p.set('q', r.q);
-  const qs = p.toString();
-  return `#/${r.view}${qs ? `?${qs}` : ''}`;
+/** Rewrites an address from before the page map (`#/runs?…`) to its page and tab, in place. */
+function canonical(route: Route) {
+  const hash = window.location.hash;
+  if (hash.startsWith('#/') && hash !== routeHash(route))
+    history.replaceState(null, '', routeHash(route));
 }
 export function useRoute() {
-  const [route, setRoute] = useState(() => parseRoute(window.location.hash));
+  const [route, setRoute] = useState(() => {
+    const r = parseRoute(window.location.hash);
+    canonical(r);
+    return r;
+  });
   // The latest route, so a late call from a view that is being replaced (a load finishing
   // after the user navigated away) merges into where the user is, not where they were.
   const latest = useRef(route);
   latest.current = route;
   const visited = useRef(new Map<string, Route>());
+  /** Keeps the newest visit last, so `lastIn` finds the most recent tab of a page. */
+  const remember = (r: Route) => {
+    const key = `${r.ws}:${r.view}`;
+    visited.current.delete(key);
+    visited.current.set(key, r);
+  };
   useEffect(() => {
     const on = () => {
       if (!window.location.hash.startsWith('#login=')) {
-        visited.current.set(
-          `${latest.current.ws}:${latest.current.view}`,
-          latest.current,
-        );
+        remember(latest.current);
         latest.current = parseRoute(window.location.hash);
+        canonical(latest.current);
         setRoute(latest.current);
       }
     };
@@ -152,7 +112,7 @@ export function useRoute() {
   function go(next: Partial<Route>, replace = false, from?: View) {
     const now = latest.current;
     if (from && from !== now.view) return;
-    visited.current.set(`${now.ws}:${now.view}`, now);
+    remember(now);
     const r = { ...now, ...next };
     const previous = visited.current.get(`${r.ws}:${r.view}`);
     // Decisions opens on what is waiting now, not a decision focused on an earlier visit
@@ -167,7 +127,16 @@ export function useRoute() {
     latest.current = r;
     setRoute(r);
   }
-  return { route, go };
+  /** The tab of a page the person was last on in this workspace, if any. */
+  function lastIn(page: PageKey): View | undefined {
+    const now = latest.current;
+    if (pageOf(now.view).key === page) return now.view;
+    let found: Route | undefined;
+    for (const r of visited.current.values())
+      if (r.ws === now.ws && pageOf(r.view).key === page) found = r;
+    return found?.view;
+  }
+  return { route, go, lastIn };
 }
 
 /** Display names for actor ids in one workspace; unknown ids show abbreviated. */

@@ -1,0 +1,250 @@
+[
+  {
+    "check": "dark: legacy #/compare rewritten",
+    "result": "#/projects/decide?ws=b154c3dc-b622-479d-ad83-c37f043e494c"
+  },
+  {
+    "check": "dark: sidebar pages",
+    "result": [
+      "Projects",
+      "Sources",
+      "Monitor",
+      "Models and connections",
+      "Settings"
+    ]
+  },
+  {
+    "check": "dark: Projects tabs",
+    "result": [
+      "Path",
+      "Discover",
+      "Decide",
+      "Scores and specs",
+      "Build",
+      "Try",
+      "Launch"
+    ]
+  },
+  {
+    "check": "dark: crumbs",
+    "result": "Projects/Decide"
+  },
+  {
+    "check": "dark: path stages",
+    "result": [
+      "Evidence:done",
+      "Discovery:done",
+      "Scores:done",
+      "Selection and spec:done",
+      "Freeze:next",
+      "Humility review:later",
+      "Build:later",
+      "Package:later",
+      "Try:later"
+    ]
+  },
+  {
+    "check": "dark: what's next",
+    "result": "Next: Freeze the spec so it can be built. Open Scores and specs"
+  },
+  {
+    "check": "dark: Launch sections",
+    "result": [
+      "Sell",
+      "Campaigns",
+      "Maintain"
+    ]
+  },
+  {
+    "check": "dark: Campaigns address",
+    "result": "#/projects/campaigns"
+  },
+  {
+    "check": "dark: Sources",
+    "result": {
+      "hash": "#/sources/claims",
+      "tabs": [
+        "Sources and claims",
+        "Library",
+        "Search"
+      ]
+    }
+  },
+  {
+    "check": "dark: Monitor",
+    "result": {
+      "hash": "#/monitor/overview",
+      "tabs": [
+        "Overview",
+        "Approvals",
+        "Runs",
+        "Activity",
+        "Budgets",
+        "Workers"
+      ]
+    }
+  },
+  {
+    "check": "dark: Models and connections",
+    "result": {
+      "hash": "#/connections/models",
+      "tabs": [
+        "Models",
+        "GitHub",
+        "Devices"
+      ]
+    }
+  },
+  {
+    "check": "dark: Settings",
+    "result": {
+      "hash": "#/settings/general",
+      "tabs": [
+        "Owner settings",
+        "Study"
+      ]
+    }
+  },
+  {
+    "check": "dark: Projects reopens last tab",
+    "result": "#/projects/campaigns"
+  },
+  {
+    "check": "dark: Monitor reopens last tab",
+    "result": "#/monitor/runs"
+  },
+  {
+    "check": "dark: Back",
+    "result": "#/projects/campaigns"
+  },
+  {
+    "check": "dark: page errors",
+    "result": []
+  },
+  {
+    "check": "light: legacy #/compare rewritten",
+    "result": "#/projects/decide?ws=b154c3dc-b622-479d-ad83-c37f043e494c&id=07100055-2965-43ac-8b8a-2890b09ed1be"
+  },
+  {
+    "check": "light: sidebar pages",
+    "result": [
+      "Projects",
+      "Sources",
+      "Monitor",
+      "Models and connections",
+      "Settings"
+    ]
+  },
+  {
+    "check": "light: Projects tabs",
+    "result": [
+      "Path",
+      "Discover",
+      "Decide",
+      "Scores and specs",
+      "Build",
+      "Try",
+      "Launch"
+    ]
+  },
+  {
+    "check": "light: crumbs",
+    "result": "Projects/Decide"
+  },
+  {
+    "check": "light: path stages",
+    "result": [
+      "Evidence:done",
+      "Discovery:done",
+      "Scores:done",
+      "Selection and spec:done",
+      "Freeze:next",
+      "Humility review:later",
+      "Build:later",
+      "Package:later",
+      "Try:later"
+    ]
+  },
+  {
+    "check": "light: what's next",
+    "result": "Next: Freeze the spec so it can be built. Open Scores and specs"
+  },
+  {
+    "check": "light: Launch sections",
+    "result": [
+      "Sell",
+      "Campaigns",
+      "Maintain"
+    ]
+  },
+  {
+    "check": "light: Campaigns address",
+    "result": "#/projects/campaigns"
+  },
+  {
+    "check": "light: Sources",
+    "result": {
+      "hash": "#/sources/claims",
+      "tabs": [
+        "Sources and claims",
+        "Library",
+        "Search"
+      ]
+    }
+  },
+  {
+    "check": "light: Monitor",
+    "result": {
+      "hash": "#/monitor/overview",
+      "tabs": [
+        "Overview",
+        "Approvals",
+        "Runs",
+        "Activity",
+        "Budgets",
+        "Workers"
+      ]
+    }
+  },
+  {
+    "check": "light: Models and connections",
+    "result": {
+      "hash": "#/connections/models",
+      "tabs": [
+        "Models",
+        "GitHub",
+        "Devices"
+      ]
+    }
+  },
+  {
+    "check": "light: Settings",
+    "result": {
+      "hash": "#/settings/general",
+      "tabs": [
+        "Owner settings",
+        "Study"
+      ]
+    }
+  },
+  {
+    "check": "light: Projects reopens last tab",
+    "result": "#/projects/campaigns"
+  },
+  {
+    "check": "light: Monitor reopens last tab",
+    "result": "#/monitor/runs"
+  },
+  {
+    "check": "light: Back",
+    "result": "#/projects/campaigns"
+  },
+  {
+    "check": "light: page errors",
+    "result": []
+  },
+  {
+    "check": "phone: page errors",
+    "result": []
+  }
+]

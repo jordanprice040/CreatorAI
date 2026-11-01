@@ -198,7 +198,10 @@ export function UsagePanel({
       {usage.plans.length === 0 ? (
         <p className="small">
           No plan connections in this workspace. Add one on{' '}
-          <a href={`#/models?ws=${workspace.id}`}>Models and connections</a>.
+          <a href={`#/connections/models?ws=${workspace.id}`}>
+            Models and connections
+          </a>
+          .
         </p>
       ) : (
         usage.plans.map((p) => (
@@ -234,7 +237,7 @@ export function UsagePanel({
               {new Date(c.counted_since).toLocaleDateString()}, across all
               workspaces. Running and unsettled calls count at their reserved
               amount. Change the ceiling in{' '}
-              <a href={`#/settings?ws=${workspace.id}`}>Settings</a>.
+              <a href={`#/settings/general?ws=${workspace.id}`}>Settings</a>.
             </p>
             {c.unknown_calls > 0 && (
               <p className="small usage-alert">

@@ -265,7 +265,7 @@ export function BuildView({
         A product is built from a frozen spec, one task at a time. The studio
         writes the patch through the builder, runs the acceptance cases in the
         isolated worker and has the result reviewed; a verified build can then
-        be packaged into Gallery. Closing this page stops nothing.
+        be packaged and tried under Try. Closing this page stops nothing.
       </p>
       {fixture && (
         <p className="notice">
@@ -486,7 +486,7 @@ function Sample({
     ) : (
       <Empty>
         The sample needs a spec, or a selection that chose an option to build
-        (Compare and decide).
+        (Projects › Decide).
       </Empty>
     );
   const isSample = spec.spec.title === 'Synthetic checklist sample';
@@ -778,7 +778,8 @@ function Product({
                             className="text"
                             onClick={() => open('decisions')}
                           >
-                            Approve it once under Decisions, then build again
+                            Approve it once under Monitor › Approvals, then
+                            build again
                           </button>
                         </>
                       )}
@@ -795,7 +796,7 @@ function Product({
                           className="text"
                           onClick={() => open('gallery', packaged(b))}
                         >
-                          Packaged: open in Gallery
+                          Packaged: open it under Try
                         </button>
                       </>
                     )}
@@ -900,8 +901,8 @@ function StartBuild({
     : (data.pricing[0]?.id ?? '');
   const chosen = reviews.find((r) => r.id === review) ?? reviews[0];
   const missing = [
-    !runId && 'an active run (register one under Evidence or Submit)',
-    !budgetId && 'an active budget (Budgets)',
+    !runId && 'an active run (register one under Sources or Discover)',
+    !budgetId && 'an active budget (Monitor › Budgets)',
     !priceId && 'a pricing snapshot (Budgets)',
     !chosen && 'a humility review of this spec version',
     lostBuilder &&
@@ -1026,7 +1027,7 @@ function StartBuild({
         <p className="small">
           This is a live call on your ChatGPT plan. It runs only if a grant you
           approve covers this build; otherwise the build stops and asks under
-          Decisions.
+          Monitor › Approvals.
         </p>
       )}
       {connection?.kind === 'roles' && (

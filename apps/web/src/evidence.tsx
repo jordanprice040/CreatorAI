@@ -307,7 +307,7 @@ export function Evidence({
       {owner && runs.length === 0 && (
         <p className="small">
           Registering a run lets it fetch public pages for 24 hours and nothing
-          else. You can revoke that under Decisions.
+          else. You can revoke that under Monitor › Approvals.
           {!fixture &&
             ' Real pages are fetched only while live fetching is on.'}
         </p>
