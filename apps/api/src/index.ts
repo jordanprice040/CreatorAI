@@ -589,6 +589,8 @@ export function createApi(
   const SETTINGS_SPENDING_ROUTE = /^\/api\/settings\/spending$/;
   const SETTINGS_LIMITS_ROUTE = /^\/api\/settings\/spending-limits$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
+  const CHAT_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title))?)?$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -600,7 +602,8 @@ export function createApi(
       PORTFOLIO_ROUTE.exec(url.pathname) ??
       SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
       SETTINGS_LIMITS_ROUTE.exec(url.pathname) ??
-      USAGE_ROUTE.exec(url.pathname);
+      USAGE_ROUTE.exec(url.pathname) ??
+      CHAT_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -651,6 +654,44 @@ export function createApi(
       if (method === 'GET')
         return send(200, await store.usageSummary(ctx, ws), false);
       throw new ContractError('NOT_FOUND', 'Unknown usage route.');
+    }
+    // ADR-0055 studio chat: saved conversations and the person's messages. Nothing here calls a
+    // model or starts work; the store decides each message's intent with fixed rules.
+    if (ws && CHAT_ROUTE.test(url.pathname)) {
+      if (!item && method === 'GET')
+        return send(
+          200,
+          await store.listChats(ctx, ws, url.searchParams.get('q') ?? ''),
+          false,
+        );
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.createChat(ctx, ws, await readJson(req)),
+          true,
+        );
+      if (item && !action && method === 'GET')
+        return send(200, await store.chatDetail(ctx, ws, item), false);
+      if (item && action === 'messages' && method === 'POST') {
+        const posted = await store.postChatMessage(
+          ctx,
+          ws,
+          item,
+          await readJson(req),
+        );
+        return send(
+          posted.duplicate ? 200 : 201,
+          posted.message,
+          !posted.duplicate,
+        );
+      }
+      if (item && action === 'title' && method === 'POST')
+        return send(
+          200,
+          await store.renameChat(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown chat route.');
     }
     // Narrower per-run and per-model limits under that ceiling (ADR-0044); same audience.
     if (SETTINGS_LIMITS_ROUTE.test(url.pathname)) {

@@ -1,5 +1,39 @@
 # Decision log
 
+## ADR-0055 — Studio chat, first version: saved conversations with rule-based replies, no model (accepted November 1, 2026)
+
+Context: runbook step 9 page consolidation. The approved page map (design doc, Jordan's "go")
+puts a central Chat page first. Jordan chose "$0 chat first, model replies later" on the
+decision card: the first version must not call any model or spend anything.
+
+Decision: Chat is the studio's front door and home page (`#/chat/conversations`, the sixth page,
+first in the sidebar; an address with no page now opens Chat instead of Overview).
+
+- Conversations and the person's messages are saved per workspace (migration 34
+  `studio_chat`: `chat_conversations`, `chat_messages`). Messages are immutable
+  (`creator_reject_change()`), numbered per conversation under a row lock, and carry a
+  client-chosen `client_id`: a retried send returns the saved message (200), the same id with
+  other words is refused (`IDEMPOTENCY_CONFLICT`, 409).
+- The server alone decides a message's intent with fixed rules (`classifyChat` in
+  `packages/contracts/src/chat.ts`, in this order: web address, save/remember, start a
+  discovery/research, approvals, why/blocked, what's next, else note). The request schema is
+  strict, so a client cannot send an intent.
+- The studio's replies are not stored. They are worked out in the browser
+  (`apps/web/src/chat-replies.ts`) from the message's intent and the same facts as the Path tab
+  and the what's-next line each time they are shown, so they cannot go stale silently: an older
+  message of the same kind says its answer may be out of date.
+- Cards only open a tab or fill in a field there (the Sources fetch address, the Discover
+  theme). Nothing in Chat submits a form, starts a run, fetches, approves or spends; every step
+  still goes through its own form and the server's gates.
+- Audit events `chat.started`, `chat.message` (message id and intent only, never the text) and
+  `chat.renamed`. Viewers read conversations; only editors and owners write.
+- Routes: `GET/POST /api/workspaces/{ws}/chats` (list with `?q=` search over titles and message
+  text, create), `GET .../chats/{id}`, `POST .../chats/{id}/messages`, `POST .../chats/{id}/title`.
+
+Consequences: Chat answers only the fixed kinds of question; anything else is kept as a note
+with a "make this a brief" card. Replies in words from a model are a later, separately approved
+step (needs Jordan's OK on route, data sent and cost). Conversations cannot be deleted yet.
+
 ## ADR-0054 — One owner approval per build of a frozen spec (accepted October 31, 2026)
 
 Context: owner pilot findings F12, F13, F15 and F18. A supervised run holds

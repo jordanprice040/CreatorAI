@@ -50,6 +50,8 @@ import { NextStep, useStudioFacts } from './next-step.js';
 import { PathView } from './path.js';
 import { nextStep } from './next-rules.js';
 import { routeHash } from './pages.js';
+import { Chat } from './chat.js';
+import type { Prefill } from './prefill.js';
 
 const choices = [
   ['use_existing', 'Use an existing tool'],
@@ -324,6 +326,8 @@ function PageTabs({
   const page = pageOf(view);
   const tabs = tabsOf(page);
   const active = tabs.find((t) => t.sections.some((s) => s.view === view));
+  // A page with one screen (Chat) needs no tab row.
+  if (tabs.length === 1 && tabs[0]!.sections.length === 1) return null;
   const link = (target: View, label: string, current: boolean) => (
     <a
       href={routeHash({ view: target, ws, id: '', q: '' })}
@@ -480,6 +484,21 @@ function App() {
       ...(id === undefined ? {} : { id }),
       ...(q === undefined ? {} : { q }),
     });
+  // A value Chat hands to the fetch form (Sources) or the theme field (Discover). It only
+  // fills the field; the person still submits the form there.
+  const [prefill, setPrefill] = useState<{
+    view: 'evidence' | 'submit';
+    value: string;
+    nonce: number;
+  } | null>(null);
+  const fill = (view: 'evidence' | 'submit', value: string) => {
+    setPrefill((p) => ({ view, value, nonce: (p?.nonce ?? 0) + 1 }));
+    open(view);
+  };
+  const prefillFor = (view: 'evidence' | 'submit'): Prefill =>
+    prefill && prefill.view === view
+      ? { value: prefill.value, nonce: prefill.nonce }
+      : null;
 
   function body(pageRoute = route) {
     const workspace = workspaces?.find((w) => w.id === pageRoute.ws) ?? null;
@@ -539,6 +558,19 @@ function App() {
       );
     const s = auth.session;
     switch (pageRoute.view) {
+      case 'chat':
+        return (
+          <Chat
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            facts={facts}
+            focus={pageRoute.id}
+            onFocus={focus}
+            open={(view) => open(view)}
+            fill={fill}
+          />
+        );
       case 'path':
         return <PathView facts={facts} open={open} />;
       case 'portfolio':
@@ -584,7 +616,14 @@ function App() {
       case 'overview':
         return <Overview session={s} workspace={workspace} open={open} />;
       case 'submit':
-        return <Submit session={s} workspace={workspace} open={open} />;
+        return (
+          <Submit
+            session={s}
+            workspace={workspace}
+            open={open}
+            prefill={prefillFor('submit')}
+          />
+        );
       case 'catalog':
         return (
           <Catalog
@@ -612,6 +651,7 @@ function App() {
             workspace={workspace}
             focus={pageRoute.id}
             onFocus={focus}
+            prefill={prefillFor('evidence')}
           />
         );
       case 'decisions':
@@ -684,7 +724,7 @@ function App() {
   const pageLabel = pageOf(route.view).label;
   useEffect(() => {
     document.title = inStudio
-      ? `${label} · ${pageLabel} · Creator Agent`
+      ? `${label === pageLabel ? label : `${label} · ${pageLabel}`} · Creator Agent`
       : 'Creator Agent · Local studio';
   }, [inStudio, label, pageLabel]);
   useEffect(() => {
@@ -844,9 +884,15 @@ function App() {
                 <Icon name={menuOpen ? 'close' : 'menu'} />
               </button>
               <p className="crumbs">
-                <span>{pageOf(route.view).label}</span>
-                <span aria-hidden="true">/</span>
-                <strong>{label}</strong>
+                {pageLabel === label ? (
+                  <strong>{label}</strong>
+                ) : (
+                  <>
+                    <span>{pageLabel}</span>
+                    <span aria-hidden="true">/</span>
+                    <strong>{label}</strong>
+                  </>
+                )}
               </p>
               <h1 className="sr-only">Creator Agent: {label}</h1>
             </>

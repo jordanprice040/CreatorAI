@@ -36,6 +36,14 @@ import {
   type PlanProvider,
   type PlanSettings,
   type UsageSummary,
+  ChatCreateRequestSchema,
+  ChatMessageRequestSchema,
+  ChatRenameRequestSchema,
+  chatTitle,
+  classifyChat,
+  type ChatConversation,
+  type ChatDetail,
+  type ChatMessage,
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
@@ -54,6 +62,12 @@ import {
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
 import { usageSummary } from './usage-summary.js';
+import {
+  chatConversation,
+  chatConversations,
+  chatMessages,
+  toChatMessage,
+} from './chat-store.js';
 import { toRun } from './oversight-store.js';
 import {
   buildApprovalBlockers,
@@ -358,6 +372,162 @@ export class ConnectionStore extends PortfolioStore {
       return usageSummary(c, uuid(ws), this.spending, owner, (r) =>
         connectionBlockers(toConnection(r)),
       );
+    });
+  }
+
+  /** ADR-0055: a workspace's chat conversations, newest activity first; `q` searches them. */
+  async listChats(
+    ctxIn: CommandContext,
+    ws: string,
+    q = '',
+  ): Promise<ChatConversation[]> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return chatConversations(c, uuid(ws), q);
+    });
+  }
+
+  async chatDetail(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<ChatDetail> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const conversation = await chatConversation(c, uuid(ws), uuid(id));
+      return { conversation, messages: await chatMessages(c, conversation.id) };
+    });
+  }
+
+  /** Starts a conversation. Editors and owners only; viewers read. */
+  async createChat(
+    ctxIn: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<ChatConversation> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatCreateRequestSchema, raw ?? {});
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      const id = randomUUID();
+      const title = req.title ?? 'New conversation';
+      await c.query(
+        `insert into chat_conversations (id, workspace_id, title, created_by)
+         values ($1, $2, $3, $4)`,
+        [id, uuid(ws), title, ctx.actorId],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.started',
+        subjectKind: 'chat_conversation',
+        subjectId: id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ title }),
+        payload: {},
+      });
+      return chatConversation(c, uuid(ws), id);
+    });
+  }
+
+  async renameChat(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    raw: unknown,
+  ): Promise<ChatConversation> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatRenameRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      await chatConversation(c, uuid(ws), uuid(id), true);
+      await c.query(
+        `update chat_conversations set title = $3, updated_at = clock_timestamp()
+         where workspace_id = $1 and id = $2`,
+        [uuid(ws), uuid(id), req.title],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.renamed',
+        subjectKind: 'chat_conversation',
+        subjectId: uuid(id),
+        subjectVersion: null,
+        contentHash: canonicalHash({ title: req.title }),
+        payload: {},
+      });
+      return chatConversation(c, uuid(ws), uuid(id));
+    });
+  }
+
+  /**
+   * Adds the person's message. The server decides its intent with `classifyChat`; a repeated
+   * `client_id` returns the message already saved (a retried send), and the same id with other
+   * text is refused. A conversation still called "New conversation" takes its title from its
+   * first message. Saving a message starts nothing.
+   */
+  async postChatMessage(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+    raw: unknown,
+  ): Promise<{ message: ChatMessage; duplicate: boolean }> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatMessageRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, true);
+      const conversation = await chatConversation(c, uuid(ws), uuid(id), true);
+      const existing = await c.query(
+        'select * from chat_messages where conversation_id = $1 and client_id = $2',
+        [conversation.id, req.client_id],
+      );
+      if (existing.rows[0]) {
+        const message = toChatMessage(existing.rows[0] as Row);
+        if (message.text !== req.text || message.author_id !== ctx.actorId)
+          throw new ContractError(
+            'IDEMPOTENCY_CONFLICT',
+            'This message id was already used for a different message.',
+          );
+        return { message, duplicate: true };
+      }
+      const { intent, target } = classifyChat(req.text);
+      const messageId = randomUUID();
+      const { rows } = await c.query(
+        `insert into chat_messages (id, workspace_id, conversation_id, seq, client_id,
+           author_id, text, intent, target)
+         values ($1, $2, $3,
+           (select coalesce(max(seq), 0) + 1 from chat_messages where conversation_id = $3),
+           $4, $5, $6, $7, $8)
+         returning *`,
+        [
+          messageId,
+          uuid(ws),
+          conversation.id,
+          req.client_id,
+          ctx.actorId,
+          req.text,
+          intent,
+          target,
+        ],
+      );
+      await c.query(
+        `update chat_conversations
+         set updated_at = clock_timestamp(),
+             title = case when title = 'New conversation' and $3 = 0 then $4 else title end
+         where workspace_id = $1 and id = $2`,
+        [uuid(ws), conversation.id, conversation.messages, chatTitle(req.text)],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.message',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ text: req.text }),
+        // The words stay in the conversation; the audit trail records only what kind of ask it was.
+        payload: { message_id: messageId, intent },
+      });
+      return { message: toChatMessage(rows[0] as Row), duplicate: false };
     });
   }
 

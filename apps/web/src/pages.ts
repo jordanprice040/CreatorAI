@@ -1,10 +1,11 @@
-// The studio's page map (step 9, "fewer, task-shaped pages"): five pages, each holding the
+// The studio's page map (step 9, "fewer, task-shaped pages"): six pages, each holding the
 // earlier one-task screens as tabs. Pure data and functions with no imports, so the route
 // rules load in tests without a browser. Views keep their old keys, so records, links and
 // per-tab form drafts are unchanged; only where they sit and how the address reads changed.
 
 /** Every screen, by its view key. A view is one tab of one page. */
 export type View =
+  | 'chat'
   | 'path'
   | 'overview'
   | 'submit'
@@ -30,7 +31,7 @@ export type View =
   | 'payments';
 
 export type PageKey =
-  'projects' | 'sources' | 'monitor' | 'connections' | 'settings';
+  'chat' | 'projects' | 'sources' | 'monitor' | 'connections' | 'settings';
 
 export type Section = {
   view: View;
@@ -49,6 +50,11 @@ export type Page = { key: PageKey; label: string; sections: Section[] };
 
 /** The page map. The first section of a page is where the page opens on a first visit. */
 export const PAGES: readonly Page[] = [
+  {
+    key: 'chat',
+    label: 'Chat',
+    sections: [{ view: 'chat', slug: 'conversations', label: 'Chat' }],
+  },
   {
     key: 'projects',
     label: 'Projects',
@@ -115,7 +121,7 @@ export const PAGES: readonly Page[] = [
 ];
 
 /** Where the studio opens when the address names no page. */
-export const HOME: View = 'overview';
+export const HOME: View = 'chat';
 
 const ALL: { page: Page; section: Section }[] = PAGES.flatMap((page) =>
   page.sections.map((section) => ({ page, section })),

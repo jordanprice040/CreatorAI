@@ -5,6 +5,7 @@
 
 /** The tab that can take the step. Mirrors the view keys in pages.ts. */
 export type StepView =
+  | 'chat'
   | 'path'
   | 'overview'
   | 'submit'
@@ -248,6 +249,15 @@ function optional(f: StudioFacts, what: string, needsPackage = false): Step {
 /** What this page says comes next, or why it is blocked. */
 export function nextStep(view: StepView, f: StudioFacts): Step {
   switch (view) {
+    case 'chat':
+      // The front door: waiting approvals first, then the path's own step.
+      if (f.pending > 0)
+        return {
+          tone: 'next',
+          text: `${plural(f.pending, 'decision')} ${f.pending === 1 ? 'waits' : 'wait'} for you.`,
+          action: decisionsAction,
+        };
+      return pathStages(f).step;
     case 'overview':
       if (f.pending > 0)
         return {
@@ -408,7 +418,12 @@ function clearThen(f: StudioFacts, lead: string): Step {
 
 /** A pointer to waiting decisions, for pages whose own line is about something else. */
 export function decisionsNote(view: StepView, f: StudioFacts) {
-  if (f.pending === 0 || view === 'decisions' || view === 'overview')
+  if (
+    f.pending === 0 ||
+    view === 'decisions' ||
+    view === 'overview' ||
+    view === 'chat'
+  )
     return null;
   return `${plural(f.pending, 'decision')} ${f.pending === 1 ? 'waits' : 'wait'} for you`;
 }

@@ -1,3 +1,4 @@
+import type { Prefill } from './prefill.js';
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   ClaimEvidenceSchema,
@@ -52,12 +53,15 @@ export function Evidence({
   workspace: current,
   focus,
   onFocus,
+  prefill = null,
 }: {
   session: SessionInfo;
   workspace: Workspace;
   /** `claim:<id>` or `source:<id>`, kept in the page address. */
   focus: string;
   onFocus: (focus: string) => void;
+  /** An address handed over from Chat for the fetch form. */
+  prefill?: Prefill;
 }) {
   const workspace = current.id;
   const [sources, setSources] = useState<SourceSummary[]>([]);
@@ -68,6 +72,9 @@ export function Evidence({
   const [evidence, setEvidence] = useState<ClaimEvidence | null>(null);
   const [runId, setRunId] = useState('');
   const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (prefill) setUrl(prefill.value);
+  }, [prefill?.nonce]);
   const [last, setLast] = useState<Retrieval | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
