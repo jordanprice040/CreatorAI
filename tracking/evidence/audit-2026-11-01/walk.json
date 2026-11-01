@@ -1,0 +1,543 @@
+{
+  "chat/conversations": {
+    "heading": "Chat",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "projects/path": {
+    "heading": "Path",
+    "next": "Next: Freeze the spec so it can be built. Open Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "projects/discover": {
+    "heading": "Discover",
+    "next": "Next: Freeze the spec so it can be built. Open Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "intent-strategy",
+        "selected": "Supplied public sources",
+        "count": 2,
+        "longest": 49,
+        "first": [
+          "Supplied public sources",
+          "Direct retrieval after host and permission checks"
+        ]
+      },
+      {
+        "id": "b-seed",
+        "selected": "None",
+        "count": 8,
+        "longest": 42,
+        "first": [
+          "None",
+          "Make solar energy economical",
+          "Provide energy from fusion",
+          "Develop carbon sequestration methods",
+          "Manage the nitrogen cycle",
+          "Provide access to clean water"
+        ]
+      },
+      {
+        "id": "b-rev",
+        "selected": "1",
+        "count": 3,
+        "longest": 1,
+        "first": ["0", "1", "2"]
+      },
+      {
+        "id": "b-run",
+        "selected": "Register a new run",
+        "count": 4,
+        "longest": 35,
+        "first": [
+          "Register a new run",
+          "Existing human in loop run 8ffda281",
+          "Existing human in loop run 11e38ebc",
+          "Existing human in loop run 01b6c903"
+        ]
+      },
+      {
+        "id": "b-mode",
+        "selected": "Human in the loop (asks at stage gates)",
+        "count": 2,
+        "longest": 49,
+        "first": [
+          "Human in the loop (asks at stage gates)",
+          "Supervised (asks before every consequential step)"
+        ]
+      },
+      {
+        "id": "b-route",
+        "selected": "API / fixture · budget and pricing",
+        "count": 2,
+        "longest": 34,
+        "first": [
+          "ChatGPT plan · subscription quota",
+          "API / fixture · budget and pricing"
+        ]
+      },
+      {
+        "id": "b-data-class",
+        "selected": "Synthetic",
+        "count": 3,
+        "longest": 44,
+        "first": [
+          "Synthetic",
+          "Public",
+          "Private · approved provider sharing required"
+        ]
+      },
+      {
+        "id": "b-env",
+        "selected": "Fixture discovery budget · 99.30335 sim available",
+        "count": 1,
+        "longest": 49,
+        "first": ["Fixture discovery budget · 99.30335 sim available"]
+      },
+      {
+        "id": "b-price",
+        "selected": "fixture/fixture-model-v1 · fixture",
+        "count": 1,
+        "longest": 34,
+        "first": ["fixture/fixture-model-v1 · fixture"]
+      }
+    ]
+  },
+  "projects/decide": {
+    "heading": "Compare and decide",
+    "next": "Next: Freeze the spec so it can be built. Open Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "cmp-problem",
+        "selected": "Unused first-appointment slots at rural clinics: Rural clinics recorded a 23 percent…",
+        "count": 6,
+        "longest": 111,
+        "first": [
+          "Course e-book availability for students: Days between a student requesting an e-book and… (no options proposed)",
+          "Understaffed Saturday shifts at a food bank: Food bank coordinators reported that 30…",
+          "Unused first-appointment slots at rural clinics: Rural clinics recorded a 23 percent…",
+          "Practicing frame-precise keyboard and mouse input timing for speedrunners and… (no options proposed)",
+          "Practicing frame-precise keyboard and mouse input timing for speedrunners and… (no options proposed)",
+          "Practicing frame-precise keyboard and mouse input timing for speedrunners and… (no options proposed)"
+        ]
+      },
+      {
+        "id": "dis-135c59e8-064f-4ef0-b6a7-27aceff28e42",
+        "selected": "Recommend (no new software)",
+        "count": 7,
+        "longest": 118,
+        "first": [
+          "Choose…",
+          "Select for a bounded build (blocked: A use existing response has no software to build; it cannot be made build-ready.)",
+          "Validate before building",
+          "Recommend (no new software)",
+          "Research further",
+          "Defer"
+        ]
+      },
+      {
+        "id": "dis-3fed3ea2-0337-4b7c-b181-85f888ed97d3",
+        "selected": "Select for a bounded build",
+        "count": 7,
+        "longest": 126,
+        "first": [
+          "Choose…",
+          "Select for a bounded build",
+          "Validate before building",
+          "Recommend (no new software) (blocked: Custom software is selected for build or validation, not recommended as an alternative.)",
+          "Research further",
+          "Defer"
+        ]
+      },
+      {
+        "id": "dis-512a2cf6-55fe-415b-a778-c3c0e12f2ad5",
+        "selected": "Reject",
+        "count": 7,
+        "longest": 120,
+        "first": [
+          "Choose…",
+          "Select for a bounded build (blocked: A change process response has no software to build; it cannot be made build-ready.)",
+          "Validate before building (blocked: Discovery disposition: duplicate.)",
+          "Recommend (no new software) (blocked: Discovery disposition: duplicate.)",
+          "Research further",
+          "Defer"
+        ]
+      },
+      {
+        "id": "dis-97b1efb6-c660-4ee5-abfd-7afb6641b214",
+        "selected": "Research further",
+        "count": 7,
+        "longest": 111,
+        "first": [
+          "Choose…",
+          "Select for a bounded build (blocked: The opportunity assessment is incomplete; unknown is not a neutral score.)",
+          "Validate before building",
+          "Recommend (no new software)",
+          "Research further",
+          "Defer"
+        ]
+      },
+      {
+        "id": "dis-b8144944-0ec2-4f08-90d6-10192f56e407",
+        "selected": "Defer",
+        "count": 7,
+        "longest": 115,
+        "first": [
+          "Choose…",
+          "Select for a bounded build (blocked: A human led response has no software to build; it cannot be made build-ready.)",
+          "Validate before building",
+          "Recommend (no new software)",
+          "Research further",
+          "Defer"
+        ]
+      },
+      {
+        "id": "dec-run",
+        "selected": "human in loop run 01b6c903 (found this problem)",
+        "count": 3,
+        "longest": 47,
+        "first": [
+          "human in loop run 8ffda281",
+          "human in loop run 11e38ebc",
+          "human in loop run 01b6c903 (found this problem)"
+        ]
+      }
+    ]
+  },
+  "projects/specs": {
+    "heading": "Rankings, selections and specs",
+    "next": "Next: Open the spec below and freeze it, so it can be built.",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "sel-problem",
+        "selected": "Unused first-appointment slots at rural clinics: Rural clinics recorded a 23…",
+        "count": 6,
+        "longest": 100,
+        "first": [
+          "Course e-book availability for students: Days between a student requesting an… (no options proposed)",
+          "Understaffed Saturday shifts at a food bank: Food bank coordinators reported…",
+          "Unused first-appointment slots at rural clinics: Rural clinics recorded a 23…",
+          "Practicing frame-precise keyboard and mouse input timing for speedrunners and… (no options proposed)",
+          "Practicing frame-precise keyboard and mouse input timing for speedrunners and… (no options proposed)",
+          "Practicing frame-precise keyboard and mouse input timing for speedrunners and… (no options proposed)"
+        ]
+      }
+    ]
+  },
+  "projects/build": {
+    "heading": "Build and package",
+    "next": "Blocked: Building needs a frozen spec, and none is frozen. Open Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "sample-spec",
+        "selected": "No-show risk flags prototype (fixture) v2",
+        "count": 1,
+        "longest": 41,
+        "first": ["No-show risk flags prototype (fixture) v2"]
+      }
+    ]
+  },
+  "projects/try": {
+    "heading": "Try",
+    "next": "Blocked: Nothing is packaged yet. Package a verified build first. Open Build",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "projects/sell": {
+    "heading": "Payments",
+    "next": "Blocked: Selling needs a packaged product, and nothing is packaged yet. Open Build",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "pc-proc",
+        "selected": "Simulated processor (no network)",
+        "count": 2,
+        "longest": 32,
+        "first": ["Simulated processor (no network)", "Stripe test mode"]
+      },
+      {
+        "id": "rl-kind",
+        "selected": "An account whose balance I record",
+        "count": 2,
+        "longest": 54,
+        "first": [
+          "An account whose balance I record",
+          "A verified processor's balance (none without a source)"
+        ]
+      },
+      {
+        "id": "cm-kind",
+        "selected": "Bill or debt",
+        "count": 3,
+        "longest": 13,
+        "first": ["Reserve", "Bill or debt", "Tax set aside"]
+      }
+    ]
+  },
+  "projects/campaigns": {
+    "heading": "Campaigns",
+    "next": "Blocked: A campaign needs a packaged product, and nothing is packaged yet. Open Build",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": null,
+        "selected": "Select a package",
+        "count": 1,
+        "longest": 16,
+        "first": ["Select a package"]
+      },
+      {
+        "id": null,
+        "selected": "Select a campaign",
+        "count": 1,
+        "longest": 17,
+        "first": ["Select a campaign"]
+      }
+    ]
+  },
+  "projects/maintain": {
+    "heading": "Portfolio and maintenance",
+    "next": "Blocked: Maintaining products needs a packaged product, and nothing is packaged yet. Open Build",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": null,
+        "selected": "Portfolio policy",
+        "count": 3,
+        "longest": 18,
+        "first": ["Portfolio policy", "Schedule", "Knowledge proposal"]
+      }
+    ]
+  },
+  "sources/claims": {
+    "heading": "Sources and claim evidence",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "Run",
+        "selected": "human in loop run 8ffda281",
+        "count": 3,
+        "longest": 26,
+        "first": [
+          "human in loop run 8ffda281",
+          "human in loop run 11e38ebc",
+          "human in loop run 01b6c903"
+        ]
+      }
+    ]
+  },
+  "sources/library": {
+    "heading": "Library",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "cat-kind",
+        "selected": "All kinds",
+        "count": 8,
+        "longest": 15,
+        "first": [
+          "All kinds",
+          "source",
+          "claim",
+          "problem",
+          "idea",
+          "alternative"
+        ]
+      },
+      {
+        "id": "cat-status",
+        "selected": "Active",
+        "count": 4,
+        "longest": 10,
+        "first": ["Any status", "Active", "Archived", "Redacted"]
+      }
+    ]
+  },
+  "sources/search": {
+    "heading": "Search",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "s-kind",
+        "selected": "Any",
+        "count": 8,
+        "longest": 15,
+        "first": ["Any", "source", "claim", "problem", "idea", "alternative"]
+      },
+      {
+        "id": "s-status",
+        "selected": "Any",
+        "count": 4,
+        "longest": 8,
+        "first": ["Any", "Active", "Archived", "Redacted"]
+      }
+    ]
+  },
+  "monitor/overview": {
+    "heading": "Monitor",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "monitor/approvals": {
+    "heading": "Approvals, policies and runs",
+    "next": "All clear: Nothing needs you right now. Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "monitor/runs": {
+    "heading": "Workflow runs",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "wsubject",
+        "selected": "idea · Phone patients the day before appointments to confirm attendance · v1",
+        "count": 8,
+        "longest": 181,
+        "first": [
+          "idea · Phone patients the day before appointments to confirm attendance · v1",
+          "problem · Course e-book availability for students: Days between a student requesting an e-book and opening it · v1",
+          "alternative · Use the existing tool: Free volunteer sign-up services already publish shifts, collect sign-ups and send reminders. · v1",
+          "alternative · Software: Understaffed volunteer shifts at a community food bank · v1",
+          "alternative · Coordinators fill gaps by texting regular volunteers on Friday evenings. · v1",
+          "problem · Understaffed Saturday shifts at a food bank: Food bank coordinators reported that 30 percent of Saturday shifts were understaffed in 2025. · v1"
+        ]
+      },
+      {
+        "id": "wrun",
+        "selected": "human in loop · 8ffda281",
+        "count": 3,
+        "longest": 24,
+        "first": [
+          "human in loop · 8ffda281",
+          "human in loop · 11e38ebc",
+          "human in loop · 01b6c903"
+        ]
+      }
+    ]
+  },
+  "monitor/activity": {
+    "heading": "Activity",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "aact",
+        "selected": "Everything",
+        "count": 8,
+        "longest": 17,
+        "first": [
+          "Everything",
+          "Records",
+          "Links",
+          "Decisions",
+          "Permissions",
+          "Runs"
+        ]
+      }
+    ]
+  },
+  "monitor/budgets": {
+    "heading": "Budgets and pricing",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": "benv",
+        "selected": "Fixture discovery budget · active",
+        "count": 1,
+        "longest": 33,
+        "first": ["Fixture discovery budget · active"]
+      },
+      {
+        "id": "brun",
+        "selected": "human in loop · 01b6c903",
+        "count": 3,
+        "longest": 24,
+        "first": [
+          "human in loop · 01b6c903",
+          "human in loop · 11e38ebc",
+          "human in loop · 8ffda281"
+        ]
+      }
+    ]
+  },
+  "monitor/workers": {
+    "heading": "Workers",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "models/models": {
+    "heading": "Models and connections",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "models/github": {
+    "heading": "Models and connections",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "models/devices": {
+    "heading": "Models and connections",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "settings/general": {
+    "heading": "Settings",
+    "next": "Next: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": []
+  },
+  "settings/study": {
+    "heading": "Study runner",
+    "next": "Next: The study runner is optional. Main path: Freeze the spec so it can be built. Open Projects › Scores and specs",
+    "overflow": false,
+    "errors": [],
+    "selects": [
+      {
+        "id": null,
+        "selected": "Choose a study",
+        "count": 1,
+        "longest": 14,
+        "first": ["Choose a study"]
+      }
+    ]
+  }
+}
