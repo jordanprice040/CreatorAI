@@ -10,6 +10,7 @@ import {
   DecideFeedbackRequestSchema,
   FeedbackRevisionRequestSchema,
   StartPreviewRequestSchema,
+  SpecBodySchema,
   StopPreviewRequestSchema,
   SubmitFeedbackRequestSchema,
   parse,
@@ -19,7 +20,7 @@ import {
   type Feedback,
   type Preview,
 } from '@creator/contracts';
-import { canonicalHash } from '@creator/domain';
+import { canonicalHash, frozenCases } from '@creator/domain';
 import { StudyBuildStore } from './study-build-store.js';
 import {
   fail,
@@ -40,6 +41,30 @@ const calls = (m: BuildManifest) =>
 const secretHash = (v: string) => createHash('sha256').update(v).digest('hex');
 const same = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+/** Visible examples shown on a preview page; held-out cases are never included. */
+export const MAX_PREVIEW_EXAMPLES = 3;
+
+/**
+ * How to use a previewed package, read from the exact frozen spec version it was built from.
+ * Only visible (not held-out) cases of the built task appear, so the page cannot leak the
+ * cases QA keeps hidden from the builder and reviewer.
+ */
+export interface PreviewGuide {
+  flows: { key: string; name: string; steps: string[] }[];
+  examples: {
+    check_key: string;
+    statement: string;
+    args: string[];
+    stdin: string;
+    stdout: string;
+    exit_code: number;
+  }[];
+  /** Visible cases beyond MAX_PREVIEW_EXAMPLES. */
+  more_examples: number;
+  /** The task has held-out cases that the page deliberately leaves out. */
+  held_out_hidden: boolean;
+}
 
 export interface ArtifactRecord {
   summary: ArtifactSummary;
@@ -598,6 +623,13 @@ export class ArtifactStore extends StudyBuildStore {
       return {
         preview: this.preview(r),
         record,
+        guide: claim
+          ? null
+          : await this.previewGuide(
+              c,
+              String(row.workspace_id),
+              record.manifest,
+            ),
         workspace_id: String(row.workspace_id),
         actor_id: String(row.actor_id),
         product_id: String(
@@ -610,6 +642,58 @@ export class ArtifactStore extends StudyBuildStore {
         ),
       };
     });
+  }
+  /**
+   * The usage guide for a preview page. Null when the pinned spec version is missing, redacted
+   * or no longer hashes to the manifest's spec hash: the page then shows only the command.
+   */
+  private async previewGuide(
+    c: PoolClient,
+    ws: string,
+    mf: BuildManifest,
+  ): Promise<PreviewGuide | null> {
+    const { rows } = await c.query(
+      `select body, content_hash, status from entity_versions
+        where workspace_id = $1 and entity_id = $2 and version = $3`,
+      [ws, mf.spec.id, mf.spec.version],
+    );
+    const v = rows[0] as Row | undefined;
+    if (
+      !v ||
+      v.status === 'redacted' ||
+      String(v.content_hash) !== mf.spec.hash ||
+      (v.body as { format?: unknown } | null)?.format !== 'spec/1'
+    )
+      return null;
+    const spec = SpecBodySchema.safeParse(v.body);
+    if (!spec.success) return null;
+    const task = spec.data.tasks.find((t) => t.key === mf.task.key);
+    if (!task) return null;
+    const cases = frozenCases(spec.data, task.acceptance);
+    const visible = cases.filter((x) => !x.held_out);
+    const statement = (key: string) =>
+      spec.data.acceptance_checks.find((a) => a.key === key)?.statement ?? '';
+    const flowKeys = new Set(
+      spec.data.acceptance_checks
+        .filter((a) => task.acceptance.includes(a.key) && a.flow)
+        .map((a) => a.flow),
+    );
+    return {
+      // The task's own flows first; a spec whose checks name no flow shows them all.
+      flows: spec.data.user_flows
+        .filter((f) => !flowKeys.size || flowKeys.has(f.key))
+        .map((f) => ({ key: f.key, name: f.name, steps: f.steps })),
+      examples: visible.slice(0, MAX_PREVIEW_EXAMPLES).map((x) => ({
+        check_key: x.check_key,
+        statement: statement(x.check_key),
+        args: x.args,
+        stdin: x.stdin,
+        stdout: x.stdout,
+        exit_code: x.exit_code,
+      })),
+      more_examples: Math.max(0, visible.length - MAX_PREVIEW_EXAMPLES),
+      held_out_hidden: cases.some((x) => x.held_out),
+    };
   }
   async recordPreviewRun(
     actorId: string,
