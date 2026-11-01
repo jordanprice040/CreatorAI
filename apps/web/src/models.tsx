@@ -13,6 +13,7 @@ import { api, message } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
+import { ChatAnswersCard } from './chat-answers.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -211,6 +212,17 @@ export function Models({
       >
         Refresh connection status
       </button>
+      <ChatAnswersCard
+        workspace={workspace}
+        session={session}
+        stamp={list
+          .map(
+            (x) =>
+              `${x.id}:${x.version}:${x.caps_accepted_at ?? ''}:${x.sign_in.state}:${x.credits.state}`,
+          )
+          .join('|')}
+        onChanged={() => void load().catch((e) => setError(message(e)))}
+      />
       <h3>Other routes</h3>
       <ul>
         <li>
