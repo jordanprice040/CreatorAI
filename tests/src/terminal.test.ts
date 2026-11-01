@@ -306,8 +306,47 @@ test('concurrent starts cannot pass the limits, and a listing during a start doe
     if (x) assert.equal(x.state, 'running');
   }
   // A refused start leaves no folder behind that a listing could misread.
-  const refused = many.find((x) => x.status === 'rejected');
-  assert.ok(refused);
+  assert.ok(many.some((x) => x.status === 'rejected'));
+  let folders = 0;
+  for (const q of others)
+    folders += await readdir(join(h.products.dir(q), 'terminals')).then(
+      (n) => n.length,
+      () => 0,
+    );
+  assert.equal(folders, TERMINAL_LIMIT - 1);
+});
+
+test('a start that fails before its record exists leaves nothing that breaks the list (review N-1)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  // The same package path twice fails while the files are copied, before the intent.
+  await assert.rejects(
+    h.terminals.open({
+      productId: p,
+      artifactId: randomUUID(),
+      manifestSha256: 'c'.repeat(64),
+      packageSha256: 'd'.repeat(64),
+      taskId: randomUUID(),
+      commit: 'e'.repeat(40),
+      files: [...files, ...files],
+      owner,
+      args: [],
+    }),
+  );
+  assert.equal(h.windows.length, 0);
+  assert.deepEqual(
+    await readdir(join(h.products.dir(p), 'terminals')).catch(() => []),
+    [],
+  );
+  assert.deepEqual(await h.terminals.list(p, owner), []);
+  // A folder with no record (left by an older build) is skipped, not fatal.
+  await mkdir(join(h.products.dir(p), 'terminals', randomUUID(), 'job'), {
+    recursive: true,
+  });
+  const s = await start(h.terminals, p);
+  const [listed, ...rest] = await h.terminals.list(p, owner);
+  assert.equal(listed?.id, s.id);
+  assert.equal(rest.length, 0);
 });
 
 test('Stop reaches the worker through the lease; deadline and window close map to their own states', async (t) => {
