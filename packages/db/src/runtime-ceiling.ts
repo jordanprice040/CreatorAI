@@ -83,13 +83,16 @@ export async function lockRuntimeCeiling(c: PoolClient) {
  * Locks the ceiling and reads what already counts against it: settled cost, held exposure of
  * in-flight and unknown paid calls since `effective_from`, and open final study attempts at
  * their full cap (their own calls are not counted twice). Call inside the deciding transaction.
+ * `lock: false` is only for display reads that decide nothing (the usage indicator): they get a
+ * snapshot and do not wait behind, or hold up, dispatches and ceiling changes.
  */
 export async function runtimeExposure(
   c: PoolClient,
   config: SpendingConfig,
   scope: { ws: string; runId: string } | null = null,
+  options: { lock: boolean } = { lock: true },
 ): Promise<RuntimeExposure> {
-  await lockRuntimeCeiling(c);
+  if (options.lock) await lockRuntimeCeiling(c);
   const ceiling = await currentCeiling(c, config);
   const { rows } = await c.query<{
     exposure: string;

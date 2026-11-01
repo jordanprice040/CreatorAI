@@ -53,6 +53,14 @@ export function envelopeFor<T extends { id: string; run_id: string | null }>(
   return newestFirst.find((e) => e.run_id === null || e.run_id === runId);
 }
 
+/** Every budget a run may draw on, in the given order: shared ones and the run's own. */
+export function envelopesFor<T extends { id: string; run_id: string | null }>(
+  list: readonly T[],
+  runId: string,
+): T[] {
+  return list.filter((e) => e.run_id === null || e.run_id === runId);
+}
+
 /**
  * The Gallery artifact packaged from this build, if any: same spec version and commit. The
  * products route forgets package jobs on restart, so the artifact store is the record.

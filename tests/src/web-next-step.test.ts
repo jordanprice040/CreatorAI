@@ -46,7 +46,7 @@ const done: Facts = {
   problems: 1,
   alternatives: 4,
   scorecards: 1,
-  reviews: 1,
+  reviewed: true,
   specs: 1,
   frozenSpecs: 1,
   product: {
@@ -67,7 +67,7 @@ test('the main path names the first missing step and the page that takes it', as
     problems: 0,
     alternatives: 0,
     scorecards: 0,
-    reviews: 0,
+    reviewed: false,
     specs: 0,
     frozenSpecs: 0,
     product: null,
@@ -212,6 +212,60 @@ test('a failed run step is a note, not a permanent block', async () => {
   assert.equal(nextStep('overview', { ...done, attention: 1 }).tone, 'blocked');
 });
 
+test('waiting steps are counted from exact per-state totals, not the capped attention list', async () => {
+  const { workflowCounts, nextStep } = await load<
+    Rules & {
+      workflowCounts: (s: Record<string, number>) => {
+        attention: number;
+        failed: number;
+      };
+    }
+  >('next-rules.ts');
+  // 25 newer failures would fill the overview's 20-item attention list; the one waiting step
+  // must still block (PR #90 re-review N-1).
+  const steps = workflowCounts({
+    failed: 25,
+    waiting_human: 1,
+    succeeded: 40,
+    running: 2,
+  });
+  assert.deepEqual(steps, { attention: 1, failed: 25 });
+  assert.equal(nextStep('overview', { ...done, ...steps }).tone, 'blocked');
+  assert.deepEqual(workflowCounts({ paused_operator: 2, reconciling: 1 }), {
+    attention: 3,
+    failed: 0,
+  });
+  assert.deepEqual(workflowCounts({}), { attention: 0, failed: 0 });
+});
+
+test('the review step is decided for the newest frozen spec, not any frozen spec', async () => {
+  const { pathSpecReviewed } = await load<{
+    pathSpecReviewed: (
+      frozen: { id: string; version: number }[],
+      reviews: { status: string; body: unknown }[],
+    ) => boolean;
+  }>('next-rules.ts');
+  const review = (id: string, version: number, status = 'active') => ({
+    status,
+    body: { subject: { id, version } },
+  });
+  const csv = { id: 'csv', version: 2 };
+  const fresh = { id: 'new', version: 1 };
+  // PR #90 re-review N-2: the CSV checker is reviewed, a newer spec is frozen without one.
+  assert.equal(pathSpecReviewed([fresh, csv], [review('csv', 2)]), false);
+  assert.equal(
+    pathSpecReviewed([fresh, csv], [review('csv', 2), review('new', 1)]),
+    true,
+  );
+  // A revision needs its own review; a withdrawn review does not count.
+  assert.equal(pathSpecReviewed([csv], [review('csv', 1)]), false);
+  assert.equal(
+    pathSpecReviewed([csv], [review('csv', 2, 'superseded')]),
+    false,
+  );
+  assert.equal(pathSpecReviewed([], [review('csv', 2)]), false);
+});
+
 type Defaults = {
   modelGrantCovers: (
     g: Record<string, unknown>,
@@ -288,6 +342,19 @@ test('the default budget is never one bound to another run', async () => {
   assert.equal(envelopeFor(newest, 'r1')?.id, 'shared');
   assert.equal(envelopeFor(newest, 'r2')?.id, 'child-of-r2');
   assert.equal(envelopeFor([{ id: 'x', run_id: 'r2' }], 'r1'), undefined);
+  // Submit lists only the budgets the chosen run may use, so it never shows one it cannot use
+  // (PR #90 re-review N-3); a new run ('') may use only shared ones.
+  const { envelopesFor } = await load<{
+    envelopesFor: (
+      list: { id: string; run_id: string | null }[],
+      runId: string,
+    ) => { id: string }[];
+  }>('build-defaults.ts');
+  const ids = (l: { id: string }[]) => l.map((e) => e.id);
+  assert.deepEqual(ids(envelopesFor(newest, 'r2')), ['child-of-r2', 'shared']);
+  assert.deepEqual(ids(envelopesFor(newest, 'r1')), ['shared']);
+  assert.deepEqual(ids(envelopesFor(newest, '')), ['shared']);
+  assert.deepEqual(envelopesFor([{ id: 'x', run_id: 'r2' }], 'r1'), []);
 });
 
 test('a build counts as packaged when Gallery holds its commit, even after a restart', async () => {

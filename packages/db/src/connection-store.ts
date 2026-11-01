@@ -355,7 +355,7 @@ export class ConnectionStore extends PortfolioStore {
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
       const owner = await this.isCeilingOwner(c, ctx.actorId);
-      return usageSummary(c, ws, this.spending, owner, (r) =>
+      return usageSummary(c, uuid(ws), this.spending, owner, (r) =>
         connectionBlockers(toConnection(r)),
       );
     });

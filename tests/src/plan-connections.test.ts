@@ -1459,7 +1459,7 @@ test('build-role plan requests need the exact role prompt, a qualification and a
   await rejects('INVALID_TRANSITION', call('reviewer', live));
 });
 
-test('a one-time build approval goes only to the build it was asked for, never blocking others', async (t) => {
+test('a one-time build approval goes only to a build it covers, preferring the exact one, never blocking others', async (t) => {
   const s = await setup(t);
   if (!s) return;
   const { store, ws } = s;
