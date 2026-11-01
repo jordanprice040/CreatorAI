@@ -70,7 +70,11 @@ await build({
   },
 });
 const bundled = readFileSync(join(out, 'service/app/dist/studio.mjs'), 'utf8');
-for (const ref of ['../../../config/spending.json', '../worker/bridge.py'])
+for (const ref of [
+  '../../../config/spending.json',
+  '../worker/bridge.py',
+  '../worker/terminal.py',
+])
   if (!bundled.includes(ref))
     throw new Error(`Bundle rewrote a runtime file reference: ${ref}`);
 
@@ -78,7 +82,7 @@ step('staging runtime, worker bridge, configuration and UI');
 mkdirSync(join(out, 'node'), { recursive: true });
 copyFileSync(process.execPath, join(out, 'node/node.exe'));
 mkdirSync(join(out, 'service/app/worker'), { recursive: true });
-for (const f of ['bridge.py', 'recipe.py'])
+for (const f of ['bridge.py', 'recipe.py', 'terminal.py'])
   copyFileSync(
     join(root, 'packages/executor/worker', f),
     join(out, 'service/app/worker', f),

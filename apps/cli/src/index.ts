@@ -446,7 +446,11 @@ export async function runCli(
       return `workspaces/${encodeURIComponent(raw)}`;
     };
     const [command = 'health', ...rest] = args;
-    const local = new ProductSupervisor();
+    // Same product store as the API: the dev studio launcher sets CREATOR_PRODUCTS_ROOT to
+    // .creator/studio/products, and a CLI run from that shell must see the same products.
+    const local = new ProductSupervisor(
+      process.env.CREATOR_PRODUCTS_ROOT ?? '.creator/products',
+    );
     const executor = new ExecutionSupervisor(
       local,
       process.env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',

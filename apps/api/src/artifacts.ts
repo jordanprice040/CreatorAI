@@ -8,12 +8,21 @@ import {
   ContractError,
   RegisterArtifactRequestSchema,
   RunInputSchema,
+  TerminalStartRequestSchema,
+  TerminalStopRequestSchema,
   parse,
+  terminalCommand,
   type ArtifactDetail,
   type PreviewRun,
 } from '@creator/contracts';
 import type { ArtifactStore, CommandContext, PreviewGuide } from '@creator/db';
-import type { ArtifactSupervisor } from '@creator/executor';
+import { randomUUID } from 'node:crypto';
+import {
+  TERMINAL_POLICY,
+  digest,
+  type ArtifactSupervisor,
+  type TerminalSupervisor,
+} from '@creator/executor';
 
 type Send = (
   status: number,
@@ -28,6 +37,9 @@ type Send = (
 export async function artifactRoutes(o: {
   store: ArtifactStore;
   artifacts: ArtifactSupervisor;
+  terminals: TerminalSupervisor;
+  /** Terminal sessions open a window on the studio's own computer: local studios only. */
+  localStudio: boolean;
   previewOrigin: () => string | null;
   ctx: CommandContext;
   ws: string;
@@ -225,6 +237,102 @@ export async function artifactRoutes(o: {
         true,
       );
     }
+  }
+  if (o.collection === 'artifacts' && item && action === 'terminals') {
+    if (method === 'GET') {
+      const a = await store.artifactRecord(ctx, ws, item, true);
+      return send(
+        200,
+        await o.terminals.list(
+          a.manifest.product_id,
+          ctx.actorId,
+          a.summary.id,
+        ),
+        false,
+      );
+    }
+    if (method === 'POST') {
+      const req = parse(TerminalStartRequestSchema, await o.body());
+      if (!o.localStudio)
+        throw new ContractError(
+          'LIVE_DISABLED',
+          'A hosted studio cannot open a terminal on your computer. Download the package instead.',
+        );
+      const a = await store.artifactRecord(ctx, ws, item, true);
+      if (req.manifest_sha256 !== a.summary.manifest_sha256)
+        throw new ContractError(
+          'VERSION_CONFLICT',
+          'Stale version: the terminal must name the current manifest sha256.',
+        );
+      if (a.summary.state !== 'verified')
+        throw new ContractError(
+          'INVALID_TRANSITION',
+          'Only a verified package can run in a terminal.',
+        );
+      // Re-hashes the manifest and archive and reads the exact package bytes.
+      const { manifest, files } = await artifacts.open(
+        a.manifest.product_id,
+        a.summary.id,
+        a.summary.manifest_sha256,
+      );
+      if (manifest.availability.runnable_demo.state !== 'available')
+        throw new ContractError(
+          'INVALID_TRANSITION',
+          manifest.availability.runnable_demo.reason,
+        );
+      // Audit the intent before the window opens (review L-4): a failed audit write then
+      // starts nothing, and a failed start still leaves the attempt on record.
+      const sessionId = randomUUID();
+      await store.recordTerminal(ctx, ws, item, 'artifact.terminal.requested', {
+        session_id: sessionId,
+        command: terminalCommand(req.args),
+        manifest_sha256: a.summary.manifest_sha256,
+        policy_hash: digest(TERMINAL_POLICY),
+      });
+      const session = await o.terminals.open({
+        productId: manifest.product_id,
+        artifactId: a.summary.id,
+        manifestSha256: a.summary.manifest_sha256,
+        packageSha256: manifest.package.sha256,
+        taskId: manifest.task.id,
+        commit: manifest.repository.commit,
+        files,
+        owner: ctx.actorId,
+        args: req.args,
+        sessionId,
+      });
+      return send(201, session, true);
+    }
+  }
+  if (
+    o.collection === 'terminals' &&
+    item &&
+    action === 'stop' &&
+    method === 'POST'
+  ) {
+    const req = parse(TerminalStopRequestSchema, await o.body());
+    const a = await store.artifactRecord(ctx, ws, req.artifact_id, true);
+    const found = await o.terminals
+      .status(a.manifest.product_id, item)
+      .catch(() => null);
+    if (!found || found.artifact_id !== a.summary.id)
+      throw new ContractError(
+        'NOT_FOUND',
+        'No such terminal for this package.',
+      );
+    const session = await o.terminals.stop(
+      a.manifest.product_id,
+      item,
+      ctx.actorId,
+    );
+    await store.recordTerminal(
+      ctx,
+      ws,
+      req.artifact_id,
+      'artifact.terminal.stopped',
+      { session_id: session.id, state: session.state },
+    );
+    return send(200, session, true);
   }
   if (
     o.collection === 'previews' &&

@@ -377,6 +377,34 @@ export class ArtifactStore extends StudyBuildStore {
     });
   }
 
+  /**
+   * ADR-0058 audit for an interactive terminal session, written after the owner, hash and
+   * verified-state checks passed. The session's own record lives in the product store.
+   */
+  async recordTerminal(
+    ctx: CommandContext,
+    ws: string,
+    artifactId: string,
+    action: 'artifact.terminal.requested' | 'artifact.terminal.stopped',
+    payload: Record<string, unknown>,
+  ) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    await this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const a = await this.artifact(c, ws, artifactId);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action,
+        subjectKind: 'artifact',
+        subjectId: a.summary.entity_id,
+        subjectVersion: 1,
+        contentHash: a.summary.archive_sha256,
+        payload: { artifact_id: a.summary.id, ...payload },
+      });
+    });
+  }
+
   // ---- Previews --------------------------------------------------------------------------
 
   /** Leases a preview on one exact manifest. Readiness is settled by the caller's start. */

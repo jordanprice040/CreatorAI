@@ -75,6 +75,10 @@ the frozen task's `file_scope`. Traversal, hidden/config paths, backslashes, dri
 paths, alternate streams, reserved Windows names, symlinks/junctions and hardlinks
 are refused. All paths and preimages are checked before any write.
 
+The CLI and the API both use `CREATOR_PRODUCTS_ROOT` when it is set (default
+`.creator/products`). The dev studio launcher sets it to `.creator/studio/products`,
+so run CLI product commands from the same shell, or set it the same way.
+
 Products live in ignored `.creator/products/<product-id>/`: `repo/` is a distinct
 Git repository, `worktrees/<task-id>/` is a task branch at the exact base commit,
 and immutable product/task manifests bind the frozen spec. Git uses typed argument
@@ -88,6 +92,30 @@ the integration checkout and task checkout remain intact. A clean result fast
 forwards integration only if its head is still the expected one. No reset, clean,
 discard, or automatic conflict resolution is used. Review/resolve a conflict in
 the reported workspace; automatic model conflict resolution is not implemented.
+
+## Interactive terminal sessions (ADR-0058)
+
+Try's "Run in a terminal…" opens a console window on the studio's own Windows
+computer and runs one verified package there, inside this same sandbox: no
+network, read-only package copy, private work area, no studio files, 256 MiB, 32
+tasks, half a CPU, 15 minutes at most. The program's terminal is the window
+itself (`systemd-run --user --pty`), so key presses do not pass through the
+studio. Only the confirmed argument list crosses (`launch.json`); the reviewed
+recipe is `worker/terminal.py`. Nothing the program prints is captured. Records
+live in `<product>/terminals/<session-id>/` (`intent.json`, `outcome.json`);
+these are the owner's own tries, never QA or isolation evidence.
+
+The session ends on Stop, at 15 minutes, when the window closes, or within 5
+seconds of the studio stopping (its lease heartbeat). After the program ends the
+window waits for Enter so the last screen can be read. A window closed before the
+worker reported is reaped through the bridge; an unconfirmed stop is recorded as
+`cleanup_required` and its package copy is kept. Start Creator Agent yourself
+(Start menu or shortcut): a studio started inside another app's container (for
+example Claude desktop) has redirected folders, and the start is refused.
+The program owns the window: it can clear the banner, set the title and print
+anything, as any terminal program can. Bubblewrap's `--new-session` (kept as the
+terminal-injection guard) leaves it without a controlling terminal, so Ctrl+C may
+end it at once instead of reaching the program; quit with the program's own keys.
 
 ## Provenance and recovery
 
