@@ -112,6 +112,11 @@ export interface PlanChatAllowance {
   daily_limit: number;
   /** Chat requests started on this connection in the last 24 hours. */
   used_24h: number;
+  /**
+   * Review L-3: a study attempt in this workspace is still open on an active run. Chat answers
+   * stay off then, so a model cannot reach into a frozen (for example human-only) study arm.
+   */
+  study_open?: boolean;
 }
 
 export function admissionBlockers(input: {
@@ -205,6 +210,10 @@ export function admissionBlockers(input: {
       else if (chat.used_24h >= chat.daily_limit)
         out.push(
           `The daily chat limit (${chat.daily_limit} answers in 24 hours) is reached.`,
+        );
+      if (chat?.study_open)
+        out.push(
+          'A study attempt is open in this workspace, so chat answers are paused until it finishes.',
         );
       break;
     }

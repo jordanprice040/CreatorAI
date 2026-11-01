@@ -159,7 +159,7 @@ export function chatReply(
     case 'note':
       return {
         text: f.model
-          ? `Saved as a note. ${f.model} answers it below through your plan; that answer is advice only.`
+          ? `Saved as a note. When the owner writes it, ${f.model} is asked through your plan; its answer, or why there is none, shows below and is advice only.`
           : 'Saved as a note. I can\'t answer in words yet; for now I answer "what\'s next", "why is it blocked", "what\'s waiting for me", web addresses, "save this idea: …" and "start a discovery about …".',
         actions: [
           {

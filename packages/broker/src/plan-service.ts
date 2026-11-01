@@ -4,6 +4,7 @@ import {
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
   ContractError,
+  ErrorCodeSchema,
   type ChatAnswer,
   type PlanConnection,
   type PlanTaskClass,
@@ -77,6 +78,21 @@ export const VERIFICATION_INSTRUCTIONS =
 export const VERIFICATION_INPUT = 'Reply with exactly: ok';
 /** ADR-0057: a chat answer is cut at this many characters (or the connection's cap if lower). */
 export const CHAT_OUTPUT_MAX = 12_000;
+/**
+ * Review M-1: rejections that happen before the text leaves the studio. Anything else that is
+ * rejected was refused by the provider after receiving the text. The invoke catch turns a
+ * studio-side error into its lowercased error code (or token_unavailable) before any call.
+ */
+const PRE_DISPATCH_REASONS = new Set<string>([
+  'cancelled_before_dispatch',
+  'claude_code_folder_unavailable',
+  'claude_code_start_failed',
+  'claude_code_unavailable',
+  'claude_code_outdated',
+  'claude_code_not_subscription',
+  'token_unavailable',
+  ...ErrorCodeSchema.options.map((c) => c.toLowerCase()),
+]);
 const REFRESH_MARGIN_MS = 5 * 60_000;
 const SIGN_IN_TIMEOUT_MS = 10 * 60_000;
 
@@ -162,6 +178,8 @@ export interface InvokeRequest {
     text: string | null,
     outcome: PlanObservedOutcome,
   ) => string | ScoreResult | Promise<string | ScoreResult>;
+  /** Called once admission has recorded the request, before anything is sent (ADR-0057). */
+  onAdmitted?: () => void;
 }
 
 export class PlanConnectionService {
@@ -619,6 +637,7 @@ export class PlanConnectionService {
         },
       };
     }
+    r.onAdmitted?.();
     let outcome: PlanObservedOutcome;
     try {
       const { connection } = await this.deps.store.planCredentialRef(
@@ -931,6 +950,8 @@ export class PlanConnectionService {
       text: string | null;
       reason: string | null;
     };
+    let admitted = false;
+    const who = a.connection_kind === 'claude_code' ? 'Claude' : 'ChatGPT';
     try {
       const r = await this.invoke(ctx, ws, {
         connection_id: a.connection_id,
@@ -943,31 +964,42 @@ export class PlanConnectionService {
         input: begun.input,
         logical_operation_id: begun.logical_operation_id,
         max_output_chars: CHAT_OUTPUT_MAX,
+        onAdmitted: () => {
+          admitted = true;
+        },
       });
       const o = r.outcome;
-      settled =
-        o.kind === 'completed'
-          ? {
-              state: 'completed',
-              plan_request_id: r.request_id || null,
-              text: o.text,
-              reason: null,
-            }
-          : {
-              state: o.kind === 'rejected' ? 'refused' : 'failed',
-              plan_request_id: r.request_id || null,
-              text: null,
-              reason: `${o.message} (${o.reason_code})`,
-            };
+      if (o.kind === 'completed')
+        settled = {
+          state: 'completed',
+          plan_request_id: r.request_id || null,
+          text: o.text,
+          reason: null,
+        };
+      else if (o.kind === 'rejected' && PRE_DISPATCH_REASONS.has(o.reason_code))
+        settled = {
+          state: 'refused',
+          plan_request_id: r.request_id || null,
+          text: null,
+          reason: `${o.message} (${o.reason_code})`,
+        };
+      else
+        // Review M-1: the provider received the text and refused, failed or did not finish.
+        settled = {
+          state: 'failed',
+          plan_request_id: r.request_id || null,
+          text: null,
+          reason:
+            o.kind === 'rejected'
+              ? `${who} refused it after receiving the text: ${o.message} (${o.reason_code})`
+              : `${o.message} (${o.reason_code})`,
+        };
     } catch (e) {
-      // Admission refusals happen before anything is sent. Any other error may come after
-      // the request went out, so it is recorded as a failure with an unclear outcome.
-      const refused =
-        e instanceof ContractError &&
-        ['ACCESS_DENIED', 'INVALID_CONTRACT', 'DUPLICATE'].includes(e.code);
+      // Review L-2: before admission recorded the request nothing was sent, whatever the
+      // error. After it, the outcome is unclear, so it is a failure that may have been sent.
       const details = e instanceof ContractError ? [...e.details] : [];
       settled = {
-        state: refused ? 'refused' : 'failed',
+        state: admitted ? 'failed' : 'refused',
         plan_request_id: null,
         text: null,
         reason:

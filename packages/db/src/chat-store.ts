@@ -191,12 +191,35 @@ export async function chatSettings(
   };
 }
 
+/**
+ * Review L-5: text from records and messages cannot close or open the data blocks the input
+ * is wrapped in, so angle brackets are written as entities.
+ */
+export const chatEscape = (s: string) =>
+  s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const clip = (s: unknown, n: number) => {
   const t = String(s ?? '')
     .replace(/\s+/g, ' ')
     .trim();
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+  return chatEscape(t.length > n ? `${t.slice(0, n - 1)}…` : t);
 };
+
+/** Review L-3: an unfinished study attempt on an active run in the workspace. */
+export async function chatStudyOpen(
+  c: PoolClient,
+  ws: string,
+): Promise<boolean> {
+  const { rows } = await c.query(
+    `select 1 from study_attempts a
+     join run_controls rc on rc.workspace_id = a.workspace_id and rc.run_id = a.run_id
+     where a.workspace_id = $1 and rc.state = 'active'
+       and not exists (select 1 from study_events e where e.attempt_id = a.id and e.kind = 'finished')
+     limit 1`,
+    [ws],
+  );
+  return rows.length > 0;
+}
 
 /**
  * A short, fixed-shape picture of the workspace for chat (ADR-0057): names, states and counts
@@ -272,18 +295,18 @@ export async function chatSnapshot(c: PoolClient, ws: string): Promise<string> {
  */
 export function chatInput(p: {
   snapshot: string | null;
-  history: { who: 'owner' | 'assistant'; text: string }[];
+  history: { who: 'person' | 'assistant'; text: string }[];
   question: string;
   maxChars: number;
-}): { input: string; history_items: number } {
+}): { input: string; history_items: number; snapshot: boolean } {
   const head = p.snapshot
     ? `<studio_snapshot>\n${p.snapshot}\n</studio_snapshot>\n\n`
     : '';
-  const tail = `Question from the owner:\n${p.question}`;
+  const tail = `Question:\n${chatEscape(p.question)}`;
   let turns = p.history.slice(-CHAT_HISTORY_TURNS);
   const build = () =>
     turns.length
-      ? `<conversation>\n${turns.map((t) => `${t.who === 'owner' ? 'Owner' : 'Assistant'}: ${t.text}`).join('\n\n')}\n</conversation>\n\n`
+      ? `<conversation>\n${turns.map((t) => `${t.who === 'person' ? 'Person' : 'Assistant'}: ${chatEscape(t.text)}`).join('\n\n')}\n</conversation>\n\n`
       : '';
   while (
     turns.length &&
@@ -291,7 +314,11 @@ export function chatInput(p: {
   )
     turns = turns.slice(1);
   let input = `${head}${build()}${tail}`;
+  let snapshot = head !== '';
   // The snapshot goes last if even the bare question does not fit with it.
-  if (input.length > p.maxChars) input = tail;
-  return { input, history_items: turns.length };
+  if (input.length > p.maxChars) {
+    input = tail;
+    snapshot = false;
+  }
+  return { input, history_items: input === tail ? 0 : turns.length, snapshot };
 }

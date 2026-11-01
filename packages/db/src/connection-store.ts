@@ -79,6 +79,7 @@ import {
   chatMessages,
   chatSettings,
   chatSnapshot,
+  chatStudyOpen,
   chatUsed24h,
   toChatAnswer,
   toChatMessage,
@@ -695,9 +696,9 @@ export class ConnectionStore extends PortfolioStore {
          order by m.seq desc limit $3`,
         [conversation.id, msg.seq, CHAT_HISTORY_TURNS],
       );
-      const history: { who: 'owner' | 'assistant'; text: string }[] = [];
+      const history: { who: 'person' | 'assistant'; text: string }[] = [];
       for (const t of turns.rows.reverse() as Row[]) {
-        history.push({ who: 'owner', text: String(t.text) });
+        history.push({ who: 'person', text: String(t.text) });
         if (t.answer)
           history.push({ who: 'assistant', text: String(t.answer) });
       }
@@ -737,7 +738,7 @@ export class ConnectionStore extends PortfolioStore {
           CHAT_INSTRUCTIONS_VERSION,
           createHash('sha256').update(CHAT_INSTRUCTIONS).digest('hex'),
           built.history_items,
-          snapshot !== null && built.input.includes('<studio_snapshot>'),
+          built.snapshot,
           built.input,
           createHash('sha256').update(built.input).digest('hex'),
           ctx.actorId,
@@ -1881,13 +1882,16 @@ export class ConnectionStore extends PortfolioStore {
       let chat: PlanChatAllowance | null = null;
       if (req.purpose === 'chat') {
         await this.requireOwner(c, uuid(ws), ctx.actorId);
-        const settings = await chatSettings(c, uuid(ws), true);
+        // Review L-4: read without a row lock. The connection lock above already serializes
+        // chat requests, and locking chat_settings here could deadlock with a settings save.
+        const settings = await chatSettings(c, uuid(ws));
         chat = {
           enabled: settings.enabled,
           connection_id: settings.connection_id,
           model_id: settings.model_id,
           daily_limit: settings.daily_limit,
           used_24h: await chatUsed24h(c, conn.id),
+          study_open: await chatStudyOpen(c, uuid(ws)),
         };
       }
       let grant: PlanVerificationGrant | null = null;

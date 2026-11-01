@@ -356,8 +356,10 @@ export function ChatAnswersCard({
               )}
               {owner && chosen && !privateAllowed && (
                 <p className="small">
-                  This changes the connection&apos;s settings, so you will need
-                  to accept its caps again under Plan connections.
+                  This changes the whole connection, not just chat: discovery
+                  tasks and builds on it may then use private data too, and a
+                  workflow already set up on its old settings stops. You will
+                  need to accept its caps again under Plan connections.
                 </p>
               )}
             </div>

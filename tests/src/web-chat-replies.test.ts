@@ -137,7 +137,7 @@ test('a note says a plan answers it only when chat answers are on (ADR-0057)', a
     /can't answer in words/,
   );
   const on = chatReply('note', {}, 'hi', { ...facts(), model: 'gpt-6-astra' });
-  assert.match(on.text, /gpt-6-astra answers it below/);
+  assert.match(on.text, /gpt-6-astra is asked through your plan/);
   assert.doesNotMatch(on.text, /can't answer/);
   assert.equal(on.actions[0]!.label, 'Make this a brief');
 });
