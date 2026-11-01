@@ -4,6 +4,7 @@ import {
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
   ContractError,
+  type ChatAnswer,
   type PlanConnection,
   type PlanTaskClass,
   type Admission,
@@ -74,6 +75,8 @@ import {
 export const VERIFICATION_INSTRUCTIONS =
   'This is a connection check from Creator Agent. Reply with exactly the word: ok';
 export const VERIFICATION_INPUT = 'Reply with exactly: ok';
+/** ADR-0057: a chat answer is cut at this many characters (or the connection's cap if lower). */
+export const CHAT_OUTPUT_MAX = 12_000;
 const REFRESH_MARGIN_MS = 5 * 60_000;
 const SIGN_IN_TIMEOUT_MS = 10 * 60_000;
 
@@ -134,7 +137,8 @@ export function openSystemBrowser(url: string) {
 /** One direct request for invoke(); the connection's kind picks ChatGPT or Claude Code. */
 export interface InvokeRequest {
   connection_id: string;
-  purpose: 'task' | 'verification' | 'availability_recheck' | 'qualification';
+  purpose:
+    'task' | 'verification' | 'availability_recheck' | 'qualification' | 'chat';
   model_id: string;
   task_class: PlanTaskClass | null;
   data_class: 'synthetic' | 'public' | 'private_approved';
@@ -897,6 +901,84 @@ export class PlanConnectionService {
         },
       };
     };
+  }
+
+  /**
+   * ADR-0057: one chat answer from the workspace's chosen plan. The store records what will be
+   * sent, admission decides under the owner's chat setting and the connection's caps, and the
+   * outcome is saved with the answer. A refusal sends nothing and never falls back to another
+   * route. The answer is words only: nothing here starts, approves or spends anything.
+   */
+  async chatAnswer(
+    ctx: CommandContext,
+    ws: string,
+    conversationId: string,
+    messageId: string,
+    body: unknown,
+  ): Promise<ChatAnswer> {
+    const begun = await this.deps.store.beginChatAnswer(
+      ctx,
+      ws,
+      conversationId,
+      messageId,
+      body,
+    );
+    if (begun.replay) return begun.answer;
+    const a = begun.answer;
+    let settled: {
+      state: 'completed' | 'failed' | 'refused';
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    };
+    try {
+      const r = await this.invoke(ctx, ws, {
+        connection_id: a.connection_id,
+        purpose: 'chat',
+        model_id: a.model_id,
+        task_class: null,
+        data_class: 'private_approved',
+        run_id: null,
+        instructions: begun.instructions,
+        input: begun.input,
+        logical_operation_id: begun.logical_operation_id,
+        max_output_chars: CHAT_OUTPUT_MAX,
+      });
+      const o = r.outcome;
+      settled =
+        o.kind === 'completed'
+          ? {
+              state: 'completed',
+              plan_request_id: r.request_id || null,
+              text: o.text,
+              reason: null,
+            }
+          : {
+              state: o.kind === 'rejected' ? 'refused' : 'failed',
+              plan_request_id: r.request_id || null,
+              text: null,
+              reason: `${o.message} (${o.reason_code})`,
+            };
+    } catch (e) {
+      // Admission refusals happen before anything is sent. Any other error may come after
+      // the request went out, so it is recorded as a failure with an unclear outcome.
+      const refused =
+        e instanceof ContractError &&
+        ['ACCESS_DENIED', 'INVALID_CONTRACT', 'DUPLICATE'].includes(e.code);
+      const details = e instanceof ContractError ? [...e.details] : [];
+      settled = {
+        state: refused ? 'refused' : 'failed',
+        plan_request_id: null,
+        text: null,
+        reason:
+          details.length > 0
+            ? details.join(' ')
+            : e instanceof Error
+              ? e.message
+              : 'The request was not admitted.',
+      };
+    }
+    return this.deps.store.finishChatAnswer(ctx, ws, a.id, settled);
   }
 
   /**

@@ -28,6 +28,8 @@ export type ReplyFacts = {
   blocked: { label: string; text: string; view: string } | null;
   /** Decisions waiting for the person, or null when not known. */
   pending: number | null;
+  /** ADR-0057: the model that answers notes through a plan, when chat answers are on. */
+  model?: string | null;
 };
 
 export type ReplyAction =
@@ -156,7 +158,9 @@ export function chatReply(
       };
     case 'note':
       return {
-        text: 'Saved as a note. I can\'t answer in words yet; for now I answer "what\'s next", "why is it blocked", "what\'s waiting for me", web addresses, "save this idea: …" and "start a discovery about …".',
+        text: f.model
+          ? `Saved as a note. ${f.model} answers it below through your plan; that answer is advice only.`
+          : 'Saved as a note. I can\'t answer in words yet; for now I answer "what\'s next", "why is it blocked", "what\'s waiting for me", web addresses, "save this idea: …" and "start a discovery about …".',
         actions: [
           {
             kind: 'fill',

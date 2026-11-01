@@ -104,6 +104,16 @@ function claudeCodeBlockers(c: PlanConnection): string[] {
   return out;
 }
 
+/** The owner's chat setting as admission sees it (ADR-0057). */
+export interface PlanChatAllowance {
+  enabled: boolean;
+  connection_id: string | null;
+  model_id: string | null;
+  daily_limit: number;
+  /** Chat requests started on this connection in the last 24 hours. */
+  used_24h: number;
+}
+
 export function admissionBlockers(input: {
   connection: PlanConnection;
   request: PlanAdmissionRequest;
@@ -112,6 +122,8 @@ export function admissionBlockers(input: {
   grant: PlanVerificationGrant | null;
   usage: PlanUsageCounts;
   now: Date;
+  /** ADR-0057: the workspace's chat setting and today's chat answers on this connection. */
+  chat?: PlanChatAllowance | null | undefined;
 }): string[] {
   const { connection: c, request: r, usage: u } = input;
   const caps = c.settings.caps;
@@ -176,6 +188,24 @@ export function admissionBlockers(input: {
       const q = input.qualifications.find((x) => x.id === r.qualification_id);
       if (!q || q.state !== 'running' || q.model_id !== r.model_id)
         out.push('The qualification run is not open for this model.');
+      break;
+    }
+    case 'chat': {
+      if (!verified)
+        out.push(
+          `Model ${r.model_id} has no verified access on this connection.`,
+        );
+      const chat = input.chat;
+      if (!chat?.enabled)
+        out.push('Chat answers are turned off for this workspace.');
+      else if (chat.connection_id !== c.id || chat.model_id !== r.model_id)
+        out.push(
+          'Chat answers are set to use another connection or model; this one is not allowed.',
+        );
+      else if (chat.used_24h >= chat.daily_limit)
+        out.push(
+          `The daily chat limit (${chat.daily_limit} answers in 24 hours) is reached.`,
+        );
       break;
     }
     case 'task':

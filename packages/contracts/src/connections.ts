@@ -265,6 +265,8 @@ export const PlanPurposeSchema = z.enum([
   'qualification',
   'task',
   'codex_build',
+  /** ADR-0057: one studio chat answer, admitted under the owner's chat setting. */
+  'chat',
 ]);
 export const PlanAdmissionRequestSchema = z
   .strictObject({
@@ -319,6 +321,16 @@ export const PlanAdmissionRequestSchema = z
       issue('Only Codex builds use the Codex path.');
     if (r.purpose === 'task' && r.task_class === null)
       issue('A task request names its task class.');
+    if (
+      r.purpose === 'chat' &&
+      (r.path !== 'responses' ||
+        r.task_class !== null ||
+        r.run_id !== null ||
+        r.data_class !== 'private_approved')
+    )
+      issue(
+        "A chat answer is a direct request with the owner's private text, outside any run or task class.",
+      );
     if (r.task_class && pathForTaskClass(r.task_class) !== r.path)
       issue('This task class belongs to the other path.');
   });

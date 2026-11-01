@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   BenchmarkCheckSchema,
@@ -36,13 +36,21 @@ import {
   type PlanProvider,
   type PlanSettings,
   type UsageSummary,
+  CHAT_HISTORY_TURNS,
+  CHAT_INSTRUCTIONS,
+  CHAT_INSTRUCTIONS_VERSION,
+  ChatAnswerRequestSchema,
   ChatCreateRequestSchema,
   ChatMessageRequestSchema,
+  ChatSettingsRequestSchema,
   ChatRenameRequestSchema,
   chatTitle,
   classifyChat,
+  type ChatAnswer,
+  type ChatAnswerState,
   type ChatConversation,
   type ChatDetail,
+  type ChatSettings,
   type ChatMessage,
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
@@ -58,14 +66,21 @@ import {
   connectionBlockers,
   qualificationDecision,
   type BuildRole,
+  type PlanChatAllowance,
   type PlanUsageCounts,
 } from '@creator/domain';
 import { PortfolioStore } from './portfolio-store.js';
 import { usageSummary } from './usage-summary.js';
 import {
+  chatAnswers,
   chatConversation,
   chatConversations,
+  chatInput,
   chatMessages,
+  chatSettings,
+  chatSnapshot,
+  chatUsed24h,
+  toChatAnswer,
   toChatMessage,
 } from './chat-store.js';
 import { toRun } from './oversight-store.js';
@@ -397,7 +412,11 @@ export class ConnectionStore extends PortfolioStore {
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
       const conversation = await chatConversation(c, uuid(ws), uuid(id));
-      return { conversation, messages: await chatMessages(c, conversation.id) };
+      return {
+        conversation,
+        messages: await chatMessages(c, conversation.id),
+        answers: await chatAnswers(c, conversation.id),
+      };
     });
   }
 
@@ -528,6 +547,281 @@ export class ConnectionStore extends PortfolioStore {
         payload: { message_id: messageId, intent },
       });
       return { message: toChatMessage(rows[0] as Row), duplicate: false };
+    });
+  }
+
+  /** ADR-0057: the workspace's chat-answer setting; members may read it. */
+  async chatSettings(ctxIn: CommandContext, ws: string): Promise<ChatSettings> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return chatSettings(c, uuid(ws));
+    });
+  }
+
+  /**
+   * ADR-0057: only the owner turns chat answers on or off, or changes the connection, model,
+   * snapshot or daily limit. A stale `expected_version` is refused; the change is audited.
+   */
+  async setChatSettings(
+    ctxIn: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<ChatSettings> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatSettingsRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const current = await chatSettings(c, uuid(ws), true);
+      if (current.version !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The chat setting changed since you opened it; reload and try again.',
+        );
+      if (req.connection_id)
+        await this.#connection(c, uuid(ws), req.connection_id);
+      const next = {
+        enabled: req.enabled,
+        connection_id: req.connection_id,
+        model_id: req.model_id,
+        include_snapshot: req.include_snapshot,
+        daily_limit: req.daily_limit,
+      };
+      await c.query(
+        `insert into chat_settings (workspace_id, enabled, connection_id, model_id,
+           include_snapshot, daily_limit, version, updated_by)
+         values ($1,$2,$3,$4,$5,$6,1,$7)
+         on conflict (workspace_id) do update set enabled = excluded.enabled,
+           connection_id = excluded.connection_id, model_id = excluded.model_id,
+           include_snapshot = excluded.include_snapshot, daily_limit = excluded.daily_limit,
+           version = chat_settings.version + 1, updated_by = excluded.updated_by,
+           updated_at = clock_timestamp()`,
+        [
+          uuid(ws),
+          next.enabled,
+          next.connection_id,
+          next.model_id,
+          next.include_snapshot,
+          next.daily_limit,
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.settings_changed',
+        subjectKind: 'chat_settings',
+        subjectId: uuid(ws),
+        subjectVersion: current.version + 1,
+        contentHash: canonicalHash(next),
+        payload: next,
+      });
+      return chatSettings(c, uuid(ws));
+    });
+  }
+
+  /**
+   * ADR-0057: records the request for one model answer and works out exactly what will be sent.
+   * Owner only. A retried click (same `client_id`) returns the answer already recorded, and a
+   * message with a pending or completed answer returns that answer instead of asking again.
+   * Nothing is sent here: the plan request is admitted separately, under its own checks.
+   */
+  async beginChatAnswer(
+    ctxIn: CommandContext,
+    ws: string,
+    conversationId: string,
+    messageId: string,
+    raw: unknown,
+  ): Promise<{
+    answer: ChatAnswer;
+    replay: boolean;
+    instructions: string;
+    input: string;
+    logical_operation_id: string;
+  }> {
+    const ctx = normalize(ctxIn);
+    const req = parse(ChatAnswerRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const conversation = await chatConversation(
+        c,
+        uuid(ws),
+        uuid(conversationId),
+        true,
+      );
+      const msg = (
+        await c.query(
+          'select * from chat_messages where conversation_id = $1 and id = $2',
+          [conversation.id, uuid(messageId)],
+        )
+      ).rows[0] as Row | undefined;
+      if (!msg) throw fail('NOT_FOUND', 'Message not found.');
+      // An answer left pending by a studio that stopped mid-request is closed as failed, so
+      // the message can be asked again. Its plan request, if one was sent, stays unresolved
+      // and blocks new requests on the connection until it is reconciled.
+      await c.query(
+        `update chat_answers set state = 'failed', finished_at = clock_timestamp(),
+           reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'
+         where message_id = $1 and state = 'pending' and created_at < clock_timestamp() - interval '15 minutes'`,
+        [msg.id],
+      );
+      const prior = (
+        await c.query(
+          `select * from chat_answers where message_id = $1
+           and (client_id = $2 or state in ('pending','completed'))
+           order by (client_id = $2) desc limit 1`,
+          [msg.id, req.client_id],
+        )
+      ).rows[0] as Row | undefined;
+      if (prior)
+        return {
+          answer: toChatAnswer(prior),
+          replay: true,
+          instructions: CHAT_INSTRUCTIONS,
+          input: String(prior.input),
+          logical_operation_id: String(prior.logical_operation_id),
+        };
+      const settings = await chatSettings(c, uuid(ws));
+      if (!settings.enabled || !settings.connection_id || !settings.model_id)
+        throw fail(
+          'ACCESS_DENIED',
+          'Chat answers are turned off. The owner can turn them on in Models and connections.',
+        );
+      const conn = await this.#connection(c, uuid(ws), settings.connection_id);
+      const turns = await c.query(
+        `select m.seq, m.text,
+           (select a.text from chat_answers a where a.message_id = m.id and a.state = 'completed'
+             order by a.created_at desc limit 1) as answer
+         from chat_messages m where m.conversation_id = $1 and m.seq < $2
+         order by m.seq desc limit $3`,
+        [conversation.id, msg.seq, CHAT_HISTORY_TURNS],
+      );
+      const history: { who: 'owner' | 'assistant'; text: string }[] = [];
+      for (const t of turns.rows.reverse() as Row[]) {
+        history.push({ who: 'owner', text: String(t.text) });
+        if (t.answer)
+          history.push({ who: 'assistant', text: String(t.answer) });
+      }
+      const snapshot = settings.include_snapshot
+        ? await chatSnapshot(c, uuid(ws))
+        : null;
+      const built = chatInput({
+        snapshot,
+        history,
+        question: String(msg.text),
+        maxChars: Math.max(
+          500,
+          conn.settings.caps.responses.max_input_chars -
+            CHAT_INSTRUCTIONS.length,
+        ),
+      });
+      const id = randomUUID();
+      const op = randomUUID();
+      const { rows } = await c.query(
+        `insert into chat_answers (id, workspace_id, conversation_id, message_id, client_id, state,
+           connection_id, connection_kind, fixture, model_id, logical_operation_id,
+           instructions_version, instructions_hash, history_items, snapshot, input, input_hash,
+           created_by)
+         values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         returning *`,
+        [
+          id,
+          uuid(ws),
+          conversation.id,
+          msg.id,
+          req.client_id,
+          conn.id,
+          conn.kind,
+          conn.fixture,
+          settings.model_id,
+          op,
+          CHAT_INSTRUCTIONS_VERSION,
+          createHash('sha256').update(CHAT_INSTRUCTIONS).digest('hex'),
+          built.history_items,
+          snapshot !== null && built.input.includes('<studio_snapshot>'),
+          built.input,
+          createHash('sha256').update(built.input).digest('hex'),
+          ctx.actorId,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.answer_requested',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ input: built.input }),
+        // Ids and route only; the words stay in the conversation.
+        payload: {
+          answer_id: id,
+          message_id: String(msg.id),
+          connection_id: conn.id,
+          model_id: settings.model_id,
+        },
+      });
+      return {
+        answer: toChatAnswer(rows[0] as Row),
+        replay: false,
+        instructions: CHAT_INSTRUCTIONS,
+        input: built.input,
+        logical_operation_id: op,
+      };
+    });
+  }
+
+  /** ADR-0057: records how a pending chat answer ended. A settled answer never changes. */
+  async finishChatAnswer(
+    ctxIn: CommandContext,
+    ws: string,
+    answerId: string,
+    outcome: {
+      state: Exclude<ChatAnswerState, 'pending'>;
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    },
+  ): Promise<ChatAnswer> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      const cur = (
+        await c.query(
+          'select * from chat_answers where workspace_id = $1 and id = $2 for update',
+          [uuid(ws), uuid(answerId)],
+        )
+      ).rows[0] as Row | undefined;
+      if (!cur) throw fail('NOT_FOUND', 'Chat answer not found.');
+      if (cur.state !== 'pending') return toChatAnswer(cur);
+      const text = outcome.state === 'completed' ? (outcome.text ?? '') : null;
+      const { rows } = await c.query(
+        `update chat_answers set state = $2, plan_request_id = $3, text = $4, output_hash = $5,
+           reason = $6, finished_at = clock_timestamp()
+         where id = $1 returning *`,
+        [
+          cur.id,
+          outcome.state,
+          outcome.plan_request_id || null,
+          text,
+          text === null
+            ? null
+            : createHash('sha256').update(text).digest('hex'),
+          outcome.reason?.slice(0, 2000) ?? null,
+        ],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.answered',
+        subjectKind: 'chat_conversation',
+        subjectId: String(cur.conversation_id),
+        subjectVersion: null,
+        contentHash: canonicalHash({ state: outcome.state, text }),
+        payload: {
+          answer_id: String(cur.id),
+          state: outcome.state,
+          model_id: String(cur.model_id),
+          connection_kind: String(cur.connection_kind),
+          plan_request_id: outcome.plan_request_id || null,
+        },
+      });
+      return toChatAnswer(rows[0] as Row);
     });
   }
 
@@ -1583,6 +1877,19 @@ export class ConnectionStore extends PortfolioStore {
       const qualifications = wf
         ? await this.#discoveryQualifications(c, conn.id)
         : await this.#qualifications(c, conn.id, true);
+      // ADR-0057: a chat answer is the owner's, under the workspace's chat setting.
+      let chat: PlanChatAllowance | null = null;
+      if (req.purpose === 'chat') {
+        await this.requireOwner(c, uuid(ws), ctx.actorId);
+        const settings = await chatSettings(c, uuid(ws), true);
+        chat = {
+          enabled: settings.enabled,
+          connection_id: settings.connection_id,
+          model_id: settings.model_id,
+          daily_limit: settings.daily_limit,
+          used_24h: await chatUsed24h(c, conn.id),
+        };
+      }
       let grant: PlanVerificationGrant | null = null;
       if (req.grant_id) {
         const g = await c.query(
@@ -1598,6 +1905,7 @@ export class ConnectionStore extends PortfolioStore {
         qualifications,
         grant,
         usage,
+        chat,
         now: new Date(),
       });
       if (blockers.length)
