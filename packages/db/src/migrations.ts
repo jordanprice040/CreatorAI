@@ -2529,6 +2529,77 @@ create trigger evidence_site_changes_immutable before update or delete on eviden
  for each row execute function creator_reject_change();
 `,
   },
+  {
+    // ADR-0057: chat answers from a connected plan. One owner setting per workspace; each
+    // answer keeps exactly what was sent and what came back. An answer row can only move once,
+    // from pending to its outcome, and is never deleted. Plan requests gain the purpose `chat`.
+    version: 36,
+    name: 'chat_plan_answers',
+    sql: `
+alter table plan_requests drop constraint plan_requests_purpose_check;
+alter table plan_requests add constraint plan_requests_purpose_check
+ check (purpose in ('verification','availability_recheck','qualification','task','codex_build','chat'));
+create index plan_requests_chat on plan_requests (connection_id, started_at) where purpose = 'chat';
+create table chat_settings (
+ workspace_id uuid primary key references workspaces(id),
+ enabled boolean not null,
+ connection_id uuid references plan_connections(id),
+ model_id text check (model_id is null or length(model_id) between 1 and 120),
+ include_snapshot boolean not null,
+ daily_limit integer not null check (daily_limit between 1 and 100),
+ version integer not null check (version >= 1),
+ updated_by uuid not null references actors(id),
+ updated_at timestamptz not null default clock_timestamp(),
+ check (not enabled or (connection_id is not null and model_id is not null))
+);
+create table chat_answers (
+ id uuid primary key,
+ workspace_id uuid not null,
+ conversation_id uuid not null,
+ message_id uuid not null references chat_messages(id),
+ client_id uuid not null,
+ state text not null check (state in ('pending','completed','failed','refused')),
+ connection_id uuid not null references plan_connections(id),
+ connection_kind text not null check (connection_kind in ('chatgpt_plan','claude_code')),
+ fixture boolean not null,
+ model_id text not null,
+ logical_operation_id uuid not null unique,
+ plan_request_id uuid references plan_requests(id),
+ instructions_version text not null,
+ instructions_hash char(64) not null,
+ history_items integer not null check (history_items >= 0),
+ snapshot boolean not null,
+ input text not null,
+ input_hash char(64) not null,
+ text text,
+ output_hash char(64),
+ reason text check (reason is null or length(reason) <= 2000),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ finished_at timestamptz,
+ foreign key (workspace_id, conversation_id) references chat_conversations (workspace_id, id),
+ unique (message_id, client_id),
+ check ((state = 'completed') = (text is not null and output_hash is not null)),
+ check ((state = 'pending') = (finished_at is null))
+);
+create unique index chat_answers_one_live on chat_answers (message_id)
+ where state in ('pending','completed');
+create index chat_answers_conversation on chat_answers (conversation_id, created_at);
+create function chat_answers_settle_once() returns trigger language plpgsql as $$
+begin
+ if tg_op = 'DELETE' or old.state <> 'pending' or new.state = 'pending'
+   or (to_jsonb(new) - array['state','plan_request_id','text','output_hash','reason','finished_at'])
+      is distinct from (to_jsonb(old) - array['state','plan_request_id','text','output_hash','reason','finished_at'])
+ then
+   raise exception 'chat answers change only once, from pending to their outcome'
+     using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+create trigger chat_answers_settle_once before update or delete on chat_answers
+ for each row execute function chat_answers_settle_once();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

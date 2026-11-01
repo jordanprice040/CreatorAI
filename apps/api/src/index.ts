@@ -592,6 +592,10 @@ export function createApi(
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   const CHAT_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title))?)?$/;
+  // ADR-0057: a model answer to one saved message, and the owner's chat-answer setting.
+  const CHAT_ANSWER_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/messages\/([^/]+)\/answer$/;
+  const CHAT_SETTINGS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(chat-settings)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -605,7 +609,9 @@ export function createApi(
       SETTINGS_LIMITS_ROUTE.exec(url.pathname) ??
       USAGE_ROUTE.exec(url.pathname) ??
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
-      CHAT_ROUTE.exec(url.pathname);
+      CHAT_ROUTE.exec(url.pathname) ??
+      CHAT_ANSWER_ROUTE.exec(url.pathname) ??
+      CHAT_SETTINGS_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -674,6 +680,40 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown evidence websites route.');
+    }
+    if (ws && CHAT_SETTINGS_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.chatSettings(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.setChatSettings(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown chat settings route.');
+    }
+    // ADR-0057: ask the chosen plan for an answer. The plan service records what is sent,
+    // admission decides, and the outcome (completed, failed or refused) is saved and returned.
+    const answerMatch = CHAT_ANSWER_ROUTE.exec(url.pathname);
+    if (ws && answerMatch) {
+      if (method !== 'POST')
+        throw new ContractError('NOT_FOUND', 'Unknown chat answer route.');
+      if (!planService)
+        throw new ContractError(
+          'INVALID_CONFIG',
+          'Plan connections are not configured, so chat cannot ask a model.',
+        );
+      return send(
+        200,
+        await planService.chatAnswer(
+          ctx,
+          ws,
+          answerMatch[3]!,
+          answerMatch[4]!,
+          await readJson(req),
+        ),
+        true,
+      );
     }
     // ADR-0055 studio chat: saved conversations and the person's messages. Nothing here calls a
     // model or starts work; the store decides each message's intent with fixed rules.

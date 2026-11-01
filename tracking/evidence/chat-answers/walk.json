@@ -1,0 +1,117 @@
+[
+  {
+    "check": "off: intro",
+    "result": "Ask what's next or why something is blocked, paste a web address, or save an idea. The studio answers those from your records by fixed rules, and nothing here starts work: buttons open the tab where you do it. The owner can let a connected ChatGPT or Claude plan answer other questions (Models and connections › Chat answers)."
+  },
+  {
+    "check": "off: turns",
+    "result": [
+      {
+        "you": "Which of my ideas should I build first?",
+        "model": [],
+        "ask": []
+      }
+    ]
+  },
+  {
+    "check": "off: answer requests sent",
+    "result": 0
+  },
+  {
+    "check": "models: problems before",
+    "result": [
+      "This connection does not allow your private text yet, which chat needs."
+    ]
+  },
+  {
+    "check": "models: problems after allow + accept",
+    "result": 0
+  },
+  {
+    "check": "models: selects",
+    "result": [
+      [
+        "Claude Code on this computer (Claude, fixture)"
+      ],
+      [
+        "claude-sonnet-5-5"
+      ]
+    ]
+  },
+  {
+    "check": "models: saved",
+    "result": "Chat answers are on."
+  },
+  {
+    "check": "on: intro",
+    "result": "Ask what's next or why something is blocked, paste a web address, or save an idea. The studio answers those from your records by fixed rules, and nothing here starts work: buttons open the tab where you do it. Other questions are answered by claude-sonnet-5-5 through your plan, at no extra cost; those answers are labelled and never change anything."
+  },
+  {
+    "check": "on: turns before ask",
+    "result": [
+      {
+        "you": "Which of my ideas should I build first?",
+        "model": [],
+        "ask": [
+          "Ask claude-sonnet-5-5"
+        ]
+      }
+    ]
+  },
+  {
+    "check": "on: turns",
+    "result": [
+      {
+        "you": "Which of my ideas should I build first?",
+        "model": [
+          {
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 1, 2026, 10:00 AM",
+            "text": "A frame timer that runs in the terminal is the smallest first build: it needs no account, no payments and no web hosting. Start with one practice mode and add others once you have used it for a week.\n\nThis is advice only; open Projects › Discover to start a discovery yourself."
+          }
+        ],
+        "ask": []
+      },
+      {
+        "you": "Is a terminal app OK for people who are not programmers?",
+        "model": [
+          {
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 1, 2026, 10:00 AM",
+            "text": "A frame timer that runs in the terminal is the smallest first build: it needs no account, no payments and no web hosting. Start with one practice mode and add others once you have used it for a week.\n\nThis is advice only; open Projects › Discover to start a discovery yourself."
+          }
+        ],
+        "ask": []
+      },
+      {
+        "you": "What's next?",
+        "model": [],
+        "ask": [
+          "Ask claude-sonnet-5-5"
+        ]
+      }
+    ]
+  },
+  {
+    "check": "on: what was sent (first 300 chars)",
+    "result": "<studio_snapshot>\nWorkspace: Timing studio (walk) (fixture data)\nSnapshot taken: 2026-11-01T10:00:33.345Z\nRecord counts: none\nNewest runs:\n- none\nRecently changed problems, ideas, specs and products:\n- none\nApprovals waiting for the owner: 0\nWork needing attention:\n- none\n</studio_snapshot>\n\nQuestio"
+  },
+  {
+    "check": "on: answer requests sent",
+    "result": 2
+  },
+  {
+    "check": "dark: page errors",
+    "result": []
+  },
+  {
+    "check": "light: page errors",
+    "result": []
+  },
+  {
+    "check": "phone: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "phone: page errors",
+    "result": []
+  }
+]
