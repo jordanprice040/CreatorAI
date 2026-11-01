@@ -24,12 +24,14 @@ import {
   alternativeCounts,
   clip,
   problemLabel,
-  richestProblem,
+  RecordOptions,
+  runNames,
   shortId,
   useLoad,
   type View,
 } from './ui.js';
 import { newestFirst } from './versions.js';
+import { runLabel } from './labels.js';
 import {
   carryDecisions,
   formGate,
@@ -163,25 +165,28 @@ export function Compare({
 }) {
   const base = `workspaces/${workspace.id}`;
   const problems = useLoad(async () => {
-    const list = await api(
-      z.array(StoredEntitySchema),
-      `${base}/entities?kind=problem&status=active`,
+    const list = newestFirst(
+      await api(
+        z.array(StoredEntitySchema),
+        `${base}/entities?kind=problem&status=active`,
+      ),
     );
     return { list, counts: await alternativeCounts(base, list) };
   }, [workspace.id]);
   const problemList = problems.data?.list;
   const counts = problems.data?.counts ?? new Map<string, number>();
   useEffect(() => {
-    if (!focus && problems.data?.list[0])
-      onFocus(richestProblem(problems.data.list, problems.data.counts));
+    // Open on the newest problem unless the page was opened for a specific one.
+    if (!focus && problems.data?.list[0]) onFocus(problems.data.list[0].id);
   }, [problems.data, focus]);
   const detail = useLoad(async () => {
     if (!focus) return null;
-    const [cmp, report, selections, runs] = await Promise.all([
+    const [cmp, report, selections, runs, names] = await Promise.all([
       api(ProblemComparisonSchema, `${base}/problems/${focus}/comparison`),
       api(SelectionReportSchema, `${base}/problems/${focus}/report`),
       api(z.array(SelectionSchema), `${base}/problems/${focus}/selections`),
       api(z.array(RunControlSchema), `${base}/runs`),
+      runNames(base),
     ]);
     const wf = cmp.workflow_id
       ? await api(
@@ -194,6 +199,7 @@ export function Compare({
       report,
       selections,
       runs: newestFirst(runs.filter((r) => r.state === 'active')),
+      names,
       wf,
     };
   }, [workspace.id, focus]);
@@ -392,11 +398,12 @@ export function Compare({
           {problemList?.length === 0 && (
             <option value="">No problems yet</option>
           )}
-          {problemList?.map((p) => (
-            <option key={p.id} value={p.id}>
-              {problemLabel(p, counts)}
-            </option>
-          ))}
+          {problemList && (
+            <RecordOptions
+              list={problemList}
+              label={(p) => problemLabel(p, counts)}
+            />
+          )}
         </select>
         <button className="secondary" onClick={detail.reload}>
           Refresh
@@ -885,7 +892,7 @@ export function Compare({
                   )}
                   {d.runs.map((r) => (
                     <option key={r.run_id} value={r.run_id}>
-                      {words(r.autonomy_mode)} run {shortId(r.run_id)}
+                      {runLabel(r, d.names)}
                       {r.run_id === d.cmp.run_id ? ' (found this problem)' : ''}
                     </option>
                   ))}

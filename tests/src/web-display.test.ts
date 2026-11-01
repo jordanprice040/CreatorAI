@@ -55,6 +55,9 @@ test('money keeps every significant digit and drops trailing zeros', async () =>
   }>('budgets.tsx', {
     './oversight.js': {},
     './desktop-app.js': {},
+    './versions.js': {},
+    './labels.js': {},
+    './ui.js': {},
     '../../../config/pricing/fixture-model-v1.json': {},
   });
   assert.equal(money('55770000', true), '0.05577 sim');
@@ -65,36 +68,17 @@ test('money keeps every significant digit and drops trailing zeros', async () =>
   assert.equal(money(null, false), '—');
 });
 
-test('problem pickers prefer a problem with options and clip labels at words', async () => {
+test('problem labels clip at words and note problems with nothing proposed', async () => {
+  const labels = await load('labels.ts');
   const ui = await load<{
     clip: (text: string, max: number) => string;
-    richestProblem: (
-      problems: { id: string }[],
-      counts: Map<string, number>,
-    ) => string;
     problemLabel: (
-      p: { id: string; title: string },
+      p: { id: string; title: string; created_at: string },
       counts: Map<string, number>,
       max?: number,
     ) => string;
     eventText: (summary: string) => string;
-  }>('ui.tsx', { './oversight.js': {} });
-  const problems = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
-  assert.equal(
-    ui.richestProblem(
-      problems,
-      new Map([
-        ['a', 0],
-        ['b', 2],
-        ['c', 5],
-      ]),
-    ),
-    'c',
-  );
-  // Nothing proposed anywhere, or counts unavailable: keep the listed order.
-  assert.equal(ui.richestProblem(problems, new Map([['a', 0]])), 'a');
-  assert.equal(ui.richestProblem([], new Map()), '');
-
+  }>('ui.tsx', { './oversight.js': {}, './labels.js': labels });
   const title =
     'Unused first-appointment slots at rural clinics: Rural clinics recorded a 23 percent no-show rate';
   const clipped = ui.clip(title, 60);
@@ -102,13 +86,15 @@ test('problem pickers prefer a problem with options and clip labels at words', a
   assert.ok(clipped.endsWith('…'));
   assert.ok(title.startsWith(clipped.slice(0, -1)));
   assert.equal(ui.clip('Short title', 60), 'Short title');
-  assert.equal(
-    ui.problemLabel({ id: 'a', title: 'E-books' }, new Map([['a', 0]])),
-    'E-books (no options proposed)',
+  const at = '2026-10-30T15:12:00Z';
+  const empty = ui.problemLabel(
+    { id: 'a', title: 'E-books', created_at: at },
+    new Map([['a', 0]]),
   );
-  assert.equal(
-    ui.problemLabel({ id: 'b', title: 'E-books' }, new Map()),
-    'E-books',
+  assert.match(empty, /^E-books · .+ \(no options proposed\)$/);
+  assert.match(
+    ui.problemLabel({ id: 'b', title: 'E-books', created_at: at }, new Map()),
+    /^E-books · [^(]+$/,
   );
 
   assert.equal(ui.eventText('study.assigned'), 'Study assigned');

@@ -1,0 +1,111 @@
+{
+  "projects/decide": [
+    {
+      "id": "cmp-problem",
+      "selected": "For a defined technique, repeated inputs fall outside a… · Nov 1, 8:15 AM (no options proposed)",
+      "options": [
+        "[Practicing frame-precise keyboard and mouse input timing for…] For a defined technique, repeated inputs fall outside a… · Nov 1, 8:15 AM (no options proposed)",
+        "[Practicing frame-precise keyboard and mouse input timing for…] For one defined technique, record repeated misses relative to… · Nov 1, 8:15 AM (no options proposed)",
+        "[Practicing frame-precise keyboard and mouse input timing for…] Repeated inputs fall outside a specified target window, while… · Nov 1, 8:15 AM (no options proposed)",
+        "[Unused first-appointment slots at rural clinics] Rural clinics recorded a 23 percent no-show rate for first… · Nov 1, 8:15 AM",
+        "[Understaffed Saturday shifts at a food bank] Food bank coordinators reported that 30 percent of Saturday… · Nov 1, 8:15 AM",
+        "[Course e-book availability for students] Days between a student requesting an e-book and opening it · Nov 1, 8:15 AM (no options proposed)"
+      ]
+    }
+  ],
+  "projects/specs": [
+    {
+      "id": "sel-problem",
+      "selected": "For a defined technique, repeated inputs fall outside a… · Nov 1, 8:15 AM (no options proposed)",
+      "options": [
+        "[Practicing frame-precise keyboard and mouse input timing for…] For a defined technique, repeated inputs fall outside a… · Nov 1, 8:15 AM (no options proposed)",
+        "[Practicing frame-precise keyboard and mouse input timing for…] For one defined technique, record repeated misses relative to… · Nov 1, 8:15 AM (no options proposed)",
+        "[Practicing frame-precise keyboard and mouse input timing for…] Repeated inputs fall outside a specified target window, while… · Nov 1, 8:15 AM (no options proposed)",
+        "[Unused first-appointment slots at rural clinics] Rural clinics recorded a 23 percent no-show rate for first… · Nov 1, 8:15 AM",
+        "[Understaffed Saturday shifts at a food bank] Food bank coordinators reported that 30 percent of Saturday… · Nov 1, 8:15 AM",
+        "[Course e-book availability for students] Days between a student requesting an e-book and opening it · Nov 1, 8:15 AM (no options proposed)"
+      ]
+    }
+  ],
+  "projects/discover": [
+    {
+      "id": "b-run",
+      "selected": "Register a new run",
+      "options": [
+        "Register a new run",
+        "Existing: Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+        "Existing: Course e-book availability for students · Nov 1, 8:15 AM · a9c6a747",
+        "Existing: Understaffed Saturday shifts at a food bank · Nov 1, 8:15 AM · 2c76a3fe",
+        "Existing: Unused first-appointment slots at rural clinics · Nov 1, 8:15 AM · 4f1ebce4"
+      ]
+    }
+  ],
+  "projects/build": [],
+  "monitor/runs": [
+    {
+      "id": "wsubject",
+      "selected": "For a defined technique, repeated inputs fall outside a… · Nov 1, 8:15 AM",
+      "options": [
+        "[Problems] For a defined technique, repeated inputs fall outside a… · Nov 1, 8:15 AM",
+        "[Problems] For one defined technique, record repeated misses relative to… · Nov 1, 8:15 AM",
+        "[Problems] Repeated inputs fall outside a specified target window, while… · Nov 1, 8:15 AM",
+        "[Problems] Rural clinics recorded a 23 percent no-show rate for first… · Nov 1, 8:15 AM",
+        "[Problems] Food bank coordinators reported that 30 percent of Saturday… · Nov 1, 8:15 AM",
+        "[Problems] Days between a student requesting an e-book and opening it · Nov 1, 8:15 AM",
+        "[Ideas] Phone patients the day before appointments to confirm attendance · Nov 1, 8:15 AM",
+        "[Options] The clinics’ scheduling systems send reminders but do not… · Nov 1, 8:15 AM",
+        "[Options] Hybrid: routine workaround supported by a simple list from… · Nov 1, 8:15 AM",
+        "[Options] Human-led: a named coordinator owns Share of first-appointment… · Nov 1, 8:15 AM",
+        "[Options] Front-desk staff phone patients the day before appointments to… · Nov 1, 8:15 AM",
+        "[Options] Software: Airline overbooking calculations from historical… · Nov 1, 8:15 AM",
+        "[Options] Software: Understaffed volunteer shifts at a community food bank · Nov 1, 8:15 AM",
+        "[Options] Coordinators fill gaps by texting regular volunteers on Friday… · Nov 1, 8:15 AM",
+        "[Options] Free volunteer sign-up services already publish shifts,… · Nov 1, 8:15 AM",
+        "[Specifications] No-show risk flags prototype (fixture) · Nov 1, 8:15 AM · v2"
+      ]
+    },
+    {
+      "id": "wrun",
+      "selected": "Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+      "options": [
+        "Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+        "Course e-book availability for students · Nov 1, 8:15 AM · a9c6a747",
+        "Understaffed Saturday shifts at a food bank · Nov 1, 8:15 AM · 2c76a3fe",
+        "Unused first-appointment slots at rural clinics · Nov 1, 8:15 AM · 4f1ebce4"
+      ]
+    }
+  ],
+  "monitor/budgets": [
+    {
+      "id": "benv",
+      "selected": "Fixture discovery budget · active",
+      "options": ["Fixture discovery budget · active"]
+    },
+    {
+      "id": "brun",
+      "selected": "Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+      "options": [
+        "Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+        "Course e-book availability for students · Nov 1, 8:15 AM · a9c6a747",
+        "Understaffed Saturday shifts at a food bank · Nov 1, 8:15 AM · 2c76a3fe",
+        "Unused first-appointment slots at rural clinics · Nov 1, 8:15 AM · 4f1ebce4"
+      ]
+    }
+  ],
+  "monitor/approvals": [],
+  "sources/claims": [
+    {
+      "id": "Run",
+      "selected": "Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+      "options": [
+        "Practicing frame-precise keyboard and mouse… · Nov 1, 8:15 AM · 48940534",
+        "Course e-book availability for students · Nov 1, 8:15 AM · a9c6a747",
+        "Understaffed Saturday shifts at a food bank · Nov 1, 8:15 AM · 2c76a3fe",
+        "Unused first-appointment slots at rural clinics · Nov 1, 8:15 AM · 4f1ebce4"
+      ]
+    }
+  ],
+  "sources/library": [],
+  "models/github": [],
+  "errors": []
+}

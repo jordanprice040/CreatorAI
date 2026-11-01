@@ -17,6 +17,9 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
+import { newestFirst } from './versions.js';
+import { runLabel } from './labels.js';
+import { runNames } from './ui.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
 import { useOnShow } from './page-active.js';
@@ -118,6 +121,7 @@ export function Budgets({
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -129,16 +133,21 @@ export function Budgets({
     if (!workspace) return;
     setError('');
     try {
-      const [e, r, p, rr] = await Promise.all([
+      const [e0, r, p, rr0, n] = await Promise.all([
         api(z.array(EnvelopeSchema), `workspaces/${workspace}/budgets`),
         api(z.array(ReservationSchema), `workspaces/${workspace}/reservations`),
         api(z.array(PricingSnapshotSchema), `workspaces/${workspace}/pricing`),
         api(z.array(RunControlSchema), `workspaces/${workspace}/runs`),
+        runNames(`workspaces/${workspace}`),
       ]);
+      // Newest first, so the pickers open on the latest budget and run.
+      const e = newestFirst(e0);
+      const rr = newestFirst(rr0);
       setEnvelopes(e);
       setReservations(r);
       setPricing(p);
       setRuns(rr.filter((x) => x.state === 'active'));
+      setNames(n);
       setEnvelopeId((c) =>
         e.some((x) => x.id === c)
           ? c
@@ -430,7 +439,7 @@ export function Budgets({
                 >
                   {runs.map((r) => (
                     <option key={r.run_id} value={r.run_id}>
-                      {words(r.autonomy_mode)} · {r.run_id.slice(0, 8)}
+                      {runLabel(r, names)}
                     </option>
                   ))}
                 </select>

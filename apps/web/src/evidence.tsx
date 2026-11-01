@@ -25,6 +25,8 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { useOnShow } from './page-active.js';
+import { recordLabel, runLabel } from './labels.js';
+import { runNames } from './ui.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -69,6 +71,7 @@ export function Evidence({
   const [claims, setClaims] = useState<StoredEntity[]>([]);
   const [retrievals, setRetrievals] = useState<Retrieval[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
   const [source, setSource] = useState<SourceDetail | null>(null);
   const [evidence, setEvidence] = useState<ClaimEvidence | null>(null);
   const [runId, setRunId] = useState('');
@@ -92,14 +95,16 @@ export function Evidence({
   async function load() {
     if (!workspace) return;
     try {
-      const [s, c, r, runList] = await Promise.all([
+      const [s, c, r, runList, n] = await Promise.all([
         api(z.array(SourceSummarySchema), `${base}/sources`),
         api(z.array(StoredEntitySchema), `${base}/entities?kind=claim`),
         api(z.array(RetrievalSchema), `${base}/retrievals`),
         api(z.array(RunControlSchema), `${base}/runs`),
+        runNames(base),
       ]);
       setSources(s);
-      setClaims(c);
+      setClaims(newestFirst(c));
+      setNames(n);
       setRetrievals(r.slice(0, 12));
       const active = newestFirst(runList.filter((x) => x.state === 'active'));
       setRuns(active);
@@ -287,7 +292,7 @@ export function Evidence({
           {runs.length === 0 && <option value="">No registered runs</option>}
           {runs.map((r) => (
             <option key={r.run_id} value={r.run_id}>
-              {words(r.autonomy_mode)} run {r.run_id.slice(0, 8)}
+              {runLabel(r, names)}
             </option>
           ))}
         </select>
@@ -662,8 +667,8 @@ function CiteForm({
         >
           <option value="new">New claim</option>
           {claims.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
+            <option key={c.id} value={c.id} title={c.title}>
+              {recordLabel(c, 80)}
             </option>
           ))}
         </select>

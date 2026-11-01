@@ -16,9 +16,10 @@ import {
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, when, words } from './oversight.js';
-import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { api, message, when } from './oversight.js';
+import { Empty, Status, runNames, shortId, useLoad, type View } from './ui.js';
 import { newestFirst, productVersions } from './versions.js';
+import { recordLabel, runLabel } from './labels.js';
 import {
   artifactForBuild,
   envelopeFor,
@@ -114,6 +115,7 @@ export function BuildView({
       pricing,
       grants,
       artifacts,
+      names,
     ] = await Promise.all([
       api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
       api(z.array(ProductEntrySchema), `${base}/products`),
@@ -124,6 +126,7 @@ export function BuildView({
       api(z.array(GrantSchema), `${base}/grants`),
       // The record of what is packaged: the products route forgets package jobs on restart.
       api(z.array(ArtifactSummarySchema), `${base}/artifacts`),
+      runNames(base),
     ]);
     // The spec changed most recently first: that is the one being worked on.
     const recent = [...specs].sort(
@@ -185,6 +188,7 @@ export function BuildView({
       reviews: newestFirst(reviews),
       // Newest first everywhere, so each choice opens on the latest one.
       runs: newestFirst(runs.filter((r) => r.state === 'active')),
+      names,
       budgets: newestFirst(budgets.filter((b) => b.status === 'active')),
       pricing: newestFirst(pricing),
       builders: [
@@ -556,6 +560,7 @@ const reviewOf = (r: StoredEntity, s: SpecStatus) => {
 type Data = {
   reviews: StoredEntity[];
   runs: z.infer<typeof RunControlSchema>[];
+  names: ReadonlyMap<string, string>;
   budgets: z.infer<typeof EnvelopeSchema>[];
   pricing: z.infer<typeof PricingSnapshotSchema>[];
   builders: {
@@ -935,7 +940,7 @@ function StartBuild({
         {data.runs.length === 0 && <option value="">No active run</option>}
         {data.runs.map((r) => (
           <option key={r.run_id} value={r.run_id}>
-            {`${words(r.autonomy_mode)} run ${shortId(r.run_id)} · started ${when(r.created_at)}${
+            {`${runLabel(r, data.names)}${
               connection?.kind === 'roles' && !data.modelRuns.has(r.run_id)
                 ? ' · no model grant'
                 : ''
@@ -983,8 +988,8 @@ function StartBuild({
           <option value="">None for this version</option>
         )}
         {reviews.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.title}
+          <option key={r.id} value={r.id} title={r.title}>
+            {recordLabel(r)}
           </option>
         ))}
       </select>

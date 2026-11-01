@@ -14,8 +14,9 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
+import { runLabel } from './labels.js';
 
 /** The simulated GitHub account fixture workspaces talk to (FixtureGitHub's default). */
 const FIXTURE_OWNER = { login: 'fixture-owner', id: 4_100_001 };
@@ -58,17 +59,20 @@ export function GitHub({
   const fixture = workspace.record_mode === 'fixture';
   const viewer = workspace.role === 'viewer';
   const data = useLoad(async () => {
-    const [connections, repositories, operations, runs] = await Promise.all([
-      api(z.array(GitHubConnectionSchema), `${base}/github-connections`),
-      api(z.array(GitHubRepositorySchema), `${base}/github-repositories`),
-      api(z.array(GitHubOperationSchema), `${base}/github-operations`),
-      api(z.array(RunControlSchema), `${base}/runs`),
-    ]);
+    const [connections, repositories, operations, runs, names] =
+      await Promise.all([
+        api(z.array(GitHubConnectionSchema), `${base}/github-connections`),
+        api(z.array(GitHubRepositorySchema), `${base}/github-repositories`),
+        api(z.array(GitHubOperationSchema), `${base}/github-operations`),
+        api(z.array(RunControlSchema), `${base}/runs`),
+        runNames(base),
+      ]);
     return {
       connections: newestFirst(connections),
       repositories: newestFirst(repositories),
       operations: [...operations].reverse(),
       runs: newestFirst(runs.filter((r) => r.state === 'active')),
+      names,
     };
   }, [workspace.id]);
   const [error, setError] = useState('');
@@ -227,6 +231,7 @@ export function GitHub({
                       active.some((c) => c.id === r.connection_id),
                   )}
                   runs={d.runs}
+                  names={d.names}
                   dataClass={fixture ? 'synthetic' : 'public'}
                   busy={busy}
                   act={act}
@@ -774,6 +779,7 @@ function NewOperation({
   connections,
   repositories,
   runs,
+  names,
   dataClass,
   busy,
   act,
@@ -784,6 +790,7 @@ function NewOperation({
   connections: GitHubConnection[];
   repositories: z.infer<typeof GitHubRepositorySchema>[];
   runs: z.infer<typeof RunControlSchema>[];
+  names: ReadonlyMap<string, string>;
   dataClass: 'synthetic' | 'public';
   busy: boolean;
   act: Act;
@@ -950,7 +957,7 @@ function NewOperation({
             {runs.length === 0 && <option value="">No active runs</option>}
             {runs.map((r) => (
               <option key={r.run_id} value={r.run_id}>
-                {words(r.autonomy_mode)} run {shortId(r.run_id)}
+                {runLabel(r, names)}
               </option>
             ))}
           </select>

@@ -65,7 +65,9 @@ test('workspace actor labels ignore old responses and old failures after switchi
             ? pagesModule()
             : name === './page-active.js'
               ? { useOnShow: () => {} }
-              : require(name);
+              : name === './labels.js'
+                ? {}
+                : require(name);
     const exports: {
       useActors?: (workspace: string) => (id: string) => string;
     } = {};
