@@ -283,7 +283,7 @@ export async function artifactRoutes(o: {
       // Audit the intent before the window opens (review L-4): a failed audit write then
       // starts nothing, and a failed start still leaves the attempt on record.
       const sessionId = randomUUID();
-      await store.recordTerminal(ctx, ws, item, 'artifact.terminal.started', {
+      await store.recordTerminal(ctx, ws, item, 'artifact.terminal.requested', {
         session_id: sessionId,
         command: terminalCommand(req.args),
         manifest_sha256: a.summary.manifest_sha256,

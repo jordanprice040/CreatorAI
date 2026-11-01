@@ -729,13 +729,14 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   const termAudit = await db.pool.query(
     `select action, payload from audit_events where action like 'artifact.terminal.%' order by sequence`,
   );
-  assert.deepEqual(
-    termAudit.rows.map((r) => [r.action, r.payload.session_id]),
-    [
-      ['artifact.terminal.started', term.body.id],
-      ['artifact.terminal.stopped', term.body.id],
-    ],
-  );
+  // Each request is audited before its window opens, so the refused second start
+  // (one per product) is on record too, under its own session id.
+  const rows = termAudit.rows.map((r) => [r.action, r.payload.session_id]);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows[0], ['artifact.terminal.requested', term.body.id]);
+  assert.equal(rows[1]![0], 'artifact.terminal.requested');
+  assert.notEqual(rows[1]![1], term.body.id);
+  assert.deepEqual(rows[2], ['artifact.terminal.stopped', term.body.id]);
 
   // Previews: separate origin, one-time ticket, preview-only cookie, rechecks on every use.
   const startPreview = (expected = a1.manifest_sha256, extra: object = {}) =>

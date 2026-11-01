@@ -385,7 +385,7 @@ export class ArtifactStore extends StudyBuildStore {
     ctx: CommandContext,
     ws: string,
     artifactId: string,
-    action: 'artifact.terminal.started' | 'artifact.terminal.stopped',
+    action: 'artifact.terminal.requested' | 'artifact.terminal.stopped',
     payload: Record<string, unknown>,
   ) {
     ctx = normalize(ctx);
