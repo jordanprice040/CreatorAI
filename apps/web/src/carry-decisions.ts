@@ -215,8 +215,8 @@ function overrideKeys(list: CarryOverride[]): Map<string, string> {
 
 /**
  * True when `now` needs overrides the earlier override reason did not cover: a new
- * override, or one whose set of higher-ranked options changed. Dropped overrides need no
- * new justification.
+ * override, or one whose set of higher-ranked options changed (shrunk or grown, which is
+ * conservative). An override that is no longer needed at all needs no new justification.
  */
 export function overridesChanged(
   before: CarryOverride[],
@@ -393,11 +393,44 @@ export interface FormGate {
   unreviewed: string[];
   /** The same decision on the same report, untouched: recording would only duplicate it. */
   unchanged: boolean;
-  /** The overrides now needed differ from the recorded ones and the reason is untouched. */
+  /**
+   * The override reason was written for other overrides: the set needed now differs, or
+   * an option in one of them changed score, status or version. Cleared by editing the
+   * reason or keeping it for exactly the current overrides (`override_signature`).
+   */
   override_review: boolean;
+  /**
+   * The rationale was written for other choices: some option's disposition differs from
+   * the earlier decision. Cleared by editing it or keeping it for exactly the current
+   * choices (`rationale_signature`).
+   */
+  rationale_review: boolean;
+  /**
+   * Options whose disposition differs from the earlier one while their reasons are still
+   * the earlier text, so the old reasons would be recorded under a new choice.
+   */
+  stale_reasons: string[];
   /** The problem was revised and the owner has not confirmed reading it. */
   problem_review: boolean;
+  /** What a "keep" confirmation is bound to; a later change makes it stale. */
+  rationale_signature: string;
+  override_signature: string;
 }
+
+function sameCandidate(
+  a: CarryCandidate | undefined,
+  b: CarryCandidate | undefined,
+) {
+  return (
+    !!a &&
+    !!b &&
+    a.alternative.version === b.alternative.version &&
+    a.status === b.status &&
+    sameScore(a.score, b.score) &&
+    sameRange(a.range, b.range)
+  );
+}
+
 export function formGate(
   c: Carried,
   previous: CarrySelection | null,
@@ -407,24 +440,89 @@ export function formGate(
     edited: string[];
     /** Current disposition per option, as the form shows it. */
     dispositions: Record<string, string>;
+    /** Current reason texts per option, as the form shows them. */
+    texts?: Record<string, { reasons: string; reverse_if: string }>;
+    /** The owner typed in these fields. */
     rationale_edited: boolean;
     override_edited: boolean;
+    /** Signatures the owner pressed "keep" for, or null. */
+    rationale_kept?: string | null;
+    override_kept?: string | null;
+    /** Per option, the disposition the owner kept the earlier reasons for. */
+    reasons_kept?: Record<string, string>;
     problem_confirmed: boolean;
   },
 ): FormGate {
   const edited = new Set(state.edited);
+  const ids = Object.keys(state.dispositions).sort();
+  const choices = ids.map((id) => [id.toLowerCase(), state.dispositions[id]]);
+  const now = overridesFor(report, state.dispositions);
+  const rationale_signature = JSON.stringify([report.report_hash, choices]);
+  const override_signature = JSON.stringify([
+    report.report_hash,
+    [...overrideKeys(now)].sort(),
+  ]);
   const touched =
-    edited.size > 0 || state.rationale_edited || state.override_edited;
+    edited.size > 0 ||
+    state.rationale_edited ||
+    state.override_edited ||
+    !!state.rationale_kept ||
+    !!state.override_kept;
+  const was = new Map(
+    (previous?.dispositions ?? []).map((d) => [
+      d.alternative.id.toLowerCase(),
+      d.disposition,
+    ]),
+  );
+  // An override whose options moved, even with the same options above it, rests on
+  // scores the reason was not written for.
+  const involvedChanged =
+    !!previous &&
+    !c.same_report &&
+    now.some((o) => {
+      const rk = o.ranking === 'opportunity' ? 'opportunity' : 'suitability';
+      const before = index(previous.report[rk]);
+      const after = index(report[rk]);
+      return [o.alternative, ...o.outranked_by.map((b) => b.id)].some(
+        (id) => !sameCandidate(before.get(id), after.get(id)),
+      );
+    });
+  const override_review =
+    !!previous &&
+    !state.override_edited &&
+    state.override_kept !== override_signature &&
+    (overridesChanged(previous.overrides, now) || involvedChanged);
+  const rationale_review =
+    !!previous &&
+    !state.rationale_edited &&
+    state.rationale_kept !== rationale_signature &&
+    ids.some((id) => state.dispositions[id] !== was.get(id.toLowerCase()));
+  const stale_reasons = previous
+    ? ids.filter((id) => {
+        const before = was.get(id.toLowerCase());
+        const cur = state.dispositions[id];
+        const carried = c.options[id]?.row;
+        const text = state.texts?.[id];
+        return (
+          !!before &&
+          !!cur &&
+          cur !== before &&
+          !!carried &&
+          !!text &&
+          text.reasons === carried.reasons &&
+          text.reverse_if === carried.reverse_if &&
+          state.reasons_kept?.[id] !== cur
+        );
+      })
+    : [];
   return {
     unreviewed: needsReview(c).filter((id) => !edited.has(id)),
     unchanged: c.same_report && !touched,
-    override_review:
-      !!previous &&
-      !state.override_edited &&
-      overridesChanged(
-        previous.overrides,
-        overridesFor(report, state.dispositions),
-      ),
+    override_review,
+    rationale_review,
+    stale_reasons,
     problem_review: c.problem_version_changed && !state.problem_confirmed,
+    rationale_signature,
+    override_signature,
   };
 }

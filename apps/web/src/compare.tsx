@@ -37,6 +37,19 @@ import {
   rowReasons,
 } from './carry-decisions.js';
 
+/** What still needs the owner's look, in words, for the line above Record. */
+function pendingReviews(g: ReturnType<typeof formGate>): string[] {
+  const out: string[] = [];
+  const n = g.unreviewed.length;
+  if (n) out.push(`keep or change ${n} flagged option${n === 1 ? '' : 's'}`);
+  if (g.stale_reasons.length)
+    out.push('rewrite or keep the reasons written for an earlier choice');
+  if (g.rationale_review) out.push('review the overall rationale');
+  if (g.override_review) out.push('review the override reason');
+  if (g.problem_review) out.push('confirm the revised problem');
+  return out;
+}
+
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
   stale: 'older than the freshness limit',
@@ -190,6 +203,10 @@ export function Compare({
   const [rationaleEdit, setRationale] = useState<string | null>(null);
   const [overrideEdit, setOverride] = useState<string | null>(null);
   const [problemConfirmed, setProblemConfirmed] = useState(false);
+  // "Keep" confirmations, bound to what they were pressed for (see formGate).
+  const [rationaleKept, setRationaleKept] = useState<string | null>(null);
+  const [overrideKept, setOverrideKept] = useState<string | null>(null);
+  const [reasonsKept, setReasonsKept] = useState<Record<string, string>>({});
   const [runId, setRunId] = useState('');
   const [outcome, setOutcome] = useState<SelectOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -199,6 +216,9 @@ export function Compare({
     setRationale(null);
     setOverride(null);
     setProblemConfirmed(false);
+    setRationaleKept(null);
+    setOverrideKept(null);
+    setReasonsKept({});
     setOutcome(null);
     setError('');
   }, [focus]);
@@ -262,6 +282,18 @@ export function Compare({
           ),
           rationale_edited: rationaleEdit !== null,
           override_edited: overrideEdit !== null,
+          texts: Object.fromEntries(
+            alts.map((a) => {
+              const r = row(a.entity.id);
+              return [
+                a.entity.id,
+                { reasons: r.reasons, reverse_if: r.reverse_if },
+              ];
+            }),
+          ),
+          rationale_kept: rationaleKept,
+          override_kept: overrideKept,
+          reasons_kept: reasonsKept,
           problem_confirmed: problemConfirmed,
         })
       : null;
@@ -279,6 +311,8 @@ export function Compare({
     !unchanged &&
     !gate?.override_review &&
     !gate?.problem_review &&
+    !gate?.rationale_review &&
+    !gate?.stale_reasons.length &&
     rationale.trim().length > 0 &&
     !!runId;
   const request = () => ({
@@ -319,6 +353,9 @@ export function Compare({
         setRationale(null);
         setOverride(null);
         setProblemConfirmed(false);
+        setRationaleKept(null);
+        setOverrideKept(null);
+        setReasonsKept({});
         detail.reload();
       }
     } catch (err) {
@@ -721,6 +758,37 @@ export function Compare({
                           );
                         })}
                       </select>
+                      {gate?.stale_reasons.includes(id) && (
+                        <div className="carry-flag">
+                          <strong>
+                            These reasons were written for “
+                            {words(
+                              latest?.dispositions.find(
+                                (x) =>
+                                  x.alternative.id.toLowerCase() ===
+                                  id.toLowerCase(),
+                              )?.disposition ?? '',
+                            )}
+                            ”.
+                          </strong>{' '}
+                          Rewrite them for the new choice, or keep them if they
+                          still apply.
+                          <div>
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={() =>
+                                setReasonsKept((k) => ({
+                                  ...k,
+                                  [id]: r.disposition,
+                                }))
+                              }
+                            >
+                              Keep these reasons
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="two">
                         <div>
                           <label htmlFor={`why-${id}`}>Reason</label>
@@ -756,6 +824,25 @@ export function Compare({
                   value={rationale}
                   onChange={(e) => setRationale(e.target.value)}
                 />
+                {gate?.rationale_review && rationale.trim() && (
+                  <div className="carry-flag">
+                    <strong>Review the overall rationale.</strong> It was
+                    written for your earlier choices, and some choices are
+                    different now. Keep it if it still explains this decision,
+                    or rewrite it.
+                    <div>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() =>
+                          setRationaleKept(gate.rationale_signature)
+                        }
+                      >
+                        Keep this rationale
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <label htmlFor="dec-override">
                   Override reason (needed when you advance a lower-ranked
                   option)
@@ -777,7 +864,9 @@ export function Compare({
                         <button
                           type="button"
                           className="secondary"
-                          onClick={() => setOverride(override)}
+                          onClick={() =>
+                            gate && setOverrideKept(gate.override_signature)
+                          }
                         >
                           Keep this reason
                         </button>
@@ -801,12 +890,9 @@ export function Compare({
                     </option>
                   ))}
                 </select>
-                {unreviewed.length > 0 && (
+                {gate && pendingReviews(gate).length > 0 && (
                   <p className="small">
-                    {unreviewed.length} flagged option
-                    {unreviewed.length === 1 ? ' needs' : 's need'} a look
-                    before you can record: keep or change{' '}
-                    {unreviewed.length === 1 ? 'it' : 'each one'}.
+                    Before you can record: {pendingReviews(gate).join('; ')}.
                   </p>
                 )}
                 <button

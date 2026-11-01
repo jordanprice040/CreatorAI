@@ -1,0 +1,27 @@
+import { chromium } from 'playwright';
+const [ws, problem, out] = process.argv.slice(2);
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
+await p.goto('http://127.0.0.1:5173/#login=walk-login-code-0123456789abcdefghijkl');
+await p.waitForTimeout(1500);
+await p.goto(`http://127.0.0.1:5173/#/compare?ws=${ws}&id=${problem}`);
+await p.waitForSelector('form.decide fieldset.flagged');
+const dis = () => p.$eval('form.decide button[type=submit]', (x) => x.disabled);
+const hint = async () => (await p.locator('form.decide p.small:has-text("Before you can record")').textContent().catch(() => 'none'));
+for (const btn of await p.$$('form.decide button:has-text("Keep my decision")')) await btn.click();
+await p.click('form.decide button:has-text("Keep this reason")');
+console.log('ready:', !(await dis()));
+// Change the last option (hybrid) from research further to defer.
+const sel = p.locator('form.decide fieldset select').last();
+await sel.selectOption('defer');
+await p.waitForTimeout(200);
+console.log('after change: disabled', await dis(), '|', await hint());
+const f = p.locator('form.decide fieldset').last();
+await f.scrollIntoViewIfNeeded(); await p.waitForTimeout(200);
+await p.screenshot({ path: `${out}/changed-choice.png` });
+await p.click('form.decide button:has-text("Keep these reasons")');
+await p.click('form.decide button:has-text("Keep this rationale")');
+await p.waitForTimeout(200);
+console.log('after keeps: disabled', await dis(), '|', await hint());
+await b.close();

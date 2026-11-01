@@ -73,15 +73,23 @@ type Mod = {
     state: {
       edited: string[];
       dispositions: Record<string, string>;
+      texts?: Record<string, { reasons: string; reverse_if: string }>;
       rationale_edited: boolean;
       override_edited: boolean;
+      rationale_kept?: string | null;
+      override_kept?: string | null;
+      reasons_kept?: Record<string, string>;
       problem_confirmed: boolean;
     },
   ) => {
     unreviewed: string[];
     unchanged: boolean;
     override_review: boolean;
+    rationale_review: boolean;
+    stale_reasons: string[];
     problem_review: boolean;
+    rationale_signature: string;
+    override_signature: string;
   };
 };
 
@@ -364,16 +372,16 @@ test('M-1: an advanced option newly outranked is flagged and the override reason
     ).override_review,
     false,
   );
-  // The same override set on a changed report needs no fresh reason.
+  // The same override set, with only an option outside it changed, needs no fresh reason.
   const same = report('j', [
-    cand(B, s(61), 1),
+    cand(B, s(60), 1),
     cand(A, s(50), 2),
-    cand(C, s(40), 3),
+    cand(C, s(42), 3),
   ]);
   const c2 = carryDecisions(overridden, same, alts([A, B, C]));
   assert.equal(c2.options[A]!.status, 'kept');
   assert.equal(
-    formGate(c2, overridden, same, state({ edited: [B] })).override_review,
+    formGate(c2, overridden, same, state({ edited: [C] })).override_review,
     false,
   );
 });
@@ -472,5 +480,184 @@ test('L-1, L-3: the form gate needs every flag reviewed, refuses a duplicate, an
       state({ dispositions, problem_confirmed: true }),
     ).problem_review,
     false,
+  );
+});
+
+// Re-review fixes (PR #95 re-review M-A, L-A, L-B, L-C).
+
+test('M-A: changed choices put the carried rationale up for review; keeping binds to those choices', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  // A drops to rank 3; the owner switches to rejecting A and building B.
+  const after = report('n', [
+    cand(B, s(70), 1),
+    cand(C, s(55), 2),
+    cand(A, s(40), 3),
+  ]);
+  const c = carryDecisions(decided, after, alts([A, B, C]));
+  const switched = { [A]: 'reject', [B]: 'select_for_build', [C]: 'reject' };
+  const g = formGate(
+    c,
+    decided,
+    after,
+    state({ dispositions: switched, edited: [A, B] }),
+  );
+  assert.equal(g.override_review, false);
+  assert.equal(g.rationale_review, true);
+  const kept = formGate(
+    c,
+    decided,
+    after,
+    state({
+      dispositions: switched,
+      edited: [A, B],
+      rationale_kept: g.rationale_signature,
+    }),
+  );
+  assert.equal(kept.rationale_review, false);
+  // A later change of choice makes the keep stale again.
+  const again = { ...switched, [C]: 'defer' };
+  assert.equal(
+    formGate(
+      c,
+      decided,
+      after,
+      state({
+        dispositions: again,
+        edited: [A, B, C],
+        rationale_kept: g.rationale_signature,
+      }),
+    ).rationale_review,
+    true,
+  );
+  // Unchanged choices leave the rationale alone; typing a new one clears the flag.
+  assert.equal(
+    formGate(
+      c,
+      decided,
+      after,
+      state({
+        dispositions: { [A]: 'select_for_build', [B]: 'defer', [C]: 'reject' },
+      }),
+    ).rationale_review,
+    false,
+  );
+  assert.equal(
+    formGate(
+      c,
+      decided,
+      after,
+      state({ dispositions: switched, rationale_edited: true }),
+    ).rationale_review,
+    false,
+  );
+});
+
+test('L-A: keeping the override reason binds to the overrides it was kept for', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  const after = report('o', [
+    cand(C, s(70), 1),
+    cand(B, s(60), 2),
+    cand(A, s(50), 3),
+  ]);
+  const c = carryDecisions(overridden, after, alts([A, B, C]));
+  const g = formGate(c, overridden, after, state());
+  assert.equal(g.override_review, true);
+  assert.equal(
+    formGate(
+      c,
+      overridden,
+      after,
+      state({ override_kept: g.override_signature }),
+    ).override_review,
+    false,
+  );
+  // Advancing C instead creates different overrides: the earlier keep no longer counts.
+  const other = { [A]: 'reject', [B]: 'reject', [C]: 'proceed_to_validation' };
+  const swapped = report('p', [
+    cand(B, s(70), 1),
+    cand(C, s(60), 2),
+    cand(A, s(50), 3),
+  ]);
+  const c2 = carryDecisions(overridden, swapped, alts([A, B, C]));
+  const kept = formGate(c2, overridden, swapped, state()).override_signature;
+  assert.equal(
+    formGate(
+      c2,
+      overridden,
+      swapped,
+      state({ dispositions: other, override_kept: kept }),
+    ).override_review,
+    true,
+  );
+});
+
+test('L-B: a score change inside the same override set flags the override reason', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  // A is still advanced over only B, but B's score jumped.
+  const after = report('q', [
+    cand(B, s(95), 1),
+    cand(A, s(50), 2),
+    cand(C, s(40), 3),
+  ]);
+  const c = carryDecisions(overridden, after, alts([A, B, C]));
+  assert.equal(
+    formGate(c, overridden, after, state({ edited: [B] })).override_review,
+    true,
+  );
+});
+
+test('L-C: earlier reasons under a new disposition need a rewrite or a keep', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  const after = report('r', [
+    cand(A, s(60), 1, {
+      gates: {
+        ethics_access: 'clear',
+        discovery: 'candidate',
+        humility: 'missing',
+        blocked: { select_for_build: ['No humility review.'] },
+      },
+    }),
+    cand(B, s(50), 2),
+    cand(C, s(40), 3),
+  ]);
+  const c = carryDecisions(decided, after, alts([A, B, C]));
+  const dispositions = { [A]: 'defer', [B]: 'defer', [C]: 'reject' };
+  const old = { reasons: 'best fit', reverse_if: 'fit drops' };
+  const texts = {
+    [A]: old,
+    [B]: { reasons: 'later', reverse_if: 'cheaper' },
+    [C]: { reasons: 'weak', reverse_if: 'new evidence' },
+  };
+  assert.deepEqual(
+    formGate(c, decided, after, state({ dispositions, texts, edited: [A] }))
+      .stale_reasons,
+    [A],
+  );
+  assert.deepEqual(
+    formGate(
+      c,
+      decided,
+      after,
+      state({
+        dispositions,
+        texts,
+        edited: [A],
+        reasons_kept: { [A]: 'defer' },
+      }),
+    ).stale_reasons,
+    [],
+  );
+  assert.deepEqual(
+    formGate(
+      c,
+      decided,
+      after,
+      state({
+        dispositions,
+        texts: { ...texts, [A]: { ...old, reasons: 'wait for the review' } },
+        edited: [A],
+      }),
+    ).stale_reasons,
+    [],
   );
 });
