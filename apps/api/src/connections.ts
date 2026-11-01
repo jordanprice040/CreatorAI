@@ -53,7 +53,9 @@ const CodexBuildBody = z.strictObject({
 /**
  * Ingress allowance for a build-calls body. The input is a JSON packet sent as a JSON string, so
  * escaping can roughly double it, and UTF-8 adds up to 3 bytes a character; 1 MiB covers an
- * input at PLAN_ROLE_CONTEXT_MAX with room to spare.
+ * input at PLAN_ROLE_CONTEXT_MAX with room to spare. A codex-builds body carries the same
+ * builder packet (as an object, not a string), so it gets the same allowance rather than the
+ * ordinary 64 KiB (PR #89 re-review L-B).
  */
 export const PLAN_BUILD_CALL_MAX_BODY = 1024 * 1024;
 const BuildCallBody = z.strictObject({

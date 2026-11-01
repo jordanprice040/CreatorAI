@@ -25,7 +25,7 @@ import {
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
 import { newestFirst } from './versions.js';
-import { envelopeFor } from './build-defaults.js';
+import { envelopesFor } from './build-defaults.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
@@ -254,12 +254,14 @@ export function Submit({
     .filter((p) => excluded[p] !== undefined)
     .map((p) => ({ perspective: p, reason: (excluded[p] ?? '').trim() }));
   const c = ctx.data;
-  // A run or task budget belongs to its own run; a new run can use only a shared one.
+  // A run or task budget belongs to its own run; a new run can use only a shared one. Only the
+  // budgets this run may use are offered, and a pick made for another run is dropped.
+  const usableEnvelopes = c
+    ? envelopesFor(c.envelopes, runChoice === 'new' ? '' : runChoice)
+    : [];
   const envelope =
-    envelopeId ||
-    (c
-      ? envelopeFor(c.envelopes, runChoice === 'new' ? '' : runChoice)?.id
-      : '') ||
+    (usableEnvelopes.some((e) => e.id === envelopeId) ? envelopeId : '') ||
+    usableEnvelopes[0]?.id ||
     '';
   const price = pricingId || c?.pricing[0]?.id || '';
   const plan = connectionId
@@ -908,10 +910,14 @@ export function Submit({
                     value={envelope}
                     onChange={(e) => setEnvelopeId(e.target.value)}
                   >
-                    {c.envelopes.length === 0 && (
-                      <option value="">No active budget</option>
+                    {usableEnvelopes.length === 0 && (
+                      <option value="">
+                        {c.envelopes.length === 0
+                          ? 'No active budget'
+                          : 'No budget this run can use'}
+                      </option>
                     )}
-                    {c.envelopes.map((e) => (
+                    {usableEnvelopes.map((e) => (
                       <option key={e.id} value={e.id}>
                         {e.name} · {money(e.available, e.fixture)} available
                       </option>
@@ -932,6 +938,13 @@ export function Submit({
                       </option>
                     ))}
                   </select>
+                  {c.envelopes.length > 0 && usableEnvelopes.length === 0 && (
+                    <p className="error">
+                      No active budget can be used by this run: a run or task
+                      budget belongs to its own run. Choose another run, or add
+                      a shared budget in the Budgets view.
+                    </p>
+                  )}
                   {(c.envelopes.length === 0 || c.pricing.length === 0) && (
                     <p className="error">
                       A discovery run needs an active budget (Budgets view) and

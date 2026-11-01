@@ -38,14 +38,19 @@ export async function usageSummary(
      group by p.id order by p.created_at limit 50`,
     [ws],
   );
+  // The per-run cap counts a run's requests over its whole life, so a run that is still active
+  // and at its cap stays listed after its last request leaves the 24-hour window.
   const runs = await c.query(
-    `select connection_id, run_id, count(*) as n, max(started_at) as last
-       from plan_requests
-      where run_id is not null and path = 'responses'
-        and connection_id in (select id from plan_connections where workspace_id = $1)
-      group by connection_id, run_id
-     having max(started_at) > clock_timestamp() - interval '24 hours'
-      order by max(started_at) desc`,
+    `select r.connection_id, r.run_id, count(*) as n, max(r.started_at) as last
+       from plan_requests r
+       join plan_connections p on p.id = r.connection_id
+       left join run_controls rc on rc.workspace_id = p.workspace_id and rc.run_id = r.run_id
+      where r.run_id is not null and r.path = 'responses' and p.workspace_id = $1
+      group by r.connection_id, r.run_id, p.settings, rc.state
+     having max(r.started_at) > clock_timestamp() - interval '24 hours'
+         or (coalesce(rc.state, 'active') <> 'cancelled'
+             and count(*) >= (p.settings->'caps'->'responses'->>'max_requests_per_run')::int)
+      order by max(r.started_at) desc`,
     [ws],
   );
   // Start times in the window, oldest first, to find when admission would allow one more.
@@ -119,8 +124,10 @@ export async function usageSummary(
   );
   let api_cost: UsageSummary['api_cost'] = null;
   if (canSeeCost) {
-    // The same locked read the Settings ceiling view and every paid dispatch use.
-    const e = await runtimeExposure(c, spending);
+    // The same read the Settings ceiling view and every paid dispatch use, but without the
+    // ceiling lock: this is display only and refreshed often, so a snapshot is enough and it
+    // must not queue behind (or hold up) paid dispatches and ceiling saves.
+    const e = await runtimeExposure(c, spending, null, { lock: false });
     const paid = await c.query(
       `select count(*) as n from budget_reservations
         where not fixture and created_at >= $1`,

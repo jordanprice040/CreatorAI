@@ -131,11 +131,13 @@ export function Workflows({
     };
   }, [active, selected, workspace]);
 
+  // A run or task budget belongs to its own run; this is the one the chosen run may draw on.
+  const runEnvelope = runId ? envelopeFor(envelopes, runId) : undefined;
+
   async function start(e: FormEvent) {
     e.preventDefault();
     const entity = subjects.find((x) => x.id === subject);
-    // A run or task budget belongs to its own run; use one this run may draw on.
-    const envelope = envelopeFor(envelopes, runId);
+    const envelope = runEnvelope;
     const price = pricing[0];
     if (!entity || !envelope || !price || !runId) return;
     const list = perspectives
@@ -300,11 +302,7 @@ export function Workflows({
               className="primary"
               type="submit"
               disabled={
-                busy ||
-                !subject ||
-                !runId ||
-                !envelopes.length ||
-                !pricing.length
+                busy || !subject || !runId || !runEnvelope || !pricing.length
               }
             >
               Start <span aria-hidden="true">→</span>
@@ -312,6 +310,13 @@ export function Workflows({
             {(!envelopes.length || !pricing.length) && (
               <p className="small">
                 Needs an active budget and a pricing snapshot.
+              </p>
+            )}
+            {envelopes.length > 0 && runId && !runEnvelope && (
+              <p className="small">
+                No active budget can be used by this run: a run or task budget
+                belongs to its own run. Pick another run or add a shared budget
+                in Budgets.
               </p>
             )}
           </form>
