@@ -287,43 +287,52 @@ export class TerminalSupervisor {
         throw new ContractError('INVALID_TRANSITION', MSIX_HINT);
       throw e;
     }
-    for (const f of o.files) {
-      await fileAt(join(job, 'input'), f.path);
-      await newFile(join(job, 'input', f.path), f.content.toString('utf8'));
+    // Until the intent exists, a failure must not leave an intent-less folder behind:
+    // list() could not read it once this start is no longer active (review N-1).
+    let record: TerminalSession;
+    let recipeHash: string;
+    try {
+      for (const f of o.files) {
+        await fileAt(join(job, 'input'), f.path);
+        await newFile(join(job, 'input', f.path), f.content.toString('utf8'));
+      }
+      await jsonWrite(join(job, 'launch.json'), { args });
+      recipeHash = digest(await readFile(RECIPE));
+      record = {
+        id: sessionId,
+        product_id: o.productId,
+        artifact_id: o.artifactId,
+        manifest_sha256: o.manifestSha256,
+        package_sha256: o.packageSha256,
+        task_id: o.taskId,
+        commit: o.commit,
+        args,
+        command: terminalCommand(args),
+        recipe: 'python-terminal/1',
+        recipe_hash: recipeHash,
+        bridge_hash: digest(await readFile(WORKER)),
+        policy_hash: digest(TERMINAL_POLICY),
+        state: 'running',
+        started_at: new Date().toISOString(),
+        finished_at: null,
+        exit_code: null,
+        reason: null,
+        environment: {
+          backend: 'wsl2-bwrap-systemd',
+          distribution: this.distro,
+          supervisor_pid: process.pid,
+          policy: TERMINAL_POLICY,
+          capture: 'none',
+          local_compute_billing: 'not_metered_by_studio',
+          source: 'exported_package',
+        },
+      };
+      checked(TerminalSessionSchema, record);
+      await jsonWrite(join(dir, 'intent.json'), record);
+    } catch (e) {
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      throw e;
     }
-    await jsonWrite(join(job, 'launch.json'), { args });
-    const recipeHash = digest(await readFile(RECIPE));
-    const record: TerminalSession = {
-      id: sessionId,
-      product_id: o.productId,
-      artifact_id: o.artifactId,
-      manifest_sha256: o.manifestSha256,
-      package_sha256: o.packageSha256,
-      task_id: o.taskId,
-      commit: o.commit,
-      args,
-      command: terminalCommand(args),
-      recipe: 'python-terminal/1',
-      recipe_hash: recipeHash,
-      bridge_hash: digest(await readFile(WORKER)),
-      policy_hash: digest(TERMINAL_POLICY),
-      state: 'running',
-      started_at: new Date().toISOString(),
-      finished_at: null,
-      exit_code: null,
-      reason: null,
-      environment: {
-        backend: 'wsl2-bwrap-systemd',
-        distribution: this.distro,
-        supervisor_pid: process.pid,
-        policy: TERMINAL_POLICY,
-        capture: 'none',
-        local_compute_billing: 'not_metered_by_studio',
-        source: 'exported_package',
-      },
-    };
-    checked(TerminalSessionSchema, record);
-    await jsonWrite(join(dir, 'intent.json'), record);
     await event(this.products.dir(o.productId), 'terminal.intent', record);
 
     const heartbeat = async () => {
@@ -345,11 +354,16 @@ export class TerminalSupervisor {
       await canonical(WORKER);
       await canonical(RECIPE);
     } catch (e) {
-      this.active.delete(sessionId);
-      return this.settle(record, dir, job, {
-        state: 'blocked',
-        reason: String(e).slice(0, 2000),
-      });
+      // Release the slot only after the outcome exists, so a listing in between cannot
+      // record this session as lost (review N-2).
+      try {
+        return await this.settle(record, dir, job, {
+          state: 'blocked',
+          reason: String(e).slice(0, 2000),
+        });
+      } finally {
+        this.active.delete(sessionId);
+      }
     }
     let child: ConsoleChild;
     try {
@@ -358,11 +372,16 @@ export class TerminalSupervisor {
         this.bridgeArgs(job, sessionId, recipeHash),
       );
     } catch (e) {
-      this.active.delete(sessionId);
-      return this.settle(record, dir, job, {
-        state: 'blocked',
-        reason: String(e).slice(0, 2000),
-      });
+      // Release the slot only after the outcome exists, so a listing in between cannot
+      // record this session as lost (review N-2).
+      try {
+        return await this.settle(record, dir, job, {
+          state: 'blocked',
+          reason: String(e).slice(0, 2000),
+        });
+      } finally {
+        this.active.delete(sessionId);
+      }
     }
     entry.finished = new Promise<TerminalSession>((done) => {
       let exited = false;
@@ -566,12 +585,9 @@ export class TerminalSupervisor {
         .filter((n) => id.safeParse(n).success)
         .map((n) =>
           this.status(productId, n).catch((e: unknown) => {
-            // A session being started right now has no intent record yet.
-            if (
-              this.active.has(n) &&
-              (e as NodeJS.ErrnoException).code === 'ENOENT'
-            )
-              return null;
+            // A session being started right now has no intent record yet, and a folder
+            // left by a start that failed before its intent was never a session.
+            if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
             throw e;
           }),
         ),
