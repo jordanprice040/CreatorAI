@@ -513,7 +513,8 @@ function TerminalPanel({
         there, in the isolated worker: no network, no studio files, 15 minutes
         at most. Use it for programs that need you at the keyboard. What it
         prints stays in the window and is not saved; these runs are your own
-        tries, not test results.
+        tries, not test results. Quit with the program's own keys: Ctrl+C may
+        end it at once, before it prints a final report.
       </p>
       {!confirming ? (
         <form

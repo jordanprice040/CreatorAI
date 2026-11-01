@@ -112,6 +112,10 @@ worker reported is reaped through the bridge; an unconfirmed stop is recorded as
 `cleanup_required` and its package copy is kept. Start Creator Agent yourself
 (Start menu or shortcut): a studio started inside another app's container (for
 example Claude desktop) has redirected folders, and the start is refused.
+The program owns the window: it can clear the banner, set the title and print
+anything, as any terminal program can. Bubblewrap's `--new-session` (kept as the
+terminal-injection guard) leaves it without a controlling terminal, so Ctrl+C may
+end it at once instead of reaching the program; quit with the program's own keys.
 
 ## Provenance and recovery
 

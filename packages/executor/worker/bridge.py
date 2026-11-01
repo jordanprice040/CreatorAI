@@ -237,7 +237,9 @@ def interactive(args, job, lease, source, recipe, unit, identity):
                 reason = 'lease_lost'
             if signalled:
                 reason = 'window_closed'
-            if time.monotonic() - started > TERMINAL_POLICY['runtime_seconds'] + 3:
+            # Ahead of the unit's RuntimeMaxSec backstop, so a 15-minute stop is recorded
+            # as the deadline rather than as an ordinary end.
+            if time.monotonic() - started > TERMINAL_POLICY['runtime_seconds'] - 5:
                 reason = reason or 'deadline'
             if reason:
                 break

@@ -17,6 +17,7 @@ import {
   TERMINAL_LIMIT,
   TERMINAL_POLICY,
   TerminalSupervisor,
+  consoleCommand,
   digest,
   type Binding,
   type PackageFile,
@@ -250,9 +251,13 @@ test('a session runs a fresh package copy in the worker with only the confirmed 
   assert.equal(done.state, 'ended');
   assert.equal(done.exit_code, 0);
   assert.equal(done.environment.capture, 'none');
-  await assert.rejects(readFile(join(w.job, 'launch.json')), {
-    code: 'ENOENT',
-  });
+  // The package copy is removed right after the outcome is written.
+  await until(async () =>
+    readFile(join(w.job, 'launch.json')).then(
+      () => false,
+      (e: NodeJS.ErrnoException) => e.code === 'ENOENT',
+    ),
+  );
   const events = await readdir(join(h.products.dir(p), 'events'));
   assert.ok(events.length >= 2);
   // Ended: a new session can start.
@@ -273,6 +278,36 @@ test('one open session per product and a studio-wide cap', async (t) => {
     return true;
   });
   assert.equal(h.windows.length, TERMINAL_LIMIT);
+});
+
+test('concurrent starts cannot pass the limits, and a listing during a start does not mark it lost (review M-1, L-1)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const tries = await Promise.allSettled(
+    Array.from({ length: 5 }, () => start(h.terminals, p)),
+  );
+  assert.equal(tries.filter((x) => x.status === 'fulfilled').length, 1);
+  assert.equal(h.windows.length, 1);
+  const others = await Promise.all(
+    Array.from({ length: 5 }, () => h.product()),
+  );
+  const listing = h.terminals.list(others[0]!, owner);
+  const many = await Promise.allSettled(
+    others.map((q) => start(h.terminals, q)),
+  );
+  assert.equal(
+    many.filter((x) => x.status === 'fulfilled').length,
+    TERMINAL_LIMIT - 1,
+  );
+  assert.equal(h.windows.length, TERMINAL_LIMIT);
+  await listing;
+  for (const q of others) {
+    const [x] = await h.terminals.list(q, owner);
+    if (x) assert.equal(x.state, 'running');
+  }
+  // A refused start leaves no folder behind that a listing could misread.
+  const refused = many.find((x) => x.status === 'rejected');
+  assert.ok(refused);
 });
 
 test('Stop reaches the worker through the lease; deadline and window close map to their own states', async (t) => {
@@ -407,4 +442,18 @@ test('the bridge and the recorded policy agree on the interactive limits', async
   // Only the argument list enters; the recipe refuses anything else.
   assert.match(recipe, /set\(launch\) != \{'args'\}/);
   assert.doesNotMatch(recipe, /stdin|environ\b/);
+});
+
+test('the console launcher quotes only what cmd.exe and wsl.exe need, and refuses what it cannot pass', () => {
+  assert.equal(
+    consoleCommand('C:\\Windows\\System32\\wsl.exe', [
+      '--distribution',
+      'Ubuntu',
+      '/mnt/c/Users/A B/x (1)/bridge.py',
+      'a&b',
+    ]),
+    'start "Creator Agent" /wait C:\\Windows\\System32\\wsl.exe --distribution Ubuntu "/mnt/c/Users/A B/x (1)/bridge.py" "a&b"',
+  );
+  for (const bad of ['%PATH%', 'a"b', 'x!y', '', 'a\nb'])
+    assert.throws(() => consoleCommand('wsl.exe', [bad]), /cannot pass safely/);
 });

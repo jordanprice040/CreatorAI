@@ -11,11 +11,18 @@ import {
   TerminalStartRequestSchema,
   TerminalStopRequestSchema,
   parse,
+  terminalCommand,
   type ArtifactDetail,
   type PreviewRun,
 } from '@creator/contracts';
 import type { ArtifactStore, CommandContext, PreviewGuide } from '@creator/db';
-import type { ArtifactSupervisor, TerminalSupervisor } from '@creator/executor';
+import { randomUUID } from 'node:crypto';
+import {
+  TERMINAL_POLICY,
+  digest,
+  type ArtifactSupervisor,
+  type TerminalSupervisor,
+} from '@creator/executor';
 
 type Send = (
   status: number,
@@ -273,6 +280,15 @@ export async function artifactRoutes(o: {
           'INVALID_TRANSITION',
           manifest.availability.runnable_demo.reason,
         );
+      // Audit the intent before the window opens (review L-4): a failed audit write then
+      // starts nothing, and a failed start still leaves the attempt on record.
+      const sessionId = randomUUID();
+      await store.recordTerminal(ctx, ws, item, 'artifact.terminal.started', {
+        session_id: sessionId,
+        command: terminalCommand(req.args),
+        manifest_sha256: a.summary.manifest_sha256,
+        policy_hash: digest(TERMINAL_POLICY),
+      });
       const session = await o.terminals.open({
         productId: manifest.product_id,
         artifactId: a.summary.id,
@@ -283,13 +299,7 @@ export async function artifactRoutes(o: {
         files,
         owner: ctx.actorId,
         args: req.args,
-      });
-      await store.recordTerminal(ctx, ws, item, 'artifact.terminal.started', {
-        session_id: session.id,
-        state: session.state,
-        command: session.command,
-        manifest_sha256: session.manifest_sha256,
-        policy_hash: session.policy_hash,
+        sessionId,
       });
       return send(201, session, true);
     }

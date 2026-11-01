@@ -49,6 +49,33 @@ export function wslPath(p: string): string {
   return `/mnt/${full[0]!.toLowerCase()}/${full.slice(3).replaceAll('\\', '/')}`;
 }
 
+/**
+ * The `start` command line for cmd.exe: `start "Creator Agent" /wait <program> <args>`.
+ * Each word is quoted only when it holds a space or a cmd.exe operator (wsl.exe refuses a
+ * quoted option name); a word with a quote, % or ! is refused.
+ */
+export function consoleCommand(
+  program: string,
+  args: readonly string[],
+): string {
+  const word = (w: string) => {
+    // Inside quotes cmd.exe reads & | < > ^ ( ) literally; % and ! would still expand.
+    if (!w.length || /["%!\r\n]/.test(w))
+      throw new ContractError(
+        'INVALID_CONTRACT',
+        'The terminal command has a character the window launcher cannot pass safely (a quote, % or ! in a folder name). Nothing was started.',
+      );
+    return /[ \t&|<>^()]/.test(w) ? `"${w}"` : w;
+  };
+  return [
+    'start',
+    '"Creator Agent"',
+    '/wait',
+    word(program),
+    ...args.map(word),
+  ].join(' ');
+}
+
 export interface ConsoleChild {
   once(event: 'exit', cb: () => void): unknown;
   once(event: 'error', cb: (e: Error) => void): unknown;
@@ -72,16 +99,25 @@ function system32(name: string): string {
 const defaultPorts: TerminalPorts = {
   platform: process.platform,
   openConsole(program, args) {
-    // conhost.exe opens its own console window for the program. Detached, so the studio's
-    // own console (if any) is not shared; the session still ends when the studio's
-    // heartbeat stops.
-    return spawn(system32('conhost.exe'), [program, ...args], {
-      shell: false,
-      detached: true,
-      windowsHide: false,
-      stdio: 'ignore',
-      env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH },
-    });
+    // Live check 2026-11-01: spawning conhost.exe directly exited within ~0.2 s without
+    // starting its program on Jordan's PC (default-terminal handoff), while
+    // `start "" /wait` opened a working window every time. `start` makes a new console
+    // window (or Windows Terminal tab, per the owner's default terminal), and /wait keeps
+    // cmd.exe alive until the program exits, so the exit event still means the window
+    // closed. Arguments are fixed strings, validated ids and drive paths; anything cmd.exe
+    // could read as syntax is refused rather than escaped.
+    return spawn(
+      system32('cmd.exe'),
+      ['/d', '/s', '/c', `"${consoleCommand(program, args)}"`],
+      {
+        shell: false,
+        detached: true,
+        windowsHide: false,
+        windowsVerbatimArguments: true,
+        stdio: 'ignore',
+        env: { SystemRoot: process.env.SystemRoot, PATH: process.env.PATH },
+      },
+    );
   },
   reap(bridgeArgs) {
     return new Promise((done) => {
@@ -192,6 +228,8 @@ export class TerminalSupervisor {
     files: PackageFile[];
     owner: string;
     args: string[];
+    /** Chosen by the caller so its audit row can be written before the window opens. */
+    sessionId?: string;
   }): Promise<TerminalSession> {
     const p = await this.products.product(o.productId);
     this.products.assertOwner(p, o.owner);
@@ -214,7 +252,30 @@ export class TerminalSupervisor {
         'LIMIT_EXCEEDED',
         `At most ${TERMINAL_LIMIT} terminals can be open at once. Stop one first.`,
       );
-    const sessionId = randomUUID();
+    const sessionId = checked(id, o.sessionId ?? randomUUID());
+    // Claim the slot in the same synchronous step as the checks above, so concurrent
+    // starts cannot all pass them (review M-1), and so a listing during the start sees
+    // the session as ours rather than as left over from a restart (L-1).
+    const entry: Active = {
+      productId: o.productId,
+      cancelled: false,
+      finished: new Promise<TerminalSession>(() => {}),
+    };
+    this.active.set(sessionId, entry);
+    try {
+      return await this.launch(o, args, sessionId, entry);
+    } catch (e) {
+      this.active.delete(sessionId);
+      throw e;
+    }
+  }
+
+  private async launch(
+    o: Parameters<TerminalSupervisor['open']>[0],
+    args: string[],
+    sessionId: string,
+    entry: Active,
+  ): Promise<TerminalSession> {
     const dir = this.dir(o.productId, sessionId);
     const job = join(dir, 'job');
     await mkdir(join(job, 'input'), { recursive: true });
@@ -265,11 +326,6 @@ export class TerminalSupervisor {
     await jsonWrite(join(dir, 'intent.json'), record);
     await event(this.products.dir(o.productId), 'terminal.intent', record);
 
-    const entry: Active = {
-      productId: o.productId,
-      cancelled: false,
-      finished: Promise.resolve(record),
-    };
     const heartbeat = async () => {
       await canonical(job);
       const tmp = join(job, `lease-${randomUUID()}.json`);
@@ -289,6 +345,7 @@ export class TerminalSupervisor {
       await canonical(WORKER);
       await canonical(RECIPE);
     } catch (e) {
+      this.active.delete(sessionId);
       return this.settle(record, dir, job, {
         state: 'blocked',
         reason: String(e).slice(0, 2000),
@@ -301,12 +358,12 @@ export class TerminalSupervisor {
         this.bridgeArgs(job, sessionId, recipeHash),
       );
     } catch (e) {
+      this.active.delete(sessionId);
       return this.settle(record, dir, job, {
         state: 'blocked',
         reason: String(e).slice(0, 2000),
       });
     }
-    this.active.set(sessionId, entry);
     entry.finished = new Promise<TerminalSession>((done) => {
       let exited = false;
       let busy = false;
@@ -507,9 +564,20 @@ export class TerminalSupervisor {
     const all = await Promise.all(
       names
         .filter((n) => id.safeParse(n).success)
-        .map((n) => this.status(productId, n)),
+        .map((n) =>
+          this.status(productId, n).catch((e: unknown) => {
+            // A session being started right now has no intent record yet.
+            if (
+              this.active.has(n) &&
+              (e as NodeJS.ErrnoException).code === 'ENOENT'
+            )
+              return null;
+            throw e;
+          }),
+        ),
     );
     return all
+      .filter((s): s is TerminalSession => s !== null)
       .filter((s) => !artifactId || s.artifact_id === artifactId)
       .sort((a, b) => b.started_at.localeCompare(a.started_at))
       .slice(0, 20);
