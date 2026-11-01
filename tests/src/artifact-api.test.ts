@@ -809,6 +809,13 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   assert.equal((await decide(fb, 5)).status, 409);
   const accepted = (await decide(fb)).body;
   assert.equal(accepted.status, 'accepted');
+  // The light feedback list (read by the what's-next line) shows the same item and state.
+  const fbList = await http(fbUrl);
+  assert.equal(fbList.status, 200);
+  assert.deepEqual(
+    fbList.body.map((f: any) => [f.id, f.status]),
+    [[fb.id, 'accepted']],
+  );
   const revise = (f: any, specVersion: number) =>
     http(`workspaces/${ws}/feedback/${f.id}/revision`, {
       expected_version: f.version,

@@ -7,6 +7,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
+import { useOnShow } from './page-active.js';
 
 const Campaign = z.object({
   id: z.string(),
@@ -112,6 +113,8 @@ export function Marketing({
       loadSequence.current++;
     };
   }, [workspace.id]);
+  // Packages and campaigns made elsewhere appear when this page is shown again.
+  useOnShow(() => void load().catch((e) => setError(message(e))));
   async function act(path: string, body: unknown) {
     if (!session) return;
     setBusy(true);

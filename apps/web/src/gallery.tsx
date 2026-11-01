@@ -42,7 +42,6 @@ export function Gallery({
   focus?: string | undefined;
   open: (view: View, id?: string) => void;
 }) {
-  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   // Newest first: the latest package is listed on top and opens by default.
   const list = useLoad(
@@ -65,15 +64,15 @@ export function Gallery({
       <Status loading={list.loading} error={list.error} retry={list.reload}>
         {list.data && list.data.length === 0 && (
           <Empty>
-            No packaged artifacts yet.{' '}
-            {desktop ? (
-              <>Packaging a verified build {NO_CLI_IN_DESKTOP}.</>
-            ) : (
-              <>
-                Package a verified build with{' '}
-                <code>pnpm cli artifact-package</code>.
-              </>
-            )}
+            No packaged artifacts yet. Package a verified build with its Package
+            button under Build.{' '}
+            <button
+              type="button"
+              className="text"
+              onClick={() => open('build')}
+            >
+              Open Build
+            </button>
           </Empty>
         )}
         {list.data && list.data.length > 0 && (
@@ -498,12 +497,30 @@ function FeedbackPanel({
     rationale: string,
   ) => Promise<Feedback>;
 }) {
+  const desktop = useDesktopApp();
   const [category, setCategory] =
     useState<Feedback['category']>('change_request');
   const [text, setText] = useState('');
   return (
     <div className="feedback">
       <h4>Feedback on this exact version</h4>
+      <p className="small">
+        Recording feedback is what finishes trying a package. Nothing to change?
+        Say so in one click.{' '}
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={() =>
+            void act(async () => {
+              await submit('praise', 'Tried it: works as intended.');
+              return 'Recorded: works as intended.';
+            })
+          }
+        >
+          It works as intended
+        </button>
+      </p>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -560,7 +577,9 @@ function FeedbackPanel({
                           'accept',
                           'Owner accepted for revision',
                         );
-                        return 'Accepted. Revise the spec from it with feedback-revise.';
+                        return desktop
+                          ? `Accepted. Revising the spec from it ${NO_CLI_IN_DESKTOP}.`
+                          : 'Accepted. Revise the spec from it with pnpm cli feedback-revise.';
                       })
                     }
                   >

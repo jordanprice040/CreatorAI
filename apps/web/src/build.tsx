@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArtifactSummarySchema,
   EnvelopeSchema,
@@ -30,7 +24,6 @@ import {
   envelopeFor,
   modelGrantCovers,
 } from './build-defaults.js';
-import { usePageActive } from './page-drafts.js';
 
 // What GET /products returns (apps/api/src/products.ts, ADR-0046).
 const sha = z.string().regex(/^[0-9a-f]{40}$/);
@@ -212,13 +205,8 @@ export function BuildView({
     };
   }, [workspace.id]);
   const d = data.data;
-  // Coming back from Decisions (or anywhere) shows the current state without a manual refresh.
-  const active = usePageActive();
-  const wasActive = useRef(active);
-  useEffect(() => {
-    if (active && !wasActive.current) data.reload();
-    wasActive.current = active;
-  }, [active]);
+  // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
+  // or anywhere), so the current state shows without a manual refresh; typed fields are kept.
   // While a build or package runs on the server, keep the page current.
   const running = d?.products.some((p) =>
     p.builds.some(
@@ -227,7 +215,7 @@ export function BuildView({
   );
   useEffect(() => {
     if (!running) return;
-    const t = setInterval(data.reload, 2000);
+    const t = setInterval(data.refresh, 2000);
     return () => clearInterval(t);
   }, [running]);
 

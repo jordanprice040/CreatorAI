@@ -19,6 +19,7 @@ import { api, message, when, words } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
+import { useOnShow } from './page-active.js';
 
 /**
  * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
@@ -165,6 +166,7 @@ export function Budgets({
   useEffect(() => {
     void load();
   }, [workspace]);
+  useOnShow(() => void load());
   async function noCharge(r: Reservation) {
     try {
       await api(

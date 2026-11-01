@@ -1,0 +1,75 @@
+{
+  "ws": "57798b8b-e572-47d9-85e1-479a377f2c53",
+  "out": [
+    {
+      "check": "line on projects/path",
+      "result": {
+        "style": "full",
+        "text": "Next: Freeze the spec so it can be built. Open Scores and specs"
+      }
+    },
+    {
+      "check": "line on projects/decide",
+      "result": {
+        "style": "full",
+        "text": "Next: Freeze the spec so it can be built. Open Scores and specs"
+      }
+    },
+    {
+      "check": "line on chat/conversations",
+      "result": {
+        "style": "short",
+        "text": "Main path: Freeze is next. Open Projects › Scores and specs"
+      }
+    },
+    {
+      "check": "line on monitor/overview",
+      "result": {
+        "style": "short",
+        "text": "Main path: Freeze is next. Open Projects › Scores and specs"
+      }
+    },
+    {
+      "check": "line on connections/models",
+      "result": {
+        "style": "short",
+        "text": "Main path: Freeze is next. Open Projects › Scores and specs"
+      }
+    },
+    {
+      "check": "line on settings/general",
+      "result": {
+        "style": "short",
+        "text": "Main path: Freeze is next. Open Projects › Scores and specs"
+      }
+    },
+    {
+      "check": "Decide problem options before/after a problem added while hidden",
+      "result": {
+        "before": 3,
+        "after": 4,
+        "ms": 2652
+      }
+    },
+    {
+      "check": "line after Freeze",
+      "result": {
+        "before": {
+          "style": "full",
+          "text": "Next: Open the spec below and freeze it, so it can be built."
+        },
+        "changed": {
+          "ms": 568,
+          "now": {
+            "style": "full",
+            "text": "Next: Open the spec below and freeze it, so it can be built. 1 decision waits for you. Open Monitor › Approvals"
+          }
+        }
+      }
+    },
+    {
+      "check": "page errors",
+      "result": []
+    }
+  ]
+}

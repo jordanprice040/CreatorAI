@@ -81,9 +81,16 @@ export function chatReply(
             path,
           ],
         };
+      // Later tabs (Build, Try) say they are blocked while an earlier step is still to do;
+      // that is the same fact, so the reply names it instead of seeming to disagree.
       return {
-        text: `Nothing on the main path is blocked right now. ${f.step.tone === 'clear' ? '' : 'Next: '}${f.step.text}`,
-        actions: [path],
+        text:
+          f.step.tone === 'clear'
+            ? `Nothing on the main path is blocked right now. ${f.step.text}`
+            : `Nothing on the main path is blocked right now. Next: ${f.step.text} Later steps wait for it, so their tabs say they are blocked until it is done.`,
+        actions: f.step.view
+          ? [{ kind: 'open', view: f.step.view, label: 'Go there' }, path]
+          : [path],
       };
     }
     case 'approvals': {

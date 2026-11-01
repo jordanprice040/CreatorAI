@@ -152,6 +152,14 @@ export async function artifactRoutes(o: {
         false,
       );
     }
+    // Feedback on one artifact without the detail read's archive re-hash: the what's-next
+    // line reads this for the newest package every time it refreshes.
+    if (item && action === 'feedback' && method === 'GET')
+      return send(
+        200,
+        (await store.artifactActivity(ctx, ws, item)).feedback,
+        false,
+      );
     if (item && action === 'feedback' && method === 'POST')
       return send(
         201,

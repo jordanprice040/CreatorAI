@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useOnShow } from './page-active.js';
 import {
   ActorSummarySchema,
   ProblemComparisonSchema,
@@ -166,15 +167,25 @@ export function useActors(workspace: string) {
   };
 }
 
-/** Loads data for a view with explicit loading, error and retry states. */
+/**
+ * Loads data for a view with explicit loading, error and retry states. The page reads again,
+ * quietly (keeping what it shows until the new answer arrives), each time it is shown again
+ * after being hidden, so records added elsewhere appear without a manual refresh.
+ */
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const quiet = useRef(false);
+  useOnShow(() => {
+    quiet.current = true;
+    setTick((t) => t + 1);
+  });
   useEffect(() => {
     let stop = false;
-    setLoading(true);
+    if (!quiet.current) setLoading(true);
+    quiet.current = false;
     setError('');
     load()
       .then((d) => {
@@ -193,7 +204,17 @@ export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
       stop = true;
     };
   }, [...deps, tick]);
-  return { data, error, loading, reload: () => setTick((t) => t + 1) };
+  return {
+    data,
+    error,
+    loading,
+    reload: () => setTick((t) => t + 1),
+    /** Reads again without the "Loading…" state, for polls and refreshes after an action. */
+    refresh: () => {
+      quiet.current = true;
+      setTick((t) => t + 1);
+    },
+  };
 }
 
 export function Status({

@@ -80,7 +80,7 @@ export function Overview({
   // While anything runs or waits, refresh every few seconds so state changes show up.
   useEffect(() => {
     if (!active || live.length === 0) return;
-    const t = setInterval(data.reload, 4000);
+    const t = setInterval(data.refresh, 4000);
     return () => clearInterval(t);
   }, [active, live.length]);
   return (

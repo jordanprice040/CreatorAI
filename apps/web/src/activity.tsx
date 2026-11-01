@@ -13,6 +13,7 @@ import {
   subjectTarget,
   type View,
 } from './ui.js';
+import { useOnShow } from './page-active.js';
 
 const ACTIONS = [
   ['', 'Everything'],
@@ -75,6 +76,7 @@ export function Activity({
   useEffect(() => {
     void load();
   }, [workspace.id, q, action]);
+  useOnShow(() => void load());
   function submit(e: FormEvent) {
     e.preventDefault();
     setQ(draft.trim());

@@ -67,6 +67,13 @@ export type StudioFacts = {
     build: BuildState;
     packaging: boolean;
     packaged: boolean;
+    /**
+     * Feedback recorded on the newest package (the one Try opens): trying it means recording
+     * feedback, so this is what finishes the Try stage. `accepted` counts items accepted for a
+     * revision that has not been written yet; `undecided` counts items still to accept or
+     * decline. Absent when not packaged or when the package could not be read.
+     */
+    feedback?: { total: number; accepted: number; undecided: number };
   } | null;
   artifacts: number;
   /** Model plan connections; null when not checked (fixture workspaces). */
@@ -224,12 +231,45 @@ function productStep(f: StudioFacts): Step {
           text: 'The build is verified. Package it, then try it under Try.',
           action: build,
         };
-      return {
-        tone: 'next',
-        text: 'Try the newest package in its private preview and record your feedback; feedback can start a revision.',
-        action: { view: 'gallery' },
-      };
+      return tryStep(f, p.feedback);
   }
+}
+
+/** Plain words for how much feedback there is, e.g. "1 feedback item". */
+const items = (n: number) => plural(n, 'feedback item');
+
+/**
+ * After packaging: Try is done once feedback is recorded on the newest package. Then the path
+ * either has accepted feedback to revise from, or it is finished for this product.
+ */
+function tryStep(
+  f: StudioFacts,
+  feedback: { total: number; accepted: number; undecided: number } | undefined,
+): Step {
+  const gallery = { view: 'gallery' } as const;
+  if (!feedback || feedback.total === 0)
+    return {
+      tone: 'next',
+      text: 'Try the newest package in its private preview and record your feedback; feedback can start a revision.',
+      action: gallery,
+    };
+  if (feedback.accepted > 0)
+    return {
+      tone: 'next',
+      text: `Revise the spec from your ${feedback.accepted === 1 ? 'accepted feedback item' : `${feedback.accepted} accepted feedback items`} ${cli(f, 'feedback-revise')}. The revision is frozen, reviewed and built like the first version.`,
+      action: gallery,
+    };
+  if (feedback.undecided > 0)
+    return {
+      tone: 'clear',
+      text: `You tried the newest package and recorded ${items(feedback.total)}. Accept one under Try to start a revision, or start a new discovery when you want another product.`,
+      action: gallery,
+    };
+  return {
+    tone: 'clear',
+    text: `This product's path is finished: you tried the newest package and recorded ${items(feedback.total)}. Start a new discovery when you want another product.`,
+    action: { view: 'submit' },
+  };
 }
 
 const decisionsAction = { view: 'decisions' } as const;
@@ -376,9 +416,16 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
           text: 'Nothing is packaged yet. Package a verified build first.',
           action: { view: 'build' },
         };
+      // The newest package's own step: try it, then revise from feedback or finish.
+      if (
+        f.product?.current &&
+        f.product.build === 'verified' &&
+        f.product.packaged
+      )
+        return tryStep(f, f.product.feedback);
       return {
         tone: 'next',
-        text: 'Try the newest package in its private preview and record your feedback; feedback can start a revision.',
+        text: 'Try a package in its private preview and record your feedback; feedback can start a revision.',
       };
     case 'models':
       if (f.planConnections === 0)
@@ -413,7 +460,12 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
 
 function clearThen(f: StudioFacts, lead: string): Step {
   const path = pipelineStep(f);
-  return { ...path, tone: 'clear', text: `${lead} Next: ${path.text}` };
+  // A finished or running path has no "next" to name; say where it stands instead.
+  return {
+    ...path,
+    tone: 'clear',
+    text: `${lead} ${path.tone === 'clear' ? path.text : `Next: ${path.text}`}`,
+  };
 }
 
 /** A pointer to waiting decisions, for pages whose own line is about something else. */
@@ -480,7 +532,12 @@ function stageNeeds(key: string, f: StudioFacts): Step | null {
  * and why), and what the later ones will need. It reads the same facts and wording as the
  * what's-next line, so the two never disagree; the server still enforces every gate.
  */
-export function pathStages(f: StudioFacts): { stages: Stage[]; step: Step } {
+export function pathStages(f: StudioFacts): {
+  stages: Stage[];
+  step: Step;
+  /** Every stage is done; `step` is then the closing line (revise, or start another). */
+  finished: boolean;
+} {
   const p = f.product;
   const built = p !== null && p.current && p.build === 'verified';
   const list: { key: string; label: string; done: boolean; view: StepView }[] =
@@ -529,18 +586,28 @@ export function pathStages(f: StudioFacts): { stages: Stage[]; step: Step } {
         done: built && p !== null && p.packaged,
         view: 'build',
       },
-      { key: 'try', label: 'Try', done: false, view: 'gallery' },
+      {
+        key: 'try',
+        label: 'Try',
+        // Trying means recording feedback on the newest package; the step after it (revise, or
+        // nothing) is the path's closing line rather than another stage.
+        done: built && p !== null && p.packaged && (p.feedback?.total ?? 0) > 0,
+        view: 'gallery',
+      },
     ];
   // Stages are done in order: a later record does not count past an earlier gap.
-  let current = list.findIndex((s) => !s.done);
-  if (current < 0) current = list.length - 1;
+  // When every stage is done the path is finished and no stage is current.
+  const current = list.findIndex((s) => !s.done);
+  const finished = current < 0;
   const path = pipelineStep(f);
   // A step in progress (a running build or packaging) needs no one, so nothing blocks it.
   const needs =
-    path.tone === 'clear' ? null : stageNeeds(list[current]!.key, f);
+    finished || path.tone === 'clear'
+      ? null
+      : stageNeeds(list[current]!.key, f);
   const step: Step = needs ?? path;
   const stages = list.map((s, i): Stage => {
-    if (i < current)
+    if (finished || i < current)
       return {
         ...s,
         // Scoring is skipped when discovery proposed no options: not done, not needed.
@@ -571,5 +638,57 @@ export function pathStages(f: StudioFacts): { stages: Stage[]; step: Step } {
       text: stageNeeds(s.key, f)?.text ?? null,
     };
   });
-  return { stages, step };
+  return { stages, step, finished };
+}
+
+/** The tabs of the Projects page, where the main path happens (mirrors pages.ts). */
+const PROJECT_VIEWS: readonly StepView[] = [
+  'path',
+  'submit',
+  'compare',
+  'scores',
+  'build',
+  'gallery',
+  'payments',
+  'marketing',
+  'portfolio',
+];
+
+/**
+ * The main path in a few words, for the short line on pages outside Projects: which stage
+ * is current and how it stands, or that the path is finished, and the tab that takes it.
+ */
+export function pathSummary(f: StudioFacts): { text: string; view: StepView } {
+  const { stages, step, finished } = pathStages(f);
+  if (finished)
+    return step.tone === 'next'
+      ? {
+          text: 'revising from your feedback is next',
+          view: step.action?.view ?? 'gallery',
+        }
+      : { text: 'finished for this product', view: 'path' };
+  const s = stages.find((x) => x.state !== 'done' && x.state !== 'skipped')!;
+  const how =
+    s.state === 'blocked'
+      ? 'is blocked'
+      : s.state === 'running'
+        ? 'is in progress'
+        : 'is next';
+  return { text: `${s.label} ${how}`, view: s.view };
+}
+
+/**
+ * Whether a page shows the full what's-next line or only the short path summary. The full
+ * line is for Projects, where the path happens, and for any page whose line is about the
+ * page itself (an approval waiting, no budget yet, no plan connected). Elsewhere it would
+ * only repeat the path's step on every page, so a short summary with a link is enough.
+ */
+export function lineStyle(view: StepView, f: StudioFacts): 'full' | 'short' {
+  if (PROJECT_VIEWS.includes(view)) return 'full';
+  const text = nextStep(view, f).text;
+  const repeats =
+    text === pipelineStep(f).text ||
+    text === pathStages(f).step.text ||
+    (view === 'decisions' && f.pending === 0);
+  return repeats ? 'short' : 'full';
 }

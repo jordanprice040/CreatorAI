@@ -1,8 +1,8 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { viewLabel, type Route } from './ui.js';
+import { PageActive } from './page-active.js';
 
-const PageActive = createContext(true);
-export const usePageActive = () => useContext(PageActive);
+export { usePageActive, useOnShow } from './page-active.js';
 
 /** Views with nothing to reset: Path is read-only, and Chat keeps what was sent. */
 const NO_RESET = new Set(['path', 'chat']);

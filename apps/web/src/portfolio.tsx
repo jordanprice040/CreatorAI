@@ -7,6 +7,7 @@ import {
   type SessionInfo,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
+import { useOnShow } from './page-active.js';
 
 const Policy = PortfolioPolicyRequestSchema.extend({
   version: z.number(),
@@ -153,6 +154,7 @@ export function Portfolio({
       sequence.current++;
     };
   }, [workspace.id]);
+  useOnShow(() => void load());
   async function act(path: string, body: unknown) {
     if (!session) return;
     setBusy(true);

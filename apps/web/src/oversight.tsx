@@ -23,6 +23,12 @@ export class ApiError extends Error {
     super(message);
   }
 }
+/**
+ * Sent on `window` after every request that changes something (any POST), whether it worked
+ * or was refused, so the what's-next line and other summaries read again right away.
+ */
+export const STUDIO_CHANGED = 'creator:studio-changed';
+
 export async function api<T>(
   schema: z.ZodType<T>,
   path: string,
@@ -33,7 +39,7 @@ export async function api<T>(
     idempotencyKey?: string;
   } = {},
 ): Promise<T> {
-  const response = await fetch(`/api/${path}`, {
+  const sent = fetch(`/api/${path}`, {
     ...(init.body === undefined
       ? {}
       : {
@@ -49,6 +55,12 @@ export async function api<T>(
         }),
     signal: AbortSignal.timeout(init.timeoutMs ?? 5000),
   });
+  // A write that timed out may still have landed, so announce it however it ended.
+  if (init.body !== undefined && typeof window !== 'undefined') {
+    const announce = () => window.dispatchEvent(new Event(STUDIO_CHANGED));
+    sent.then(announce, announce);
+  }
+  const response = await sent;
   const body: unknown = await response.json();
   if (!response.ok) {
     const e =
