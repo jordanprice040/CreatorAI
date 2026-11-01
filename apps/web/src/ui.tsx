@@ -16,6 +16,7 @@ import {
   type Route,
   type View,
 } from './pages.js';
+import { distinctLabels, groupByTheme, recordLabel } from './labels.js';
 
 // Shared pieces for every view. They take plain props and fetch through `api`, so a future
 // desktop shell can host the same views around its own navigation.
@@ -324,20 +325,59 @@ export async function alternativeCounts(
   );
   return counts;
 }
-/** The problem with the most alternatives; the first listed when none has any. */
-export function richestProblem(
-  problems: readonly { id: string }[],
-  counts: ReadonlyMap<string, number>,
-) {
-  let best = problems[0]?.id ?? '';
-  for (const p of problems)
-    if ((counts.get(p.id) ?? 0) > (counts.get(best) ?? 0)) best = p.id;
-  return best;
-}
-/** A problem's option label: its title, and a note when nothing was proposed for it. */
+/**
+ * A problem's option label: the part of its title that differs from its siblings, when it
+ * was found, and a note when nothing was proposed for it.
+ */
 export const problemLabel = (
-  p: { id: string; title: string },
+  p: { id: string; title: string; created_at: string; version?: number },
   counts: ReadonlyMap<string, number>,
-  max = 90,
+  max = 64,
 ) =>
-  `${clip(p.title, max)}${counts.get(p.id) === 0 ? ' (no options proposed)' : ''}`;
+  `${recordLabel(p, max)}${counts.get(p.id) === 0 ? ' (no options proposed)' : ''}`;
+
+/**
+ * Options for a record picker, grouped under their shared theme when the list holds more
+ * than one theme (or any theme at all), each labelled by `label` and given its full title
+ * as a tooltip. Keep the list newest first: groups follow their newest record.
+ */
+export function RecordOptions<
+  T extends { id: string; title: string; created_at: string; version?: number },
+>({ list, label }: { list: readonly T[]; label?: (r: T) => string }) {
+  const labels = distinctLabels(list, label ?? ((r) => recordLabel(r)));
+  const option = (r: T) => (
+    <option key={r.id} value={r.id} title={r.title}>
+      {labels.get(r.id)}
+    </option>
+  );
+  const groups = groupByTheme(list);
+  if (groups.length === 1 && !groups[0]!.theme) return <>{list.map(option)}</>;
+  return (
+    <>
+      {groups.map((g) => (
+        <optgroup
+          key={g.theme || '-'}
+          label={g.theme ? clip(g.theme, 70) : 'Other'}
+        >
+          {g.items.map(option)}
+        </optgroup>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Each run's name, from the run record it was registered from (discovery runs are titled
+ * "Discovery: <theme>"). A run whose record can't be read just has no name.
+ */
+export async function runNames(base: string): Promise<Map<string, string>> {
+  try {
+    const runs = await api(
+      z.array(z.object({ id: z.string(), title: z.string() })),
+      `${base}/entities?kind=run`,
+    );
+    return new Map(runs.map((r) => [r.id, r.title]));
+  } catch {
+    return new Map();
+  }
+}

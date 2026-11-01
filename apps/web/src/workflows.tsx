@@ -22,9 +22,24 @@ import { newestFirst } from './versions.js';
 import { envelopeFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { usePageActive } from './page-drafts.js';
+import {
+  clipText,
+  distinctLabels,
+  recordLabel,
+  runLabel,
+  runName,
+} from './labels.js';
+import { runNames } from './ui.js';
 
 const TERMINAL = ['succeeded', 'failed', 'cancelled'];
-const SUBJECT_KINDS = ['idea', 'problem', 'alternative', 'specification'];
+/** Record kinds a skeptic review can examine, in the order the picker groups them. */
+const SUBJECT_KINDS = ['problem', 'idea', 'alternative', 'specification'];
+const KIND_GROUP: Record<string, string> = {
+  problem: 'Problems',
+  idea: 'Ideas',
+  alternative: 'Options',
+  specification: 'Specifications',
+};
 
 /**
  * Starts and monitors durable workflows. The page only reads state the server keeps: closing
@@ -51,6 +66,7 @@ export function Workflows({
   const [detail, setDetail] = useState<WorkflowDetail | null>(null);
   const [subjects, setSubjects] = useState<StoredEntity[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
   const [subject, setSubject] = useState('');
@@ -65,16 +81,21 @@ export function Workflows({
   async function load() {
     if (!workspace) return;
     try {
-      const [w, e, r, b, p] = await Promise.all([
+      const [w, e, r, b, p, n] = await Promise.all([
         api(z.array(WorkflowSchema), `${base}/workflows`),
         api(z.array(StoredEntitySchema), `${base}/entities?status=active`),
         api(z.array(RunControlSchema), `${base}/runs`),
         api(z.array(EnvelopeSchema), `${base}/budgets`),
         api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+        runNames(base),
       ]);
-      setList(w);
-      const subj = e.filter((x) => SUBJECT_KINDS.includes(x.kind));
+      setList(newestFirst(w));
+      setNames(n);
+      const subj = newestFirst(e.filter((x) => SUBJECT_KINDS.includes(x.kind)));
       setSubjects(subj);
+      // Default to the newest problem or idea, which is what a review usually examines.
+      const preferred =
+        subj.find((x) => x.kind === 'problem' || x.kind === 'idea') ?? subj[0];
       const busyRuns = new Set(
         w.filter((x) => !x.finished_at).map((x) => x.run_id),
       );
@@ -88,14 +109,14 @@ export function Workflows({
       setEnvelopes(newestFirst(b.filter((x) => x.status === 'active')));
       setPricing(newestFirst(p));
       setSubject((c) =>
-        subj.some((x) => x.id === c) ? c : (subj[0]?.id ?? ''),
+        subj.some((x) => x.id === c) ? c : (preferred?.id ?? ''),
       );
       setRunId((c) =>
         free.some((x) => x.run_id === c)
           ? c
           : (newestFirst(free)[0]?.run_id ?? ''),
       );
-      setSelected((c) => c || (w[0]?.id ?? ''));
+      setSelected((c) => c || (newestFirst(w)[0]?.id ?? ''));
     } catch (err) {
       setError(message(err));
     }
@@ -251,6 +272,8 @@ export function Workflows({
                     {w.role === 'r02_discovery'
                       ? 'Discovery'
                       : 'Skeptic review'}{' '}
+                    {runName(w.run_id, names) &&
+                      `· ${clipText(runName(w.run_id, names), 48)} `}
                     · {w.perspectives.length} perspectives ·{' '}
                     {when(w.created_at)}
                   </button>
@@ -269,11 +292,19 @@ export function Workflows({
               {subjects.length === 0 && (
                 <option value="">No idea or problem records</option>
               )}
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.kind} · {s.title} · v{s.version}
-                </option>
-              ))}
+              {SUBJECT_KINDS.map((kind) => {
+                const group = subjects.filter((s) => s.kind === kind);
+                const labels = distinctLabels(group, (s) => recordLabel(s));
+                return group.length === 0 ? null : (
+                  <optgroup key={kind} label={KIND_GROUP[kind]}>
+                    {group.map((s) => (
+                      <option key={s.id} value={s.id} title={s.title}>
+                        {labels.get(s.id)}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
             <label htmlFor="wrun">Run</label>
             <select
@@ -286,7 +317,7 @@ export function Workflows({
               )}
               {runs.map((r) => (
                 <option key={r.run_id} value={r.run_id}>
-                  {words(r.autonomy_mode)} · {r.run_id.slice(0, 8)}
+                  {runLabel(r, names)}
                 </option>
               ))}
             </select>

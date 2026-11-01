@@ -372,7 +372,7 @@ export class OversightStore extends Store {
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
       const { rows } = await c.query(
-        'select * from run_controls where workspace_id = $1 order by created_at, run_id',
+        'select * from run_controls where workspace_id = $1 order by created_at desc, run_id desc',
         [ws],
       );
       return rows.map((r: Row) => toRun(r));

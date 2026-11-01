@@ -30,7 +30,8 @@ import { envelopesFor } from './build-defaults.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
-import { Empty, Status, shortId, useLoad, type View } from './ui.js';
+import { Empty, Status, runNames, useLoad, type View } from './ui.js';
+import { runLabel } from './labels.js';
 import { usePageActive } from './page-drafts.js';
 
 const lines = (s: string) =>
@@ -115,7 +116,7 @@ export function Submit({
   const base = `workspaces/${workspace.id}`;
   const ctx = useLoad(async () => {
     let connectionError = '';
-    const [claims, runs, workflows, envelopes, pricing, connections] =
+    const [claims, runs, workflows, envelopes, pricing, connections, names] =
       await Promise.all([
         api(
           z.array(StoredEntitySchema),
@@ -131,6 +132,7 @@ export function Submit({
             return [];
           },
         ),
+        runNames(base),
       ]);
     const planDetails = await Promise.all(
       connections.map((conn) =>
@@ -155,8 +157,9 @@ export function Submit({
       workflows.filter((w) => LIVE.includes(w.state)).map((w) => w.run_id),
     );
     return {
-      claims,
+      claims: newestFirst(claims),
       evidence,
+      names,
       runs: newestFirst(
         runs.filter(
           (r) =>
@@ -776,7 +779,7 @@ export function Submit({
                 <option value="new">Register a new run</option>
                 {c.runs.map((r) => (
                   <option key={r.run_id} value={r.run_id}>
-                    Existing {words(r.autonomy_mode)} run {shortId(r.run_id)}
+                    Existing: {runLabel(r, c.names)}
                   </option>
                 ))}
               </select>
