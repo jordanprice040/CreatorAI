@@ -272,7 +272,9 @@ export function Overview({
               <div>
                 <h3>Catalog</h3>
                 {o.records.length === 0 ? (
-                  <Empty>No records yet. Submit a theme to start.</Empty>
+                  <Empty>
+                    No records yet. Start under Projects › Discover.
+                  </Empty>
                 ) : (
                   <ul className="rows">
                     {o.records.map((r) => (
@@ -296,7 +298,7 @@ export function Overview({
                 {o.products.length === 0 ? (
                   <Empty>
                     No product records yet. Selecting an option doesn&apos;t
-                    create one; packaged builds are listed in Gallery.
+                    create one; packaged builds are listed under Projects › Try.
                   </Empty>
                 ) : (
                   <ul className="rows">

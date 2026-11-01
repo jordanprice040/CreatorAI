@@ -409,8 +409,8 @@ export function Compare({
       >
         {problemList?.length === 0 && (
           <Empty>
-            No problem records yet. Submit a theme; a finished discovery writes
-            one.
+            No problem records yet. Start one under Discover; a finished
+            discovery writes one.
           </Empty>
         )}
       </Status>

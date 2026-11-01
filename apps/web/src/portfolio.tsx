@@ -316,7 +316,7 @@ export function Portfolio({
       <h3>Product health and owner feedback</h3>
       <p>
         Health checks rehash the private package; they do not establish runtime
-        uptime. Submit product feedback in Gallery.
+        uptime. Submit product feedback under Projects › Try.
       </p>
       <ul>
         {view?.health

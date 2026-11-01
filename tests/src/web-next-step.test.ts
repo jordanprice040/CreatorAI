@@ -21,13 +21,17 @@ type Facts = Record<string, unknown>;
 type Step = {
   tone: string;
   text: string;
-  action?: { label: string; view: string };
+  action?: { view: string };
 };
 type Rules = {
   failedNote: (view: string, f: Facts) => string | null;
   nextStep: (view: string, f: Facts) => Step;
   pipelineStep: (f: Facts) => Step;
   decisionsNote: (view: string, f: Facts) => string | null;
+  pathStages: (f: Facts) => {
+    stages: { key: string; state: string; text: string | null; view: string }[];
+    step: Step;
+  };
 };
 
 /** A workspace at the end of the path: everything recorded, a packaged verified build. */
@@ -142,9 +146,10 @@ test('waiting decisions come first on the monitor and show as a note elsewhere',
 
 test('every view has a step', async () => {
   const { nextStep } = await load<Rules>('next-rules.ts');
-  const ui = await readFile('apps/web/src/ui.tsx', 'utf8');
-  const block = /export const VIEWS = \[([\s\S]*?)\] as const;/.exec(ui)![1]!;
-  const views = [...block.matchAll(/\['([a-z]+)'/g)].map((m) => m[1]!);
+  const { PAGES } = await load<{
+    PAGES: { sections: { view: string }[] }[];
+  }>('pages.ts');
+  const views = PAGES.flatMap((p) => p.sections.map((s) => s.view));
   assert.ok(views.length > 20);
   for (const view of views) {
     const step = nextStep(view, done);
@@ -367,4 +372,146 @@ test('a build counts as packaged when Gallery holds its commit, even after a res
   assert.equal(artifactForBuild(artifacts, { commit: 'c4' }, spec)?.id, 'a-v4');
   assert.equal(artifactForBuild(artifacts, { commit: 'c3' }, spec), undefined);
   assert.equal(artifactForBuild(artifacts, { commit: null }, spec), undefined);
+});
+
+test("the Path tab marks stages done in order and agrees with the what's-next line", async () => {
+  const { pathStages, pipelineStep } = await load<Rules>('next-rules.ts');
+  const states = (f: Facts) =>
+    pathStages(f).stages.map((s) => `${s.key}:${s.state}`);
+  // At the end of the path only trying the package is left.
+  assert.deepEqual(states(done).slice(-2), ['package:done', 'try:next']);
+  // An unfrozen spec: everything before Freeze is done, Freeze is next, the rest later.
+  const unfrozen = { ...done, frozenSpecs: 0 };
+  const { stages, step } = pathStages(unfrozen);
+  assert.deepEqual(
+    stages.map((s) => s.state),
+    [
+      'done',
+      'done',
+      'done',
+      'done',
+      'next',
+      'later',
+      'later',
+      'later',
+      'later',
+    ],
+  );
+  assert.equal(step.text, pipelineStep(unfrozen).text);
+  assert.equal(stages[4]!.view, 'scores');
+  // A later record does not count past an earlier gap: unscored options stop at Scores.
+  const unscored = pathStages({ ...done, scorecards: 0 }).stages;
+  assert.equal(unscored.find((s) => s.state !== 'done')?.key, 'scores');
+  // A running build reads as in progress, a failed one as blocked.
+  const at = (build: string) =>
+    pathStages({
+      ...done,
+      product: { ...(done.product as Facts), build },
+    }).stages.find((s) => s.key === 'build')?.state;
+  assert.equal(at('running'), 'running');
+  assert.equal(at('failed'), 'blocked');
+});
+
+test('the Path tab says why a stage is blocked and what later stages will need', async () => {
+  const { pathStages } = await load<Rules>('next-rules.ts');
+  // No budget: discovery is blocked with the reason and a link to Budgets.
+  const start = pathStages({
+    ...done,
+    budgets: 0,
+    problems: 0,
+    alternatives: 0,
+    scorecards: 0,
+    specs: 0,
+    frozenSpecs: 0,
+    reviewed: false,
+    product: null,
+  });
+  const discovery = start.stages.find((s) => s.key === 'discovery')!;
+  assert.equal(discovery.state, 'blocked');
+  assert.equal(discovery.view, 'budgets');
+  assert.match(discovery.text ?? '', /active budget/);
+  // The build stage, still ahead, already says what it will need.
+  const build = start.stages.find((s) => s.key === 'build')!;
+  assert.equal(build.state, 'later');
+  assert.match(build.text ?? '', /active budget/);
+  // A non-owner is told before reaching the build that only the owner can build.
+  const viewer = pathStages({ ...done, owner: false, frozenSpecs: 0 });
+  assert.match(
+    viewer.stages.find((s) => s.key === 'build')?.text ?? '',
+    /Only the workspace owner/,
+  );
+});
+
+test('the line above the tabs on Path never contradicts the Path list (PR #97 review M-1)', async () => {
+  const { pathStages, nextStep } = await load<Rules>('next-rules.ts');
+  const early = {
+    ...done,
+    problems: 0,
+    alternatives: 0,
+    scorecards: 0,
+    specs: 0,
+    frozenSpecs: 0,
+    reviewed: false,
+    product: null,
+  };
+  const cases: Facts[] = [
+    { ...early, budgets: 0 },
+    {
+      ...done,
+      owner: false,
+      product: { ...(done.product as Facts), packaged: false },
+    },
+    {
+      ...done,
+      owner: false,
+      product: { ...(done.product as Facts), build: 'running' },
+    },
+    { ...done, frozenSpecs: 0 },
+    done,
+  ];
+  for (const f of cases) {
+    const { stages, step } = pathStages(f);
+    const line = nextStep('path', f);
+    assert.deepEqual(line, step);
+    const current = stages.find((s) =>
+      ['next', 'running', 'blocked'].includes(s.state),
+    )!;
+    assert.equal(current.text, line.text);
+    assert.equal(current.state === 'blocked', line.tone === 'blocked');
+  }
+  // No budget: both say discovery is blocked and point at Budgets.
+  const noBudget = nextStep('path', { ...early, budgets: 0 });
+  assert.equal(noBudget.tone, 'blocked');
+  assert.equal(noBudget.action?.view, 'budgets');
+  // A running build needs no one, so the owner rule does not turn it into a block.
+  const running = pathStages({
+    ...done,
+    owner: false,
+    product: { ...(done.product as Facts), build: 'running' },
+  });
+  assert.equal(running.stages.find((s) => s.key === 'build')?.state, 'running');
+});
+
+test('packaging needs no budget or pricing, and skipped scoring is not shown as done', async () => {
+  const { pathStages } = await load<Rules>('next-rules.ts');
+  // L-1: a verified, unpackaged build with no budget or pricing is ready to package.
+  const unpackaged = pathStages({
+    ...done,
+    budgets: 0,
+    pricing: 0,
+    product: { ...(done.product as Facts), packaged: false },
+  });
+  const pkg = unpackaged.stages.find((s) => s.key === 'package')!;
+  assert.equal(pkg.state, 'next');
+  assert.match(pkg.text ?? '', /Package it/);
+  // L-3: a discovery with no options skips scoring; the stage says so instead of Done.
+  const noOptions = pathStages({ ...done, alternatives: 0, scorecards: 0 });
+  assert.equal(
+    noOptions.stages.find((s) => s.key === 'scores')?.state,
+    'skipped',
+  );
+  assert.equal(
+    pathStages(done).stages.find((s) => s.key === 'scores')?.state,
+    'done',
+  );
 });

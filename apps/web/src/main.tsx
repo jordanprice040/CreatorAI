@@ -33,10 +33,11 @@ import { Models } from './models.js';
 import { Portfolio } from './portfolio.js';
 import {
   Icon,
-  VIEW_GROUPS,
+  PAGES,
+  pageOf,
+  tabsOf,
   useActors,
   useRoute,
-  viewGroup,
   viewLabel,
   type View,
 } from './ui.js';
@@ -45,7 +46,10 @@ import './style.css';
 import { Studies } from './study.js';
 import { PageDrafts } from './page-drafts.js';
 import { UsageIndicator } from './usage.js';
-import { NextStep } from './next-step.js';
+import { NextStep, useStudioFacts } from './next-step.js';
+import { PathView } from './path.js';
+import { nextStep } from './next-rules.js';
+import { routeHash } from './pages.js';
 
 const choices = [
   ['use_existing', 'Use an existing tool'],
@@ -189,6 +193,8 @@ function FixtureDemo() {
 }
 
 const LAST_WORKSPACE = 'creator.workspace';
+/** The path step last seen on Projects, per workspace, for the Projects nav dot. */
+const SEEN_STEP = 'creator.path-seen';
 /** Remembers the open workspace in this browser only; a blocked store just forgets it. */
 function rememberWorkspace(id: string) {
   try {
@@ -302,6 +308,58 @@ function NewWorkspace({
   );
 }
 
+/**
+ * The tab row of the current page, and a second row for a tab that holds several sections
+ * (Launch). Links carry real addresses, so they open in a new tab too.
+ */
+function PageTabs({
+  view,
+  ws,
+  open,
+}: {
+  view: View;
+  ws: string;
+  open: (view: View) => void;
+}) {
+  const page = pageOf(view);
+  const tabs = tabsOf(page);
+  const active = tabs.find((t) => t.sections.some((s) => s.view === view));
+  const link = (target: View, label: string, current: boolean) => (
+    <a
+      href={routeHash({ view: target, ws, id: '', q: '' })}
+      aria-current={current ? 'page' : undefined}
+      onClick={(e) => {
+        e.preventDefault();
+        open(target);
+      }}
+    >
+      {label}
+    </a>
+  );
+  return (
+    <nav className="page-tabs" aria-label={`${page.label} tabs`}>
+      <ul className="tabs">
+        {tabs.map((t) => (
+          <li key={t.label}>
+            {link(
+              t === active ? view : t.sections[0]!.view,
+              t.label,
+              t === active,
+            )}
+          </li>
+        ))}
+      </ul>
+      {active && active.sections.length > 1 && (
+        <ul className="subtabs" aria-label={`${active.label} sections`}>
+          {active.sections.map((s) => (
+            <li key={s.view}>{link(s.view, s.label, s.view === view)}</li>
+          ))}
+        </ul>
+      )}
+    </nav>
+  );
+}
+
 function App() {
   const [health, setHealth] = useState('Checking connection…');
   const [tone, setTone] = useState<'checking' | 'ok' | 'warn' | 'down'>(
@@ -311,7 +369,7 @@ function App() {
   const theme = useTheme();
   const [persistent, setPersistent] = useState<boolean | null>(null);
   const auth = useSession(persistent === true);
-  const { route, go } = useRoute();
+  const { route, go, lastIn } = useRoute();
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [wsError, setWsError] = useState('');
   async function checkHealth() {
@@ -377,6 +435,45 @@ function App() {
     } else go({ ws: startingWorkspace(workspaces), id: '' }, true);
   }, [workspaces, route.ws]);
   const names = useActors(workspace?.id ?? '');
+  const studio = Boolean(persistent && auth.session && workspace);
+  const facts = useStudioFacts(
+    studio ? workspace : null,
+    route.view,
+    auth.managed,
+  );
+  // The Projects dot marks a path step the person has not seen yet: it shows when the
+  // step changes and clears once Projects is opened (PR #97 review L-2). Remembered in this
+  // browser only; a blocked store just shows the dot again.
+  const pathStep = facts ? nextStep('path', facts) : null;
+  const stepKey = pathStep ? `${pathStep.tone}:${pathStep.text}` : '';
+  const [seenStep, setSeenStep] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SEEN_STEP) ?? '{}') as Record<
+        string,
+        string
+      >;
+    } catch {
+      return {};
+    }
+  });
+  const onProjects = pageOf(route.view).key === 'projects';
+  useEffect(() => {
+    if (!workspace || !stepKey || !onProjects) return;
+    if (seenStep[workspace.id] === stepKey) return;
+    const next = { ...seenStep, [workspace.id]: stepKey };
+    setSeenStep(next);
+    try {
+      localStorage.setItem(SEEN_STEP, JSON.stringify(next));
+    } catch {
+      // Private windows: the dot comes back next time, which is harmless.
+    }
+  }, [workspace?.id, stepKey, onProjects]);
+  const newStep =
+    workspace !== null &&
+    pathStep !== null &&
+    pathStep.tone !== 'clear' &&
+    !onProjects &&
+    seenStep[workspace.id] !== stepKey;
   const open = (view: View, id?: string, q?: string) =>
     go({
       view,
@@ -442,6 +539,8 @@ function App() {
       );
     const s = auth.session;
     switch (pageRoute.view) {
+      case 'path':
+        return <PathView facts={facts} open={open} />;
       case 'portfolio':
         return (
           <Portfolio key={workspace.id} workspace={workspace} session={s} />
@@ -582,11 +681,12 @@ function App() {
   const signedIn = persistent && auth.session;
   const inStudio = Boolean(signedIn && workspace);
   const label = viewLabel(route.view);
+  const pageLabel = pageOf(route.view).label;
   useEffect(() => {
     document.title = inStudio
-      ? `${label} · Creator Agent`
+      ? `${label} · ${pageLabel} · Creator Agent`
       : 'Creator Agent · Local studio';
-  }, [inStudio, label]);
+  }, [inStudio, label, pageLabel]);
   useEffect(() => {
     if (!menuOpen) return;
     const close = (e: KeyboardEvent) => {
@@ -624,7 +724,15 @@ function App() {
           className="sidebar"
           data-open={menuOpen ? 'true' : undefined}
         >
-          <a className="brand" href={`#/overview?ws=${workspace.id}`}>
+          <a
+            className="brand"
+            href={routeHash({
+              view: 'overview',
+              ws: workspace.id,
+              id: '',
+              q: '',
+            })}
+          >
             <span className="mark" aria-hidden="true">
               CA
             </span>
@@ -652,29 +760,55 @@ function App() {
               created={(w) => void loadWorkspaces(w.id)}
             />
           </div>
-          <nav aria-label="Views">
-            {VIEW_GROUPS.map((g) => (
-              <div className="nav-group" key={g.label}>
-                <h2 id={`nav-${g.label}`}>{g.label}</h2>
-                <ul aria-labelledby={`nav-${g.label}`}>
-                  {g.views.map((key) => (
-                    <li key={key}>
-                      <a
-                        href={`#/${key}?ws=${workspace.id}`}
-                        aria-current={route.view === key ? 'page' : undefined}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setMenuOpen(false);
-                          open(key);
-                        }}
-                      >
-                        {viewLabel(key)}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <nav aria-label="Pages">
+            <ul className="page-nav">
+              {PAGES.map((page) => {
+                const target = lastIn(page.key) ?? page.sections[0]!.view;
+                const here = pageOf(route.view).key === page.key;
+                const waiting =
+                  page.key === 'monitor' && facts ? facts.pending : 0;
+                const ready = page.key === 'projects' && newStep;
+                return (
+                  <li key={page.key}>
+                    <a
+                      href={routeHash({
+                        view: target,
+                        ws: workspace.id,
+                        id: '',
+                        q: '',
+                      })}
+                      aria-current={here ? 'page' : undefined}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setMenuOpen(false);
+                        open(target);
+                      }}
+                    >
+                      <span>{page.label}</span>
+                      {waiting > 0 && (
+                        <span
+                          className="nav-count"
+                          title={`${waiting} waiting for you`}
+                        >
+                          {waiting}
+                          <span className="sr-only"> waiting for you</span>
+                        </span>
+                      )}
+                      {ready && (
+                        <span
+                          className="nav-dot"
+                          title="The path has a new step for you"
+                        >
+                          <span className="sr-only">
+                            : the path has a new step
+                          </span>
+                        </span>
+                      )}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
           </nav>
           <div className="sidebar-foot">
             <span>Schema 1.0 · Local control</span>
@@ -710,7 +844,7 @@ function App() {
                 <Icon name={menuOpen ? 'close' : 'menu'} />
               </button>
               <p className="crumbs">
-                <span>{viewGroup(route.view)}</span>
+                <span>{pageOf(route.view).label}</span>
                 <span aria-hidden="true">/</span>
                 <strong>{label}</strong>
               </p>
@@ -769,12 +903,18 @@ function App() {
         <main id="content" tabIndex={-1}>
           <DesktopApp.Provider value={auth.managed}>
             {inStudio && workspace && (
-              <NextStep
-                key={workspace.id}
-                workspace={workspace}
-                view={route.view}
-                open={(view) => open(view)}
-              />
+              <>
+                <NextStep
+                  facts={facts}
+                  view={route.view}
+                  open={(view) => open(view)}
+                />
+                <PageTabs
+                  view={route.view}
+                  ws={workspace.id}
+                  open={(view) => open(view)}
+                />
+              </>
             )}
             {inStudio && auth.session ? (
               <PageDrafts

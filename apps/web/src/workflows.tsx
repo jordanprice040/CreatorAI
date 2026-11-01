@@ -214,11 +214,11 @@ export function Workflows({
       <h2 id="wf-title">Workflow runs</h2>
       <p>
         A skeptic review critiques one record from several perspectives, then
-        combines them. Discovery runs (started from Submit a theme, the API or{' '}
-        <code>creator seed-discovery</code>) also show here with each proposal's
-        disposition and the skeptic's dissent. Each step is checkpointed in the
-        database and runs on the server: closing this page does not stop it. Use
-        Cancel to stop it.
+        combines them. Discovery runs (started from Projects › Discover, the API
+        or <code>creator seed-discovery</code>) also show here with each
+        proposal's disposition and the skeptic's dissent. Each step is
+        checkpointed in the database and runs on the server: closing this page
+        does not stop it. Use Cancel to stop it.
       </p>
       <div className="connection">
         <button className="secondary" onClick={() => void load()}>

@@ -283,7 +283,7 @@ export function Budgets({
   }
   return (
     <section className="panel records" aria-labelledby="budget-title">
-      <h2 id="budget-title">Budgets and spending</h2>
+      <h2 id="budget-title">Budgets and pricing</h2>
       <p>
         Every model or tool call reserves its maximum possible cost before it is
         sent and is charged from the provider's reported usage afterwards. A

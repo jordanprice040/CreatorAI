@@ -281,7 +281,7 @@ export function Payments({
                     ? 'Only the current release of a spec can be sold; package its latest build, which then appears in '
                     : 'To sell something, package a verified build first; it then appears in '}
                   <button className="text" onClick={() => open('gallery')}>
-                    Gallery
+                    Projects › Try
                   </button>
                   .
                 </p>

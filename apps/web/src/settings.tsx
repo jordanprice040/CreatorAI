@@ -269,7 +269,7 @@ export function Settings({
         <li>
           Per-workspace and per-run budgets:{' '}
           <button className="text" onClick={() => open('budgets')}>
-            Budgets
+            Monitor › Budgets
           </button>
         </li>
         <li>

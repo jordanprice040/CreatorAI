@@ -63,7 +63,7 @@ export function DesktopDevices({
   }
   return (
     <section className="panel">
-      <h2>Desktop sessions and local workers</h2>
+      <h2>Devices and local workers</h2>
       <p>
         Desktop sessions share studio records. Presence pairing grants no
         execution authority. Execution-capable workers accept only exact

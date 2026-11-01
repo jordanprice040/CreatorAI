@@ -1,8 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
+
+/** The page map module, which has no imports: modules that import it get the real one. */
+function pagesModule(): unknown {
+  const code = ts.transpileModule(
+    readFileSync('apps/web/src/pages.ts', 'utf8'),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+    },
+  ).outputText;
+  const exports = {};
+  new Function('exports', code)(exports);
+  return exports;
+}
 import type { ActorSummary } from '@creator/contracts';
 
 test('workspace actor labels ignore old responses and old failures after switching or unmount', async () => {
@@ -44,7 +61,9 @@ test('workspace actor labels ignore old responses and old failures after switchi
                   pending.push({ path, resolve, reject });
                 }),
             }
-          : require(name);
+          : name === './pages.js'
+            ? pagesModule()
+            : require(name);
     const exports: {
       useActors?: (workspace: string) => (id: string) => string;
     } = {};

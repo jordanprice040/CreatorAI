@@ -11,7 +11,6 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api } from './oversight.js';
-import { useDesktopApp } from './desktop-app.js';
 import {
   decisionsNote,
   failedNote,
@@ -23,7 +22,7 @@ import {
 } from './next-rules.js';
 import { productVersions } from './versions.js';
 import { artifactForBuild } from './build-defaults.js';
-import type { View } from './ui.js';
+import { placeLabel, type View } from './pages.js';
 
 // The products list as the build page reads it (apps/api/src/products.ts); only what the
 // next-step line needs.
@@ -150,23 +149,23 @@ async function readFacts(
 }
 
 /**
- * One line under the page title: what comes next on this page, or why it is blocked, with
- * a button to the page that takes the step. Read again whenever the page changes and every
- * 15 seconds while the window is visible; a failed read hides the line rather than guessing.
+ * The workspace facts behind the what's-next line, the Path tab and the nav badges. Read
+ * again whenever the tab changes and every 15 seconds while the window is visible; a failed
+ * read gives null, which hides the line rather than guessing.
  */
-export function NextStep({
-  workspace,
-  view,
-  open,
-}: {
-  workspace: Workspace;
-  view: View;
-  open: (view: View) => void;
-}) {
-  const desktop = useDesktopApp();
+export function useStudioFacts(
+  workspace: Workspace | null,
+  view: View,
+  /** The desktop app has no command line yet; read outside its context provider. */
+  desktop: boolean,
+): StudioFacts | null {
   const [facts, setFacts] = useState<StudioFacts | null>(null);
   const seq = useRef(0);
   useEffect(() => {
+    setFacts(null);
+  }, [workspace?.id]);
+  useEffect(() => {
+    if (!workspace) return;
     const read = () => {
       const mine = ++seq.current;
       readFacts(workspace, desktop)
@@ -185,7 +184,23 @@ export function NextStep({
       clearInterval(t);
       seq.current++;
     };
-  }, [workspace.id, workspace.role, view, desktop]);
+  }, [workspace?.id, workspace?.role, view, desktop]);
+  return facts;
+}
+
+/**
+ * One line above the tabs: what comes next on this tab, or why it is blocked, with a button
+ * to the tab that takes the step, named by page and tab when it is on another page.
+ */
+export function NextStep({
+  facts,
+  view,
+  open,
+}: {
+  facts: StudioFacts | null;
+  view: View;
+  open: (view: View) => void;
+}) {
   if (!facts) return null;
   const step = nextStep(view, facts);
   const note = decisionsNote(view, facts);
@@ -209,7 +224,7 @@ export function NextStep({
             className="text"
             onClick={() => open(step.action!.view)}
           >
-            {step.action.label}
+            Open {placeLabel(step.action.view, view)}
           </button>
         )}
       </p>
@@ -221,7 +236,7 @@ export function NextStep({
             className="text"
             onClick={() => open('decisions')}
           >
-            Open Decisions
+            Open {placeLabel('decisions', view)}
           </button>
         </p>
       )}
@@ -230,7 +245,7 @@ export function NextStep({
           {failed}.{' '}
           {view !== 'runs' && (
             <button type="button" className="text" onClick={() => open('runs')}>
-              Open Runs
+              Open {placeLabel('runs', view)}
             </button>
           )}
         </p>

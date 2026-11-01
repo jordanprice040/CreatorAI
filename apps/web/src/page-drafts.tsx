@@ -63,14 +63,21 @@ export function PageDrafts({
       )}
       {pages.map((page) => (
         <PageActive.Provider key={page.key} value={page.key === key}>
-          <div className="draft-page" hidden={page.key !== key}>
-            <button
-              type="button"
-              className="text page-reset"
-              onClick={() => setResetKey(page.key)}
-            >
-              Reset fields
-            </button>
+          <div
+            className={
+              page.route.view === 'path' ? 'draft-page no-reset' : 'draft-page'
+            }
+            hidden={page.key !== key}
+          >
+            {page.route.view !== 'path' && (
+              <button
+                type="button"
+                className="text page-reset"
+                onClick={() => setResetKey(page.key)}
+              >
+                Reset fields
+              </button>
+            )}
             <div className="draft-content" key={page.revision}>
               {render(page.route)}
             </div>

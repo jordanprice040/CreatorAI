@@ -209,7 +209,7 @@ export function Catalog({
   const e = detail?.entity;
   return (
     <section className="panel" aria-labelledby="cat-title">
-      <h2 id="cat-title">Catalog</h2>
+      <h2 id="cat-title">Library</h2>
       <p>
         Every saved record, its versions and links. Nothing here edits history:
         a change is a new version with an audit event.

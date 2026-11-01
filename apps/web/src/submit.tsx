@@ -466,7 +466,7 @@ export function Submit({
   const viewer = workspace.role === 'viewer';
   return (
     <section className="panel" aria-labelledby="sub-title">
-      <h2 id="sub-title">Submit a theme</h2>
+      <h2 id="sub-title">Discover</h2>
       <p>
         Two ways in: save a rough theme as a draft and plan it later, or fill in
         the full brief under{' '}
@@ -801,7 +801,8 @@ export function Submit({
                     {resourceKind === 'subscription'
                       ? 'within the subscription caps shown below; no API spending'
                       : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
-                    (a standing permission you can revoke under Decisions)
+                    (a standing permission you can revoke under Monitor ›
+                    Approvals)
                   </label>
                   {!allowCalls && (
                     <p className="small">
@@ -942,7 +943,7 @@ export function Submit({
                     <p className="error">
                       No active budget can be used by this run: a run or task
                       budget belongs to its own run. Choose another run, or add
-                      a shared budget in the Budgets view.
+                      a shared budget under Monitor › Budgets.
                     </p>
                   )}
                   {(c.envelopes.length === 0 || c.pricing.length === 0) && (

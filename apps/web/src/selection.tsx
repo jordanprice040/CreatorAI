@@ -401,8 +401,8 @@ export function Scoring({
         Scores are transparent prioritization aids from reviewers&apos; 1–5
         ratings, not probabilities or measured impact. Unknown ratings are never
         averaged away. Ethics, access and the humility review are gates that no
-        score can clear. Record a selection under Compare and decide, then
-        freeze its specification here. Approvals appear under Decisions.
+        score can clear. Record a selection under Decide, then freeze its
+        specification here. Approvals appear under Monitor › Approvals.
       </p>
       <div className="filters">
         <label htmlFor="sel-problem" className="inline">

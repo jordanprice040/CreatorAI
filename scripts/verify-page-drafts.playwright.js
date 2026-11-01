@@ -73,11 +73,23 @@ async (page) => {
   const check = async (condition, message) => {
     if (!(await condition)) throw new Error(message);
   };
-  const nav = (name) =>
-    page
-      .getByRole('navigation', { name: 'Views' })
-      .getByRole('link', { name, exact: true })
+  // Pages in the sidebar, then the tab within the page (step 9 page map).
+  const TABS = {
+    Evidence: ['Sources', 'Sources and claims'],
+    'Submit a theme': ['Projects', 'Discover'],
+    Search: ['Sources', 'Search'],
+  };
+  const nav = async (name) => {
+    const [pageName, tab] = TABS[name];
+    await page
+      .getByRole('navigation', { name: 'Pages' })
+      .getByRole('link', { name: pageName })
       .click();
+    await page
+      .getByRole('navigation', { name: `${pageName} tabs` })
+      .getByRole('link', { name: tab, exact: true })
+      .click();
+  };
   await page.goto(`http://127.0.0.1:5175/#/submit?ws=${ws}`);
   const theme = page.getByLabel('Theme (specific setting or group)', {
     exact: true,

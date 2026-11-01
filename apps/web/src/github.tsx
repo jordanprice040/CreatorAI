@@ -1080,7 +1080,7 @@ function NewOperation({
             className="text"
             onClick={() => open('decisions')}
           >
-            Decisions
+            Monitor › Approvals
           </button>{' '}
           and ask again.
         </p>

@@ -629,7 +629,7 @@ export function Oversight({
   );
   return (
     <section className="panel records" aria-labelledby="oversight-title">
-      <h2 id="oversight-title">Decisions, policies and runs</h2>
+      <h2 id="oversight-title">Approvals, policies and runs</h2>
       <p>
         Only work that needs a person appears here. Covered, reversible routine
         actions proceed without asking. Approving once permits exactly the
