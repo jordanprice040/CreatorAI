@@ -27,6 +27,7 @@ type Candidate = {
   rank: number | null;
   gates: {
     ethics_access: string;
+    discovery: string | null;
     humility: string;
     blocked: Partial<Record<string, string[]>>;
   };
@@ -39,7 +40,12 @@ type Report = {
 };
 type Option = {
   status: string;
-  row: { disposition: string; reasons: string; reverse_if: string };
+  row: {
+    disposition: string;
+    reasons: string;
+    reverse_if: string;
+    reasons_list?: string[];
+  };
   changes: string[];
   notes: string[];
 };
@@ -59,6 +65,24 @@ type Mod = {
     alternatives: { id: string; version: number }[],
   ) => Carried;
   needsReview: (c: Carried) => string[];
+  rowReasons: (r: Option['row']) => string[];
+  formGate: (
+    c: Carried,
+    previous: unknown,
+    report: Report,
+    state: {
+      edited: string[];
+      dispositions: Record<string, string>;
+      rationale_edited: boolean;
+      override_edited: boolean;
+      problem_confirmed: boolean;
+    },
+  ) => {
+    unreviewed: string[];
+    unchanged: boolean;
+    override_review: boolean;
+    problem_review: boolean;
+  };
 };
 
 const A = 'aaaaaaaa-0000-4000-8000-000000000001';
@@ -83,7 +107,12 @@ function cand(
     score,
     range: score ? { lower: score, upper: score } : null,
     rank,
-    gates: { ethics_access: 'clear', humility: 'passing', blocked: {} },
+    gates: {
+      ethics_access: 'clear',
+      discovery: 'candidate',
+      humility: 'passing',
+      blocked: {},
+    },
     ...extra,
   };
 }
@@ -128,6 +157,7 @@ const decided = {
     },
   ],
   rationale: 'Build A first.',
+  overrides: [],
   override_reason: null,
 };
 const alts = (ids: string[], versions: Record<string, number> = {}) =>
@@ -153,6 +183,7 @@ test('a changed score flags only that option and keeps every decision', async ()
     disposition: 'select_for_build',
     reasons: 'best fit',
     reverse_if: 'fit drops',
+    reasons_list: ['best fit'],
   });
   assert.equal(c.options[C]!.row.disposition, 'reject');
   assert.equal(c.rationale, 'Build A first.');
@@ -190,7 +221,12 @@ test('gate changes and revised options are flagged', async () => {
   const after = report('e', [
     cand(A, s(60), 1),
     cand(B, s(50), 2, {
-      gates: { ethics_access: 'unresolved', humility: 'passing', blocked: {} },
+      gates: {
+        ethics_access: 'unresolved',
+        discovery: 'candidate',
+        humility: 'passing',
+        blocked: {},
+      },
     }),
     cand(C, s(40), 3, { alternative: { id: C, version: 2 } }),
   ]);
@@ -209,6 +245,7 @@ test('a disposition the new report blocks is cleared, keeping its reasons', asyn
     cand(A, s(60), 1, {
       gates: {
         ethics_access: 'clear',
+        discovery: 'candidate',
         humility: 'missing',
         blocked: { select_for_build: ['No humility review.'] },
       },
@@ -251,5 +288,189 @@ test('the same report carries everything with nothing flagged; no selection mean
     Object.values(none.options).every(
       (o) => o.status === 'new' && o.row.disposition === '',
     ),
+  );
+});
+
+// Review fixes (PR #95 review M-1, M-2, L-1, L-2, L-3).
+
+/** B ranks above A; the owner advanced A over B with a reason that names only B. */
+const overridden = {
+  id: 'ffffffff-0000-4000-8000-000000000007',
+  report: report('h', [
+    cand(B, s(60), 1),
+    cand(A, s(50), 2),
+    cand(C, s(40), 3),
+  ]),
+  dispositions: [
+    {
+      alternative: { id: A, version: 1 },
+      disposition: 'proceed_to_validation',
+      reasons: ['cheaper'],
+      reverse_if: 'cost rises',
+    },
+    {
+      alternative: { id: B, version: 1 },
+      disposition: 'reject',
+      reasons: ['costly'],
+      reverse_if: 'funded',
+    },
+    {
+      alternative: { id: C, version: 1 },
+      disposition: 'reject',
+      reasons: ['weak'],
+      reverse_if: 'new evidence',
+    },
+  ],
+  overrides: [
+    { alternative: A, ranking: 'suitability', outranked_by: [{ id: B }] },
+  ],
+  rationale: 'Validate A.',
+  override_reason: 'A is cheaper than B.',
+};
+const state = (over: Partial<Parameters<Mod['formGate']>[3]> = {}) => ({
+  edited: [],
+  dispositions: { [A]: 'proceed_to_validation', [B]: 'reject', [C]: 'reject' },
+  rationale_edited: false,
+  override_edited: false,
+  problem_confirmed: false,
+  ...over,
+});
+
+test('M-1: an advanced option newly outranked is flagged and the override reason needs review', async () => {
+  const { carryDecisions, needsReview, formGate } =
+    await load<Mod>('carry-decisions.ts');
+  // C rises above both; A's own score did not change.
+  const after = report('i', [
+    cand(C, s(70), 1),
+    cand(B, s(60), 2),
+    cand(A, s(50), 3),
+  ]);
+  const c = carryDecisions(overridden, after, alts([A, B, C]));
+  assert.equal(c.options[A]!.status, 'changed');
+  assert.match(
+    c.options[A]!.changes.join(),
+    /override reason needs a fresh look/,
+  );
+  assert.ok(needsReview(c).includes(A));
+  const g = formGate(c, overridden, after, state({ edited: [A, C] }));
+  assert.equal(g.override_review, true);
+  // Confirming or rewriting the reason clears it.
+  assert.equal(
+    formGate(
+      c,
+      overridden,
+      after,
+      state({ edited: [A, C], override_edited: true }),
+    ).override_review,
+    false,
+  );
+  // The same override set on a changed report needs no fresh reason.
+  const same = report('j', [
+    cand(B, s(61), 1),
+    cand(A, s(50), 2),
+    cand(C, s(40), 3),
+  ]);
+  const c2 = carryDecisions(overridden, same, alts([A, B, C]));
+  assert.equal(c2.options[A]!.status, 'kept');
+  assert.equal(
+    formGate(c2, overridden, same, state({ edited: [B] })).override_review,
+    false,
+  );
+});
+
+test('M-2: a discovery gate change is flagged even when nothing is blocked', async () => {
+  const { carryDecisions, needsReview } = await load<Mod>('carry-decisions.ts');
+  const after = report('k', [
+    cand(A, s(60), 1, {
+      gates: {
+        ethics_access: 'clear',
+        discovery: 'needs_research',
+        humility: 'passing',
+        blocked: {},
+      },
+    }),
+    cand(B, s(50), 2),
+    cand(C, s(40), 3),
+  ]);
+  const c = carryDecisions(decided, after, alts([A, B, C]));
+  assert.deepEqual(needsReview(c), [A]);
+  assert.match(
+    c.options[A]!.changes.join(),
+    /Discovery candidate → needs research/,
+  );
+});
+
+test('L-2: untouched multi-reason rows submit their list, edited ones the text', async () => {
+  const { carryDecisions, rowReasons } = await load<Mod>('carry-decisions.ts');
+  const long = 'x'.repeat(300);
+  const prev = {
+    ...decided,
+    dispositions: decided.dispositions.map((d, i) =>
+      i === 0 ? { ...d, reasons: [long, long] } : d,
+    ),
+  };
+  const row = carryDecisions(prev, before, alts([A, B, C])).options[A]!.row;
+  assert.deepEqual(rowReasons(row), [long, long]);
+  assert.deepEqual(rowReasons({ ...row, reasons: 'shorter now' }), [
+    'shorter now',
+  ]);
+});
+
+test('L-1, L-3: the form gate needs every flag reviewed, refuses a duplicate, and asks about a revised problem', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  const after = report('l', [
+    cand(A, s(60), 1),
+    cand(B, s(50), 2),
+    cand(C, s(45), 3),
+  ]);
+  const c = carryDecisions(decided, after, alts([A, B, C]));
+  const dispositions = { [A]: 'select_for_build', [B]: 'defer', [C]: 'reject' };
+  assert.deepEqual(
+    formGate(c, decided, after, state({ dispositions })).unreviewed,
+    [C],
+  );
+  assert.deepEqual(
+    formGate(c, decided, after, state({ dispositions, edited: [C] }))
+      .unreviewed,
+    [],
+  );
+  assert.equal(
+    formGate(c, decided, after, state({ dispositions })).unchanged,
+    false,
+  );
+  // Same report, nothing touched: a duplicate. Any edit makes it a new decision.
+  const same = carryDecisions(decided, before, alts([A, B, C]));
+  assert.equal(
+    formGate(same, decided, before, state({ dispositions })).unchanged,
+    true,
+  );
+  assert.equal(
+    formGate(
+      same,
+      decided,
+      before,
+      state({ dispositions, rationale_edited: true }),
+    ).unchanged,
+    false,
+  );
+  // A revised problem asks for confirmation even when no option changed.
+  const revised = {
+    ...before,
+    problem: { ...before.problem, version: 2 },
+    report_hash: 'm'.repeat(64),
+  };
+  const r = carryDecisions(decided, revised, alts([A, B, C]));
+  assert.equal(
+    formGate(r, decided, revised, state({ dispositions })).problem_review,
+    true,
+  );
+  assert.equal(
+    formGate(
+      r,
+      decided,
+      revised,
+      state({ dispositions, problem_confirmed: true }),
+    ).problem_review,
+    false,
   );
 });

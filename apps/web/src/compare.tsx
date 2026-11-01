@@ -30,7 +30,12 @@ import {
   type View,
 } from './ui.js';
 import { newestFirst } from './versions.js';
-import { carryDecisions, needsReview } from './carry-decisions.js';
+import {
+  carryDecisions,
+  formGate,
+  needsReview,
+  rowReasons,
+} from './carry-decisions.js';
 
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
@@ -121,6 +126,8 @@ type Row = {
   disposition: SelectionDisposition | '';
   reasons: string;
   reverse_if: string;
+  /** The recorded reasons while the joined text is untouched (see rowReasons). */
+  reasons_list?: string[];
 };
 
 /**
@@ -182,6 +189,7 @@ export function Compare({
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [rationaleEdit, setRationale] = useState<string | null>(null);
   const [overrideEdit, setOverride] = useState<string | null>(null);
+  const [problemConfirmed, setProblemConfirmed] = useState(false);
   const [runId, setRunId] = useState('');
   const [outcome, setOutcome] = useState<SelectOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -190,6 +198,7 @@ export function Compare({
     setRows({});
     setRationale(null);
     setOverride(null);
+    setProblemConfirmed(false);
     setOutcome(null);
     setError('');
   }, [focus]);
@@ -233,13 +242,6 @@ export function Compare({
       )
     : null;
   const review = carried ? needsReview(carried) : [];
-  const unreviewed = review.filter((id) => !rows[id]);
-  // Recording the same decision on the same report again would only duplicate it.
-  const unchanged =
-    !!carried?.same_report &&
-    Object.keys(rows).length === 0 &&
-    rationaleEdit === null &&
-    overrideEdit === null;
   const rationale = rationaleEdit ?? carried?.rationale ?? '';
   const override = overrideEdit ?? carried?.override_reason ?? '';
   const row = (id: string): Row =>
@@ -251,6 +253,22 @@ export function Compare({
     };
   const setRow = (id: string, patch: Partial<Row>) =>
     setRows((r) => ({ ...r, [id]: { ...row(id), ...patch } }));
+  const gate =
+    carried && d
+      ? formGate(carried, latest, d.report, {
+          edited: Object.keys(rows),
+          dispositions: Object.fromEntries(
+            alts.map((a) => [a.entity.id, row(a.entity.id).disposition]),
+          ),
+          rationale_edited: rationaleEdit !== null,
+          override_edited: overrideEdit !== null,
+          problem_confirmed: problemConfirmed,
+        })
+      : null;
+  const unreviewed = gate?.unreviewed ?? [];
+  // Recording the same decision on the same report under the same run would only
+  // duplicate it; another run is a different record.
+  const unchanged = !!gate?.unchanged && runId === latest?.run_id;
   const complete =
     alts.length > 0 &&
     alts.every((a) => {
@@ -259,6 +277,8 @@ export function Compare({
     }) &&
     unreviewed.length === 0 &&
     !unchanged &&
+    !gate?.override_review &&
+    !gate?.problem_review &&
     rationale.trim().length > 0 &&
     !!runId;
   const request = () => ({
@@ -269,7 +289,7 @@ export function Compare({
       return {
         alternative: { id: a.entity.id, version: a.entity.version },
         disposition: r.disposition,
-        reasons: [r.reasons.trim()],
+        reasons: rowReasons(r),
         reverse_if: r.reverse_if.trim(),
       };
     }),
@@ -298,6 +318,7 @@ export function Compare({
         setRows({});
         setRationale(null);
         setOverride(null);
+        setProblemConfirmed(false);
         detail.reload();
       }
     } catch (err) {
@@ -601,11 +622,24 @@ export function Compare({
                           ? 'Scores or gates changed for no option you decided, so record it again to bind it to the current report.'
                           : 'Look at the flagged options and keep or change them; the rest stay as you decided.'}
                         {carried.problem_version_changed &&
-                          ' The problem itself was revised since.'}
+                          ' The problem itself was revised since: read it above and confirm your decision still fits it.'}
                         {carried.dropped > 0 &&
                           ` ${carried.dropped} option${carried.dropped === 1 ? ' you decided is' : 's you decided are'} no longer part of this problem.`}
                       </span>
                     )}
+                  </p>
+                )}
+                {carried?.problem_version_changed && (
+                  <p className="small">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={problemConfirmed}
+                        onChange={(e) => setProblemConfirmed(e.target.checked)}
+                      />
+                      I read the revised problem and my decision still applies
+                      (or I changed it below).
+                    </label>
                   </p>
                 )}
                 {alts.map((a) => {
@@ -638,7 +672,7 @@ export function Compare({
                           <strong>
                             {c.status === 'new'
                               ? 'New option: decide it.'
-                              : rows[id]
+                              : rows[id] && r.disposition
                                 ? 'Reviewed.'
                                 : 'Review: this changed since you decided it.'}
                           </strong>
@@ -732,6 +766,25 @@ export function Compare({
                   value={override}
                   onChange={(e) => setOverride(e.target.value)}
                 />
+                {gate?.override_review && (
+                  <div className="carry-flag">
+                    <strong>Review the override reason.</strong>{' '}
+                    {override.trim()
+                      ? 'Your choices now advance an option over a different set of higher-ranked options than the reason was written for. Keep it if it still explains the choice, or rewrite it.'
+                      : 'Your choices now advance an option over higher-ranked options; give a reason.'}
+                    {override.trim() && (
+                      <div>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => setOverride(override)}
+                        >
+                          Keep this reason
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <label htmlFor="dec-run">Record under run</label>
                 <select
                   id="dec-run"
