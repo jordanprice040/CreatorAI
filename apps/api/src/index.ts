@@ -589,6 +589,7 @@ export function createApi(
   const SETTINGS_SPENDING_ROUTE = /^\/api\/settings\/spending$/;
   const SETTINGS_LIMITS_ROUTE = /^\/api\/settings\/spending-limits$/;
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
+  const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   const CHAT_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title))?)?$/;
   // ADR-0057: a model answer to one saved message, and the owner's chat-answer setting.
@@ -607,6 +608,7 @@ export function createApi(
       SETTINGS_SPENDING_ROUTE.exec(url.pathname) ??
       SETTINGS_LIMITS_ROUTE.exec(url.pathname) ??
       USAGE_ROUTE.exec(url.pathname) ??
+      EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
       CHAT_ROUTE.exec(url.pathname) ??
       CHAT_ANSWER_ROUTE.exec(url.pathname) ??
       CHAT_SETTINGS_ROUTE.exec(url.pathname);
@@ -660,6 +662,24 @@ export function createApi(
       if (method === 'GET')
         return send(200, await store.usageSummary(ctx, ws), false);
       throw new ContractError('NOT_FOUND', 'Unknown usage route.');
+    }
+    // ADR-0056 evidence websites: any member may read the list in force; only a workspace
+    // owner signed in as a person may change it (the store checks), and each change is logged.
+    if (ws && EVIDENCE_SITES_ROUTE.test(url.pathname)) {
+      if (!sources)
+        throw new ContractError(
+          'STORAGE_UNAVAILABLE',
+          'The source broker is not configured.',
+        );
+      if (method === 'GET')
+        return send(200, await sources.evidenceSites(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await sources.changeEvidenceSites(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown evidence websites route.');
     }
     if (ws && CHAT_SETTINGS_ROUTE.test(url.pathname)) {
       if (method === 'GET')

@@ -2,13 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingHttpHeaders } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { ContractError } from '@creator/contracts';
+import {
+  EvidenceSiteHostSchema,
+  SourcePolicySchema,
+  parse,
+} from '@creator/contracts';
 import {
   assessClaimEvidence,
   checkUrl,
   evidencePacket,
   isBlockedAddress,
   quoteInPassage,
+  sourcePolicyHash,
   type EvidenceRowInput,
 } from '@creator/domain';
 import {
@@ -246,12 +251,12 @@ test('evidence packets carry retrieved text as data with no authority', () => {
   assert.match(packet.passages[0]!.excerpt, /Ignore all previous instructions/);
 });
 
-test('live configuration requires an explicit opt-in and approved hosts', () => {
+test('live configuration requires an explicit opt-in; hosts may come later from Settings', () => {
   assert.deepEqual(sourceConfigFromEnv({}), { adapter: null, policy: null });
-  assert.throws(
-    () => sourceConfigFromEnv({ CREATOR_SOURCE_FETCH: 'live' }),
-    (e: unknown) => e instanceof ContractError && e.code === 'INVALID_CONFIG',
-  );
+  // ADR-0056: live with no hosts has the adapter but no policy, so nothing is approved yet.
+  const bare = sourceConfigFromEnv({ CREATOR_SOURCE_FETCH: 'live' });
+  assert.ok(bare.adapter);
+  assert.equal(bare.policy, null);
   assert.throws(() => sourceConfigFromEnv({ CREATOR_SOURCE_FETCH: 'yes' }));
   const live = sourceConfigFromEnv({
     CREATOR_SOURCE_FETCH: 'live',
@@ -440,5 +445,75 @@ test('HTTP adapter checks DNS answers, pins the address and sends no credentials
     srv.seen.length,
     before,
     'no blocked request reached the server',
+  );
+});
+
+test('"any public website" admits public names only; named rules and address checks still win', () => {
+  const live = sourceConfigFromEnv({
+    CREATOR_SOURCE_FETCH: 'live',
+    CREATOR_SOURCE_HOSTS: 'www.speedrun.com',
+    CREATOR_SOURCE_HASH_ONLY_HOSTS: 'paywalled.example.com',
+  }).policy!;
+  const anyPublic = { ...live, any_public_host: true as const };
+  // The listed policy refuses an unlisted public site; the switch admits it with excerpts.
+  assert.equal(checkUrl('https://tasvideos.org/x', live).ok, false);
+  const tas = checkUrl('https://tasvideos.org/x', anyPublic);
+  assert.ok(tas.ok && tas.retention === 'excerpts');
+  // A hash-only rule still keeps no excerpts with the switch on.
+  const paywalled = checkUrl('https://paywalled.example.com/a', anyPublic);
+  assert.ok(paywalled.ok && paywalled.retention === 'hash_only');
+  for (const url of [
+    'https://192.168.1.1/',
+    'https://10.0.0.5/',
+    'https://[::1]/',
+    'https://169.254.169.254/latest/meta-data/',
+    'https://localhost/',
+    'https://printer.local/',
+    'https://router.home.arpa/',
+    'https://nas.lan/',
+    'https://intranet/',
+    'https://svc.internal/',
+    'http://tasvideos.org/',
+    'https://tasvideos.org:8443/',
+    'https://user:pw@tasvideos.org/',
+  ])
+    assert.equal(checkUrl(url, anyPublic).ok, false, url);
+  // A switch-only policy (no named hosts) is valid; an empty policy without it is not.
+  assert.ok(
+    SourcePolicySchema.safeParse({ ...live, hosts: [], any_public_host: true })
+      .success,
+  );
+  assert.equal(
+    SourcePolicySchema.safeParse({ ...live, hosts: [] }).success,
+    false,
+  );
+  // Policies without the switch keep their earlier hash.
+  assert.equal(
+    sourcePolicyHash(parse(SourcePolicySchema, live)),
+    sourcePolicyHash(live),
+  );
+});
+
+test('a subdomain pattern does not cover the bare domain, and website entries reject IPs and URLs', () => {
+  const p = sourceConfigFromEnv({
+    CREATOR_SOURCE_FETCH: 'live',
+    CREATOR_SOURCE_HOSTS: '*.nih.gov',
+  }).policy!;
+  assert.ok(checkUrl('https://www.ncbi.nlm.nih.gov/x', p).ok);
+  assert.equal(checkUrl('https://nih.gov/x', p).ok, false);
+  assert.equal(checkUrl('https://evilnih.gov/x', p).ok, false);
+  for (const bad of [
+    '1.2.3.4',
+    'https://www.speedrun.com',
+    'speedrun.com/x',
+    'speedrun.com:443',
+    'localhost',
+    '*.',
+    '**.example.org',
+  ])
+    assert.equal(EvidenceSiteHostSchema.safeParse(bad).success, false, bad);
+  assert.equal(
+    EvidenceSiteHostSchema.parse(' WWW.Speedrun.com '),
+    'www.speedrun.com',
   );
 });

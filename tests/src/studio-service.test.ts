@@ -167,11 +167,14 @@ test('studio input refuses relative paths, unknown fields and a wrong protocol',
   assert.throws(() => parseStudioInput('not json'));
 });
 
-test('studio input turns on evidence fetching only for owner-approved host names', () => {
+test('studio input starts the live adapter and approves only owner-named host names', () => {
   const ok = input('postgresql://u:p@127.0.0.1:5432/x', resolve('.'));
-  // An older desktop sends no list: fetching stays off.
+  // An older desktop sends no list: the adapter exists for Settings (ADR-0056), but no
+  // website is approved, so every fetch is refused until the owner adds one.
   assert.deepEqual(parseStudioInput(JSON.stringify(ok)).source_hosts, []);
-  assert.deepEqual(sourceFetchEnv([]), {});
+  const empty = sourceConfigFromEnv(sourceFetchEnv([]));
+  assert.ok(empty.adapter);
+  assert.equal(empty.policy, null);
   const hosts = ['tasvideos.org', 'www.speedrun.com'];
   const parsed = parseStudioInput(
     JSON.stringify({ ...ok, source_hosts: hosts }),

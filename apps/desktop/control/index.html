@@ -140,10 +140,12 @@
         <fieldset id="sources-running">
           <legend>Websites approved for evidence</legend>
           <p class="small">
-            The studio fetches evidence pages only from these websites, one host
-            name per line (for example www.speedrun.com). Leave it empty to keep
-            page fetching off. Each fetch still needs a run that allows it.
-            Saving restarts the studio service.
+            The starting list of websites for evidence, one host name per line
+            (for example www.speedrun.com). Once you change evidence websites in
+            the studio's Settings page, Settings is what counts: it applies
+            without a restart and can also allow subdomains or any public
+            website. Each fetch still needs a run that allows it. Saving here
+            restarts the studio service.
           </p>
           <textarea
             id="source-hosts"

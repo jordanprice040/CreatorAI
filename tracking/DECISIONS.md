@@ -59,6 +59,47 @@ and ADR-0057 were allocated by the coordinator (35/0056 and 37/0058 belong to pa
 
 Review fixes (PR #102 review, `/mnt/project-files/reviews/PR102_CHAT_ANSWERS_REVIEW_2026-11-01.md`): M-1 an answer is `refused` ("nothing was sent") only for rejections that happen before the text leaves the studio (cancelled before dispatch, the studio's Claude Code folder or start failing, Claude Code unavailable, outdated or not a subscription login, no token, studio-side errors); a provider refusal after receiving the text (usage limit, sign-in, model, any non-200) is `failed`, says "<plan> refused it after receiving the text", and keeps the "What was sent" panel. L-2 any error before admission records the request is `refused`; after it, `failed`. L-3 chat is refused while a study attempt is open on an active run in the workspace. L-4 admission reads the chat setting without a row lock (the connection lock serializes chat requests), so a settings save cannot deadlock with it. L-5 `<` and `>` in snapshot fields, earlier turns and the question are written as entities, and the stored snapshot flag comes from the builder, not from searching the text. L-6 turns are labelled "Person"/"Assistant" and the question "Question:", not "Owner". L-1 the card says allowing private text applies to the whole connection (discovery and builds too) and stops workflows set up on the old settings. L-7 the note reply no longer promises an answer.
 
+## ADR-0056 — Evidence websites and model caps in the app (accepted November 1, 2026)
+
+Context: Jordan asked (Nov 1) for more evidence-website options, including allowing all sites,
+and for changing model caps in the app (audit items 5 and 10). Design doc
+https://claude.ai/artifact/8j34BJUups2CGMqbTrPw2X; Jordan chose "Both, with any-site switch".
+Amends ADR-0051.
+
+Decision: each workspace's evidence websites are owner settings in Settings › Evidence
+websites. A change names a mode (`listed`, or `any_public`, which is off until the owner turns
+it on), up to 100 exact hosts or `*.example.org` subdomain patterns (not the bare domain; never
+an IP address), and a reason. Only a workspace owner signed in as a person may change it
+(`requireOwner`); agents, workers and system actors are refused. Each change is an immutable
+`evidence_site_changes` row (migration 35) naming the version it replaced, written with an
+`evidence_sites.changed` audit event under a per-workspace advisory lock taken before the
+audit-chain lock (ADR-0047); a stale page gets VERSION_CONFLICT and a no-op is refused. With no
+change saved, the list the studio started with (`CREATOR_SOURCE_HOSTS`, the desktop window's
+list) applies. The source broker reads the workspace's latest change on every live fetch, so a
+change applies to the next fetch with no restart; the startup policy's hash-only hosts and all
+limits (https on 443, 2 MB, 15 s, 3 redirects, 100 fetches per run, excerpt bounds) stay. "Any
+public website" adds `any_public_host: true` to the source policy: a host no rule names is
+fetched with excerpts when it is a fully qualified public DNS name (not an IP, single label or
+local suffix such as .local, .lan, .internal, .home.arpa); named rules, including hash-only,
+match first, and the adapter still refuses private, loopback, link-local and reserved
+addresses after DNS on every hop. Policies without the switch keep their earlier hashes, and
+every retrieval records the hash of the policy that admitted it. `CREATOR_SOURCE_FETCH=live`
+no longer needs hosts: with none, the adapter exists but no website is approved and fetches are
+blocked with `no_websites_approved`. The installed studio now always starts live (the desktop
+list is only the starting list); `off` keeps all live fetching and Settings changes refused.
+
+Model caps: the Models page gains a "Change caps" form over the existing owner-only plan
+settings route (ADR-0042); ranges are PlanCapsSchema's, and saving withdraws the caps
+acceptance as before. No migration for this part.
+
+Consequences: the owner, not a model, chooses where evidence comes from, and can do it in the
+app. With "any public website" on, runs may quote weak or planted pages and every fetched site
+sees the request and the computer's IP address; robots.txt is not checked. Study conditions
+compared against each other should use one frozen policy (the retrieval's policy hash shows
+which applied). The policy is read just before admission, so a change racing a fetch applies
+to whichever it is recorded with. Brave public search (off by default) still filters by the
+startup list. Rolling back to an older app leaves migration 35's table unused.
+
 ## ADR-0055 — Studio chat, first version: saved conversations with rule-based replies, no model (accepted November 1, 2026)
 
 Context: runbook step 9 page consolidation. The approved page map (design doc, Jordan's "go")
