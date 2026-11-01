@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import selectors
+import signal
 import subprocess
 import sys
 import time
@@ -19,6 +20,11 @@ POLICY = {
     'runtime_seconds': 20, 'lease_seconds': 5, 'disk_bytes': 16777216,
     'log_bytes': 65536, 'file_bytes': 8388608, 'uid': 1000,
 }
+# ADR-0058: an owner-started interactive session on the same sandbox. Only the runtime and
+# the terminal differ: the program's terminal is the owner's console window, so nothing it
+# prints is captured, and the session ends at 15 minutes, on Stop, or when the window closes.
+TERMINAL_POLICY = {**POLICY, 'format': 'isolation-terminal/1', 'runtime_seconds': 900,
+                   'log_bytes': 0, 'terminal': 'pty'}
 
 
 def command(args, **kwargs):
@@ -54,6 +60,7 @@ def main():
     parser.add_argument('execution_id')
     parser.add_argument('--reap', action='store_true')
     parser.add_argument('--recipe-hash', required=True)
+    parser.add_argument('--interactive', action='store_true')
     args = parser.parse_args()
     import uuid
     if str(uuid.UUID(args.execution_id)) != args.execution_id:
@@ -61,13 +68,17 @@ def main():
     job = pathlib.Path(args.job).resolve(strict=True)
     lease = job / 'lease.json'
     source = job / 'input'
-    recipe = pathlib.Path(__file__).with_name('recipe.py').resolve(strict=True)
+    recipe = pathlib.Path(__file__).with_name(
+        'terminal.py' if args.interactive else 'recipe.py').resolve(strict=True)
     identity = environment()
     identity['recipe_hash'] = hashlib.sha256(recipe.read_bytes()).hexdigest()
     if identity['recipe_hash'] != args.recipe_hash:
         raise RuntimeError('Reviewed recipe hash changed before dispatch')
-    unit = 'creator-exec-' + args.execution_id
+    unit = ('creator-term-' if args.interactive else 'creator-exec-') + args.execution_id
     identity['unit'] = unit
+    if args.interactive and not args.reap:
+        identity['policy'] = TERMINAL_POLICY
+        return interactive(args, job, lease, source, recipe, unit, identity)
     emit({'type': 'environment', 'value': identity})
     if args.reap:
         subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], stdin=subprocess.DEVNULL,
@@ -158,6 +169,102 @@ def main():
     emit({'type': 'result', 'value': {'exit_code': child.returncode, 'reason': reason,
           'log': log.decode('utf-8', errors='replace'), 'cleaned': cleaned,
           'unit_state': state, 'limits_observed': observed_limits}})
+
+
+def write_record(path, value):
+    """Management record beside the job; generated code never sees the job directory."""
+    tmp = path.with_name(path.name + '.tmp')
+    tmp.write_text(json.dumps(value))
+    os.replace(tmp, path)
+
+
+def interactive(args, job, lease, source, recipe, unit, identity):
+    """Runs the package attached to this console window. Records go to files, not stdout."""
+    launch_file = job / 'launch.json'
+    value = json.loads(launch_file.read_text())
+    if not isinstance(value, dict) or set(value) != {'args'}:
+        raise RuntimeError('Only the confirmed argument list may enter the sandbox')
+    write_record(job / 'environment.json', identity)
+    sandbox = ['/usr/bin/bwrap', '--unshare-all', '--unshare-user', '--uid', '1000', '--gid', '1000',
+               '--disable-userns', '--new-session', '--die-with-parent', '--cap-drop', 'ALL',
+               '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin',
+               '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
+               '--proc', '/proc', '--dev', '/dev',
+               '--size', str(POLICY['disk_bytes']), '--tmpfs', '/work',
+               '--size', '1048576', '--tmpfs', '/tmp',
+               '--ro-bind', str(source), '/input', '--ro-bind', str(recipe), '/recipe.py',
+               '--ro-bind', str(launch_file), '/launch.json',
+               '--remount-ro', '/', '--remount-ro', '/dev', '--remount-ro', '/proc',
+               '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'HOME', '/nonexistent',
+               '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
+    launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pty', '--wait', '--collect', '--unit=' + unit,
+              '-p', 'MemoryMax=268435456', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32',
+              '-p', 'CPUQuota=50%', '-p', 'RuntimeMaxSec=900', '-p', 'KillMode=control-group',
+              '-p', 'TimeoutStopSec=1', '-p', 'SendSIGKILL=yes', '-p', 'UMask=0077', *sandbox]
+    reason = None
+    signalled = []
+
+    def stop_on_signal(number, _frame):
+        signalled.append(number)
+    for number in (signal.SIGHUP, signal.SIGTERM, signal.SIGINT):
+        signal.signal(number, stop_on_signal)
+    print('Creator Agent: isolated terminal. No network, no studio files; it ends after 15 '
+          'minutes, on Stop, or when you close this window.\n', flush=True)
+    child = subprocess.Popen(launch)
+    started = time.monotonic()
+    observed_limits = False
+    try:
+        while child.poll() is None:
+            if not observed_limits:
+                try:
+                    properties = command(['/usr/bin/systemctl', '--user', 'show', unit,
+                                          '-p', 'MemoryMax', '-p', 'MemorySwapMax', '-p', 'TasksMax',
+                                          '-p', 'CPUQuotaPerSecUSec', '-p', 'RuntimeMaxUSec', '-p', 'KillMode'])
+                    if 'MemoryMax=268435456' in properties and 'RuntimeMaxUSec=15min' in properties:
+                        identity['effective_limits'] = properties
+                        write_record(job / 'environment.json', identity)
+                        observed_limits = True
+                except subprocess.SubprocessError:
+                    pass
+            try:
+                current = json.loads(lease.read_text())
+                if current.get('cancelled'):
+                    reason = 'stopped'
+                elif current.get('execution_id') != args.execution_id or \
+                        time.time() * 1000 - current.get('heartbeat_ms', 0) > 5000:
+                    reason = 'lease_lost'
+            except (OSError, ValueError):
+                reason = 'lease_lost'
+            if signalled:
+                reason = 'window_closed'
+            if time.monotonic() - started > TERMINAL_POLICY['runtime_seconds'] + 3:
+                reason = reason or 'deadline'
+            if reason:
+                break
+            time.sleep(0.1)
+    finally:
+        subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], stdin=subprocess.DEVNULL,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait()
+    state = command(['/usr/bin/systemctl', '--user', 'show', unit, '-p', 'ActiveState', '--value'])
+    write_record(job / 'result.json', {
+        'exit_code': child.returncode, 'reason': reason, 'cleaned': state in ('inactive', 'failed'),
+        'unit_state': state, 'limits_observed': observed_limits})
+    if signalled:
+        return
+    # Keep the program's last screen (for example a practice report) until the owner is done.
+    print('\nSession ended' + (' (' + reason + ')' if reason else '') +
+          f' with exit code {child.returncode}. Press Enter to close this window.', flush=True)
+    try:
+        ready = selectors.DefaultSelector()
+        ready.register(sys.stdin, selectors.EVENT_READ)
+        ready.select(600)
+    except (OSError, ValueError):
+        pass
 
 
 if __name__ == '__main__':

@@ -79,6 +79,7 @@ import {
   ArtifactSupervisor,
   ExecutionSupervisor,
   ProductSupervisor,
+  TerminalSupervisor,
   checkStudyCode,
   digest,
   readStudyBuild,
@@ -213,12 +214,14 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
   deps: {
     artifacts?: ArtifactSupervisor;
+    /** Test seam: the interactive terminal supervisor (ADR-0058). */
+    terminals?: TerminalSupervisor;
     /** Test seam: the fixture processor for a payment connection. */
     paymentFixture?: (connection: PaymentConnection) => FixtureProcessor;
     /** Test seam: ChatGPT-plan service with loopback stand-in endpoints (ADR-0042). */
@@ -285,6 +288,13 @@ export function createApi(
         ),
       );
     })();
+  // ADR-0058: owner-started interactive sessions of verified packages, same product store.
+  const terminals =
+    deps.terminals ??
+    new TerminalSupervisor(
+      artifacts.products,
+      env.CREATOR_WORKER_DISTRO ?? 'Ubuntu',
+    );
   // ADR-0048: patch_build qualification answers run in a throwaway product store beside the
   // studio's, through the same isolated worker; never in the studio's own products.
   const qualificationProducts = new ProductSupervisor(
@@ -743,10 +753,12 @@ export function createApi(
     if (
       ws &&
       collection &&
-      ['artifacts', 'previews', 'feedback'].includes(collection) &&
+      ['artifacts', 'previews', 'feedback', 'terminals'].includes(collection) &&
       (await artifactRoutes({
         store,
         artifacts,
+        terminals,
+        localStudio: deployment.mode === 'local',
         previewOrigin,
         ctx,
         ws,

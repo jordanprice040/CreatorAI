@@ -277,3 +277,53 @@ export const ArtifactComparisonSchema = z.strictObject({
   feedback: z.array(FeedbackSchema),
 });
 export type ArtifactComparison = z.infer<typeof ArtifactComparisonSchema>;
+
+/**
+ * ADR-0058: an owner-started interactive session of one verified package, in a console
+ * window on the studio's computer, inside the isolated worker. Screen output is not
+ * captured, and a session is the owner's own try, never QA or verification evidence.
+ */
+/** Shell-style display of the confirmed command; it is never executed through a shell. */
+export function terminalCommand(args: readonly string[]): string {
+  const word = (s: string) =>
+    /^[A-Za-z0-9_./:=@%+,-]+$/.test(s) ? s : `'${s.replaceAll("'", "'\\''")}'`;
+  return ['python3', 'src/main.py', ...args].map(word).join(' ');
+}
+export const TerminalStartRequestSchema = z.strictObject({
+  manifest_sha256: hash,
+  args: RunInputSchema.shape.args,
+});
+export type TerminalStartRequest = z.infer<typeof TerminalStartRequestSchema>;
+export const TerminalStopRequestSchema = z.strictObject({ artifact_id: id });
+export const TerminalSessionSchema = z.strictObject({
+  id,
+  product_id: id,
+  artifact_id: id,
+  manifest_sha256: hash,
+  package_sha256: hash,
+  task_id: id,
+  commit: sha,
+  args: RunInputSchema.shape.args,
+  /** The command as shown in the confirmation, for the record. */
+  command: z.string().max(8000),
+  recipe: z.literal('python-terminal/1'),
+  recipe_hash: hash,
+  bridge_hash: hash,
+  policy_hash: hash,
+  state: z.enum([
+    'running',
+    'ended',
+    'stopped',
+    'timed_out',
+    'window_closed',
+    'lost',
+    'blocked',
+    'cleanup_required',
+  ]),
+  started_at: z.iso.datetime(),
+  finished_at: z.iso.datetime().nullable(),
+  exit_code: z.number().int().nullable(),
+  reason: z.string().max(2000).nullable(),
+  environment: z.record(z.string(), z.unknown()),
+});
+export type TerminalSession = z.infer<typeof TerminalSessionSchema>;

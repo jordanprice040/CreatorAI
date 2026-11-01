@@ -12,6 +12,7 @@ import {
   ArtifactSupervisor,
   BuildSupervisor,
   ProductSupervisor,
+  TerminalSupervisor,
   digest,
   type Binding,
   type BuildPlan,
@@ -49,9 +50,28 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   const products = new ProductSupervisor(join(dir, 'products'));
   const double = new TestDoubleExecutor(products);
   const artifacts = new ArtifactSupervisor(products, double);
+  // ADR-0058 terminal sessions with a stand-in console window: nothing is executed; the
+  // stand-in answers with the bridge's management records.
+  const windows: { args: string[]; exit: () => void }[] = [];
+  const terminals = new TerminalSupervisor(products, 'Ubuntu', {
+    platform: 'win32',
+    workerPath: (x) => x,
+    heartbeatMs: 20,
+    openConsole: (_program, args) => {
+      const handlers: (() => void)[] = [];
+      windows.push({ args, exit: () => handlers.forEach((h) => h()) });
+      return {
+        once(event: string, cb: (e: Error) => void) {
+          if (event === 'exit') handlers.push(() => cb(new Error('closed')));
+          return this;
+        },
+      };
+    },
+    reap: async () => ({ cleaned: true, unit_state: 'inactive' }),
+  });
   const api = createApi(
     { CREATOR_DATABASE_URL: db.url, CREATOR_DEV_LOGIN_CODE: LOGIN_CODE },
-    { artifacts },
+    { artifacts, terminals },
   );
   const nativeGate = process.env.CREATOR_TEST_NATIVE === '1';
   api.server.listen(nativeGate ? 4310 : 0, '127.0.0.1');
@@ -613,6 +633,108 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
       )
     ).status,
     401,
+  );
+
+  // ADR-0058: run in a terminal. Owner, current manifest and CSRF are checked; the session
+  // gets a fresh copy of the exact package and only the confirmed arguments.
+  const terminalPath = `workspaces/${ws}/artifacts/${a1.id}/terminals`;
+  assert.equal(
+    (
+      await http(terminalPath, {
+        manifest_sha256: digest('stale'),
+        args: [],
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await http(
+        terminalPath,
+        { manifest_sha256: a1.manifest_sha256, args: [] },
+        { 'Content-Type': 'application/json' },
+      )
+    ).status >= 400,
+    true,
+  );
+  assert.equal(windows.length, 0);
+  const term = await http(terminalPath, {
+    manifest_sha256: a1.manifest_sha256,
+    args: ['--practice', '--fps', '60'],
+  });
+  assert.equal(term.status, 201, JSON.stringify(term.body));
+  assert.equal(term.body.state, 'running');
+  assert.equal(term.body.command, 'python3 src/main.py --practice --fps 60');
+  assert.equal(term.body.package_sha256, pkg1.manifest.package.sha256);
+  assert.equal(windows.length, 1);
+  const job = windows[0]!.args[windows[0]!.args.indexOf('-I') + 2]!;
+  assert.deepEqual(
+    JSON.parse(await readFile(join(job, 'launch.json'), 'utf8')),
+    {
+      args: ['--practice', '--fps', '60'],
+    },
+  );
+  for (const f of pkg1.manifest.package.files)
+    assert.equal(
+      digest(await readFile(join(job, 'input', ...f.path.split('/')))),
+      f.sha256,
+    );
+  assert.equal(
+    (
+      await http(terminalPath, {
+        manifest_sha256: a1.manifest_sha256,
+        args: [],
+      })
+    ).status,
+    409,
+  );
+  const termList = await http(terminalPath);
+  assert.equal(termList.status, 200);
+  assert.deepEqual(
+    termList.body.map((x: any) => [x.id, x.state]),
+    [[term.body.id, 'running']],
+  );
+  assert.equal(
+    (
+      await http(`workspaces/${ws}/terminals/${term.body.id}/stop`, {
+        artifact_id: randomUUID(),
+      })
+    ).status,
+    404,
+  );
+  // The stand-in bridge reports once it sees the cancelled lease.
+  void (async () => {
+    for (let i = 0; i < 300; i++) {
+      const lease = JSON.parse(
+        await readFile(join(job, 'lease.json'), 'utf8').catch(() => '{}'),
+      );
+      if (lease.cancelled) {
+        await writeFile(
+          join(job, 'result.json'),
+          JSON.stringify({ exit_code: -15, reason: 'stopped', cleaned: true }),
+        );
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  })();
+  const stopped = await http(
+    `workspaces/${ws}/terminals/${term.body.id}/stop`,
+    {
+      artifact_id: a1.id,
+    },
+  );
+  assert.equal(stopped.status, 200, JSON.stringify(stopped.body));
+  assert.equal(stopped.body.state, 'stopped');
+  const termAudit = await db.pool.query(
+    `select action, payload from audit_events where action like 'artifact.terminal.%' order by sequence`,
+  );
+  assert.deepEqual(
+    termAudit.rows.map((r) => [r.action, r.payload.session_id]),
+    [
+      ['artifact.terminal.started', term.body.id],
+      ['artifact.terminal.stopped', term.body.id],
+    ],
   );
 
   // Previews: separate origin, one-time ticket, preview-only cookie, rechecks on every use.

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ArtifactComparisonSchema,
   ArtifactDetailSchema,
@@ -6,12 +6,15 @@ import {
   FeedbackSchema,
   PreviewSchema,
   PreviewStartSchema,
+  TerminalSessionSchema,
+  terminalCommand,
   z,
   type ArtifactComparison,
   type ArtifactDetail,
   type ArtifactSummary,
   type Feedback,
   type SessionInfo,
+  type TerminalSession,
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
@@ -28,8 +31,9 @@ const nano = (n: string) =>
   n === '0' ? '$0' : `$${(Number(n) / 1e9).toFixed(6)}`;
 
 /**
- * Verified artifacts from the local product store. Every download and preview start is
- * rechecked on the server against the manifest hash; nothing here runs generated code.
+ * Verified artifacts from the local product store. Every download, preview start and
+ * terminal run is rechecked on the server against the manifest hash; generated code runs
+ * only in the isolated worker, never in this page.
  */
 export function Gallery({
   workspace,
@@ -266,6 +270,11 @@ function ArtifactPanel({
                 {error}
               </p>
             )}
+            {d.integrity.ok &&
+              d.manifest.state === 'verified' &&
+              d.manifest.availability.runnable_demo.state === 'available' && (
+                <TerminalPanel base={base} summary={summary} csrf={csrf} />
+              )}
             <Facts d={d} />
             <Previews
               d={d}
@@ -432,6 +441,211 @@ function Facts({ d }: { d: ArtifactDetail }) {
         ))}
       </ul>
     </details>
+  );
+}
+
+export function terminalArgs(text: string): string[] {
+  return text.split(/\r?\n/).filter((s) => s.length);
+}
+const TERMINAL_STATES: Record<TerminalSession['state'], string> = {
+  running: 'Open',
+  ended: 'Ended',
+  stopped: 'Stopped',
+  timed_out: 'Ended at 15 minutes',
+  window_closed: 'Window closed',
+  lost: 'Lost',
+  blocked: 'Could not start',
+  cleanup_required: 'Needs cleanup',
+};
+
+/**
+ * ADR-0058: run the verified package interactively in a console window on this computer,
+ * inside the isolated worker. The owner confirms the exact command every time.
+ */
+function TerminalPanel({
+  base,
+  summary,
+  csrf,
+}: {
+  base: string;
+  summary: ArtifactSummary;
+  csrf: string;
+}) {
+  const path = `${base}/artifacts/${summary.id}/terminals`;
+  const sessions = useLoad(
+    () => api(z.array(TerminalSessionSchema), path),
+    [path],
+  );
+  const [text, setText] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const open = sessions.data?.some((x) => x.state === 'running') ?? false;
+  const reloadRef = useRef(sessions.reload);
+  reloadRef.current = sessions.reload;
+  const reload = () => reloadRef.current();
+  // While a window is open, follow it so the list shows when it ends.
+  useEffect(() => {
+    if (!open) return;
+    const t = setInterval(() => reloadRef.current(), 3000);
+    return () => clearInterval(t);
+  }, [open]);
+  const args = terminalArgs(text);
+  async function run(work: () => Promise<string>) {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      setNotice(await work());
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+      reload();
+    }
+  }
+  return (
+    <section className="terminal-panel" aria-labelledby="term-title">
+      <h4 id="term-title">Run in a terminal</h4>
+      <p className="small">
+        Opens a terminal window on this computer and runs this exact package
+        there, in the isolated worker: no network, no studio files, 15 minutes
+        at most. Use it for programs that need you at the keyboard. What it
+        prints stays in the window and is not saved; these runs are your own
+        tries, not test results.
+      </p>
+      {!confirming ? (
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            setError('');
+            setNotice('');
+            setConfirming(true);
+          }}
+        >
+          <label htmlFor={`term-args-${summary.id}`}>
+            Arguments, one per line (optional)
+          </label>
+          <textarea
+            id={`term-args-${summary.id}`}
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <div className="actions">
+            <button className="primary" disabled={busy || !csrf || open}>
+              Run in a terminal…
+            </button>
+            {open && (
+              <span className="small">
+                A terminal for this product is open. Stop it or close its window
+                first.
+              </span>
+            )}
+          </div>
+        </form>
+      ) : (
+        <div className="notice" role="group" aria-label="Confirm terminal run">
+          <p>
+            <strong>Run this in an isolated terminal window?</strong>
+          </p>
+          <pre>
+            <code>{terminalCommand(args)}</code>
+          </pre>
+          <p className="small">
+            Package {summary.archive_sha256.slice(0, 12)}… · the window opens on
+            this computer.
+          </p>
+          <div className="actions">
+            <button
+              className="primary"
+              disabled={busy || !csrf}
+              onClick={() =>
+                void run(async () => {
+                  const r = await api(TerminalSessionSchema, path, {
+                    body: {
+                      manifest_sha256: summary.manifest_sha256,
+                      args,
+                    },
+                    csrf,
+                    timeoutMs: 30000,
+                  });
+                  setConfirming(false);
+                  return r.state === 'running'
+                    ? "The terminal window is open. If you don't see it, check the taskbar."
+                    : `${TERMINAL_STATES[r.state]}: ${r.reason ?? ''}`;
+                })
+              }
+            >
+              Open terminal
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {notice && (
+        <p className="small" role="status">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {sessions.data && sessions.data.length > 0 && (
+        <ul className="rows" aria-label="Recent terminal runs">
+          {sessions.data.slice(0, 5).map((x) => (
+            <li key={x.id}>
+              <span className={`badge terminal-${x.state}`}>
+                {TERMINAL_STATES[x.state]}
+              </span>{' '}
+              <code>{x.command}</code> · {when(x.started_at)}
+              {x.exit_code !== null ? ` · exit ${x.exit_code}` : ''}
+              {x.reason && x.state !== 'ended' ? ` · ${x.reason}` : ''}
+              {x.state === 'running' && (
+                <>
+                  {' '}
+                  <button
+                    className="secondary"
+                    disabled={busy || !csrf}
+                    onClick={() =>
+                      void run(async () => {
+                        const r = await api(
+                          TerminalSessionSchema,
+                          `${base}/terminals/${x.id}/stop`,
+                          {
+                            body: { artifact_id: summary.id },
+                            csrf,
+                            timeoutMs: 15000,
+                          },
+                        );
+                        return `Terminal ${TERMINAL_STATES[r.state].toLowerCase()}.`;
+                      })
+                    }
+                  >
+                    Stop
+                  </button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {sessions.error && (
+        <p className="small error" role="alert">
+          {sessions.error}
+        </p>
+      )}
+    </section>
   );
 }
 
