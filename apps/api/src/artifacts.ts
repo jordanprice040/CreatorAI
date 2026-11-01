@@ -12,7 +12,7 @@ import {
   type ArtifactDetail,
   type PreviewRun,
 } from '@creator/contracts';
-import type { ArtifactStore, CommandContext } from '@creator/db';
+import type { ArtifactStore, CommandContext, PreviewGuide } from '@creator/db';
 import type { ArtifactSupervisor } from '@creator/executor';
 
 type Send = (
@@ -266,13 +266,65 @@ textarea,input{width:100%;box-sizing:border-box;font:13px ui-monospace,monospace
 button{margin-top:.75rem;padding:.45rem 1rem;font-weight:600}
 pre{background:#fff;border:1px solid #ccc;padding:.75rem;white-space:pre-wrap;min-height:3rem}
 .error{color:#9b1c1c}
-@media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe7}pre,textarea,input{background:#222;color:#ecebe7;border-color:#444}dt{color:#aaa}}`;
+.muted{color:#666}
+.label{margin:.5rem 0 .2rem;font-size:.85rem;font-weight:600}
+.example{border:1px solid #ccc;border-radius:4px;padding:.5rem .75rem;margin:.5rem 0}
+.example summary{cursor:pointer;font-weight:600}
+.example pre{min-height:0;margin:0}
+.flows{padding-left:1.2rem}.flows ol{margin:.2rem 0 .5rem}
+code{font:13px ui-monospace,monospace}
+@media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe7}pre,textarea,input{background:#222;color:#ecebe7;border-color:#444}dt,.muted{color:#aaa}.example{border-color:#444}}`;
 const SCRIPT = `const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');
 form.addEventListener('submit',async(e)=>{e.preventDefault();const b=form.querySelector('button');b.disabled=true;out.textContent='Running the exact package in the isolated worker…';meta.textContent='';
 const args=document.getElementById('args').value.split('\\n').filter((s)=>s.length);const stdin=document.getElementById('stdin').value;
 try{const r=await fetch(location.pathname+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({args,stdin})});const v=await r.json();
 if(!r.ok){out.textContent='Refused: '+(v.error?v.error.message:r.status);out.className='error';}else{out.className='';out.textContent=v.stdout||'(no output)';meta.textContent='Exit '+v.exit_code+' · '+v.state+(v.reason?' · '+v.reason:'')+' · run '+v.runs_used+' of '+v.max_runs;}}
-catch(err){out.textContent='Request failed';out.className='error';}finally{b.disabled=false;}});`;
+catch(err){out.textContent='Request failed';out.className='error';}finally{b.disabled=false;}});
+for(const x of document.querySelectorAll('button[data-example]'))x.addEventListener('click',()=>{document.getElementById('args').value=JSON.parse(x.dataset.args).join('\\n');document.getElementById('stdin').value=x.dataset.stdin;form.querySelector('button[type=submit]').focus();});`;
+
+/** One argument as it would be typed in a POSIX shell, for display only. */
+const shellWord = (v: string) =>
+  /^[A-Za-z0-9_@%+=:,./-]+$/.test(v) ? v : `'${v.replaceAll("'", `'\\''`)}'`;
+const placeholder = (v: string | undefined) =>
+  v ? ` placeholder="${html(`For example:\n${v}`)}"` : '';
+const block = (label: string, v: string) =>
+  `<p class="label">${label}</p><pre>${v ? html(v) : '<span class="muted">(empty)</span>'}</pre>`;
+
+/**
+ * F16: how to use the package and what to type, from the frozen spec it was built from.
+ * Only visible cases are shown; held-out cases stay hidden, as they are from the build roles.
+ */
+function usage(command: string[], guide: PreviewGuide | null) {
+  const intro = `<h2>How to use it</h2><p>Each run starts <code>${html(command.join(' '))}</code> with the arguments below and sends the standard input all at once, then shows what the program printed. Runs are not interactive: the program cannot wait for a key press.</p>`;
+  if (!guide)
+    return `${intro}<p class="muted">The spec version this package was built from is not available, so no usage steps or examples can be shown.</p>`;
+  const flows = guide.flows.length
+    ? `<h3>What it does</h3><ul class="flows">${guide.flows
+        .map(
+          (f) =>
+            `<li><strong>${html(f.name)}</strong><ol>${f.steps.map((x) => `<li>${html(x)}</li>`).join('')}</ol></li>`,
+        )
+        .join('')}</ul>`
+    : '';
+  const examples = guide.examples.length
+    ? `<h3>${guide.examples.length === 1 ? 'Example' : 'Examples'} from the spec</h3>${guide.examples
+        .map(
+          (x, i) =>
+            `<details class="example"${i === 0 ? ' open' : ''}><summary>${html(x.check_key)}: ${html(x.statement)}</summary>
+${block('Command line', [...command, ...x.args].map(shellWord).join(' '))}${block('Standard input', x.stdin)}${block(`Expected output (exit ${x.exit_code})`, x.stdout)}
+<button type="button" data-example data-args="${html(JSON.stringify(x.args))}" data-stdin="${html(x.stdin)}">Use this example</button></details>`,
+        )
+        .join('')}${
+        guide.more_examples
+          ? `<p class="muted">${guide.more_examples} more visible ${guide.more_examples === 1 ? 'case is' : 'cases are'} in the spec.</p>`
+          : ''
+      }`
+    : '<p class="muted">The spec has no visible example case for this task.</p>';
+  const hidden = guide.held_out_hidden
+    ? '<p class="muted">Held-out cases are not shown here; QA uses them to check the build.</p>'
+    : '';
+  return `${intro}${flows}${examples}${hidden}`;
+}
 
 function page(
   res: ServerResponse,
@@ -378,6 +430,7 @@ export function createPreviewServer(
       if (req.method === 'GET' && !m[2]) {
         const a = await store.previewAccess(id, session, false);
         const mf = a.record.manifest;
+        const first = a.guide?.examples[0];
         return page(
           res,
           200,
@@ -391,8 +444,9 @@ export function createPreviewServer(
 <dt>Spec</dt><dd>v${html(mf.spec.version)}</dd><dt>Manifest sha256</dt><dd>${html(a.preview.manifest_sha256)}</dd>
 <dt>Expires</dt><dd>${html(a.preview.expires_at)}</dd><dt>Runs</dt><dd>${html(a.preview.runs_used)} of ${html(a.preview.max_runs)}</dd>
 <dt>Command</dt><dd>${html(mf.startup.command.join(' '))} [arguments]</dd></dl>
-<form id="run"><label for="args">Arguments, one per line</label><textarea id="args" rows="3"></textarea>
-<label for="stdin">Standard input</label><textarea id="stdin" rows="3"></textarea>
+${usage(mf.startup.command, a.guide)}
+<form id="run"><label for="args">Arguments, one per line</label><textarea id="args" rows="3"${placeholder(first?.args.join('\n'))}></textarea>
+<label for="stdin">Standard input</label><textarea id="stdin" rows="3"${placeholder(first?.stdin)}></textarea>
 <button type="submit">Run in isolated worker</button></form>
 <h2>Output</h2><pre id="out" aria-live="polite">Not run yet.</pre><p id="meta"></p>
 <script src="/preview-assets/preview.js"></script>`,

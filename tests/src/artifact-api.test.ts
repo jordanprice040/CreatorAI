@@ -646,9 +646,18 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     pageResponse.headers.get('content-security-policy')!,
     /default-src 'none'/,
   );
-  assert.match(
-    await pageResponse.text(),
-    new RegExp(pkg1.manifest.repository.commit),
+  const pageHtml = await pageResponse.text();
+  assert.match(pageHtml, new RegExp(pkg1.manifest.repository.commit));
+  // F16: the page says how to use the package with a visible case from the frozen spec, and
+  // never shows the held-out case (A2, args ["unexpected"], output "invalid input").
+  assert.match(pageHtml, /<h2>How to use it<\/h2>/);
+  assert.match(pageHtml, /<strong>Print checklist<\/strong>/);
+  assert.match(pageHtml, /<summary>A1: Print inspect, build, review, verify/);
+  assert.match(pageHtml, /data-example data-args="\[\]"/);
+  assert.match(pageHtml, /Held-out cases are not shown here/);
+  assert.doesNotMatch(
+    pageHtml,
+    /<summary>A2|&quot;unexpected&quot;|main\.py unexpected|invalid input\n/,
   );
   // A management session cookie means nothing on the preview origin.
   assert.equal(
