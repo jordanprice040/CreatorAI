@@ -13,6 +13,12 @@ import { api, message } from './oversight.js';
 import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
+import {
+  capChanges,
+  capFieldsFor,
+  capsToDraft,
+  draftToCaps,
+} from './caps-fields.js';
 import { ChatAnswersCard } from './chat-answers.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
@@ -121,6 +127,13 @@ export function Models({
   >('model_access');
   const [grantModel, setGrantModel] = useState('');
   const [claudeFolder, setClaudeFolder] = useState('');
+  // "Change caps" draft: kept apart from the 2 s refresh so typing is never overwritten.
+  const [capsDraft, setCapsDraft] = useState<{
+    connection_id: string;
+    settings_hash: string;
+    values: Record<string, string>;
+  } | null>(null);
+  const [capsErrors, setCapsErrors] = useState<Record<string, string>>({});
   const loadSequence = useRef(0);
   async function load(id = selected) {
     const sequence = ++loadSequence.current;
@@ -458,7 +471,135 @@ export function Models({
                 Disconnect
               </button>
             )}
+            {capsDraft?.connection_id !== c.id && (
+              <button
+                className="secondary"
+                disabled={busy || !session}
+                onClick={() => {
+                  setCapsErrors({});
+                  setCapsDraft({
+                    connection_id: c.id,
+                    settings_hash: c.settings_hash,
+                    values: capsToDraft(c.settings.caps),
+                  });
+                }}
+              >
+                Change caps
+              </button>
+            )}
           </div>
+          {capsDraft?.connection_id === c.id &&
+            (() => {
+              const fields = capFieldsFor(c.kind);
+              const stale = capsDraft.settings_hash !== c.settings_hash;
+              const parsed = draftToCaps(
+                c.settings.caps,
+                capsDraft.values,
+                c.kind,
+              );
+              const changes = parsed.caps
+                ? capChanges(c.settings.caps, parsed.caps, c.kind)
+                : [];
+              return (
+                <form
+                  className="caps-form"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (stale) return;
+                    if (!parsed.caps) {
+                      setCapsErrors(parsed.errors);
+                      return;
+                    }
+                    setCapsErrors({});
+                    const out = await act(`${p}/settings`, {
+                      expected_version: c.version,
+                      settings: { ...c.settings, caps: parsed.caps },
+                    });
+                    if (out) setCapsDraft(null);
+                  }}
+                >
+                  <fieldset>
+                    <legend>Change caps</legend>
+                    <p>
+                      These are Creator Agent's own limits for this connection.
+                      Your plan can still refuse requests on its own allowance.
+                      Saving withdraws your acceptance, so model calls stay
+                      blocked until you accept the new caps.
+                    </p>
+                    {fields.map((x) => {
+                      const id = `caps-${c.id}-${x.key.replace('.', '-')}`;
+                      const err = capsErrors[x.key];
+                      return (
+                        <label key={x.key} htmlFor={id}>
+                          {x.label} ({x.unit}, {x.min.toLocaleString('en-US')}–
+                          {x.max.toLocaleString('en-US')})
+                          <input
+                            id={id}
+                            inputMode="numeric"
+                            value={capsDraft.values[x.key] ?? ''}
+                            aria-invalid={err ? true : undefined}
+                            aria-describedby={err ? `${id}-error` : undefined}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setCapsDraft((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      values: { ...d.values, [x.key]: value },
+                                    }
+                                  : d,
+                              );
+                            }}
+                          />
+                          {err && (
+                            <span id={`${id}-error`} className="error">
+                              {err}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                    {stale && (
+                      <p role="alert">
+                        These caps changed since you opened this form. Cancel
+                        and open it again to start from the saved values.
+                      </p>
+                    )}
+                    {!stale && parsed.caps && (
+                      <p role="status">
+                        {changes.length
+                          ? `Will change: ${changes.join('; ')}.`
+                          : 'No changes yet.'}
+                      </p>
+                    )}
+                    <div className="actions">
+                      <button
+                        type="submit"
+                        disabled={
+                          busy ||
+                          !session ||
+                          stale ||
+                          (!!parsed.caps && changes.length === 0)
+                        }
+                      >
+                        Save new caps
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setCapsDraft(null);
+                          setCapsErrors({});
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </fieldset>
+                </form>
+              );
+            })()}
           {c.credits.state !== 'confirmed_off' ? (
             <fieldset>
               <legend>

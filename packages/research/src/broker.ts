@@ -4,7 +4,10 @@ import {
   SOURCE_POLICY_VERSION,
   SourceFetchRequestSchema,
   SourcePolicySchema,
+  EvidenceSitesSchema,
   parse,
+  type EvidenceSiteMode,
+  type EvidenceSites,
   type Retention,
   type Retrieval,
   type SourcePolicy,
@@ -59,15 +62,76 @@ export class SourceBroker {
       throw new Error('The fixture slot must hold the fixture adapter.');
     if (adapters.live && adapters.live.kind !== 'http')
       throw new Error('The live slot must hold a live adapter.');
-    if ((adapters.live === null) !== (policies.live === null))
-      throw new Error('A live adapter needs a live policy, and only then.');
+    if (policies.live && !adapters.live)
+      throw new Error('A live policy needs a live adapter.');
   }
 
   get liveConfigured() {
     return this.adapters.live !== null;
   }
+  /** The policy the studio started with (CREATOR_SOURCE_HOSTS); Settings may replace it. */
   get livePolicy() {
     return this.policies.live;
+  }
+  /** The startup list as Settings shows it before the owner saves a change there. */
+  get startupSites(): { mode: EvidenceSiteMode; hosts: string[] } {
+    return {
+      mode: this.policies.live?.any_public_host ? 'any_public' : 'listed',
+      hosts: (this.policies.live?.hosts ?? [])
+        .filter((h) => h.retention === 'excerpts')
+        .map((h) => h.host),
+    };
+  }
+
+  /**
+   * ADR-0056: the live policy for this workspace's next fetch. The owner's latest Settings
+   * change replaces the startup host list (hash-only hosts and every limit stay as started);
+   * with none, the startup policy applies. Null means no website is approved: fetches are
+   * denied. Without a live adapter there is never a live policy.
+   */
+  async policyFor(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<SourcePolicy | null> {
+    if (!this.adapters.live) return null;
+    const saved = await this.store.savedEvidenceSites(ctx, ws);
+    if (!saved) return this.policies.live;
+    return settingsPolicy(saved, this.policies.live);
+  }
+
+  /** What Settings shows: the list in force, where it came from, and its change history. */
+  async evidenceSites(ctx: CommandContext, ws: string): Promise<EvidenceSites> {
+    const [saved, history] = await Promise.all([
+      this.store.savedEvidenceSites(ctx, ws),
+      this.store.evidenceSiteHistory(ctx, ws),
+    ]);
+    const startup = this.startupSites;
+    const policy = !this.adapters.live
+      ? null
+      : saved
+        ? settingsPolicy(saved, this.policies.live)
+        : this.policies.live;
+    return parse(EvidenceSitesSchema, {
+      live_available: this.adapters.live !== null,
+      source: saved ? 'settings' : 'startup',
+      version: saved?.version ?? 0,
+      mode: saved?.mode ?? startup.mode,
+      hosts: saved?.hosts ?? startup.hosts,
+      startup_hosts: startup.hosts,
+      policy_hash: policy ? sourcePolicyHash(policy) : null,
+      history,
+    });
+  }
+
+  /** The owner's change (the store checks who may make it); refused when fetching is off. */
+  async changeEvidenceSites(ctx: CommandContext, ws: string, raw: unknown) {
+    if (!this.adapters.live)
+      throw new ContractError(
+        'INVALID_CONFIG',
+        'Live evidence fetching is turned off for this studio (CREATOR_SOURCE_FETCH=off), so website settings would have no effect.',
+      );
+    await this.store.changeEvidenceSites(ctx, ws, raw, this.startupSites);
+    return this.evidenceSites(ctx, ws);
   }
 
   async fetch(
@@ -80,7 +144,9 @@ export class SourceBroker {
     const fixture = await this.store.isFixtureWorkspace(ctx, ws);
     // Never a fallback: a real workspace without a live adapter is denied, not served fixtures.
     const adapter = fixture ? this.adapters.fixture : this.adapters.live;
-    const policy = fixture ? this.policies.fixture : this.policies.live;
+    const policy = fixture
+      ? this.policies.fixture
+      : await this.policyFor(ctx, ws);
     const verdict = policy ? checkUrl(req.url, policy) : null;
     const begun = await this.store.beginRetrieval(ctx, ws, runId, req, {
       requestHash: canonicalHash({ run_id: runId.toLowerCase(), request: req }),
@@ -93,7 +159,13 @@ export class SourceBroker {
               reason_code: verdict.reason_code,
               explanation: verdict.explanation,
             }
-          : null,
+          : adapter && !policy
+            ? {
+                reason_code: 'no_websites_approved',
+                explanation:
+                  'No evidence websites are approved for this workspace yet; the owner can add them in Settings.',
+              }
+            : null,
       maxFetchesPerRun: policy?.max_fetches_per_run ?? 0,
       staleAfterMs: (policy?.timeout_ms ?? 60_000) * 2 + 60_000,
     });
@@ -323,31 +395,63 @@ export function sourceConfigFromEnv(env: Record<string, string | undefined>): {
     );
   const hashOnly = list(env.CREATOR_SOURCE_HASH_ONLY_HOSTS);
   const hosts = list(env.CREATOR_SOURCE_HOSTS);
-  if (!hosts.length && !hashOnly.length)
-    throw new ContractError(
-      'INVALID_CONFIG',
-      'CREATOR_SOURCE_FETCH=live needs CREATOR_SOURCE_HOSTS (comma-separated approved hosts).',
-    );
-  const policy = parse(
+  // ADR-0056: live with no hosts is allowed. Nothing is fetched until the owner approves
+  // websites in Settings, which needs the live adapter to exist.
+  const policy =
+    hosts.length || hashOnly.length
+      ? livePolicy(
+          hashOnly.map((host) => ({ host, retention: 'hash_only' as const })),
+          hosts.map((host) => ({ host, retention: 'excerpts' as const })),
+          false,
+        )
+      : null;
+  return { adapter: new HttpFetchAdapter(), policy };
+}
+
+const LIVE_LIMITS = {
+  max_bytes: 2_000_000,
+  timeout_ms: 15_000,
+  max_redirects: 3,
+  max_passages: 200,
+  max_excerpt_chars: 1000,
+  max_fetches_per_run: 100,
+} as const;
+
+function livePolicy(
+  hashOnly: { host: string; retention: 'hash_only' }[],
+  excerpts: { host: string; retention: 'excerpts' }[],
+  anyPublic: boolean,
+): SourcePolicy {
+  return parse(
     SourcePolicySchema,
     {
       version: SOURCE_POLICY_VERSION,
       protocols: ['https'],
       ports: [443],
       // Hash-only rules come first so a host listed in both keeps no excerpts.
-      hosts: [
-        ...hashOnly.map((host) => ({ host, retention: 'hash_only' })),
-        ...hosts.map((host) => ({ host, retention: 'excerpts' })),
-      ],
-      max_bytes: 2_000_000,
-      timeout_ms: 15_000,
-      max_redirects: 3,
+      hosts: [...hashOnly, ...excerpts],
+      ...(anyPublic ? { any_public_host: true } : {}),
+      ...LIVE_LIMITS,
       content_types: ['text/html', 'application/xhtml+xml', 'text/plain'],
-      max_passages: 200,
-      max_excerpt_chars: 1000,
-      max_fetches_per_run: 100,
     },
     'INVALID_CONFIG',
   );
-  return { adapter: new HttpFetchAdapter(), policy };
+}
+
+/** The owner's saved websites on top of the startup policy's hash-only rules and limits. */
+function settingsPolicy(
+  saved: { mode: EvidenceSiteMode; hosts: string[] },
+  startup: SourcePolicy | null,
+): SourcePolicy | null {
+  const hashOnly = (startup?.hosts ?? []).filter(
+    (h): h is { host: string; retention: 'hash_only' } =>
+      h.retention === 'hash_only',
+  );
+  const anyPublic = saved.mode === 'any_public';
+  if (!anyPublic && !saved.hosts.length && !hashOnly.length) return null;
+  return livePolicy(
+    hashOnly,
+    saved.hosts.map((host) => ({ host, retention: 'excerpts' as const })),
+    anyPublic,
+  );
 }

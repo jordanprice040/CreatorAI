@@ -586,7 +586,7 @@ function App() {
       case 'operations':
         return <Operations />;
       case 'settings':
-        return <Settings session={s} open={open} />;
+        return <Settings session={s} workspace={workspace} open={open} />;
       case 'payments':
         return (
           <Payments

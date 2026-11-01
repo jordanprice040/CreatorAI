@@ -1,12 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
+  ChangeEvidenceSitesRequestSchema,
   ClaimSupportRequestSchema,
   RetractSupportRequestSchema,
   SourceFetchRequestSchema,
   isAllowedLink,
   parse,
   type ClaimEvidence,
+  type EvidenceSiteChange,
+  type EvidenceSiteMode,
   type ClaimSupport,
   type Passage,
   type Retention,
@@ -18,6 +21,7 @@ import {
 } from '@creator/contracts';
 import {
   assessClaimEvidence,
+  canonicalHash,
   looksLikeInstructions,
   quoteInPassage,
   urlKey,
@@ -1157,6 +1161,131 @@ export class ResearchStore extends WorkflowStore {
       };
     });
   }
+
+  // ---- Owner-approved evidence websites (ADR-0056, migration 35) ----------------------------
+
+  /**
+   * The latest owner change in Settings for this workspace, or null while the list the studio
+   * started with applies. Read for every live fetch, so a change applies to the next one.
+   */
+  async savedEvidenceSites(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<{
+    version: number;
+    mode: EvidenceSiteMode;
+    hosts: string[];
+  } | null> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      return latestEvidenceSites(c, ws);
+    });
+  }
+
+  async evidenceSiteHistory(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<EvidenceSiteChange[]> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        `select * from evidence_site_changes where workspace_id = $1
+          order by version desc limit 50`,
+        [ws],
+      );
+      return rows.map((r: Row) => ({
+        version: Number(r.version),
+        mode: r.mode as EvidenceSiteMode,
+        hosts: r.hosts as string[],
+        previous_mode: r.previous_mode as EvidenceSiteMode,
+        previous_hosts: r.previous_hosts as string[],
+        reason: String(r.reason),
+        actor_id: String(r.actor_id),
+        created_at: iso(r.created_at),
+      }));
+    });
+  }
+
+  /**
+   * Records a new evidence-website version. Only a workspace owner signed in as a person may
+   * change it; agents, workers and system actors are refused. The caller names the version it
+   * saw (0 while the startup list applies), and the change, its reason and its audit event
+   * commit together under a per-workspace lock taken before the audit-chain lock (ADR-0047).
+   */
+  async changeEvidenceSites(
+    ctx: CommandContext,
+    ws: string,
+    raw: unknown,
+    startup: { mode: EvidenceSiteMode; hosts: string[] },
+  ): Promise<{ version: number; mode: EvidenceSiteMode; hosts: string[] }> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const body = parse(ChangeEvidenceSitesRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      await c.query(
+        "select pg_advisory_xact_lock(hashtext('evidence-sites:' || $1::text))",
+        [ws],
+      );
+      const cur = (await latestEvidenceSites(c, ws)) ?? {
+        version: 0,
+        ...startup,
+      };
+      if (body.expected_version !== cur.version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The evidence websites changed since this page loaded them; reload and decide again.',
+        );
+      const hosts = [...body.hosts].sort();
+      if (
+        body.mode === cur.mode &&
+        JSON.stringify(hosts) === JSON.stringify([...cur.hosts].sort())
+      )
+        throw fail(
+          'INVALID_CONTRACT',
+          'Nothing changed: the mode and websites are the same as now.',
+        );
+      const version = cur.version + 1;
+      const payload = {
+        version,
+        mode: body.mode,
+        hosts,
+        previous_mode: cur.mode,
+        previous_hosts: cur.hosts,
+        reason: body.reason,
+      };
+      const eventId = await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'evidence_sites.changed',
+        subjectKind: 'evidence_sites',
+        subjectId: ws,
+        subjectVersion: version,
+        contentHash: canonicalHash(payload),
+        payload,
+      });
+      await c.query(
+        `insert into evidence_site_changes (workspace_id, version, mode, hosts, previous_mode,
+           previous_hosts, reason, actor_id, event_id)
+         values ($1, $2, $3, $4::jsonb, $5, $6::jsonb, $7, $8, $9)`,
+        [
+          ws,
+          version,
+          body.mode,
+          JSON.stringify(hosts),
+          cur.mode,
+          JSON.stringify(cur.hosts),
+          body.reason,
+          ctx.actorId,
+          eventId,
+        ],
+      );
+      return { version, mode: body.mode, hosts };
+    });
+  }
 }
 
 const interrupted: RetrievalFinish = {
@@ -1171,3 +1300,19 @@ const interrupted: RetrievalFinish = {
   explanation:
     'The fetch did not record an outcome (the process stopped). Nothing was kept; fetch again with a new operation id.',
 };
+
+async function latestEvidenceSites(c: PoolClient, ws: string) {
+  const { rows } = await c.query(
+    `select version, mode, hosts from evidence_site_changes where workspace_id = $1
+      order by version desc limit 1`,
+    [ws],
+  );
+  const r = rows[0] as Row | undefined;
+  return r
+    ? {
+        version: Number(r.version),
+        mode: r.mode as EvidenceSiteMode,
+        hosts: r.hosts as string[],
+      }
+    : null;
+}

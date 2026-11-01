@@ -74,13 +74,18 @@ export const StudioInputSchema = z.strictObject({
 });
 export type StudioInput = z.infer<typeof StudioInputSchema>;
 
-/** Live evidence fetching only when the owner approved websites; otherwise it stays off. */
+/**
+ * The installed studio always has the live fetch adapter (ADR-0056), so the owner can approve
+ * websites in Settings without a restart. The desktop window's list is the starting list; with
+ * none and nothing saved in Settings, no website is approved and every fetch is refused.
+ */
 export function sourceFetchEnv(
   hosts: readonly string[],
 ): Record<string, string> {
-  return hosts.length
-    ? { CREATOR_SOURCE_FETCH: 'live', CREATOR_SOURCE_HOSTS: hosts.join(',') }
-    : {};
+  return {
+    CREATOR_SOURCE_FETCH: 'live',
+    CREATOR_SOURCE_HOSTS: hosts.join(','),
+  };
 }
 export type StudioEvent = Record<string, unknown> & { event: string };
 type Emit = (e: StudioEvent) => void;

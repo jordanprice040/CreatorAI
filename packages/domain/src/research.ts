@@ -95,7 +95,43 @@ export function approvedRetention(
         return rule.retention;
     } else if (host === rule.host) return rule.retention;
   }
+  // ADR-0056: named rules (hash-only ones included) win; any other public name gets excerpts.
+  if (policy.any_public_host === true && isPublicDnsName(host))
+    return 'excerpts';
   return null;
+}
+
+/** Suffixes that name local or private networks, never the public web (RFC 6762, 8375 and common use). */
+const LOCAL_SUFFIXES = [
+  'local',
+  'localhost',
+  'localdomain',
+  'internal',
+  'intranet',
+  'lan',
+  'home',
+  'corp',
+  'private',
+  'home.arpa',
+  'test',
+  'invalid',
+  'example',
+  'onion',
+];
+/**
+ * A fully qualified public name: two or more labels, a top-level label with a letter, and no
+ * local-network suffix. DNS answers are still checked at connection time, so a public-looking
+ * name that resolves inward is refused there.
+ */
+export function isPublicDnsName(host: string): boolean {
+  if (host.length > 253 || isIP(host.replace(/^\[|\]$/g, '')) !== 0)
+    return false;
+  const labels = host.split('.');
+  if (labels.length < 2) return false;
+  if (!labels.every((l) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(l)))
+    return false;
+  if (!/[a-z]/.test(labels.at(-1)!)) return false;
+  return !LOCAL_SUFFIXES.some((x) => host === x || host.endsWith(`.${x}`));
 }
 /**
  * Checks one URL (the request or any redirect target) before contact. DNS answers are checked
@@ -140,7 +176,9 @@ export function checkUrl(raw: string, policy: SourcePolicy): UrlVerdict {
   if (!retention)
     return deny(
       'host_not_approved',
-      `${host} is not on the owner-approved source list.`,
+      policy.any_public_host === true
+        ? `${host} is not a public website name.`
+        : `${host} is not on the owner-approved source list.`,
     );
   url.hash = '';
   return { ok: true, url, retention };

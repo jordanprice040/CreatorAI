@@ -34,6 +34,9 @@ Default: `CREATOR_PUBLIC_SEARCH=off`. To configure an authorized candidate:
   resolved by the existing secret-file loader. Never place a key in tracked config.
 - `CREATOR_SOURCE_FETCH=live` and `CREATOR_SOURCE_HOSTS` name the task's approved
   exact official/primary hosts. Hash-only host rules remain supported by fetching.
+  Since ADR-0056 the owner can replace a workspace's fetch list in Settings ›
+  Evidence websites (including "any public website"); search results are still
+  filtered by this startup list.
 - Record a documented pricing snapshot for provider `brave`, model identifier
   `brave-web-search-v1`, supported action `tool.search_public`, and the verified
   `search_public` per-request rate in nano-USD. Token rates are zero for this

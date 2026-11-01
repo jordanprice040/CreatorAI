@@ -23,23 +23,91 @@ export const FetchContentTypeSchema = z.enum([
   'application/xhtml+xml',
   'text/plain',
 ]);
-export const SourcePolicySchema = z.strictObject({
-  version: z.literal(SOURCE_POLICY_VERSION),
-  protocols: z
-    .array(z.enum(['https', 'http']))
-    .min(1)
-    .max(2),
-  ports: z.array(z.number().int().min(1).max(65535)).min(1).max(10),
-  hosts: z.array(HostRuleSchema).min(1).max(500),
-  max_bytes: counter.min(1024).max(10_000_000),
-  timeout_ms: counter.min(100).max(60_000),
-  max_redirects: counter.max(5),
-  content_types: z.array(FetchContentTypeSchema).min(1).max(3),
-  max_passages: counter.min(1).max(500),
-  max_excerpt_chars: counter.min(50).max(2000),
-  max_fetches_per_run: counter.min(1).max(10_000),
-});
+export const SourcePolicySchema = z
+  .strictObject({
+    version: z.literal(SOURCE_POLICY_VERSION),
+    protocols: z
+      .array(z.enum(['https', 'http']))
+      .min(1)
+      .max(2),
+    ports: z.array(z.number().int().min(1).max(65535)).min(1).max(10),
+    hosts: z.array(HostRuleSchema).max(500),
+    /**
+     * ADR-0056: the owner's "any public website" switch. A host no rule names is fetched with
+     * excerpts when it is a public DNS name; private addresses are still refused on every hop.
+     * Omitted (never false) so policies without the switch keep their earlier hashes.
+     */
+    any_public_host: z.literal(true).optional(),
+    max_bytes: counter.min(1024).max(10_000_000),
+    timeout_ms: counter.min(100).max(60_000),
+    max_redirects: counter.max(5),
+    content_types: z.array(FetchContentTypeSchema).min(1).max(3),
+    max_passages: counter.min(1).max(500),
+    max_excerpt_chars: counter.min(50).max(2000),
+    max_fetches_per_run: counter.min(1).max(10_000),
+  })
+  .refine((p) => p.hosts.length > 0 || p.any_public_host === true, {
+    message:
+      'A source policy names at least one host or allows any public host.',
+  });
 export type SourcePolicy = z.infer<typeof SourcePolicySchema>;
+
+// ---- Owner-approved evidence websites (ADR-0056, migration 35) -----------------------------
+
+/** At most this many website rules in Settings (the desktop window allowed 20). */
+export const EVIDENCE_SITES_MAX = 100;
+export const EvidenceSiteModeSchema = z.enum(['listed', 'any_public']);
+export type EvidenceSiteMode = z.infer<typeof EvidenceSiteModeSchema>;
+/** An exact host or `*.example.org`; a named host, never a bare IP address. */
+export const EvidenceSiteHostSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(
+    /^(\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]*[a-z][a-z0-9-]*$/,
+    'Enter a website host such as www.example.org or *.example.org, with no https:// or path.',
+  );
+export const ChangeEvidenceSitesRequestSchema = z
+  .strictObject({
+    /** The version the page showed; 0 while the startup list is in force. */
+    expected_version: z.number().int().min(0),
+    mode: EvidenceSiteModeSchema,
+    hosts: z.array(EvidenceSiteHostSchema).max(EVIDENCE_SITES_MAX),
+    reason: note,
+  })
+  .refine((b) => new Set(b.hosts).size === b.hosts.length, {
+    message: 'A website is listed twice.',
+    path: ['hosts'],
+  });
+export type ChangeEvidenceSitesRequest = z.infer<
+  typeof ChangeEvidenceSitesRequestSchema
+>;
+export const EvidenceSiteChangeSchema = z.strictObject({
+  version: z.number().int().positive(),
+  mode: EvidenceSiteModeSchema,
+  hosts: z.array(z.string()),
+  previous_mode: EvidenceSiteModeSchema,
+  previous_hosts: z.array(z.string()),
+  reason: z.string(),
+  actor_id: id,
+  created_at: timestamp,
+});
+export type EvidenceSiteChange = z.infer<typeof EvidenceSiteChangeSchema>;
+export const EvidenceSitesSchema = z.strictObject({
+  /** False when this deployment has live fetching turned off (CREATOR_SOURCE_FETCH=off). */
+  live_available: z.boolean(),
+  /** `settings` once the owner saved here; before that, the list the studio started with. */
+  source: z.enum(['settings', 'startup']),
+  version: z.number().int().min(0),
+  mode: EvidenceSiteModeSchema,
+  hosts: z.array(z.string()),
+  startup_hosts: z.array(z.string()),
+  /** Hash of the policy the next fetch in this workspace uses; null when fetching is off. */
+  policy_hash: hash.nullable(),
+  history: z.array(EvidenceSiteChangeSchema),
+});
+export type EvidenceSites = z.infer<typeof EvidenceSitesSchema>;
 
 export const SourceFetchRequestSchema = z.strictObject({
   url: z.string().trim().min(1).max(2000),
