@@ -1,0 +1,153 @@
+[
+  {
+    "check": "dark: studio opens on",
+    "result": "#/chat/conversations?ws=69a5d75f-b944-4736-9716-f0ab1bec23a5"
+  },
+  {
+    "check": "dark: sidebar pages",
+    "result": [
+      "Chat",
+      "Projects",
+      "Sources",
+      "Monitor",
+      "Models and connections",
+      "Settings"
+    ]
+  },
+  {
+    "check": "dark: tab row on Chat",
+    "result": 0
+  },
+  {
+    "check": "dark: what's next on Chat",
+    "result": "Next: Score the proposed options. Scorecards are entered from the command line (pnpm cli scorecard); there is no form for it yet. Open Projects › Decide"
+  },
+  {
+    "check": "dark: address keeps the conversation",
+    "result": "#/chat/conversations?ws=69a5d75f-b944-4736-9716-f0ab1bec23a5&id=685c562a-12cf-49d4-a24e-9573125f4900"
+  },
+  {
+    "check": "dark: replies",
+    "result": [
+      {
+        "text": "This was asked earlier, so its answer may be out of date. Ask again for where things stand now.",
+        "cards": [
+          "Open the path"
+        ]
+      },
+      {
+        "text": "Nothing on the main path is blocked right now. Next: Score the proposed options. Scorecards are entered from the command line (pnpm cli scorecard); there is no form for it yet.",
+        "cards": [
+          "Open the path"
+        ]
+      },
+      {
+        "text": "Nothing is waiting for you.",
+        "cards": [
+          "Open Approvals"
+        ]
+      },
+      {
+        "text": "I can put https://example.org/frame-timing into the fetch form under Sources. Fetching still needs an approved website and an active run, and a fetched page is not a claim until you record one.",
+        "cards": [
+          "Fill in the fetch form"
+        ]
+      },
+      {
+        "text": "Saved here as an idea. Nothing has started. When you want to explore it, use it as the theme of a discovery.",
+        "cards": [
+          "Use as a theme in Discover"
+        ]
+      },
+      {
+        "text": "A discovery starts from Discover, under its own run, budget and approval checks. I can fill in the theme for you; you start it there.",
+        "cards": [
+          "Fill in the theme"
+        ]
+      },
+      {
+        "text": "Saved as a note. I can't answer in words yet; for now I answer \"what's next\", \"why is it blocked\", \"what's waiting for me\", web addresses, \"save this idea: …\" and \"start a discovery about …\".",
+        "cards": [
+          "Make this a brief"
+        ]
+      },
+      {
+        "text": "Next: Score the proposed options. Scorecards are entered from the command line (pnpm cli scorecard); there is no form for it yet.",
+        "cards": [
+          "Open Projects › Decide",
+          "Open the path"
+        ]
+      }
+    ]
+  },
+  {
+    "check": "dark: title",
+    "result": "What's next?"
+  },
+  {
+    "check": "dark: fetch card opens",
+    "result": "#/sources/claims"
+  },
+  {
+    "check": "dark: fetch form address",
+    "result": "https://example.org/frame-timing"
+  },
+  {
+    "check": "dark: POSTs after the card (expect none)",
+    "result": [
+      "http://127.0.0.1:5173/api/workspaces/69a5d75f-b944-4736-9716-f0ab1bec23a5/chats/685c562a-12cf-49d4-a24e-9573125f4900/title"
+    ]
+  },
+  {
+    "check": "dark: idea card opens",
+    "result": "#/projects/discover"
+  },
+  {
+    "check": "dark: Discover theme",
+    "result": "a practice timer for frame-perfect inputs"
+  },
+  {
+    "check": "dark: POSTs after both cards (expect none)",
+    "result": [
+      "http://127.0.0.1:5173/api/workspaces/69a5d75f-b944-4736-9716-f0ab1bec23a5/chats/685c562a-12cf-49d4-a24e-9573125f4900/title"
+    ]
+  },
+  {
+    "check": "dark: search FRAME-PERFECT",
+    "result": [
+      "What's next?"
+    ]
+  },
+  {
+    "check": "dark: search miss",
+    "result": "No conversation matches."
+  },
+  {
+    "check": "dark: after reload title",
+    "result": "Timer ideas"
+  },
+  {
+    "check": "dark: after reload turns",
+    "result": 8
+  },
+  {
+    "check": "dark: page errors",
+    "result": []
+  },
+  {
+    "check": "light: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "light: page errors",
+    "result": []
+  },
+  {
+    "check": "phone: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "phone: page errors",
+    "result": []
+  }
+]

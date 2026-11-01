@@ -2468,6 +2468,43 @@ create trigger build_approval_asks_immutable before update or delete on build_ap
 create index plan_requests_build on plan_requests (build_id) where build_id is not null;
 `,
   },
+  {
+    // ADR-0055: the studio chat's first version. Conversations are per workspace; messages are
+    // the person's own words, never changed after they are written, with the intent the
+    // server's fixed rules gave them. No model output and no authority is stored here.
+    version: 34,
+    name: 'studio_chat',
+    sql: `
+create table chat_conversations (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ title text not null check (length(title) between 1 and 120),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ unique (workspace_id, id)
+);
+create index chat_conversations_recent on chat_conversations (workspace_id, updated_at desc);
+create table chat_messages (
+ id uuid primary key,
+ workspace_id uuid not null,
+ conversation_id uuid not null,
+ seq integer not null check (seq >= 1),
+ client_id uuid not null,
+ author_id uuid not null references actors(id),
+ text text not null check (length(text) between 1 and 4000),
+ intent text not null check (intent in
+  ('next','why_blocked','add_source','save_idea','start_discovery','approvals','note')),
+ target jsonb not null check (jsonb_typeof(target) = 'object'),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, conversation_id) references chat_conversations (workspace_id, id),
+ unique (conversation_id, seq),
+ unique (conversation_id, client_id)
+);
+create trigger chat_messages_immutable before update or delete on chat_messages
+ for each row execute function creator_reject_change();
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

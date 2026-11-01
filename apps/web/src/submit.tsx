@@ -1,3 +1,4 @@
+import type { Prefill } from './prefill.js';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   ClaimEvidenceSchema,
@@ -102,10 +103,13 @@ export function Submit({
   session,
   workspace,
   open,
+  prefill = null,
 }: {
   session: SessionInfo;
   workspace: Workspace;
   open: (view: View, id?: string) => void;
+  /** An idea handed over from Chat as the brief's theme. */
+  prefill?: Prefill;
 }) {
   const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
@@ -177,6 +181,9 @@ export function Submit({
   }, [active]);
 
   const [theme, setTheme] = useState('');
+  useEffect(() => {
+    if (prefill) setTheme(prefill.value.slice(0, 300));
+  }, [prefill?.nonce]);
   const [fieldA, setFieldA] = useState('');
   const [fieldB, setFieldB] = useState('');
   const [users, setUsers] = useState('');

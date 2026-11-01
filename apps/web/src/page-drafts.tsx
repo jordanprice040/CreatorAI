@@ -4,6 +4,9 @@ import { viewLabel, type Route } from './ui.js';
 const PageActive = createContext(true);
 export const usePageActive = () => useContext(PageActive);
 
+/** Views with nothing to reset: Path is read-only, and Chat keeps what was sent. */
+const NO_RESET = new Set(['path', 'chat']);
+
 /** Session-memory only: retain visited forms, never serialize credentials or drafts. */
 export function PageDrafts({
   route,
@@ -65,11 +68,13 @@ export function PageDrafts({
         <PageActive.Provider key={page.key} value={page.key === key}>
           <div
             className={
-              page.route.view === 'path' ? 'draft-page no-reset' : 'draft-page'
+              NO_RESET.has(page.route.view)
+                ? 'draft-page no-reset'
+                : 'draft-page'
             }
             hidden={page.key !== key}
           >
-            {page.route.view !== 'path' && (
+            {!NO_RESET.has(page.route.view) && (
               <button
                 type="button"
                 className="text page-reset"

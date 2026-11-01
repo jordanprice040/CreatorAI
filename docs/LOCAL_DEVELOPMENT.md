@@ -59,7 +59,11 @@ pnpm cli seed-selection
 ```
 
 Seed commands create labelled synthetic workspaces. Select one in the web UI.
-The studio has five pages, each with tabs: **Projects** (Path, Discover, Decide,
+The studio has six pages. It opens on **Chat**: ask "what's next?" or "why is it
+blocked?", paste a web address, or "save this idea: …". Conversations are saved per
+workspace; replies come from your records by fixed rules (no model is called), and
+their buttons only open a tab or fill in a field there. The other pages have tabs:
+**Projects** (Path, Discover, Decide,
 Scores and specs, Build, Try, Launch), **Sources** (sources and claims, Library,
 Search), **Monitor** (Overview, Approvals, Runs, Activity, Budgets, Workers),
 **Models and connections** (Models, GitHub, Devices) and **Settings**. Projects ›

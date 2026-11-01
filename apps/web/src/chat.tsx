@@ -1,0 +1,451 @@
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  ChatConversationSchema,
+  ChatDetailSchema,
+  ChatMessageSchema,
+  z,
+  type ChatConversation,
+  type ChatDetail,
+  type ChatMessage,
+  type SessionInfo,
+  type Workspace,
+} from '@creator/contracts';
+import { api, message as errorText, when } from './oversight.js';
+import { usePageActive } from './page-drafts.js';
+import { pathStages, type StudioFacts } from './next-rules.js';
+import {
+  chatReply,
+  type ReplyAction,
+  type ReplyFacts,
+} from './chat-replies.js';
+import { placeLabel, type View } from './pages.js';
+
+const EXAMPLES = [
+  "What's next?",
+  'Why is it blocked?',
+  "What's waiting for me?",
+  'Save this idea: ',
+];
+
+/** The facts a reply needs, from the same rules as the Path tab and the what's-next line. */
+function replyFacts(facts: StudioFacts | null, latest: boolean): ReplyFacts {
+  if (!facts) return { latest, step: null, blocked: null, pending: null };
+  const { stages, step } = pathStages(facts);
+  const blocked = stages.find((s) => s.state === 'blocked');
+  return {
+    latest,
+    step: { tone: step.tone, text: step.text, view: step.action?.view ?? null },
+    blocked: blocked
+      ? { label: blocked.label, text: blocked.text ?? '', view: blocked.view }
+      : null,
+    pending: facts.pending,
+  };
+}
+
+/**
+ * Chat (ADR-0055, first version): the studio's front door. Conversations are saved per
+ * workspace; the server sorts each message into an intent with fixed rules, and the replies
+ * and cards here are worked out from current records each time they are shown. No model is
+ * called. Cards open a tab or fill in a form there; every step still goes through that form
+ * and the server's gates.
+ */
+export function Chat({
+  session,
+  workspace,
+  facts,
+  focus,
+  onFocus,
+  open,
+  fill,
+}: {
+  session: SessionInfo;
+  workspace: Workspace;
+  facts: StudioFacts | null;
+  /** The open conversation's id, kept in the page address. */
+  focus: string;
+  onFocus: (id: string) => void;
+  open: (view: View) => void;
+  fill: (view: 'evidence' | 'submit', value: string) => void;
+}) {
+  const base = `workspaces/${workspace.id}/chats`;
+  const active = usePageActive();
+  const canWrite = workspace.role !== 'viewer';
+  const [list, setList] = useState<ChatConversation[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [detail, setDetail] = useState<ChatDetail | null>(null);
+  const [error, setError] = useState('');
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  // One id per message being written, reused on retry so a resend never adds it twice.
+  const clientId = useRef<string>(crypto.randomUUID());
+  const listSeq = useRef(0);
+  const detailSeq = useRef(0);
+  const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  async function loadList(q = query) {
+    const mine = ++listSeq.current;
+    try {
+      const rows = await api(
+        z.array(ChatConversationSchema),
+        `${base}${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`,
+      );
+      if (mine === listSeq.current) setList(rows);
+    } catch (e) {
+      if (mine === listSeq.current) setError(errorText(e));
+    }
+  }
+  async function loadDetail(id: string) {
+    const mine = ++detailSeq.current;
+    if (!id) {
+      setDetail(null);
+      return;
+    }
+    try {
+      const d = await api(ChatDetailSchema, `${base}/${id}`);
+      if (mine === detailSeq.current) setDetail(d);
+    } catch (e) {
+      if (mine === detailSeq.current) {
+        setDetail(null);
+        setError(errorText(e));
+      }
+    }
+  }
+  // Reload whenever the tab is shown again, so conversations stay current.
+  useEffect(() => {
+    if (!active) return;
+    void loadList();
+    void loadDetail(focus);
+  }, [active, focus, workspace.id]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: 'end' });
+  }, [detail?.messages.length]);
+
+  async function send(e?: FormEvent) {
+    e?.preventDefault();
+    const text = draft.trim();
+    if (!text || busy || !canWrite) return;
+    setBusy(true);
+    setError('');
+    try {
+      let id = focus;
+      if (!id) {
+        const created = await api(ChatConversationSchema, base, {
+          csrf: session.csrf_token,
+          body: {},
+        });
+        id = created.id;
+      }
+      await api(ChatMessageSchema, `${base}/${id}/messages`, {
+        csrf: session.csrf_token,
+        body: { client_id: clientId.current, text },
+      });
+      clientId.current = crypto.randomUUID();
+      setDraft('');
+      if (id !== focus) onFocus(id);
+      else await loadDetail(id);
+      await loadList();
+    } catch (err) {
+      // The draft and its id stay, so sending again cannot add the message twice.
+      setError(
+        `${errorText(err)} Your message is kept; send it again to retry.`,
+      );
+    } finally {
+      setBusy(false);
+      inputRef.current?.focus();
+    }
+  }
+
+  function act(a: ReplyAction) {
+    if (a.kind === 'fill') fill(a.view, a.value);
+    else open(a.view as View);
+  }
+  const actionLabel = (a: ReplyAction) =>
+    a.kind === 'open' && a.label === 'Go there'
+      ? `Open ${placeLabel(a.view as View, 'chat')}`
+      : a.label;
+
+  const messages = detail?.messages ?? [];
+  const latestOf = new Map<string, number>();
+  for (const m of messages) latestOf.set(m.intent, m.seq);
+
+  return (
+    <section className="panel chat" aria-labelledby="chat-title">
+      <h2 id="chat-title">Chat</h2>
+      <p className="small">
+        Ask what&apos;s next or why something is blocked, paste a web address,
+        or save an idea. Answers come from your records by fixed rules, not a
+        model, and nothing here starts work: buttons open the tab where you do
+        it.
+      </p>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="chat-layout">
+        <aside className="chat-list" aria-label="Conversations">
+          <form
+            className="chat-search"
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void loadList(query);
+            }}
+          >
+            <label htmlFor="chat-q" className="sr-only">
+              Search conversations
+            </label>
+            <input
+              id="chat-q"
+              type="search"
+              placeholder="Search conversations"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (!e.target.value) void loadList('');
+              }}
+            />
+          </form>
+          {canWrite && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                onFocus('');
+                setDraft('');
+                inputRef.current?.focus();
+              }}
+            >
+              New conversation
+            </button>
+          )}
+          {list === null ? (
+            <p className="small">Loading…</p>
+          ) : list.length === 0 ? (
+            <p className="small">
+              {query.trim()
+                ? 'No conversation matches.'
+                : 'No conversations yet.'}
+            </p>
+          ) : (
+            <ul className="rows chat-convos">
+              {list.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    className="chat-convo"
+                    aria-current={c.id === focus ? 'true' : undefined}
+                    onClick={() => onFocus(c.id)}
+                  >
+                    <strong>{c.title}</strong>
+                    <small>
+                      {c.messages} {c.messages === 1 ? 'message' : 'messages'} ·{' '}
+                      {when(c.updated_at)}
+                    </small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+        <div className="chat-main">
+          {detail && (
+            <ChatTitle
+              key={detail.conversation.id}
+              conversation={detail.conversation}
+              canWrite={canWrite}
+              rename={async (title) => {
+                await api(
+                  ChatConversationSchema,
+                  `${base}/${detail.conversation.id}/title`,
+                  { csrf: session.csrf_token, body: { title } },
+                );
+                await loadDetail(detail.conversation.id);
+                await loadList();
+              }}
+            />
+          )}
+          <ol className="chat-messages" aria-live="polite">
+            {messages.length === 0 && (
+              <li className="chat-empty">
+                <p>Start with a question or an idea. For example:</p>
+                <div className="chat-examples">
+                  {EXAMPLES.map((x) => (
+                    <button
+                      key={x}
+                      type="button"
+                      className="secondary"
+                      disabled={!canWrite}
+                      onClick={() => {
+                        setDraft(x);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      {x.trim()}
+                    </button>
+                  ))}
+                </div>
+              </li>
+            )}
+            {messages.map((m) => (
+              <MessageItem
+                key={m.id}
+                m={m}
+                facts={replyFacts(facts, latestOf.get(m.intent) === m.seq)}
+                act={act}
+                label={actionLabel}
+              />
+            ))}
+          </ol>
+          <div ref={endRef} />
+          {canWrite ? (
+            <form className="chat-compose" onSubmit={(e) => void send(e)}>
+              <label htmlFor="chat-input" className="sr-only">
+                Message
+              </label>
+              <textarea
+                id="chat-input"
+                ref={inputRef}
+                rows={2}
+                maxLength={4000}
+                placeholder="Ask what's next, paste a link, or save an idea…"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <button
+                type="submit"
+                className="primary"
+                disabled={busy || !draft.trim()}
+              >
+                {busy ? 'Sending…' : 'Send'}
+              </button>
+            </form>
+          ) : (
+            <p className="small">
+              You can read these conversations; only editors and owners can
+              write in them.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MessageItem({
+  m,
+  facts,
+  act,
+  label,
+}: {
+  m: ChatMessage;
+  facts: ReplyFacts;
+  act: (a: ReplyAction) => void;
+  label: (a: ReplyAction) => string;
+}) {
+  const reply = chatReply(m.intent, m.target, m.text, facts);
+  return (
+    <li className="chat-turn">
+      <div className="chat-you">
+        <p className="chat-meta">
+          You · <time dateTime={m.created_at}>{when(m.created_at)}</time>
+        </p>
+        <p className="chat-text">{m.text}</p>
+      </div>
+      <div className="chat-studio">
+        <p className="chat-meta">Studio · from your records, no model</p>
+        <p>{reply.text}</p>
+        {reply.actions.length > 0 && (
+          <p className="chat-actions">
+            {reply.actions.map((a) => (
+              <button
+                key={`${a.kind}:${a.label}`}
+                type="button"
+                className="secondary"
+                onClick={() => act(a)}
+              >
+                {label(a)}
+              </button>
+            ))}
+          </p>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function ChatTitle({
+  conversation,
+  canWrite,
+  rename,
+}: {
+  conversation: ChatConversation;
+  canWrite: boolean;
+  rename: (title: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(conversation.title);
+  const [error, setError] = useState('');
+  if (!editing)
+    return (
+      <div className="chat-head">
+        <h3>{conversation.title}</h3>
+        {canWrite && (
+          <button
+            type="button"
+            className="text"
+            onClick={() => {
+              setTitle(conversation.title);
+              setEditing(true);
+            }}
+          >
+            Rename
+          </button>
+        )}
+      </div>
+    );
+  return (
+    <form
+      className="chat-head inline-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError('');
+        rename(title.trim())
+          .then(() => setEditing(false))
+          .catch((err: unknown) => setError(errorText(err)));
+      }}
+    >
+      <label htmlFor="chat-title-input" className="sr-only">
+        Conversation name
+      </label>
+      <input
+        id="chat-title-input"
+        maxLength={120}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <button className="secondary strong" disabled={!title.trim()}>
+        Save
+      </button>
+      <button
+        type="button"
+        className="secondary"
+        onClick={() => setEditing(false)}
+      >
+        Cancel
+      </button>
+      {error && (
+        <span className="error" role="alert">
+          {error}
+        </span>
+      )}
+    </form>
+  );
+}
