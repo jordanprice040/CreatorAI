@@ -30,6 +30,8 @@ export function PathView({
         <p className="small">Reading where this workspace stands…</p>
       </section>
     );
+  // When every stage is done, the line above the tabs carries the closing step (revise, or
+  // finished); repeating it under the list said the same thing twice (PR #101 review L-1).
   const { stages } = pathStages(facts);
   return (
     <section className="panel">

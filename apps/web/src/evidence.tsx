@@ -24,6 +24,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
+import { useOnShow } from './page-active.js';
 import { recordLabel, runLabel } from './labels.js';
 import { runNames } from './ui.js';
 
@@ -131,6 +132,8 @@ export function Evidence({
     setUnevidenced(null);
     void load();
   }, [workspace]);
+  // Shown again after work elsewhere: read sources, claims and runs again; open items stay.
+  useOnShow(() => void load());
   useEffect(() => {
     const [kind, id] = focus.split(':');
     if (!id) return;

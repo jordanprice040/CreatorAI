@@ -24,6 +24,7 @@ import {
   RecordOptions,
   type View,
 } from './ui.js';
+import { useOnShow } from './page-active.js';
 import { newestFirst } from './versions.js';
 
 const GATE_LABEL: Record<string, string> = {
@@ -346,6 +347,13 @@ export function Scoring({
     setSpec(null);
     void loadWorkspace();
   }, [workspace]);
+  // Shown again after work elsewhere (a discovery, a new score, a freeze): read the problems,
+  // specs and the open problem's report again. The chosen problem and typed fields stay.
+  const [shown, setShown] = useState(0);
+  useOnShow(() => {
+    void loadWorkspace();
+    setShown((n) => n + 1);
+  });
   useEffect(() => {
     if (!problem) return;
     setLoading(true);
@@ -368,7 +376,7 @@ export function Scoring({
         setLoading(false);
       }
     })();
-  }, [problem, workspace]);
+  }, [problem, workspace, shown]);
   async function openSpec(id: string) {
     setError('');
     try {

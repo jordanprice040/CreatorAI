@@ -515,3 +515,154 @@ test('packaging needs no budget or pricing, and skipped scoring is not shown as 
     'done',
   );
 });
+
+type MoreRules = Omit<Rules, 'pathStages'> & {
+  pathStages: (f: Facts) => {
+    stages: { key: string; state: string }[];
+    step: Step;
+    finished: boolean;
+  };
+  lineStyle: (view: string, f: Facts) => 'full' | 'short';
+  pathSummary: (f: Facts) => { text: string; view: string };
+};
+
+const tried = (feedback: Facts) => ({
+  ...done,
+  product: { ...(done.product as Facts), feedback },
+});
+
+test('recording feedback on the newest package finishes Try, and Next moves on (audit item 3)', async () => {
+  const { pipelineStep, pathStages, nextStep } =
+    await load<MoreRules>('next-rules.ts');
+  // No feedback yet: Try is still next, as before.
+  assert.equal(pathStages(done).finished, false);
+  assert.equal(
+    pathStages(tried({ total: 0, accepted: 0, undecided: 0 })).stages.at(-1)
+      ?.state,
+    'next',
+  );
+  // Feedback recorded but not decided: Try is done and nothing is "next" any more.
+  const undecided = tried({ total: 1, accepted: 0, undecided: 1 });
+  const path = pathStages(undecided);
+  assert.equal(path.finished, true);
+  assert.ok(
+    path.stages.every((s) => s.state === 'done' || s.state === 'skipped'),
+  );
+  assert.equal(path.step.tone, 'clear');
+  assert.doesNotMatch(path.step.text, /^Try the newest/);
+  assert.match(path.step.text, /Accept one under Try/);
+  assert.deepEqual(nextStep('path', undecided), path.step);
+  assert.deepEqual(nextStep('gallery', undecided), pipelineStep(undecided));
+  // Accepted feedback: the next step is the revision, named for where the person is.
+  const accepted = tried({ total: 2, accepted: 1, undecided: 0 });
+  const revise = pipelineStep(accepted);
+  assert.equal(revise.tone, 'next');
+  assert.match(revise.text, /pnpm cli feedback-revise/);
+  assert.doesNotMatch(
+    pipelineStep({ ...accepted, desktop: true }).text,
+    /pnpm cli/,
+  );
+  // Everything decided (declined, or praise only): the path is finished for this product.
+  const closed = pipelineStep(tried({ total: 1, accepted: 0, undecided: 0 }));
+  assert.equal(closed.tone, 'clear');
+  assert.match(closed.text, /path is finished/);
+  assert.equal(closed.action?.view, 'submit');
+  // A revised spec makes the product stale, so the path goes back to building it.
+  assert.match(
+    pipelineStep({
+      ...accepted,
+      product: { ...(accepted.product as Facts), current: false },
+    }).text,
+    /spec changed/,
+  );
+});
+
+test('a finished path never reads "Next:" on pages that only repeat it', async () => {
+  const { nextStep } = await load<MoreRules>('next-rules.ts');
+  const finished = tried({ total: 1, accepted: 0, undecided: 0 });
+  const approvals = nextStep('decisions', finished);
+  assert.equal(approvals.tone, 'clear');
+  assert.doesNotMatch(approvals.text, /Next:/);
+  assert.match(nextStep('decisions', done).text, /Next: Try/);
+});
+
+test('the full line shows on Projects and on pages it is about; elsewhere a short summary', async () => {
+  const { lineStyle, pathSummary } = await load<MoreRules>('next-rules.ts');
+  for (const view of ['path', 'build', 'gallery', 'submit', 'marketing'])
+    assert.equal(lineStyle(view, done), 'full', view);
+  for (const view of ['settings', 'models', 'chat', 'catalog', 'decisions'])
+    assert.equal(lineStyle(view, done), 'short', view);
+  // Pages whose own line is about them keep it in full.
+  assert.equal(lineStyle('budgets', { ...done, budgets: 0 }), 'full');
+  assert.equal(lineStyle('models', { ...done, planConnections: 0 }), 'full');
+  assert.equal(lineStyle('chat', { ...done, pending: 2 }), 'full');
+  assert.equal(lineStyle('decisions', { ...done, pending: 1 }), 'full');
+  assert.equal(lineStyle('overview', { ...done, attention: 1 }), 'full');
+  // The summary names the current stage, or that the path is finished.
+  assert.deepEqual(pathSummary(done), { text: 'Try is next', view: 'gallery' });
+  assert.deepEqual(pathSummary({ ...done, frozenSpecs: 0 }), {
+    text: 'Freeze is next',
+    view: 'scores',
+  });
+  assert.equal(
+    pathSummary({
+      ...done,
+      product: { ...(done.product as Facts), build: 'failed' },
+    }).text,
+    'Build is blocked',
+  );
+  assert.equal(
+    pathSummary(tried({ total: 1, accepted: 0, undecided: 1 })).text,
+    'finished for this product',
+  );
+  assert.equal(
+    pathSummary(tried({ total: 1, accepted: 1, undecided: 0 })).text,
+    'revising from your feedback is next',
+  );
+});
+
+test('"works as intended" alone finishes the path; praise never waits for a decision (PR #101 review M-1)', async () => {
+  const { feedbackCounts, pipelineStep, nextStep } = await load<
+    MoreRules & {
+      feedbackCounts: (list: { category: string; status: string }[]) => Facts;
+    }
+  >('next-rules.ts');
+  // What the one-click button records: a submitted praise item.
+  const praise = { category: 'praise', status: 'submitted' };
+  const finished = tried(feedbackCounts([praise]));
+  const step = pipelineStep(finished);
+  assert.equal(step.tone, 'clear');
+  assert.match(step.text, /path is finished/);
+  assert.doesNotMatch(step.text, /Accept one/);
+  assert.doesNotMatch(nextStep('settings', finished).text, /Revise/);
+  // Even an accepted praise item does not make a revision next.
+  assert.match(
+    pipelineStep(tried(feedbackCounts([{ ...praise, status: 'accepted' }])))
+      .text,
+    /path is finished/,
+  );
+  // A change request next to it still waits for a decision, and accepting it means revise.
+  const change = { category: 'change_request', status: 'submitted' };
+  assert.match(
+    pipelineStep(tried(feedbackCounts([praise, change]))).text,
+    /Accept one under Try/,
+  );
+  assert.match(
+    pipelineStep(
+      tried(feedbackCounts([praise, { ...change, status: 'accepted' }])),
+    ).text,
+    /Revise the spec/,
+  );
+});
+
+test('Try names an earlier open stage instead of "All clear" (PR #101 review L-3)', async () => {
+  const { nextStep, pathStages } = await load<MoreRules>('next-rules.ts');
+  const unreviewed = {
+    ...tried({ total: 1, accepted: 0, undecided: 0 }),
+    reviewed: false,
+  };
+  const gallery = nextStep('gallery', unreviewed);
+  assert.deepEqual(gallery, pathStages(unreviewed).step);
+  assert.match(gallery.text, /humility review/);
+  assert.notEqual(gallery.tone, 'clear');
+});

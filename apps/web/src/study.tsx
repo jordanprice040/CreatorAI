@@ -9,6 +9,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
+import { useOnShow } from './page-active.js';
 
 const Entry = z.object({
   id: z.string(),
@@ -81,6 +82,7 @@ export function Studies({
       stale = true;
     };
   }, [workspace.id]);
+  useOnShow(() => void load().catch((e) => setError(message(e))));
   async function perform(fn: () => Promise<void>) {
     setBusy(true);
     setError('');

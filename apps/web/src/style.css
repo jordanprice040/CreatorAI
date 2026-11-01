@@ -1804,6 +1804,13 @@ form > .secondary {
 .next-step.next-clear strong {
   color: var(--ok);
 }
+/* Outside Projects: one quiet line that says where the path stands, not a banner. */
+.next-step.next-short {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  margin-bottom: 10px;
+}
 .product-versions + .product-versions {
   margin-top: 16px;
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArtifactSummarySchema,
   EnvelopeSchema,
+  FeedbackSchema,
   OverviewSchema,
   PlanConnectionSchema,
   PricingSnapshotSchema,
@@ -10,11 +11,14 @@ import {
   z,
   type Workspace,
 } from '@creator/contracts';
-import { api } from './oversight.js';
+import { api, STUDIO_CHANGED } from './oversight.js';
 import {
   decisionsNote,
   failedNote,
+  feedbackCounts,
+  lineStyle,
   nextStep,
+  pathSummary,
   pathSpecReviewed,
   workflowCounts,
   type BuildState,
@@ -100,6 +104,16 @@ async function readFacts(
     overview.records.find((r) => r.kind === kind)?.active ?? 0;
   const latest = productVersions(products)[0]?.versions[0];
   const newest = latest?.builds[0];
+  // Trying the newest package means recording feedback on it, which finishes the Try stage.
+  const pkg =
+    latest && newest
+      ? artifactForBuild(artifacts, newest, latest.product.binding)
+      : undefined;
+  const feedback = pkg
+    ? await api(z.array(FeedbackSchema), `${base}/artifacts/${pkg.id}/feedback`)
+        .then(feedbackCounts)
+        .catch(() => undefined)
+    : undefined;
   const build: BuildState = !newest
     ? 'none'
     : newest.state === 'verified_candidate'
@@ -136,11 +150,8 @@ async function readFacts(
           build,
           packaging: newest?.package?.state === 'running',
           // Package jobs are forgotten when the API restarts; the Gallery artifact is the record.
-          packaged:
-            newest?.package?.state === 'done' ||
-            (newest !== undefined &&
-              artifactForBuild(artifacts, newest, latest.product.binding) !==
-                undefined),
+          packaged: newest?.package?.state === 'done' || pkg !== undefined,
+          ...(feedback ? { feedback } : {}),
         }
       : null,
     artifacts: artifacts.length,
@@ -150,8 +161,9 @@ async function readFacts(
 
 /**
  * The workspace facts behind the what's-next line, the Path tab and the nav badges. Read
- * again whenever the tab changes and every 15 seconds while the window is visible; a failed
- * read gives null, which hides the line rather than guessing.
+ * again whenever the tab changes, after any action the studio sends, and every 15 seconds
+ * while the window is visible; a failed read gives null, which hides the line rather than
+ * guessing.
  */
 export function useStudioFacts(
   workspace: Workspace | null,
@@ -180,8 +192,18 @@ export function useStudioFacts(
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') read();
     }, 15_000);
+    // Any action anywhere in the studio (a form, a button) can move the path on, so read
+    // again as soon as one finishes instead of waiting for the next tick.
+    let soon: ReturnType<typeof setTimeout> | undefined;
+    const changed = () => {
+      clearTimeout(soon);
+      soon = setTimeout(read, 300);
+    };
+    window.addEventListener(STUDIO_CHANGED, changed);
     return () => {
       clearInterval(t);
+      clearTimeout(soon);
+      window.removeEventListener(STUDIO_CHANGED, changed);
       seq.current++;
     };
   }, [workspace?.id, workspace?.role, view, desktop]);
@@ -205,6 +227,54 @@ export function NextStep({
   const step = nextStep(view, facts);
   const note = decisionsNote(view, facts);
   const failed = failedNote(view, facts);
+  const notes = (
+    <>
+      {note && (
+        <p className="small">
+          {note}.{' '}
+          <button
+            type="button"
+            className="text"
+            onClick={() => open('decisions')}
+          >
+            Open {placeLabel('decisions', view)}
+          </button>
+        </p>
+      )}
+      {failed && (
+        <p className="small">
+          {failed}.{' '}
+          {view !== 'runs' && (
+            <button type="button" className="text" onClick={() => open('runs')}>
+              Open {placeLabel('runs', view)}
+            </button>
+          )}
+        </p>
+      )}
+    </>
+  );
+  // Outside Projects the line would only repeat the path's step, so it shrinks to a summary.
+  if (lineStyle(view, facts) === 'short') {
+    const path = pathSummary(facts);
+    return (
+      <aside
+        className="next-step next-short"
+        aria-label="Where the main path stands"
+      >
+        <p className="small">
+          Main path: {path.text}.{' '}
+          <button
+            type="button"
+            className="text"
+            onClick={() => open(path.view)}
+          >
+            Open {placeLabel(path.view, view)}
+          </button>
+        </p>
+        {notes}
+      </aside>
+    );
+  }
   const lead =
     step.tone === 'blocked'
       ? 'Blocked'
@@ -228,28 +298,7 @@ export function NextStep({
           </button>
         )}
       </p>
-      {note && (
-        <p className="small">
-          {note}.{' '}
-          <button
-            type="button"
-            className="text"
-            onClick={() => open('decisions')}
-          >
-            Open {placeLabel('decisions', view)}
-          </button>
-        </p>
-      )}
-      {failed && (
-        <p className="small">
-          {failed}.{' '}
-          {view !== 'runs' && (
-            <button type="button" className="text" onClick={() => open('runs')}>
-              Open {placeLabel('runs', view)}
-            </button>
-          )}
-        </p>
-      )}
+      {notes}
     </aside>
   );
 }
