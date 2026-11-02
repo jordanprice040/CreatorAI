@@ -4,7 +4,7 @@ import { api, STUDIO_CHANGED } from './oversight.js';
 import {
   decisionsMark,
   marksFor,
-  mergeSeen,
+  storeSeenWith,
   runsMark,
   unseenViews,
   updateSeen,
@@ -49,16 +49,20 @@ function readSeen(): Record<string, Seen> {
 }
 /**
  * Writes only the tabs this window changed, over what is stored now, so another window's
- * clearing is not undone by this one's older copy.
+ * clearing is not undone by this one's older copy. A blocked store keeps the in-memory state.
  */
-function storeSeen(ws: string, changed: Seen): Record<string, Seen> {
-  const all = mergeSeen(readSeen(), ws, changed);
-  try {
-    localStorage.setItem(SEEN, JSON.stringify(all));
-  } catch {
-    // Private windows: dots start again from what is there now, which is harmless.
-  }
-  return all;
+function storeSeen(
+  memory: Record<string, Seen>,
+  ws: string,
+  changed: Seen,
+): Record<string, Seen> {
+  return storeSeenWith(
+    readSeen,
+    (all) => localStorage.setItem(SEEN, JSON.stringify(all)),
+    memory,
+    ws,
+    changed,
+  );
 }
 
 async function readMarks(ws: string): Promise<Marks> {
@@ -165,7 +169,7 @@ export function useActivityDots(
     const changed: Seen = {};
     for (const v of Object.keys(next) as MarkedView[])
       if (next[v] !== current[v]) changed[v] = next[v]!;
-    setSeenAll(storeSeen(ws, changed));
+    setSeenAll(storeSeen(seenAll, ws, changed));
   }, [ws, markKey, here, seenAll]);
   if (!ws) return [];
   const dots = unseenViews(marks, seenAll[ws] ?? {}, here);

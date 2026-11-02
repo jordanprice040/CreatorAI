@@ -39,6 +39,13 @@ type Marking = {
     ws: string,
     changed: Marks,
   ) => Record<string, Marks>;
+  storeSeenWith: (
+    read: () => Record<string, Marks>,
+    write: (all: Record<string, Marks>) => void,
+    memory: Record<string, Marks>,
+    ws: string,
+    changed: Marks,
+  ) => Record<string, Marks>;
   marksFor: (
     ws: string,
     polled: { ws: string; marks: Marks } | null,
@@ -162,6 +169,57 @@ test('a second window writing later does not undo what the first one cleared (re
   const stored = { W: { decisions: ['d1', 'd2'], runs: ['r1'] } };
   const merged = m.mergeSeen(stored, 'W', { runs: ['r1', 'r2'] });
   assert.deepEqual(merged.W, { decisions: ['d1', 'd2'], runs: ['r1', 'r2'] });
+});
+
+test('blocked storage keeps the other tabs and workspaces seen in memory (review L-A)', () => {
+  // An approval dot on W: Approvals was seen with d1 only and d2 is new. Storage is blocked,
+  // so it reads empty and every write throws.
+  const memory = {
+    W: { decisions: ['d1'], runs: ['r1'] },
+    V: { runs: ['v1'] },
+  };
+  const blocked = () => {
+    throw new Error('QuotaExceededError');
+  };
+  const next = m.storeSeenWith(() => ({}), blocked, memory, 'W', {
+    runs: ['r1', 'r2'],
+  });
+  assert.deepEqual(next, {
+    W: { decisions: ['d1'], runs: ['r1', 'r2'] },
+    V: { runs: ['v1'] },
+  });
+  // The approval dot is still there after opening Runs.
+  assert.deepEqual(
+    m.unseenViews(
+      { decisions: ['d1', 'd2'], runs: ['r1', 'r2'] },
+      next.W!,
+      'runs',
+    ),
+    ['decisions'],
+  );
+  // A full store that still reads an older copy does not win over memory either.
+  const stale = { W: { runs: ['r0'] } };
+  assert.deepEqual(
+    m.storeSeenWith(() => stale, blocked, memory, 'W', { runs: ['r1', 'r2'] })
+      .W,
+    { decisions: ['d1'], runs: ['r1', 'r2'] },
+  );
+});
+
+test('working storage still merges over what another window stored', () => {
+  let written: unknown = null;
+  const stored = { W: { decisions: ['d1', 'd2'] } };
+  const next = m.storeSeenWith(
+    () => stored,
+    (all) => {
+      written = all;
+    },
+    { W: { decisions: ['d1'] } },
+    'W',
+    { runs: ['r1'] },
+  );
+  assert.deepEqual(next, { W: { decisions: ['d1', 'd2'], runs: ['r1'] } });
+  assert.deepEqual(written, next);
 });
 
 test('a page or tab dot names only its own news', () => {

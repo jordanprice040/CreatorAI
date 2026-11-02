@@ -2392,6 +2392,49 @@ table.usage-options th[scope='row'] {
 .usage-window li {
   margin-bottom: 4px;
 }
+/* Build › Write a spec: one block per flow, check, case and task. */
+.spec-form .sf-item {
+  border-left: 3px solid var(--border);
+  padding: 4px 0 8px 12px;
+  margin: 12px 0;
+}
+.spec-form .sf-case {
+  border-left: 2px dashed var(--border);
+  padding: 2px 0 6px 12px;
+  margin: 10px 0;
+}
+.spec-form .sf-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 8px 0;
+}
+.spec-form .sf-picks label,
+.spec-form label.sf-check {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+}
+.spec-form .sf-check {
+  margin: 4px 16px 4px 0;
+}
+.spec-form .sf-picks input,
+.spec-form .sf-check input {
+  width: auto;
+  margin: 0 6px 0 0;
+}
+.spec-form textarea.mono {
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.spec-form .error {
+  display: block;
+  font-weight: 400;
+}
+.spec-form .inline-form {
+  margin: 6px 0;
+}
+
 /* Compare and decide › Score an option: rating choices in a row, one claim per line. */
 .score-form .choices {
   display: flex;
