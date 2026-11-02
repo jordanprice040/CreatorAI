@@ -1,0 +1,136 @@
+[
+  {
+    "check": "fresh studio: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      }
+    ]
+  },
+  {
+    "check": "approval asked while in Chat: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      },
+      {
+        "where": "Pages",
+        "on": "Monitor",
+        "says": "An approval was asked for or answered"
+      }
+    ]
+  },
+  {
+    "check": "Monitor opened (Overview tab): dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      },
+      {
+        "where": "Monitor tabs",
+        "on": "Approvals",
+        "says": "An approval was asked for or answered"
+      }
+    ]
+  },
+  {
+    "check": "Monitor opened: sidebar Monitor dot hidden",
+    "result": true
+  },
+  {
+    "check": "Approvals opened: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      }
+    ]
+  },
+  {
+    "check": "left Chat before the reply: dots",
+    "result": []
+  },
+  {
+    "check": "reply came back while on Projects: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Chat",
+        "says": "A model answer or error came back in Chat"
+      }
+    ]
+  },
+  {
+    "check": "Chat opened: dots",
+    "result": []
+  },
+  {
+    "check": "reply while in Chat: dots",
+    "result": []
+  },
+  {
+    "check": "after reload: dots",
+    "result": []
+  },
+  {
+    "check": "light: Monitor opened: dots",
+    "result": [
+      {
+        "where": "Monitor tabs",
+        "on": "Approvals",
+        "says": "An approval was asked for or answered"
+      }
+    ]
+  },
+  {
+    "check": "switched to a never-opened empty workspace: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      }
+    ]
+  },
+  {
+    "check": "switched: stored seen for the new workspace",
+    "result": {
+      "runs": [],
+      "decisions": [],
+      "build": []
+    }
+  },
+  {
+    "check": "new workspace after reload: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      }
+    ]
+  },
+  {
+    "check": "two windows: both show the approval dot",
+    "result": true
+  },
+  {
+    "check": "two windows: cleared in one, gone in the other",
+    "result": true
+  },
+  {
+    "check": "two windows: first window after reload: dots",
+    "result": []
+  },
+  {
+    "check": "console errors",
+    "result": []
+  }
+]

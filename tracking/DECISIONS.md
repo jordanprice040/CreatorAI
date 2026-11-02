@@ -1,5 +1,23 @@
 # Decision log
 
+## ADR-0061 — Open public links from the desktop app in the system browser (accepted November 2, 2026)
+
+Context: after PR #106, links in chat answers in the installed app showed their address and a Copy button but could not be opened, because the studio window refuses every new window except private previews. Jordan asked (Nov 2) for links to open in the browser from within the app.
+
+Decision:
+
+- The studio window's new-window handler (`apps/desktop/src-tauri/src/main.rs`) still never opens a window itself. It hands a link to Windows' default handler (`rundll32 url.dll,FileProtocolHandler <url>`, one argument, no shell parsing, the same route as private previews and browser sign-in) only when `external::external_link` accepts it, and at most one per second (measured on a monotonic clock). The title bar says whether a click opened the link, was refused, or came too soon after the last one.
+- `external_link` (`apps/desktop/src-tauri/src/external.rs`) accepts only:
+  - `https` URLs of at most 2,048 characters, with no user name, password or explicit port, whose host is a public-looking name. That means at least two labels of letters, digits and hyphens, a last label that is not all digits, and no `localhost`, `local`, `localdomain`, `lan`, `home`, `corp`, `internal`, `intranet` or `home.arpa` ending. Names under well-known DNS services built to point back at a local or private address (`nip.io`, `sslip.io`, `xip.io`, `localtest.me`, `lvh.me`) are refused too.
+  - plain `mailto:` links to one address, with no query (no prefilled subject or body), no fragment and no percent escapes.
+- Everything else is refused, including `http`, `file`, custom schemes, IP literals in any form, local names, credentials, ports, `javascript:` and `data:`.
+- The web side mirrors the rule in `desktopOpens` (`apps/web/src/markdown.ts`), but only to choose what to show. In the desktop app an accepted link in a chat answer is clickable and also shows its address and a Copy button. Any other link stays copy-only text. The Rust check decides; the web mirror can't widen it.
+- The app's other external links (Claude and ChatGPT usage pages in Models and connections, a checkout link) now open in the browser the same way when they pass the rule.
+- No Tauri opener or shell plugin was added. A plugin would mean a new dependency and a native IPC capability for the studio window, which today has none (`tauri.conf.json` grants IPC only to the bundled control window). The existing new-window hook already sees every `target=_blank` click and `window.open` call.
+- No migration and no server change.
+
+Consequences: links in model answers open in Jordan's default browser or mail app. Anything that can open a new window in the studio UI can now send a public https page to the browser at most once a second. The studio UI is the app's own code, and model text only ever becomes an anchor after `safeHref`. Local addresses written as IP literals or local names are refused, and files and custom schemes can't be reached. A public name that resolves to this computer or the local network (DNS rebinding, a company's own DNS, a loopback service not on the list) is not detected; what limits it is https on port 443 only, the shown address, the owner's click, and the browser's own private-network protections. The rule lives in two places that must stay in step; both test suites read one case file, `apps/desktop/src-tauri/src/external-link-cases.json` (CI runs only the web one).
+
 ## ADR-0060 — Right-hand sidebar: activity and a private notepad per person per workspace (accepted November 2, 2026)
 
 Context: Jordan asked (Nov 2) for a sidebar on the right of the app, which leaves about 400 px empty on a fullscreen window, to show current activity and a notepad for jotting things down while working. Design doc https://claude.ai/artifact/7HG4pShk39BoexPw1e6SNX; Jordan chose "One notepad per workspace" on the decision card (recommended). "One notepad for everything" and "This browser only" (no backup, not shared between the desktop app and a browser) were not chosen.
