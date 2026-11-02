@@ -86,7 +86,9 @@ test('the main path names the first missing step and the page that takes it', as
     alternatives: 3,
   });
   assert.equal(scored.action?.view, 'compare');
-  assert.match(scored.text, /pnpm cli scorecard/);
+  // Scoring has a form now (Decide › Score an option), so it never sends anyone to the CLI.
+  assert.match(scored.text, /Score an option/);
+  assert.doesNotMatch(scored.text, /pnpm cli|command line/);
   assert.equal(
     pipelineStep({ ...done, frozenSpecs: 0 }).action?.view,
     'scores',
@@ -96,7 +98,7 @@ test('the main path names the first missing step and the page that takes it', as
 
 test('the desktop app is never told to run a command it does not have', async () => {
   const { pipelineStep } = await load<Rules>('next-rules.ts');
-  const step = pipelineStep({ ...done, scorecards: 0, desktop: true });
+  const step = pipelineStep({ ...done, specs: 0, desktop: true });
   assert.doesNotMatch(step.text, /pnpm cli/);
   assert.match(step.text, /desktop app does not have/);
 });
