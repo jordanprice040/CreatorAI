@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { AsideButton, RightSidebar, useAside } from './aside.js';
 import { createRoot } from 'react-dom/client';
 import {
   FixtureResponseSchema,
@@ -505,6 +506,7 @@ function App() {
     pathStep.tone !== 'clear' &&
     !onProjects &&
     seenStep[workspace.id] !== stepKey;
+  const aside = useAside();
   // Activity dots: something finished on a tab the person is not on (a run, an approval, a
   // build, a Chat reply). Cleared by opening that tab.
   const unseen = useActivityDots(
@@ -781,7 +783,18 @@ function App() {
     </button>
   );
   return (
-    <div className={inStudio ? 'shell' : 'shell single'}>
+    <div
+      className={inStudio ? 'shell' : 'shell single'}
+      data-aside={
+        inStudio && workspace && auth.session
+          ? aside.mode === 'docked'
+            ? aside.isOpen
+              ? 'docked'
+              : 'rail'
+            : aside.mode
+          : undefined
+      }
+    >
       <a
         className="skip"
         href="#content"
@@ -976,6 +989,9 @@ function App() {
             {inStudio && signedIn && workspace && (
               <UsageIndicator key={workspace.id} workspace={workspace} />
             )}
+            {inStudio && workspace && auth.session && (
+              <AsideButton aside={aside} />
+            )}
             {!inStudio && themeButton}
           </div>
         </header>
@@ -1026,6 +1042,15 @@ function App() {
           </footer>
         )}
       </div>
+      {inStudio && workspace && auth.session && (
+        <RightSidebar
+          workspace={workspace}
+          actor={auth.session.actor_id}
+          csrf={auth.session.csrf_token}
+          aside={aside}
+          open={(view, id) => open(view, id)}
+        />
+      )}
     </div>
   );
 }

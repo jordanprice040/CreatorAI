@@ -265,6 +265,56 @@ test('a session runs a fresh package copy in the worker with only the confirmed 
   assert.equal(h.windows.length, 2);
 });
 
+test('runs of the same window are recorded with the outcome; a malformed run list is left out (ADR-0059)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  await start(h.terminals, p, ['--practice']);
+  const [w] = h.windows;
+  const runs = [
+    { args: ['--practice'], exit_code: 0, seconds: 420 },
+    { args: ['--fps', '30'], exit_code: 0, seconds: 61 },
+    { args: [], exit_code: 2, seconds: 0 },
+  ];
+  await w!.result({
+    exit_code: 2,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+    runs,
+    run_count: 3,
+  });
+  const done = await until(async () => {
+    const [x] = await h.terminals.list(p, owner);
+    return x && x.state !== 'running' ? x : null;
+  });
+  assert.equal(done.state, 'ended');
+  // The session's exit code is the last run's; the first run's arguments stay the confirmed ones.
+  assert.equal(done.exit_code, 2);
+  assert.deepEqual(done.args, ['--practice']);
+  assert.deepEqual(done.runs, runs);
+  assert.equal(done.run_count, 3);
+
+  // A worker report outside the contract (13 arguments) does not fail the outcome.
+  const q = await h.product();
+  await start(h.terminals, q);
+  const w2 = h.windows[1]!;
+  await w2.result({
+    exit_code: 0,
+    reason: 'stopped',
+    cleaned: true,
+    unit_state: 'inactive',
+    runs: [{ args: Array(13).fill('x'), exit_code: 0, seconds: 1 }],
+    run_count: 'many',
+  });
+  const stopped = await until(async () => {
+    const [x] = await h.terminals.list(q, owner);
+    return x && x.state !== 'running' ? x : null;
+  });
+  assert.equal(stopped.state, 'stopped');
+  assert.equal(stopped.runs, undefined);
+  assert.equal(stopped.run_count, undefined);
+});
+
 test('one open session per product and a studio-wide cap', async (t) => {
   const h = await harness(t);
   const p = await h.product();
@@ -471,13 +521,25 @@ test('the bridge and the recorded policy agree on the interactive limits', async
   const bridge = await readFile('packages/executor/worker/bridge.py', 'utf8');
   const recipe = await readFile('packages/executor/worker/terminal.py', 'utf8');
   assert.match(bridge, /'runtime_seconds': 900/);
-  assert.match(bridge, /RuntimeMaxSec=900/);
+  assert.match(
+    bridge,
+    /'session_seconds': 3600, 'idle_seconds': 600, 'max_runs': 50/,
+  );
+  // Each run's unit limit is the 15-minute run limit, cut to what is left of the session.
+  assert.match(
+    bridge,
+    /min\(TERMINAL_POLICY\['runtime_seconds'\], remaining\(\)\)/,
+  );
+  assert.match(bridge, /'RuntimeMaxSec=' \+ str\(limit\)/);
   assert.match(bridge, /'--pty'/);
   assert.match(bridge, /MemoryMax=268435456/);
   assert.match(bridge, /TasksMax=32/);
   assert.match(bridge, /CPUQuota=50%/);
   assert.match(bridge, /'--unshare-all'/);
-  assert.match(TERMINAL_POLICY, /mem=256MiB;swap=0;pids=32;cpu=50%;time=900s/);
+  assert.match(
+    TERMINAL_POLICY,
+    /mem=256MiB;swap=0;pids=32;cpu=50%;time=900s;session=3600s;idle=600s;runs=50;/,
+  );
   // Only the argument list enters; the recipe refuses anything else.
   assert.match(recipe, /set\(launch\) != \{'args'\}/);
   assert.doesNotMatch(recipe, /stdin|environ\b/);
