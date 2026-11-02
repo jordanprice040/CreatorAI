@@ -2374,3 +2374,9 @@ fieldset.flagged {
 .spec-form .inline-form {
   margin: 6px 0;
 }
+
+/* Earlier judgments shown beside humility fields that must be picked again. */
+.humility-form .earlier {
+  color: var(--muted);
+  font-weight: normal;
+}

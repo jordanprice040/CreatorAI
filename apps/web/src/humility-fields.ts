@@ -4,7 +4,9 @@
 // humility gate (packages/domain/src/oversight.ts) decides whether it admits a build.
 //
 // The disposition, every viability call and the ethics status are the owner's: nothing here
-// picks them. Starting from an earlier review copies only what the owner wrote there.
+// picks them. Starting from an earlier review copies only what the owner wrote there (text and
+// cited claims); its judgments are shown beside the fields but must be picked again, because the
+// gate binds a review to one exact version (review of PR #114, M-1).
 
 export const OPTION_KEYS = [
   'software',
@@ -127,7 +129,21 @@ export function emptyHumilityDraft(
   };
 }
 
-/** An earlier review, as the form edits it: everything the owner wrote, subject aside. */
+/** The judgments of an earlier review, to show beside the fields it leaves blank. */
+export function earlierJudgments(b: HumilityBodyShape) {
+  return {
+    viable: Object.fromEntries(
+      OPTION_KEYS.map((k) => [k, b.comparisons[k].viable ? 'yes' : 'no']),
+    ) as Record<OptionKey, 'yes' | 'no'>,
+    ethical: b.ethical.status,
+    disposition: b.disposition,
+  };
+}
+
+/**
+ * An earlier review, as the form edits it: the owner's text and cited claims, subject aside.
+ * Viability, ethics status and the recommendation are left blank to be picked again.
+ */
 export function draftFromBody(b: HumilityBodyShape): HumilityDraft {
   return {
     outcome_that_matters: b.outcome_that_matters,
@@ -141,7 +157,7 @@ export function draftFromBody(b: HumilityBodyShape): HumilityDraft {
         k,
         {
           assessment: b.comparisons[k].assessment,
-          viable: b.comparisons[k].viable ? 'yes' : 'no',
+          viable: '',
           evidence: b.comparisons[k].evidence_refs.map(refKey),
         },
       ]),
@@ -151,8 +167,8 @@ export function draftFromBody(b: HumilityBodyShape): HumilityDraft {
     burden_risks: b.burden_risks.join('\n'),
     disconfirming_test: b.disconfirming_test,
     change_course_trigger: b.change_course_trigger,
-    ethical: { ...b.ethical },
-    disposition: b.disposition,
+    ethical: { status: '', note: b.ethical.note },
+    disposition: '',
     rationale: b.rationale,
     dissent: b.dissent.join('\n'),
   };
@@ -170,14 +186,14 @@ export function draftToBody(
     const t = v.trim();
     if (!t) errors[key] = `Write ${what}.`;
     else if (t.length > NOTE)
-      errors[key] = `Keep it under ${NOTE} characters (now ${t.length}).`;
+      errors[key] = `Use at most ${NOTE} characters (now ${t.length}).`;
     return t;
   };
   const list = (key: string, v: string, max: number, each: number) => {
     const l = lines(v);
     if (l.length > max) errors[key] = `List at most ${max}, one per line.`;
     else if (l.some((x) => x.length > each))
-      errors[key] = `Keep each line under ${each} characters.`;
+      errors[key] = `Use at most ${each} characters per line.`;
     return l;
   };
   const evidence = {

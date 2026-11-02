@@ -14,6 +14,7 @@ import {
   OPTION_LABELS,
   draftFromBody,
   draftToBody,
+  earlierJudgments,
   emptyHumilityDraft,
   gatePreview,
   refKey,
@@ -64,6 +65,14 @@ export function HumilityForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const before = earlier
+    ? earlierJudgments(earlier.body as unknown as HumilityBodyShape)
+    : null;
+  const earlierSubject = earlier
+    ? (earlier.body as unknown as HumilityBodyShape).subject
+    : null;
+  const was = (v: string) =>
+    before ? <small className="earlier"> (earlier: {words(v)})</small> : null;
   const set = (f: (x: HumilityDraft) => void) =>
     setD((x) => {
       const y = structuredClone(x);
@@ -129,11 +138,12 @@ export function HumilityForm({
           body: out.body,
         },
       });
-      // Read the gate back: the server, not this form, decides what it admits.
+      // The review is saved now: a retry would make a second one, so close the form even if
+      // reading the gate back fails (the page reloads its verdict either way).
       await api(
         HumilityVerdictSchema,
         `${base}/entities/${review.id}/humility-gate`,
-      );
+      ).catch(() => undefined);
       saved();
     } catch (x) {
       setError(message(x));
@@ -156,7 +166,8 @@ export function HumilityForm({
         meet the need. Only a review that recommends building, finds software
         viable and cites evidence admits a build of this exact version.
         {earlier &&
-          ` Started from the review saved ${when(earlier.updated_at)}: check every answer still holds for this version.`}
+          earlierSubject &&
+          ` Started from the review of ${earlierSubject.id.toLowerCase() === subject.id.toLowerCase() ? `v${earlierSubject.version}` : `the option this builds (v${earlierSubject.version})`}, saved ${when(earlier.updated_at)}: its text and claims are kept, but every viability call, the ethics status and the recommendation must be picked again for v${subject.version}.`}
       </p>
       <fieldset>
         <legend>The need</legend>
@@ -212,7 +223,9 @@ export function HumilityForm({
                 className="sf-picks"
                 {...aria(`comparisons.${k}.viable`)}
               >
-                <span className="small">Viable?</span>
+                <span className="small">
+                  Viable?{was(before?.viable[k] ?? '')}
+                </span>
                 {(['yes', 'no'] as const).map((v) => (
                   <label key={v}>
                     <input
@@ -261,11 +274,27 @@ export function HumilityForm({
                 </details>
               )}
               {stray.length > 0 && (
-                <p className="small">
-                  Also cites {stray.length} claim version
-                  {stray.length === 1 ? '' : 's'} from the earlier review
-                  (kept).
-                </p>
+                <fieldset className="small">
+                  <legend>
+                    From the earlier review (not in this list; untick to drop)
+                  </legend>
+                  {stray.map((r) => (
+                    <label key={r} className="sf-check claim-pick">
+                      <input
+                        type="checkbox"
+                        checked
+                        onChange={() =>
+                          set((y) => {
+                            y.comparisons[k].evidence = y.comparisons[
+                              k
+                            ].evidence.filter((z) => z !== r);
+                          })
+                        }
+                      />
+                      Claim {r.slice(0, 8)}… v{r.slice(r.lastIndexOf('@') + 1)}
+                    </label>
+                  ))}
+                </fieldset>
               )}
               {err(`comparisons.${k}.evidence`)}
             </div>
@@ -303,7 +332,7 @@ export function HumilityForm({
         <legend>Ethics</legend>
         <div className="inline-form">
           <label htmlFor="hf-ethical.status" className="inline">
-            Status
+            Status{was(before?.ethical ?? '')}
           </label>
           <select
             id="hf-ethical.status"
@@ -330,7 +359,7 @@ export function HumilityForm({
         <legend>Your recommendation</legend>
         <div className="inline-form">
           <label htmlFor="hf-disposition" className="inline">
-            Recommend
+            Recommend{was(before?.disposition ?? '')}
           </label>
           <select
             id="hf-disposition"
@@ -367,7 +396,7 @@ export function HumilityForm({
           {preview.length ? (
             <>
               <strong>
-                Saved as it is, this review will not admit a build:
+                Saved as it is, this review does not admit a build by itself:
               </strong>
               <ul>
                 {preview.map((p) => (

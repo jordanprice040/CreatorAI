@@ -10,6 +10,7 @@ type Fields = {
   OPTION_KEYS: readonly string[];
   emptyHumilityDraft: (p?: Record<string, string>) => Draft;
   draftFromBody: (b: unknown) => Draft;
+  earlierJudgments: (b: unknown) => Record<string, unknown>;
   draftToBody: (
     d: Draft,
     subject: { id: string; version: number },
@@ -36,10 +37,40 @@ async function load(): Promise<Fields> {
 const subject = { id: '0b5e7a52-3c8e-4a9b-9a51-1f3d7c2e9a10', version: 3 };
 const claim = { id: '7f1c2d3e-4b5a-4c6d-8e9f-0a1b2c3d4e5f', version: 2 };
 
-test('an earlier review round-trips, moved to the new subject version', async () => {
+test('an earlier review keeps its text and claims, but every judgment is picked again (review M-1)', async () => {
   const f = await load();
   const before = fixtureHumilityReview({ id: subject.id, version: 1 }, [claim]);
-  const out = f.draftToBody(f.draftFromBody(before), subject);
+  const d = f.draftFromBody(before);
+  // Unedited, it cannot be saved: no carried judgment admits the new version by itself.
+  const unedited = f.draftToBody(d, subject);
+  assert.equal(unedited.body, null);
+  assert.deepEqual(
+    Object.keys(unedited.errors!).sort(),
+    [
+      ...f.OPTION_KEYS.map((k) => `comparisons.${k}.viable`),
+      'disposition',
+      'ethical.status',
+    ].sort(),
+  );
+  assert.equal(d.ethical.note, before.ethical.note);
+  assert.deepEqual(f.earlierJudgments(before), {
+    viable: Object.fromEntries(
+      f.OPTION_KEYS.map((k) => [
+        k,
+        (before.comparisons as any)[k].viable ? 'yes' : 'no',
+      ]),
+    ),
+    ethical: before.ethical.status,
+    disposition: before.disposition,
+  });
+  // Picked again, the rest round-trips unchanged onto the new version.
+  for (const k of f.OPTION_KEYS)
+    d.comparisons[k].viable = (before.comparisons as any)[k].viable
+      ? 'yes'
+      : 'no';
+  d.ethical.status = before.ethical.status;
+  d.disposition = before.disposition;
+  const out = f.draftToBody(d, subject);
   assert.equal(out.errors, null, JSON.stringify(out.errors));
   assert.deepEqual(out.body, { ...before, subject });
   assert.ok(HumilityBodySchema.safeParse(out.body).success);
