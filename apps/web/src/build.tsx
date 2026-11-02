@@ -18,7 +18,16 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
-import { Empty, Status, runNames, shortId, useLoad, type View } from './ui.js';
+import {
+  Empty,
+  Status,
+  clip,
+  runNames,
+  shortId,
+  useLoad,
+  type View,
+} from './ui.js';
+import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
 import { recordLabel, runLabel } from './labels.js';
 import {
@@ -194,6 +203,12 @@ export function BuildView({
       specs: status,
       specEntities: specs,
       selections,
+      // Every current selection, whatever it chose: a spec from any other can't be frozen.
+      currentSelections: new Set(
+        lists.flatMap((l) =>
+          l.filter((x) => x.current).map((x) => x.id.toLowerCase()),
+        ),
+      ),
       products,
       reviews: newestFirst(reviews),
       // Newest first everywhere, so each choice opens on the latest one.
@@ -230,19 +245,14 @@ export function BuildView({
         e.body?.format === 'spec/1',
     );
   // Options chosen for build that have no spec of that exact version yet.
-  const unwritten =
-    d?.selections.filter(
-      (u) =>
-        !d.specEntities.some((e) => {
-          const a = e.body?.alternative as
-            { id: string; version: number } | undefined;
-          return (
-            e.status === 'active' &&
-            a?.id.toLowerCase() === u.alternative.id.toLowerCase() &&
-            a.version === u.alternative.version
-          );
-        }),
-    ) ?? [];
+  const unwritten = d ? unwrittenOptions(d.selections, d.specEntities) : [];
+  /** A spec written from a selection that has since been recorded again or replaced. */
+  const stale = (s: SpecStatus) => {
+    const sel = entityOf(s)?.body?.selection_id;
+    return (
+      typeof sel === 'string' && !d?.currentSelections.has(sel.toLowerCase())
+    );
+  };
   // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
   // or anywhere), so the current state shows without a manual refresh; typed fields are kept.
   // While a build or package runs on the server, keep the page current.
@@ -404,7 +414,10 @@ export function BuildView({
                   );
                   return (
                     <li key={s.spec.id}>
-                      <strong>{s.spec.title}</strong> v{s.spec.version} ·{' '}
+                      <strong title={s.spec.title}>
+                        {clip(s.spec.title, 90)}
+                      </strong>{' '}
+                      v{s.spec.version} ·{' '}
                       {s.frozen_current
                         ? 'frozen'
                         : s.latest_freeze
@@ -427,9 +440,18 @@ export function BuildView({
                           Create product
                         </button>
                       )}
+                      {s.spec.status === 'active' && stale(s) && (
+                        <small>
+                          {' '}
+                          · Its selection was recorded again, so it can't be
+                          frozen: write a new spec from the current selection
+                          above.
+                        </small>
+                      )}
                       {writer &&
                         !specForm &&
                         s.spec.status === 'active' &&
+                        !stale(s) &&
                         entityOf(s) && (
                           <button
                             className="text"
@@ -445,11 +467,16 @@ export function BuildView({
                             Revise
                           </button>
                         )}{' '}
-                      {!s.frozen_current && (
-                        <button className="text" onClick={() => open('scores')}>
-                          Freeze it under Scores and specs
-                        </button>
-                      )}
+                      {!s.frozen_current &&
+                        s.spec.status === 'active' &&
+                        !stale(s) && (
+                          <button
+                            className="text"
+                            onClick={() => open('scores')}
+                          >
+                            Freeze it under Scores and specs
+                          </button>
+                        )}
                     </li>
                   );
                 })}

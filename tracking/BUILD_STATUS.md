@@ -6,6 +6,19 @@ Checks run: `pnpm typecheck`; new `tests/src/web-spec-form.test.ts` (build fixtu
 
 Limits: an argument list cannot end in an empty argument; cases on a non-automated check are kept and shown but there is no separate warning; not walked on the installed desktop app. Next: piece 3, the humility review form.
 
+Review fixes (review of PR #112 at 2fb332a, `/mnt/project-files/reviews/PR112_SPEC_FORM_REVIEW_2026-11-02.md`):
+
+- M-1: an option now counts as having a spec only when an active spec was written from the current selection (`unwrittenOptions` in `spec-fields.ts`). After the owner records the selection again, Build offers "Write a spec" again. The old spec says "Its selection was recorded again, so it can't be frozen", without Revise or Freeze, since neither can clear that.
+- M-2: a revision keeps each case's stored arguments exactly unless that box is edited. Before, `[""]`, `["a",""]` and an argument with a line break were rewritten. The box notes when stored arguments can't be shown one per line.
+- L-1: new keys come after the highest key in use or stored in the version being revised, so a removed key is never reused.
+- L-2: removing any item clears the field errors, which are keyed by position.
+- L-3: a task can wait for at most 20 others.
+- N-1: long spec titles are clipped in the list.
+- N-2: Freeze is hidden for archived and stale specs.
+- N-3: the desktop next-step test explains why it uses an unreviewed spec.
+
+Checks: `web-spec-form` and `web-next-step` give 33 pass, 0 fail. There are new tests for the stored-arguments round-trip (the three rows from the review), the unwritten rule, keys after a removal and the 20 cap. The walk was re-run on fresh `seed-selection` workspaces and now also records the selection again: Build then showed 1 "Write a spec" and the stale note on the old spec.
+
 ## PR #106 review fixes: Markdown chat answers (M1, L1–L4, N1) — November 2, 2026
 
 Fresh review of PR #106 at `def43e0` (`/mnt/project-files/reviews/PR106_MARKDOWN_CHAT_REVIEW_2026-11-02.md`): one Medium, four Lows, one nit, no High. All fixed in the same PR. There is no migration and no ADR.
