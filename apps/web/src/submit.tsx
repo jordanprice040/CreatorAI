@@ -27,7 +27,7 @@ import {
 import { api, message, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
-import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
+import { useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
@@ -953,16 +953,9 @@ export function Submit({
                     <p className="error">
                       A discovery run needs an active budget (Budgets view) and
                       a pricing snapshot
-                      {workspace.record_mode === 'fixture' ? (
-                        <> (Budgets view: Add fixture pricing).</>
-                      ) : desktop ? (
-                        <>; adding a pricing snapshot {NO_CLI_IN_DESKTOP}.</>
-                      ) : (
-                        <>
-                          {' '}
-                          (<code>pnpm cli pricing-add</code>).
-                        </>
-                      )}
+                      {workspace.record_mode === 'fixture'
+                        ? ' (Budgets view: Add fixture pricing).'
+                        : ' (Budgets view: Add this pricing).'}
                     </p>
                   )}
                 </>

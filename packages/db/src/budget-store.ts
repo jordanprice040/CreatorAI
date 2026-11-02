@@ -1624,14 +1624,24 @@ export class BudgetStore extends OversightStore {
             usage: req.usage,
             source: 'owner_reconciliation',
             providerResponseId: req.provider_response_id,
-            result: { status: 'failed', reconciled: true },
+            // The owner's evidence stays on the reservation with the outcome.
+            result: {
+              status: 'failed',
+              reconciled: true,
+              evidence: req.evidence,
+            },
           })
         : await this.finishAttempt(ctx, reservationId, {
             kind: 'release',
             reasonCode: 'reconciled_no_charge',
             explanation:
               'Owner confirmed from provider records that nothing was charged.',
-            result: { status: 'failed', reconciled: true },
+            // The owner's evidence stays on the reservation with the outcome.
+            result: {
+              status: 'failed',
+              reconciled: true,
+              evidence: req.evidence,
+            },
           });
     return done.reservation;
   }

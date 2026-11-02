@@ -2435,6 +2435,25 @@ table.usage-options th[scope='row'] {
   margin: 6px 0;
 }
 
+/* Record a charge (Monitor › Budgets). */
+.charge-form {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.charge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+.charge-grid input {
+  width: 100%;
+}
+.pricing-offers li {
+  margin-bottom: 0.5rem;
+}
+
 /* Earlier judgments shown beside humility fields that must be picked again. */
 .humility-form .earlier {
   color: var(--muted);
