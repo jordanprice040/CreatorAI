@@ -20,7 +20,7 @@ type Fields = {
   ) =>
     | { title: string; content: any; errors: null }
     | { title: null; content: null; errors: Record<string, string> };
-  nextKey: (p: string, used: string[], stored?: string[]) => string;
+  nextKey: (p: string, used: string[], stored?: string[]) => string | null;
   unwrittenOptions: <T>(sel: T[], specs: unknown[]) => T[];
   buildNotes: (c: unknown) => string[];
 };
@@ -175,6 +175,9 @@ test('new keys never reuse a key in use or given by the stored version (review L
   assert.equal(f.nextKey('A', []), 'A1');
   // Revising: stored T2 was removed, so a new task is T3, not T2 again.
   assert.equal(f.nextKey('T', ['T1'], ['F1', 'A1', 'T1', 'T2']), 'T3');
+  // Keys stop at 99 (schema limit): once T99 is given there is no new key (re-review N-B).
+  assert.equal(f.nextKey('T', ['T98']), 'T99');
+  assert.equal(f.nextKey('T', [], ['T99']), null);
 });
 
 test('revising keeps stored arguments the box cannot show, unless edited (review M-2)', async () => {

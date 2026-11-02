@@ -443,9 +443,9 @@ export function BuildView({
                       {s.spec.status === 'active' && stale(s) && (
                         <small>
                           {' '}
-                          · Its selection was recorded again, so it can't be
-                          frozen: write a new spec from the current selection
-                          above.
+                          {s.frozen_current
+                            ? '· Frozen before its selection was recorded again; you can still build from it.'
+                            : "· Its selection was recorded again, so it can't be frozen: write a new spec from the current selection above."}
                         </small>
                       )}
                       {writer &&
