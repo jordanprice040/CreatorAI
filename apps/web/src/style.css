@@ -306,6 +306,12 @@ a:hover {
   border-radius: 50%;
   background: var(--accent);
 }
+/* An activity dot on a tab: inline after its name. */
+.page-tabs .activity-dot {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 .sidebar-foot {
   margin-top: auto;
   display: grid;

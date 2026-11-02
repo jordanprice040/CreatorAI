@@ -83,7 +83,18 @@
   {
     "check": "desktop: links",
     "result": {
-      "anchors": 0,
+      "anchors": [
+        [
+          "https://example.com/docs",
+          "_blank",
+          "Opens in your browser: https://example.com/docs"
+        ],
+        [
+          "https://example.com/docs/start",
+          "_blank",
+          "Opens in your browser: https://example.com/docs/start"
+        ]
+      ],
       "shown": [
         "https://example.com/docs Copy",
         "the getting-started guide (https://example.com/docs/start) Copy"
