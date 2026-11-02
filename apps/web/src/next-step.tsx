@@ -25,6 +25,7 @@ import {
   type StudioFacts,
 } from './next-rules.js';
 import { productVersions } from './versions.js';
+import { buildMark } from './activity-marks.js';
 import { artifactForBuild } from './build-defaults.js';
 import { placeLabel, type View } from './pages.js';
 
@@ -60,6 +61,8 @@ async function readFacts(
 ): Promise<StudioFacts> {
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
+  // A list that could not be read gives the Build tab no activity keys (never a false dot).
+  let unread = false;
   const [
     overview,
     pricing,
@@ -75,8 +78,14 @@ async function readFacts(
     api(z.array(EnvelopeSchema), `${base}/budgets`),
     api(z.array(StoredEntitySchema), `${base}/entities?kind=specification`),
     api(z.array(StoredEntitySchema), `${base}/entities?kind=humility_review`),
-    api(ProductsSchema, `${base}/products`).catch(() => []),
-    api(z.array(ArtifactSummarySchema), `${base}/artifacts`).catch(() => []),
+    api(ProductsSchema, `${base}/products`).catch(() => {
+      unread = true;
+      return [];
+    }),
+    api(z.array(ArtifactSummarySchema), `${base}/artifacts`).catch(() => {
+      unread = true;
+      return [];
+    }),
     fixture
       ? Promise.resolve(null)
       : api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
@@ -122,6 +131,11 @@ async function readFacts(
         ? (newest.state as BuildState)
         : 'failed';
   return {
+    ...(unread
+      ? {}
+      : {
+          buildKeys: { ws: workspace.id, keys: buildMark(products, artifacts) },
+        }),
     fixture,
     owner: workspace.role === 'owner',
     desktop,
