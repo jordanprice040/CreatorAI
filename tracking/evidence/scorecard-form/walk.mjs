@@ -13,6 +13,7 @@ const login = await fetch(`${WEB}/api/auth/dev-login`, {
 });
 if (!login.ok) throw new Error(`login failed ${login.status}`);
 const cookie = login.headers.getSetCookie()[0].split(';')[0];
+const csrf = (await login.json()).csrf_token;
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({
@@ -88,6 +89,8 @@ for (const k of [
     await page.locator(`#sc-check-${k}`).fill('unknown');
 await page.getByRole('button', { name: 'Add one you checked' }).click();
 await page.locator('#sc-alt-0').fill('Paper reminder list');
+// The date is the owner's: it starts empty (review L-3).
+await page.locator('#sc-alt-0-on').fill('2026-11-01');
 await page.locator('#sc-confidence').selectOption('medium');
 console.log(
   'target users prefilled:',
@@ -125,6 +128,96 @@ console.log(
     .innerText()
     .catch(() => 'none'),
 );
+// L-3: a new "checked" row starts with no date.
+await page.getByRole('button', { name: 'Add one you checked' }).click();
+console.log(
+  'new checked-on date:',
+  JSON.stringify(await page.locator('#sc-alt-1-on').inputValue()),
+);
+
+// H-1: switching the rubric on a build/hybrid option renders that rubric (no crash).
+let crashed = false;
+page.on('pageerror', () => (crashed = true));
+await page.locator('#sc-rubric').selectOption('opportunity');
+await page.waitForTimeout(500);
+console.log(
+  'after rubric switch: crashed',
+  crashed,
+  'legends',
+  (await form.locator('legend').allInnerTexts()).slice(0, 2),
+);
+await form.screenshot({ path: `${out}/06-opportunity-rubric.png` });
+await page.locator('#sc-rubric').selectOption('suitability');
+await page.waitForTimeout(300);
+
+// L-1: a human card under another label (as the CLI could write) is offered, not duplicated.
+const api = (path, init = {}) =>
+  fetch(`${WEB}/api/workspaces/${wsId}/${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: cookie,
+      'X-CSRF-Token': csrf,
+    },
+  }).then((r) => r.json());
+const cards = await api('entities?kind=scorecard&status=active');
+const mine = cards[0];
+await api('scorecards', {
+  method: 'POST',
+  body: JSON.stringify({
+    title: 'Card under another label',
+    body: { ...mine.body, reviewer: { kind: 'human', label: 'Jordan (CLI)' } },
+  }),
+});
+// M-1: the option moves to v2, so the saved card rates an older version.
+const altId = mine.body.subject.id;
+const alt =
+  (await api(`entities/${altId}`)).entity ?? (await api(`entities/${altId}`));
+await api(`entities/${altId}/revisions`, {
+  method: 'POST',
+  body: JSON.stringify({
+    expected_version: alt.version,
+    title: alt.title,
+    body: { ...alt.body, rationale: `${alt.body.rationale} (walk: revised)` },
+    reason: 'Walk: move the option to v2',
+    corrects_version: null,
+  }),
+});
+await page.reload();
+await page.waitForTimeout(2500);
+const opts2 = await page.locator('#sc-option option').allInnerTexts();
+await page
+  .locator('#sc-option')
+  .selectOption({ index: opts2.findIndex((o) => /, v2\)/.test(o)) });
+await page.waitForTimeout(500);
+console.log(
+  'older-card notice:',
+  await form.locator('.notice[role=status]').first().innerText(),
+);
+console.log(
+  'checked radios:',
+  await form.locator('[role=radiogroup] input:checked').count(),
+);
+console.log(
+  'ethics/confidence:',
+  await page.locator('#sc-ethics').inputValue(),
+  await page.locator('#sc-confidence').inputValue(),
+);
+console.log(
+  'other-label notice:',
+  await form
+    .locator('div.notice')
+    .innerText()
+    .catch(() => 'none'),
+);
+await page.locator('#sc-reason').fill('Option changed');
+await page.getByRole('button', { name: 'Save revised scorecard' }).click();
+await page.waitForTimeout(500);
+console.log(
+  'reason-only save:',
+  await form.locator('p[role=alert]').first().innerText(),
+);
+await form.screenshot({ path: `${out}/07-revise-older-version.png` });
 await page.setViewportSize({ width: 390, height: 844 });
 await page.waitForTimeout(400);
 await form.screenshot({ path: `${out}/05-score-phone.png` });

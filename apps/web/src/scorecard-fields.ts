@@ -109,10 +109,15 @@ export function emptyDraft(
 const choice = (r: number | null): RatingChoice =>
   r === null ? 'unknown' : (String(r) as RatingChoice);
 
-/** A stored scorecard, as the form edits it when revising. */
+/**
+ * A stored scorecard, as the form edits it when revising. With `keepJudgments` false (the
+ * card rates an older option version) the text, notes and evidence are kept as a start but
+ * every rating, gate status and the confidence level are cleared, so each is picked again.
+ */
 export function draftFromBody(
   body: ScorecardBodyShape,
   criteria: readonly string[],
+  keepJudgments = true,
 ): ScorecardDraft {
   const d = emptyDraft(criteria);
   for (const k of criteria) {
@@ -135,7 +140,30 @@ export function draftFromBody(
   const { alternatives_checked, ...checks } = body.checks;
   d.checks = { ...checks };
   d.alternatives_checked = alternatives_checked.map((a) => ({ ...a }));
+  if (!keepJudgments) {
+    for (const k of criteria) d.ratings[k]!.rating = '';
+    d.influence.rating = '';
+    d.ethics.status = '';
+    d.access.status = '';
+    d.confidence.level = '';
+  }
   return d;
+}
+
+/** The judgments a card made, in words, to show beside the fields when they are re-picked. */
+export function earlierPicks(body: ScorecardBodyShape) {
+  const word = (r: number | null) => (r === null ? 'Unknown' : String(r));
+  return {
+    ratings: Object.fromEntries(
+      Object.entries(body.ratings).map(([k, r]) => [k, word(r.rating)]),
+    ) as Record<string, string>,
+    influence: body.software_influence
+      ? word(body.software_influence.rating)
+      : null,
+    ethics: body.gates.ethics.status,
+    access: body.gates.access.status,
+    confidence: body.confidence.level,
+  };
 }
 
 /**

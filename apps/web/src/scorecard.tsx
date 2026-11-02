@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   RUBRICS,
   StoredEntitySchema,
@@ -12,6 +12,7 @@ import {
   CHECK_LABELS,
   draftFromBody,
   draftToBody,
+  earlierPicks,
   emptyDraft,
   refKey,
   rubricsFor,
@@ -80,9 +81,15 @@ export function ScoreOption({
   saved: () => void;
 }) {
   const [optionId, setOptionId] = useState('');
-  const [rubric, setRubric] = useState<RubricKey>('suitability');
-  const [draft, setDraft] = useState<ScorecardDraft | null>(null);
-  const [reason, setReason] = useState('');
+  const [picked, setRubric] = useState<RubricKey>('suitability');
+  /** The owner's edits, bound to the option, rubric and card they were made for. */
+  const [edits, setEdits] = useState<{
+    key: string;
+    draft: ScorecardDraft;
+    reason: string;
+  } | null>(null);
+  /** A human card under another label the owner said is theirs (review L-1). */
+  const [claimed, setClaimed] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -91,33 +98,61 @@ export function ScoreOption({
   const reviewer = session.display_name.trim().slice(0, 300) || 'Owner';
   const option = options.find((o) => o.entity.id === optionId);
   const rubrics = option ? rubricsFor(option.kind) : [];
+  // A rubric the option does not offer falls back in the same render, never after it.
+  const rubric: RubricKey = rubrics.includes(picked) ? picked : 'suitability';
   const def = RUBRICS[rubric];
   const criteria = def.criteria.map((c) => c.key);
+  const humanCards = option
+    ? scorecards.filter((c) => {
+        const b = c.body as ScorecardBodyShape | undefined;
+        return (
+          c.status === 'active' &&
+          b?.rubric === rubric &&
+          b.subject.id.toLowerCase() === option.entity.id &&
+          b.reviewer.kind === 'human'
+        );
+      })
+    : [];
   const existing = option
-    ? yours(scorecards, option.entity.id, rubric, reviewer)
+    ? (humanCards.find((c) => c.id === claimed) ??
+      yours(scorecards, option.entity.id, rubric, reviewer))
     : undefined;
+  const others = humanCards.filter((c) => c.id !== existing?.id);
+  const existingBody = existing?.body as ScorecardBodyShape | undefined;
+  /** A card of an older option version: its judgments must be made again (review M-1). */
+  const olderCard =
+    !!existingBody &&
+    !!option &&
+    existingBody.subject.version !== option.entity.version;
   const offered = new Set(
     claims.map((c) => refKey({ id: c.claim.id, version: c.claim.version })),
   );
 
-  // A new option or rubric starts a new draft: your earlier card's values, or empty.
-  useEffect(() => {
-    setErrors({});
-    setReason('');
-    if (!option) return setDraft(null);
-    if (!rubricsFor(option.kind).includes(rubric)) {
-      setRubric('suitability');
-      return;
-    }
-    setDraft(
-      existing
-        ? draftFromBody(existing.body as ScorecardBodyShape, criteria)
-        : emptyDraft(criteria, prefill),
-    );
-  }, [optionId, rubric, existing?.id, existing?.version]);
-
-  const set = (f: (d: ScorecardDraft) => ScorecardDraft) =>
-    setDraft((d) => (d ? f(structuredClone(d)) : d));
+  // The draft is derived in the same render as the option, rubric and card it belongs to,
+  // so the fields never render against another rubric's draft (review H-1).
+  const draftKey = option
+    ? `${option.entity.id}:${option.entity.version}:${rubric}:${existing?.id ?? ''}:${existing?.version ?? ''}`
+    : '';
+  const fresh = useMemo(
+    () =>
+      !option
+        ? null
+        : existingBody
+          ? draftFromBody(existingBody, criteria, !olderCard)
+          : emptyDraft(criteria, prefill),
+    [draftKey],
+  );
+  const draft = edits?.key === draftKey ? edits.draft : fresh;
+  const reason = edits?.key === draftKey ? edits.reason : '';
+  useEffect(() => setErrors({}), [draftKey]);
+  const set = (f: (d: ScorecardDraft) => ScorecardDraft) => {
+    if (draft)
+      setEdits({ key: draftKey, draft: f(structuredClone(draft)), reason });
+  };
+  const setReason = (r: string) => {
+    if (draft) setEdits({ key: draftKey, draft, reason: r });
+  };
+  const earlier = olderCard ? earlierPicks(existingBody!) : null;
   const err = (k: string) =>
     errors[k] ? (
       <span id={`sc-${k}-error`} className="error">
@@ -214,6 +249,7 @@ export function ScoreOption({
           value={optionId}
           onChange={(e) => {
             setDone('');
+            setClaimed(null);
             setOptionId(e.target.value);
           }}
         >
@@ -232,7 +268,10 @@ export function ScoreOption({
             <select
               id="sc-rubric"
               value={rubric}
-              onChange={(e) => setRubric(e.target.value as RubricKey)}
+              onChange={(e) => {
+                setClaimed(null);
+                setRubric(e.target.value as RubricKey);
+              }}
             >
               {rubrics.map((r) => (
                 <option key={r} value={r}>
@@ -243,6 +282,13 @@ export function ScoreOption({
           </>
         )}
       </div>
+      {scorecards.length >= 500 && (
+        <p className="small">
+          This workspace has more than 500 active scorecards and only the newest
+          500 are read here, so an older card of yours may not be found for
+          revision.
+        </p>
+      )}
       {done && (
         <p className="notice ok" role="status">
           {done}
@@ -267,13 +313,30 @@ export function ScoreOption({
             <p className="notice" role="status">
               Revising your {RUBRIC_NAME[rubric].toLowerCase()} scorecard (v
               {existing.version}, {when(existing.updated_at)}). Saving keeps the
-              earlier ratings in its history
-              {(existing.body as ScorecardBodyShape).subject.version !==
-              option.entity.version
-                ? ` and moves it from option v${(existing.body as ScorecardBodyShape).subject.version} to v${option.entity.version}, so check every rating against the current option`
-                : ''}
-              .
+              earlier ratings in its history.
+              {olderCard &&
+                ` It rates option v${existingBody!.subject.version}, and the option is now v${option.entity.version}, so the ranking does not count it. Your reasons, notes and evidence are kept as a start, but every rating, gate and the confidence must be picked again for v${option.entity.version}; your earlier picks are shown beside each one.`}
             </p>
+          )}
+          {others.length > 0 && (
+            <div className="notice" role="status">
+              {existing
+                ? 'There are other human scorecards on this rubric: '
+                : `There is already a human scorecard on this rubric under another name, and saving a new one adds a second card the ranking also counts: `}
+              {others.map((c) => (
+                <span key={c.id}>
+                  {(c.body as ScorecardBodyShape).reviewer.label} (
+                  {when(c.updated_at)}){' '}
+                  <button
+                    type="button"
+                    className="text"
+                    onClick={() => setClaimed(c.id)}
+                  >
+                    This one is mine: revise it
+                  </button>{' '}
+                </span>
+              ))}
+            </div>
           )}
           {claims.length === 0 && (
             <p className="small">
@@ -313,6 +376,12 @@ export function ScoreOption({
                     </label>
                   ))}
                 </div>
+                {earlier && (
+                  <p className="small">
+                    Your v{existingBody!.subject.version} rating:{' '}
+                    {earlier.ratings[c.key] ?? '—'}
+                  </p>
+                )}
                 {err(`ratings.${c.key}.rating`)}
                 {claims.length > 0 && (
                   <details open={r.evidence.length > 0 || undefined}>
@@ -422,6 +491,12 @@ export function ScoreOption({
                   </label>
                 ))}
               </div>
+              {earlier?.influence && (
+                <p className="small">
+                  Your v{existingBody!.subject.version} rating:{' '}
+                  {earlier.influence}
+                </p>
+              )}
               {err('influence.rating')}
               <label htmlFor="sc-influence-note">
                 Note
@@ -469,6 +544,12 @@ export function ScoreOption({
                   ))}
                 </select>
               </label>
+              {earlier && (
+                <p className="small">
+                  Your v{existingBody!.subject.version} status:{' '}
+                  {words(earlier[g])}
+                </p>
+              )}
               {err(`${g}.status`)}
               <label htmlFor={`sc-${g}-note`}>
                 Note
@@ -576,7 +657,7 @@ export function ScoreOption({
                   set((d) => {
                     d.alternatives_checked.push({
                       name: '',
-                      checked_on: new Date().toISOString().slice(0, 10),
+                      checked_on: '',
                     });
                     return d;
                   })
@@ -609,6 +690,12 @@ export function ScoreOption({
                 <option value="high">High</option>
               </select>
             </label>
+            {earlier && (
+              <p className="small">
+                Your v{existingBody!.subject.version} confidence:{' '}
+                {earlier.confidence}
+              </p>
+            )}
             {err('confidence.level')}
             <label htmlFor="sc-confidence-why">
               Why

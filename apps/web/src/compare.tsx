@@ -189,7 +189,10 @@ export function Compare({
         api(z.array(SelectionSchema), `${base}/problems/${focus}/selections`),
         api(z.array(RunControlSchema), `${base}/runs`),
         runNames(base),
-        api(z.array(StoredEntitySchema), `${base}/entities?kind=scorecard`),
+        api(
+          z.array(StoredEntitySchema),
+          `${base}/entities?kind=scorecard&status=active`,
+        ),
       ]);
     const wf = cmp.workflow_id
       ? await api(

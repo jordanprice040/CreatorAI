@@ -25,7 +25,18 @@ type Fields = {
     criteria: readonly string[],
     prefill?: { target_users?: string; measurable_outcome?: string },
   ) => Draft;
-  draftFromBody: (body: unknown, criteria: readonly string[]) => Draft;
+  draftFromBody: (
+    body: unknown,
+    criteria: readonly string[],
+    keepJudgments?: boolean,
+  ) => Draft;
+  earlierPicks: (body: unknown) => {
+    ratings: Record<string, string>;
+    influence: string | null;
+    ethics: string;
+    access: string;
+    confidence: string;
+  };
   draftToBody: (
     d: Draft,
     o: {
@@ -138,4 +149,29 @@ test('only software kinds are offered the opportunity rubric', async () => {
   assert.deepEqual(f.rubricsFor('build'), ['suitability', 'opportunity']);
   assert.deepEqual(f.rubricsFor('hybrid'), ['suitability', 'opportunity']);
   assert.deepEqual(f.rubricsFor('process_change'), ['suitability']);
+});
+
+test('a card of an older option version keeps its text but every judgment is picked again (review M-1)', async () => {
+  const f = await load();
+  const o = opts('suitability');
+  const first = f.draftToBody(filled(f, 'suitability'), o);
+  const d = f.draftFromBody(first.body, o.criteria, false);
+  for (const k of o.criteria) {
+    assert.equal(d.ratings[k]!.rating, '');
+    assert.ok(d.ratings[k]!.rationale, 'reasons stay as a start');
+  }
+  assert.equal(d.influence.rating, '');
+  assert.equal(d.ethics.status, '');
+  assert.equal(d.access.status, '');
+  assert.equal(d.confidence.level, '');
+  assert.deepEqual(d.ratings[o.criteria[1]!]!.evidence, [claim]);
+  // Saving it as it stands is refused: nothing carries over without a fresh pick.
+  const out = f.draftToBody(d, { ...o, subject: { ...subject, version: 3 } });
+  assert.equal(out.body, null);
+  assert.ok(out.errors!['ethics.status']);
+  assert.ok(out.errors!['confidence.level']);
+  const was = f.earlierPicks(first.body);
+  assert.equal(was.ratings[o.criteria[0]!], 'Unknown');
+  assert.equal(was.ratings[o.criteria[1]!], '4');
+  assert.equal(was.ethics, 'clear');
 });
