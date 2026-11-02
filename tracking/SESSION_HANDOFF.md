@@ -16,6 +16,14 @@ Checks run: `pnpm test:db` with PostgreSQL 16: 691 tests, 659 pass, 27 skipped, 
 
 Limits: the desktop title reset was compiled, not run on Windows; the sign-out wait is covered by unit tests only. Open from the audit: preview feedback → spec revision still needs the CLI in the desktop app; capped lists keep the oldest records; most pages load once; Codex packet bound; MSIX data-home check; nits N-1–N-3. No migration, no ADR.
 
+Review fixes (fresh review `/mnt/project-files/reviews/PR118_AUDIT_FIXES_REVIEW_2026-11-02.md`: no Medium or above; Jordan asked for the two Lows):
+
+- L1: Models offers its connection actions (add, sign in, Check Claude Code, accept caps, change caps or allowed work, credits, model checks, qualification) to the workspace owner only, as the server already required; other members see each connection's state and a line saying only the owner can change it.
+- L2: chat answers keep the newest 4000 past their cap, like the messages (newest 2000). New `tests/src/chat-caps.test.ts` seeds 2005 messages with two answers each and checks seq 6–2005 and 4000 answers including the newest message's; it fails on the old queries.
+- N1: a second link note within 6 s restarts the timer (generation counter). N2: the button reads "Accept these caps and allowed work", and the blocker says the caps and allowed work are not accepted. N4: the connection refusal names "Models and connections › Change caps or allowed work".
+
+Checks: `pnpm test:db` with PostgreSQL 16: 692 tests, 660 pass, 27 skipped, 5 fail (known PowerShell wrapper); Prettier clean; walk re-run with an editor view (`04-editor.png`, role rewritten in the browser only); `cargo check --target x86_64-pc-windows-gnu` passes.
+
 ## Say why a build can't start (no test cases) — November 2, 2026
 
 What now works: starting a build from a spec whose task has an automated-test check with no test cases is still refused, but in words. Before, the server answered with the raw contract message "Input does not satisfy the versioned contract. cases: Too small: expected array to have >=1 items" (found in the PR #114 re-review on the seeded fixture spec). A new pure helper `buildBlockers(spec, taskKey)` in `packages/contracts/src/selection.ts` lists, for people, every reason the reviewed builder would refuse the task: task not in the version, not an independent builder task, no acceptance checks, checks that are not automated tests, automated checks with no cases, more than 10 cases (the build plan's limit, which was another raw "Too big" path), and no held-out case. Each says how to fix it ("Add a case" under the check, tick "Held out", then revise, freeze the new version and create a product from it).

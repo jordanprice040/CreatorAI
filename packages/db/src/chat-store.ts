@@ -146,8 +146,10 @@ export async function chatAnswers(
   c: PoolClient,
   conversation: string,
 ): Promise<ChatAnswer[]> {
+  // PR #118 review L2: like the messages, past the cap the newest answers are kept.
   const { rows } = await c.query(
-    'select * from chat_answers where conversation_id = $1 order by created_at, id limit 4000',
+    `select * from (select * from chat_answers where conversation_id = $1
+       order by created_at desc, id desc limit 4000) newest order by created_at, id`,
     [conversation],
   );
   return rows.map((r) => toChatAnswer(r as Row));

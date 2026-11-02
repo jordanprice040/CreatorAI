@@ -28,12 +28,17 @@ const DEFAULT_TITLE: &str = "Creator Agent — local studio";
 
 /// Shows a passing note in the title bar, then puts the usual title back after a few seconds
 /// unless something else changed the title meanwhile (full audit 2026-11-02, PR #111 L4).
+/// A later note restarts the six seconds (PR #118 review N1).
 fn passing_title(window: &WebviewWindow, note: &'static str) {
+    static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let mine = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let _ = window.set_title(note);
     let window = window.clone();
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(6));
-        if window.title().map(|t| t == note).unwrap_or(false) {
+        if GENERATION.load(Ordering::SeqCst) == mine
+            && window.title().map(|t| t == note).unwrap_or(false)
+        {
             let _ = window.set_title(DEFAULT_TITLE);
         }
     });

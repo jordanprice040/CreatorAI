@@ -114,7 +114,7 @@ test('connection data blocker: a plan connection must allow the build data class
   );
   assert.match(
     why!,
-    /^The plan connection "My plan" doesn't allow approved private data, and this build is classified for it\. Allow approved private data in that connection's settings \(Models and connections\)/,
+    /^The plan connection "My plan" doesn't allow approved private data, and this build is classified for it\. Allow approved private data under Models and connections › Change caps or allowed work, then accept the changed caps/,
   );
   assert.equal(dataClassName('private_approved'), 'approved private');
   assert.equal(dataClassName('public'), 'public');

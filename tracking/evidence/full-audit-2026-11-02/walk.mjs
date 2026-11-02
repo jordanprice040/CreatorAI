@@ -24,6 +24,7 @@ console.log('topbar height', bar.height, 'status:', await page.locator('.conn').
 await page.getByRole('button', { name: 'Add a ChatGPT plan connection' }).click();
 await page.waitForTimeout(2000);
 console.log('allowed before:', await page.locator('dt:has-text("Allowed") + dd').innerText());
+console.log('accept button:', await page.getByRole('button', { name: 'Accept these caps and allowed work' }).count());
 await page.getByRole('button', { name: 'Change caps or allowed work' }).click();
 await page.waitForTimeout(500);
 const form = page.locator('form.caps-form');
@@ -49,4 +50,19 @@ console.log('stored:', JSON.stringify(conns[0].settings.allowed_data_classes), J
 await page.screenshot({ path: `${out}/03-after.png` });
 // Qualify form now offers patch_build
 console.log('qualify options:', (await page.locator('select option').allInnerTexts()).filter(t=>/builder|t12/i.test(t)));
+// PR #118 review L1: a member who is not the owner sees the connection's state but no actions.
+// The workspace list is rewritten to say "editor" in this browser only (the server is unchanged
+// and still refuses non-owners); there is one signed-in person in local development.
+const editor = await ctx.newPage();
+await editor.route('**/api/workspaces', async (route) => {
+  const r = await route.fetch();
+  const list = (await r.json()).map((w) => ({ ...w, role: 'editor' }));
+  await route.fulfill({ response: r, json: list });
+});
+await editor.goto(`${WEB}/#/connections/models?ws=${ws.id}`);
+await editor.waitForTimeout(2500);
+console.log('editor note:', await editor.getByText('Only the workspace owner can').count());
+console.log('editor buttons:', (await editor.locator('main button').allInnerTexts()).filter(Boolean));
+console.log('editor allowed line:', await editor.locator('dt:has-text("Allowed") + dd').innerText());
+await editor.screenshot({ path: `${out}/04-editor.png`, fullPage: true });
 await browser.close();
