@@ -47,6 +47,8 @@ import { Studies } from './study.js';
 import { PageDrafts } from './page-drafts.js';
 import { UsageIndicator } from './usage.js';
 import { NextStep, useStudioFacts } from './next-step.js';
+import { useActivityDots } from './activity-dots.js';
+import { dotText, type MarkedView } from './activity-marks.js';
 import { PathView } from './path.js';
 import { nextStep } from './next-rules.js';
 import { routeHash } from './pages.js';
@@ -310,6 +312,15 @@ function NewWorkspace({
   );
 }
 
+/** A small dot saying what is new behind a link; the words are in the tooltip and for readers. */
+function ActivityDot({ text }: { text: string }) {
+  return (
+    <span className="nav-dot activity-dot" title={text}>
+      <span className="sr-only">: {text}</span>
+    </span>
+  );
+}
+
 /**
  * The tab row of the current page, and a second row for a tab that holds several sections
  * (Launch). Links carry real addresses, so they open in a new tab too.
@@ -318,28 +329,40 @@ function PageTabs({
   view,
   ws,
   open,
+  unseen,
 }: {
   view: View;
   ws: string;
   open: (view: View) => void;
+  /** Tabs with something new since they were last open (activity dots). */
+  unseen: readonly MarkedView[];
 }) {
   const page = pageOf(view);
   const tabs = tabsOf(page);
   const active = tabs.find((t) => t.sections.some((s) => s.view === view));
   // A page with one screen (Chat) needs no tab row.
   if (tabs.length === 1 && tabs[0]!.sections.length === 1) return null;
-  const link = (target: View, label: string, current: boolean) => (
-    <a
-      href={routeHash({ view: target, ws, id: '', q: '' })}
-      aria-current={current ? 'page' : undefined}
-      onClick={(e) => {
-        e.preventDefault();
-        open(target);
-      }}
-    >
-      {label}
-    </a>
-  );
+  const link = (
+    target: View,
+    label: string,
+    current: boolean,
+    views: readonly View[],
+  ) => {
+    const news = current ? '' : dotText(views, unseen);
+    return (
+      <a
+        href={routeHash({ view: target, ws, id: '', q: '' })}
+        aria-current={current ? 'page' : undefined}
+        onClick={(e) => {
+          e.preventDefault();
+          open(target);
+        }}
+      >
+        {label}
+        {news && <ActivityDot text={news} />}
+      </a>
+    );
+  };
   return (
     <nav className="page-tabs" aria-label={`${page.label} tabs`}>
       <ul className="tabs">
@@ -349,6 +372,8 @@ function PageTabs({
               t === active ? view : t.sections[0]!.view,
               t.label,
               t === active,
+              // The open tab of a group still shows a dot for its other sections' news.
+              t.sections.map((x) => x.view).filter((v) => v !== view),
             )}
           </li>
         ))}
@@ -356,7 +381,9 @@ function PageTabs({
       {active && active.sections.length > 1 && (
         <ul className="subtabs" aria-label={`${active.label} sections`}>
           {active.sections.map((s) => (
-            <li key={s.view}>{link(s.view, s.label, s.view === view)}</li>
+            <li key={s.view}>
+              {link(s.view, s.label, s.view === view, [s.view])}
+            </li>
           ))}
         </ul>
       )}
@@ -478,6 +505,13 @@ function App() {
     pathStep.tone !== 'clear' &&
     !onProjects &&
     seenStep[workspace.id] !== stepKey;
+  // Activity dots: something finished on a tab the person is not on (a run, an approval, a
+  // build, a Chat reply). Cleared by opening that tab.
+  const unseen = useActivityDots(
+    studio ? workspace!.id : null,
+    route.view,
+    facts?.buildKeys,
+  );
   const open = (view: View, id?: string, q?: string) =>
     go({
       view,
@@ -735,9 +769,10 @@ function App() {
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [menuOpen]);
+  // In the studio it sits in the sidebar foot, so it never wraps onto its own topbar line.
   const themeButton = (
     <button
-      className="ghost icon-button"
+      className="ghost icon-button theme-button"
       onClick={theme.toggle}
       aria-label={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
       title={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
@@ -808,6 +843,13 @@ function App() {
                 const waiting =
                   page.key === 'monitor' && facts ? facts.pending : 0;
                 const ready = page.key === 'projects' && newStep;
+                // On the page itself its tab row carries the dots instead.
+                const news = here
+                  ? ''
+                  : dotText(
+                      page.sections.map((x) => x.view),
+                      unseen,
+                    );
                 return (
                   <li key={page.key}>
                     <a
@@ -834,15 +876,15 @@ function App() {
                           <span className="sr-only"> waiting for you</span>
                         </span>
                       )}
-                      {ready && (
-                        <span
-                          className="nav-dot"
-                          title="The path has a new step for you"
-                        >
-                          <span className="sr-only">
-                            : the path has a new step
-                          </span>
-                        </span>
+                      {(ready || news) && (
+                        <ActivityDot
+                          text={[
+                            ready ? 'The path has a new step for you' : '',
+                            news,
+                          ]
+                            .filter(Boolean)
+                            .join('; ')}
+                        />
                       )}
                     </a>
                   </li>
@@ -851,6 +893,7 @@ function App() {
             </ul>
           </nav>
           <div className="sidebar-foot">
+            {themeButton}
             <span>Schema 1.0 · Local control</span>
             <span>
               Live calls need a provider, pricing, a grant and a budget.
@@ -933,7 +976,7 @@ function App() {
             {inStudio && signedIn && workspace && (
               <UsageIndicator key={workspace.id} workspace={workspace} />
             )}
-            {themeButton}
+            {!inStudio && themeButton}
           </div>
         </header>
         {workspace?.record_mode === 'fixture' && signedIn && (
@@ -959,6 +1002,7 @@ function App() {
                   view={route.view}
                   ws={workspace.id}
                   open={(view) => open(view)}
+                  unseen={unseen}
                 />
               </>
             )}

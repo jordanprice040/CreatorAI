@@ -35,6 +35,11 @@ export type BuildState =
 
 /** What the studio knows about one workspace, read from its own API. */
 export type StudioFacts = {
+  /**
+   * Activity-dot keys for the Build tab (activity-marks.ts `buildMark`), read with the same
+   * products and artifacts lists, tagged with the workspace they belong to.
+   */
+  buildKeys?: { ws: string; keys: readonly string[] };
   fixture: boolean;
   /** Only the owner can build, freeze or answer most decisions. */
   owner: boolean;
@@ -156,7 +161,7 @@ export function pipelineStep(f: StudioFacts): Step {
   if (f.alternatives > 0 && f.scorecards === 0)
     return {
       tone: 'next',
-      text: `Score the proposed options. Scorecards are entered ${cli(f, 'scorecard')}.`,
+      text: 'Score the proposed options: open Projects › Decide and use Score an option for each one.',
       action: { view: 'compare' },
     };
   if (f.specs === 0)

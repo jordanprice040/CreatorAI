@@ -12,7 +12,7 @@ export const MAX_GUIDE_OPTIONS = 40;
 const MAX_SOURCE_BYTES = 512 * 1024;
 /** All Python sources read for one guide, entry point first; the rest are skipped. */
 const MAX_TOTAL_BYTES = 1024 * 1024;
-/** `add_argument(` calls examined per file; far more than the options a guide lists. */
+/** `add_argument(` calls examined for the whole guide, across all files; far more than it lists. */
 const MAX_CALLS = 200;
 /** Characters read for one call's arguments. */
 const CALL_WINDOW = 4000;
@@ -190,12 +190,16 @@ function views(src: string): { text: string; code: string } {
   return { text, code };
 }
 
-function argparseOptions(path: string, original: string): CliOption[] {
+function argparseOptions(
+  path: string,
+  original: string,
+  /** Calls left for the whole guide, shared by every file (re-review L-1). */
+  budget: { calls: number },
+): CliOption[] {
   const out: CliOption[] = [];
   const { text: src, code } = views(original);
   const re = /\.add_argument\s*\(/g;
-  let calls = 0;
-  for (let m = re.exec(code); m && calls++ < MAX_CALLS; m = re.exec(code)) {
+  for (let m = re.exec(code); m && budget.calls-- > 0; m = re.exec(code)) {
     const body = callBody(src, m.index + m[0].length - 1);
     if (body === null) continue;
     const names: string[] = [];
@@ -374,7 +378,10 @@ export function cliOptions(
     options_truncated: list.length > MAX_GUIDE_OPTIONS,
     help_flag: declaresHelp(list) || (source === 'argparse' && automaticHelp),
   });
-  const parsed = unique(sources.flatMap((f) => argparseOptions(f.path, f.src)));
+  const budget = { calls: MAX_CALLS };
+  const parsed = unique(
+    sources.flatMap((f) => argparseOptions(f.path, f.src, budget)),
+  );
   if (parsed.length) return result('argparse', parsed);
   const argv = unique(sources.flatMap((f) => argvOptions(f.path, f.src)));
   if (argv.length) return result('argv', argv);

@@ -114,6 +114,17 @@ test('an unterminated quote cannot make the reader slow: the scan stays linear (
     Date.now() - second < 1500,
     `nested took ${Date.now() - second} ms`,
   );
+  // The call budget is shared by every file, so 100 small files of nested calls (within the
+  // 1 MiB total) cost no more than one (re-review L-1; about 0.15 s here, 1.5 s before).
+  const small = `${'p.add_argument('.repeat(199)}"${'x'.repeat(9000)}"`;
+  const third = Date.now();
+  cliOptions(
+    Array.from({ length: 100 }, (_, i) => file(`src/m${i}.py`, small)),
+  );
+  assert.ok(
+    Date.now() - third < 750,
+    `100 files took ${Date.now() - third} ms`,
+  );
 });
 
 test('without argparse, --flag literals beside sys.argv are listed without descriptions; otherwise nothing', () => {
