@@ -13,6 +13,7 @@ import {
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
+import { Markdown } from './markdown-view.js';
 import { api, message, when } from './oversight.js';
 
 // ADR-0057: chat answers from a connected plan. The answer view labels every answer as a model
@@ -38,7 +39,7 @@ export function AnswerView({ a }: { a: ChatAnswer }) {
           </>
         )}
       </p>
-      {a.state === 'completed' && <p className="chat-text">{a.text}</p>}
+      {a.state === 'completed' && <Markdown text={a.text ?? ''} />}
       {a.state === 'pending' && (
         <p role="status">Waiting for {planName(a.connection_kind)}…</p>
       )}
