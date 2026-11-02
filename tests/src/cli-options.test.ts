@@ -104,6 +104,16 @@ test('an unterminated quote cannot make the reader slow: the scan stays linear (
   );
   cliOptions([file('src/main.py', many)]);
   assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
+  // Nested calls before one long string: each call reads at most its own window, so two
+  // such files (within the 1 MiB cap) stay fast (re-review M-1; before the fix about 3 s here,
+  // 12 s on the reviewer's machine).
+  const nested = `${'p.add_argument('.repeat(199)}"${'x'.repeat(500000)}"`;
+  const second = Date.now();
+  cliOptions([file('src/main.py', nested), file('src/two.py', nested)]);
+  assert.ok(
+    Date.now() - second < 1500,
+    `nested took ${Date.now() - second} ms`,
+  );
 });
 
 test('without argparse, --flag literals beside sys.argv are listed without descriptions; otherwise nothing', () => {

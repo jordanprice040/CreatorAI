@@ -14,6 +14,8 @@ const MAX_SOURCE_BYTES = 512 * 1024;
 const MAX_TOTAL_BYTES = 1024 * 1024;
 /** `add_argument(` calls examined per file; far more than the options a guide lists. */
 const MAX_CALLS = 200;
+/** Characters read for one call's arguments. */
+const CALL_WINDOW = 4000;
 
 type Token =
   | { kind: 'string'; value: string; end: number }
@@ -25,7 +27,12 @@ type Token =
  * quotes) and is not a literal, so every scan below moves forward and stays linear in the
  * source size, whatever the package contains (review M-1).
  */
-function stringAt(src: string, i: number): Token | null {
+function stringAt(
+  src: string,
+  i: number,
+  /** Scan no further than this; a string still open there ends there (re-review M-1). */
+  limit = src.length,
+): Token | null {
   const m = /^([rRbBuUfF]{0,2})('''|"""|'|")/.exec(src.slice(i, i + 5));
   if (!m) return null;
   const prefix = m[1]!.toLowerCase();
@@ -35,7 +42,7 @@ function stringAt(src: string, i: number): Token | null {
   const raw = prefix.includes('r');
   let j = i + m[0].length;
   let value = '';
-  while (j < src.length) {
+  while (j < limit) {
     if (src.startsWith(quote, j)) {
       return formatted
         ? { kind: 'other', end: j + quote.length }
@@ -63,14 +70,16 @@ function stringAt(src: string, i: number): Token | null {
     value += c;
     j++;
   }
-  return { kind: 'other', end: src.length };
+  return { kind: 'other', end: limit };
 }
 
 /** The text between the parentheses of a call whose `(` is at `open`, or null. */
 function callBody(src: string, open: number): string | null {
   let depth = 0;
-  for (let j = open; j < src.length && j - open < 4000;) {
-    const s = stringAt(src, j);
+  // A hard window, string contents included, so nested calls cannot rescan a long string.
+  const limit = Math.min(src.length, open + CALL_WINDOW);
+  for (let j = open; j < limit;) {
+    const s = stringAt(src, j, limit);
     if (s) {
       j = s.end;
       continue;
