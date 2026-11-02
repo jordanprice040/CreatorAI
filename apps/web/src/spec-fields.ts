@@ -120,13 +120,14 @@ export function nextKey(
   prefix: 'F' | 'A' | 'T',
   used: readonly string[],
   stored: readonly string[] = [],
-) {
+): string | null {
   let max = 0;
   for (const k of [...used, ...stored]) {
     const m = new RegExp(`^${prefix}(\\d+)$`).exec(k);
     if (m) max = Math.max(max, Number(m[1]));
   }
-  return `${prefix}${Math.min(max + 1, 99)}`;
+  // Keys stop at 99 (the schema's limit); null means no new key is left (re-review N-B).
+  return max >= 99 ? null : `${prefix}${max + 1}`;
 }
 
 /** True when the one-per-line box shows these arguments exactly. */
