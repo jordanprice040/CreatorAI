@@ -1,0 +1,98 @@
+[
+  {
+    "check": "dark: answer shape",
+    "result": {
+      "blocks": [
+        "p",
+        "p",
+        "h6",
+        "p",
+        "ul",
+        "h6",
+        "ol",
+        "div",
+        "pre",
+        "blockquote",
+        "p"
+      ],
+      "headings": ["Its purpose", "How to use it"],
+      "bold": [
+        "Creator Agent is a personal product studio:",
+        "sources, claims, problems, and specifications",
+        "Projects › Discover"
+      ],
+      "nestedList": 2,
+      "tableCells": [
+        "Existing tool",
+        "$0",
+        "Try first",
+        "Custom build",
+        "$0–$5",
+        "Needs a spec"
+      ],
+      "code": ["pnpm cli login <code>", "python timing.py --practice"],
+      "links": [
+        [
+          "https://example.com/docs",
+          "https://example.com/docs",
+          "_blank",
+          "noopener noreferrer"
+        ]
+      ],
+      "answerElements": 0,
+      "rawHtmlShownAsText": true,
+      "rawMarksLeft": false
+    }
+  },
+  {
+    "check": "dark: theme button",
+    "result": {
+      "inSidebarFoot": true,
+      "inTopbar": false,
+      "aboveSchema": true,
+      "topbarHeight": 59
+    }
+  },
+  {
+    "check": "dark: theme after click",
+    "result": "light"
+  },
+  {
+    "check": "dark: page errors",
+    "result": []
+  },
+  {
+    "check": "light: page errors",
+    "result": []
+  },
+  {
+    "check": "narrow window: theme button",
+    "result": {
+      "inSidebarFoot": true,
+      "inTopbar": false,
+      "aboveSchema": true,
+      "topbarHeight": 88
+    }
+  },
+  {
+    "check": "narrow window: page errors",
+    "result": []
+  },
+  {
+    "check": "phone: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "phone: theme button in open menu",
+    "result": {
+      "inSidebarFoot": true,
+      "inTopbar": false,
+      "aboveSchema": true,
+      "topbarHeight": 169
+    }
+  },
+  {
+    "check": "phone: page errors",
+    "result": []
+  }
+]
