@@ -63,7 +63,7 @@
       {
         "where": "Pages",
         "on": "Chat",
-        "says": "A model reply came back"
+        "says": "A model answer or error came back in Chat"
       }
     ]
   },
@@ -88,6 +88,46 @@
         "says": "An approval was asked for or answered"
       }
     ]
+  },
+  {
+    "check": "switched to a never-opened empty workspace: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      }
+    ]
+  },
+  {
+    "check": "switched: stored seen for the new workspace",
+    "result": {
+      "runs": [],
+      "decisions": [],
+      "build": []
+    }
+  },
+  {
+    "check": "new workspace after reload: dots",
+    "result": [
+      {
+        "where": "Pages",
+        "on": "Projects",
+        "says": "The path has a new step for you"
+      }
+    ]
+  },
+  {
+    "check": "two windows: both show the approval dot",
+    "result": true
+  },
+  {
+    "check": "two windows: cleared in one, gone in the other",
+    "result": true
+  },
+  {
+    "check": "two windows: first window after reload: dots",
+    "result": []
   },
   {
     "check": "console errors",

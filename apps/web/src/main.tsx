@@ -507,7 +507,11 @@ function App() {
     seenStep[workspace.id] !== stepKey;
   // Activity dots: something finished on a tab the person is not on (a run, an approval, a
   // build, a Chat reply). Cleared by opening that tab.
-  const unseen = useActivityDots(studio ? workspace!.id : null, route.view);
+  const unseen = useActivityDots(
+    studio ? workspace!.id : null,
+    route.view,
+    facts?.buildKeys,
+  );
   const open = (view: View, id?: string, q?: string) =>
     go({
       view,

@@ -19,29 +19,39 @@ async function load<T>(file: string) {
   return exports;
 }
 
-type Marks = Partial<Record<string, string>>;
+type Marks = Partial<Record<string, readonly string[]>>;
 type Marking = {
   runsMark: (
     w: { id: string; state: string; finished_at: string | null }[],
-  ) => string;
-  decisionsMark: (d: { id: string; status: string }[]) => string;
+  ) => string[];
+  decisionsMark: (d: { id: string; status: string }[]) => string[];
   buildMark: (
     p: {
       product: { id: string };
-      builds: {
-        started_at: string;
-        state: string;
-        package: { state: string } | null;
-      }[];
+      builds: { started_at: string; state: string }[];
     }[],
-  ) => string;
+    artifacts: { id: string }[],
+  ) => string[];
   updateSeen: (marks: Marks, seen: Marks, here: string | null) => Marks;
   unseenViews: (marks: Marks, seen: Marks, here: string | null) => string[];
+  mergeSeen: (
+    stored: Record<string, Marks>,
+    ws: string,
+    changed: Marks,
+  ) => Record<string, Marks>;
+  marksFor: (
+    ws: string,
+    polled: { ws: string; marks: Marks } | null,
+    build: { ws: string; keys: string[] } | undefined,
+  ) => Marks;
   dotText: (views: string[], unseen: string[]) => string;
 };
 const m = await load<Marking>('activity-marks.ts');
 
 const T = '2026-11-02T08:00:00Z';
+/** Is there a dot on `view` when it was last seen with `seen` and now reads `now`? */
+const dot = (view: string, seen: readonly string[], now: readonly string[]) =>
+  m.unseenViews({ [view]: now }, { [view]: seen }, 'chat').includes(view);
 
 test('a run that starts is not news; one that finishes is', () => {
   const before = m.runsMark([{ id: 'a', state: 'succeeded', finished_at: T }]);
@@ -49,77 +59,71 @@ test('a run that starts is not news; one that finishes is', () => {
     { id: 'b', state: 'running', finished_at: null },
     { id: 'a', state: 'succeeded', finished_at: T },
   ]);
-  assert.equal(started, before);
+  assert.equal(dot('runs', before, started), false);
   const finished = m.runsMark([
     { id: 'b', state: 'failed', finished_at: T },
     { id: 'a', state: 'succeeded', finished_at: T },
   ]);
-  assert.notEqual(finished, before);
-  // Order of the list does not matter.
-  assert.equal(
-    m.runsMark([
-      { id: 'a', state: 'succeeded', finished_at: T },
-      { id: 'b', state: 'failed', finished_at: T },
-    ]),
-    finished,
-  );
+  assert.equal(dot('runs', before, finished), true);
 });
 
-test('an approval that is asked for or answered moves the Approvals mark', () => {
+test('an old run falling off the end of the capped list is not news (review L-2)', () => {
+  const before = m.runsMark([
+    { id: 'old', state: 'succeeded', finished_at: T },
+    { id: 'a', state: 'succeeded', finished_at: T },
+  ]);
+  // A new run starts and pushes the oldest finished one out of the newest-100 list.
+  const after = m.runsMark([
+    { id: 'new', state: 'running', finished_at: null },
+    { id: 'a', state: 'succeeded', finished_at: T },
+  ]);
+  assert.equal(dot('runs', before, after), false);
+});
+
+test('an approval that is asked for or answered is news', () => {
   const one = m.decisionsMark([{ id: 'd1', status: 'pending' }]);
-  assert.notEqual(m.decisionsMark([]), one);
-  assert.notEqual(m.decisionsMark([{ id: 'd1', status: 'answered' }]), one);
+  assert.equal(dot('decisions', [], one), true);
+  assert.equal(
+    dot('decisions', one, m.decisionsMark([{ id: 'd1', status: 'answered' }])),
+    true,
+  );
 });
 
-test('a build or package ending moves the Build mark; starting one does not', () => {
-  const product = (
-    builds: {
-      started_at: string;
-      state: string;
-      package: { state: string } | null;
-    }[],
-  ) => [{ product: { id: 'p' }, builds }];
-  const none = m.buildMark(product([]));
+test('a build ending or a package made is news; a restart is not (review M-2)', () => {
+  const product = (builds: { started_at: string; state: string }[]) => [
+    { product: { id: 'p' }, builds },
+  ];
+  const none = m.buildMark(product([]), []);
   const running = m.buildMark(
-    product([{ started_at: T, state: 'running', package: null }]),
+    product([{ started_at: T, state: 'running' }]),
+    [],
   );
-  assert.equal(running, none);
-  const verified = m.buildMark(
-    product([{ started_at: T, state: 'verified_candidate', package: null }]),
+  assert.equal(dot('build', none, running), false);
+  const failed = m.buildMark(product([{ started_at: T, state: 'failed' }]), []);
+  assert.equal(dot('build', running, failed), true);
+  // After an API restart the in-memory failure reads as interrupted: the same build, no dot.
+  const restarted = m.buildMark(
+    product([{ started_at: T, state: 'interrupted' }]),
+    [],
   );
-  assert.notEqual(verified, none);
-  const packaging = m.buildMark(
-    product([
-      {
-        started_at: T,
-        state: 'verified_candidate',
-        package: { state: 'running' },
-      },
-    ]),
-  );
-  assert.equal(packaging, verified);
+  assert.equal(dot('build', failed, restarted), false);
+  // A package made is a new artifact; forgetting the in-memory package job is not news.
   const packaged = m.buildMark(
-    product([
-      {
-        started_at: T,
-        state: 'verified_candidate',
-        package: { state: 'done' },
-      },
-    ]),
+    product([{ started_at: T, state: 'verified_candidate' }]),
+    [{ id: 'art-1' }],
   );
-  assert.notEqual(packaged, verified);
+  assert.equal(dot('build', restarted, packaged), true);
+  assert.equal(dot('build', packaged, packaged), false);
 });
 
 test('first sight is not news, a change elsewhere is, and opening the tab clears it', () => {
-  // A studio opened for the first time: every tab takes its mark without a dot.
-  let seen = m.updateSeen({ runs: 'r1', decisions: 'd1' }, {}, 'chat');
-  assert.deepEqual(seen, { runs: 'r1', decisions: 'd1' });
-  assert.deepEqual(
-    m.unseenViews({ runs: 'r1', decisions: 'd1' }, seen, 'chat'),
-    [],
-  );
+  // A studio opened for the first time: every tab takes its keys without a dot.
+  const first = { runs: ['r1'], decisions: ['d1'] };
+  let seen = m.updateSeen(first, {}, 'chat');
+  assert.deepEqual(seen, first);
+  assert.deepEqual(m.unseenViews(first, seen, 'chat'), []);
   // A run finishes while the person is in Chat: Runs gets a dot, and keeps it.
-  const later = { runs: 'r2', decisions: 'd1' };
+  const later = { runs: ['r1', 'r2'], decisions: ['d1'] };
   assert.equal(m.updateSeen(later, seen, 'chat'), seen, 'nothing to store');
   assert.deepEqual(m.unseenViews(later, seen, 'chat'), ['runs']);
   // Opening Runs clears it, and it stays clear after leaving again.
@@ -129,9 +133,35 @@ test('first sight is not news, a change elsewhere is, and opening the tab clears
 });
 
 test('a tab whose list could not be read has no dot and keeps what was seen', () => {
-  const seen = { runs: 'r1' };
+  const seen = { runs: ['r1'] };
   assert.deepEqual(m.unseenViews({}, seen, 'chat'), []);
   assert.equal(m.updateSeen({}, seen, 'runs'), seen);
+});
+
+test("a workspace switch never takes the previous workspace's lists as the new one's (review M-1)", () => {
+  // One render after switching from A to B, the lists held are still A's.
+  const polled = { ws: 'A', marks: { decisions: ['d1', 'd2'] } };
+  const build = { ws: 'A', keys: ['b1'] };
+  assert.deepEqual(m.marksFor('B', polled, build), {});
+  assert.deepEqual(
+    m.updateSeen(m.marksFor('B', polled, build), {}, 'chat'),
+    {},
+  );
+  // B's own (empty) lists arrive: first sight, no dot.
+  const own = m.marksFor('B', { ws: 'B', marks: { decisions: [] } }, build);
+  const seen = m.updateSeen(own, {}, 'chat');
+  assert.deepEqual(m.unseenViews(own, seen, 'chat'), []);
+  assert.deepEqual(m.marksFor('A', polled, build), {
+    decisions: ['d1', 'd2'],
+    build: ['b1'],
+  });
+});
+
+test('a second window writing later does not undo what the first one cleared (review L-1)', () => {
+  // Window A cleared Approvals; the store has it. Window B then takes in Runs only.
+  const stored = { W: { decisions: ['d1', 'd2'], runs: ['r1'] } };
+  const merged = m.mergeSeen(stored, 'W', { runs: ['r1', 'r2'] });
+  assert.deepEqual(merged.W, { decisions: ['d1', 'd2'], runs: ['r1', 'r2'] });
 });
 
 test('a page or tab dot names only its own news', () => {
@@ -140,4 +170,5 @@ test('a page or tab dot names only its own news', () => {
     m.dotText(['decisions', 'runs'], ['runs', 'decisions', 'build']),
     'A run finished; An approval was asked for or answered',
   );
+  assert.match(m.dotText(['chat'], ['chat']), /answer or error/);
 });
