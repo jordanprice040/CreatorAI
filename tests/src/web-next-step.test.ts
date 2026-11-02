@@ -91,12 +91,16 @@ test('the main path names the first missing step and the page that takes it', as
     pipelineStep({ ...done, frozenSpecs: 0 }).action?.view,
     'scores',
   );
+  // Writing a spec has a form now (Build › Write a spec), so it never sends anyone to the CLI.
+  const spec = pipelineStep({ ...done, specs: 0, frozenSpecs: 0 });
+  assert.match(spec.text, /Write a spec/);
+  assert.doesNotMatch(spec.text, /pnpm cli|command line/);
   assert.equal(pipelineStep(done).action?.view, 'gallery');
 });
 
 test('the desktop app is never told to run a command it does not have', async () => {
   const { pipelineStep } = await load<Rules>('next-rules.ts');
-  const step = pipelineStep({ ...done, scorecards: 0, desktop: true });
+  const step = pipelineStep({ ...done, reviewed: false, desktop: true });
   assert.doesNotMatch(step.text, /pnpm cli/);
   assert.match(step.text, /desktop app does not have/);
 });

@@ -1,3 +1,4 @@
+import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArtifactSummarySchema,
@@ -136,23 +137,31 @@ export function BuildView({
       recent.map((s) => api(SpecStatusSchema, `${base}/specs/${s.id}`)),
     );
     // Current selections that chose an option to build: a spec can be written from one.
-    const problems = fixture
-      ? await api(z.array(StoredEntitySchema), `${base}/entities?kind=problem`)
-      : [];
-    const selections = (
-      await Promise.all(
-        problems.map((p) =>
-          api(z.array(SelectionSchema), `${base}/problems/${p.id}/selections`),
+    const [problems, alternatives] = await Promise.all([
+      api(z.array(StoredEntitySchema), `${base}/entities?kind=problem`),
+      api(z.array(StoredEntitySchema), `${base}/entities?kind=alternative`),
+    ]);
+    const lists = await Promise.all(
+      problems.map((p) =>
+        api(z.array(SelectionSchema), `${base}/problems/${p.id}/selections`),
+      ),
+    );
+    const selections = lists.flatMap((list, i) =>
+      list
+        .filter((x) => x.current)
+        .flatMap((x) =>
+          x.dispositions
+            .filter((d) => d.disposition === 'select_for_build')
+            .map((d) => ({
+              selection_id: x.id,
+              alternative: d.alternative,
+              problem: problems[i]!,
+              option: alternatives.find(
+                (a) => a.id === d.alternative.id.toLowerCase(),
+              ),
+            })),
         ),
-      )
-    )
-      .flat()
-      .filter((x) => x.current)
-      .flatMap((x) =>
-        x.dispositions
-          .filter((d) => d.disposition === 'select_for_build')
-          .map((d) => ({ selection_id: x.id, alternative: d.alternative })),
-      );
+    );
     // Codex builders: plan connections with a verified Codex model (real workspaces only).
     const connections = fixture
       ? []
@@ -183,6 +192,7 @@ export function BuildView({
     const now = Date.now();
     return {
       specs: status,
+      specEntities: specs,
       selections,
       products,
       reviews: newestFirst(reviews),
@@ -209,6 +219,30 @@ export function BuildView({
     };
   }, [workspace.id]);
   const d = data.data;
+  const writer = workspace.role !== 'viewer';
+  const [specForm, setSpecForm] = useState<SpecFormMode | null>(null);
+  /** The stored current version of a spec/1 spec: what a revision starts from. */
+  const entityOf = (s: SpecStatus) =>
+    d?.specEntities.find(
+      (e) =>
+        e.id === s.spec.id &&
+        e.version === s.spec.version &&
+        e.body?.format === 'spec/1',
+    );
+  // Options chosen for build that have no spec of that exact version yet.
+  const unwritten =
+    d?.selections.filter(
+      (u) =>
+        !d.specEntities.some((e) => {
+          const a = e.body?.alternative as
+            { id: string; version: number } | undefined;
+          return (
+            e.status === 'active' &&
+            a?.id.toLowerCase() === u.alternative.id.toLowerCase() &&
+            a.version === u.alternative.version
+          );
+        }),
+    ) ?? [];
   // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
   // or anywhere), so the current state shows without a manual refresh; typed fields are kept.
   // While a build or package runs on the server, keep the page current.
@@ -292,11 +326,73 @@ export function BuildView({
               />
             )}
             <h3>Specs</h3>
+            {writer && !specForm && unwritten.length > 0 && (
+              <div className="cite">
+                <p className="small">
+                  Your current selection chose{' '}
+                  {unwritten.length === 1
+                    ? 'an option'
+                    : `${unwritten.length} options`}{' '}
+                  to build with no spec yet:
+                </p>
+                <ul className="rows">
+                  {unwritten.map((u) => (
+                    <li key={`${u.selection_id}:${u.alternative.id}`}>
+                      {u.option?.title ?? u.alternative.id.slice(0, 8)}{' '}
+                      <small>v{u.alternative.version}</small>{' '}
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setNote('');
+                          setSpecForm({
+                            kind: 'create',
+                            selection_id: u.selection_id,
+                            alternative: u.alternative,
+                            prefill: {
+                              title: u.option?.title ?? '',
+                              audience: String(
+                                u.problem.body?.affected_group ?? '',
+                              ),
+                              problem_statement: String(
+                                u.problem.body?.statement ?? '',
+                              ),
+                            },
+                          });
+                        }}
+                      >
+                        Write a spec
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {specForm && (
+              <SpecForm
+                key={
+                  specForm.kind === 'create'
+                    ? `new:${specForm.alternative.id}`
+                    : `rev:${specForm.spec.spec.id}:${specForm.spec.spec.version}`
+                }
+                base={base}
+                session={session}
+                mode={specForm}
+                cancel={() => setSpecForm(null)}
+                saved={(s) => {
+                  setSpecForm(null);
+                  setNote(
+                    `${s.spec.title} v${s.spec.version} saved.${s.problems.length ? ` Fix before freezing: ${s.problems.map((p) => p.detail).join(' ')}` : ' Freeze it under Scores and specs next.'}`,
+                  );
+                  data.reload();
+                }}
+              />
+            )}
             {d.specs.length === 0 ? (
               <Empty>
-                No specs yet. In a fixture workspace the sample above can write
-                one; writing a spec for a real option still uses the command
-                line (<code>pnpm cli spec-create</code>).
+                No specs yet.{' '}
+                {unwritten.length
+                  ? 'Write one for the option your selection chose to build.'
+                  : 'Record a selection that chooses an option to build under Projects › Decide; then write its spec here.'}
               </Empty>
             ) : (
               <ul className="rows">
@@ -331,6 +427,24 @@ export function BuildView({
                           Create product
                         </button>
                       )}
+                      {writer &&
+                        !specForm &&
+                        s.spec.status === 'active' &&
+                        entityOf(s) && (
+                          <button
+                            className="text"
+                            onClick={() => {
+                              setNote('');
+                              setSpecForm({
+                                kind: 'revise',
+                                spec: s,
+                                entity: entityOf(s)!,
+                              });
+                            }}
+                          >
+                            Revise
+                          </button>
+                        )}{' '}
                       {!s.frozen_current && (
                         <button className="text" onClick={() => open('scores')}>
                           Freeze it under Scores and specs
@@ -470,7 +584,12 @@ function Sample({
         <button
           className="secondary"
           disabled={busy}
-          onClick={() => write(selections[0])}
+          onClick={() =>
+            write({
+              selection_id: selections[0]!.selection_id,
+              alternative: selections[0]!.alternative,
+            })
+          }
         >
           Write the sample spec
         </button>
