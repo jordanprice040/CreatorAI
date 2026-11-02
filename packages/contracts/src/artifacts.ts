@@ -327,6 +327,8 @@ export const CliOptionSchema = z.strictObject({
   value: z.string().max(120).nullable(),
   help: z.string().max(400).nullable(),
   default: z.string().max(80).nullable(),
+  /** A positional argument without `nargs='?'`/`'*'`, or an option with `required=True`. */
+  required: z.boolean(),
   file: z.string().max(200),
 });
 export type CliOption = z.infer<typeof CliOptionSchema>;
@@ -339,6 +341,11 @@ export const ArtifactGuideSchema = z.strictObject({
   options_source: z.enum(['argparse', 'argv', 'none']),
   /** More options were found than are listed. */
   options_truncated: z.boolean(),
+  /**
+   * The program answers `--help` with its own description: argparse without
+   * `add_help=False`, or a `--help` option of its own. Jordan's timing analyzer refused it.
+   */
+  help_flag: z.boolean(),
 });
 export type ArtifactGuide = z.infer<typeof ArtifactGuideSchema>;
 export const TerminalStartRequestSchema = z.strictObject({

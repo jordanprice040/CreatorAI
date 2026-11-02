@@ -47,6 +47,7 @@ def build():
     value: null,
     help: 'Practise live: a count-in, then press Enter on each beat.',
     default: null,
+    required: false,
     file: 'src/main.py',
   });
   assert.equal(by['-f --fps']!.value, 'FLOAT');
@@ -58,6 +59,51 @@ def build():
   assert.equal(by['--mode']!.value, '{early,late}');
   assert.equal(by['--mode']!.help, 'Which side, 100% honest');
   assert.equal(by['input']!.value, null);
+  // nargs='?' makes the positional optional.
+  assert.equal(by['input']!.required, false);
+  assert.equal(r.help_flag, true);
+});
+
+test('BooleanOptionalAction, range and named choices, required options and add_help=False are shown as they behave (review L-4)', () => {
+  const r = cliOptions([
+    file(
+      'src/main.py',
+      `import argparse
+MODES = ["a", "b"]
+p = argparse.ArgumentParser(add_help=False)
+p.add_argument("--color", action=argparse.BooleanOptionalAction, default=True)
+p.add_argument("--level", type=int, choices=range(1, 5))
+p.add_argument("--mode", choices=MODES)
+p.add_argument("--speed", choices=[1, 2.5, "x"])
+p.add_argument("--out", required=True)
+p.add_argument("path")
+`,
+    ),
+  ]);
+  const by = Object.fromEntries(r.options.map((o) => [o.names[0], o]));
+  assert.deepEqual(by['--color']!.names, ['--color', '--no-color']);
+  assert.equal(by['--color']!.value, null);
+  assert.equal(by['--level']!.value, '{1..4}');
+  // A constant's name says nothing about its values: the type or name stands in.
+  assert.equal(by['--mode']!.value, 'MODE');
+  assert.equal(by['--speed']!.value, '{1,2.5,x}');
+  assert.equal(by['--out']!.required, true);
+  assert.equal(by['path']!.required, true);
+  assert.equal(by['--level']!.required, false);
+  assert.equal(r.help_flag, false);
+});
+
+test('an unterminated quote cannot make the reader slow: the scan stays linear (review M-1)', () => {
+  // Valid Python 3.12 (an f-string reusing its quote inside {}) with 200,000 quote openers.
+  const evil = `x = f"{"${"'".repeat(200000)}"}"\nimport sys\nif "--go" in sys.argv: pass\n`;
+  const broken = `${"'''x\n".repeat(20000)}${"'a\n".repeat(60000)}`;
+  const started = Date.now();
+  cliOptions([file('src/main.py', evil), file('src/other.py', broken)]);
+  const many = Array.from({ length: 5000 }, () => 'p.add_argument((((').join(
+    '\n',
+  );
+  cliOptions([file('src/main.py', many)]);
+  assert.ok(Date.now() - started < 3000, `took ${Date.now() - started} ms`);
 });
 
 test('without argparse, --flag literals beside sys.argv are listed without descriptions; otherwise nothing', () => {
@@ -80,7 +126,10 @@ test('without argparse, --flag literals beside sys.argv are listed without descr
     options: [],
     options_source: 'none',
     options_truncated: false,
+    help_flag: false,
   });
+  // The timing analyzer's style: its own usage line, no --help (found live, 2026-11-02).
+  assert.equal(argv.help_flag, false);
 });
 
 test('the option list is bounded and an unterminated call is skipped', () => {

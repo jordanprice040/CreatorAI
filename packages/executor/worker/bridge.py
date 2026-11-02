@@ -207,7 +207,8 @@ def rerun_choice(line, last):
             break
     if len(words) > TERMINAL_POLICY['max_args']:
         return 'error', f"At most {TERMINAL_POLICY['max_args']} arguments."
-    if any(len(w) > 500 or '\0' in w for w in words):
+    # Counted in UTF-16 units like the studio's contract, so an emoji counts as two (review L-1).
+    if any(len(w.encode('utf-16-le', 'surrogatepass')) // 2 > 500 or '\0' in w for w in words):
         return 'error', 'An argument is longer than 500 characters.'
     return 'run', words
 
@@ -229,7 +230,7 @@ def wait_for_line(text, check, idle_seconds):
     except _StopWaiting as stop:
         return None, stop.args[0]
     except EOFError:
-        return None, 'quit'
+        return None, 'eof'
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
@@ -373,8 +374,8 @@ def interactive(args, job, lease, source, recipe, unit, identity):
         shown = ' '.join(shlex.quote(w) for w in ['python3', 'src/main.py', *run_args])
         print(f'\nThe program ended with exit code {exit_code}. Run it again in this window:\n'
               f'  Enter          same again: {shown}\n'
-              '  new arguments  for example --help (Up arrow recalls earlier ones; . for none)\n'
-              '  q              close this window\n', flush=True)
+              '  new arguments  type them and press Enter (Up arrow recalls earlier ones; . for none)\n'
+              "  q              close this window ('q' in quotes passes q as an argument)\n", flush=True)
         choice = None
         while True:
             signalled[:] = [n for n in signalled if n != signal.SIGINT]
@@ -382,8 +383,11 @@ def interactive(args, job, lease, source, recipe, unit, identity):
             line, reason = wait_for_line(
                 '> ', lambda: check() or ('quit' if signal.SIGINT in signalled else None),
                 TERMINAL_POLICY['idle_seconds'])
-            if reason == 'quit':
-                reason, choice = None, None
+            if reason in ('quit', 'eof'):
+                if reason == 'eof':
+                    # A closing window may deliver end of input just before its hangup signal.
+                    time.sleep(0.5)
+                reason, choice = 'quit', None
                 break
             if reason:
                 break
@@ -392,21 +396,31 @@ def interactive(args, job, lease, source, recipe, unit, identity):
                 print(choice, flush=True)
                 continue
             if kind == 'quit':
-                choice = None
+                reason, choice = 'quit', None
             break
         if reason == 'idle':
             print('\nNo input for ' + str(TERMINAL_POLICY['idle_seconds'] // 60) + ' minutes.', flush=True)
         if choice is None:
             break
         run_args = choice
+    closed_by_owner = reason == 'quit'
     # An idle prompt or a quit ends the session normally.
-    if reason == 'idle':
+    if reason in ('idle', 'quit'):
         reason = None
+    # A hangup seen at any point means the window was closed (review L-2).
+    if any(n != signal.SIGINT for n in signalled):
+        reason = 'window_closed'
     write_record(job / 'result.json', {
         'exit_code': exit_code, 'reason': reason, 'cleaned': state in ('inactive', 'failed'),
         'unit_state': state, 'limits_observed': observed_limits, 'runs': runs[-50:],
         'run_count': len(runs)})
-    if any(n != signal.SIGINT for n in signalled):
+    if reason == 'window_closed':
+        return
+    if closed_by_owner or reason == 'stopped':
+        # The owner asked for the end (q here, or Stop in the studio): close at once.
+        print('\nSession ended' + (' (stopped from Creator Agent)' if reason else '') + '.', flush=True)
+        if reason:
+            time.sleep(1.5)
         return
     if len(runs) >= TERMINAL_POLICY['max_runs']:
         print(f"\nThis window has run the program {TERMINAL_POLICY['max_runs']} times, its limit.", flush=True)

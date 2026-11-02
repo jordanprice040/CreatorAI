@@ -542,6 +542,9 @@ function UsageGuide({
                           {o.help ?? (
                             <span className="hint">No description</span>
                           )}
+                          {o.required && (
+                            <span className="hint"> (required)</span>
+                          )}
                           {o.default !== null &&
                             !/default/i.test(o.help ?? '') && (
                               <span className="hint">
@@ -561,14 +564,25 @@ function UsageGuide({
                   : "Found as option names in the program's source, not by running it; descriptions are not available."}
                 {g.options_truncated
                   ? ' More options exist than are listed here.'
-                  : ''}{' '}
-                Run it with <code>--help</code> for its own description.
+                  : ''}
+                {g.help_flag && (
+                  <>
+                    {' '}
+                    Run it with <code>--help</code> for its own description.
+                  </>
+                )}
               </p>
             </>
           ) : (
             <p className="small">
-              No options were found in the program&apos;s source. Try running it
-              with <code>--help</code>, or with no arguments.
+              No options were found in the program&apos;s source.{' '}
+              {g.help_flag ? (
+                <>
+                  Run it with <code>--help</code> for its own description.
+                </>
+              ) : (
+                'Try running it with no arguments.'
+              )}
             </p>
           )}
           {g.spec && g.spec.examples.length > 0 && (
@@ -630,18 +644,19 @@ function UsageGuide({
       <ul className="usage-window">
         <li>
           When the program ends, press <kbd>Enter</kbd> to run it again with the
-          same arguments, or type new ones (for example <code>--help</code>) and
-          press <kbd>Enter</kbd>. The <kbd>Up</kbd> arrow recalls earlier ones;
-          type <code>.</code> to run with none.
+          same arguments, or type new ones and press <kbd>Enter</kbd>. The{' '}
+          <kbd>Up</kbd> arrow recalls earlier ones; type <code>.</code> to run
+          with none.
         </li>
         <li>
-          Type <code>q</code> to close. Quit a run with the program&apos;s own
-          keys: <kbd>Ctrl+C</kbd> may end it at once, before it prints a final
-          report.
+          Type <code>q</code> to close; Stop above also closes it. Quit a run
+          with the program&apos;s own keys: <kbd>Ctrl+C</kbd> may end it at
+          once, before it prints a final report.
         </li>
         <li>
-          Each run may take 15 minutes. The window closes after 60 minutes in
-          all, 50 runs, or 10 minutes without input at the prompt.
+          Each run may take 15 minutes. The session ends after 60 minutes in
+          all, 50 runs, or 10 minutes without input at the prompt; the window
+          then waits for <kbd>Enter</kbd> so you can read the last screen.
         </li>
       </ul>
     </details>

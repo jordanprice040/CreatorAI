@@ -120,9 +120,11 @@ end it at once instead of reaching the program; quit with the program's own keys
 Reruns in the same window (ADR-0059): when the program ends, the bridge (outside
 the sandbox) shows a prompt. Enter runs the same arguments again; a typed line is
 split like a POSIX shell line (never run by a shell) into a new argument list
-(at most 12 arguments of 500 characters; a pasted `python3 src/main.py` prefix is
+(at most 12 arguments of 500 UTF-16 units, as the studio counts; a pasted `python3 src/main.py` prefix is
 dropped; `.` means no arguments); the Up arrow recalls earlier lines; `q`, Ctrl+C
-or end of input closes the session. Each run rewrites `launch.json` and starts a
+or end of input closes the session. `q`, Ctrl+C and Stop close the window at once;
+other ends (idle, the deadline, a run limit) leave it on "Press Enter" so the last
+screen can be read. Each run rewrites `launch.json` and starts a
 fresh unit and Bubblewrap sandbox from the same read-only package copy, so no
 state carries between runs except what the owner types. Each run keeps the
 15-minute unit limit, cut to what is left of the window's 60 minutes; the

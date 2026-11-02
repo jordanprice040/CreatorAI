@@ -10,12 +10,21 @@ import type { PackageFile } from './tar.js';
  */
 export const MAX_GUIDE_OPTIONS = 40;
 const MAX_SOURCE_BYTES = 512 * 1024;
+/** All Python sources read for one guide, entry point first; the rest are skipped. */
+const MAX_TOTAL_BYTES = 1024 * 1024;
+/** `add_argument(` calls examined per file; far more than the options a guide lists. */
+const MAX_CALLS = 200;
 
 type Token =
   | { kind: 'string'; value: string; end: number }
   | { kind: 'other'; end: number };
 
-/** Reads one Python string literal (with an optional r/b/u/f prefix) starting at `i`. */
+/**
+ * Reads one Python string literal (with an optional r/b/u/f prefix) starting at `i`. An
+ * unterminated one runs to the end of its line (single quotes) or of the source (triple
+ * quotes) and is not a literal, so every scan below moves forward and stays linear in the
+ * source size, whatever the package contains (review M-1).
+ */
 function stringAt(src: string, i: number): Token | null {
   const m = /^([rRbBuUfF]{0,2})('''|"""|'|")/.exec(src.slice(i, i + 5));
   if (!m) return null;
@@ -33,7 +42,7 @@ function stringAt(src: string, i: number): Token | null {
         : { kind: 'string', value, end: j + quote.length };
     }
     const c = src[j]!;
-    if (quote.length === 1 && c === '\n') return null;
+    if (quote.length === 1 && c === '\n') return { kind: 'other', end: j };
     if (c === '\\' && j + 1 < src.length) {
       const n = src[j + 1]!;
       if (raw) value += c + n;
@@ -54,7 +63,7 @@ function stringAt(src: string, i: number): Token | null {
     value += c;
     j++;
   }
-  return null;
+  return { kind: 'other', end: src.length };
 }
 
 /** The text between the parentheses of a call whose `(` is at `open`, or null. */
@@ -176,7 +185,8 @@ function argparseOptions(path: string, original: string): CliOption[] {
   const out: CliOption[] = [];
   const { text: src, code } = views(original);
   const re = /\.add_argument\s*\(/g;
-  for (let m = re.exec(code); m; m = re.exec(code)) {
+  let calls = 0;
+  for (let m = re.exec(code); m && calls++ < MAX_CALLS; m = re.exec(code)) {
     const body = callBody(src, m.index + m[0].length - 1);
     if (body === null) continue;
     const names: string[] = [];
@@ -191,20 +201,26 @@ function argparseOptions(path: string, original: string): CliOption[] {
     }
     if (!names.length || names.some((n) => !n.length)) continue;
     const action = kw.action ? literal(kw.action) : null;
+    // argparse.BooleanOptionalAction also accepts --no-NAME.
+    const boolean =
+      !!kw.action && /^(argparse\.)?BooleanOptionalAction$/.test(kw.action);
+    if (boolean)
+      for (const n of [...names])
+        if (n.startsWith('--') && names.length < 4)
+          names.push(`--no-${n.slice(2)}`);
     const flag =
-      action !== null &&
-      /^(store_true|store_false|store_const|count|help|version|append_const)$/.test(
-        action,
-      );
+      boolean ||
+      (action !== null &&
+        /^(store_true|store_false|store_const|count|help|version|append_const)$/.test(
+          action,
+        ));
     const positional = !names[0]!.startsWith('-');
     let value: string | null = null;
     if (!flag) {
       const metavar = kw.metavar ? literal(kw.metavar) : null;
       if (metavar) value = metavar;
-      else if (kw.choices)
-        value = `{${oneLine(kw.choices.replace(/^[[({]|[\])}]$/g, ''))
-          .replace(/['"]/g, '')
-          .replace(/\s*,\s*/g, ',')}}`;
+      else if (kw.choices && choiceList(kw.choices))
+        value = choiceList(kw.choices);
       else if (kw.type && /^[A-Za-z_][A-Za-z0-9_.]*$/.test(kw.type))
         value = kw.type.toUpperCase();
       else if (positional) value = null;
@@ -242,10 +258,33 @@ function argparseOptions(path: string, original: string): CliOption[] {
         shownDefault !== null && shownDefault !== 'None' && !flag
           ? clip(shownDefault, 80)
           : null,
+      required: positional
+        ? !kw.nargs || !/^['"][?*]['"]$/.test(kw.nargs)
+        : kw.required === 'True',
       file: clip(path, 200),
     });
   }
   return out;
+}
+
+/**
+ * Literal choices as `{a,b}`, a literal `range(a, b)` as `{a..b-1}`; null for anything else
+ * (a constant's name says nothing about its values).
+ */
+function choiceList(expr: string): string | null {
+  const r = /^range\(\s*(-?\d+)\s*(?:,\s*(-?\d+)\s*)?\)$/.exec(expr.trim());
+  if (r) {
+    const [lo, hi] =
+      r[2] === undefined ? [0, Number(r[1])] : [Number(r[1]), Number(r[2])];
+    return hi > lo ? `{${lo}..${hi - 1}}` : null;
+  }
+  const inner = /^[[({]([\s\S]*)[\])}]$/.exec(expr.trim());
+  if (!inner) return null;
+  const items = splitArgs(inner[1]!).map(
+    (x) => literal(x) ?? (/^[-+]?[0-9.]+$/.test(x) ? x : null),
+  );
+  if (!items.length || items.some((x) => x === null)) return null;
+  return `{${items.join(',')}}`;
 }
 
 function argvOptions(path: string, src: string): CliOption[] {
@@ -274,6 +313,7 @@ function argvOptions(path: string, src: string): CliOption[] {
         value: null,
         help: null,
         default: null,
+        required: false,
         file: clip(path, 200),
       });
     }
@@ -285,7 +325,11 @@ function argvOptions(path: string, src: string): CliOption[] {
 /** The options of a package's Python sources, entry point first. */
 export function cliOptions(
   files: readonly PackageFile[],
-): Pick<ArtifactGuide, 'options' | 'options_source' | 'options_truncated'> {
+): Pick<
+  ArtifactGuide,
+  'options' | 'options_source' | 'options_truncated' | 'help_flag'
+> {
+  let total = 0;
   const sources = files
     .filter(
       (f) => f.path.endsWith('.py') && f.content.length <= MAX_SOURCE_BYTES,
@@ -295,6 +339,7 @@ export function cliOptions(
         Number(b.path === 'src/main.py') - Number(a.path === 'src/main.py') ||
         a.path.localeCompare(b.path),
     )
+    .filter((f) => (total += f.content.length) <= MAX_TOTAL_BYTES)
     .map((f) => ({ path: f.path, src: f.content.toString('utf8') }));
   // An option declared twice (for example in two parsers) is listed once.
   const unique = (list: CliOption[]) => {
@@ -305,6 +350,12 @@ export function cliOptions(
       return true;
     });
   };
+  const declaresHelp = (list: CliOption[]) =>
+    list.some((o) => o.names.includes('--help'));
+  // argparse adds -h/--help unless a parser in the code says add_help=False.
+  const automaticHelp =
+    sources.some((f) => /ArgumentParser\s*\(/.test(views(f.src).code)) &&
+    !sources.some((f) => /add_help\s*=\s*False/.test(views(f.src).code));
   const result = (
     source: 'argparse' | 'argv',
     list: CliOption[],
@@ -312,10 +363,16 @@ export function cliOptions(
     options: list.slice(0, MAX_GUIDE_OPTIONS),
     options_source: source,
     options_truncated: list.length > MAX_GUIDE_OPTIONS,
+    help_flag: declaresHelp(list) || (source === 'argparse' && automaticHelp),
   });
   const parsed = unique(sources.flatMap((f) => argparseOptions(f.path, f.src)));
   if (parsed.length) return result('argparse', parsed);
   const argv = unique(sources.flatMap((f) => argvOptions(f.path, f.src)));
   if (argv.length) return result('argv', argv);
-  return { options: [], options_source: 'none', options_truncated: false };
+  return {
+    options: [],
+    options_source: 'none',
+    options_truncated: false,
+    help_flag: automaticHelp,
+  };
 }
