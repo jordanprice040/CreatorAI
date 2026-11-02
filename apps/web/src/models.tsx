@@ -10,9 +10,9 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
-import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
+import { QualifyModel } from './qualify.js';
 import {
   capChanges,
   capFieldsFor,
@@ -107,7 +107,6 @@ export function Models({
   workspace: Workspace;
   session: SessionInfo | null;
 }) {
-  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   const active = usePageActive();
   const [loaded, setLoaded] = useState(false);
@@ -182,9 +181,18 @@ export function Models({
       loadSequence.current++;
     };
   }, [workspace.id, selected, active, session?.actor_id]);
-  async function act(path: string, body: unknown, timeoutMs = 5000) {
+  /**
+   * Posts one action and reloads. With `local`, the error goes to the caller instead of the
+   * page-level alert, and the page is not locked (a qualification run can take an hour).
+   */
+  async function act(
+    path: string,
+    body: unknown,
+    timeoutMs = 5000,
+    local?: (error: string) => void,
+  ) {
     if (!session) return null;
-    setBusy(true);
+    if (!local) setBusy(true);
     setError('');
     try {
       const out = await api(z.unknown(), `${base}/${path}`, {
@@ -195,10 +203,10 @@ export function Models({
       await load();
       return out;
     } catch (e) {
-      setError(message(e));
+      (local ?? setError)(message(e));
       return null;
     } finally {
-      setBusy(false);
+      if (!local) setBusy(false);
     }
   }
   const c = detail?.connection;
@@ -746,18 +754,18 @@ export function Models({
               ))}
             </ul>
           ) : (
-            <p>
-              No qualification yet.{' '}
-              {desktop ? (
-                <>Starting one {NO_CLI_IN_DESKTOP}.</>
-              ) : (
-                <>
-                  Start one from the CLI with a frozen benchmark manifest (
-                  <code>pnpm cli plan-qualify</code>).
-                </>
-              )}
-            </p>
+            <p>No qualification yet.</p>
           )}
+          <QualifyModel
+            connection={c}
+            models={detail.model_access
+              .filter((a) => a.path === 'responses' && a.access === 'verified')
+              .map((a) => a.model_id)}
+            allowed={c.settings.allowed_task_classes}
+            running={detail.qualifications.filter((q) => q.state === 'running')}
+            busy={busy || !session}
+            act={act}
+          />
           <h4>Recent requests</h4>
           <p>
             {detail.usage.last_24h_requests} in the last 24 hours ·{' '}
