@@ -190,6 +190,14 @@ export function SpecForm({
   const flowKeys = d.flows.map((f) => f.key);
   const checkKeys = d.checks.map((c) => c.key);
   const taskKeys = d.tasks.map((t) => t.key);
+  const newFlow = nextKey('F', flowKeys, given);
+  const newCheck = nextKey('A', checkKeys, given);
+  const newTask = nextKey('T', taskKeys, given);
+  const noKey = (what: string, last: string) => (
+    <p className="small">
+      No more {what} keys: {last} has been used, and keys stop at 99.
+    </p>
+  );
 
   return (
     <form
@@ -277,14 +285,15 @@ export function SpecForm({
           </div>
         ))}
         {err('flows')}
-        {d.flows.length < 10 && (
+        {d.flows.length < 10 && !newFlow && noKey('flow', 'F99')}
+        {d.flows.length < 10 && newFlow && (
           <button
             type="button"
             className="secondary"
             onClick={() =>
               set((x) =>
                 x.flows.push({
-                  key: nextKey('F', flowKeys, given),
+                  key: newFlow,
                   name: '',
                   steps: '',
                 }),
@@ -386,7 +395,9 @@ export function SpecForm({
                         !argsShowable(t.stored) &&
                         t.args === t.stored.join('\n') && (
                           <p className="small notice">
-                            These {t.stored.length} stored arguments can't be
+                            {t.stored.length === 1
+                              ? "This stored argument can't be"
+                              : `These ${t.stored.length} stored arguments can't be`}{' '}
                             shown one per line (one has a line break, or the
                             last is empty). They are kept exactly unless you
                             edit this box.
@@ -474,14 +485,15 @@ export function SpecForm({
           </div>
         ))}
         {err('checks')}
-        {d.checks.length < 30 && (
+        {d.checks.length < 30 && !newCheck && noKey('check', 'A99')}
+        {d.checks.length < 30 && newCheck && (
           <button
             type="button"
             className="secondary"
             onClick={() =>
               set((x) =>
                 x.checks.push({
-                  key: nextKey('A', checkKeys, given),
+                  key: newCheck,
                   flow: '',
                   statement: '',
                   measure: '',
@@ -608,14 +620,15 @@ export function SpecForm({
           </div>
         ))}
         {err('tasks')}
-        {d.tasks.length < 40 && (
+        {d.tasks.length < 40 && !newTask && noKey('task', 'T99')}
+        {d.tasks.length < 40 && newTask && (
           <button
             type="button"
             className="secondary"
             onClick={() =>
               set((x) =>
                 x.tasks.push({
-                  key: nextKey('T', taskKeys, given),
+                  key: newTask,
                   title: '',
                   role: '',
                   file_scope: '',
