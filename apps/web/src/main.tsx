@@ -948,14 +948,10 @@ function App() {
             {inStudio && signedIn && workspace && (
               <UsageIndicator key={workspace.id} workspace={workspace} />
             )}
-<<<<<<< HEAD
             {inStudio && workspace && auth.session && (
               <AsideButton aside={aside} />
             )}
-            {themeButton}
-=======
             {!inStudio && themeButton}
->>>>>>> origin/main
           </div>
         </header>
         {workspace?.record_mode === 'fixture' && signedIn && (
