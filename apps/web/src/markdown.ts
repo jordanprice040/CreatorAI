@@ -77,14 +77,22 @@ export function safeHref(raw: string): string | null {
   return null;
 }
 
+// Same list as external.rs: local-network endings plus loopback DNS services such as nip.io.
 const LOCAL_SUFFIXES = [
   'localhost',
   'local',
+  'localdomain',
   'lan',
   'home',
+  'corp',
   'internal',
   'intranet',
   'home.arpa',
+  'nip.io',
+  'sslip.io',
+  'xip.io',
+  'localtest.me',
+  'lvh.me',
 ];
 
 function publicHostName(raw: string): boolean {
@@ -121,9 +129,11 @@ export function desktopOpens(href: string): boolean {
   if (url.protocol === 'mailto:') {
     const to = url.pathname;
     const at = to.indexOf('@');
+    // A bare trailing `?` or `#` leaves search/hash empty here but Rust sees an empty query or
+    // fragment and refuses, so check the text itself.
     return (
-      !url.search &&
-      !url.hash &&
+      !href.includes('?') &&
+      !href.includes('#') &&
       !to.includes(',') &&
       !to.includes('%') &&
       at > 0 &&

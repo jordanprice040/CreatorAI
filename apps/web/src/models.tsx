@@ -379,7 +379,7 @@ export function Models({
                     : 'https://chatgpt.com/settings/usage'
                 }
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 {claude ? 'Claude usage settings' : 'ChatGPT usage settings'}
               </a>

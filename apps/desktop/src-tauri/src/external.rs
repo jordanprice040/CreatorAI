@@ -1,23 +1,34 @@
 //! ADR-0061: which links the studio window may hand to the system browser or mail app.
 //! Only https links to a public-looking host name and plain mailto addresses qualify; file:,
 //! http:, custom schemes, IP literals, localhost and single-label or local-network names,
-//! credentials and explicit ports never do. Keep `desktopOpens` in apps/web/src/markdown.ts
-//! in step with this.
+//! credentials and explicit ports never do. A public name that resolves to this computer or the
+//! local network is not detected (beyond the well-known loopback DNS services listed below).
+//! Keep `desktopOpens` in apps/web/src/markdown.ts in step with this; both test suites read
+//! external-link-cases.json.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::OnceLock;
+use std::time::Instant;
 use tauri::Url;
 
 const MAX_LEN: usize = 2048;
-/// Name endings that only mean something on a local network or this computer.
-const LOCAL_SUFFIXES: [&str; 7] = [
+/// Name endings that only mean something on a local network or this computer, plus public DNS
+/// services whose names are built to point back at a local or private address.
+const LOCAL_SUFFIXES: [&str; 14] = [
     "localhost",
     "local",
+    "localdomain",
     "lan",
     "home",
+    "corp",
     "internal",
     "intranet",
     "home.arpa",
+    "nip.io",
+    "sslip.io",
+    "xip.io",
+    "localtest.me",
+    "lvh.me",
 ];
 
 fn public_host_name(host: &str) -> bool {
@@ -79,24 +90,50 @@ pub fn external_link(url: &Url) -> bool {
     }
 }
 
-/// At most one hand-off per second, so a page can't open a flood of browser tabs.
+/// At most one hand-off per second, so a page can't open a flood of browser tabs. Measured on a
+/// monotonic clock, so a system clock change can't block or unblock hand-offs.
 pub struct Throttle(AtomicU64);
+
+const NEVER: u64 = u64::MAX;
+
+fn millis_since_start() -> u64 {
+    static START: OnceLock<Instant> = OnceLock::new();
+    START.get_or_init(Instant::now).elapsed().as_millis() as u64
+}
 
 impl Throttle {
     pub const fn new() -> Self {
-        Self(AtomicU64::new(0))
+        Self(AtomicU64::new(NEVER))
     }
     pub fn allow(&self) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
+        let now = millis_since_start();
         let last = self.0.load(Ordering::SeqCst);
-        now.saturating_sub(last) >= 1000
+        (last == NEVER || now.saturating_sub(last) >= 1000)
             && self
                 .0
                 .compare_exchange(last, now, Ordering::SeqCst, Ordering::SeqCst)
                 .is_ok()
+    }
+}
+
+/// What happened to a link the studio window was asked to open, for the title-bar note.
+pub enum Outcome {
+    Opened,
+    Refused,
+    Throttled,
+}
+
+impl Outcome {
+    pub fn note(&self) -> &'static str {
+        match self {
+            Outcome::Opened => "Creator Agent — opened the link in your browser or mail app",
+            Outcome::Refused => {
+                "Creator Agent — link not opened: only public https pages and plain email addresses open from the app"
+            }
+            Outcome::Throttled => {
+                "Creator Agent — link not opened: wait a second between links"
+            }
+        }
     }
 }
 
@@ -105,41 +142,14 @@ mod tests {
     use super::*;
     #[test]
     fn only_public_https_and_plain_mailto_links_open() {
-        for ok in [
-            "https://example.com/docs",
-            "https://docs.example.co.uk/a?b=c#d",
-            "https://xn--bcher-kva.example/",
-            "https://example.com./",
-            "mailto:jordan.p+x@example.com",
-            "https://claude.ai/settings/usage",
-            "https://chatgpt.com/settings/usage",
-        ] {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("external-link-cases.json")).unwrap();
+        for ok in cases["open"].as_array().unwrap() {
+            let ok = ok.as_str().unwrap();
             assert!(external_link(&ok.parse().unwrap()), "{ok}");
         }
-        for refused in [
-            "http://example.com/",
-            "file:///C:/Windows/System32/calc.exe",
-            "ms-settings:privacy",
-            "javascript:alert(1)",
-            "ftp://example.com/",
-            "https://127.0.0.1/",
-            "https://127.1/",
-            "https://0x7f000001/",
-            "https://[::1]/",
-            "https://localhost/",
-            "https://studio.localhost/",
-            "https://printer.local/",
-            "https://router.home.arpa/",
-            "https://intranet/",
-            "https://example.com:8443/",
-            "https://user:pw@example.com/",
-            "https://user@example.com/",
-            "mailto:",
-            "mailto:a@example.com?body=hi",
-            "mailto:a@example.com,b@example.com",
-            "mailto:a@localhost",
-            "mailto:a@127.0.0.1",
-        ] {
+        for refused in cases["refused"].as_array().unwrap() {
+            let refused = refused.as_str().unwrap();
             assert!(!external_link(&refused.parse().unwrap()), "{refused}");
         }
         let long = format!("https://example.com/{}", "a".repeat(MAX_LEN));

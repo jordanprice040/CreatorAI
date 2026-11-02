@@ -332,6 +332,7 @@ fn build_studio_window(
     )?;
     let tools = Submenu::with_items(app, "Tools", true, &[&sign_in, &source, &editor, &run])?;
     let menu = Menu::with_items(app, &[&studio_menu, &tools])?;
+    let links_app = app.clone();
     let mut builder =
         tauri::WebviewWindowBuilder::new(app, "studio", tauri::WebviewUrl::External(url));
     if let Some(dir) = data_root(app) {
@@ -495,16 +496,32 @@ fn build_studio_window(
             });
         })
         .on_navigation(local_navigation)
-        .on_new_window(|url, _| {
+        .on_new_window(move |url, _| {
             // Preview tickets open only on the distinct preview origin, outside management WebView.
             // ADR-0061: public https and plain mailto links (answers, usage pages) go to the
-            // system browser or mail app, at most one per second; every other address is refused.
-            // Either way the studio window itself never opens another window.
+            // system browser or mail app, at most one per second; every other address is refused,
+            // and the title bar says which happened. Either way the studio window itself never
+            // opens another window.
             static LINKS: external::Throttle = external::Throttle::new();
-            if private_preview(&url) || (external::external_link(&url) && LINKS.allow()) {
+            let open = |url: &tauri::Url| {
                 let _ = std::process::Command::new("rundll32.exe")
                     .args(["url.dll,FileProtocolHandler", url.as_str()])
                     .spawn();
+            };
+            if private_preview(&url) {
+                open(&url);
+            } else {
+                let outcome = if !external::external_link(&url) {
+                    external::Outcome::Refused
+                } else if !LINKS.allow() {
+                    external::Outcome::Throttled
+                } else {
+                    open(&url);
+                    external::Outcome::Opened
+                };
+                if let Some(w) = links_app.get_webview_window("studio") {
+                    let _ = w.set_title(outcome.note());
+                }
             }
             NewWindowResponse::Deny
         })

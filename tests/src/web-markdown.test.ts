@@ -237,40 +237,17 @@ test('long runs of closing parens or heading spaces parse in linear time', async
 
 test('the desktop app opens only the links its window hands to the browser (ADR-0061)', async () => {
   const { desktopOpens } = await mod;
-  // Same cases as external.rs; the Rust check decides, this only picks link or copy-only.
-  for (const ok of [
-    'https://example.com/docs',
-    'https://docs.example.co.uk/a?b=c#d',
-    'https://xn--bcher-kva.example/',
-    'https://example.com./',
-    'mailto:jordan.p+x@example.com',
-    'https://claude.ai/settings/usage',
-    'https://chatgpt.com/settings/usage',
-  ])
-    assert.equal(desktopOpens(ok), true, ok);
+  // external.rs's tests read the same file; the Rust check decides, this only picks link or
+  // copy-only, so any disagreement would be a dead link or a hidden one.
+  const cases = JSON.parse(
+    await readFile(
+      'apps/desktop/src-tauri/src/external-link-cases.json',
+      'utf8',
+    ),
+  ) as { open: string[]; refused: string[] };
+  for (const ok of cases.open) assert.equal(desktopOpens(ok), true, ok);
   for (const refused of [
-    'http://example.com/',
-    'file:///C:/Windows/System32/calc.exe',
-    'ms-settings:privacy',
-    'javascript:alert(1)',
-    'ftp://example.com/',
-    'https://127.0.0.1/',
-    'https://127.1/',
-    'https://0x7f000001/',
-    'https://[::1]/',
-    'https://localhost/',
-    'https://studio.localhost/',
-    'https://printer.local/',
-    'https://router.home.arpa/',
-    'https://intranet/',
-    'https://example.com:8443/',
-    'https://user:pw@example.com/',
-    'https://user@example.com/',
-    'mailto:',
-    'mailto:a@example.com?body=hi',
-    'mailto:a@example.com,b@example.com',
-    'mailto:a@localhost',
-    'mailto:a@127.0.0.1',
+    ...cases.refused,
     `https://example.com/${'a'.repeat(2048)}`,
   ])
     assert.equal(desktopOpens(refused), false, refused);
