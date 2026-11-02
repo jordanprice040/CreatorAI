@@ -14,6 +14,7 @@ import {
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
+import { announceActivity } from './activity-dots.js';
 import { api, message as errorText, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { pathStages, type StudioFacts } from './next-rules.js';
@@ -164,6 +165,8 @@ export function Chat({
       );
     } finally {
       setAsking('');
+      // The reply (or why there is none) is back: dot Chat if the person went elsewhere.
+      announceActivity('chat', workspace.id);
       if (conversation === focusRef.current) await loadDetail(conversation);
     }
   }
