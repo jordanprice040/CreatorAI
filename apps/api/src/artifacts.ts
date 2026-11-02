@@ -5,6 +5,7 @@ import {
   type ServerResponse,
 } from 'node:http';
 import {
+  ArtifactGuideSchema,
   ContractError,
   RegisterArtifactRequestSchema,
   RunInputSchema,
@@ -13,12 +14,14 @@ import {
   parse,
   terminalCommand,
   type ArtifactDetail,
+  type ArtifactGuide,
   type PreviewRun,
 } from '@creator/contracts';
 import type { ArtifactStore, CommandContext, PreviewGuide } from '@creator/db';
 import { randomUUID } from 'node:crypto';
 import {
   TERMINAL_POLICY,
+  cliOptions,
   digest,
   type ArtifactSupervisor,
   type TerminalSupervisor,
@@ -237,6 +240,28 @@ export async function artifactRoutes(o: {
         true,
       );
     }
+  }
+  if (
+    o.collection === 'artifacts' &&
+    item &&
+    action === 'guide' &&
+    method === 'GET'
+  ) {
+    // ADR-0059: Try's usage guide. The spec part comes from the pinned frozen spec (visible
+    // cases only); the options are read from the exact package's source text, never run.
+    const a = await store.artifactRecord(ctx, ws, item, true);
+    const spec = await store.artifactSpecGuide(ctx, ws, a.summary.id);
+    const { manifest, files } = await artifacts.open(
+      a.manifest.product_id,
+      a.summary.id,
+      a.summary.manifest_sha256,
+    );
+    const guide: ArtifactGuide = {
+      spec,
+      command: manifest.startup.command,
+      ...cliOptions(files),
+    };
+    return send(200, parse(ArtifactGuideSchema, guide), false);
   }
   if (o.collection === 'artifacts' && item && action === 'terminals') {
     if (method === 'GET') {

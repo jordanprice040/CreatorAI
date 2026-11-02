@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ArtifactComparisonSchema,
   ArtifactDetailSchema,
+  ArtifactGuideSchema,
   ArtifactSummarySchema,
   FeedbackSchema,
   PreviewSchema,
@@ -11,6 +12,7 @@ import {
   z,
   type ArtifactComparison,
   type ArtifactDetail,
+  type ArtifactGuide,
   type ArtifactSummary,
   type Feedback,
   type SessionInfo,
@@ -458,6 +460,208 @@ const TERMINAL_STATES: Record<TerminalSession['state'], string> = {
   cleanup_required: 'Needs cleanup',
 };
 
+const duration = (seconds: number) =>
+  seconds < 60
+    ? `${seconds} s`
+    : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
+
+/** A command-line option as it would be typed: `--fps FPS`, `-n, --count N`. */
+export function optionUsage(o: ArtifactGuide['options'][number]): string {
+  const names = o.names.join(', ');
+  return o.value ? `${names} ${o.value}` : names;
+}
+
+/**
+ * ADR-0059: how to use the package and which arguments it takes, beside the terminal button.
+ * Steps and examples come from the frozen spec (visible cases only); the options are read
+ * from the package's source text on the server, never by running it.
+ */
+function UsageGuide({
+  base,
+  summary,
+  use,
+}: {
+  base: string;
+  summary: ArtifactSummary;
+  use: (args: string[]) => void;
+}) {
+  const guide = useLoad(
+    () =>
+      api(ArtifactGuideSchema, `${base}/artifacts/${summary.id}/guide`, {
+        timeoutMs: 30000,
+      }),
+    [base, summary.id, summary.manifest_sha256],
+  );
+  const g = guide.data;
+  return (
+    <details className="usage-guide" open>
+      <summary>How to use it</summary>
+      {guide.loading && <p className="small">Reading the spec and source…</p>}
+      {guide.error && (
+        <p className="small error" role="alert">
+          The guide could not be loaded: {guide.error}
+        </p>
+      )}
+      {g && (
+        <>
+          {g.spec && g.spec.flows.length > 0 && (
+            <>
+              <h5>What it does</h5>
+              <ul className="usage-flows">
+                {g.spec.flows.map((f) => (
+                  <li key={f.key}>
+                    <strong>{f.name}</strong>
+                    <ol>
+                      {f.steps.map((x, i) => (
+                        <li key={i}>{x}</li>
+                      ))}
+                    </ol>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <h5>Arguments it takes</h5>
+          {g.options.length > 0 ? (
+            <>
+              <div className="table-wrap">
+                <table className="tests usage-options">
+                  <thead>
+                    <tr>
+                      <th scope="col">Argument</th>
+                      <th scope="col">What it does</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.options.map((o) => (
+                      <tr key={o.names.join(' ')}>
+                        <th scope="row">
+                          <code>{optionUsage(o)}</code>
+                        </th>
+                        <td>
+                          {o.help ?? (
+                            <span className="hint">No description</span>
+                          )}
+                          {o.required && (
+                            <span className="hint"> (required)</span>
+                          )}
+                          {o.default !== null &&
+                            !/default/i.test(o.help ?? '') && (
+                              <span className="hint">
+                                {' '}
+                                (default {o.default})
+                              </span>
+                            )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="small">
+                {g.options_source === 'argparse'
+                  ? "Read from the program's source (its argparse options), not by running it."
+                  : "Found as option names in the program's source, not by running it; descriptions are not available."}
+                {g.options_truncated
+                  ? ' More options exist than are listed here.'
+                  : ''}
+                {g.help_flag && (
+                  <>
+                    {' '}
+                    Run it with <code>--help</code> for its own description.
+                  </>
+                )}
+              </p>
+            </>
+          ) : (
+            <p className="small">
+              No options were found in the program&apos;s source.{' '}
+              {g.help_flag ? (
+                <>
+                  Run it with <code>--help</code> for its own description.
+                </>
+              ) : (
+                'Try running it with no arguments.'
+              )}
+            </p>
+          )}
+          {g.spec && g.spec.examples.length > 0 && (
+            <>
+              <h5>
+                {g.spec.examples.length === 1 ? 'Example' : 'Examples'} from the
+                spec
+              </h5>
+              <ul className="usage-examples">
+                {g.spec.examples.map((x) => (
+                  <li key={x.check_key}>
+                    <p>
+                      <strong>{x.check_key}</strong> {x.statement}
+                    </p>
+                    <pre>
+                      <code>{terminalCommand(x.args)}</code>
+                    </pre>
+                    {x.stdin && (
+                      <>
+                        <p className="small">Then type:</p>
+                        <pre>
+                          <code>{x.stdin.trimEnd()}</code>
+                        </pre>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => use(x.args)}
+                    >
+                      Use these arguments
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {g.spec.more_examples > 0 && (
+                <p className="small">
+                  {g.spec.more_examples} more visible{' '}
+                  {g.spec.more_examples === 1 ? 'case is' : 'cases are'} in the
+                  spec.
+                </p>
+              )}
+            </>
+          )}
+          {!g.spec && (
+            <p className="small">
+              The spec version this package was built from is not available, so
+              no steps or examples can be shown.
+            </p>
+          )}
+          {g.spec?.held_out_hidden && (
+            <p className="small">
+              Held-out cases are not shown; QA uses them to check the build.
+            </p>
+          )}
+        </>
+      )}
+      <h5>In the terminal window</h5>
+      <ul className="usage-window">
+        <li>
+          When the program ends, press <kbd>Enter</kbd> to run it again with the
+          same arguments, or type new ones and press <kbd>Enter</kbd>. The{' '}
+          <kbd>Up</kbd> arrow recalls earlier ones; type <code>.</code> to run
+          with none.
+        </li>
+        <li>
+          Type <code>q</code> to close; Stop above also closes it. Quit a run
+          with the program&apos;s own keys: <kbd>Ctrl+C</kbd> may end it at
+          once, before it prints a final report.
+        </li>
+        <li>
+          Each run may take 15 minutes. The session ends after 60 minutes in
+          all, 50 runs, or 10 minutes without input at the prompt; the window
+          then waits for <kbd>Enter</kbd> so you can read the last screen.
+        </li>
+      </ul>
+    </details>
+  );
+}
 /**
  * ADR-0058: run the verified package interactively in a console window on this computer,
  * inside the isolated worker. The owner confirms the exact command every time.
@@ -510,12 +714,21 @@ function TerminalPanel({
       <h4 id="term-title">Run in a terminal</h4>
       <p className="small">
         Opens a terminal window on this computer and runs this exact package
-        there, in the isolated worker: no network, no studio files, 15 minutes
-        at most. Use it for programs that need you at the keyboard. What it
-        prints stays in the window and is not saved; these runs are your own
-        tries, not test results. Quit with the program's own keys: Ctrl+C may
-        end it at once, before it prints a final report.
+        there, in the isolated worker: no network, no studio files. Use it for
+        programs that need you at the keyboard. What it prints stays in the
+        window and is not saved; these runs are your own tries, not test
+        results.
       </p>
+      <UsageGuide
+        base={base}
+        summary={summary}
+        use={(a) => {
+          setText(a.join('\n'));
+          setConfirming(false);
+          setError('');
+          setNotice('Arguments filled in below.');
+        }}
+      />
       {!confirming ? (
         <form
           onSubmit={(e: FormEvent) => {
@@ -610,8 +823,30 @@ function TerminalPanel({
                 {TERMINAL_STATES[x.state]}
               </span>{' '}
               <code>{x.command}</code> · {when(x.started_at)}
-              {x.exit_code !== null ? ` · exit ${x.exit_code}` : ''}
+              {(x.run_count ?? 1) > 1 ? ` · ${x.run_count} runs` : ''}
+              {x.exit_code !== null
+                ? ` · ${(x.run_count ?? 1) > 1 ? 'last ' : ''}exit ${x.exit_code}`
+                : ''}
               {x.reason && x.state !== 'ended' ? ` · ${x.reason}` : ''}
+              {x.runs && x.runs.length > 1 && (
+                <details className="terminal-runs">
+                  <summary>Runs in this window</summary>
+                  <ol>
+                    {x.runs.map((r, i) => (
+                      <li key={i}>
+                        <code>{terminalCommand(r.args)}</code> · exit{' '}
+                        {r.exit_code ?? '—'} · {duration(r.seconds)}
+                      </li>
+                    ))}
+                  </ol>
+                  {(x.run_count ?? 0) > x.runs.length && (
+                    <p className="small">
+                      Only the last {x.runs.length} of {x.run_count} runs are
+                      kept.
+                    </p>
+                  )}
+                </details>
+              )}
               {x.state === 'running' && (
                 <>
                   {' '}
