@@ -246,13 +246,6 @@ export function BuildView({
         e.version === s.spec.version &&
         e.body?.format === 'spec/1',
     );
-  /** A frozen spec none of whose tasks can be built: the first reason, said before Create product. */
-  const unbuildable = (s: SpecStatus) => {
-    const body = SpecBodySchema.safeParse(entityOf(s)?.body);
-    if (!s.frozen_current || !body.success) return null;
-    const why = body.data.tasks.map((t) => buildBlockers(body.data, t.key));
-    return why.every((w) => w.length) ? why[0]![0]! : null;
-  };
   // Options chosen for build that have no spec of that exact version yet.
   const unwritten = d ? unwrittenOptions(d.selections, d.specEntities) : [];
   /** A spec written from a selection that has since been recorded again or replaced. */
@@ -435,8 +428,11 @@ export function BuildView({
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
                       )}
-                      {unbuildable(s) && (
-                        <small> · Can't be built yet: {unbuildable(s)}</small>
+                      {unbuildable(s, entityOf(s)) && (
+                        <small>
+                          {' '}
+                          · Can't be built yet: {unbuildable(s, entityOf(s))}
+                        </small>
                       )}{' '}
                       {owner && s.frozen_current && made.length === 0 && (
                         <button
@@ -988,6 +984,14 @@ function Product({
       })}
     </article>
   );
+}
+
+/** A frozen spec none of whose tasks can be built: the first reason, said before Create product. */
+function unbuildable(s: SpecStatus, entity: StoredEntity | undefined) {
+  const body = SpecBodySchema.safeParse(entity?.body);
+  if (!s.frozen_current || !body.success) return null;
+  const why = body.data.tasks.map((t) => buildBlockers(body.data, t.key));
+  return why.every((w) => w.length) ? why[0]![0]! : null;
 }
 
 /** The build plan: which run, budget, pricing, humility review and builder; limits in range. */
