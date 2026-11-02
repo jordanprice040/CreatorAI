@@ -1,3 +1,11 @@
+## Fix terminal restart timing race — November 2, 2026
+
+What now works: "Run in terminal" can start a new session for a product as soon as the last one shows an outcome. Before, `TerminalSupervisor` released the product's slot only in `finish()`'s `finally`, after `settle()` had written `outcome.json`, written the outcome event and removed the package copy, so a restart in that window was refused as "already open" (the cause of the intermittent `terminal.test.ts` failure on PG18 CI). `settle()` now marks the session as ending before it writes the outcome (the file is visible while it is still being written and synced), which frees the product's slot and the studio-wide count, and removes the entry once the outcome is complete. A listing in between still sees the session as ours, not as lost (review N-2 kept).
+
+Also fixed, found by the new test: `status()` checked whether a session was ours only after reading the outcome, so a listing that read the outcome as missing just before `settle()` wrote it could then find the session gone, record it as lost and fail with EEXIST on the second outcome write. It now decides "ours" first; a session that is ours with a missing or partly written outcome reads as its intent.
+
+Checks run: new test "a new session can start as soon as the last one has an outcome" (five back-to-back restarts, polling the listing as tightly as the event loop allows) fails 10 of 10 runs on the old code and passes 40 of 40 on the new; `terminal.test.ts` passes 20 of 20 runs; `pnpm test` without a database: 689 tests, 447 pass, 237 skipped (database), 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass. Not run against PostgreSQL here; CI runs `test:db` on PG18. No migration, no ADR.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

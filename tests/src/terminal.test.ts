@@ -315,6 +315,30 @@ test('runs of the same window are recorded with the outcome; a malformed run lis
   assert.equal(stopped.run_count, undefined);
 });
 
+test('a new session can start as soon as the last one has an outcome', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  let s = await start(h.terminals, p);
+  for (let round = 0; round < 5; round++) {
+    await h.windows[round]!.result({
+      exit_code: 0,
+      reason: null,
+      cleaned: true,
+      unit_state: 'inactive',
+    });
+    // Restart the moment the listing shows the end (as the app's Run again does), polling
+    // as tightly as the event loop allows so the start lands while the event write and
+    // package-copy cleanup after the outcome are still in flight.
+    for (;;) {
+      const [x] = await h.terminals.list(p, owner);
+      if (x?.id === s.id && x.state !== 'running') break;
+      await new Promise((r) => setImmediate(r));
+    }
+    s = await start(h.terminals, p);
+  }
+  assert.equal(h.windows.length, 6);
+});
+
 test('one open session per product and a studio-wide cap', async (t) => {
   const h = await harness(t);
   const p = await h.product();

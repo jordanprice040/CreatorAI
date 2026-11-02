@@ -166,6 +166,11 @@ const defaultPorts: TerminalPorts = {
 interface Active {
   productId: string;
   cancelled: boolean;
+  /**
+   * Set when the session's end is being recorded. It no longer holds the product's slot
+   * or counts toward the cap, but stays listed as ours until its outcome is readable.
+   */
+  ending?: boolean;
   finished: Promise<TerminalSession>;
 }
 
@@ -248,12 +253,13 @@ export class TerminalSupervisor {
         'LIVE_DISABLED',
         'Running a package in a terminal needs the Windows studio with its WSL worker. Nothing was started.',
       );
-    if ([...this.active.values()].some((a) => a.productId === o.productId))
+    const holding = [...this.active.values()].filter((a) => !a.ending);
+    if (holding.some((a) => a.productId === o.productId))
       throw new ContractError(
         'INVALID_TRANSITION',
         'A terminal for this product is already open. Stop it or close its window first.',
       );
-    if (this.active.size >= TERMINAL_LIMIT)
+    if (holding.length >= TERMINAL_LIMIT)
       throw new ContractError(
         'LIMIT_EXCEEDED',
         `At most ${TERMINAL_LIMIT} terminals can be open at once. Stop one first.`,
@@ -555,7 +561,14 @@ export class TerminalSupervisor {
       exit_code: end.exit_code ?? null,
       finished_at: new Date().toISOString(),
     });
+    // The session is over: free the product's slot before the outcome is written, since
+    // the file is visible while it is still being written and synced, and a restart from
+    // the listing must not be refused as "already open". The entry stays until the
+    // outcome is complete so a listing in between cannot record it as lost (review N-2).
+    const entry = this.active.get(record.id);
+    if (entry) entry.ending = true;
     await jsonWrite(join(dir, 'outcome.json'), outcome);
+    this.active.delete(record.id);
     await event(
       this.products.dir(record.product_id),
       'terminal.outcome',
@@ -570,19 +583,24 @@ export class TerminalSupervisor {
 
   async status(productId: string, sessionId: string): Promise<TerminalSession> {
     const dir = this.dir(productId, sessionId);
+    // Decide "ours" before reading the outcome: settle() lets go of a session only once
+    // its outcome is complete, so a session ours at this point is either still open or has
+    // an outcome being written (absent or partly written now). Checking afterwards could
+    // miss an outcome written in between and record the session as lost a second time.
+    const ours = this.active.has(sessionId);
     try {
       return checked(
         TerminalSessionSchema,
         await readJson(join(dir, 'outcome.json')),
       );
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      if (!ours && (e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
     const intent = checked(
       TerminalSessionSchema,
       await readJson(join(dir, 'intent.json')),
     );
-    if (this.active.has(sessionId)) return intent;
+    if (ours) return intent;
     // Not ours and not finished: the studio restarted while it was open. The worker ends a
     // session within 5 seconds of losing the heartbeat; record that honestly.
     return this.settle(intent, dir, join(dir, 'job'), {
