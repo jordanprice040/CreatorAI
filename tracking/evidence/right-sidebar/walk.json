@@ -1,0 +1,147 @@
+[
+  {
+    "check": "1600: layout",
+    "result": "docked"
+  },
+  {
+    "check": "1600: page and sidebar do not overlap",
+    "result": true
+  },
+  {
+    "check": "1600: sidebar width",
+    "result": 320
+  },
+  {
+    "check": "1600: activity sections",
+    "result": [
+      "Running now",
+      "Recent"
+    ]
+  },
+  {
+    "check": "1600: recent entries shown",
+    "result": 15
+  },
+  {
+    "check": "notes: save status",
+    "result": 200
+  },
+  {
+    "check": "notes: status after typing",
+    "result": "Saved Nov 2, 2026, 10:26 AM"
+  },
+  {
+    "check": "notes: tab remembered after reload",
+    "result": "true"
+  },
+  {
+    "check": "notes: text after reload",
+    "result": "Call the clinic about the no-show data.\nTry a 2-week pilot."
+  },
+  {
+    "check": "fold: layout after folding",
+    "result": "rail"
+  },
+  {
+    "check": "fold: still folded after reload",
+    "result": true
+  },
+  {
+    "check": "fold: Ctrl+. unfolds",
+    "result": "docked"
+  },
+  {
+    "check": "conflict: window A saves",
+    "result": 200
+  },
+  {
+    "check": "conflict: window B save refused",
+    "result": 409
+  },
+  {
+    "check": "conflict: window B is asked",
+    "result": "These notes were changed in another window (Nov 2, 2026, 10:26 AM). Which text do you want to keep?"
+  },
+  {
+    "check": "conflict: text kept after fold and reopen",
+    "result": "Text from window B, plus more typed during the conflict"
+  },
+  {
+    "check": "conflict: keep mine saves",
+    "result": 200
+  },
+  {
+    "check": "conflict: window A after reload shows B",
+    "result": "Text from window B, plus more typed during the conflict"
+  },
+  {
+    "check": "long note: save status",
+    "result": 200
+  },
+  {
+    "check": "1280: layout",
+    "result": "rail"
+  },
+  {
+    "check": "1280: Esc closes the overlay",
+    "result": true
+  },
+  {
+    "check": "960: layout",
+    "result": "drawer"
+  },
+  {
+    "check": "960: no rail",
+    "result": true
+  },
+  {
+    "check": "960: drawer fits the window",
+    "result": true
+  },
+  {
+    "check": "960: no horizontal scroll",
+    "result": true
+  },
+  {
+    "check": "390: layout",
+    "result": "drawer"
+  },
+  {
+    "check": "390: no rail",
+    "result": true
+  },
+  {
+    "check": "390: drawer fits the window",
+    "result": true
+  },
+  {
+    "check": "390: no horizontal scroll",
+    "result": true
+  },
+  {
+    "check": "sign-in: other people's unsaved copies removed",
+    "result": true
+  },
+  {
+    "check": "sign-out: warns about unsaved notes",
+    "result": [
+      "You have notes that are not saved yet. Signing out deletes them. Sign out anyway?"
+    ]
+  },
+  {
+    "check": "sign-out: declining keeps the session and the text",
+    "result": true
+  },
+  {
+    "check": "sign-out: accepting signs out and clears the copy",
+    "result": true
+  },
+  {
+    "check": "sign-out: only the blocked saves failed",
+    "result": true
+  },
+  {
+    "check": "console and page errors",
+    "result": []
+  }
+]

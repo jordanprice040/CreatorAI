@@ -2338,6 +2338,60 @@ fieldset.flagged {
   color: var(--muted);
 }
 
+/* ---------- Try: usage guide beside "Run in a terminal" (ADR-0059) ---------- */
+.usage-guide {
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.usage-guide > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.usage-guide h5 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+.usage-flows,
+.usage-examples {
+  margin: 0;
+  padding-left: 18px;
+}
+.usage-flows ol {
+  margin: 2px 0 6px;
+}
+.usage-examples > li {
+  margin-bottom: 10px;
+}
+.usage-examples p {
+  margin: 0 0 4px;
+}
+.usage-examples pre {
+  margin: 0 0 6px;
+}
+table.usage-options th[scope='row'] {
+  white-space: nowrap;
+  font-weight: 400;
+  color: var(--text);
+}
+.terminal-runs {
+  margin: 4px 0 0;
+}
+.terminal-runs ol {
+  margin: 4px 0;
+}
+.usage-guide .hint {
+  color: var(--text-3);
+}
+.usage-window {
+  margin: 0;
+  padding-left: 18px;
+}
+.usage-window li {
+  margin-bottom: 4px;
+}
 /* Build › Write a spec: one block per flow, check, case and task. */
 .spec-form .sf-item {
   border-left: 3px solid var(--border);

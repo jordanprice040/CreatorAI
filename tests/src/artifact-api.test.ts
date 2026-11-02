@@ -688,6 +688,31 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     ).status,
     409,
   );
+  // ADR-0059: Try's usage guide beside the terminal button. Spec steps and visible examples
+  // only (never the held-out A2), and options read from the exact package's source text.
+  const guide = await http(`workspaces/${ws}/artifacts/${a1.id}/guide`);
+  assert.equal(guide.status, 200, JSON.stringify(guide.body));
+  assert.ok(
+    guide.body.spec.flows.some((f: any) => f.name === 'Print checklist'),
+  );
+  assert.deepEqual(
+    guide.body.spec.examples.map((x: any) => x.check_key),
+    ['A1'],
+  );
+  assert.equal(guide.body.spec.held_out_hidden, true);
+  assert.doesNotMatch(
+    JSON.stringify(guide.body.spec.examples),
+    /"unexpected"|invalid input/,
+  );
+  assert.deepEqual(guide.body.command, ['python3', '-I', 'src/main.py']);
+  // This package's source declares no options (cli-options.test.ts covers the parsing).
+  assert.equal(guide.body.options_source, 'none');
+  assert.deepEqual(guide.body.options, []);
+  assert.equal(
+    (await http(`workspaces/${ws}/artifacts/${a1.id}/guide`, undefined, {}))
+      .status,
+    401,
+  );
   const termList = await http(terminalPath);
   assert.equal(termList.status, 200);
   assert.deepEqual(

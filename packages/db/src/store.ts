@@ -629,6 +629,11 @@ export class Store {
       );
       if (Number(owners.rows[0]?.n ?? 0) === 0)
         throw fail('INVALID_TRANSITION', 'The last owner cannot be removed.');
+      // ADR-0060: a person's private notes for the workspace leave with them.
+      await c.query(
+        'delete from workspace_notes where workspace_id = $1 and actor_id = $2',
+        [ws, actorId],
+      );
       await this.append(c, ctx, {
         workspaceId: ws,
         action: 'member.removed',
