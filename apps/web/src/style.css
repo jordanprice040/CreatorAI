@@ -321,6 +321,10 @@ a:hover {
   font-size: 11px;
   color: var(--text-3);
 }
+.sidebar-foot .theme-button {
+  justify-self: start;
+  margin: -4px 0 4px -6px;
+}
 .column {
   display: flex;
   flex-direction: column;
@@ -2094,6 +2098,118 @@ fieldset.flagged {
 .chat-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* A model answer's Markdown (markdown-view.tsx). Spacing between blocks, not after the last. */
+.md {
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.md > * + *,
+.md li > * + *,
+.md blockquote > * + * {
+  margin-top: 10px !important;
+}
+.md .md-h {
+  margin: 0;
+  font-weight: 650;
+  color: var(--text);
+}
+.md .md-h1 {
+  font-size: 16px;
+}
+.md .md-h2 {
+  font-size: 15px;
+}
+.md .md-h3 {
+  font-size: 14px;
+}
+.md > .md-h + *,
+.md li > .md-h + * {
+  margin-top: 4px !important;
+}
+.md ul,
+.md ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.md li + li {
+  margin-top: 4px;
+}
+.md li::marker {
+  color: var(--text-2);
+}
+.md blockquote {
+  margin: 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-2);
+}
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--border-strong);
+  margin-left: 0;
+  margin-right: 0;
+}
+.md pre.md-code {
+  margin: 0;
+  background: var(--surface-raised);
+  white-space: pre;
+  overflow-wrap: normal;
+  color: var(--text);
+}
+.md pre.md-code code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  overflow-wrap: normal;
+}
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md .md-url {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.md .md-copy {
+  font-size: 0.85em;
+}
+.md ul {
+  list-style-type: disc;
+}
+.md ul ul {
+  list-style-type: circle;
+}
+.md ul ul ul {
+  list-style-type: square;
+}
+.md del {
+  color: var(--text-2);
+}
+.md-table {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.md-table table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--border-strong);
+  padding: 4px 8px;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: normal;
+}
+.md-table th {
+  font-weight: 600;
+  background: var(--surface-raised);
 }
 .chat-actions {
   display: flex;
