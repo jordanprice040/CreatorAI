@@ -1,4 +1,5 @@
 import { SpecForm, type SpecFormMode } from './spec-form.js';
+import { HumilityForm } from './humility.js';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArtifactSummarySchema,
@@ -17,7 +18,7 @@ import {
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, when } from './oversight.js';
+import { api, message, when, words } from './oversight.js';
 import {
   Empty,
   Status,
@@ -244,6 +245,22 @@ export function BuildView({
         e.version === s.spec.version &&
         e.body?.format === 'spec/1',
     );
+  const [humilityFor, setHumilityFor] = useState<SpecStatus | null>(null);
+  const reviewOf = (id: string, version?: number) =>
+    d?.reviews.find((r) => {
+      const sub = r.body?.subject as
+        { id: string; version: number } | undefined;
+      return (
+        r.status === 'active' &&
+        sub?.id.toLowerCase() === id.toLowerCase() &&
+        (version === undefined || sub.version === version)
+      );
+    });
+  /** The review to start from: this spec's newest (any version), else its option's. */
+  const startFrom = (s: SpecStatus) => {
+    const alt = entityOf(s)?.body?.alternative as { id: string } | undefined;
+    return reviewOf(s.spec.id) ?? (alt ? reviewOf(alt.id) : undefined);
+  };
   // Options chosen for build that have no spec of that exact version yet.
   const unwritten = d ? unwrittenOptions(d.selections, d.specEntities) : [];
   /** A spec written from a selection that has since been recorded again or replaced. */
@@ -477,6 +494,66 @@ export function BuildView({
                             Freeze it under Scores and specs
                           </button>
                         )}
+                      {s.spec.status === 'active' &&
+                        (!stale(s) || s.frozen_current) && (
+                          <div className="small">
+                            {reviewOf(s.spec.id, s.spec.version) ? (
+                              <>
+                                Humility review of v{s.spec.version}:{' '}
+                                {words(
+                                  String(
+                                    reviewOf(s.spec.id, s.spec.version)!.body
+                                      ?.disposition ?? '',
+                                  ),
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                No humility review of v{s.spec.version} yet; a
+                                build needs one.
+                              </>
+                            )}{' '}
+                            {writer && !humilityFor && (
+                              <button
+                                className="text"
+                                onClick={() => {
+                                  setNote('');
+                                  setHumilityFor(s);
+                                }}
+                              >
+                                {reviewOf(s.spec.id, s.spec.version)
+                                  ? 'Review again'
+                                  : 'Add a humility review'}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      {humilityFor?.spec.id === s.spec.id && (
+                        <HumilityForm
+                          key={`${s.spec.id}:${s.spec.version}`}
+                          base={base}
+                          session={session}
+                          subject={{
+                            id: s.spec.id,
+                            version: s.spec.version,
+                            label: s.spec.title,
+                          }}
+                          {...(startFrom(s) ? { earlier: startFrom(s)! } : {})}
+                          prefill={{
+                            whose_perspective: String(
+                              entityOf(s)?.body?.audience ?? '',
+                            ),
+                          }}
+                          cancel={() => setHumilityFor(null)}
+                          saved={() => {
+                            setHumilityFor(null);
+                            setNote(
+                              `Humility review of ${s.spec.title} v${s.spec.version} saved.`,
+                            );
+                            data.reload();
+                          }}
+                        />
+                      )}
                     </li>
                   );
                 })}

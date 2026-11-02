@@ -2435,6 +2435,12 @@ table.usage-options th[scope='row'] {
   margin: 6px 0;
 }
 
+/* Earlier judgments shown beside humility fields that must be picked again. */
+.humility-form .earlier {
+  color: var(--muted);
+  font-weight: normal;
+}
+
 /* Compare and decide › Score an option: rating choices in a row, one claim per line. */
 .score-form .choices {
   display: flex;

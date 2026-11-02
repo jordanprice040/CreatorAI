@@ -179,7 +179,7 @@ export function pipelineStep(f: StudioFacts): Step {
   if (!f.reviewed)
     return {
       tone: 'next',
-      text: `Add a humility review of the frozen spec version ${cli(f, 'humility-gate')}. A build needs one.`,
+      text: 'Add a humility review of the frozen spec version under Projects › Build (Add a humility review). A build needs one.',
       action: { view: 'build' },
     };
   return productStep(f);

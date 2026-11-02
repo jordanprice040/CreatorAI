@@ -94,17 +94,28 @@ test('the main path names the first missing step and the page that takes it', as
     'scores',
   );
   // Writing a spec has a form now (Build › Write a spec), so it never sends anyone to the CLI.
+  const review = pipelineStep({ ...done, reviewed: false });
+  assert.match(review.text, /Add a humility review/);
+  assert.doesNotMatch(review.text, /pnpm cli|command line/);
   const spec = pipelineStep({ ...done, specs: 0, frozenSpecs: 0 });
   assert.match(spec.text, /Write a spec/);
   assert.doesNotMatch(spec.text, /pnpm cli|command line/);
   assert.equal(pipelineStep(done).action?.view, 'gallery');
 });
 
-// Uses an unreviewed spec: the humility review is the first desktop step that would
-// otherwise name a command, now that scoring and specs have forms (review of PR #112, N-3).
+// Uses accepted feedback: revising from it is the one main-path step still CLI-only, now that
+// scoring, specs and the humility review have forms (review of PR #112, N-3).
 test('the desktop app is never told to run a command it does not have', async () => {
   const { pipelineStep } = await load<Rules>('next-rules.ts');
-  const step = pipelineStep({ ...done, reviewed: false, desktop: true });
+  // Revising from accepted feedback still needs the command line.
+  const step = pipelineStep({
+    ...done,
+    desktop: true,
+    product: {
+      ...(done.product as Facts),
+      feedback: { total: 1, accepted: 1, undecided: 0 },
+    },
+  });
   assert.doesNotMatch(step.text, /pnpm cli/);
   assert.match(step.text, /desktop app does not have/);
 });
