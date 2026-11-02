@@ -494,39 +494,40 @@ export function BuildView({
                             Freeze it under Scores and specs
                           </button>
                         )}
-                      {s.spec.status === 'active' && !stale(s) && (
-                        <div className="small">
-                          {reviewOf(s.spec.id, s.spec.version) ? (
-                            <>
-                              Humility review of v{s.spec.version}:{' '}
-                              {words(
-                                String(
-                                  reviewOf(s.spec.id, s.spec.version)!.body
-                                    ?.disposition ?? '',
-                                ),
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              No humility review of v{s.spec.version} yet; a
-                              build needs one.
-                            </>
-                          )}{' '}
-                          {writer && !humilityFor && (
-                            <button
-                              className="text"
-                              onClick={() => {
-                                setNote('');
-                                setHumilityFor(s);
-                              }}
-                            >
-                              {reviewOf(s.spec.id, s.spec.version)
-                                ? 'Review again'
-                                : 'Add a humility review'}
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      {s.spec.status === 'active' &&
+                        (!stale(s) || s.frozen_current) && (
+                          <div className="small">
+                            {reviewOf(s.spec.id, s.spec.version) ? (
+                              <>
+                                Humility review of v{s.spec.version}:{' '}
+                                {words(
+                                  String(
+                                    reviewOf(s.spec.id, s.spec.version)!.body
+                                      ?.disposition ?? '',
+                                  ),
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                No humility review of v{s.spec.version} yet; a
+                                build needs one.
+                              </>
+                            )}{' '}
+                            {writer && !humilityFor && (
+                              <button
+                                className="text"
+                                onClick={() => {
+                                  setNote('');
+                                  setHumilityFor(s);
+                                }}
+                              >
+                                {reviewOf(s.spec.id, s.spec.version)
+                                  ? 'Review again'
+                                  : 'Add a humility review'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       {humilityFor?.spec.id === s.spec.id && (
                         <HumilityForm
                           key={`${s.spec.id}:${s.spec.version}`}
