@@ -15,7 +15,10 @@
         "blockquote",
         "p"
       ],
-      "headings": ["Its purpose", "How to use it"],
+      "headings": [
+        "Its purpose",
+        "How to use it"
+      ],
       "bold": [
         "Creator Agent is a personal product studio:",
         "sources, claims, problems, and specifications",
@@ -30,13 +33,25 @@
         "$0–$5",
         "Needs a spec"
       ],
-      "code": ["pnpm cli login <code>", "python timing.py --practice"],
+      "code": [
+        "pnpm cli login <code>",
+        "python timing.py --practice"
+      ],
+      "bulletStyle": "disc",
       "links": [
         [
           "https://example.com/docs",
           "https://example.com/docs",
           "_blank",
-          "noopener noreferrer"
+          "noopener noreferrer",
+          "https://example.com/docs"
+        ],
+        [
+          "the getting-started guide",
+          "https://example.com/docs/start",
+          "_blank",
+          "noopener noreferrer",
+          "https://example.com/docs/start"
         ]
       ],
       "answerElements": 0,
@@ -63,6 +78,20 @@
   },
   {
     "check": "light: page errors",
+    "result": []
+  },
+  {
+    "check": "desktop: links",
+    "result": {
+      "anchors": 0,
+      "shown": [
+        "https://example.com/docs Copy",
+        "the getting-started guide (https://example.com/docs/start) Copy"
+      ]
+    }
+  },
+  {
+    "check": "desktop: page errors",
     "result": []
   },
   {

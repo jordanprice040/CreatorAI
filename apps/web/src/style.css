@@ -2163,6 +2163,25 @@ fieldset.flagged {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.md .md-url {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.md .md-copy {
+  font-size: 0.85em;
+}
+.md ul {
+  list-style-type: disc;
+}
+.md ul ul {
+  list-style-type: circle;
+}
+.md ul ul ul {
+  list-style-type: square;
+}
 .md del {
   color: var(--text-2);
 }

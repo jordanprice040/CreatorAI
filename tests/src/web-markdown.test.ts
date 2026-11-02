@@ -170,3 +170,66 @@ test('deep nesting and very long answers stay bounded', async () => {
   const stars = parseMarkdown('*'.repeat(20000) + 'x');
   assert.ok(Array.isArray(stars));
 });
+
+test('a link label never holds another link', async () => {
+  const { inline } = await mod;
+  assert.deepEqual(inline('[https://a.com](https://b.com)'), [
+    {
+      t: 'link',
+      href: 'https://b.com/',
+      c: [{ t: 'text', v: 'https://a.com' }],
+    },
+  ]);
+  assert.deepEqual(inline('[see <https://a.com> **now**](https://b.com)'), [
+    {
+      t: 'link',
+      href: 'https://b.com/',
+      c: [
+        { t: 'text', v: 'see <https://a.com> ' },
+        { t: 'strong', c: [{ t: 'text', v: 'now' }] },
+      ],
+    },
+  ]);
+});
+
+test('a table right after a text line is still a table', async () => {
+  const { parseMarkdown } = await mod;
+  const tree = parseMarkdown(
+    "Here's a comparison:\n| a | b |\n|---|---|\n| 1 | 2 |",
+  );
+  assert.deepEqual(
+    tree.map((b) => b.t),
+    ['para', 'table'],
+  );
+  // A line with a pipe but no matching separator stays in the paragraph.
+  assert.deepEqual(
+    parseMarkdown('a | b\nc | d').map((b) => b.t),
+    ['para'],
+  );
+});
+
+test('long runs of closing parens or heading spaces parse in linear time', async () => {
+  const { parseMarkdown } = await mod;
+  // Before the fix these took about 3 s and 18 s; 200 ms leaves room for slow machines.
+  const cases = {
+    parens: 'https://a.b/' + ')'.repeat(20_000),
+    heading: '# a' + ' '.repeat(190_000) + 'b #',
+    brackets: '['.repeat(20_000),
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    const start = performance.now();
+    const tree = parseMarkdown(text);
+    const ms = performance.now() - start;
+    assert.ok(tree.length > 0, name);
+    assert.ok(ms < 200, `${name} took ${ms.toFixed(0)} ms`);
+  }
+  const [para] = parseMarkdown('see https://a.b/x_(y)).');
+  assert.deepEqual((para!.c as Node[])[1], {
+    t: 'link',
+    href: 'https://a.b/x_(y)',
+    c: [{ t: 'text', v: 'https://a.b/x_(y)' }],
+  });
+  const [h] = parseMarkdown('## Title ##');
+  assert.deepEqual(h!.c, [{ t: 'text', v: 'Title' }]);
+  assert.deepEqual(parseMarkdown('# C#')[0]!.c, [{ t: 'text', v: 'C#' }]);
+});

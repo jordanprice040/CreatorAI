@@ -63,7 +63,7 @@ setFake(host.config_dir, {
     '',
     '> This is advice only; nothing was started.',
     '',
-    'Read more at https://example.com/docs. Unsafe: [click me](javascript:alert(1)) <img src=x onerror=alert(1)> <script>alert(2)</script>',
+    'Read more at https://example.com/docs or in [the getting-started guide](https://example.com/docs/start). Unsafe: [click me](javascript:alert(1)) <img src=x onerror=alert(1)> <script>alert(2)</script>',
   ].join('\n'),
 });
 const env = {

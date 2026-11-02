@@ -1,3 +1,17 @@
+## PR #106 review fixes: Markdown chat answers (M1, L1–L4, N1) — November 2, 2026
+
+Fresh review of PR #106 at `def43e0` (`/mnt/project-files/reviews/PR106_MARKDOWN_CHAT_REVIEW_2026-11-02.md`): one Medium, four Lows, one nit, no High. All fixed in the same PR. There is no migration and no ADR.
+
+- M1: the desktop app's studio window opens no new windows (`apps/desktop/src-tauri/src/main.rs`), so an answer link there would do nothing and hide its address. In the desktop app (`managed_by: desktop_app`) a link now shows as its words, then its address in monospace (selectable), then a Copy button; no anchor is created. In a browser it stays a new-window link with the address as its title. Opening links in the system browser from the desktop app was not added: that changes what the management window may hand to the OS and would need its own decision. The same dead-link pattern still exists in `checkout.tsx` and `models.tsx` (pre-existing, not changed here).
+- L1: bare-link trimming counts parentheses once instead of once per trailing `)`, and heading closers (`## Title ##`) are trimmed by a scan instead of a backtracking regex.
+- L2: a link's label never contains another link (no autolinks, `<url>` or `[..](..)` inside a label), so `[https://a](https://b)` is one link to b.
+- L3: a table directly after a text line (no blank line) is recognised when the next line is a separator with the same number of cells.
+- L4: new tests for L1 (a 20k `)` run, a 190k-space heading and a 20k `[` run must each parse in under 200 ms), L2 and L3, plus closer and `C#` heading cases.
+- N1: answer bullets use disc, then circle, then square, whatever list they sit in.
+- Also fixed: table cells were parsed with `.map(inline)`, which passed the column index as the nesting depth.
+
+Checks (cloud, PostgreSQL 16): typecheck and prettier pass. `node --test` ran 625 tests: 388 pass, 5 fail (the known PowerShell-wrapper tests) and 232 skipped (database tests). `web-markdown.test.ts` passes 9 of 9. I re-ran the walk with a labelled link added to the fake answer. In a browser, both links are anchors with `title` set to the address, and bullets are disc. With the auth status rewritten to `desktop_app`, there are 0 anchors, and the links read "https://example.com/docs Copy" and "the getting-started guide (https://example.com/docs/start) Copy" (screenshot `screens/desktop-links-dark.png`). There were no page errors. The Copy button's clipboard write was not clicked in the walk, and the installed app itself was not tried.
+
 ## Chat answers show formatted Markdown; theme button moves to the sidebar foot — November 2, 2026
 
 Jordan's Nov 2 notes after the upgrade: model answers in Chat showed raw Markdown (`**bold**`, `### Its purpose`, `- items`), and the light/dark button wrapped onto its own top-bar line when the window was not full screen. No migration, no ADR, no server change; display only.

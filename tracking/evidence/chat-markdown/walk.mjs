@@ -54,11 +54,13 @@ const shape = (p) =>
     nestedList: md.querySelectorAll('li ul').length,
     tableCells: [...md.querySelectorAll('td')].map((t) => t.textContent),
     code: [...md.querySelectorAll('code')].map((c) => c.textContent),
+    bulletStyle: getComputedStyle(md.querySelector('ul')).listStyleType,
     links: [...md.querySelectorAll('a')].map((a) => [
       a.textContent,
       a.getAttribute('href'),
       a.getAttribute('target'),
       a.getAttribute('rel'),
+      a.getAttribute('title'),
     ]),
     answerElements: md.querySelectorAll('script,img,iframe,[onerror]').length,
     rawHtmlShownAsText: md.textContent.includes('<img src=x onerror=alert(1)>'),
@@ -135,6 +137,38 @@ const themeSpot = (p) =>
   });
   await p.screenshot({ path: join(shots, 'chat-light.png') });
   log('light: page errors', errors);
+}
+{
+  // The installed app (managed_by desktop_app) opens no new windows, so links show their
+  // address with a Copy button instead of a dead anchor. Simulated by rewriting the auth status.
+  const { p, errors } = await signedIn(
+    { viewport: { width: 1280, height: 900 }, colorScheme: 'dark' },
+    'dark',
+  );
+  await p.route('**/api/auth/status', async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    await route.fulfill({
+      response: res,
+      json: { ...body, managed_by: 'desktop_app' },
+    });
+  });
+  await p.reload();
+  await p.waitForSelector('#chat-title');
+  await p.click('.chat-convo >> nth=0');
+  await p.waitForSelector('.chat-model-completed .md');
+  log(
+    'desktop: links',
+    await p.$eval('.chat-model-completed .md', (md) => ({
+      anchors: md.querySelectorAll('a').length,
+      shown: [...md.querySelectorAll('.md-link')].map((l) => l.textContent),
+    })),
+  );
+  await p.$eval('.chat-model-completed .md-link', (e) =>
+    e.scrollIntoView({ block: 'center' }),
+  );
+  await p.screenshot({ path: join(shots, 'desktop-links-dark.png') });
+  log('desktop: page errors', errors);
 }
 {
   // A window that is not full screen, like the one in Jordan's screenshot.

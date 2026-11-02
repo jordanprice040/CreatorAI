@@ -37,6 +37,19 @@ const TABLE_SEP = /^ *\|? *:?-+:? *(?:\| *:?-+:? *)*\|? *$/;
 const blank = (l: string) => l.trim() === '';
 const indentOf = (l: string) => l.length - l.trimStart().length;
 
+/** A header row followed by a matching separator row, so a table can follow a text line. */
+function startsTable(lines: string[], i: number) {
+  const l = lines[i]!;
+  const sep = lines[i + 1];
+  return (
+    l.includes('|') &&
+    sep !== undefined &&
+    sep.length <= 2000 &&
+    TABLE_SEP.test(sep) &&
+    cells(l).length === cells(sep).length
+  );
+}
+
 function startsBlock(l: string) {
   return (
     FENCE.test(l) ||
@@ -114,10 +127,7 @@ function blocks(lines: string[], depth: number): Block[] {
     const heading = HEADING.exec(line);
     if (heading) {
       // Closing #s ("## Title ##") are not part of the title.
-      const title = line
-        .slice(heading[0].length)
-        .trim()
-        .replace(/(?:^|\s+)#+$/, '');
+      const title = headingTitle(line.slice(heading[0].length).trim());
       out.push({ t: 'heading', level: heading[1]!.length, c: inline(title) });
       i++;
       continue;
@@ -160,17 +170,17 @@ function blocks(lines: string[], depth: number): Block[] {
         ) {
           const row = cells(lines[i]!).slice(0, head.length);
           while (row.length < head.length) row.push('');
-          rows.push(row.map(inline));
+          rows.push(row.map((c) => inline(c)));
           i++;
         }
-        out.push({ t: 'table', align, head: head.map(inline), rows });
+        out.push({ t: 'table', align, head: head.map((c) => inline(c)), rows });
         continue;
       }
     }
     const para: string[] = [];
     while (i < lines.length && !blank(lines[i]!)) {
       const l = lines[i]!;
-      if (para.length > 0 && startsBlock(l)) break;
+      if (para.length > 0 && (startsBlock(l) || startsTable(lines, i))) break;
       para.push(l.trim());
       i++;
     }
@@ -256,8 +266,19 @@ function cells(row: string): string[] {
 const PUNCT = /[!-/:-@[-`{-~]/;
 const WORD = /[\p{L}\p{N}]/u;
 
+/** A heading's text without closing #s ("## Title ##"); a scan, not a regex, so it stays linear. */
+function headingTitle(t: string): string {
+  let end = t.length;
+  while (end > 0 && t[end - 1] === '#') end--;
+  if (end === t.length) return t;
+  if (end === 0) return '';
+  let start = end;
+  while (start > 0 && /\s/.test(t[start - 1]!)) start--;
+  return start < end ? t.slice(0, start) : t;
+}
+
 /** Inline Markdown: emphasis, code spans, links and line breaks. Unmatched marks stay as text. */
-export function inline(s: string, depth = 0): Inline[] {
+export function inline(s: string, depth = 0, inLink = false): Inline[] {
   const out: Inline[] = [];
   // Once a mark has no closer from some point on, it has none from any later point, so a
   // long run of unmatched marks is scanned once instead of once per mark.
@@ -271,8 +292,11 @@ export function inline(s: string, depth = 0): Inline[] {
     flush();
     out.push(node);
   };
-  const nested = (v: string) =>
-    depth >= MAX_DEPTH ? [{ t: 'text', v } as Inline] : inline(v, depth + 1);
+  // Inside a link's label nothing else becomes a link: an <a> can't hold another.
+  const nested = (v: string, label = false) =>
+    depth >= MAX_DEPTH
+      ? [{ t: 'text', v } as Inline]
+      : inline(v, depth + 1, inLink || label);
   let i = 0;
   while (i < s.length) {
     const ch = s[i]!;
@@ -333,10 +357,10 @@ export function inline(s: string, depth = 0): Inline[] {
       i += mark.length;
       continue;
     }
-    if (ch === '[') {
+    if (ch === '[' && !inLink) {
       const link = parseLink(s, i);
       if (link) {
-        const label = nested(link.label);
+        const label = nested(link.label, true);
         const href = safeHref(link.href);
         if (href) push({ t: 'link', href, c: label });
         else {
@@ -348,7 +372,7 @@ export function inline(s: string, depth = 0): Inline[] {
         continue;
       }
     }
-    if (ch === '<') {
+    if (ch === '<' && !inLink) {
       const m = /^<((?:https?:\/\/|mailto:)[^\s<>]+)>/i.exec(s.slice(i));
       const href = m ? safeHref(m[1]!) : null;
       if (m && href) {
@@ -357,17 +381,25 @@ export function inline(s: string, depth = 0): Inline[] {
         continue;
       }
     }
-    if ((ch === 'h' || ch === 'H') && !WORD.test(i > 0 ? s[i - 1]! : ' ')) {
+    if (
+      (ch === 'h' || ch === 'H') &&
+      !inLink &&
+      !WORD.test(i > 0 ? s[i - 1]! : ' ')
+    ) {
       const m = /^https?:\/\/[^\s<>]+/i.exec(s.slice(i));
       if (m) {
         let raw = m[0];
-        // Trailing sentence punctuation is not part of a bare link.
+        // Trailing sentence punctuation is not part of a bare link, nor is a ")" that
+        // closes nothing in it. Parens are counted once, so a long ")" run stays linear.
+        const open = count(raw, '(');
+        let close = count(raw, ')');
         for (;;) {
           const last = raw[raw.length - 1]!;
           if (/[.,;:!?'"*_~]/.test(last)) raw = raw.slice(0, -1);
-          else if (last === ')' && count(raw, '(') < count(raw, ')'))
+          else if (last === ')' && open < close) {
             raw = raw.slice(0, -1);
-          else break;
+            close--;
+          } else break;
         }
         const href = safeHref(raw);
         if (href) {
