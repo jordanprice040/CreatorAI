@@ -1,3 +1,23 @@
+## PR #111 review fixes: link opening (L1–L3, N1, N2) — November 2, 2026
+
+Review of PR #111 at `6fbf733` (`/mnt/project-files/reviews/PR111_OPEN_LINKS_REVIEW_2026-11-02.md`): no High or Medium, three Lows, two nits. Fixed in the same PR; no migration, no new ADR (ADR-0061 amended).
+
+- L1: ADR-0061 no longer says local services are unreachable. It now says IP literals and local names are refused and a public name that resolves locally is not detected. Both checks also refuse `.localdomain`, `.corp` and the loopback DNS services `nip.io`, `sslip.io`, `xip.io`, `localtest.me` and `lvh.me`.
+- L2: the web mirror refuses a mailto link containing `?` or `#` (a bare trailing one left `search`/`hash` empty and showed a link that Rust refused).
+- L3: the throttle uses a monotonic clock (`Instant` since first use) instead of `SystemTime`. After a click on a link, the studio window's title says "opened the link in your browser or mail app", "link not opened: only public https pages and plain email addresses open from the app" or "link not opened: wait a second between links". Private previews are unchanged.
+- N1: the accepted and refused addresses live in one file, `apps/desktop/src-tauri/src/external-link-cases.json`, read by the `external.rs` tests (`include_str!` + serde_json) and `tests/src/web-markdown.test.ts`. CI still runs only the web side.
+- Merged main into the branch (only the tracking logs conflicted).
+
+Checks (cloud): `cargo check --target x86_64-pc-windows-gnu` clean, no warnings; `cargo fmt --check` clean. `external.rs` tests 2/2 pass in a scratch crate (the module with `url 2.5.8` and `serde_json 1.0.154`). Typecheck and prettier pass; web tests 84/84; full `pnpm test` 398 pass, 5 fail (the known PowerShell-wrapper tests, no pwsh), 232 skipped (database tests). Not checked: the title note and a real click in the installed app on Windows.
+
+## Open chat links in the browser from the desktop app (ADR-0061) — November 2, 2026
+
+Jordan asked (Nov 2) for links in chat answers to open in the browser from within the installed app (after PR #106 they were copy-only there). The studio window's new-window handler now hands public `https` links and plain `mailto:` addresses to Windows' default handler, at most one per second, through the same `rundll32 url.dll,FileProtocolHandler` route that previews and sign-in use. The check is in the new `apps/desktop/src-tauri/src/external.rs`, and the full rule is in ADR-0061. It refuses http, file, custom schemes, IP addresses, localhost and local-network names, credentials, ports, queries on mailto links and anything over 2,048 characters. In the desktop app, chat answer links that pass are clickable again and keep the address and Copy button; others stay copy-only. The usage-page and checkout links elsewhere in the app now open too. No plugin, no new dependency, no migration.
+
+Checks (cloud): `cargo check --target x86_64-pc-windows-gnu` for the desktop crate is clean (no warnings), and `cargo fmt --check` is clean. `external.rs` tests (2: 7 accepted and 22 refused addresses, throttle) pass through a scratch crate that includes the module with the `url` crate, because the full desktop crate's tests need Windows or GTK. Web typecheck and prettier pass. `web-markdown.test.ts` passes 10 of 10, including the same address table for the web mirror. Walk `tracking/evidence/chat-markdown/walk.mjs` with a simulated desktop auth status: both answer links are anchors (`_blank`, title "Opens in your browser: …") with the address and Copy, and there are no page errors (`screens/desktop-links-dark.png`).
+
+Not checked: clicking a link in the real installed app on Windows, because this container has no Windows or WebView2. That needs the next installed-app upgrade and one click from Jordan.
+
 ## Activity dots on other pages and tabs — November 2, 2026
 
 Jordan's Nov 2 note: show when something finishes on a page he is not on (a run completing, a decision being made, a chat reply from a model). The sidebar already had two marks: the Projects dot for a new path step (PR #97 L-2) and the Monitor count of pending approvals (PR #90); both are unchanged. New: an activity dot on a sidebar page and on its tab (and Launch sub-tab) when, since that tab was last open, a workflow run finished (Monitor › Runs), an approval was asked for or changed status (Monitor › Approvals), a build or package stopped running (Projects › Build), or a model reply came back in Chat. Opening that tab clears it; on the page you are on, the tab row carries the dot instead of the sidebar. Tooltip and screen-reader text say what happened. Web only: no API, migration or ADR.

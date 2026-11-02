@@ -23,6 +23,7 @@ type Mod = {
   parseMarkdown: (s: string) => Node[];
   inline: (s: string) => Node[];
   safeHref: (s: string) => string | null;
+  desktopOpens: (s: string) => boolean;
 };
 const mod = load<Mod>('markdown.ts');
 
@@ -232,4 +233,22 @@ test('long runs of closing parens or heading spaces parse in linear time', async
   const [h] = parseMarkdown('## Title ##');
   assert.deepEqual(h!.c, [{ t: 'text', v: 'Title' }]);
   assert.deepEqual(parseMarkdown('# C#')[0]!.c, [{ t: 'text', v: 'C#' }]);
+});
+
+test('the desktop app opens only the links its window hands to the browser (ADR-0061)', async () => {
+  const { desktopOpens } = await mod;
+  // external.rs's tests read the same file; the Rust check decides, this only picks link or
+  // copy-only, so any disagreement would be a dead link or a hidden one.
+  const cases = JSON.parse(
+    await readFile(
+      'apps/desktop/src-tauri/src/external-link-cases.json',
+      'utf8',
+    ),
+  ) as { open: string[]; refused: string[] };
+  for (const ok of cases.open) assert.equal(desktopOpens(ok), true, ok);
+  for (const refused of [
+    ...cases.refused,
+    `https://example.com/${'a'.repeat(2048)}`,
+  ])
+    assert.equal(desktopOpens(refused), false, refused);
 });
