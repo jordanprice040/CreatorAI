@@ -19,6 +19,7 @@ import {
   type RunControl,
   type SessionInfo,
   type Workspace,
+  dataClassName,
 } from '@creator/contracts';
 
 export class ApiError extends Error {
@@ -279,7 +280,7 @@ function Coverage({ d }: { d: Decision }) {
       </div>
       <div>
         <dt>Data</dt>
-        <dd>{b.data_class}</dd>
+        <dd>{dataClassName(b.data_class)} data</dd>
       </div>
       <div>
         <dt>Request expires</dt>

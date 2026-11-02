@@ -10,10 +10,15 @@ import {
   PricingSnapshotSchema,
   RunControlSchema,
   SelectionSchema,
+  SpecBodySchema,
   SpecStatusSchema,
   StoredEntitySchema,
+  buildBlockers,
+  connectionDataBlocker,
+  contractDataClass,
   z,
   type SessionInfo,
+  type SpecBody,
   type SpecStatus,
   type StoredEntity,
   type Workspace,
@@ -197,6 +202,8 @@ export function BuildView({
         connection_id: c.id,
         model_id: m.model_id,
         label: `${c.label} · ${m.model_id}`,
+        connection_label: c.label,
+        data_classes: c.settings.allowed_data_classes,
       })),
     );
     const now = Date.now();
@@ -424,6 +431,7 @@ export function BuildView({
             ) : (
               <ul className="rows">
                 {d.specs.map((s) => {
+                  const cannot = unbuildable(s, entityOf(s), fixture);
                   const made = d.products.filter(
                     (p) =>
                       p.product.binding.spec_id === s.spec.id &&
@@ -442,7 +450,8 @@ export function BuildView({
                           : 'not frozen'}
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
-                      )}{' '}
+                      )}
+                      {cannot && <small> · Can't be built yet: {cannot}</small>}{' '}
                       {owner && s.frozen_current && made.length === 0 && (
                         <button
                           className="secondary"
@@ -782,6 +791,8 @@ const reviewOf = (r: StoredEntity, s: SpecStatus) => {
 
 type Data = {
   reviews: StoredEntity[];
+  /** Spec records (current versions): what a task's build would be tested against. */
+  specEntities: StoredEntity[];
   runs: z.infer<typeof RunControlSchema>[];
   names: ReadonlyMap<string, string>;
   budgets: z.infer<typeof EnvelopeSchema>[];
@@ -792,6 +803,9 @@ type Data = {
     connection_id: string;
     model_id: string;
     label: string;
+    connection_label: string;
+    /** What the connection's settings allow; a build of another class is refused. */
+    data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
   }[];
   /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
@@ -952,6 +966,7 @@ function Product({
             {task && owner && current && (
               <StartBuild
                 key={task.id}
+                taskKey={key}
                 specId={p.binding.spec_id}
                 specVersion={p.binding.spec_version}
                 data={data}
@@ -1052,8 +1067,39 @@ function Product({
   );
 }
 
+/**
+ * The data class a build is sent with. Fixture records are synthetic; a real workspace classifies
+ * the build as its frozen data contracts need (at least public). The build's approval and grants
+ * still decide whether that class is admitted.
+ */
+function buildDataClass(spec: SpecBody, fixture: boolean) {
+  if (fixture) return 'synthetic' as const;
+  return contractDataClass(spec) === 'private_approved'
+    ? ('private_approved' as const)
+    : ('public' as const);
+}
+
+/** A frozen spec none of whose tasks can be built: the first reason, said before Create product. */
+function unbuildable(
+  s: SpecStatus,
+  entity: StoredEntity | undefined,
+  fixture: boolean,
+) {
+  const body = SpecBodySchema.safeParse(entity?.body);
+  if (!s.frozen_current || !body.success) return null;
+  const spec = body.data;
+  const dataClass = buildDataClass(spec, fixture);
+  // Builder tasks first: their reasons are the ones an edit to the spec can fix.
+  const tasks = [...spec.tasks].sort(
+    (a, b) => Number(b.role === 'builder') - Number(a.role === 'builder'),
+  );
+  const why = tasks.map((t) => buildBlockers(spec, t.key, dataClass));
+  return why.every((w) => w.length) ? why[0]![0]! : null;
+}
+
 /** The build plan: which run, budget, pricing, humility review and builder; limits in range. */
 function StartBuild({
+  taskKey,
   specId,
   specVersion,
   data,
@@ -1061,6 +1107,7 @@ function StartBuild({
   busy,
   start,
 }: {
+  taskKey: string;
   specId: string;
   specVersion: number;
   data: Data;
@@ -1116,6 +1163,27 @@ function StartBuild({
     ? price
     : (data.pricing[0]?.id ?? '');
   const chosen = reviews.find((r) => r.id === review) ?? reviews[0];
+  // What the frozen spec lacks for this task (e.g. test cases): the server refuses the same.
+  const entity = data.specEntities.find(
+    (e) =>
+      e.id.toLowerCase() === specId.toLowerCase() && e.version === specVersion,
+  );
+  const body = SpecBodySchema.safeParse(entity?.body);
+  const dataClass = body.success
+    ? buildDataClass(body.data, fixture)
+    : fixture
+      ? 'synthetic'
+      : 'public';
+  const blockers = body.success
+    ? buildBlockers(body.data, taskKey, dataClass)
+    : [];
+  const refusedClass = connection
+    ? connectionDataBlocker(
+        connection.data_classes,
+        dataClass,
+        connection.connection_label,
+      )
+    : null;
   const missing = [
     !runId && 'an active run (register one under Sources or Discover)',
     !budgetId && 'an active budget (Monitor › Budgets)',
@@ -1127,14 +1195,14 @@ function StartBuild({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (missing.length || !chosen) return;
+    if (missing.length || blockers.length || refusedClass || !chosen) return;
     void start({
       format: 'build-plan/1',
       run_id: runId,
       envelope_id: budgetId,
       pricing_snapshot_id: priceId,
       humility_review: { id: chosen.id, version: chosen.version },
-      data_class: fixture ? 'synthetic' : 'public',
+      data_class: dataClass,
       max_repairs: repairs,
       max_calls: 2 + 2 * repairs,
       // A streamed plan answer can take up to the plan's 120 s request timeout.
@@ -1269,11 +1337,41 @@ function StartBuild({
         <option value={1}>1</option>
         <option value={2}>2</option>
       </select>
+      {dataClass === 'private_approved' && (
+        <p className="small">
+          This spec's data contracts include approved private data, so the build
+          is classified for it. A plan builder's connection must allow approved
+          private data (Models and connections), and the build's approval and
+          grants must cover it, or the build stops before anything is sent.
+        </p>
+      )}
+      {refusedClass && (
+        <p className="notice" role="note">
+          {refusedClass}
+        </p>
+      )}
+      {blockers.length > 0 && (
+        <div className="notice" role="note">
+          <p>
+            <strong>
+              This task can't be built from this spec version yet.
+            </strong>
+          </p>
+          {blockers.map((b) => (
+            <p key={b}>{b}</p>
+          ))}
+        </div>
+      )}
       {missing.length > 0 && (
         <p className="small">Still needed: {missing.join(', ')}.</p>
       )}
       <div className="actions">
-        <button className="primary" disabled={busy || missing.length > 0}>
+        <button
+          className="primary"
+          disabled={
+            busy || missing.length > 0 || blockers.length > 0 || !!refusedClass
+          }
+        >
           Start build
         </button>
       </div>

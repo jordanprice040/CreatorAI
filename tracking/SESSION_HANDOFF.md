@@ -1,3 +1,33 @@
+## Say why a build can't start (no test cases) — November 2, 2026
+
+What now works: starting a build from a spec whose task has an automated-test check with no test cases is still refused, but in words. Before, the server answered with the raw contract message "Input does not satisfy the versioned contract. cases: Too small: expected array to have >=1 items" (found in the PR #114 re-review on the seeded fixture spec). A new pure helper `buildBlockers(spec, taskKey)` in `packages/contracts/src/selection.ts` lists, for people, every reason the reviewed builder would refuse the task: task not in the version, not an independent builder task, no acceptance checks, checks that are not automated tests, automated checks with no cases, more than 10 cases (the build plan's limit, which was another raw "Too big" path), and no held-out case. Each says how to fix it ("Add a case" under the check, tick "Held out", then revise, freeze the new version and create a product from it).
+
+- API: `POST products/{id}/builds` checks it before the build starts and answers 409 "This build can't start yet. Check A1 of task T1 has no test cases. …"; nothing is recorded. The build supervisor (`packages/executor/src/build.ts`) still enforces the same rules unchanged.
+- Build page: the Start build form shows a notice with the reasons and disables Start build; a frozen spec none of whose tasks can be built says "Can't be built yet: …" in the spec list, before Create product.
+
+Checks run: new `tests/src/build-blockers.test.ts` (a buildable fixture task has none; the seeded spec's T1 names check A1; plural wording; manual check, 11 cases, no held-out case, no checks, unknown task, dependent task); `tests/src/studio-builds.test.ts` now starts a build from the seeded spec and asserts the 409 wording, no "Too small", and no build recorded. `pnpm check` with a PostgreSQL 16 test database: 659 tests, 627 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); Prettier clean. Browser walk on a throwaway database on 5183/4330/4340 (`seed-selection`, fixture, $0): screenshots `tracking/evidence/build-blockers/a-spec-row.png` and `b-start-build.png`; Start build was disabled.
+
+Limits: the spec form's own advisory `buildNotes` (spec-fields.ts) is left as it is (it does not mention the 10-case limit). The seeded fixture spec still has no cases, so a fixture build from it stays refused (now with a clear reason); the $0 sample content is the buildable path. No migration, no ADR.
+
+Review fixes (review of PR #117 at 4d447e7, `/mnt/project-files/reviews/PR117_BUILD_BLOCKERS_REVIEW_2026-11-02.md`; Jordan asked for the Low too):
+
+- L-1: the Build page always sent `synthetic` (fixture) or `public` (real), so a spec whose frozen data contract needs a higher class kept Start build enabled and the server refused with "Build data classification does not cover frozen data contracts". New `contractDataClass(spec)` gives the lowest class covering every contract. A real workspace now sends `private_approved` when a contract needs it (with a line saying the build's approval and grants must cover approved private data; the existing admission still decides), else `public`. A fixture workspace stays synthetic, and `buildBlockers(spec, task, dataClass)` now names the contract that is above the class ("mark the contract synthetic, or build it in a real workspace"). The API passes the plan's class, so the server says the same words.
+- N-1: the spec-row note takes a builder task's reason first, and is computed once per row.
+- N-2: `tracking/evidence/build-blockers/walk.mjs` reproduces both screenshots (re-run on a fresh `seed-selection` workspace: Start build disabled, row note shown).
+- N-3: `pnpm cli build-task` checks the same blockers (with the plan file's data class) before parsing the plan, so an empty `cases` no longer says "Too small".
+
+Checks: `build-blockers.test.ts` gains a data-class test (synthetic/public/private contracts, plural and singular names, no class given); `studio-builds.test.ts` now also revises the seeded spec to a held-out case and a public contract and asserts the 409 words for a synthetic build. `pnpm check` with PostgreSQL 16: 660 tests, 628 pass, 27 skipped, 5 fail (known PowerShell wrapper, no pwsh); Prettier clean.
+
+Re-review fixes (`/mnt/project-files/reviews/PR117_BUILD_BLOCKERS_REREVIEW_2026-11-02.md`; Jordan asked for the Low):
+
+- L-1: a plan connection admits only the data classes in its settings, and that refusal came after the build was recorded. New `connectionDataBlocker(allowed, class, label)`: the Start build form shows it and stays disabled when the chosen plan builder's connection doesn't allow the class, and `POST products/{id}/builds` reads the connection (`planConnectionDetail`) and refuses with the same words, before anything is recorded, for plan-role and Codex builders. The private-data note now says the plan connection must allow approved private data.
+- N-1: the API/CLI words for a class below the contracts now name it: "Classify the build for approved private data (the plan's data_class "private_approved")".
+- N-2: the approval card shows "approved private data" instead of `private_approved` (new `dataClassName`).
+
+Checks: `build-blockers.test.ts` gains a connection test and the new wording; `pnpm check` with PostgreSQL 16: 661 tests, 629 pass, 27 skipped, 5 fail (known PowerShell wrapper). Not walked in the browser: it needs a real workspace with a verified plan connection, which would mean live steps. The CLI `build-task` path still meets this refusal only in the preflight, after recording.
+
+Second re-review fixes (`/mnt/project-files/reviews/PR117_BUILD_BLOCKERS_REREVIEW2_2026-11-02.md`; Jordan asked for the Low): `pnpm cli build-task` now reads the plan connection and refuses with `connectionDataBlocker` before the supervisor runs, so a CLI build is no longer recorded (plan roles) or put to an approval (Codex) when its connection doesn't allow the data class. N-1: `studio-builds.test.ts` creates a default-settings plan connection and asserts the 409 words for `plan_roles` and `codex_plan_builder` approved-private builds, with no build recorded. Main (#109, #110, #114–#116) merged in; only the tracking logs conflicted. No migration, no ADR. `pnpm check` with PostgreSQL 16 after the merge: 687 tests, 655 pass, 27 skipped, 5 fail (known PowerShell wrapper).
+
 ## Pricing and charges in the app (audit item 4, piece 5 of 5) — November 2, 2026
 
 What now works:

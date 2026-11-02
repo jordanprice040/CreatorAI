@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import {
   BrokerCallResultSchema,
   BuildApprovalResultSchema,
+  buildBlockers,
+  connectionDataBlocker,
   ContractError,
   EntityDetailSchema,
   GrantSchema,
@@ -526,6 +528,33 @@ export class StudioBuilds {
     const ports = this.ports(ctx, ws, p);
     const { spec } = await ports.current();
     const task = await this.artifacts.products.task(p.id, req.task_id);
+    // Said in words before the build starts; the build supervisor enforces the same rules.
+    const blockers = buildBlockers(spec, task.key, req.plan.data_class);
+    if (blockers.length)
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        `This build can't start yet. ${blockers.join(' ')}`,
+      );
+    // A plan connection admits only the data classes its settings allow; refused here, in words,
+    // before a build is recorded (the plan-role preflight checks it again).
+    const target = req.plan.plan_roles ?? req.plan.codex_plan_builder;
+    if (target) {
+      const detail = await this.store.planConnectionDetail(
+        bare(ctx),
+        ws,
+        target.connection_id,
+      );
+      const refusal = connectionDataBlocker(
+        detail.connection.settings.allowed_data_classes,
+        req.plan.data_class,
+        detail.connection.label,
+      );
+      if (refusal)
+        throw new ContractError(
+          'INVALID_TRANSITION',
+          `This build can't start yet. ${refusal}`,
+        );
+    }
     const assigned = spec.tasks.find((t) => t.key === task.key);
     const cases = frozenCases(spec, assigned?.acceptance ?? []).map(
       ({ held_out: _, ...c }) => c,

@@ -636,3 +636,113 @@ export const FreezeOutcomeSchema = z.strictObject({
   freeze: SpecFreezeSchema.nullable(),
 });
 export type FreezeOutcome = z.infer<typeof FreezeOutcomeSchema>;
+
+/** The most executable cases one build runs (the build plan's limit). */
+export const MAX_BUILD_CASES = 10;
+const METHOD_NAMES: Record<string, string> = {
+  automated_test: 'automated test',
+  browser_check: 'browser check',
+  manual_review: 'manual review',
+  metric: 'metric',
+};
+type BuildDataClass = 'synthetic' | 'public' | 'private_approved';
+const DATA_RANK: Record<BuildDataClass, number> = {
+  synthetic: 0,
+  public: 1,
+  private_approved: 2,
+};
+const DATA_NAMES: Record<BuildDataClass, string> = {
+  synthetic: 'synthetic',
+  public: 'public',
+  private_approved: 'approved private',
+};
+/**
+ * The lowest build data class that covers every frozen data contract of a spec (the build
+ * refuses a lower one). Synthetic when the spec declares no contracts.
+ */
+export function contractDataClass(s: SpecContent): BuildDataClass {
+  return s.data_contracts.reduce<BuildDataClass>(
+    (top, c) => (DATA_RANK[c.data_class] > DATA_RANK[top] ? c.data_class : top),
+    'synthetic',
+  );
+}
+/** A data class in words, e.g. "approved private" for `private_approved`. */
+export function dataClassName(c: string): string {
+  return DATA_NAMES[c as BuildDataClass] ?? c;
+}
+/**
+ * Why a plan connection would refuse a build of this data class, in words; null when its settings
+ * allow it. The plan-role preflight refuses the same, but only after the build is recorded.
+ */
+export function connectionDataBlocker(
+  allowed: readonly BuildDataClass[],
+  dataClass: BuildDataClass,
+  connectionLabel: string,
+): string | null {
+  if (allowed.includes(dataClass)) return null;
+  return `The plan connection "${connectionLabel}" doesn't allow ${DATA_NAMES[dataClass]} data, and this build is classified for it. Allow ${DATA_NAMES[dataClass]} data in that connection's settings (Models and connections), or choose another builder.`;
+}
+const listed = (keys: readonly string[]) =>
+  keys.length === 1
+    ? keys[0]!
+    : `${keys.slice(0, -1).join(', ')} and ${keys[keys.length - 1]!}`;
+/**
+ * Why the studio's reviewed builder cannot build this task of a spec, in words for people; empty
+ * when it can. The build itself enforces the same rules: this only explains them before Start.
+ */
+export function buildBlockers(
+  s: SpecContent,
+  taskKey: string,
+  /** The class the build would be sent with, when known: it must cover every data contract. */
+  dataClass?: BuildDataClass,
+): string[] {
+  const fix =
+    'Revise the spec under Build, freeze the new version under Scores and specs, then create a product from it.';
+  const out: string[] = [];
+  const task = s.tasks.find((t) => t.key === taskKey);
+  if (!task) return [`Task ${taskKey} is not in this spec version.`];
+  const above = dataClass
+    ? s.data_contracts.filter(
+        (c) => DATA_RANK[c.data_class] > DATA_RANK[dataClass],
+      )
+    : [];
+  const data = above.length
+    ? `The spec's data ${above.length === 1 ? 'contract' : 'contracts'} ${listed(above.map((c) => `"${c.name}" (${DATA_NAMES[c.data_class]})`))} ${above.length === 1 ? 'is' : 'are'} above the ${DATA_NAMES[dataClass!]} data this build is classified for. ${dataClass === 'synthetic' ? 'A fixture workspace builds only with synthetic data: mark the contract synthetic, or build it in a real workspace.' : `Classify the build for ${DATA_NAMES[contractDataClass(s)]} data (the plan's data_class "${contractDataClass(s)}"); the Build page does this itself.`}`
+    : null;
+  if (task.role !== 'builder' || task.depends_on.length)
+    return [
+      `Task ${taskKey} can't be built here: the studio builds only builder tasks that depend on no other task.`,
+    ];
+  if (data) out.push(data);
+  const checks = s.acceptance_checks.filter((a) =>
+    task.acceptance.includes(a.key),
+  );
+  if (!checks.length)
+    return [
+      ...out,
+      `Task ${taskKey} delivers no acceptance checks, so there is nothing to test the build against. Give it at least one automated-test check with test cases. ${fix}`,
+    ];
+  const other = checks.filter((a) => a.method !== 'automated_test');
+  if (other.length)
+    out.push(
+      `${other.length === 1 ? 'Check' : 'Checks'} ${listed(other.map((a) => `${a.key} (${METHOD_NAMES[a.method] ?? a.method})`))} of task ${taskKey} ${other.length === 1 ? 'is not an automated test' : 'are not automated tests'}. The studio builds a task only when every check it delivers is an automated test with test cases; change the method or take the check off the task.`,
+    );
+  const empty = checks.filter(
+    (a) => a.method === 'automated_test' && !a.cases?.length,
+  );
+  if (empty.length)
+    out.push(
+      `${empty.length === 1 ? 'Check' : 'Checks'} ${listed(empty.map((a) => a.key))} of task ${taskKey} ${empty.length === 1 ? 'has' : 'have'} no test cases. A build needs at least one test case for each automated-test check: use "Add a case" under the check in the spec form.`,
+    );
+  const cases = checks.flatMap((a) => a.cases ?? []);
+  if (cases.length > MAX_BUILD_CASES)
+    out.push(
+      `Task ${taskKey} has ${cases.length} test cases across its checks, and a build runs at most ${MAX_BUILD_CASES}. Remove cases, or move a check to another task.`,
+    );
+  if (!other.length && !empty.length && !cases.some((c) => c.held_out))
+    out.push(
+      `None of task ${taskKey}'s test cases is held out. Tick "Held out (only QA sees this case)" on at least one case, so QA checks something the builder never saw.`,
+    );
+  if (out.length) out.push(fix);
+  return out;
+}
