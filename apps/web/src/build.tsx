@@ -13,6 +13,7 @@ import {
   SpecStatusSchema,
   StoredEntitySchema,
   buildBlockers,
+  connectionDataBlocker,
   contractDataClass,
   z,
   type SessionInfo,
@@ -200,6 +201,8 @@ export function BuildView({
         connection_id: c.id,
         model_id: m.model_id,
         label: `${c.label} · ${m.model_id}`,
+        connection_label: c.label,
+        data_classes: c.settings.allowed_data_classes,
       })),
     );
     const now = Date.now();
@@ -723,6 +726,9 @@ type Data = {
     connection_id: string;
     model_id: string;
     label: string;
+    connection_label: string;
+    /** What the connection's settings allow; a build of another class is refused. */
+    data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
   }[];
   /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
@@ -1094,6 +1100,13 @@ function StartBuild({
   const blockers = body.success
     ? buildBlockers(body.data, taskKey, dataClass)
     : [];
+  const refusedClass = connection
+    ? connectionDataBlocker(
+        connection.data_classes,
+        dataClass,
+        connection.connection_label,
+      )
+    : null;
   const missing = [
     !runId && 'an active run (register one under Sources or Discover)',
     !budgetId && 'an active budget (Monitor › Budgets)',
@@ -1105,7 +1118,7 @@ function StartBuild({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (missing.length || blockers.length || !chosen) return;
+    if (missing.length || blockers.length || refusedClass || !chosen) return;
     void start({
       format: 'build-plan/1',
       run_id: runId,
@@ -1250,8 +1263,14 @@ function StartBuild({
       {dataClass === 'private_approved' && (
         <p className="small">
           This spec's data contracts include approved private data, so the build
-          is classified for it: its approval and grants must cover approved
-          private data, or the build stops before anything is sent.
+          is classified for it. A plan builder's connection must allow approved
+          private data (Models and connections), and the build's approval and
+          grants must cover it, or the build stops before anything is sent.
+        </p>
+      )}
+      {refusedClass && (
+        <p className="notice" role="note">
+          {refusedClass}
         </p>
       )}
       {blockers.length > 0 && (
@@ -1272,7 +1291,9 @@ function StartBuild({
       <div className="actions">
         <button
           className="primary"
-          disabled={busy || missing.length > 0 || blockers.length > 0}
+          disabled={
+            busy || missing.length > 0 || blockers.length > 0 || !!refusedClass
+          }
         >
           Start build
         </button>

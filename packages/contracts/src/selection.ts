@@ -666,6 +666,22 @@ export function contractDataClass(s: SpecContent): BuildDataClass {
     'synthetic',
   );
 }
+/** A data class in words, e.g. "approved private" for `private_approved`. */
+export function dataClassName(c: string): string {
+  return DATA_NAMES[c as BuildDataClass] ?? c;
+}
+/**
+ * Why a plan connection would refuse a build of this data class, in words; null when its settings
+ * allow it. The plan-role preflight refuses the same, but only after the build is recorded.
+ */
+export function connectionDataBlocker(
+  allowed: readonly BuildDataClass[],
+  dataClass: BuildDataClass,
+  connectionLabel: string,
+): string | null {
+  if (allowed.includes(dataClass)) return null;
+  return `The plan connection "${connectionLabel}" doesn't allow ${DATA_NAMES[dataClass]} data, and this build is classified for it. Allow ${DATA_NAMES[dataClass]} data in that connection's settings (Models and connections), or choose another builder.`;
+}
 const listed = (keys: readonly string[]) =>
   keys.length === 1
     ? keys[0]!
@@ -691,7 +707,7 @@ export function buildBlockers(
       )
     : [];
   const data = above.length
-    ? `The spec's data ${above.length === 1 ? 'contract' : 'contracts'} ${listed(above.map((c) => `"${c.name}" (${DATA_NAMES[c.data_class]})`))} ${above.length === 1 ? 'is' : 'are'} above the ${DATA_NAMES[dataClass!]} data this build is classified for. ${dataClass === 'synthetic' ? 'A fixture workspace builds only with synthetic data: mark the contract synthetic, or build it in a real workspace.' : 'The build must be classified at least as high as every frozen data contract.'}`
+    ? `The spec's data ${above.length === 1 ? 'contract' : 'contracts'} ${listed(above.map((c) => `"${c.name}" (${DATA_NAMES[c.data_class]})`))} ${above.length === 1 ? 'is' : 'are'} above the ${DATA_NAMES[dataClass!]} data this build is classified for. ${dataClass === 'synthetic' ? 'A fixture workspace builds only with synthetic data: mark the contract synthetic, or build it in a real workspace.' : `Classify the build for ${DATA_NAMES[contractDataClass(s)]} data (the plan's data_class "${contractDataClass(s)}"); the Build page does this itself.`}`
     : null;
   if (task.role !== 'builder' || task.depends_on.length)
     return [

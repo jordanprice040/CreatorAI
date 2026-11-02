@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildBlockers,
+  connectionDataBlocker,
   contractDataClass,
+  dataClassName,
   type SpecContent,
 } from '@creator/contracts';
 import { BUILD_FIXTURE_SPEC, FIXTURE_SPEC } from '@creator/domain';
@@ -95,7 +97,25 @@ test('build blockers: the build data class must cover every frozen data contract
   assert.equal(contractDataClass(priv), 'private_approved');
   assert.match(
     buildBlockers(priv, 'T1', 'public')[0]!,
-    /"roster" \(approved private\) is above the public data .* at least as high as every frozen data contract\./,
+    /"roster" \(approved private\) is above the public data .* Classify the build for approved private data \(the plan's data_class "private_approved"\)/,
   );
   assert.deepEqual(buildBlockers(priv, 'T1', 'private_approved'), []);
+});
+
+test('connection data blocker: a plan connection must allow the build data class', () => {
+  assert.equal(
+    connectionDataBlocker(['synthetic', 'public'], 'public', 'My plan'),
+    null,
+  );
+  const why = connectionDataBlocker(
+    ['synthetic', 'public'],
+    'private_approved',
+    'My plan',
+  );
+  assert.match(
+    why!,
+    /^The plan connection "My plan" doesn't allow approved private data, and this build is classified for it\. Allow approved private data in that connection's settings \(Models and connections\)/,
+  );
+  assert.equal(dataClassName('private_approved'), 'approved private');
+  assert.equal(dataClassName('public'), 'public');
 });
