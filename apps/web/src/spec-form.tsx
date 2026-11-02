@@ -13,6 +13,8 @@ import {
   emptyCase,
   emptySpecDraft,
   nextKey,
+  argsShowable,
+  storedKeys,
   type DataClass,
   type Method,
   type Role,
@@ -175,6 +177,16 @@ export function SpecForm({
   }
 
   const remove = <T,>(list: T[], i: number) => list.splice(i, 1);
+  /** Removes an item; field errors are keyed by position, so they are cleared (L-2). */
+  const drop = (f: (x: SpecDraft) => void) => {
+    setErrors({});
+    set(f);
+  };
+  // Keys the version being revised gave out: never reused for a new item (L-1).
+  const given =
+    mode.kind === 'revise'
+      ? storedKeys(mode.entity.body as unknown as SpecContentShape)
+      : [];
   const flowKeys = d.flows.map((f) => f.key);
   const checkKeys = d.checks.map((c) => c.key);
   const taskKeys = d.tasks.map((t) => t.key);
@@ -253,7 +265,7 @@ export function SpecForm({
                 type="button"
                 className="text"
                 onClick={() =>
-                  set((x) => {
+                  drop((x) => {
                     remove(x.flows, i);
                     for (const c of x.checks) if (c.flow === f.key) c.flow = '';
                   })
@@ -272,7 +284,7 @@ export function SpecForm({
             onClick={() =>
               set((x) =>
                 x.flows.push({
-                  key: nextKey('F', flowKeys),
+                  key: nextKey('F', flowKeys, given),
                   name: '',
                   steps: '',
                 }),
@@ -370,6 +382,16 @@ export function SpecForm({
                         (v) => up((y) => (y.args = v)),
                         { rows: 2, mono: true },
                       )}
+                      {t.stored &&
+                        !argsShowable(t.stored) &&
+                        t.args === t.stored.join('\n') && (
+                          <p className="small notice">
+                            These {t.stored.length} stored arguments can't be
+                            shown one per line (one has a line break, or the
+                            last is empty). They are kept exactly unless you
+                            edit this box.
+                          </p>
+                        )}
                       {box(
                         `${k}.stdin`,
                         'Input typed in (stdin)',
@@ -411,7 +433,7 @@ export function SpecForm({
                         type="button"
                         className="text"
                         onClick={() =>
-                          set((x) => remove(x.checks[i]!.cases, j))
+                          drop((x) => remove(x.checks[i]!.cases, j))
                         }
                       >
                         Remove case {j + 1}
@@ -439,7 +461,7 @@ export function SpecForm({
                 type="button"
                 className="text"
                 onClick={() =>
-                  set((x) => {
+                  drop((x) => {
                     remove(x.checks, i);
                     for (const t of x.tasks)
                       t.acceptance = t.acceptance.filter((k) => k !== c.key);
@@ -459,7 +481,7 @@ export function SpecForm({
             onClick={() =>
               set((x) =>
                 x.checks.push({
-                  key: nextKey('A', checkKeys),
+                  key: nextKey('A', checkKeys, given),
                   flow: '',
                   statement: '',
                   measure: '',
@@ -564,6 +586,7 @@ export function SpecForm({
                   ))}
               </div>
             )}
+            {err(`tasks.${i}.depends_on`)}
             {box(`tasks.${i}.deliverable`, 'Deliverable', t.deliverable, (v) =>
               set((x) => (x.tasks[i]!.deliverable = v)),
             )}
@@ -572,7 +595,7 @@ export function SpecForm({
                 type="button"
                 className="text"
                 onClick={() =>
-                  set((x) => {
+                  drop((x) => {
                     remove(x.tasks, i);
                     for (const y of x.tasks)
                       y.depends_on = y.depends_on.filter((k) => k !== t.key);
@@ -592,7 +615,7 @@ export function SpecForm({
             onClick={() =>
               set((x) =>
                 x.tasks.push({
-                  key: nextKey('T', taskKeys),
+                  key: nextKey('T', taskKeys, given),
                   title: '',
                   role: '',
                   file_scope: '',
@@ -651,7 +674,7 @@ export function SpecForm({
               <button
                 type="button"
                 className="text"
-                onClick={() => set((x) => remove(x.data_contracts, i))}
+                onClick={() => drop((x) => remove(x.data_contracts, i))}
               >
                 Remove
               </button>
@@ -688,7 +711,7 @@ export function SpecForm({
             <button
               type="button"
               className="text"
-              onClick={() => set((x) => remove(x.risks, i))}
+              onClick={() => drop((x) => remove(x.risks, i))}
             >
               Remove
             </button>

@@ -14,6 +14,12 @@ export type DataClass = '' | 'synthetic' | 'public' | 'private_approved';
 export type CaseDraft = {
   /** One argument per line, exactly as typed (an empty middle line is an empty argument). */
   args: string;
+  /**
+   * The stored arguments when revising: kept exactly while `args` is not edited, so a list the
+   * one-per-line box can't show (an argument with a line break, or a final empty argument) is
+   * never rewritten by a revision that doesn't touch it (review of PR #112, M-2).
+   */
+  stored?: string[];
   stdin: string;
   /** Expected output without its final newline; `newline` adds it back. */
   stdout: string;
@@ -105,11 +111,63 @@ const lines = (s: string) =>
     .map((l) => l.trim())
     .filter(Boolean);
 
-/** The next free key with this prefix (F, A or T): keys stay fixed once given. */
-export function nextKey(prefix: 'F' | 'A' | 'T', used: readonly string[]) {
-  for (let n = 1; n < 100; n++)
-    if (!used.includes(`${prefix}${n}`)) return `${prefix}${n}`;
-  return `${prefix}99`;
+/**
+ * The next key with this prefix (F, A or T), after the highest one in use or stored in the
+ * version being revised: keys stay fixed once given and a removed key is never reused, so a
+ * revision's task changes read as "removed T2, added T3" (review of PR #112, L-1).
+ */
+export function nextKey(
+  prefix: 'F' | 'A' | 'T',
+  used: readonly string[],
+  stored: readonly string[] = [],
+) {
+  let max = 0;
+  for (const k of [...used, ...stored]) {
+    const m = new RegExp(`^${prefix}(\\d+)$`).exec(k);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return `${prefix}${Math.min(max + 1, 99)}`;
+}
+
+/** True when the one-per-line box shows these arguments exactly. */
+export const argsShowable = (args: readonly string[]) =>
+  !args.some((a) => a.includes('\n')) && args.at(-1) !== '';
+
+/** Every key a stored spec version gave out, for nextKey in a revision. */
+export function storedKeys(s: SpecContentShape) {
+  return [
+    ...s.user_flows.map((f) => f.key),
+    ...s.acceptance_checks.map((a) => a.key),
+    ...s.tasks.map((t) => t.key),
+  ];
+}
+
+type Ref = { id: string; version: number };
+/**
+ * Options a current selection chose for build that have no active spec written from that
+ * selection. A spec belongs to the selection it was written from: once the owner records the
+ * selection again, the old spec can no longer be frozen, so the option is offered again
+ * (review of PR #112, M-1).
+ */
+export function unwrittenOptions<
+  T extends { selection_id: string; alternative: Ref },
+>(
+  selections: readonly T[],
+  specs: readonly { status: string; body: Record<string, unknown> | null }[],
+): T[] {
+  return selections.filter(
+    (u) =>
+      !specs.some((e) => {
+        const a = e.body?.alternative as Ref | undefined;
+        const sel = e.body?.selection_id as string | undefined;
+        return (
+          e.status === 'active' &&
+          sel?.toLowerCase() === u.selection_id.toLowerCase() &&
+          a?.id.toLowerCase() === u.alternative.id.toLowerCase() &&
+          a.version === u.alternative.version
+        );
+      }),
+  );
 }
 
 export const emptyCase = (): CaseDraft => ({
@@ -187,6 +245,7 @@ export function draftFromContent(
       method: a.method,
       cases: (a.cases ?? []).map((c) => ({
         args: c.args.join('\n'),
+        stored: [...c.args],
         stdin: c.stdin,
         stdout: c.stdout.endsWith('\n') ? c.stdout.slice(0, -1) : c.stdout,
         newline: c.stdout.endsWith('\n'),
@@ -324,7 +383,12 @@ export function draftToContent(
       check.cases = c.cases.map((x, j) => {
         const k = `checks.${i}.cases.${j}`;
         // One argument per line; an empty line in the middle is an empty argument.
-        const args = x.args === '' ? [] : x.args.replace(/\n$/, '').split('\n');
+        const args =
+          x.stored && x.args === x.stored.join('\n')
+            ? [...x.stored]
+            : x.args === ''
+              ? []
+              : x.args.replace(/\n$/, '').split('\n');
         if (args.length > 12) errors[`${k}.args`] = 'At most 12 arguments.';
         if (args.some((a) => a.length > 500))
           errors[`${k}.args`] = 'Keep each argument under 500 characters.';
@@ -392,6 +456,9 @@ export function draftToContent(
         `"${bad.slice(0, 40)}" is not a plain lowercase relative path (like src or src/main.py).`;
     if (t.acceptance.length === 0)
       errors[`tasks.${i}.acceptance`] = 'Tick the checks this task delivers.';
+    if (t.depends_on.length > 20)
+      errors[`tasks.${i}.depends_on`] =
+        'A task can wait for at most 20 others.';
     return {
       key: t.key,
       title: text(`tasks.${i}.title`, t.title, SHORT, 'a title'),
