@@ -12,7 +12,7 @@ import { createApi } from '@creator/api';
 import { ConnectionStore, type CommandContext } from '@creator/db';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
-// ADR-0059 right-hand sidebar. Notes belong to one person in one workspace, a stale window
+// ADR-0060 right-hand sidebar. Notes belong to one person in one workspace, a stale window
 // cannot overwrite newer text, and saving them leaves no trace in the activity history.
 // "Running now" lists only unfinished work of the workspace asked about.
 

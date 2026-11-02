@@ -1,6 +1,6 @@
 import { z, id, timestamp } from './primitives.js';
 
-// The right-hand sidebar (ADR-0059): a notepad per person per workspace, and a read-only list
+// The right-hand sidebar (ADR-0060): a notepad per person per workspace, and a read-only list
 // of what is in progress now. Notes are the person's own scratch text: they are never sent to
 // a model, never written to the audit trail and never treated as evidence or a decision.
 

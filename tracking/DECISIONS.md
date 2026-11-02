@@ -1,6 +1,6 @@
 # Decision log
 
-## ADR-0059 — Right-hand sidebar: activity and a private notepad per person per workspace (accepted November 2, 2026)
+## ADR-0060 — Right-hand sidebar: activity and a private notepad per person per workspace (accepted November 2, 2026)
 
 Context: Jordan asked (Nov 2) for a sidebar on the right of the app, which leaves about 400 px empty on a fullscreen window, to show current activity and a notepad for jotting things down while working. Design doc https://claude.ai/artifact/7HG4pShk39BoexPw1e6SNX; Jordan chose "One notepad per workspace" on the decision card (recommended). "One notepad for everything" and "This browser only" (no backup, not shared between the desktop app and a browser) were not chosen.
 

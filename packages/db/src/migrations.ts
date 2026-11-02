@@ -2601,7 +2601,7 @@ create trigger chat_answers_settle_once before update or delete on chat_answers
 `,
   },
   {
-    // ADR-0059: the right-hand sidebar's notepad. One note per person per workspace; only its
+    // ADR-0060: the right-hand sidebar's notepad. One note per person per workspace; only its
     // author reads or writes it. Each save bumps the version so a stale window cannot overwrite
     // newer text unnoticed. Notes are private scratch: no audit event, never sent to a model.
     version: 37,

@@ -1,4 +1,4 @@
-// Right-hand sidebar (ADR-0059): browser walk against a running dev studio on a THROWAWAY
+// Right-hand sidebar (ADR-0060): browser walk against a running dev studio on a THROWAWAY
 // database seeded with `pnpm cli seed-selection` (fixture records only). Checks the three
 // layouts (docked from 1500px, rail from 1100px, top-bar drawer below), that folding is
 // remembered on a docked window, that the page and the sidebar do not overlap, that notes save

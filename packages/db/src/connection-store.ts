@@ -555,7 +555,7 @@ export class ConnectionStore extends PortfolioStore {
     });
   }
 
-  /** ADR-0059: the signed-in person's own note for this workspace. Any member, any role. */
+  /** ADR-0060: the signed-in person's own note for this workspace. Any member, any role. */
   async workspaceNote(
     ctxIn: CommandContext,
     ws: string,
@@ -568,7 +568,7 @@ export class ConnectionStore extends PortfolioStore {
   }
 
   /**
-   * ADR-0059: saves the person's note. A stale `expected_version` (another window saved first)
+   * ADR-0060: saves the person's note. A stale `expected_version` (another window saved first)
    * is refused with VERSION_CONFLICT. The note is personal scratch, so a viewer may keep one
    * too, and no audit event is written: the text never enters the activity history.
    */
@@ -612,7 +612,7 @@ export class ConnectionStore extends PortfolioStore {
     });
   }
 
-  /** ADR-0059: what is running now in the workspace, for the sidebar. Members may read it. */
+  /** ADR-0060: what is running now in the workspace, for the sidebar. Members may read it. */
   async activityNow(ctxIn: CommandContext, ws: string): Promise<ActivityNow> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {

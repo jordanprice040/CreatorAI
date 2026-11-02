@@ -6,7 +6,7 @@ import {
 } from '@creator/contracts';
 import { iso, type Row } from './store.js';
 
-// ADR-0059 right-hand sidebar: the SQL behind the notepad and the "Running now" list. The store
+// ADR-0060 right-hand sidebar: the SQL behind the notepad and the "Running now" list. The store
 // methods in connection-store.ts hold the transaction and the membership check.
 
 /** The signed-in person's note for a workspace; an empty note at version 0 before the first save. */

@@ -695,7 +695,7 @@ export function createApi(
         );
       throw new ContractError('NOT_FOUND', 'Unknown evidence websites route.');
     }
-    // ADR-0059 sidebar: each person's own notes for the workspace, and what is running now.
+    // ADR-0060 sidebar: each person's own notes for the workspace, and what is running now.
     if (ws && NOTES_ROUTE.test(url.pathname)) {
       if (method === 'GET')
         return send(200, await store.workspaceNote(ctx, ws), false);

@@ -13,7 +13,7 @@ import { api, ApiError, message, when } from './oversight.js';
 import { Icon, eventText, subjectTarget, type View } from './ui.js';
 import './aside.css';
 
-// ADR-0059: the right-hand sidebar. Two tabs, Activity (what is running now and the latest
+// ADR-0060: the right-hand sidebar. Two tabs, Activity (what is running now and the latest
 // audit events) and Notes (the person's own notepad for this workspace, saved as they type).
 // It docks open on wide windows, folds to a rail on mid-size ones and is a drawer on small
 // ones; see `useAsideMode`.

@@ -1,4 +1,4 @@
-/* ADR-0059 right-hand sidebar: Activity and Notes. Docked from 1500px, a rail from 1100px,
+/* ADR-0060 right-hand sidebar: Activity and Notes. Docked from 1500px, a rail from 1100px,
    a drawer opened from the top bar below that. Tokens only, so both themes follow. */
 .shell[data-aside='docked'] {
   grid-template-columns: 248px minmax(0, 1fr) 320px;
