@@ -146,6 +146,27 @@ export function mergeSeen(
 }
 
 /**
+ * Writes the changed tabs over what is stored now and returns the new seen state. When the write
+ * fails (blocked or full storage) what is stored is stale or empty, so the in-memory state is kept
+ * instead; taking the stored copy would forget the other tabs and workspaces and drop their dots.
+ */
+export function storeSeenWith(
+  read: () => Record<string, Seen>,
+  write: (all: Record<string, Seen>) => void,
+  memory: Record<string, Seen>,
+  ws: string,
+  changed: Seen,
+): Record<string, Seen> {
+  const all = mergeSeen(read(), ws, changed);
+  try {
+    write(all);
+    return all;
+  } catch {
+    return mergeSeen(memory, ws, changed);
+  }
+}
+
+/**
  * The marks that belong to the open workspace. Right after a switch the previous workspace's
  * lists are still held for a moment; taking them as the new workspace's first sight would store
  * them as seen there and show false dots once its own lists arrive.

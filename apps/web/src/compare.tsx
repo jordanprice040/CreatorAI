@@ -32,6 +32,7 @@ import {
 } from './ui.js';
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
+import { ScoreOption } from './scorecard.js';
 import {
   carryDecisions,
   formGate,
@@ -181,13 +182,18 @@ export function Compare({
   }, [problems.data, focus]);
   const detail = useLoad(async () => {
     if (!focus) return null;
-    const [cmp, report, selections, runs, names] = await Promise.all([
-      api(ProblemComparisonSchema, `${base}/problems/${focus}/comparison`),
-      api(SelectionReportSchema, `${base}/problems/${focus}/report`),
-      api(z.array(SelectionSchema), `${base}/problems/${focus}/selections`),
-      api(z.array(RunControlSchema), `${base}/runs`),
-      runNames(base),
-    ]);
+    const [cmp, report, selections, runs, names, scorecards] =
+      await Promise.all([
+        api(ProblemComparisonSchema, `${base}/problems/${focus}/comparison`),
+        api(SelectionReportSchema, `${base}/problems/${focus}/report`),
+        api(z.array(SelectionSchema), `${base}/problems/${focus}/selections`),
+        api(z.array(RunControlSchema), `${base}/runs`),
+        runNames(base),
+        api(
+          z.array(StoredEntitySchema),
+          `${base}/entities?kind=scorecard&status=active`,
+        ),
+      ]);
     const wf = cmp.workflow_id
       ? await api(
           WorkflowDetailSchema,
@@ -201,6 +207,7 @@ export function Compare({
       runs: newestFirst(runs.filter((r) => r.state === 'active')),
       names,
       wf,
+      scorecards,
     };
   }, [workspace.id, focus]);
 
@@ -548,7 +555,10 @@ export function Compare({
                         </div>
                         <div>
                           <dt>Reviews</dt>
-                          <dd>{a.scorecards} scorecards</dd>
+                          <dd>
+                            {a.scorecards} scorecard
+                            {a.scorecards === 1 ? '' : 's'}
+                          </dd>
                         </div>
                         <div>
                           <dt>Ethics and access</dt>
@@ -621,6 +631,27 @@ export function Compare({
                   );
                 })}
               </div>
+            )}
+            {alts.length > 0 && !viewer && (
+              <ScoreOption
+                base={base}
+                session={session}
+                options={alts.map((a) => ({
+                  entity: a.entity,
+                  kind: String(a.entity.body?.kind ?? ''),
+                }))}
+                claims={d.cmp.claims.map((c) => c.evidence)}
+                scorecards={d.scorecards}
+                prefill={{
+                  target_users: String(
+                    d.cmp.problem.body?.affected_group ?? '',
+                  ),
+                  measurable_outcome: String(
+                    d.cmp.brief?.body?.outcome_measure ?? '',
+                  ),
+                }}
+                saved={detail.reload}
+              />
             )}
             <p className="small">
               Full rankings and sensitivity:{' '}
