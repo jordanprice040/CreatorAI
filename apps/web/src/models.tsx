@@ -17,6 +17,12 @@ import {
   capChanges,
   capFieldsFor,
   capsToDraft,
+  classChanges,
+  classErrors,
+  classSummary,
+  DATA_CLASS_CHOICES,
+  orderedClasses,
+  taskChoicesFor,
   draftToCaps,
 } from './caps-fields.js';
 import { ChatAnswersCard } from './chat-answers.js';
@@ -131,6 +137,9 @@ export function Models({
     connection_id: string;
     settings_hash: string;
     values: Record<string, string>;
+    /** Allowed data and task classes (full audit 2026-11-02). */
+    data: string[];
+    tasks: string[];
   } | null>(null);
   const [capsErrors, setCapsErrors] = useState<Record<string, string>>({});
   const loadSequence = useRef(0);
@@ -416,8 +425,10 @@ export function Models({
             </dd>
             <dt>Allowed</dt>
             <dd>
-              {c.settings.allowed_data_classes.join(', ')} data ·{' '}
-              {c.settings.allowed_task_classes.join(', ')}
+              {classSummary(
+                c.settings.allowed_data_classes,
+                c.settings.allowed_task_classes,
+              )}
             </dd>
           </dl>
           {detail.blockers.length > 0 && (
@@ -489,10 +500,12 @@ export function Models({
                     connection_id: c.id,
                     settings_hash: c.settings_hash,
                     values: capsToDraft(c.settings.caps),
+                    data: [...c.settings.allowed_data_classes],
+                    tasks: [...c.settings.allowed_task_classes],
                   });
                 }}
               >
-                Change caps
+                Change caps or allowed work
               </button>
             )}
           </div>
@@ -505,35 +518,129 @@ export function Models({
                 capsDraft.values,
                 c.kind,
               );
+              const taskChoices = taskChoicesFor(c.kind);
+              const data = orderedClasses(DATA_CLASS_CHOICES, capsDraft.data);
+              const tasks = orderedClasses(taskChoices, capsDraft.tasks);
+              const classIssues = classErrors(data, tasks, c.kind);
               const changes = parsed.caps
-                ? capChanges(c.settings.caps, parsed.caps, c.kind)
+                ? [
+                    ...capChanges(c.settings.caps, parsed.caps, c.kind),
+                    ...classChanges(
+                      {
+                        data: c.settings.allowed_data_classes,
+                        tasks: c.settings.allowed_task_classes,
+                      },
+                      { data, tasks },
+                    ),
+                  ]
                 : [];
+              const toggle = (
+                field: 'data' | 'tasks',
+                key: string,
+                on: boolean,
+              ) =>
+                setCapsDraft((d) =>
+                  d
+                    ? {
+                        ...d,
+                        [field]: on
+                          ? [...d[field], key]
+                          : d[field].filter((k) => k !== key),
+                      }
+                    : d,
+                );
               return (
                 <form
                   className="caps-form"
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (stale) return;
-                    if (!parsed.caps) {
-                      setCapsErrors(parsed.errors);
+                    if (!parsed.caps || Object.keys(classIssues).length) {
+                      setCapsErrors({
+                        ...(parsed.caps ? {} : parsed.errors),
+                        ...classIssues,
+                      });
                       return;
                     }
                     setCapsErrors({});
                     const out = await act(`${p}/settings`, {
                       expected_version: c.version,
-                      settings: { ...c.settings, caps: parsed.caps },
+                      settings: {
+                        ...c.settings,
+                        caps: parsed.caps,
+                        allowed_data_classes: data,
+                        allowed_task_classes: tasks,
+                      },
                     });
                     if (out) setCapsDraft(null);
                   }}
                 >
                   <fieldset>
-                    <legend>Change caps</legend>
+                    <legend>Change caps or allowed work</legend>
                     <p>
                       These are Creator Agent's own limits for this connection.
                       Your plan can still refuse requests on its own allowance.
                       Saving withdraws your acceptance, so model calls stay
                       blocked until you accept the new caps.
                     </p>
+                    {(
+                      [
+                        [
+                          'data',
+                          'Data it may receive',
+                          DATA_CLASS_CHOICES,
+                          capsDraft.data,
+                        ],
+                        [
+                          'tasks',
+                          'Tasks it may do',
+                          taskChoices,
+                          capsDraft.tasks,
+                        ],
+                      ] as const
+                    ).map(([field, title, choices, ticked]) => (
+                      <fieldset
+                        key={field}
+                        className="class-choices"
+                        aria-describedby={
+                          capsErrors[field]
+                            ? `caps-${c.id}-${field}-error`
+                            : undefined
+                        }
+                      >
+                        <legend>{title}</legend>
+                        {choices.map((x) => (
+                          <label key={x.key} className="check">
+                            <input
+                              type="checkbox"
+                              checked={ticked.includes(x.key)}
+                              onChange={(e) => {
+                                toggle(field, x.key, e.target.checked);
+                                setCapsErrors(
+                                  ({ [field]: _, ...rest }) => rest,
+                                );
+                              }}
+                            />{' '}
+                            {x.label}
+                          </label>
+                        ))}
+                        {field === 'data' && (
+                          <p className="small">
+                            Approved private data is sent to the plan's
+                            provider; allow it only if you accept that for this
+                            plan.
+                          </p>
+                        )}
+                        {capsErrors[field] && (
+                          <span
+                            id={`caps-${c.id}-${field}-error`}
+                            className="error"
+                          >
+                            {capsErrors[field]}
+                          </span>
+                        )}
+                      </fieldset>
+                    ))}
                     {fields.map((x) => {
                       const id = `caps-${c.id}-${x.key.replace('.', '-')}`;
                       const err = capsErrors[x.key];
@@ -573,13 +680,16 @@ export function Models({
                         and open it again to start from the saved values.
                       </p>
                     )}
-                    {!stale && parsed.caps && (
-                      <p role="status">
-                        {changes.length
-                          ? `Will change: ${changes.join('; ')}.`
-                          : 'No changes yet.'}
-                      </p>
-                    )}
+                    {!stale &&
+                      parsed.caps &&
+                      !classIssues.data &&
+                      !classIssues.tasks && (
+                        <p role="status">
+                          {changes.length
+                            ? `Will change: ${changes.join('; ')}.`
+                            : 'No changes yet.'}
+                        </p>
+                      )}
                     <div className="actions">
                       <button
                         type="submit"
@@ -587,10 +697,12 @@ export function Models({
                           busy ||
                           !session ||
                           stale ||
-                          (!!parsed.caps && changes.length === 0)
+                          (!!parsed.caps &&
+                            Object.keys(classIssues).length === 0 &&
+                            changes.length === 0)
                         }
                       >
-                        Save new caps
+                        Save changes
                       </button>
                       <button
                         type="button"

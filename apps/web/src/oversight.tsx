@@ -5,6 +5,7 @@ import {
   clearNoteDrafts,
   clearOtherNoteDrafts,
   hasNoteDrafts,
+  noteSavesSettled,
 } from './note-drafts.js';
 import {
   AuthStatusSchema,
@@ -134,7 +135,9 @@ export function useSession(persistent: boolean) {
   }
   async function signOut() {
     if (!session) return;
-    // Review L-E: signing out clears unsaved notes text, so say so first.
+    // Review L-E: signing out clears unsaved notes text, so say so first. PR #110 L-F: a save
+    // already on its way (started by this click blurring the notes field) is waited for first.
+    await noteSavesSettled();
     if (
       hasNoteDrafts(session.actor_id) &&
       !window.confirm(

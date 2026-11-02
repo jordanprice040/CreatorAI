@@ -108,3 +108,32 @@ export function clearOtherNoteDrafts(actor: string) {
     }
   }
 }
+
+/** Notes saves now on their way to the server (PR #110 L-F). */
+const inFlight = new Set<Promise<unknown>>();
+
+/** Registers a notes save so sign-out can wait for it; returns the same promise. */
+export function trackNoteSave<T>(save: Promise<T>): Promise<T> {
+  inFlight.add(save);
+  const done = () => inFlight.delete(save);
+  save.then(done, done);
+  return save;
+}
+
+/**
+ * Waits (at most `ms`) for the notes saves in flight, so sign-out asks about unsaved text only
+ * when some is really unsaved: clicking Sign out blurs the notes field, which starts a save.
+ */
+export async function noteSavesSettled(ms = 5000): Promise<void> {
+  if (inFlight.size === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled([...inFlight]),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, ms);
+    }),
+  ]);
+  clearTimeout(timer);
+  // A save's own continuation (which clears the safety copy) runs before this one returns.
+  await Promise.resolve();
+}

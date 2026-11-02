@@ -24,6 +24,20 @@ use tauri::{
 
 pub const WEB_ORIGIN: &str = "http://127.0.0.1:5173/";
 const IDENTIFIER: &str = "com.creatoragent.studio";
+const DEFAULT_TITLE: &str = "Creator Agent — local studio";
+
+/// Shows a passing note in the title bar, then puts the usual title back after a few seconds
+/// unless something else changed the title meanwhile (full audit 2026-11-02, PR #111 L4).
+fn passing_title(window: &WebviewWindow, note: &'static str) {
+    let _ = window.set_title(note);
+    let window = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        if window.title().map(|t| t == note).unwrap_or(false) {
+            let _ = window.set_title(DEFAULT_TITLE);
+        }
+    });
+}
 
 fn supervisor(app: &AppHandle) -> Option<studio::Shared> {
     app.try_state::<studio::Shared>().map(|s| s.inner().clone())
@@ -339,7 +353,7 @@ fn build_studio_window(
         builder = builder.data_directory(dir);
     }
     let window = builder
-        .title("Creator Agent — local studio")
+        .title(DEFAULT_TITLE)
         .inner_size(1200.0, 800.0)
         .visible(visible && !probes.any())
         .on_document_title_changed(move |_, title| {
@@ -520,7 +534,7 @@ fn build_studio_window(
                     external::Outcome::Opened
                 };
                 if let Some(w) = links_app.get_webview_window("studio") {
-                    let _ = w.set_title(outcome.note());
+                    passing_title(&w, outcome.note());
                 }
             }
             NewWindowResponse::Deny

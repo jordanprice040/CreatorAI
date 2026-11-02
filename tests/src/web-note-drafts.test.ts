@@ -13,6 +13,8 @@ type Drafts = {
   clearNoteDrafts: () => void;
   hasNoteDrafts: (actor: string) => boolean;
   clearOtherNoteDrafts: (actor: string) => void;
+  trackNoteSave: <T>(p: Promise<T>) => Promise<T>;
+  noteSavesSettled: (ms?: number) => Promise<void>;
 };
 async function load(): Promise<Drafts> {
   const source = await readFile('apps/web/src/note-drafts.ts', 'utf8');
@@ -117,5 +119,37 @@ test('blocked storage still finds and removes in-memory drafts', async () => {
   d.clearOtherNoteDrafts('owner');
   assert.equal(d.hasNoteDrafts('member'), false);
   assert.equal(d.readNoteDraft('member', 'ws1'), null);
+  delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+});
+
+test('sign-out can wait for a notes save in flight, and for at most the time given', async () => {
+  // PR #110 L-F: the save started by blurring the field clears its copy before sign-out asks.
+  const s = storage();
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = s;
+  const d = await load();
+  d.writeNoteDraft('owner', 'ws1', { text: 'a', base_version: 1, sent: 'a' });
+  let land!: (v: string) => void;
+  const save = d
+    .trackNoteSave(new Promise<string>((r) => (land = r)))
+    .then(() => d.writeNoteDraft('owner', 'ws1', null));
+  const waited = d.noteSavesSettled();
+  land('ok');
+  await waited;
+  // Checked before awaiting the save itself: its copy is already gone.
+  assert.equal(d.hasNoteDrafts('owner'), false);
+  await save;
+  // Nothing in flight: returns at once. A save that never answers is waited for only `ms`.
+  await d.noteSavesSettled();
+  d.trackNoteSave(new Promise(() => undefined));
+  const t = Date.now();
+  await d.noteSavesSettled(30);
+  assert.ok(Date.now() - t < 1000);
+  // A failed save is not an error for sign-out.
+  await assert.doesNotReject(
+    Promise.all([
+      d.trackNoteSave(Promise.reject(new Error('x'))).catch(() => undefined),
+      d.noteSavesSettled(30),
+    ]),
+  );
   delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
 });

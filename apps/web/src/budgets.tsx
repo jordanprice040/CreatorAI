@@ -134,6 +134,7 @@ export function Budgets({
   const [noChargeFor, setNoChargeFor] = useState('');
   const [noChargeWhere, setNoChargeWhere] = useState('');
   const [noChargeError, setNoChargeError] = useState('');
+  const [noChargeBusy, setNoChargeBusy] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [envelopeId, setEnvelopeId] = useState('');
   const [runId, setRunId] = useState('');
@@ -193,6 +194,9 @@ export function Budgets({
       setNoChargeError(checked.error);
       return;
     }
+    // Full audit 2026-11-02 (PR #116 N-6): one request at a time, as the charge form does.
+    if (noChargeBusy) return;
+    setNoChargeBusy(true);
     try {
       await api(
         ReservationSchema,
@@ -207,6 +211,8 @@ export function Budgets({
       setNoChargeError('');
     } catch (err) {
       setNoChargeError(message(err));
+    } finally {
+      setNoChargeBusy(false);
     }
     await load();
   }
@@ -510,19 +516,23 @@ export function Budgets({
                   {r.status === 'unknown' && (
                     <>
                       {' '}
-                      {charging !== r.id && noChargeFor !== r.id && (
-                        <button
-                          className="text"
-                          onClick={() => {
-                            setCharging('');
-                            setNoChargeFor(r.id);
-                            setNoChargeWhere('');
-                            setNoChargeError('');
-                          }}
-                        >
-                          Confirm no charge…
-                        </button>
-                      )}{' '}
+                      {/* PR #116 N-5: reconciling is owner-only on the server, so only the
+                          owner is offered it, like "Record a charge…". */}
+                      {current.role === 'owner' &&
+                        charging !== r.id &&
+                        noChargeFor !== r.id && (
+                          <button
+                            className="text"
+                            onClick={() => {
+                              setCharging('');
+                              setNoChargeFor(r.id);
+                              setNoChargeWhere('');
+                              setNoChargeError('');
+                            }}
+                          >
+                            Confirm no charge…
+                          </button>
+                        )}{' '}
                       {noChargeFor === r.id && (
                         <form
                           className="inline-form no-charge"
@@ -561,10 +571,13 @@ export function Budgets({
                             This releases the hold and closes the call for good.
                             It can't be undone.
                           </p>
-                          <button type="submit">Confirm no charge</button>{' '}
+                          <button type="submit" disabled={noChargeBusy}>
+                            {noChargeBusy ? 'Confirming…' : 'Confirm no charge'}
+                          </button>{' '}
                           <button
                             type="button"
                             className="secondary"
+                            disabled={noChargeBusy}
                             onClick={() => setNoChargeFor('')}
                           >
                             Keep it open

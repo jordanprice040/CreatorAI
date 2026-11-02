@@ -19,6 +19,9 @@ test('browser session retains sign-in on failed logout and clears it after confi
   let cleared = 0;
   // Review L-D/L-E: other people's copies go when a session starts; unsaved text asks first.
   let drafts = false;
+  // PR #110 L-F: a notes save in flight lands (and clears the copy) before sign-out asks.
+  let landing = false;
+  let settledWaits = 0;
   let confirmAnswer = true;
   const confirms: string[] = [];
   const keptFor: string[] = [];
@@ -49,6 +52,10 @@ test('browser session retains sign-in on failed logout and clears it after confi
             ? {
                 clearNoteDrafts: () => void cleared++,
                 hasNoteDrafts: () => drafts,
+                noteSavesSettled: async () => {
+                  settledWaits++;
+                  if (landing) drafts = false;
+                },
                 clearOtherNoteDrafts: (actor: string) =>
                   void keptFor.push(actor),
               }
@@ -120,6 +127,16 @@ test('browser session retains sign-in on failed logout and clears it after confi
   assert.deepEqual(keptFor, [signedIn.actor_id]);
   const session = { actor_id: signedIn.actor_id, csrf_token: 'session-csrf' };
   slots[0] = session;
+  // A save already on its way when Sign out is clicked is waited for; once it lands nothing is
+  // unsaved, so no warning (PR #110 L-F). The logout request is still sent (network failure here).
+  drafts = true;
+  landing = true;
+  await render().signOut();
+  assert.equal(settledWaits, 1);
+  assert.equal(confirms.length, 0);
+  assert.equal(requests.length, 1);
+  requests.length = 0;
+  landing = false;
   // Unsaved notes text: declining the warning keeps the session and sends nothing (review L-E).
   drafts = true;
   confirmAnswer = false;

@@ -394,6 +394,8 @@ function PageTabs({
 
 function App() {
   const [health, setHealth] = useState('Checking connection…');
+  // The full health line, shown on hover; the bar keeps a short form so it fits on one row.
+  const [healthDetail, setHealthDetail] = useState('');
   const [tone, setTone] = useState<'checking' | 'ok' | 'warn' | 'down'>(
     'checking',
   );
@@ -406,6 +408,7 @@ function App() {
   const [wsError, setWsError] = useState('');
   async function checkHealth() {
     setHealth('Checking connection…');
+    setHealthDetail('');
     setTone('checking');
     try {
       const data = parse(
@@ -416,19 +419,39 @@ function App() {
       );
       setPersistent(data.persistent);
       setTone(data.persistent ? 'ok' : 'warn');
+      const storage = data.persistent
+        ? 'records saved in PostgreSQL'
+        : data.storage === 'unavailable'
+          ? 'database unavailable'
+          : 'persistence off';
+      const degraded = data.maintenance.degraded
+        ? 'maintenance degraded (see /api/health)'
+        : '';
+      // Full audit 2026-11-02: the long line wrapped the top bar onto two rows on most pages,
+      // and "live adapters configured, unverified" read like a fault. Problems stay in the bar;
+      // the rest is on hover.
       setHealth(
-        `Connected · ${data.live_enabled ? 'live adapters configured, unverified' : 'fixture provider only'} · ${
-          data.persistent
-            ? 'records saved in PostgreSQL'
-            : data.storage === 'unavailable'
-              ? 'database unavailable'
-              : 'persistence off'
-        }${data.maintenance.degraded ? ' · maintenance degraded (see /api/health)' : ''}`,
+        ['Connected', data.persistent ? '' : storage, degraded]
+          .filter(Boolean)
+          .join(' · '),
+      );
+      setHealthDetail(
+        [
+          'Connected to the local API',
+          data.live_enabled
+            ? 'live adapters configured (each model and connection is verified separately)'
+            : 'fixture provider only',
+          storage,
+          degraded,
+        ]
+          .filter(Boolean)
+          .join(' · '),
       );
     } catch {
       setPersistent(false);
       setTone('down');
       setHealth('API unavailable · start the local API and retry');
+      setHealthDetail('');
     }
   }
   useEffect(() => {
@@ -907,10 +930,8 @@ function App() {
           </nav>
           <div className="sidebar-foot">
             {themeButton}
-            <span>Schema 1.0 · Local control</span>
-            <span>
-              Live calls need a provider, pricing, a grant and a budget.
-            </span>
+            <span>Local control</span>
+            <span>Models are used only through connections you approve.</span>
           </div>
         </aside>
       )}
@@ -964,7 +985,11 @@ function App() {
             </>
           )}
           <div className="topbar-end">
-            <span role="status" className={`conn conn-${tone}`}>
+            <span
+              role="status"
+              className={`conn conn-${tone}`}
+              title={healthDetail || undefined}
+            >
               <span className="dot" aria-hidden="true" />
               {health}
             </span>
@@ -1035,10 +1060,8 @@ function App() {
         </main>
         {!inStudio && (
           <footer className="foot">
-            <span>Schema 1.0 · Local control</span>
-            <span>
-              Live calls need a provider, pricing, a grant and a budget.
-            </span>
+            <span>Local control</span>
+            <span>Models are used only through connections you approve.</span>
           </footer>
         )}
       </div>

@@ -938,6 +938,11 @@ fieldset label input[type='radio'],
   width: auto;
   padding: 7px 10px;
 }
+/* The "where you checked" sentence gets room instead of scrolling (PR #116 N-6). */
+.inline-form.no-charge input {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
 .filters,
 .chips,
 .searchbar {
@@ -2317,6 +2322,29 @@ fieldset.flagged {
 .caps-form .error {
   display: block;
   font-weight: 400;
+}
+/* Allowed data and task classes in the same form (full audit 2026-11-02). */
+.caps-form fieldset.class-choices {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0 0 12px;
+}
+.caps-form fieldset.class-choices > legend,
+.caps-form fieldset.class-choices > p,
+.caps-form fieldset.class-choices > .error {
+  flex-basis: 100%;
+}
+.caps-form .class-choices label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+}
+.caps-form .class-choices label.check input {
+  width: auto;
+  margin: 0;
 }
 @media (max-width: 620px) {
   .caps-form fieldset {
