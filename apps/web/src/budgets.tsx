@@ -23,7 +23,12 @@ import { runNames } from './ui.js';
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
 import { useOnShow } from './page-active.js';
 import { DOCUMENTED_PRICING } from './pricing-bundle.js';
-import { perMillion, samePricing } from './pricing-fields.js';
+import {
+  longContextText,
+  noChargeEvidence,
+  perMillion,
+  samePricing,
+} from './pricing-fields.js';
 import { RecordCharge } from './charge.js';
 
 /**
@@ -125,6 +130,10 @@ export function Budgets({
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  // "Confirm no charge" asks where the owner checked first (review of PR #116, L-2).
+  const [noChargeFor, setNoChargeFor] = useState('');
+  const [noChargeWhere, setNoChargeWhere] = useState('');
+  const [noChargeError, setNoChargeError] = useState('');
   const [prompt, setPrompt] = useState('');
   const [envelopeId, setEnvelopeId] = useState('');
   const [runId, setRunId] = useState('');
@@ -179,21 +188,25 @@ export function Budgets({
   }, [workspace]);
   useOnShow(() => void load());
   async function noCharge(r: Reservation) {
+    const checked = noChargeEvidence(noChargeWhere);
+    if ('error' in checked) {
+      setNoChargeError(checked.error);
+      return;
+    }
     try {
       await api(
         ReservationSchema,
         `workspaces/${workspace}/reservations/${r.id}/reconcile`,
         {
           csrf: session.csrf_token,
-          body: {
-            outcome: 'no_charge',
-            evidence:
-              'Owner checked provider records from the web page: no charge.',
-          },
+          body: { outcome: 'no_charge', evidence: checked.evidence },
         },
       );
+      setNoChargeFor('');
+      setNoChargeWhere('');
+      setNoChargeError('');
     } catch (err) {
-      setError(message(err));
+      setNoChargeError(message(err));
     }
     await load();
   }
@@ -497,17 +510,80 @@ export function Budgets({
                   {r.status === 'unknown' && (
                     <>
                       {' '}
-                      <button className="text" onClick={() => void noCharge(r)}>
-                        Confirm no charge
-                      </button>{' '}
-                      {current.role === 'owner' && charging !== r.id && (
+                      {charging !== r.id && noChargeFor !== r.id && (
                         <button
                           className="text"
-                          onClick={() => setCharging(r.id)}
+                          onClick={() => {
+                            setCharging('');
+                            setNoChargeFor(r.id);
+                            setNoChargeWhere('');
+                            setNoChargeError('');
+                          }}
                         >
-                          Record a charge…
+                          Confirm no charge…
                         </button>
+                      )}{' '}
+                      {noChargeFor === r.id && (
+                        <form
+                          className="inline-form no-charge"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void noCharge(r);
+                          }}
+                        >
+                          <label htmlFor={`nc-${r.id}`}>
+                            Where you checked that there was no charge
+                          </label>
+                          <input
+                            id={`nc-${r.id}`}
+                            value={noChargeWhere}
+                            maxLength={1150}
+                            placeholder="e.g. provider usage page for Nov 2, no request at that time"
+                            aria-invalid={noChargeError ? true : undefined}
+                            aria-describedby={
+                              noChargeError ? `nc-${r.id}-error` : undefined
+                            }
+                            onChange={(e) => {
+                              setNoChargeWhere(e.target.value);
+                              setNoChargeError('');
+                            }}
+                          />
+                          {noChargeError && (
+                            <p
+                              id={`nc-${r.id}-error`}
+                              className="error"
+                              role="alert"
+                            >
+                              {noChargeError}
+                            </p>
+                          )}
+                          <p className="small">
+                            This releases the hold and closes the call for good.
+                            It can't be undone.
+                          </p>
+                          <button type="submit">Confirm no charge</button>{' '}
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => setNoChargeFor('')}
+                          >
+                            Keep it open
+                          </button>
+                        </form>
                       )}
+                      {current.role === 'owner' &&
+                        charging !== r.id &&
+                        noChargeFor !== r.id && (
+                          <button
+                            className="text"
+                            onClick={() => {
+                              setNoChargeFor('');
+                              setCharging(r.id);
+                            }}
+                          >
+                            Record a charge…
+                          </button>
+                        )}
                       {charging === r.id && (
                         <RecordCharge
                           base={`workspaces/${workspace}`}
@@ -570,7 +646,9 @@ function DocumentedPricing({
         <li key={d.file}>
           <strong>{d.label}</strong>: {perMillion(d.body.rates.input)} input,{' '}
           {perMillion(d.body.rates.cached_input)} cached input,{' '}
-          {perMillion(d.body.rates.output)} output per million tokens, from{' '}
+          {perMillion(d.body.rates.cache_write)} cache writes,{' '}
+          {perMillion(d.body.rates.output)} output per million tokens.{' '}
+          {longContextText(d.body.long_context)} From{' '}
           <a href={d.body.source_url} target="_blank" rel="noreferrer">
             the provider's model page
           </a>{' '}

@@ -63,7 +63,8 @@ await listed
 // 2. Fixture workspace: a copy of the newest fixture call is stored as an unknown outcome
 // (walk only; the database refuses settled -> unknown, so a new attempt row is inserted and
 // its exposure held, as the broker's crash recovery would), then its charge is recorded.
-const r = sql(`begin;
+const unknown = () =>
+  sql(`begin;
   with src as (select * from budget_reservations where workspace_id = '${fixtureWs}'
     and status = 'settled' order by created_at desc limit 1),
   ins as (insert into budget_reservations (id, workspace_id, fixture, envelope_id, run_id,
@@ -79,8 +80,9 @@ const r = sql(`begin;
       version = e.version + 1 from ins where e.id = ins.envelope_id)
   select id from ins;
   commit;`)
-  .split('\n')
-  .find((l) => /^[0-9a-f-]{36}$/.test(l));
+    .split('\n')
+    .find((l) => /^[0-9a-f-]{36}$/.test(l));
+const r = unknown();
 console.log(
   'reserved:',
   sql(`select reserved_nano from budget_reservations where id = '${r}'`),
@@ -118,4 +120,31 @@ console.log(
 );
 console.log('errors:', await page.locator('[role=alert]').allInnerTexts());
 await page.screenshot({ path: `${out}/05-after-charge.png` });
+
+// 3. Confirm no charge asks where the owner checked, and hides "Record a charge…" while
+// open (review of PR #116, L-2); the typed place is stored as the evidence.
+const r2 = unknown();
+await page.reload();
+await page.waitForTimeout(2500);
+await page.getByRole('button', { name: 'Confirm no charge…' }).first().click();
+const nc = page.locator('form.no-charge');
+console.log(
+  'record-a-charge shown while open:',
+  await page.getByRole('button', { name: 'Record a charge…' }).count(),
+);
+await nc.getByRole('button', { name: 'Confirm no charge' }).click();
+await page.waitForTimeout(300);
+console.log('empty confirm:', await nc.locator('.error').allInnerTexts());
+await nc
+  .getByLabel('Where you checked that there was no charge')
+  .fill('Walk: provider usage page, no request at that time.');
+await nc.screenshot({ path: `${out}/06-no-charge-form.png` });
+await nc.getByRole('button', { name: 'Confirm no charge' }).click();
+await page.waitForTimeout(2000);
+console.log(
+  'released:',
+  sql(
+    `select status, reason_code, result ->> 'evidence' from budget_reservations where id = '${r2}'`,
+  ),
+);
 await browser.close();

@@ -19,6 +19,8 @@ type Fields = {
   chargePreview: (p: unknown, u: unknown) => string;
   samePricing: (a: unknown, b: unknown) => boolean;
   perMillion: (n: string) => string;
+  longContextText: (lc: unknown) => string;
+  noChargeEvidence: (w: string) => { evidence: string } | { error: string };
 };
 
 // pricing-fields.ts has no imports, so it loads without a browser or stubs.
@@ -151,4 +153,47 @@ test('pricing identity and per-million display', async () => {
   assert.equal(f.perMillion('3'), '$0.003');
   assert.equal(f.perMillion('250'), '$0.25');
   assert.equal(f.perMillion('12345'), '$12.345');
+});
+
+test('the offer names the long-context surcharge; key order does not matter (review of PR #116)', async () => {
+  const f = await load();
+  const astra = await json('config/pricing/openai-gpt-6-astra.json');
+  assert.equal(
+    f.longContextText(astra.long_context),
+    'Above 272,000 input tokens the whole request costs 2x for input and cache, 1.5x for output.',
+  );
+  assert.equal(f.longContextText(null), '');
+  const reordered = {
+    ...astra,
+    rates: Object.fromEntries(Object.entries(astra.rates).reverse()),
+    long_context: Object.fromEntries(
+      Object.entries(astra.long_context).reverse(),
+    ),
+  };
+  assert.ok(f.samePricing(astra, reordered));
+  assert.ok(
+    !f.samePricing(astra, {
+      ...astra,
+      rates: { ...astra.rates, cache_write: '1' },
+    }),
+  );
+});
+
+test('"Confirm no charge" needs where the owner checked, within the note limit', async () => {
+  const f = await load();
+  assert.ok('error' in f.noChargeEvidence('   '));
+  assert.ok('error' in f.noChargeEvidence('x'.repeat(1151)));
+  const ok = f.noChargeEvidence('x'.repeat(1150));
+  assert.ok('evidence' in ok);
+  const one = f.noChargeEvidence(' Usage page, Nov 2 ');
+  assert.ok('evidence' in one);
+  assert.match(one.evidence, /: Usage page, Nov 2$/);
+  for (const r of [ok, one])
+    if ('evidence' in r)
+      assert.ok(
+        ReconcileRequestSchema.safeParse({
+          outcome: 'no_charge',
+          evidence: r.evidence,
+        }).success,
+      );
 });

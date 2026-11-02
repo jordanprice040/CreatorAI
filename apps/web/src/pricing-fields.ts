@@ -32,9 +32,49 @@ export function samePricing(a: PricingBodyShape, b: PricingBodyShape) {
     a.basis === b.basis &&
     a.source_url === b.source_url &&
     a.retrieved_at === b.retrieved_at &&
-    JSON.stringify(a.rates) === JSON.stringify(b.rates) &&
-    JSON.stringify(a.long_context) === JSON.stringify(b.long_context)
+    sameValue(a.rates, b.rates) &&
+    sameValue(a.long_context, b.long_context)
   );
+}
+
+/** Deep equality that ignores key order (review of PR #116, N-1). */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return (
+    ka.length === kb.length &&
+    ka.every((k) =>
+      sameValue(
+        (a as Record<string, unknown>)[k],
+        (b as Record<string, unknown>)[k],
+      ),
+    )
+  );
+}
+
+/** "2x" or "1.5x" for a price multiplier. */
+export function times(r: Ratio): string {
+  return `${Number((r.numerator / r.denominator).toFixed(4))}x`;
+}
+
+/** The long-context surcharge in words, or '' when the price has none (review L-3). */
+export function longContextText(lc: PricingBodyShape['long_context']): string {
+  if (!lc) return '';
+  return `Above ${lc.above_input_tokens.toLocaleString('en-US')} input tokens the whole request costs ${times(lc.input_multiplier)} for input and cache, ${times(lc.output_multiplier)} for output.`;
+}
+
+/** Evidence for "Confirm no charge": where the owner checked (review L-2). */
+export function noChargeEvidence(
+  where: string,
+): { evidence: string } | { error: string } {
+  const w = where.trim();
+  if (!w) return { error: 'Say where you checked that there was no charge.' };
+  // The stored note is capped at 1200 characters, prefix included.
+  if (w.length > 1150)
+    return { error: 'Keep where you checked to at most 1150 characters.' };
+  return { evidence: `Owner checked for a charge and found none: ${w}` };
 }
 
 /** Exact dollars per million tokens from nano-USD per token (that is, nano / 1000). */

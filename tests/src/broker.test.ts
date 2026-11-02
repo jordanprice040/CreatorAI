@@ -665,6 +665,16 @@ test('rate limits release and retry; malformed output is charged; unknown outcom
     kept.at(-1)?.result?.evidence,
     'Provider usage export row for the request.',
   );
+  // The no-charge release keeps its evidence too (review of PR #116, L-1).
+  const released = await s.store.operationAttempts(
+    owner,
+    s.ws.id,
+    lost.logical_operation_id,
+  );
+  assert.equal(
+    released.at(-1)?.result?.evidence,
+    'Provider usage page shows no request at that time.',
+  );
   await rejects(
     'INVALID_TRANSITION',
     s.store.reconcile(owner, s.ws.id, reset.attempts[0]!.id, {
