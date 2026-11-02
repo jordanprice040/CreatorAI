@@ -3,7 +3,8 @@
 // layouts (docked from 1500px, rail from 1100px, top-bar drawer below), that folding is
 // remembered on a docked window, that the page and the sidebar do not overlap, that notes save
 // as you type and survive a reload, and that a second window's save is never overwritten
-// without asking. Screenshots in dark and light. No model is called by any step.
+// without asking, and that sign-out warns before it drops unsaved notes. Screenshots in dark
+// and light. No model is called by any step.
 // Usage: node tracking/evidence/right-sidebar/walk.mjs <login-code> [base-url]
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -203,6 +204,67 @@ for (const width of [960, 390]) {
   const s = await signedIn(c, 1600, 'light');
   await s.waitForSelector('#aside-activity .aside-h');
   await s.screenshot({ path: join(shots, 'docked-light-1600.png') });
+  await c.close();
+}
+// 5. Sign-out with unsaved notes (review L-E) and a copy left by someone else (review L-D).
+{
+  const c = await browser.newContext();
+  const s = await signedIn(c, 1600);
+  // A copy left behind by another person whose sign-out never reached the server.
+  await s.evaluate(() =>
+    sessionStorage.setItem(
+      'creator.notes-draft.someone-else.ws',
+      JSON.stringify({ text: 'left behind', base_version: 0 }),
+    ),
+  );
+  await s.reload();
+  await s.waitForSelector('nav[aria-label="Pages"]', { state: 'attached' });
+  await s.waitForTimeout(500);
+  log(
+    "sign-in: other people's unsaved copies removed",
+    await s.evaluate(
+      () =>
+        sessionStorage.getItem('creator.notes-draft.someone-else.ws') === null,
+    ),
+  );
+  await s.click('#aside-tab-notes');
+  // Block saves so the typed text stays unsaved; the blocked requests log load errors that are
+  // expected here and are counted separately below.
+  const errorsBefore = errors.length;
+  await s.route('**/notes', (r) =>
+    r.request().method() === 'POST' ? r.abort() : r.continue(),
+  );
+  await s.fill('#aside-notes textarea', 'not saved yet');
+  const asked = [];
+  s.once('dialog', (d) => {
+    asked.push(d.message());
+    void d.dismiss();
+  });
+  await s.click('.who button:has-text("Sign out")');
+  await s.waitForTimeout(300);
+  log('sign-out: warns about unsaved notes', asked);
+  log(
+    'sign-out: declining keeps the session and the text',
+    (await s.$$('.who')).length === 1 &&
+      (await s.inputValue('#aside-notes textarea')) === 'not saved yet',
+  );
+  s.once('dialog', (d) => void d.accept());
+  await s.click('.who button:has-text("Sign out")');
+  await s.waitForFunction(() => !document.querySelector('.who'));
+  log(
+    'sign-out: accepting signs out and clears the copy',
+    await s.evaluate(
+      () =>
+        !Object.keys(sessionStorage).some((k) =>
+          k.startsWith('creator.notes-draft.'),
+        ),
+    ),
+  );
+  const blocked = errors.splice(errorsBefore);
+  log(
+    'sign-out: only the blocked saves failed',
+    blocked.every((e) => e.includes('net::ERR_FAILED')),
+  );
   await c.close();
 }
 log('console and page errors', errors);

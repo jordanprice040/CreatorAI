@@ -17,6 +17,11 @@ test('browser session retains sign-in on failed logout and clears it after confi
   const slots: unknown[] = [];
   // ADR-0060 review N-1: unsaved notes copies are cleared only by a confirmed sign-out.
   let cleared = 0;
+  // Review L-D/L-E: other people's copies go when a session starts; unsaved text asks first.
+  let drafts = false;
+  let confirmAnswer = true;
+  const confirms: string[] = [];
+  const keptFor: string[] = [];
   let cursor = 0;
   const require = createRequire(
     new URL('../../apps/web/package.json', import.meta.url),
@@ -41,11 +46,36 @@ test('browser session retains sign-in on failed logout and clears it after confi
         : name === './labels.js'
           ? {}
           : name === './note-drafts.js'
-            ? { clearNoteDrafts: () => void cleared++ }
+            ? {
+                clearNoteDrafts: () => void cleared++,
+                hasNoteDrafts: () => drafts,
+                clearOtherNoteDrafts: (actor: string) =>
+                  void keptFor.push(actor),
+              }
             : require(name);
+  const window = {
+    dispatchEvent: () => true,
+    confirm: (text: string) => {
+      confirms.push(text);
+      return confirmAnswer;
+    },
+  };
+  const signedIn: SessionInfo = {
+    authenticated: true,
+    actor_id: '00000000-0000-4000-8000-0000000000a1',
+    display_name: 'Owner',
+    method: 'dev_local',
+    csrf_token: 'c'.repeat(43),
+    expires_at: '2026-11-02T12:00:00.000Z',
+  };
   let response: 'network' | 'server' | 'success' = 'network';
   const requests: { path: string; init: RequestInit }[] = [];
   const fetch = async (path: string, init: RequestInit) => {
+    if (path === '/api/auth/dev-login')
+      return new Response(JSON.stringify(signedIn), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     requests.push({ path, init });
     if (response === 'network') throw new TypeError('Network unavailable');
     return new Response(
@@ -69,21 +99,36 @@ test('browser session retains sign-in on failed logout and clears it after confi
     useSession?: (persistent: boolean) => {
       session: SessionInfo | null;
       error: string;
+      signIn: (code: string) => Promise<void>;
       signOut: () => Promise<void>;
     };
   } = {};
-  new Function('require', 'exports', 'fetch', code)(
+  new Function('require', 'exports', 'fetch', 'window', code)(
     hookRequire,
     exports,
     fetch,
+    window,
   );
   const render = () => {
     cursor = 0;
     return exports.useSession!(false);
   };
   render();
-  const session = { csrf_token: 'session-csrf' };
+  // A sign-in in this tab removes everyone else's notes copies (review L-D).
+  await render().signIn('x'.repeat(32));
+  assert.deepEqual(render().session, signedIn);
+  assert.deepEqual(keptFor, [signedIn.actor_id]);
+  const session = { actor_id: signedIn.actor_id, csrf_token: 'session-csrf' };
   slots[0] = session;
+  // Unsaved notes text: declining the warning keeps the session and sends nothing (review L-E).
+  drafts = true;
+  confirmAnswer = false;
+  await render().signOut();
+  assert.equal(render().session, session);
+  assert.equal(confirms.length, 1);
+  assert.match(confirms[0]!, /not saved/);
+  assert.equal(requests.length, 0);
+  confirmAnswer = true;
   for (const failure of ['network', 'server'] as const) {
     response = failure;
     await render().signOut();
@@ -97,6 +142,8 @@ test('browser session retains sign-in on failed logout and clears it after confi
   assert.equal(render().error, '');
   assert.equal(cleared, 1);
   assert.equal(requests.length, 3);
+  // Each attempt asked once because unsaved text was there.
+  assert.equal(confirms.length, 4);
   for (const request of requests) {
     assert.equal(request.path, '/api/auth/logout');
     assert.equal(request.init.method, 'POST');

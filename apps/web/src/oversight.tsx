@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
 import { runLabel } from './labels.js';
-import { clearNoteDrafts } from './note-drafts.js';
+import {
+  clearNoteDrafts,
+  clearOtherNoteDrafts,
+  hasNoteDrafts,
+} from './note-drafts.js';
 import {
   AuthStatusSchema,
   DecisionSchema,
@@ -99,6 +103,11 @@ export function useSession(persistent: boolean) {
   const [mode, setMode] = useState<'dev_local' | 'oidc' | null>(null);
   const [managed, setManaged] = useState(false);
   const [error, setError] = useState('');
+  // Review L-D: a session starting in this tab removes notes copies left by anyone else.
+  function start(next: SessionInfo) {
+    clearOtherNoteDrafts(next.actor_id);
+    setSession(next);
+  }
   async function load() {
     try {
       const status = parse(
@@ -107,7 +116,7 @@ export function useSession(persistent: boolean) {
       );
       setMode(status.mode);
       setManaged(status.managed_by === 'desktop_app');
-      setSession(await api(SessionInfoSchema, 'auth/session'));
+      start(await api(SessionInfoSchema, 'auth/session'));
     } catch (e) {
       setSession(null);
       if (!(e instanceof ApiError && e.code === 'UNAUTHENTICATED'))
@@ -117,15 +126,21 @@ export function useSession(persistent: boolean) {
   async function signIn(code: string) {
     setError('');
     try {
-      setSession(
-        await api(SessionInfoSchema, 'auth/dev-login', { body: { code } }),
-      );
+      start(await api(SessionInfoSchema, 'auth/dev-login', { body: { code } }));
     } catch (e) {
       setError(message(e));
     }
   }
   async function signOut() {
     if (!session) return;
+    // Review L-E: signing out clears unsaved notes text, so say so first.
+    if (
+      hasNoteDrafts(session.actor_id) &&
+      !window.confirm(
+        'You have notes that are not saved yet. Signing out deletes them. Sign out anyway?',
+      )
+    )
+      return;
     setError('');
     try {
       await api(z.unknown(), 'auth/logout', {

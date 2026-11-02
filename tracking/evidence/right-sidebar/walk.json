@@ -28,7 +28,7 @@
   },
   {
     "check": "notes: status after typing",
-    "result": "Saved Nov 2, 2026, 10:03 AM"
+    "result": "Saved Nov 2, 2026, 10:26 AM"
   },
   {
     "check": "notes: tab remembered after reload",
@@ -60,7 +60,7 @@
   },
   {
     "check": "conflict: window B is asked",
-    "result": "These notes were changed in another window (Nov 2, 2026, 10:04 AM). Which text do you want to keep?"
+    "result": "These notes were changed in another window (Nov 2, 2026, 10:26 AM). Which text do you want to keep?"
   },
   {
     "check": "conflict: text kept after fold and reopen",
@@ -116,6 +116,28 @@
   },
   {
     "check": "390: no horizontal scroll",
+    "result": true
+  },
+  {
+    "check": "sign-in: other people's unsaved copies removed",
+    "result": true
+  },
+  {
+    "check": "sign-out: warns about unsaved notes",
+    "result": [
+      "You have notes that are not saved yet. Signing out deletes them. Sign out anyway?"
+    ]
+  },
+  {
+    "check": "sign-out: declining keeps the session and the text",
+    "result": true
+  },
+  {
+    "check": "sign-out: accepting signs out and clears the copy",
+    "result": true
+  },
+  {
+    "check": "sign-out: only the blocked saves failed",
     "result": true
   },
   {

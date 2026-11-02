@@ -14,6 +14,12 @@ export type NoteDraft = {
 const PREFIX = 'creator.notes-draft.';
 const memory = new Map<string, NoteDraft>();
 const key = (actor: string, ws: string) => `${PREFIX}${actor}.${ws}`;
+/**
+ * Whose session is open in this tab: undefined until one starts, null after sign-out. A write
+ * for anyone else is ignored, so the notepad's save on closing cannot put a copy back after
+ * sign-out cleared it (review L-E walk).
+ */
+let current: string | null | undefined;
 
 export function readNoteDraft(actor: string, ws: string): NoteDraft | null {
   const k = key(actor, ws);
@@ -40,6 +46,7 @@ export function writeNoteDraft(
   draft: NoteDraft | null,
 ) {
   const k = key(actor, ws);
+  if (draft && current !== undefined && current !== actor) return;
   if (draft) memory.set(k, draft);
   else memory.delete(k);
   try {
@@ -52,6 +59,7 @@ export function writeNoteDraft(
 
 /** Removes every notes safety copy in this tab; called on sign-out. */
 export function clearNoteDrafts() {
+  current = null;
   memory.clear();
   try {
     for (let i = sessionStorage.length - 1; i >= 0; i--) {
@@ -60,5 +68,43 @@ export function clearNoteDrafts() {
     }
   } catch {
     // Nothing stored.
+  }
+}
+
+function storedKeys(): string[] {
+  const keys = [...memory.keys()];
+  try {
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k?.startsWith(PREFIX)) keys.push(k);
+    }
+  } catch {
+    // Only the in-memory copies.
+  }
+  return keys;
+}
+
+/** True when this person has unsaved notes text in this tab (review L-E). */
+export function hasNoteDrafts(actor: string): boolean {
+  const mine = `${PREFIX}${actor}.`;
+  return storedKeys().some((k) => k.startsWith(mine));
+}
+
+/**
+ * Removes everyone else's notes copies in this tab; called whenever a session starts here, so a
+ * copy left by a sign-out the browser never confirmed, or by a session that expired, does not
+ * sit beside the next person's session (review L-D). The same person gets theirs back.
+ */
+export function clearOtherNoteDrafts(actor: string) {
+  current = actor;
+  const mine = `${PREFIX}${actor}.`;
+  for (const k of storedKeys()) {
+    if (k.startsWith(mine)) continue;
+    memory.delete(k);
+    try {
+      sessionStorage.removeItem(k);
+    } catch {
+      // Nothing stored.
+    }
   }
 }
