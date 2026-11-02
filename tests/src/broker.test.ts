@@ -655,6 +655,16 @@ test('rate limits release and retry; malformed output is charged; unknown outcom
   );
   assert.equal(charged.status, 'settled');
   assert.equal(charged.usage_source, 'owner_reconciliation');
+  // The owner's evidence is kept with the outcome, not dropped after parsing.
+  const kept = await s.store.operationAttempts(
+    owner,
+    s.ws.id,
+    reset.logical_operation_id,
+  );
+  assert.equal(
+    kept.at(-1)?.result?.evidence,
+    'Provider usage export row for the request.',
+  );
   await rejects(
     'INVALID_TRANSITION',
     s.store.reconcile(owner, s.ws.id, reset.attempts[0]!.id, {

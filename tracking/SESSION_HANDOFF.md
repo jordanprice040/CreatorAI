@@ -1,3 +1,38 @@
+## Pricing and charges in the app (audit item 4, piece 5 of 5) — November 2, 2026
+
+What now works:
+
+- Monitor › Budgets in a real workspace lists each documented price bundled with the studio that the workspace doesn't hold yet. Today that is GPT-6 Astra standard tier, from `config/pricing/openai-gpt-6-astra.json`. Each offer shows its per-million rates, a link to the source page, the date retrieved, and "The billed price is not verified". "Add this pricing" posts the file unchanged to the existing `POST pricing` route. Batch pricing is left out, because context batches create their own.
+- The pricing list now shows each documented price's "prices as of" date.
+- An unknown call now has "Record a charge…" (owner only) beside "Confirm no charge". The form asks for the token counts from the provider's own records (input, cached input, cache-write, output and the reasoning share), an optional response id, and where the counts were found. Nothing is pre-filled.
+- Before saving, the form previews the charge, mirroring `usageCost` (long context included), and warns when the charge is more than was held. Saving posts the existing `reservations/{id}/reconcile` with outcome `charged`.
+- Server change: the reconcile's evidence note was parsed and then dropped. It is now kept in the reservation's stored result, for both `charged` and `no_charge`. No migration, no schema change.
+- The Budgets and Submit pages no longer mention `pnpm cli pricing-add` or `pnpm cli reconcile`.
+
+Checks run:
+
+- `pnpm typecheck` and prettier pass.
+- New `tests/src/web-pricing-form.test.ts` (4 tests):
+  - Every documented non-batch file in `config/pricing` is bundled and parses with `PricingSnapshotBodySchema`.
+  - A typed charge parses with `ReconcileRequestSchema`. Empty, negative, all-zero and reasoning-over-output counts are caught.
+  - The preview equals `usageCost` on 10 usages, across Astra and fixture pricing, including above 272K input.
+  - Pricing identity and exact per-million display.
+- `broker.test.ts` now asserts the evidence is stored. That test and `budget-api.test.ts` were run against local PostgreSQL 16: 11 pass, 0 skipped.
+- Browser walk `tracking/evidence/pricing-form/walk.mjs` on a throwaway database, $0, with no provider call:
+  - A new real workspace showed the Astra offer, added it, and the offer gave way to "Every documented price bundled with the studio is added".
+  - In a `seed-discovery` workspace, one fixture call was copied as an unknown outcome straight in the database (walk only).
+  - An empty charge flagged 3 fields. The filled form previewed "about 0.027 sim (0.4285375 sim was held)".
+  - Saving settled the call at 27000000 nano with source `owner_reconciliation` and the evidence stored. No unknown calls were left.
+
+Limits:
+
+- Tool-call counts can't be entered (no bundled price has tool rates).
+- New provider prices arrive only with a studio update, not typed in.
+- The charge form was not used on a real unknown call.
+- Not walked on the installed desktop app.
+
+This completes the five pieces from the CLI-only list.
+
 ## Qualify a model in the app (audit item 4, piece 4 of 5) — November 2, 2026
 
 What now works: on Connections › Models, each plan connection now has "Qualify a model for a task". You pick a verified model and one of the four bundled frozen benchmarks: specification-synthetic-v1, summarization-synthetic-v1, t12-builder-v1 and t12-reviewer-v2. t12-reviewer-v1 is left out because its role prompt was replaced (ADR-0049). Task classes the connection's caps don't allow are shown but can't be picked. "Start qualification" posts to the existing `plan-connections/{id}/qualifications`. Its minimum held-out count is the benchmark's full held-out set. A started qualification gets "Run (up to N plan requests)", which calls `plan-qualifications/{id}/run`, and "Finish and record the result", which calls `/finish`. Starting records only the qualification; nothing is sent until Run is pressed. The "Start one from the CLI" text is gone.

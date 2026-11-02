@@ -16,13 +16,15 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
 import { runNames } from './ui.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
 import { useOnShow } from './page-active.js';
+import { DOCUMENTED_PRICING } from './pricing-bundle.js';
+import { perMillion, samePricing } from './pricing-fields.js';
+import { RecordCharge } from './charge.js';
 
 /**
  * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
@@ -113,7 +115,6 @@ export function Budgets({
   session: SessionInfo;
   workspace: Workspace;
 }) {
-  const desktop = useDesktopApp();
   const workspace = current.id;
   const [fundName, setFundName] = useState('');
   const [fundCap, setFundCap] = useState('');
@@ -129,6 +130,7 @@ export function Budgets({
   const [runId, setRunId] = useState('');
   const [last, setLast] = useState<BrokerCallResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [charging, setCharging] = useState('');
   async function load() {
     if (!workspace) return;
     setError('');
@@ -238,13 +240,17 @@ export function Budgets({
     await load();
   }
   /** Adds the bundled fixture pricing (simulated units); the server refuses it elsewhere. */
-  async function addFixturePricing() {
+  /**
+   * Adds the bundled fixture pricing (simulated units) or a bundled documented price; the
+   * server refuses fixture pricing in a real workspace and documented pricing in a fixture one.
+   */
+  async function addPricing(body: unknown) {
     setBusy(true);
     setError('');
     try {
       await api(PricingSnapshotSchema, `workspaces/${workspace}/pricing`, {
         csrf: session.csrf_token,
-        body: fixturePricing,
+        body,
       });
     } catch (err) {
       setError(message(err));
@@ -378,8 +384,10 @@ export function Budgets({
             <ul className="small">
               {pricing.map((p) => (
                 <li key={p.id}>
-                  {p.body.provider}/{p.body.model_id} · {p.body.basis} · added{' '}
-                  {when(p.created_at)}
+                  {p.body.provider}/{p.body.model_id} · {p.body.basis}
+                  {p.body.basis === 'documented' &&
+                    ` · prices as of ${p.body.retrieved_at.slice(0, 10)}`}{' '}
+                  · added {when(p.created_at)}
                 </li>
               ))}
             </ul>
@@ -392,20 +400,17 @@ export function Budgets({
                 <button
                   className="secondary"
                   disabled={busy}
-                  onClick={() => void addFixturePricing()}
+                  onClick={() => void addPricing(fixturePricing)}
                 >
                   Add fixture pricing (simulated units)
                 </button>
               )
             ) : (
-              <p className="small">
-                Real pricing is copied from a provider's published prices;
-                adding it{' '}
-                {desktop
-                  ? NO_CLI_IN_DESKTOP
-                  : 'uses pnpm cli pricing-add with a dated pricing file'}
-                .
-              </p>
+              <DocumentedPricing
+                pricing={pricing}
+                busy={busy}
+                add={(body) => void addPricing(body)}
+              />
             ))}
           {current.record_mode === 'fixture' &&
             envelopes.length > 0 &&
@@ -495,11 +500,29 @@ export function Budgets({
                       <button className="text" onClick={() => void noCharge(r)}>
                         Confirm no charge
                       </button>{' '}
-                      <small>
-                        {desktop
-                          ? `(recording a charge ${NO_CLI_IN_DESKTOP})`
-                          : "(for a charge, use pnpm cli reconcile with the provider's usage)"}
-                      </small>
+                      {current.role === 'owner' && charging !== r.id && (
+                        <button
+                          className="text"
+                          onClick={() => setCharging(r.id)}
+                        >
+                          Record a charge…
+                        </button>
+                      )}
+                      {charging === r.id && (
+                        <RecordCharge
+                          base={`workspaces/${workspace}`}
+                          session={session}
+                          reservation={r}
+                          pricing={pricing.find(
+                            (p) => p.id === r.pricing_snapshot_id,
+                          )}
+                          done={() => {
+                            setCharging('');
+                            void load();
+                          }}
+                          cancel={() => setCharging('')}
+                        />
+                      )}
                     </>
                   )}
                 </li>
@@ -514,5 +537,54 @@ export function Budgets({
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * The documented prices bundled with the studio that this workspace doesn't hold yet. Each
+ * is the dated copy of the provider's published page in config/pricing: the billed price is
+ * unverified until a real charge is reconciled against it.
+ */
+function DocumentedPricing({
+  pricing,
+  busy,
+  add,
+}: {
+  pricing: PricingSnapshot[];
+  busy: boolean;
+  add: (body: unknown) => void;
+}) {
+  const missing = DOCUMENTED_PRICING.filter(
+    (d) => !pricing.some((p) => samePricing(p.body, d.body)),
+  );
+  if (missing.length === 0)
+    return (
+      <p className="small">
+        Every documented price bundled with the studio is added. Newer prices
+        come with a studio update.
+      </p>
+    );
+  return (
+    <ul className="small pricing-offers">
+      {missing.map((d) => (
+        <li key={d.file}>
+          <strong>{d.label}</strong>: {perMillion(d.body.rates.input)} input,{' '}
+          {perMillion(d.body.rates.cached_input)} cached input,{' '}
+          {perMillion(d.body.rates.output)} output per million tokens, from{' '}
+          <a href={d.body.source_url} target="_blank" rel="noreferrer">
+            the provider's model page
+          </a>{' '}
+          as of {d.body.retrieved_at.slice(0, 10)}. The billed price is not
+          verified.{' '}
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => add(d.body)}
+          >
+            Add this pricing
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
