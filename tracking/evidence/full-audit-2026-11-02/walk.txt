@@ -1,0 +1,19 @@
+topbar height 59 status: Connected | title: Connected to the local API · fixture provider only · records saved in PostgreSQL
+allowed before: Synthetic (made-up) data, Public data · tasks: Summarization, Specification writing
+accept button: 1
+save disabled with no data? false
+errors: [ 'Allow at least one kind of data.' ]
+status: Will change: No longer allows synthetic (made-up) data; Allows approved private data; Allows builder role (patch_build).
+form gone: true
+allowed after: Public data, Approved private data · tasks: Specification writing, Summarization, Builder role (patch_build)
+caps: Proposed, not accepted · 40 requests a day · 10 per run · 120s timeout · 16000 output characters · 2 Codex builds a day
+alerts: []
+stored: ["public","private_approved"] ["specification","summarization","patch_build"] accepted null
+qualify options: []
+editor note: 1
+editor buttons: [
+  'Open Sources › Sources and claims',
+  'Reset fields',
+  'Refresh connection status'
+]
+editor allowed line: Public data, Approved private data · tasks: Specification writing, Summarization, Builder role (patch_build)

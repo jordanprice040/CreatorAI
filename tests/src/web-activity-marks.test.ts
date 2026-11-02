@@ -222,6 +222,31 @@ test('working storage still merges over what another window stored', () => {
   assert.deepEqual(written, next);
 });
 
+test('a workspace held only in memory survives the first write that works again', () => {
+  // PR #113 L-1: V was first seen while writes failed, so only memory has it.
+  const memory = { W: { runs: ['r1'] }, V: { runs: ['v1'] } };
+  const stored = { W: { decisions: ['d1'] } };
+  let written: unknown = null;
+  const next = m.storeSeenWith(
+    () => stored,
+    (all) => {
+      written = all;
+    },
+    memory,
+    'W',
+    { runs: ['r2'] },
+  );
+  assert.deepEqual(next, {
+    W: { decisions: ['d1'], runs: ['r2'] },
+    V: { runs: ['v1'] },
+  });
+  assert.deepEqual(written, next);
+  // V's dot stays: v2 is still news there.
+  assert.deepEqual(m.unseenViews({ runs: ['v1', 'v2'] }, next.V!, 'chat'), [
+    'runs',
+  ]);
+});
+
 test('a page or tab dot names only its own news', () => {
   assert.equal(m.dotText(['overview', 'runs'], ['chat']), '');
   assert.equal(

@@ -14,6 +14,7 @@ import { Icon, eventText, subjectTarget, type View } from './ui.js';
 import './aside.css';
 import {
   readNoteDraft,
+  trackNoteSave,
   writeNoteDraft,
   type NoteDraft,
 } from './note-drafts.js';
@@ -606,11 +607,13 @@ function Notes({
     let ok = false;
     setState({ kind: 'saving' });
     try {
-      const note = await api(WorkspaceNoteSchema, `workspaces/${ws}/notes`, {
-        body: { expected_version: base.current.version, text: value },
-        csrf,
-        quiet: true,
-      });
+      const note = await trackNoteSave(
+        api(WorkspaceNoteSchema, `workspaces/${ws}/notes`, {
+          body: { expected_version: base.current.version, text: value },
+          csrf,
+          quiet: true,
+        }),
+      );
       base.current = note;
       ok = true;
       if (pending.current === null) writeDraft(ws, null);

@@ -17,6 +17,12 @@ import {
   capChanges,
   capFieldsFor,
   capsToDraft,
+  classChanges,
+  classErrors,
+  classSummary,
+  DATA_CLASS_CHOICES,
+  orderedClasses,
+  taskChoicesFor,
   draftToCaps,
 } from './caps-fields.js';
 import { ChatAnswersCard } from './chat-answers.js';
@@ -108,6 +114,9 @@ export function Models({
   session: SessionInfo | null;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // PR #118 review L1: every connection change is owner-only on the server, so the actions are
+  // offered to the owner only; other members see the state.
+  const owner = workspace.role === 'owner';
   const active = usePageActive();
   const [loaded, setLoaded] = useState(false);
   const [list, setList] = useState<PlanConnection[]>([]);
@@ -131,6 +140,9 @@ export function Models({
     connection_id: string;
     settings_hash: string;
     values: Record<string, string>;
+    /** Allowed data and task classes (full audit 2026-11-02). */
+    data: string[];
+    tasks: string[];
   } | null>(null);
   const [capsErrors, setCapsErrors] = useState<Record<string, string>>({});
   const loadSequence = useRef(0);
@@ -258,39 +270,48 @@ export function Models({
         per-request charge, while extra paid usage stays off.
       </p>
       {!loaded && <p role="status">Loading saved connections…</p>}
-      {loaded && (!hasKind('chatgpt_plan') || !hasKind('claude_code')) && (
-        <div className="actions">
-          {!hasKind('chatgpt_plan') && (
-            <button
-              disabled={busy || !session}
-              onClick={() =>
-                void act('plan-connections', {
-                  kind: 'chatgpt_plan',
-                  label: 'ChatGPT plan',
-                  settings: PROPOSED_SETTINGS,
-                })
-              }
-            >
-              Add a ChatGPT plan connection
-            </button>
-          )}
-          {!hasKind('claude_code') && (
-            <button
-              className={list.length ? 'secondary' : undefined}
-              disabled={busy || !session}
-              onClick={() =>
-                void act('plan-connections', {
-                  kind: 'claude_code',
-                  label: 'Claude Code on this computer',
-                  settings: PROPOSED_CLAUDE_SETTINGS,
-                })
-              }
-            >
-              Add Claude Code on this computer
-            </button>
-          )}
-        </div>
+      {!owner && (
+        <p className="small">
+          Only the workspace owner can add connections, sign in, change caps or
+          allowed work, approve model checks and qualify models. You can see
+          where each connection stands.
+        </p>
       )}
+      {loaded &&
+        owner &&
+        (!hasKind('chatgpt_plan') || !hasKind('claude_code')) && (
+          <div className="actions">
+            {!hasKind('chatgpt_plan') && (
+              <button
+                disabled={busy || !session}
+                onClick={() =>
+                  void act('plan-connections', {
+                    kind: 'chatgpt_plan',
+                    label: 'ChatGPT plan',
+                    settings: PROPOSED_SETTINGS,
+                  })
+                }
+              >
+                Add a ChatGPT plan connection
+              </button>
+            )}
+            {!hasKind('claude_code') && (
+              <button
+                className={list.length ? 'secondary' : undefined}
+                disabled={busy || !session}
+                onClick={() =>
+                  void act('plan-connections', {
+                    kind: 'claude_code',
+                    label: 'Claude Code on this computer',
+                    settings: PROPOSED_CLAUDE_SETTINGS,
+                  })
+                }
+              >
+                Add Claude Code on this computer
+              </button>
+            )}
+          </div>
+        )}
       {list.length > 1 && (
         <label>
           Connection
@@ -416,8 +437,10 @@ export function Models({
             </dd>
             <dt>Allowed</dt>
             <dd>
-              {c.settings.allowed_data_classes.join(', ')} data ·{' '}
-              {c.settings.allowed_task_classes.join(', ')}
+              {classSummary(
+                c.settings.allowed_data_classes,
+                c.settings.allowed_task_classes,
+              )}
             </dd>
           </dl>
           {detail.blockers.length > 0 && (
@@ -430,73 +453,78 @@ export function Models({
               </ul>
             </>
           )}
-          <div className="actions">
-            {claude ? (
-              <button
-                disabled={busy || !session}
-                onClick={async () => {
-                  const out = (await act(
-                    `${p}/claude-code-check`,
-                    {},
-                    60000,
-                  )) as { config_dir?: string } | null;
-                  if (out?.config_dir) setClaudeFolder(out.config_dir);
-                }}
-              >
-                Check Claude Code
-              </button>
-            ) : (
-              <button
-                disabled={busy || !session || attempt?.state === 'pending'}
-                onClick={() =>
-                  void act(`${p}/sign-in`, { open_browser: true }, 20000)
-                }
-              >
-                {c.sign_in.state === 'signed_in'
-                  ? 'Sign in again'
-                  : 'Continue with ChatGPT'}
-              </button>
-            )}
-            {!c.caps_accepted_at && (
-              <button
-                disabled={busy || !session}
-                onClick={() =>
-                  void act(`${p}/accept-caps`, {
-                    expected_version: c.version,
-                    settings_hash: c.settings_hash,
-                  })
-                }
-              >
-                Accept these caps
-              </button>
-            )}
-            {c.sign_in.state === 'signed_in' && (
-              <button
-                className="secondary"
-                disabled={busy || !session}
-                onClick={() => void act(`${p}/sign-out`, {})}
-              >
-                Disconnect
-              </button>
-            )}
-            {capsDraft?.connection_id !== c.id && (
-              <button
-                className="secondary"
-                disabled={busy || !session}
-                onClick={() => {
-                  setCapsErrors({});
-                  setCapsDraft({
-                    connection_id: c.id,
-                    settings_hash: c.settings_hash,
-                    values: capsToDraft(c.settings.caps),
-                  });
-                }}
-              >
-                Change caps
-              </button>
-            )}
-          </div>
-          {capsDraft?.connection_id === c.id &&
+          {owner && (
+            <div className="actions">
+              {claude ? (
+                <button
+                  disabled={busy || !session}
+                  onClick={async () => {
+                    const out = (await act(
+                      `${p}/claude-code-check`,
+                      {},
+                      60000,
+                    )) as { config_dir?: string } | null;
+                    if (out?.config_dir) setClaudeFolder(out.config_dir);
+                  }}
+                >
+                  Check Claude Code
+                </button>
+              ) : (
+                <button
+                  disabled={busy || !session || attempt?.state === 'pending'}
+                  onClick={() =>
+                    void act(`${p}/sign-in`, { open_browser: true }, 20000)
+                  }
+                >
+                  {c.sign_in.state === 'signed_in'
+                    ? 'Sign in again'
+                    : 'Continue with ChatGPT'}
+                </button>
+              )}
+              {!c.caps_accepted_at && (
+                <button
+                  disabled={busy || !session}
+                  onClick={() =>
+                    void act(`${p}/accept-caps`, {
+                      expected_version: c.version,
+                      settings_hash: c.settings_hash,
+                    })
+                  }
+                >
+                  Accept these caps and allowed work
+                </button>
+              )}
+              {c.sign_in.state === 'signed_in' && (
+                <button
+                  className="secondary"
+                  disabled={busy || !session}
+                  onClick={() => void act(`${p}/sign-out`, {})}
+                >
+                  Disconnect
+                </button>
+              )}
+              {capsDraft?.connection_id !== c.id && (
+                <button
+                  className="secondary"
+                  disabled={busy || !session}
+                  onClick={() => {
+                    setCapsErrors({});
+                    setCapsDraft({
+                      connection_id: c.id,
+                      settings_hash: c.settings_hash,
+                      values: capsToDraft(c.settings.caps),
+                      data: [...c.settings.allowed_data_classes],
+                      tasks: [...c.settings.allowed_task_classes],
+                    });
+                  }}
+                >
+                  Change caps or allowed work
+                </button>
+              )}
+            </div>
+          )}
+          {owner &&
+            capsDraft?.connection_id === c.id &&
             (() => {
               const fields = capFieldsFor(c.kind);
               const stale = capsDraft.settings_hash !== c.settings_hash;
@@ -505,35 +533,129 @@ export function Models({
                 capsDraft.values,
                 c.kind,
               );
+              const taskChoices = taskChoicesFor(c.kind);
+              const data = orderedClasses(DATA_CLASS_CHOICES, capsDraft.data);
+              const tasks = orderedClasses(taskChoices, capsDraft.tasks);
+              const classIssues = classErrors(data, tasks, c.kind);
               const changes = parsed.caps
-                ? capChanges(c.settings.caps, parsed.caps, c.kind)
+                ? [
+                    ...capChanges(c.settings.caps, parsed.caps, c.kind),
+                    ...classChanges(
+                      {
+                        data: c.settings.allowed_data_classes,
+                        tasks: c.settings.allowed_task_classes,
+                      },
+                      { data, tasks },
+                    ),
+                  ]
                 : [];
+              const toggle = (
+                field: 'data' | 'tasks',
+                key: string,
+                on: boolean,
+              ) =>
+                setCapsDraft((d) =>
+                  d
+                    ? {
+                        ...d,
+                        [field]: on
+                          ? [...d[field], key]
+                          : d[field].filter((k) => k !== key),
+                      }
+                    : d,
+                );
               return (
                 <form
                   className="caps-form"
                   onSubmit={async (e) => {
                     e.preventDefault();
                     if (stale) return;
-                    if (!parsed.caps) {
-                      setCapsErrors(parsed.errors);
+                    if (!parsed.caps || Object.keys(classIssues).length) {
+                      setCapsErrors({
+                        ...(parsed.caps ? {} : parsed.errors),
+                        ...classIssues,
+                      });
                       return;
                     }
                     setCapsErrors({});
                     const out = await act(`${p}/settings`, {
                       expected_version: c.version,
-                      settings: { ...c.settings, caps: parsed.caps },
+                      settings: {
+                        ...c.settings,
+                        caps: parsed.caps,
+                        allowed_data_classes: data,
+                        allowed_task_classes: tasks,
+                      },
                     });
                     if (out) setCapsDraft(null);
                   }}
                 >
                   <fieldset>
-                    <legend>Change caps</legend>
+                    <legend>Change caps or allowed work</legend>
                     <p>
                       These are Creator Agent's own limits for this connection.
                       Your plan can still refuse requests on its own allowance.
                       Saving withdraws your acceptance, so model calls stay
                       blocked until you accept the new caps.
                     </p>
+                    {(
+                      [
+                        [
+                          'data',
+                          'Data it may receive',
+                          DATA_CLASS_CHOICES,
+                          capsDraft.data,
+                        ],
+                        [
+                          'tasks',
+                          'Tasks it may do',
+                          taskChoices,
+                          capsDraft.tasks,
+                        ],
+                      ] as const
+                    ).map(([field, title, choices, ticked]) => (
+                      <fieldset
+                        key={field}
+                        className="class-choices"
+                        aria-describedby={
+                          capsErrors[field]
+                            ? `caps-${c.id}-${field}-error`
+                            : undefined
+                        }
+                      >
+                        <legend>{title}</legend>
+                        {choices.map((x) => (
+                          <label key={x.key} className="check">
+                            <input
+                              type="checkbox"
+                              checked={ticked.includes(x.key)}
+                              onChange={(e) => {
+                                toggle(field, x.key, e.target.checked);
+                                setCapsErrors(
+                                  ({ [field]: _, ...rest }) => rest,
+                                );
+                              }}
+                            />{' '}
+                            {x.label}
+                          </label>
+                        ))}
+                        {field === 'data' && (
+                          <p className="small">
+                            Approved private data is sent to the plan's
+                            provider; allow it only if you accept that for this
+                            plan.
+                          </p>
+                        )}
+                        {capsErrors[field] && (
+                          <span
+                            id={`caps-${c.id}-${field}-error`}
+                            className="error"
+                          >
+                            {capsErrors[field]}
+                          </span>
+                        )}
+                      </fieldset>
+                    ))}
                     {fields.map((x) => {
                       const id = `caps-${c.id}-${x.key.replace('.', '-')}`;
                       const err = capsErrors[x.key];
@@ -573,13 +695,16 @@ export function Models({
                         and open it again to start from the saved values.
                       </p>
                     )}
-                    {!stale && parsed.caps && (
-                      <p role="status">
-                        {changes.length
-                          ? `Will change: ${changes.join('; ')}.`
-                          : 'No changes yet.'}
-                      </p>
-                    )}
+                    {!stale &&
+                      parsed.caps &&
+                      !classIssues.data &&
+                      !classIssues.tasks && (
+                        <p role="status">
+                          {changes.length
+                            ? `Will change: ${changes.join('; ')}.`
+                            : 'No changes yet.'}
+                        </p>
+                      )}
                     <div className="actions">
                       <button
                         type="submit"
@@ -587,10 +712,12 @@ export function Models({
                           busy ||
                           !session ||
                           stale ||
-                          (!!parsed.caps && changes.length === 0)
+                          (!!parsed.caps &&
+                            Object.keys(classIssues).length === 0 &&
+                            changes.length === 0)
                         }
                       >
-                        Save new caps
+                        Save changes
                       </button>
                       <button
                         type="button"
@@ -608,7 +735,7 @@ export function Models({
                 </form>
               );
             })()}
-          {c.credits.state !== 'confirmed_off' ? (
+          {!owner ? null : c.credits.state !== 'confirmed_off' ? (
             <fieldset>
               <legend>
                 {claude
@@ -679,71 +806,73 @@ export function Models({
           ) : (
             <p>No model has been checked on this connection.</p>
           )}
-          <fieldset>
-            <legend>One approved model check</legend>
-            <p>
-              Approving allows exactly one short request (“Reply with exactly:
-              ok”) to the model you name, within 30 minutes. Already-verified
-              models use an availability recheck, preserving their recorded
-              access and task qualifications. This uses one plan request and
-              does not start a workflow.
-            </p>
-            <label>
-              Model
-              <input
-                value={model}
-                placeholder={
-                  claude ? 'Full model id, e.g. claude-sonnet-5-5' : ''
-                }
-                onChange={(e) => setModel(e.target.value)}
-              />
-            </label>
-            <button
-              disabled={
-                busy || !session || !model || detail.blockers.length > 0
-              }
-              onClick={async () => {
-                const intent = detail.model_access.some(
-                  (a) =>
-                    a.model_id === model &&
-                    a.path === 'responses' &&
-                    a.access === 'verified',
-                )
-                  ? 'availability_recheck'
-                  : 'model_access';
-                const g = (await act(`${p}/verification-grants`, {
-                  expected_version: c.version,
-                  model_id: model,
-                  path: 'responses',
-                  expires_in_minutes: 30,
-                  intent,
-                })) as { id?: string } | null;
-                if (g?.id) {
-                  setGrantId(g.id);
-                  setGrantCheck(intent);
-                  setGrantModel(model);
-                }
-              }}
-            >
-              Approve one call
-            </button>
-            {grantId && (
+          {owner && (
+            <fieldset>
+              <legend>One approved model check</legend>
+              <p>
+                Approving allows exactly one short request (“Reply with exactly:
+                ok”) to the model you name, within 30 minutes. Already-verified
+                models use an availability recheck, preserving their recorded
+                access and task qualifications. This uses one plan request and
+                does not start a workflow.
+              </p>
+              <label>
+                Model
+                <input
+                  value={model}
+                  placeholder={
+                    claude ? 'Full model id, e.g. claude-sonnet-5-5' : ''
+                  }
+                  onChange={(e) => setModel(e.target.value)}
+                />
+              </label>
               <button
-                disabled={busy || !session}
-                onClick={() =>
-                  void act(
-                    `${p}/${grantCheck === 'availability_recheck' ? 'availability-recheck' : 'verify'}`,
-                    { grant_id: grantId, model_id: grantModel },
-                    330000,
-                  )
+                disabled={
+                  busy || !session || !model || detail.blockers.length > 0
                 }
+                onClick={async () => {
+                  const intent = detail.model_access.some(
+                    (a) =>
+                      a.model_id === model &&
+                      a.path === 'responses' &&
+                      a.access === 'verified',
+                  )
+                    ? 'availability_recheck'
+                    : 'model_access';
+                  const g = (await act(`${p}/verification-grants`, {
+                    expected_version: c.version,
+                    model_id: model,
+                    path: 'responses',
+                    expires_in_minutes: 30,
+                    intent,
+                  })) as { id?: string } | null;
+                  if (g?.id) {
+                    setGrantId(g.id);
+                    setGrantCheck(intent);
+                    setGrantModel(model);
+                  }
+                }}
               >
-                {grantCheck === 'availability_recheck'
-                  ? 'Recheck availability once'
-                  : 'Run the verification call'}
+                Approve one call
               </button>
-            )}
-          </fieldset>
+              {grantId && (
+                <button
+                  disabled={busy || !session}
+                  onClick={() =>
+                    void act(
+                      `${p}/${grantCheck === 'availability_recheck' ? 'availability-recheck' : 'verify'}`,
+                      { grant_id: grantId, model_id: grantModel },
+                      330000,
+                    )
+                  }
+                >
+                  {grantCheck === 'availability_recheck'
+                    ? 'Recheck availability once'
+                    : 'Run the verification call'}
+                </button>
+              )}
+            </fieldset>
+          )}
           <h4>Qualified tasks</h4>
           {detail.qualifications.length ? (
             <ul>
@@ -756,16 +885,22 @@ export function Models({
           ) : (
             <p>No qualification yet.</p>
           )}
-          <QualifyModel
-            connection={c}
-            models={detail.model_access
-              .filter((a) => a.path === 'responses' && a.access === 'verified')
-              .map((a) => a.model_id)}
-            allowed={c.settings.allowed_task_classes}
-            running={detail.qualifications.filter((q) => q.state === 'running')}
-            busy={busy || !session}
-            act={act}
-          />
+          {owner && (
+            <QualifyModel
+              connection={c}
+              models={detail.model_access
+                .filter(
+                  (a) => a.path === 'responses' && a.access === 'verified',
+                )
+                .map((a) => a.model_id)}
+              allowed={c.settings.allowed_task_classes}
+              running={detail.qualifications.filter(
+                (q) => q.state === 'running',
+              )}
+              busy={busy || !session}
+              act={act}
+            />
+          )}
           <h4>Recent requests</h4>
           <p>
             {detail.usage.last_24h_requests} in the last 24 hours ·{' '}

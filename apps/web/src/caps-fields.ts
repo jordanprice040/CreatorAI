@@ -177,3 +177,101 @@ export function capChanges(before: CapsShape, after: CapsShape, kind: string) {
         `${x.label}: ${(read(before, x) / x.scale).toLocaleString('en-US')} → ${(read(after, x) / x.scale).toLocaleString('en-US')} ${x.unit}`,
     );
 }
+
+// Allowed work (full audit 2026-11-02): which data and task classes a plan connection admits.
+// Before, only `pnpm cli plan-settings` could change them, while the build and qualify forms
+// told people to allow a class "in that connection's settings". Keys must match DataClassSchema
+// and PlanTaskClassSchema (checked in web-caps-form.test.ts).
+
+export type ClassChoice = { key: string; label: string; codexOnly: boolean };
+
+export const DATA_CLASS_CHOICES: readonly ClassChoice[] = [
+  { key: 'synthetic', label: 'Synthetic (made-up) data', codexOnly: false },
+  { key: 'public', label: 'Public data', codexOnly: false },
+  {
+    key: 'private_approved',
+    label: 'Approved private data',
+    codexOnly: false,
+  },
+];
+
+export const TASK_CLASS_CHOICES: readonly ClassChoice[] = [
+  { key: 'research_synthesis', label: 'Research synthesis', codexOnly: false },
+  {
+    key: 'candidate_generation',
+    label: 'Candidate generation',
+    codexOnly: false,
+  },
+  { key: 'scoring', label: 'Scoring', codexOnly: false },
+  { key: 'specification', label: 'Specification writing', codexOnly: false },
+  { key: 'summarization', label: 'Summarization', codexOnly: false },
+  { key: 'patch_build', label: 'Builder role (patch_build)', codexOnly: false },
+  {
+    key: 'independent_review',
+    label: 'Reviewer role (independent_review)',
+    codexOnly: false,
+  },
+  { key: 'code_build', label: 'Codex builds (code_build)', codexOnly: true },
+];
+
+/** The task classes a connection kind can take: Claude Code has no Codex path. */
+export const taskChoicesFor = (kind: string) =>
+  TASK_CLASS_CHOICES.filter((x) => !x.codexOnly || kind === 'chatgpt_plan');
+
+/** Ticked keys in the canonical order, keeping only ones this kind can take. */
+export function orderedClasses(
+  choices: readonly ClassChoice[],
+  ticked: readonly string[],
+): string[] {
+  const set = new Set(ticked);
+  return choices.filter((x) => set.has(x.key)).map((x) => x.key);
+}
+
+/** Problems with the ticked classes, by field ('data' or 'tasks'); empty when they can be saved. */
+export function classErrors(
+  data: readonly string[],
+  tasks: readonly string[],
+  kind: string,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (orderedClasses(DATA_CLASS_CHOICES, data).length === 0)
+    errors.data = 'Allow at least one kind of data.';
+  if (orderedClasses(taskChoicesFor(kind), tasks).length === 0)
+    errors.tasks = 'Allow at least one kind of task.';
+  return errors;
+}
+
+/** Plain-language list of allowed-work changes, e.g. "Allows approved private data". */
+export function classChanges(
+  before: { data: readonly string[]; tasks: readonly string[] },
+  after: { data: readonly string[]; tasks: readonly string[] },
+): string[] {
+  const out: string[] = [];
+  const diff = (
+    choices: readonly ClassChoice[],
+    a: readonly string[],
+    b: readonly string[],
+  ) => {
+    for (const x of choices) {
+      const was = a.includes(x.key);
+      const now = b.includes(x.key);
+      if (was !== now)
+        out.push(
+          `${now ? 'Allows' : 'No longer allows'} ${x.label.charAt(0).toLowerCase()}${x.label.slice(1)}`,
+        );
+    }
+  };
+  diff(DATA_CLASS_CHOICES, before.data, after.data);
+  diff(TASK_CLASS_CHOICES, before.tasks, after.tasks);
+  return out;
+}
+
+/** The connection's allowed work in words, for the details list. */
+export function classSummary(
+  data: readonly string[],
+  tasks: readonly string[],
+): string {
+  const names = (choices: readonly ClassChoice[], keys: readonly string[]) =>
+    keys.map((k) => choices.find((x) => x.key === k)?.label ?? k).join(', ');
+  return `${names(DATA_CLASS_CHOICES, data)} · tasks: ${names(TASK_CLASS_CHOICES, tasks)}`;
+}

@@ -102,8 +102,10 @@ export async function chatMessages(
   c: PoolClient,
   conversation: string,
 ): Promise<ChatMessage[]> {
+  // PR #98 L-4 (full audit 2026-11-02): past 2000 messages, the newest are kept, not the oldest.
   const { rows } = await c.query(
-    'select * from chat_messages where conversation_id = $1 order by seq limit 2000',
+    `select * from (select * from chat_messages where conversation_id = $1
+       order by seq desc limit 2000) newest order by seq`,
     [conversation],
   );
   return rows.map((r) => toChatMessage(r as Row));
@@ -144,8 +146,10 @@ export async function chatAnswers(
   c: PoolClient,
   conversation: string,
 ): Promise<ChatAnswer[]> {
+  // PR #118 review L2: like the messages, past the cap the newest answers are kept.
   const { rows } = await c.query(
-    'select * from chat_answers where conversation_id = $1 order by created_at, id limit 4000',
+    `select * from (select * from chat_answers where conversation_id = $1
+       order by created_at desc, id desc limit 4000) newest order by created_at, id`,
     [conversation],
   );
   return rows.map((r) => toChatAnswer(r as Row));

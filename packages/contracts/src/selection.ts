@@ -680,7 +680,7 @@ export function connectionDataBlocker(
   connectionLabel: string,
 ): string | null {
   if (allowed.includes(dataClass)) return null;
-  return `The plan connection "${connectionLabel}" doesn't allow ${DATA_NAMES[dataClass]} data, and this build is classified for it. Allow ${DATA_NAMES[dataClass]} data in that connection's settings (Models and connections), or choose another builder.`;
+  return `The plan connection "${connectionLabel}" doesn't allow ${DATA_NAMES[dataClass]} data, and this build is classified for it. Allow ${DATA_NAMES[dataClass]} data under Models and connections › Change caps or allowed work, then accept the changed caps, or choose another builder.`;
 }
 const listed = (keys: readonly string[]) =>
   keys.length === 1

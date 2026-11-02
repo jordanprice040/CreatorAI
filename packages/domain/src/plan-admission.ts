@@ -47,7 +47,7 @@ export function connectionBlockers(c: PlanConnection): string[] {
     );
   if (!c.caps_accepted_at)
     out.push(
-      'The owner has not accepted the current request, daily, time and output caps.',
+      'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
     );
   if (c.eligibility.state === 'not_eligible')
     out.push(
@@ -91,7 +91,7 @@ function claudeCodeBlockers(c: PlanConnection): string[] {
     );
   if (!c.caps_accepted_at)
     out.push(
-      'The owner has not accepted the current request, daily, time and output caps.',
+      'The owner has not accepted the current caps and allowed work (request, daily, time and output caps; data and task classes).',
     );
   if (c.eligibility.state === 'not_eligible')
     out.push(

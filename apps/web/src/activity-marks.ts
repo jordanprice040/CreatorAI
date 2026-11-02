@@ -146,7 +146,8 @@ export function mergeSeen(
 }
 
 /**
- * Writes the changed tabs over what is stored now and returns the new seen state. When the write
+ * Writes the changed tabs over what is stored now and returns the new seen state. Workspaces that
+ * only memory holds are written too. When the write
  * fails (blocked or full storage) what is stored is stale or empty, so the in-memory state is kept
  * instead; taking the stored copy would forget the other tabs and workspaces and drop their dots.
  */
@@ -157,7 +158,9 @@ export function storeSeenWith(
   ws: string,
   changed: Seen,
 ): Record<string, Seen> {
-  const all = mergeSeen(read(), ws, changed);
+  // PR #113 L-1: a workspace held only in memory (first seen while writes were failing) is
+  // kept when a later write succeeds; workspaces the store has keep the stored copy.
+  const all = mergeSeen({ ...memory, ...read() }, ws, changed);
   try {
     write(all);
     return all;

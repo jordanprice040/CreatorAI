@@ -2,7 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
-import { PlanCapsSchema, type PlanCaps } from '@creator/contracts';
+import {
+  DataClassSchema,
+  PlanSettingsSchema,
+  PlanTaskClassSchema,
+  PlanCapsSchema,
+  type PlanCaps,
+} from '@creator/contracts';
 
 type Field = {
   key: string;
@@ -24,7 +30,22 @@ type CapsFields = {
     | { caps: PlanCaps; errors: null }
     | { caps: null; errors: Record<string, string> };
   capChanges: (before: PlanCaps, after: PlanCaps, kind: string) => string[];
+  DATA_CLASS_CHOICES: readonly Choice[];
+  TASK_CLASS_CHOICES: readonly Choice[];
+  taskChoicesFor: (kind: string) => Choice[];
+  orderedClasses: (choices: readonly Choice[], ticked: string[]) => string[];
+  classErrors: (
+    data: string[],
+    tasks: string[],
+    kind: string,
+  ) => Record<string, string>;
+  classChanges: (
+    before: { data: string[]; tasks: string[] },
+    after: { data: string[]; tasks: string[] },
+  ) => string[];
+  classSummary: (data: string[], tasks: string[]) => string;
 };
+type Choice = { key: string; label: string; codexOnly: boolean };
 
 // caps-fields.ts has no imports, so it loads without a browser or stubs.
 async function load(): Promise<CapsFields> {
@@ -207,5 +228,78 @@ test('the evidence websites box keeps host names only and flags IPs, ports and s
       { mode: 'listed', hosts: ['a.org'] },
     ),
     [],
+  );
+});
+
+test('allowed-work choices are exactly the classes plan settings accept', async () => {
+  // Full audit 2026-11-02: data and task classes can now be changed in the app.
+  const m = await load();
+  assert.deepEqual(
+    m.DATA_CLASS_CHOICES.map((x) => x.key),
+    [...DataClassSchema.options],
+  );
+  assert.deepEqual(
+    m.TASK_CLASS_CHOICES.map((x) => x.key).sort(),
+    [...PlanTaskClassSchema.options].sort(),
+  );
+  // Claude Code has no Codex path; ChatGPT plans can take every class.
+  assert.ok(
+    !m.taskChoicesFor('claude_code').some((x) => x.key === 'code_build'),
+  );
+  assert.equal(
+    m.taskChoicesFor('chatgpt_plan').length,
+    m.TASK_CLASS_CHOICES.length,
+  );
+  // Ticked order does not matter, and a class the kind can't take is dropped.
+  assert.deepEqual(
+    m.orderedClasses(m.taskChoicesFor('claude_code'), [
+      'code_build',
+      'summarization',
+      'scoring',
+    ]),
+    ['scoring', 'summarization'],
+  );
+  // What is saved parses as plan settings.
+  const settings = {
+    format: 'chatgpt-plan-settings/1',
+    plan_type: 'plus',
+    shared_allowance_note: 'Shared with personal use.',
+    allowed_data_classes: m.orderedClasses(m.DATA_CLASS_CHOICES, [
+      'private_approved',
+      'synthetic',
+    ]),
+    allowed_task_classes: m.orderedClasses(m.TASK_CLASS_CHOICES, [
+      'patch_build',
+      'specification',
+    ]),
+    caps: CAPS,
+  };
+  assert.equal(PlanSettingsSchema.safeParse(settings).success, true);
+});
+
+test('allowed work needs at least one class each, and changes are said in words', async () => {
+  const m = await load();
+  assert.deepEqual(m.classErrors(['public'], ['scoring'], 'chatgpt_plan'), {});
+  assert.deepEqual(
+    Object.keys(m.classErrors([], ['code_build'], 'claude_code')).sort(),
+    ['data', 'tasks'],
+  );
+  assert.deepEqual(
+    m.classChanges(
+      { data: ['synthetic', 'public'], tasks: ['summarization'] },
+      { data: ['synthetic', 'private_approved'], tasks: ['summarization'] },
+    ),
+    ['No longer allows public data', 'Allows approved private data'],
+  );
+  assert.deepEqual(
+    m.classChanges(
+      { data: ['public'], tasks: ['summarization', 'scoring'] },
+      { data: ['public'], tasks: ['scoring', 'summarization'] },
+    ),
+    [],
+  );
+  assert.equal(
+    m.classSummary(['synthetic', 'public'], ['specification']),
+    'Synthetic (made-up) data, Public data · tasks: Specification writing',
   );
 });
