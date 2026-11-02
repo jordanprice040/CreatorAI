@@ -10,9 +10,9 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
-import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
+import { QualifyModel } from './qualify.js';
 import {
   capChanges,
   capFieldsFor,
@@ -107,7 +107,6 @@ export function Models({
   workspace: Workspace;
   session: SessionInfo | null;
 }) {
-  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   const active = usePageActive();
   const [loaded, setLoaded] = useState(false);
@@ -746,18 +745,18 @@ export function Models({
               ))}
             </ul>
           ) : (
-            <p>
-              No qualification yet.{' '}
-              {desktop ? (
-                <>Starting one {NO_CLI_IN_DESKTOP}.</>
-              ) : (
-                <>
-                  Start one from the CLI with a frozen benchmark manifest (
-                  <code>pnpm cli plan-qualify</code>).
-                </>
-              )}
-            </p>
+            <p>No qualification yet.</p>
           )}
+          <QualifyModel
+            connection={c}
+            models={detail.model_access
+              .filter((a) => a.path === 'responses' && a.access === 'verified')
+              .map((a) => a.model_id)}
+            allowed={c.settings.allowed_task_classes}
+            running={detail.qualifications.filter((q) => q.state === 'running')}
+            busy={busy || !session}
+            act={act}
+          />
           <h4>Recent requests</h4>
           <p>
             {detail.usage.last_24h_requests} in the last 24 hours ·{' '}
