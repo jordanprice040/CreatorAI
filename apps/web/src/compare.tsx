@@ -32,6 +32,7 @@ import {
 } from './ui.js';
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
+import { HumilityForm } from './humility.js';
 import {
   carryDecisions,
   formGate,
@@ -213,6 +214,7 @@ export function Compare({
   const [rationaleKept, setRationaleKept] = useState<string | null>(null);
   const [overrideKept, setOverrideKept] = useState<string | null>(null);
   const [reasonsKept, setReasonsKept] = useState<Record<string, string>>({});
+  const [humilityFor, setHumilityFor] = useState<string | null>(null);
   const [runId, setRunId] = useState('');
   const [outcome, setOutcome] = useState<SelectOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -227,6 +229,7 @@ export function Compare({
     setReasonsKept({});
     setOutcome(null);
     setError('');
+    setHumilityFor(null);
   }, [focus]);
   const d = detail.data;
   useEffect(() => {
@@ -257,6 +260,7 @@ export function Compare({
     ),
   );
   const alts = d?.cmp.alternatives ?? [];
+  const humilityAlt = alts.find((a) => a.entity.id === humilityFor);
   // The latest selection's decisions carry over to the current report; only options whose
   // own inputs changed are flagged, and those need a look before recording.
   const latest = d?.selections.find((s) => s.current) ?? null;
@@ -605,6 +609,25 @@ export function Compare({
                           {String(hr.change_course_trigger ?? '—')}
                         </p>
                       )}
+                      {!viewer &&
+                        ['build', 'hybrid'].includes(
+                          String(a.entity.body?.kind ?? ''),
+                        ) &&
+                        !humilityFor && (
+                          <button
+                            type="button"
+                            className="text"
+                            onClick={() => setHumilityFor(a.entity.id)}
+                          >
+                            {hr &&
+                            (hr.subject as { version?: number } | undefined)
+                              ?.version === a.entity.version
+                              ? 'Review again'
+                              : hr
+                                ? `Review v${a.entity.version} (the review is of an older version)`
+                                : 'Add a humility review'}
+                          </button>
+                        )}
                       {p && p.dissent.length > 0 && (
                         <details>
                           <summary>
@@ -621,6 +644,35 @@ export function Compare({
                   );
                 })}
               </div>
+            )}
+            {humilityAlt && (
+              <HumilityForm
+                key={`${humilityAlt.entity.id}:${humilityAlt.entity.version}`}
+                base={base}
+                session={session}
+                subject={{
+                  id: humilityAlt.entity.id,
+                  version: humilityAlt.entity.version,
+                  label: humilityAlt.entity.title,
+                }}
+                claims={d.cmp.claims.map((c) => c.evidence)}
+                {...(humilityAlt.humility_review
+                  ? { earlier: humilityAlt.humility_review }
+                  : {})}
+                prefill={{
+                  whose_perspective: String(
+                    d.cmp.problem.body?.affected_group ?? '',
+                  ),
+                  outcome_that_matters: String(
+                    d.cmp.brief?.body?.outcome_measure ?? '',
+                  ),
+                }}
+                cancel={() => setHumilityFor(null)}
+                saved={() => {
+                  setHumilityFor(null);
+                  detail.reload();
+                }}
+              />
             )}
             <p className="small">
               Full rankings and sensitivity:{' '}
