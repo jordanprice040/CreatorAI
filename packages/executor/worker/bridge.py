@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import selectors
+import shlex
 import signal
 import subprocess
 import sys
@@ -23,7 +24,10 @@ POLICY = {
 # ADR-0058: an owner-started interactive session on the same sandbox. Only the runtime and
 # the terminal differ: the program's terminal is the owner's console window, so nothing it
 # prints is captured, and the session ends at 15 minutes, on Stop, or when the window closes.
-TERMINAL_POLICY = {**POLICY, 'format': 'isolation-terminal/1', 'runtime_seconds': 900,
+# ADR-0059: the same window can run the program again (Enter, or new arguments) until the
+# owner quits; each run gets a fresh unit and sandbox, and the window as a whole is bounded.
+TERMINAL_POLICY = {**POLICY, 'format': 'isolation-terminal/2', 'runtime_seconds': 900,
+                   'session_seconds': 3600, 'idle_seconds': 600, 'max_runs': 50, 'max_args': 12,
                    'log_bytes': 0, 'terminal': 'pty'}
 
 
@@ -178,8 +182,62 @@ def write_record(path, value):
     os.replace(tmp, path)
 
 
+class _StopWaiting(Exception):
+    """Raised from the SIGALRM watcher to end a prompt that is waiting for a line."""
+
+
+def rerun_choice(line, last):
+    """What a line typed at the rerun prompt asks for: ('run', args), ('quit', None) or
+    ('error', message). The owner types it in their own window; nothing reaches a shell."""
+    text = line.strip()
+    if not text:
+        return 'run', list(last)
+    if text in ('q', 'quit', 'exit'):
+        return 'quit', None
+    if text == '.':
+        return 'run', []
+    try:
+        words = shlex.split(text)
+    except ValueError as error:
+        return 'error', 'Could not read that line (' + str(error) + '). Check the quotes.'
+    # A pasted full command line runs the same program.
+    for prefix in (['python3', 'src/main.py'], ['python', 'src/main.py'], ['src/main.py']):
+        if words[:len(prefix)] == prefix:
+            words = words[len(prefix):]
+            break
+    if len(words) > TERMINAL_POLICY['max_args']:
+        return 'error', f"At most {TERMINAL_POLICY['max_args']} arguments."
+    if any(len(w) > 500 or '\0' in w for w in words):
+        return 'error', 'An argument is longer than 500 characters.'
+    return 'run', words
+
+
+def wait_for_line(text, check, idle_seconds):
+    """input() with line editing and history (Up arrow) when readline is available. check()
+    runs every quarter second and ends the wait with its reason (Stop, studio gone, window
+    closed, deadline); so does idle_seconds without a line."""
+    began = time.monotonic()
+
+    def tick(_number, _frame):
+        reason = check() or ('idle' if time.monotonic() - began > idle_seconds else None)
+        if reason:
+            raise _StopWaiting(reason)
+    previous = signal.signal(signal.SIGALRM, tick)
+    signal.setitimer(signal.ITIMER_REAL, 0.25, 0.25)
+    try:
+        return input(text), None
+    except _StopWaiting as stop:
+        return None, stop.args[0]
+    except EOFError:
+        return None, 'quit'
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
 def interactive(args, job, lease, source, recipe, unit, identity):
-    """Runs the package attached to this console window. Records go to files, not stdout."""
+    """Runs the package attached to this console window, and again on request, until the owner
+    quits. Records go to files, not stdout."""
     launch_file = job / 'launch.json'
     value = json.loads(launch_file.read_text())
     if not isinstance(value, dict) or set(value) != {'args'}:
@@ -197,77 +255,170 @@ def interactive(args, job, lease, source, recipe, unit, identity):
                '--remount-ro', '/', '--remount-ro', '/dev', '--remount-ro', '/proc',
                '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'HOME', '/nonexistent',
                '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
-    launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pty', '--wait', '--collect', '--unit=' + unit,
-              '-p', 'MemoryMax=268435456', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32',
-              '-p', 'CPUQuota=50%', '-p', 'RuntimeMaxSec=900', '-p', 'KillMode=control-group',
-              '-p', 'TimeoutStopSec=1', '-p', 'SendSIGKILL=yes', '-p', 'UMask=0077', *sandbox]
-    reason = None
     signalled = []
 
-    def stop_on_signal(number, _frame):
+    def on_signal(number, _frame):
         signalled.append(number)
     for number in (signal.SIGHUP, signal.SIGTERM, signal.SIGINT):
-        signal.signal(number, stop_on_signal)
-    print('Creator Agent: isolated terminal. No network, no studio files; it ends after 15 '
-          'minutes, on Stop, or when you close this window.\n', flush=True)
-    child = subprocess.Popen(launch)
-    started = time.monotonic()
-    observed_limits = False
-    try:
-        while child.poll() is None:
-            if not observed_limits:
-                try:
-                    properties = command(['/usr/bin/systemctl', '--user', 'show', unit,
-                                          '-p', 'MemoryMax', '-p', 'MemorySwapMax', '-p', 'TasksMax',
-                                          '-p', 'CPUQuotaPerSecUSec', '-p', 'RuntimeMaxUSec', '-p', 'KillMode'])
-                    if 'MemoryMax=268435456' in properties and 'RuntimeMaxUSec=15min' in properties:
-                        identity['effective_limits'] = properties
-                        write_record(job / 'environment.json', identity)
-                        observed_limits = True
-                except subprocess.SubprocessError:
-                    pass
+        signal.signal(number, on_signal)
+    session_started = time.monotonic()
+
+    def remaining():
+        return TERMINAL_POLICY['session_seconds'] - (time.monotonic() - session_started)
+
+    def check():
+        """Why the session must end now, from outside the program; None to carry on."""
+        if any(n != signal.SIGINT for n in signalled):
+            return 'window_closed'
+        try:
+            current = json.loads(lease.read_text())
+            if current.get('cancelled'):
+                return 'stopped'
+            if current.get('execution_id') != args.execution_id or \
+                    time.time() * 1000 - current.get('heartbeat_ms', 0) > 5000:
+                return 'lease_lost'
+        except (OSError, ValueError):
+            return 'lease_lost'
+        # Ahead of the unit's RuntimeMaxSec backstop, so the limit is recorded as the deadline
+        # rather than as an ordinary end.
+        if remaining() < 5:
+            return 'deadline'
+        return None
+
+    def run(run_args):
+        """One run in a fresh unit and sandbox. Returns (exit code, reason, unit stopped)."""
+        nonlocal observed_limits
+        write_record(launch_file, {'args': run_args})
+        # A collected unit is gone, but a failed one keeps its name until it is reset.
+        try:
+            subprocess.run(['/usr/bin/systemctl', '--user', 'reset-failed', unit], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except subprocess.SubprocessError:
+            pass
+        # Never 0: RuntimeMaxSec=0 would mean no limit.
+        limit = max(1, int(min(TERMINAL_POLICY['runtime_seconds'], remaining())))
+        launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pty', '--wait', '--collect', '--unit=' + unit,
+                  '-p', 'MemoryMax=268435456', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32',
+                  '-p', 'CPUQuota=50%', '-p', 'RuntimeMaxSec=' + str(limit), '-p', 'KillMode=control-group',
+                  '-p', 'TimeoutStopSec=1', '-p', 'SendSIGKILL=yes', '-p', 'UMask=0077', *sandbox]
+        print('Running: ' + ' '.join(shlex.quote(w) for w in ['python3', 'src/main.py', *run_args]) + '\n',
+              flush=True)
+        reason = None
+        child = subprocess.Popen(launch)
+        started = time.monotonic()
+        try:
+            while child.poll() is None:
+                if not observed_limits:
+                    try:
+                        properties = command(['/usr/bin/systemctl', '--user', 'show', unit,
+                                              '-p', 'MemoryMax', '-p', 'MemorySwapMax', '-p', 'TasksMax',
+                                              '-p', 'CPUQuotaPerSecUSec', '-p', 'RuntimeMaxUSec', '-p', 'KillMode'])
+                        if 'MemoryMax=268435456' in properties and 'RuntimeMaxUSec=' in properties:
+                            identity['effective_limits'] = properties
+                            write_record(job / 'environment.json', identity)
+                            observed_limits = True
+                    except subprocess.SubprocessError:
+                        pass
+                reason = check() or ('deadline' if time.monotonic() - started > limit - 5 else None)
+                if reason:
+                    break
+                time.sleep(0.1)
+        finally:
+            subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
             try:
-                current = json.loads(lease.read_text())
-                if current.get('cancelled'):
-                    reason = 'stopped'
-                elif current.get('execution_id') != args.execution_id or \
-                        time.time() * 1000 - current.get('heartbeat_ms', 0) > 5000:
-                    reason = 'lease_lost'
-            except (OSError, ValueError):
-                reason = 'lease_lost'
-            if signalled:
-                reason = 'window_closed'
-            # Ahead of the unit's RuntimeMaxSec backstop, so a 15-minute stop is recorded
-            # as the deadline rather than as an ordinary end.
-            if time.monotonic() - started > TERMINAL_POLICY['runtime_seconds'] - 5:
-                reason = reason or 'deadline'
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+        state = command(['/usr/bin/systemctl', '--user', 'show', unit, '-p', 'ActiveState', '--value'])
+        return child.returncode, reason, state
+
+    print('Creator Agent: isolated terminal. No network, no studio files. Each run may take up to '
+          f"{TERMINAL_POLICY['runtime_seconds'] // 60} minutes; the window closes after "
+          f"{TERMINAL_POLICY['session_seconds'] // 60} minutes in all, on Stop, or when you close it.\n",
+          flush=True)
+    try:
+        import readline  # noqa: F401  Line editing and Up-arrow history at the rerun prompt.
+    except ImportError:
+        readline = None
+    try:
+        import termios
+        saved_tty = termios.tcgetattr(sys.stdin.fileno())
+    except Exception:
+        termios = saved_tty = None
+    observed_limits = False
+    runs = []
+    run_args = value['args']
+    reason = None
+    exit_code = None
+    state = 'inactive'
+    while True:
+        started = time.monotonic()
+        exit_code, reason, state = run(run_args)
+        runs.append({'args': run_args, 'exit_code': exit_code,
+                     'seconds': int(time.monotonic() - started)})
+        if readline and len(runs) == 1 and run_args:
+            # Lines typed at the prompt join the history by themselves; the confirmed first
+            # arguments did not come through it.
+            readline.add_history(shlex.join(run_args))
+        if reason or state not in ('inactive', 'failed') or len(runs) >= TERMINAL_POLICY['max_runs']:
+            break
+        if termios and saved_tty:
+            # The program may leave the window in raw mode; give the prompt a normal line.
+            try:
+                termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, saved_tty)
+            except Exception:
+                pass
+        shown = ' '.join(shlex.quote(w) for w in ['python3', 'src/main.py', *run_args])
+        print(f'\nThe program ended with exit code {exit_code}. Run it again in this window:\n'
+              f'  Enter          same again: {shown}\n'
+              '  new arguments  for example --help (Up arrow recalls earlier ones; . for none)\n'
+              '  q              close this window\n', flush=True)
+        choice = None
+        while True:
+            signalled[:] = [n for n in signalled if n != signal.SIGINT]
+            # Ctrl+C at the prompt closes the session like q.
+            line, reason = wait_for_line(
+                '> ', lambda: check() or ('quit' if signal.SIGINT in signalled else None),
+                TERMINAL_POLICY['idle_seconds'])
+            if reason == 'quit':
+                reason, choice = None, None
+                break
             if reason:
                 break
-            time.sleep(0.1)
-    finally:
-        subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], stdin=subprocess.DEVNULL,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-        try:
-            child.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            child.kill()
-            child.wait()
-    state = command(['/usr/bin/systemctl', '--user', 'show', unit, '-p', 'ActiveState', '--value'])
+            kind, choice = rerun_choice(line, run_args)
+            if kind == 'error':
+                print(choice, flush=True)
+                continue
+            if kind == 'quit':
+                choice = None
+            break
+        if reason == 'idle':
+            print('\nNo input for ' + str(TERMINAL_POLICY['idle_seconds'] // 60) + ' minutes.', flush=True)
+        if choice is None:
+            break
+        run_args = choice
+    # An idle prompt or a quit ends the session normally.
+    if reason == 'idle':
+        reason = None
     write_record(job / 'result.json', {
-        'exit_code': child.returncode, 'reason': reason, 'cleaned': state in ('inactive', 'failed'),
-        'unit_state': state, 'limits_observed': observed_limits})
-    if signalled:
+        'exit_code': exit_code, 'reason': reason, 'cleaned': state in ('inactive', 'failed'),
+        'unit_state': state, 'limits_observed': observed_limits, 'runs': runs[-50:],
+        'run_count': len(runs)})
+    if any(n != signal.SIGINT for n in signalled):
         return
+    if len(runs) >= TERMINAL_POLICY['max_runs']:
+        print(f"\nThis window has run the program {TERMINAL_POLICY['max_runs']} times, its limit.", flush=True)
     # Keep the program's last screen (for example a practice report) until the owner is done.
     print('\nSession ended' + (' (' + reason + ')' if reason else '') +
-          f' with exit code {child.returncode}. Press Enter to close this window.', flush=True)
+          '. Press Enter to close this window.', flush=True)
     try:
         ready = selectors.DefaultSelector()
         ready.register(sys.stdin, selectors.EVENT_READ)
         ready.select(600)
     except (OSError, ValueError):
         pass
-
 
 if __name__ == '__main__':
     try:
