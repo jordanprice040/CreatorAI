@@ -12,6 +12,19 @@ Checks run: `pnpm typecheck` and prettier pass. New `tests/src/web-qualify-form.
 
 Limits: Run was not exercised here (it makes real plan requests). The first live run needs Jordan's typed OK. Only the bundled benchmarks can be picked, not a custom manifest. The page waits for the run, which can take minutes. Not walked on the installed desktop app. Next: piece 5, pricing and charges.
 
+Review fixes (review of PR #115 at fcace18, `/mnt/project-files/reviews/PR115_MODEL_QUALIFICATION_REVIEW_2026-11-02.md`):
+
+- M-1: Run now reads the server's answer. A stopped run says why next to the form, for example "stopped: daily cap reached. Answered cases are kept… press Run to continue", and a decided run shows its result.
+- L-1: Finish asks first ("records every unanswered case as failed… Finish anyway / Keep it open").
+- L-2: the Run label says it is an upper bound and that answered cases are skipped.
+- L-3: errors and outcomes show beside the form, not in the page-level alert.
+- L-4: a run locks only the qualification buttons, not the whole Models page.
+- N-1: the "graded so far" text, which could never appear, is removed.
+- N-3: a disallowed benchmark points to the connection's Allowed line.
+- N-2 (benchmarks in the bundle) is unchanged.
+
+Checks: `web-qualify-form` gives 2 pass, including a new test that pins the stopped and decided wording. The walk was re-run: Finish asked first and "Keep it open" kept it open, other page buttons stayed enabled, Run was never pressed, and `plan_requests` = 0.
+
 ## Humility review in the app (audit item 4, piece 3 of 5) — November 2, 2026
 
 What now works: a humility review form, on Projects › Build for each active spec version ("Add a humility review" / "Review again", with the current review's recommendation shown on the spec row) and on Projects › Decide for build and hybrid options (the selection gate needs a review of the option's exact version before "select for build"). The form covers the whole `humility_review` body: the outcome and whose view, supported/inferred/disputed/unknown evidence (one per line), the six comparisons (assessment, viable yes/no, claims cited on Decide), software and human parts, burdens, a disconfirming test, a change-course trigger, ethics, the recommendation, a short rationale and dissent. It posts to the existing `POST entities` (kind `humility_review`, subject = that exact version) and reads `entities/{id}/humility-gate` back. It starts from the newest earlier review of the same spec (any version), else of the spec's option, moved to the current version; otherwise only the problem's affected group / spec audience and the brief's outcome measure are filled in. Viability, ethics status and the recommendation are never pre-picked, including when starting from an earlier review (see review fixes below). A preview says, before saving, whether the review will admit a build (mirroring `humilityGate`). The next-step line no longer says `pnpm cli humility-gate`. The gate's handling of hybrids (pilot F9) is unchanged.

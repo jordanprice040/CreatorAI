@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import ts from 'typescript';
 import {
   BenchmarkManifestSchema,
   PLAN_RESPONSES_TASK_CLASSES,
@@ -45,4 +47,60 @@ test('every benchmark the app offers would pass the server checks it can know ab
         );
   }
   assert.ok(!files.some((f) => f.endsWith('t12-reviewer-v1.json')));
+});
+
+// qualify.tsx with its sibling import stubbed; the benchmark files and React load for real.
+async function loadQualify() {
+  const source = await readFile('apps/web/src/qualify.tsx', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      jsx: ts.JsxEmit.ReactJSX,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const require = createRequire(
+    new URL('../../apps/web/src/qualify.tsx', import.meta.url),
+  );
+  const exports = {} as {
+    runOutcome: (
+      q: { task_class: string; model_id: string },
+      out: unknown,
+    ) => string;
+  };
+  new Function('require', 'exports', code)(
+    (name: string) =>
+      name === './oversight.js'
+        ? { words: (s: string) => s.replaceAll('_', ' ') }
+        : require(name),
+    exports,
+  );
+  return exports;
+}
+
+test('a run that stops says why; a finished run says the result (review M-1)', async () => {
+  const { runOutcome } = await loadQualify();
+  const q = { task_class: 'specification', model_id: 'gpt-6-astra' };
+  const stopped = runOutcome(q, {
+    state: 'stopped',
+    reason: 'daily_cap_reached',
+  });
+  assert.match(
+    stopped,
+    /specification on gpt-6-astra stopped: daily cap reached/,
+  );
+  assert.match(stopped, /press Run to continue/);
+  assert.match(
+    runOutcome(q, {
+      state: 'decided',
+      qualification: {
+        state: 'failed',
+        reason: '5/6 held-out cases accepted.',
+        held_out: { passed: 5, total: 6 },
+      },
+    }),
+    /failed \(5 of 6 held-out cases passed\)\. 5\/6 held-out/,
+  );
+  // A failed request (null) leaves no outcome line: its error shows instead.
+  assert.equal(runOutcome(q, null), '');
 });

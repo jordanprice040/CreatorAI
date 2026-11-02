@@ -75,4 +75,25 @@ console.log(
 );
 console.log('started row:', await fs.locator('[role=group]').allInnerTexts());
 await fs.screenshot({ path: `${out}/02-qualification-started.png` });
+// Finish before Run asks first (review of PR #115, L-1); keep it open. Run is never pressed.
+await fs.getByRole('button', { name: 'Finish and record the result' }).click();
+await page.waitForTimeout(300);
+console.log(
+  'finish asks:',
+  (await fs.locator('.qualify-row .notice').innerText()).replace(/\s+/g, ' '),
+);
+await fs.screenshot({ path: `${out}/03-finish-confirm.png` });
+await fs.getByRole('button', { name: 'Keep it open' }).click();
+await page.waitForTimeout(300);
+console.log(
+  'run label:',
+  await fs.getByRole('button', { name: /^Run/ }).innerText(),
+);
+console.log(
+  'other page buttons enabled:',
+  await page
+    .getByRole('button', { name: 'Sign out' })
+    .isEnabled()
+    .catch(() => 'n/a'),
+);
 await browser.close();
