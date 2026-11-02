@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
 import { runLabel } from './labels.js';
+import { clearNoteDrafts } from './note-drafts.js';
 import {
   AuthStatusSchema,
   DecisionSchema,
@@ -131,6 +132,8 @@ export function useSession(persistent: boolean) {
         body: {},
         csrf: session.csrf_token,
       });
+      // ADR-0060 review N-1: unsaved notes copies never outlive the person's session here.
+      clearNoteDrafts();
       setSession(null);
     } catch (e) {
       setError(`Sign-out was not confirmed. Try again. ${message(e)}`);

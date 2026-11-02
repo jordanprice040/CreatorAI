@@ -15,6 +15,8 @@ test('browser session retains sign-in on failed logout and clears it after confi
     },
   }).outputText;
   const slots: unknown[] = [];
+  // ADR-0060 review N-1: unsaved notes copies are cleared only by a confirmed sign-out.
+  let cleared = 0;
   let cursor = 0;
   const require = createRequire(
     new URL('../../apps/web/package.json', import.meta.url),
@@ -38,7 +40,9 @@ test('browser session retains sign-in on failed logout and clears it after confi
         ? { usePageActive: () => true }
         : name === './labels.js'
           ? {}
-          : require(name);
+          : name === './note-drafts.js'
+            ? { clearNoteDrafts: () => void cleared++ }
+            : require(name);
   let response: 'network' | 'server' | 'success' = 'network';
   const requests: { path: string; init: RequestInit }[] = [];
   const fetch = async (path: string, init: RequestInit) => {
@@ -85,11 +89,13 @@ test('browser session retains sign-in on failed logout and clears it after confi
     await render().signOut();
     assert.equal(render().session, session);
     assert.match(render().error, /Sign-out was not confirmed.*Try again/);
+    assert.equal(cleared, 0);
   }
   response = 'success';
   await render().signOut();
   assert.equal(render().session, null);
   assert.equal(render().error, '');
+  assert.equal(cleared, 1);
   assert.equal(requests.length, 3);
   for (const request of requests) {
     assert.equal(request.path, '/api/auth/logout');

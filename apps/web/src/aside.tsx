@@ -12,6 +12,11 @@ import {
 import { api, ApiError, message, when } from './oversight.js';
 import { Icon, eventText, subjectTarget, type View } from './ui.js';
 import './aside.css';
+import {
+  readNoteDraft,
+  writeNoteDraft,
+  type NoteDraft,
+} from './note-drafts.js';
 
 // ADR-0060: the right-hand sidebar. Two tabs, Activity (what is running now and the latest
 // audit events) and Notes (the person's own notepad for this workspace, saved as they type).
@@ -208,11 +213,14 @@ function nowTarget(item: ActivityNowItem): [View, string?] {
 /** The sidebar itself. Rendered only inside a workspace, next to the page. */
 export function RightSidebar({
   workspace,
+  actor,
   csrf,
   aside,
   open,
 }: {
   workspace: Workspace;
+  /** The signed-in person; notes and their safety copies are theirs alone. */
+  actor: string;
   csrf: string;
   aside: Aside;
   open: (view: View, id?: string) => void;
@@ -337,7 +345,12 @@ export function RightSidebar({
         hidden={aside.tab !== 'notes'}
         className="aside-body notes-body"
       >
-        <Notes key={workspace.id} ws={workspace.id} csrf={csrf} />
+        <Notes
+          key={`${actor}:${workspace.id}`}
+          ws={workspace.id}
+          actor={actor}
+          csrf={csrf}
+        />
       </div>
     </section>
   );
@@ -497,33 +510,6 @@ type SaveState =
   | { kind: 'failed'; error: string }
   | { kind: 'conflict'; theirs: WorkspaceNote };
 
-const DRAFT_KEY = (ws: string) => `creator.notes-draft.${ws}`;
-type Draft = { text: string; base_version: number };
-/**
- * Review M-2: text not yet saved is kept in this tab's session storage, with the version it
- * was based on, so folding or closing the sidebar, a resize or a workspace switch (which
- * unmount the notepad) cannot drop it, even while a conflict is waiting for a choice.
- */
-function readDraft(ws: string): Draft | null {
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY(ws));
-    if (!raw) return null;
-    const d = JSON.parse(raw) as Partial<Draft>;
-    return typeof d.text === 'string' && typeof d.base_version === 'number'
-      ? { text: d.text, base_version: d.base_version }
-      : null;
-  } catch {
-    return null;
-  }
-}
-function writeDraft(ws: string, draft: Draft | null) {
-  try {
-    if (draft) sessionStorage.setItem(DRAFT_KEY(ws), JSON.stringify(draft));
-    else sessionStorage.removeItem(DRAFT_KEY(ws));
-  } catch {
-    // Blocked storage: the text still saves normally; only the safety copy is missing.
-  }
-}
 /** Keepalive requests are limited to 64 KiB by browsers; stay under it. */
 const KEEPALIVE_MAX = 60_000;
 
@@ -533,7 +519,15 @@ const KEEPALIVE_MAX = 60_000;
  * from another window since this one loaded is never overwritten silently: the person picks
  * which text to keep. A failed save waits for more typing or "Try again" (review L-1).
  */
-function Notes({ ws, csrf }: { ws: string; csrf: string }) {
+function Notes({
+  ws,
+  actor,
+  csrf,
+}: {
+  ws: string;
+  actor: string;
+  csrf: string;
+}) {
   const [text, setText] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -545,15 +539,32 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  /** The text of a save now in flight, kept with the draft (review L-A). */
+  const sending = useRef<string | null>(null);
+  const writeDraft = (_ws: string, draft: NoteDraft | null) =>
+    writeNoteDraft(actor, ws, draft);
   const keepDraft = (value: string) =>
-    writeDraft(ws, { text: value, base_version: base.current?.version ?? 0 });
+    writeDraft(ws, {
+      text: value,
+      base_version: base.current?.version ?? 0,
+      ...(sending.current !== null ? { sent: sending.current } : {}),
+    });
 
   async function load() {
     setLoadError('');
     try {
       const note = await api(WorkspaceNoteSchema, `workspaces/${ws}/notes`);
       base.current = note;
-      const draft = readDraft(ws);
+      let draft = readNoteDraft(actor, ws);
+      // Review L-A: a save that was in flight when the page reloaded landed as the next
+      // version; the draft is based on it, not on someone else's change.
+      if (
+        draft &&
+        draft.sent !== undefined &&
+        note.version === draft.base_version + 1 &&
+        note.text === draft.sent
+      )
+        draft = { text: draft.text, base_version: note.version };
       if (draft && draft.text !== note.text) {
         // Unsaved text from earlier in this tab comes back. If the server moved on since it
         // was typed, the person chooses; otherwise it is simply saved now.
@@ -590,6 +601,8 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
     const value = pending.current;
     pending.current = null;
     saving.current = true;
+    sending.current = value;
+    keepDraft(value);
     let ok = false;
     setState({ kind: 'saving' });
     try {
@@ -623,6 +636,7 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
       }
     } finally {
       saving.current = false;
+      sending.current = null;
     }
     // Typing that arrived during a successful save goes out next; after a failure nothing
     // retries on its own (review L-1).

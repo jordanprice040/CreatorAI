@@ -49,8 +49,9 @@ const words = (s: string) => s.replace(/_/g, ' ');
 /**
  * Review L-2: a plan request still `in_flight` this long after it started was most likely cut
  * off (studio stopped or crashed) and will stay that way until it is reconciled on Models.
+ * Re-review L-C: above the longest allowed plan timeout (build_timeout_ms, 30 minutes).
  */
-export const STALE_PLAN_REQUEST_MS = 30 * 60_000;
+export const STALE_PLAN_REQUEST_MS = 45 * 60_000;
 
 /** Review L-3: plain words per workflow state, and whether it is moving on its own. */
 const WORKFLOW_STATE: Record<string, [string, boolean]> = {

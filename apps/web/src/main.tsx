@@ -1003,6 +1003,7 @@ function App() {
       {inStudio && workspace && auth.session && (
         <RightSidebar
           workspace={workspace}
+          actor={auth.session.actor_id}
           csrf={auth.session.csrf_token}
           aside={aside}
           open={(view, id) => open(view, id)}

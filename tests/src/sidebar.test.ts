@@ -236,11 +236,17 @@ test('running now lists unfinished plan requests of this workspace only', async 
   assert.equal(now.items[0]!.detail, 'gpt-x');
   assert.ok(now.items.every((i) => i.active));
   // Review L-2: a request cut off long ago is shown as stale, not as running.
-  await add(conn.id, 'task', 'in_flight', 31 * 60_000);
+  // A request still inside the longest allowed timeout (30 minutes) is not stale.
+  await add(conn.id, 'verification', 'in_flight', 40 * 60_000);
+  await add(conn.id, 'task', 'in_flight', 46 * 60_000);
   const later = await store.activityNow(owner, ws.id);
   const stale = later.items.find((i) => i.purpose === 'task')!;
   assert.equal(stale.active, false);
   assert.match(stale.state, /no answer recorded/);
+  assert.equal(
+    later.items.find((i) => i.purpose === 'verification')!.active,
+    true,
+  );
   const stranger = await person(store, 'stranger');
   await assert.rejects(store.activityNow(stranger, ws.id), isCode('NOT_FOUND'));
 });
