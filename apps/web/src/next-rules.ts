@@ -156,7 +156,7 @@ export function pipelineStep(f: StudioFacts): Step {
   if (f.alternatives > 0 && f.scorecards === 0)
     return {
       tone: 'next',
-      text: `Score the proposed options. Scorecards are entered ${cli(f, 'scorecard')}.`,
+      text: 'Score the proposed options: open Projects › Decide and use Score an option for each one.',
       action: { view: 'compare' },
     };
   if (f.specs === 0)
