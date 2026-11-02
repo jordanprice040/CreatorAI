@@ -16,13 +16,20 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
 import { runNames } from './ui.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
 import fixturePricing from '../../../config/pricing/fixture-model-v1.json';
 import { useOnShow } from './page-active.js';
+import { DOCUMENTED_PRICING } from './pricing-bundle.js';
+import {
+  longContextText,
+  noChargeEvidence,
+  perMillion,
+  samePricing,
+} from './pricing-fields.js';
+import { RecordCharge } from './charge.js';
 
 /**
  * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
@@ -113,7 +120,6 @@ export function Budgets({
   session: SessionInfo;
   workspace: Workspace;
 }) {
-  const desktop = useDesktopApp();
   const workspace = current.id;
   const [fundName, setFundName] = useState('');
   const [fundCap, setFundCap] = useState('');
@@ -124,11 +130,16 @@ export function Budgets({
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  // "Confirm no charge" asks where the owner checked first (review of PR #116, L-2).
+  const [noChargeFor, setNoChargeFor] = useState('');
+  const [noChargeWhere, setNoChargeWhere] = useState('');
+  const [noChargeError, setNoChargeError] = useState('');
   const [prompt, setPrompt] = useState('');
   const [envelopeId, setEnvelopeId] = useState('');
   const [runId, setRunId] = useState('');
   const [last, setLast] = useState<BrokerCallResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [charging, setCharging] = useState('');
   async function load() {
     if (!workspace) return;
     setError('');
@@ -177,21 +188,25 @@ export function Budgets({
   }, [workspace]);
   useOnShow(() => void load());
   async function noCharge(r: Reservation) {
+    const checked = noChargeEvidence(noChargeWhere);
+    if ('error' in checked) {
+      setNoChargeError(checked.error);
+      return;
+    }
     try {
       await api(
         ReservationSchema,
         `workspaces/${workspace}/reservations/${r.id}/reconcile`,
         {
           csrf: session.csrf_token,
-          body: {
-            outcome: 'no_charge',
-            evidence:
-              'Owner checked provider records from the web page: no charge.',
-          },
+          body: { outcome: 'no_charge', evidence: checked.evidence },
         },
       );
+      setNoChargeFor('');
+      setNoChargeWhere('');
+      setNoChargeError('');
     } catch (err) {
-      setError(message(err));
+      setNoChargeError(message(err));
     }
     await load();
   }
@@ -238,13 +253,17 @@ export function Budgets({
     await load();
   }
   /** Adds the bundled fixture pricing (simulated units); the server refuses it elsewhere. */
-  async function addFixturePricing() {
+  /**
+   * Adds the bundled fixture pricing (simulated units) or a bundled documented price; the
+   * server refuses fixture pricing in a real workspace and documented pricing in a fixture one.
+   */
+  async function addPricing(body: unknown) {
     setBusy(true);
     setError('');
     try {
       await api(PricingSnapshotSchema, `workspaces/${workspace}/pricing`, {
         csrf: session.csrf_token,
-        body: fixturePricing,
+        body,
       });
     } catch (err) {
       setError(message(err));
@@ -378,8 +397,10 @@ export function Budgets({
             <ul className="small">
               {pricing.map((p) => (
                 <li key={p.id}>
-                  {p.body.provider}/{p.body.model_id} · {p.body.basis} · added{' '}
-                  {when(p.created_at)}
+                  {p.body.provider}/{p.body.model_id} · {p.body.basis}
+                  {p.body.basis === 'documented' &&
+                    ` · prices as of ${p.body.retrieved_at.slice(0, 10)}`}{' '}
+                  · added {when(p.created_at)}
                 </li>
               ))}
             </ul>
@@ -392,20 +413,17 @@ export function Budgets({
                 <button
                   className="secondary"
                   disabled={busy}
-                  onClick={() => void addFixturePricing()}
+                  onClick={() => void addPricing(fixturePricing)}
                 >
                   Add fixture pricing (simulated units)
                 </button>
               )
             ) : (
-              <p className="small">
-                Real pricing is copied from a provider's published prices;
-                adding it{' '}
-                {desktop
-                  ? NO_CLI_IN_DESKTOP
-                  : 'uses pnpm cli pricing-add with a dated pricing file'}
-                .
-              </p>
+              <DocumentedPricing
+                pricing={pricing}
+                busy={busy}
+                add={(body) => void addPricing(body)}
+              />
             ))}
           {current.record_mode === 'fixture' &&
             envelopes.length > 0 &&
@@ -492,14 +510,95 @@ export function Budgets({
                   {r.status === 'unknown' && (
                     <>
                       {' '}
-                      <button className="text" onClick={() => void noCharge(r)}>
-                        Confirm no charge
-                      </button>{' '}
-                      <small>
-                        {desktop
-                          ? `(recording a charge ${NO_CLI_IN_DESKTOP})`
-                          : "(for a charge, use pnpm cli reconcile with the provider's usage)"}
-                      </small>
+                      {charging !== r.id && noChargeFor !== r.id && (
+                        <button
+                          className="text"
+                          onClick={() => {
+                            setCharging('');
+                            setNoChargeFor(r.id);
+                            setNoChargeWhere('');
+                            setNoChargeError('');
+                          }}
+                        >
+                          Confirm no charge…
+                        </button>
+                      )}{' '}
+                      {noChargeFor === r.id && (
+                        <form
+                          className="inline-form no-charge"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            void noCharge(r);
+                          }}
+                        >
+                          <label htmlFor={`nc-${r.id}`}>
+                            Where you checked that there was no charge
+                          </label>
+                          <input
+                            id={`nc-${r.id}`}
+                            value={noChargeWhere}
+                            maxLength={1150}
+                            placeholder="e.g. provider usage page for Nov 2, no request at that time"
+                            aria-invalid={noChargeError ? true : undefined}
+                            aria-describedby={
+                              noChargeError ? `nc-${r.id}-error` : undefined
+                            }
+                            onChange={(e) => {
+                              setNoChargeWhere(e.target.value);
+                              setNoChargeError('');
+                            }}
+                          />
+                          {noChargeError && (
+                            <p
+                              id={`nc-${r.id}-error`}
+                              className="error"
+                              role="alert"
+                            >
+                              {noChargeError}
+                            </p>
+                          )}
+                          <p className="small">
+                            This releases the hold and closes the call for good.
+                            It can't be undone.
+                          </p>
+                          <button type="submit">Confirm no charge</button>{' '}
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() => setNoChargeFor('')}
+                          >
+                            Keep it open
+                          </button>
+                        </form>
+                      )}
+                      {current.role === 'owner' &&
+                        charging !== r.id &&
+                        noChargeFor !== r.id && (
+                          <button
+                            className="text"
+                            onClick={() => {
+                              setNoChargeFor('');
+                              setCharging(r.id);
+                            }}
+                          >
+                            Record a charge…
+                          </button>
+                        )}
+                      {charging === r.id && (
+                        <RecordCharge
+                          base={`workspaces/${workspace}`}
+                          session={session}
+                          reservation={r}
+                          pricing={pricing.find(
+                            (p) => p.id === r.pricing_snapshot_id,
+                          )}
+                          done={() => {
+                            setCharging('');
+                            void load();
+                          }}
+                          cancel={() => setCharging('')}
+                        />
+                      )}
                     </>
                   )}
                 </li>
@@ -514,5 +613,56 @@ export function Budgets({
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * The documented prices bundled with the studio that this workspace doesn't hold yet. Each
+ * is the dated copy of the provider's published page in config/pricing: the billed price is
+ * unverified until a real charge is reconciled against it.
+ */
+function DocumentedPricing({
+  pricing,
+  busy,
+  add,
+}: {
+  pricing: PricingSnapshot[];
+  busy: boolean;
+  add: (body: unknown) => void;
+}) {
+  const missing = DOCUMENTED_PRICING.filter(
+    (d) => !pricing.some((p) => samePricing(p.body, d.body)),
+  );
+  if (missing.length === 0)
+    return (
+      <p className="small">
+        Every documented price bundled with the studio is added. Newer prices
+        come with a studio update.
+      </p>
+    );
+  return (
+    <ul className="small pricing-offers">
+      {missing.map((d) => (
+        <li key={d.file}>
+          <strong>{d.label}</strong>: {perMillion(d.body.rates.input)} input,{' '}
+          {perMillion(d.body.rates.cached_input)} cached input,{' '}
+          {perMillion(d.body.rates.cache_write)} cache writes,{' '}
+          {perMillion(d.body.rates.output)} output per million tokens.{' '}
+          {longContextText(d.body.long_context)} From{' '}
+          <a href={d.body.source_url} target="_blank" rel="noreferrer">
+            the provider's model page
+          </a>{' '}
+          as of {d.body.retrieved_at.slice(0, 10)}. The billed price is not
+          verified.{' '}
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => add(d.body)}
+          >
+            Add this pricing
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

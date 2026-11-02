@@ -399,8 +399,9 @@ export function SpecForm({
                               ? "This stored argument can't be"
                               : `These ${t.stored.length} stored arguments can't be`}{' '}
                             shown one per line (one has a line break, or the
-                            last is empty). They are kept exactly unless you
-                            edit this box.
+                            last is empty).{' '}
+                            {t.stored.length === 1 ? 'It is' : 'They are'} kept
+                            exactly unless you edit this box.
                           </p>
                         )}
                       {box(

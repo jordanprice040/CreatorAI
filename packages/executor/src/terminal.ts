@@ -34,9 +34,11 @@ const RECIPE = fileURLToPath(new URL('../worker/terminal.py', import.meta.url));
 /**
  * ADR-0058. The same sandbox as QA (no network, 256 MiB, 32 tasks, half a CPU, read-only
  * package, no studio files) with a 15-minute runtime and the owner's console as its terminal.
+ * ADR-0059: the window can run the program again (fresh unit and sandbox each time) until
+ * the owner quits: at most 50 runs, 60 minutes in all, and 10 idle minutes at the prompt.
  */
 export const TERMINAL_POLICY =
-  'wsl2-bwrap-systemd-pty/1;uid=1000;net=none;mem=256MiB;swap=0;pids=32;cpu=50%;time=900s;lease=5s;work=16MiB;tmp=1MiB;file=8MiB;terminal=console;capture=none';
+  'wsl2-bwrap-systemd-pty/2;uid=1000;net=none;mem=256MiB;swap=0;pids=32;cpu=50%;time=900s;session=3600s;idle=600s;runs=50;lease=5s;work=16MiB;tmp=1MiB;file=8MiB;terminal=console;capture=none';
 /** At most this many interactive sessions on one studio at once, and one per product. */
 export const TERMINAL_LIMIT = 3;
 const MSIX_HINT =
@@ -167,7 +169,11 @@ interface Active {
   finished: Promise<TerminalSession>;
 }
 
-const resultSchema = TerminalSessionSchema.pick({ exit_code: true }).extend({
+const resultSchema = TerminalSessionSchema.pick({
+  exit_code: true,
+  runs: true,
+  run_count: true,
+}).extend({
   reason: TerminalSessionSchema.shape.reason,
 });
 
@@ -458,15 +464,29 @@ export class TerminalSupervisor {
     } catch {
       // The bridge never started or was stopped before it wrote its identity.
     }
-    type Raw = { exit_code?: unknown; reason?: unknown; cleaned?: unknown };
+    type Raw = {
+      exit_code?: unknown;
+      reason?: unknown;
+      cleaned?: unknown;
+      runs?: unknown;
+      run_count?: unknown;
+    };
     const raw = (await readJson(join(job, 'result.json')).catch(
       () => null,
     )) as Raw | null;
     const merged = { ...record.environment, worker: environment };
     if (raw && typeof raw.cleaned === 'boolean') {
+      // The run list is the worker's report; one that does not fit the contract is left
+      // out rather than failing the whole outcome.
+      const runs = resultSchema.shape.runs.safeParse(raw.runs);
+      const count = resultSchema.shape.run_count.safeParse(raw.run_count);
       const r = checked(resultSchema, {
         exit_code: typeof raw.exit_code === 'number' ? raw.exit_code : null,
         reason: typeof raw.reason === 'string' ? raw.reason : null,
+        ...(runs.success && runs.data ? { runs: runs.data } : {}),
+        ...(count.success && count.data !== undefined
+          ? { run_count: count.data }
+          : {}),
       });
       const state: TerminalSession['state'] = !raw.cleaned
         ? 'cleanup_required'
@@ -479,11 +499,17 @@ export class TerminalSupervisor {
               : r.reason === 'window_closed'
                 ? 'window_closed'
                 : 'lost';
-      return this.settle({ ...record, environment: merged }, dir, job, {
-        state,
-        reason: r.reason,
-        exit_code: r.exit_code,
-      });
+      return this.settle(
+        {
+          ...record,
+          environment: merged,
+          ...(r.runs ? { runs: r.runs } : {}),
+          ...(r.run_count !== undefined ? { run_count: r.run_count } : {}),
+        },
+        dir,
+        job,
+        { state, reason: r.reason, exit_code: r.exit_code },
+      );
     }
     // The window closed without the bridge's result (or the bridge never ran). Make sure
     // the unit is gone before calling the session over.

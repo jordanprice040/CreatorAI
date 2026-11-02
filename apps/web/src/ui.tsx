@@ -43,6 +43,10 @@ const ICONS = {
   alert:
     'M12 9v4m0 3.5v.01M10.3 3.9L2.4 17.5A2 2 0 004.1 20.5h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
   info: 'M12 11v6m0-9.5v.01M12 21a9 9 0 100-18 9 9 0 000 18z',
+  pulse: 'M3 12h4l3-7 4 14 3-7h4',
+  note: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h5',
+  fold: 'M9 6l6 6-6 6M19 4v16',
+  panel: 'M4 5h16v14H4zM15 5v14',
 } as const;
 /** A small stroked icon; decorative, so text beside it carries the meaning. */
 export function Icon({ name }: { name: keyof typeof ICONS }) {

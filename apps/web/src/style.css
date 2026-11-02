@@ -2338,6 +2338,60 @@ fieldset.flagged {
   color: var(--muted);
 }
 
+/* ---------- Try: usage guide beside "Run in a terminal" (ADR-0059) ---------- */
+.usage-guide {
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.usage-guide > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.usage-guide h5 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+.usage-flows,
+.usage-examples {
+  margin: 0;
+  padding-left: 18px;
+}
+.usage-flows ol {
+  margin: 2px 0 6px;
+}
+.usage-examples > li {
+  margin-bottom: 10px;
+}
+.usage-examples p {
+  margin: 0 0 4px;
+}
+.usage-examples pre {
+  margin: 0 0 6px;
+}
+table.usage-options th[scope='row'] {
+  white-space: nowrap;
+  font-weight: 400;
+  color: var(--text);
+}
+.terminal-runs {
+  margin: 4px 0 0;
+}
+.terminal-runs ol {
+  margin: 4px 0;
+}
+.usage-guide .hint {
+  color: var(--text-3);
+}
+.usage-window {
+  margin: 0;
+  padding-left: 18px;
+}
+.usage-window li {
+  margin-bottom: 4px;
+}
 /* Build › Write a spec: one block per flow, check, case and task. */
 .spec-form .sf-item {
   border-left: 3px solid var(--border);
@@ -2379,6 +2433,40 @@ fieldset.flagged {
 }
 .spec-form .inline-form {
   margin: 6px 0;
+}
+
+/* Record a charge (Monitor › Budgets). */
+.charge-form {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.charge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+.charge-grid input {
+  width: 100%;
+}
+.pricing-offers li {
+  margin-bottom: 0.5rem;
+}
+
+/* Earlier judgments shown beside humility fields that must be picked again. */
+.humility-form .earlier {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+/* A started qualification on Models: its state, Run and Finish. */
+.qualify-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
 }
 
 /* Compare and decide › Score an option: rating choices in a row, one claim per line. */
