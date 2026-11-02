@@ -737,9 +737,10 @@ function App() {
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [menuOpen]);
+  // In the studio it sits in the sidebar foot, so it never wraps onto its own topbar line.
   const themeButton = (
     <button
-      className="ghost icon-button"
+      className="ghost icon-button theme-button"
       onClick={theme.toggle}
       aria-label={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
       title={theme.theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
@@ -864,6 +865,7 @@ function App() {
             </ul>
           </nav>
           <div className="sidebar-foot">
+            {themeButton}
             <span>Schema 1.0 · Local control</span>
             <span>
               Live calls need a provider, pricing, a grant and a budget.
@@ -946,10 +948,14 @@ function App() {
             {inStudio && signedIn && workspace && (
               <UsageIndicator key={workspace.id} workspace={workspace} />
             )}
+<<<<<<< HEAD
             {inStudio && workspace && auth.session && (
               <AsideButton aside={aside} />
             )}
             {themeButton}
+=======
+            {!inStudio && themeButton}
+>>>>>>> origin/main
           </div>
         </header>
         {workspace?.record_mode === 'fixture' && signedIn && (
