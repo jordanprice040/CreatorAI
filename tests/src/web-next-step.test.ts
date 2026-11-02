@@ -101,6 +101,8 @@ test('the main path names the first missing step and the page that takes it', as
   assert.equal(pipelineStep(done).action?.view, 'gallery');
 });
 
+// Uses accepted feedback: revising from it is the one main-path step still CLI-only, now that
+// scoring, specs and the humility review have forms (review of PR #112, N-3).
 test('the desktop app is never told to run a command it does not have', async () => {
   const { pipelineStep } = await load<Rules>('next-rules.ts');
   // Revising from accepted feedback still needs the command line.

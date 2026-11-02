@@ -35,6 +35,11 @@ export type BuildState =
 
 /** What the studio knows about one workspace, read from its own API. */
 export type StudioFacts = {
+  /**
+   * Activity-dot keys for the Build tab (activity-marks.ts `buildMark`), read with the same
+   * products and artifacts lists, tagged with the workspace they belong to.
+   */
+  buildKeys?: { ws: string; keys: readonly string[] };
   fixture: boolean;
   /** Only the owner can build, freeze or answer most decisions. */
   owner: boolean;

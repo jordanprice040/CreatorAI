@@ -139,8 +139,9 @@ const themeSpot = (p) =>
   log('light: page errors', errors);
 }
 {
-  // The installed app (managed_by desktop_app) opens no new windows, so links show their
-  // address with a Copy button instead of a dead anchor. Simulated by rewriting the auth status.
+  // The installed app (managed_by desktop_app): public https links stay links (the desktop
+  // window hands them to the system browser, ADR-0061) and also show their address and a Copy
+  // button; the window itself can't be driven here. Simulated by rewriting the auth status.
   const { p, errors } = await signedIn(
     { viewport: { width: 1280, height: 900 }, colorScheme: 'dark' },
     'dark',
@@ -160,7 +161,11 @@ const themeSpot = (p) =>
   log(
     'desktop: links',
     await p.$eval('.chat-model-completed .md', (md) => ({
-      anchors: md.querySelectorAll('a').length,
+      anchors: [...md.querySelectorAll('a')].map((a) => [
+        a.getAttribute('href'),
+        a.getAttribute('target'),
+        a.getAttribute('title'),
+      ]),
       shown: [...md.querySelectorAll('.md-link')].map((l) => l.textContent),
     })),
   );

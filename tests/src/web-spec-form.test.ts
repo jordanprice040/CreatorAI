@@ -20,7 +20,8 @@ type Fields = {
   ) =>
     | { title: string; content: any; errors: null }
     | { title: null; content: null; errors: Record<string, string> };
-  nextKey: (p: string, used: string[]) => string;
+  nextKey: (p: string, used: string[], stored?: string[]) => string;
+  unwrittenOptions: <T>(sel: T[], specs: unknown[]) => T[];
   buildNotes: (c: unknown) => string[];
 };
 
@@ -168,8 +169,69 @@ test('stored specs whose automated checks have no cases still open and save unch
   );
 });
 
-test('new keys never reuse one still in the spec', async () => {
+test('new keys never reuse a key in use or given by the stored version (review L-1)', async () => {
   const f = await load();
-  assert.equal(f.nextKey('T', ['T1', 'T3']), 'T2');
+  assert.equal(f.nextKey('T', ['T1', 'T3']), 'T4');
   assert.equal(f.nextKey('A', []), 'A1');
+  // Revising: stored T2 was removed, so a new task is T3, not T2 again.
+  assert.equal(f.nextKey('T', ['T1'], ['F1', 'A1', 'T1', 'T2']), 'T3');
+});
+
+test('revising keeps stored arguments the box cannot show, unless edited (review M-2)', async () => {
+  const f = await load();
+  const spec = structuredClone(BUILD_FIXTURE_SPEC) as any;
+  const cases = spec.acceptance_checks.find((a: any) => a.cases?.length).cases;
+  cases[0].args = [''];
+  cases[1] = { ...cases[0], args: ['a', ''] };
+  cases.push({ ...cases[0], args: ['line1\nline2'] });
+  const d = f.draftFromContent('Fixture', spec);
+  d.title = 'Fixture (retitled)';
+  const out = f.draftToContent(d);
+  assert.equal(out.errors, null, JSON.stringify(out.errors));
+  const kept = out.content.acceptance_checks.find(
+    (a: any) => a.cases?.length,
+  ).cases;
+  assert.deepEqual(
+    kept.map((c: any) => c.args),
+    [[''], ['a', ''], ['line1\nline2']],
+  );
+  // Editing the box replaces them with what is typed.
+  const c0 = d.checks.find((c: any) => c.cases.length).cases[0];
+  c0.args = 'x\ny';
+  const edited = f.draftToContent(d);
+  assert.deepEqual(
+    edited.content.acceptance_checks.find((a: any) => a.cases?.length).cases[0]
+      .args,
+    ['x', 'y'],
+  );
+});
+
+test('an option is offered again once its selection is recorded again (review M-1)', async () => {
+  const f = await load();
+  const alt = { id: 'AAAAAAAA-0000-4000-8000-000000000001', version: 2 };
+  const spec = (selection_id: string, status = 'active') => ({
+    status,
+    body: { selection_id, alternative: { ...alt, id: alt.id.toLowerCase() } },
+  });
+  const sel = (selection_id: string) => ({ selection_id, alternative: alt });
+  // Written from this selection: not offered.
+  assert.deepEqual(f.unwrittenOptions([sel('s-new')], [spec('S-NEW')]), []);
+  // Written from an earlier selection of the same option version: offered again.
+  assert.equal(f.unwrittenOptions([sel('s-new')], [spec('s-old')]).length, 1);
+  // Archived specs never count.
+  assert.equal(
+    f.unwrittenOptions([sel('s-new')], [spec('s-new', 'archived')]).length,
+    1,
+  );
+});
+
+test('a task may wait for at most 20 others (review L-3)', async () => {
+  const f = await load();
+  const d = f.draftFromContent('Fixture', BUILD_FIXTURE_SPEC);
+  const keys = Array.from({ length: 21 }, (_, i) => `T${i + 2}`);
+  for (const k of keys)
+    d.tasks.push({ ...structuredClone(d.tasks[0]), key: k, depends_on: [] });
+  d.tasks[0].depends_on = keys;
+  const out = f.draftToContent(d);
+  assert.match(out.errors?.['tasks.0.depends_on'] ?? '', /at most 20/);
 });

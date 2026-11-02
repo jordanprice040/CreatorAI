@@ -1,12 +1,18 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { useDesktopApp } from './desktop-app.js';
-import { parseMarkdown, type Block, type Inline } from './markdown.js';
+import {
+  desktopOpens,
+  parseMarkdown,
+  type Block,
+  type Inline,
+} from './markdown.js';
 
 // Renders a model answer's Markdown as React elements only: text is always a text node, so an
 // answer can't inject HTML or scripts, and links are absolute http(s)/mailto (markdown.ts).
-// A link's address is always readable. The desktop app's studio window opens no
-// new windows (apps/desktop/src-tauri/src/main.rs), so there a link is shown as its words and
-// address with a Copy button instead of an anchor that would do nothing.
+// A link's address is always readable. In the desktop app (ADR-0061) a public https or plain
+// mailto link opens in the system browser or mail app, and shows its address and a Copy
+// button too; any other link there (http, local or IP addresses, ports) can't be opened, so it
+// shows as its words and address with Copy instead of an anchor that would do nothing.
 
 const textOf = (nodes: Inline[]): string =>
   nodes
@@ -47,6 +53,22 @@ function link(n: Extract<Inline, { t: 'link' }>, k: number, desktop: boolean) {
   const label = textOf(n.c).trim();
   const address = shown(n.href);
   const same = label === address || label === n.href;
+  if (desktop && desktopOpens(n.href)) {
+    return (
+      <span key={k} className="md-link">
+        <a
+          href={n.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Opens in your ${n.href.startsWith('mailto:') ? 'mail app' : 'browser'}: ${address}`}
+        >
+          {inlines(n.c, desktop)}
+        </a>
+        {!same && <span className="md-url"> ({address})</span>}{' '}
+        <CopyLink href={n.href} />
+      </span>
+    );
+  }
   if (desktop) {
     return (
       <span key={k} className="md-link">
