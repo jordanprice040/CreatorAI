@@ -10,3 +10,4 @@ export * from './codex-host.js';
 export * from './plan-qualification.js';
 export { lockHolder, withLock } from './files.js';
 export * from './terminal.js';
+export * from './cli-options.js';

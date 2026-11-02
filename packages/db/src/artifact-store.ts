@@ -19,6 +19,7 @@ import {
   type BuildManifest,
   type Feedback,
   type Preview,
+  type SpecGuide,
 } from '@creator/contracts';
 import { canonicalHash, frozenCases } from '@creator/domain';
 import { StudyBuildStore } from './study-build-store.js';
@@ -46,25 +47,11 @@ const same = (a: string, b: string) =>
 export const MAX_PREVIEW_EXAMPLES = 3;
 
 /**
- * How to use a previewed package, read from the exact frozen spec version it was built from.
- * Only visible (not held-out) cases of the built task appear, so the page cannot leak the
- * cases QA keeps hidden from the builder and reviewer.
+ * How to use a package, read from the exact frozen spec version it was built from. Only
+ * visible (not held-out) cases of the built task appear, so neither the preview page nor
+ * Try's guide can leak the cases QA keeps hidden from the builder and reviewer.
  */
-export interface PreviewGuide {
-  flows: { key: string; name: string; steps: string[] }[];
-  examples: {
-    check_key: string;
-    statement: string;
-    args: string[];
-    stdin: string;
-    stdout: string;
-    exit_code: number;
-  }[];
-  /** Visible cases beyond MAX_PREVIEW_EXAMPLES. */
-  more_examples: number;
-  /** The task has held-out cases that the page deliberately leaves out. */
-  held_out_hidden: boolean;
-}
+export type PreviewGuide = SpecGuide;
 
 export interface ArtifactRecord {
   summary: ArtifactSummary;
@@ -669,6 +656,20 @@ export class ArtifactStore extends StudyBuildStore {
           ).rows[0]!.product_id,
         ),
       };
+    });
+  }
+  /** ADR-0059: the spec part of Try's usage guide for one artifact (owner only). */
+  async artifactSpecGuide(
+    ctx: CommandContext,
+    ws: string,
+    artifactId: string,
+  ): Promise<PreviewGuide | null> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const a = await this.artifact(c, ws, artifactId);
+      return this.previewGuide(c, ws, a.manifest);
     });
   }
   /**

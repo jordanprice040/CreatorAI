@@ -289,6 +289,65 @@ export function terminalCommand(args: readonly string[]): string {
     /^[A-Za-z0-9_./:=@%+,-]+$/.test(s) ? s : `'${s.replaceAll("'", "'\\''")}'`;
   return ['python3', 'src/main.py', ...args].map(word).join(' ');
 }
+/**
+ * F16 / ADR-0059: how to use a package, from the exact frozen spec version it was built from.
+ * Only visible (not held-out) cases of the built task appear.
+ */
+export const SpecGuideSchema = z.strictObject({
+  flows: z.array(
+    z.strictObject({
+      key: z.string(),
+      name: z.string(),
+      steps: z.array(z.string()),
+    }),
+  ),
+  examples: z.array(
+    z.strictObject({
+      check_key: z.string(),
+      statement: z.string(),
+      args: RunInputSchema.shape.args,
+      stdin: z.string(),
+      stdout: z.string(),
+      exit_code: z.number().int(),
+    }),
+  ),
+  /** Visible cases beyond the ones shown. */
+  more_examples: z.number().int().min(0),
+  /** The task has held-out cases that the guide deliberately leaves out. */
+  held_out_hidden: z.boolean(),
+});
+export type SpecGuide = z.infer<typeof SpecGuideSchema>;
+/**
+ * ADR-0059: one command-line option as read from the package's source text (argparse
+ * `add_argument` calls, or `--flag` literals beside `sys.argv`). The source is read, never run.
+ */
+export const CliOptionSchema = z.strictObject({
+  names: z.array(z.string().max(80)).min(1).max(4),
+  /** Placeholder for the value it takes (metavar, type or choices); null for a flag. */
+  value: z.string().max(120).nullable(),
+  help: z.string().max(400).nullable(),
+  default: z.string().max(80).nullable(),
+  /** A positional argument without `nargs='?'`/`'*'`, or an option with `required=True`. */
+  required: z.boolean(),
+  file: z.string().max(200),
+});
+export type CliOption = z.infer<typeof CliOptionSchema>;
+export const ArtifactGuideSchema = z.strictObject({
+  /** Null when the pinned spec version is missing, redacted or no longer matches. */
+  spec: SpecGuideSchema.nullable(),
+  command: z.array(z.string()),
+  options: z.array(CliOptionSchema).max(40),
+  /** How the options were found: argparse calls, sys.argv literals, or nothing found. */
+  options_source: z.enum(['argparse', 'argv', 'none']),
+  /** More options were found than are listed. */
+  options_truncated: z.boolean(),
+  /**
+   * The program answers `--help` with its own description: argparse without
+   * `add_help=False`, or a `--help` option of its own. Jordan's timing analyzer refused it.
+   */
+  help_flag: z.boolean(),
+});
+export type ArtifactGuide = z.infer<typeof ArtifactGuideSchema>;
 export const TerminalStartRequestSchema = z.strictObject({
   manifest_sha256: hash,
   args: RunInputSchema.shape.args,
@@ -325,5 +384,22 @@ export const TerminalSessionSchema = z.strictObject({
   exit_code: z.number().int().nullable(),
   reason: z.string().max(2000).nullable(),
   environment: z.record(z.string(), z.unknown()),
+  /**
+   * ADR-0059: every run in the window, oldest first (the last 50), as the worker reported
+   * them when the session ended. Later runs' arguments were typed by the owner in the
+   * window itself. Absent on sessions recorded before reruns existed.
+   */
+  runs: z
+    .array(
+      z.strictObject({
+        args: RunInputSchema.shape.args,
+        exit_code: z.number().int().nullable(),
+        seconds: z.number().int().min(0),
+      }),
+    )
+    .max(50)
+    .optional(),
+  /** All runs in the window, including any beyond the 50 kept in `runs`. */
+  run_count: z.number().int().min(0).optional(),
 });
 export type TerminalSession = z.infer<typeof TerminalSessionSchema>;

@@ -21,7 +21,8 @@ if not isinstance(launch, dict) or set(launch) != {'args'}:
     raise RuntimeError('Only the confirmed argument list may enter the sandbox')
 args = launch['args']
 if not isinstance(args, list) or len(args) > 12 or not all(
-        isinstance(a, str) and len(a) <= 500 and '\0' not in a for a in args):
+        isinstance(a, str) and len(a.encode('utf-16-le', 'surrogatepass')) // 2 <= 500 and '\0' not in a
+        for a in args):
     raise RuntimeError('Invalid argument list')
 shutil.copytree('/input', '/work/product')
 os.chdir('/work/product')
