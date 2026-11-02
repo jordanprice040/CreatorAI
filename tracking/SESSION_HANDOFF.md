@@ -1,3 +1,11 @@
+## Open chat links in the browser from the desktop app (ADR-0061) — November 2, 2026
+
+Jordan asked (Nov 2) for links in chat answers to open in the browser from within the installed app (after PR #106 they were copy-only there). The studio window's new-window handler now hands public `https` links and plain `mailto:` addresses to Windows' default handler, at most one per second, through the same `rundll32 url.dll,FileProtocolHandler` route that previews and sign-in use. The check is in the new `apps/desktop/src-tauri/src/external.rs`, and the full rule is in ADR-0061. It refuses http, file, custom schemes, IP addresses, localhost and local-network names, credentials, ports, queries on mailto links and anything over 2,048 characters. In the desktop app, chat answer links that pass are clickable again and keep the address and Copy button; others stay copy-only. The usage-page and checkout links elsewhere in the app now open too. No plugin, no new dependency, no migration.
+
+Checks (cloud): `cargo check --target x86_64-pc-windows-gnu` for the desktop crate is clean (no warnings), and `cargo fmt --check` is clean. `external.rs` tests (2: 7 accepted and 22 refused addresses, throttle) pass through a scratch crate that includes the module with the `url` crate, because the full desktop crate's tests need Windows or GTK. Web typecheck and prettier pass. `web-markdown.test.ts` passes 10 of 10, including the same address table for the web mirror. Walk `tracking/evidence/chat-markdown/walk.mjs` with a simulated desktop auth status: both answer links are anchors (`_blank`, title "Opens in your browser: …") with the address and Copy, and there are no page errors (`screens/desktop-links-dark.png`).
+
+Not checked: clicking a link in the real installed app on Windows, because this container has no Windows or WebView2. That needs the next installed-app upgrade and one click from Jordan.
+
 ## PR #106 review fixes: Markdown chat answers (M1, L1–L4, N1) — November 2, 2026
 
 Fresh review of PR #106 at `def43e0` (`/mnt/project-files/reviews/PR106_MARKDOWN_CHAT_REVIEW_2026-11-02.md`): one Medium, four Lows, one nit, no High. All fixed in the same PR. There is no migration and no ADR.

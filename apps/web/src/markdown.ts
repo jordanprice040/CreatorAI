@@ -77,6 +77,64 @@ export function safeHref(raw: string): string | null {
   return null;
 }
 
+const LOCAL_SUFFIXES = [
+  'localhost',
+  'local',
+  'lan',
+  'home',
+  'internal',
+  'intranet',
+  'home.arpa',
+];
+
+function publicHostName(raw: string): boolean {
+  const host = raw.replace(/\.$/, '').toLowerCase();
+  const labels = host.split('.');
+  if (labels.length < 2 || host.length > 253) return false;
+  if (labels.some((l) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(l)))
+    return false;
+  if (/^\d+$/.test(labels[labels.length - 1]!)) return false; // an IPv4 address
+  return !LOCAL_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`));
+}
+
+/**
+ * Whether the desktop app hands this link to the system browser or mail app (ADR-0061). This
+ * mirrors `external_link` in apps/desktop/src-tauri/src/external.rs, which decides; here it
+ * only chooses between a clickable link and a copy-only address.
+ */
+export function desktopOpens(href: string): boolean {
+  if (href.length > 2048) return false;
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'https:') {
+    return (
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      publicHostName(url.hostname)
+    );
+  }
+  if (url.protocol === 'mailto:') {
+    const to = url.pathname;
+    const at = to.indexOf('@');
+    return (
+      !url.search &&
+      !url.hash &&
+      !to.includes(',') &&
+      !to.includes('%') &&
+      at > 0 &&
+      at === to.lastIndexOf('@') &&
+      /^[A-Za-z0-9._+-]+$/.test(to.slice(0, at)) &&
+      publicHostName(to.slice(at + 1))
+    );
+  }
+  return false;
+}
+
 export function parseMarkdown(text: string): Block[] {
   const src = text.replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
   if (src.length <= MARKDOWN_MAX_CHARS) return blocks(src.split('\n'), 0);

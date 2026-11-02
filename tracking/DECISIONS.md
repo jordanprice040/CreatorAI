@@ -1,5 +1,23 @@
 # Decision log
 
+## ADR-0061 — Open public links from the desktop app in the system browser (accepted November 2, 2026)
+
+Context: after PR #106, links in chat answers in the installed app showed their address and a Copy button but could not be opened, because the studio window refuses every new window except private previews. Jordan asked (Nov 2) for links to open in the browser from within the app.
+
+Decision:
+
+- The studio window's new-window handler (`apps/desktop/src-tauri/src/main.rs`) still never opens a window itself. It hands a link to Windows' default handler (`rundll32 url.dll,FileProtocolHandler <url>`, one argument, no shell parsing, the same route as private previews and browser sign-in) only when `external::external_link` accepts it, and at most one per second.
+- `external_link` (`apps/desktop/src-tauri/src/external.rs`) accepts only:
+  - `https` URLs of at most 2,048 characters, with no user name, password or explicit port, whose host is a public-looking name. That means at least two labels of letters, digits and hyphens, a last label that is not all digits, and no `localhost`, `local`, `lan`, `home`, `internal`, `intranet` or `home.arpa` ending.
+  - plain `mailto:` links to one address, with no query (no prefilled subject or body), no fragment and no percent escapes.
+- Everything else is refused, including `http`, `file`, custom schemes, IP literals in any form, local names, credentials, ports, `javascript:` and `data:`.
+- The web side mirrors the rule in `desktopOpens` (`apps/web/src/markdown.ts`), but only to choose what to show. In the desktop app an accepted link in a chat answer is clickable and also shows its address and a Copy button. Any other link stays copy-only text. The Rust check decides; the web mirror can't widen it.
+- The app's other external links (Claude and ChatGPT usage pages in Models and connections, a checkout link) now open in the browser the same way when they pass the rule.
+- No Tauri opener or shell plugin was added. A plugin would mean a new dependency and a native IPC capability for the studio window, which today has none (`tauri.conf.json` grants IPC only to the bundled control window). The existing new-window hook already sees every `target=_blank` click and `window.open` call.
+- No migration and no server change.
+
+Consequences: links in model answers open in Jordan's default browser or mail app. Anything that can open a new window in the studio UI can now send a public https page to the browser at most once a second. The studio UI is the app's own code, and model text only ever becomes an anchor after `safeHref`. Local services and files remain unreachable this way. The rule lives in two places that must stay in step, and the test cases are shared in spirit (`external.rs` tests and `tests/src/web-markdown.test.ts`).
+
 ## ADR-0058 — Run a verified package interactively in an isolated terminal window (accepted November 1, 2026)
 
 Context: Jordan asked (Nov 1) to launch built products from inside the app, for example the timing analyzer's `--practice` mode, which he had run from the exported source in PowerShell. Try's private preview runs a package once with all of standard input sent at once (20 s, output after exit), so interactive programs cannot work there (pilot finding F17, audit item 9). Design doc https://claude.ai/artifact/4hf8VN3bePP4vNSJCcVhAq offered three options; Jordan chose "Terminal window, isolated" on the decision card (option 1, recommended). The in-app relayed terminal panel (jitter, more surface) and running directly on Windows (generated code outside isolation, an exception to invariant 6) were not chosen.

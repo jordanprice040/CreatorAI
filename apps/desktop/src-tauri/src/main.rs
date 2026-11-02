@@ -2,6 +2,7 @@
 
 mod control;
 mod download;
+mod external;
 mod home;
 mod job;
 mod postgres;
@@ -496,7 +497,11 @@ fn build_studio_window(
         .on_navigation(local_navigation)
         .on_new_window(|url, _| {
             // Preview tickets open only on the distinct preview origin, outside management WebView.
-            if private_preview(&url) {
+            // ADR-0061: public https and plain mailto links (answers, usage pages) go to the
+            // system browser or mail app, at most one per second; every other address is refused.
+            // Either way the studio window itself never opens another window.
+            static LINKS: external::Throttle = external::Throttle::new();
+            if private_preview(&url) || (external::external_link(&url) && LINKS.allow()) {
                 let _ = std::process::Command::new("rundll32.exe")
                     .args(["url.dll,FileProtocolHandler", url.as_str()])
                     .spawn();

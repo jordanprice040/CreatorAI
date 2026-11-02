@@ -23,6 +23,7 @@ type Mod = {
   parseMarkdown: (s: string) => Node[];
   inline: (s: string) => Node[];
   safeHref: (s: string) => string | null;
+  desktopOpens: (s: string) => boolean;
 };
 const mod = load<Mod>('markdown.ts');
 
@@ -232,4 +233,45 @@ test('long runs of closing parens or heading spaces parse in linear time', async
   const [h] = parseMarkdown('## Title ##');
   assert.deepEqual(h!.c, [{ t: 'text', v: 'Title' }]);
   assert.deepEqual(parseMarkdown('# C#')[0]!.c, [{ t: 'text', v: 'C#' }]);
+});
+
+test('the desktop app opens only the links its window hands to the browser (ADR-0061)', async () => {
+  const { desktopOpens } = await mod;
+  // Same cases as external.rs; the Rust check decides, this only picks link or copy-only.
+  for (const ok of [
+    'https://example.com/docs',
+    'https://docs.example.co.uk/a?b=c#d',
+    'https://xn--bcher-kva.example/',
+    'https://example.com./',
+    'mailto:jordan.p+x@example.com',
+    'https://claude.ai/settings/usage',
+    'https://chatgpt.com/settings/usage',
+  ])
+    assert.equal(desktopOpens(ok), true, ok);
+  for (const refused of [
+    'http://example.com/',
+    'file:///C:/Windows/System32/calc.exe',
+    'ms-settings:privacy',
+    'javascript:alert(1)',
+    'ftp://example.com/',
+    'https://127.0.0.1/',
+    'https://127.1/',
+    'https://0x7f000001/',
+    'https://[::1]/',
+    'https://localhost/',
+    'https://studio.localhost/',
+    'https://printer.local/',
+    'https://router.home.arpa/',
+    'https://intranet/',
+    'https://example.com:8443/',
+    'https://user:pw@example.com/',
+    'https://user@example.com/',
+    'mailto:',
+    'mailto:a@example.com?body=hi',
+    'mailto:a@example.com,b@example.com',
+    'mailto:a@localhost',
+    'mailto:a@127.0.0.1',
+    `https://example.com/${'a'.repeat(2048)}`,
+  ])
+    assert.equal(desktopOpens(refused), false, refused);
 });
