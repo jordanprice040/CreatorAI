@@ -167,7 +167,7 @@ export function pipelineStep(f: StudioFacts): Step {
   if (f.specs === 0)
     return {
       tone: 'next',
-      text: `Record a selection under Projects › Decide, then write its spec ${cli(f, 'spec-create')}.`,
+      text: 'Record a selection under Projects › Decide, then write its spec under Projects › Build (Write a spec).',
       action: { view: 'compare' },
     };
   if (f.frozenSpecs === 0)
@@ -398,7 +398,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       if (f.specs === 0 && f.scorecards > 0)
         return {
           tone: 'next',
-          text: `Record a selection below, then write its spec ${cli(f, 'spec-create')}.`,
+          text: 'Record a selection below, then write its spec under Projects › Build (Write a spec).',
         };
       return pipelineStep(f);
     case 'scores':
