@@ -2600,6 +2600,23 @@ create trigger chat_answers_settle_once before update or delete on chat_answers
  for each row execute function chat_answers_settle_once();
 `,
   },
+  {
+    // ADR-0059: the right-hand sidebar's notepad. One note per person per workspace; only its
+    // author reads or writes it. Each save bumps the version so a stale window cannot overwrite
+    // newer text unnoticed. Notes are private scratch: no audit event, never sent to a model.
+    version: 37,
+    name: 'workspace_notes',
+    sql: `
+create table workspace_notes (
+ workspace_id uuid not null references workspaces(id),
+ actor_id uuid not null references actors(id),
+ text text not null check (length(text) <= 100000),
+ version integer not null check (version >= 1),
+ updated_at timestamptz not null default clock_timestamp(),
+ primary key (workspace_id, actor_id)
+);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

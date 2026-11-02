@@ -606,6 +606,8 @@ export function createApi(
   const CHAT_ANSWER_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/messages\/([^/]+)\/answer$/;
   const CHAT_SETTINGS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(chat-settings)$/;
+  const NOTES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(notes)$/;
+  const ACTIVITY_NOW_ROUTE = /^\/api\/workspaces\/([^/]+)\/(activity-now)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
       RECORD_ROUTE.exec(url.pathname) ??
@@ -621,7 +623,9 @@ export function createApi(
       EVIDENCE_SITES_ROUTE.exec(url.pathname) ??
       CHAT_ROUTE.exec(url.pathname) ??
       CHAT_ANSWER_ROUTE.exec(url.pathname) ??
-      CHAT_SETTINGS_ROUTE.exec(url.pathname);
+      CHAT_SETTINGS_ROUTE.exec(url.pathname) ??
+      NOTES_ROUTE.exec(url.pathname) ??
+      ACTIVITY_NOW_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
       throw new ContractError(
@@ -690,6 +694,23 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown evidence websites route.');
+    }
+    // ADR-0059 sidebar: each person's own notes for the workspace, and what is running now.
+    if (ws && NOTES_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.workspaceNote(ctx, ws), false);
+      if (method === 'POST')
+        return send(
+          200,
+          await store.saveWorkspaceNote(ctx, ws, await readJson(req)),
+          true,
+        );
+      throw new ContractError('NOT_FOUND', 'Unknown notes route.');
+    }
+    if (ws && ACTIVITY_NOW_ROUTE.test(url.pathname)) {
+      if (method === 'GET')
+        return send(200, await store.activityNow(ctx, ws), false);
+      throw new ContractError('NOT_FOUND', 'Unknown activity route.');
     }
     if (ws && CHAT_SETTINGS_ROUTE.test(url.pathname)) {
       if (method === 'GET')

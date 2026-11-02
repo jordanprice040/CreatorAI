@@ -38,6 +38,8 @@ export async function api<T>(
     csrf?: string;
     timeoutMs?: number;
     idempotencyKey?: string;
+    /** A write that changes nothing other pages show (sidebar notes): do not announce it. */
+    quiet?: boolean;
   } = {},
 ): Promise<T> {
   const sent = fetch(`/api/${path}`, {
@@ -57,7 +59,7 @@ export async function api<T>(
     signal: AbortSignal.timeout(init.timeoutMs ?? 5000),
   });
   // A write that timed out may still have landed, so announce it however it ended.
-  if (init.body !== undefined && typeof window !== 'undefined') {
+  if (init.body !== undefined && !init.quiet && typeof window !== 'undefined') {
     const announce = () => window.dispatchEvent(new Event(STUDIO_CHANGED));
     sent.then(announce, announce);
   }

@@ -43,6 +43,9 @@ import {
   ChatCreateRequestSchema,
   ChatMessageRequestSchema,
   ChatSettingsRequestSchema,
+  WorkspaceNoteRequestSchema,
+  type ActivityNow,
+  type WorkspaceNote,
   ChatRenameRequestSchema,
   chatTitle,
   classifyChat,
@@ -85,6 +88,7 @@ import {
   toChatMessage,
 } from './chat-store.js';
 import { toRun } from './oversight-store.js';
+import { activityNow, workspaceNote } from './sidebar-store.js';
 import {
   buildApprovalBlockers,
   buildApprovalScopeNote,
@@ -548,6 +552,75 @@ export class ConnectionStore extends PortfolioStore {
         payload: { message_id: messageId, intent },
       });
       return { message: toChatMessage(rows[0] as Row), duplicate: false };
+    });
+  }
+
+  /** ADR-0059: the signed-in person's own note for this workspace. Any member, any role. */
+  async workspaceNote(
+    ctxIn: CommandContext,
+    ws: string,
+  ): Promise<WorkspaceNote> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return workspaceNote(c, uuid(ws), ctx.actorId);
+    });
+  }
+
+  /**
+   * ADR-0059: saves the person's note. A stale `expected_version` (another window saved first)
+   * is refused with VERSION_CONFLICT. The note is personal scratch, so a viewer may keep one
+   * too, and no audit event is written: the text never enters the activity history.
+   */
+  async saveWorkspaceNote(
+    ctxIn: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<WorkspaceNote> {
+    const ctx = normalize(ctxIn);
+    const req = parse(WorkspaceNoteRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const current = await workspaceNote(c, uuid(ws), ctx.actorId, true);
+      if (current.version !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'These notes were saved from another window since you opened them.',
+        );
+      if (current.version > 0 && current.text === req.text) return current;
+      // The version check is in the write itself, so two first saves racing (no row to lock
+      // yet) cannot both succeed: the second insert does nothing and is refused.
+      const { rowCount } =
+        req.expected_version === 0
+          ? await c.query(
+              `insert into workspace_notes (workspace_id, actor_id, text, version)
+               values ($1, $2, $3, 1) on conflict (workspace_id, actor_id) do nothing`,
+              [uuid(ws), ctx.actorId, req.text],
+            )
+          : await c.query(
+              `update workspace_notes set text = $3, version = version + 1,
+                 updated_at = clock_timestamp()
+               where workspace_id = $1 and actor_id = $2 and version = $4`,
+              [uuid(ws), ctx.actorId, req.text, req.expected_version],
+            );
+      if (rowCount !== 1)
+        throw fail(
+          'VERSION_CONFLICT',
+          'These notes were saved from another window since you opened them.',
+        );
+      return workspaceNote(c, uuid(ws), ctx.actorId);
+    });
+  }
+
+  /** ADR-0059: what is running now in the workspace, for the sidebar. Members may read it. */
+  async activityNow(ctxIn: CommandContext, ws: string): Promise<ActivityNow> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return {
+        items: await activityNow(c, uuid(ws)),
+        generated_at: new Date().toISOString(),
+      };
     });
   }
 
