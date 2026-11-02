@@ -181,9 +181,18 @@ export function Models({
       loadSequence.current++;
     };
   }, [workspace.id, selected, active, session?.actor_id]);
-  async function act(path: string, body: unknown, timeoutMs = 5000) {
+  /**
+   * Posts one action and reloads. With `local`, the error goes to the caller instead of the
+   * page-level alert, and the page is not locked (a qualification run can take an hour).
+   */
+  async function act(
+    path: string,
+    body: unknown,
+    timeoutMs = 5000,
+    local?: (error: string) => void,
+  ) {
     if (!session) return null;
-    setBusy(true);
+    if (!local) setBusy(true);
     setError('');
     try {
       const out = await api(z.unknown(), `${base}/${path}`, {
@@ -194,10 +203,10 @@ export function Models({
       await load();
       return out;
     } catch (e) {
-      setError(message(e));
+      (local ?? setError)(message(e));
       return null;
     } finally {
-      setBusy(false);
+      if (!local) setBusy(false);
     }
   }
   const c = detail?.connection;
