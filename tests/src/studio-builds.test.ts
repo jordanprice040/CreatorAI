@@ -215,6 +215,48 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
       covered.body.error.message,
       /^This build can't start yet\. The spec's data contract "[^"]+" \(public\) is above the synthetic data/,
     );
+
+    // A plan connection on its default settings (synthetic and public data only) refuses an
+    // approved-private build in words, before the build is recorded or an approval is asked.
+    const conn = await http(`workspaces/${ws}/plan-connections`, {
+      label: 'Default plan',
+      settings: JSON.parse(
+        await readFile('config/connections/chatgpt-plan.json', 'utf8'),
+      ),
+    });
+    assert.equal(conn.status, 201, JSON.stringify(conn.body));
+    assert.ok(
+      !conn.body.settings.allowed_data_classes.includes('private_approved'),
+    );
+    for (const route of ['plan_roles', 'codex_plan_builder'] as const) {
+      const refused = await http(`${base}/${made2.body.id}/builds`, {
+        task_id: t2.body.id,
+        expected_commit: made2.body.initial_commit,
+        plan: {
+          format: 'build-plan/1',
+          run_id: seed.run,
+          envelope_id: budgets[0].id,
+          pricing_snapshot_id: pricing[0].id,
+          humility_review: { id: r2.id, version: r2.version },
+          data_class: 'private_approved',
+          max_repairs: 0,
+          max_calls: 2,
+          timeout_ms: 10000,
+          max_output_tokens: 3000,
+          deadline: new Date(Date.now() + 600000).toISOString(),
+          [route]: { connection_id: conn.body.id, model_id: 'fixture-plan' },
+        },
+      });
+      assert.equal(refused.status, 409, JSON.stringify(refused.body));
+      assert.match(
+        refused.body.error.message,
+        /^This build can't start yet\. The plan connection "Default plan" doesn't allow approved private data/,
+      );
+    }
+    const after = (await http(base)).body.find(
+      (x: any) => x.product.id === made2.body.id,
+    );
+    assert.deepEqual(after.builds, []);
   }
   // The $0 sample puts the synthetic checklist into the spec; a real workspace refuses it.
   const real = await http('workspaces', {
