@@ -105,6 +105,7 @@ import {
 import { batchesOf, readCorpus } from './context-index.js';
 import {
   CREDITS_OFF_STATEMENT,
+  buildBlockers,
   CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
   PlanConnectionSchema,
   PlanConnectionDetailSchema,
@@ -685,16 +686,33 @@ export async function runCli(
     };
     let data: unknown;
     switch (command) {
-      case 'build-task':
+      case 'build-task': {
+        const ports = buildPorts(rest[0]!);
+        const raw = JSON.parse(readFileSync(rest[3]!, 'utf8')) as unknown;
+        // Why the frozen spec can't be built, said in words before the plan's own schema
+        // reports it (e.g. "cases: Too small"); the supervisor enforces the same rules.
+        const { spec } = await ports.current();
+        const task = await local.task(rest[0]!, rest[1]!);
+        const cls = (raw as { data_class?: unknown } | null)?.data_class;
+        const blockers = buildBlockers(
+          spec,
+          task.key,
+          cls === 'synthetic' || cls === 'public' || cls === 'private_approved'
+            ? cls
+            : undefined,
+        );
+        if (blockers.length)
+          throw new Error(`This build can't start yet. ${blockers.join(' ')}`);
         data = await new BuildSupervisor(local, executor).run(
           rest[0]!,
           rest[1]!,
           rest[2]!,
-          parse(buildPlanSchema, JSON.parse(readFileSync(rest[3]!, 'utf8'))),
-          buildPorts(rest[0]!),
+          parse(buildPlanSchema, raw),
+          ports,
           (build_id) => write(JSON.stringify({ build_id, state: 'running' })),
         );
         break;
+      }
       case 'build-status':
         data = await new BuildSupervisor(local, executor).status(
           rest[0]!,

@@ -645,6 +645,27 @@ const METHOD_NAMES: Record<string, string> = {
   manual_review: 'manual review',
   metric: 'metric',
 };
+type BuildDataClass = 'synthetic' | 'public' | 'private_approved';
+const DATA_RANK: Record<BuildDataClass, number> = {
+  synthetic: 0,
+  public: 1,
+  private_approved: 2,
+};
+const DATA_NAMES: Record<BuildDataClass, string> = {
+  synthetic: 'synthetic',
+  public: 'public',
+  private_approved: 'approved private',
+};
+/**
+ * The lowest build data class that covers every frozen data contract of a spec (the build
+ * refuses a lower one). Synthetic when the spec declares no contracts.
+ */
+export function contractDataClass(s: SpecContent): BuildDataClass {
+  return s.data_contracts.reduce<BuildDataClass>(
+    (top, c) => (DATA_RANK[c.data_class] > DATA_RANK[top] ? c.data_class : top),
+    'synthetic',
+  );
+}
 const listed = (keys: readonly string[]) =>
   keys.length === 1
     ? keys[0]!
@@ -653,23 +674,38 @@ const listed = (keys: readonly string[]) =>
  * Why the studio's reviewed builder cannot build this task of a spec, in words for people; empty
  * when it can. The build itself enforces the same rules: this only explains them before Start.
  */
-export function buildBlockers(s: SpecContent, taskKey: string): string[] {
+export function buildBlockers(
+  s: SpecContent,
+  taskKey: string,
+  /** The class the build would be sent with, when known: it must cover every data contract. */
+  dataClass?: BuildDataClass,
+): string[] {
   const fix =
     'Revise the spec under Build, freeze the new version under Scores and specs, then create a product from it.';
+  const out: string[] = [];
   const task = s.tasks.find((t) => t.key === taskKey);
   if (!task) return [`Task ${taskKey} is not in this spec version.`];
+  const above = dataClass
+    ? s.data_contracts.filter(
+        (c) => DATA_RANK[c.data_class] > DATA_RANK[dataClass],
+      )
+    : [];
+  const data = above.length
+    ? `The spec's data ${above.length === 1 ? 'contract' : 'contracts'} ${listed(above.map((c) => `"${c.name}" (${DATA_NAMES[c.data_class]})`))} ${above.length === 1 ? 'is' : 'are'} above the ${DATA_NAMES[dataClass!]} data this build is classified for. ${dataClass === 'synthetic' ? 'A fixture workspace builds only with synthetic data: mark the contract synthetic, or build it in a real workspace.' : 'The build must be classified at least as high as every frozen data contract.'}`
+    : null;
   if (task.role !== 'builder' || task.depends_on.length)
     return [
       `Task ${taskKey} can't be built here: the studio builds only builder tasks that depend on no other task.`,
     ];
+  if (data) out.push(data);
   const checks = s.acceptance_checks.filter((a) =>
     task.acceptance.includes(a.key),
   );
   if (!checks.length)
     return [
+      ...out,
       `Task ${taskKey} delivers no acceptance checks, so there is nothing to test the build against. Give it at least one automated-test check with test cases. ${fix}`,
     ];
-  const out: string[] = [];
   const other = checks.filter((a) => a.method !== 'automated_test');
   if (other.length)
     out.push(

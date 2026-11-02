@@ -528,7 +528,7 @@ export class StudioBuilds {
     const { spec } = await ports.current();
     const task = await this.artifacts.products.task(p.id, req.task_id);
     // Said in words before the build starts; the build supervisor enforces the same rules.
-    const blockers = buildBlockers(spec, task.key);
+    const blockers = buildBlockers(spec, task.key, req.plan.data_class);
     if (blockers.length)
       throw new ContractError(
         'INVALID_TRANSITION',

@@ -13,8 +13,10 @@ import {
   SpecStatusSchema,
   StoredEntitySchema,
   buildBlockers,
+  contractDataClass,
   z,
   type SessionInfo,
+  type SpecBody,
   type SpecStatus,
   type StoredEntity,
   type Workspace,
@@ -409,6 +411,7 @@ export function BuildView({
             ) : (
               <ul className="rows">
                 {d.specs.map((s) => {
+                  const cannot = unbuildable(s, entityOf(s), fixture);
                   const made = d.products.filter(
                     (p) =>
                       p.product.binding.spec_id === s.spec.id &&
@@ -428,12 +431,7 @@ export function BuildView({
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
                       )}
-                      {unbuildable(s, entityOf(s)) && (
-                        <small>
-                          {' '}
-                          · Can't be built yet: {unbuildable(s, entityOf(s))}
-                        </small>
-                      )}{' '}
+                      {cannot && <small> · Can't be built yet: {cannot}</small>}{' '}
                       {owner && s.frozen_current && made.length === 0 && (
                         <button
                           className="secondary"
@@ -986,11 +984,33 @@ function Product({
   );
 }
 
+/**
+ * The data class a build is sent with. Fixture records are synthetic; a real workspace classifies
+ * the build as its frozen data contracts need (at least public). The build's approval and grants
+ * still decide whether that class is admitted.
+ */
+function buildDataClass(spec: SpecBody, fixture: boolean) {
+  if (fixture) return 'synthetic' as const;
+  return contractDataClass(spec) === 'private_approved'
+    ? ('private_approved' as const)
+    : ('public' as const);
+}
+
 /** A frozen spec none of whose tasks can be built: the first reason, said before Create product. */
-function unbuildable(s: SpecStatus, entity: StoredEntity | undefined) {
+function unbuildable(
+  s: SpecStatus,
+  entity: StoredEntity | undefined,
+  fixture: boolean,
+) {
   const body = SpecBodySchema.safeParse(entity?.body);
   if (!s.frozen_current || !body.success) return null;
-  const why = body.data.tasks.map((t) => buildBlockers(body.data, t.key));
+  const spec = body.data;
+  const dataClass = buildDataClass(spec, fixture);
+  // Builder tasks first: their reasons are the ones an edit to the spec can fix.
+  const tasks = [...spec.tasks].sort(
+    (a, b) => Number(b.role === 'builder') - Number(a.role === 'builder'),
+  );
+  const why = tasks.map((t) => buildBlockers(spec, t.key, dataClass));
   return why.every((w) => w.length) ? why[0]![0]! : null;
 }
 
@@ -1066,7 +1086,14 @@ function StartBuild({
       e.id.toLowerCase() === specId.toLowerCase() && e.version === specVersion,
   );
   const body = SpecBodySchema.safeParse(entity?.body);
-  const blockers = body.success ? buildBlockers(body.data, taskKey) : [];
+  const dataClass = body.success
+    ? buildDataClass(body.data, fixture)
+    : fixture
+      ? 'synthetic'
+      : 'public';
+  const blockers = body.success
+    ? buildBlockers(body.data, taskKey, dataClass)
+    : [];
   const missing = [
     !runId && 'an active run (register one under Sources or Discover)',
     !budgetId && 'an active budget (Monitor › Budgets)',
@@ -1085,7 +1112,7 @@ function StartBuild({
       envelope_id: budgetId,
       pricing_snapshot_id: priceId,
       humility_review: { id: chosen.id, version: chosen.version },
-      data_class: fixture ? 'synthetic' : 'public',
+      data_class: dataClass,
       max_repairs: repairs,
       max_calls: 2 + 2 * repairs,
       // A streamed plan answer can take up to the plan's 120 s request timeout.
@@ -1220,6 +1247,13 @@ function StartBuild({
         <option value={1}>1</option>
         <option value={2}>2</option>
       </select>
+      {dataClass === 'private_approved' && (
+        <p className="small">
+          This spec's data contracts include approved private data, so the build
+          is classified for it: its approval and grants must cover approved
+          private data, or the build stops before anything is sent.
+        </p>
+      )}
       {blockers.length > 0 && (
         <div className="notice" role="note">
           <p>

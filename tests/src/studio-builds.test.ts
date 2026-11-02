@@ -169,6 +169,52 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     const listed = await http(base);
     const entry = listed.body.find((x: any) => x.product.id === made.body.id);
     assert.deepEqual(entry.builds, []);
+
+    // With a held-out case but a public data contract, a synthetic (fixture) build is refused
+    // in words too, instead of "Build data classification does not cover frozen data contracts".
+    const specs = (await http(`workspaces/${ws}/entities?kind=specification`))
+      .body as any[];
+    const {
+      format: _f,
+      alternative: _a,
+      selection_id: _s,
+      ...content
+    } = specs.find((e) => e.id === specId).body;
+    content.acceptance_checks[0].cases = [
+      { args: [], stdin: '', stdout: 'ok\n', exit_code: 0, held_out: true },
+    ];
+    content.data_contracts[0].data_class = 'public';
+    const revised = await revise(content, 'Public contract');
+    await freeze(revised.spec.version);
+    const made2 = await http(base, { spec_id: specId });
+    assert.equal(made2.status, 201, JSON.stringify(made2.body));
+    const t2 = await http(`${base}/${made2.body.id}/tasks`, {
+      task_key: 'T1',
+      expected_commit: made2.body.initial_commit,
+    });
+    const r2 = (await http(`${base}/sample-review`, { spec_id: specId })).body;
+    const covered = await http(`${base}/${made2.body.id}/builds`, {
+      task_id: t2.body.id,
+      expected_commit: made2.body.initial_commit,
+      plan: {
+        format: 'build-plan/1',
+        run_id: seed.run,
+        envelope_id: budgets[0].id,
+        pricing_snapshot_id: pricing[0].id,
+        humility_review: { id: r2.id, version: r2.version },
+        data_class: 'synthetic',
+        max_repairs: 0,
+        max_calls: 2,
+        timeout_ms: 10000,
+        max_output_tokens: 3000,
+        deadline: new Date(Date.now() + 600000).toISOString(),
+      },
+    });
+    assert.equal(covered.status, 409, JSON.stringify(covered.body));
+    assert.match(
+      covered.body.error.message,
+      /^This build can't start yet\. The spec's data contract "[^"]+" \(public\) is above the synthetic data/,
+    );
   }
   // The $0 sample puts the synthetic checklist into the spec; a real workspace refuses it.
   const real = await http('workspaces', {

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBlockers, type SpecContent } from '@creator/contracts';
+import {
+  buildBlockers,
+  contractDataClass,
+  type SpecContent,
+} from '@creator/contracts';
 import { BUILD_FIXTURE_SPEC, FIXTURE_SPEC } from '@creator/domain';
 
 const clone = (s: SpecContent): SpecContent => structuredClone(s);
@@ -62,4 +66,36 @@ test('build blockers: other methods, too many cases, no held-out case, wrong tas
   assert.deepEqual(buildBlockers(BUILD_FIXTURE_SPEC, 'T9'), [
     'Task T9 is not in this spec version.',
   ]);
+});
+
+test('build blockers: the build data class must cover every frozen data contract', () => {
+  assert.equal(contractDataClass(BUILD_FIXTURE_SPEC), 'synthetic');
+  for (const c of ['synthetic', 'public', 'private_approved'] as const)
+    assert.deepEqual(buildBlockers(BUILD_FIXTURE_SPEC, 'T1', c), []);
+
+  const pub = clone(BUILD_FIXTURE_SPEC);
+  pub.data_contracts[0]!.data_class = 'public';
+  assert.equal(contractDataClass(pub), 'public');
+  const why = buildBlockers(pub, 'T1', 'synthetic');
+  assert.match(
+    why[0]!,
+    /^The spec's data contract "checklist\/1" \(public\) is above the synthetic data this build is classified for\. A fixture workspace builds only with synthetic data/,
+  );
+  assert.match(why.at(-1)!, /Revise the spec/);
+  assert.deepEqual(buildBlockers(pub, 'T1', 'public'), []);
+  // Without a class (the spec-row note before a plan exists) the contracts are not judged.
+  assert.deepEqual(buildBlockers(pub, 'T1'), []);
+
+  const priv = clone(BUILD_FIXTURE_SPEC);
+  priv.data_contracts.push({
+    name: 'roster',
+    description: 'Approved private roster',
+    data_class: 'private_approved',
+  });
+  assert.equal(contractDataClass(priv), 'private_approved');
+  assert.match(
+    buildBlockers(priv, 'T1', 'public')[0]!,
+    /"roster" \(approved private\) is above the public data .* at least as high as every frozen data contract\./,
+  );
+  assert.deepEqual(buildBlockers(priv, 'T1', 'private_approved'), []);
 });
