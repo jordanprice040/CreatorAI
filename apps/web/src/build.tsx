@@ -9,8 +9,10 @@ import {
   PricingSnapshotSchema,
   RunControlSchema,
   SelectionSchema,
+  SpecBodySchema,
   SpecStatusSchema,
   StoredEntitySchema,
+  buildBlockers,
   z,
   type SessionInfo,
   type SpecStatus,
@@ -244,6 +246,13 @@ export function BuildView({
         e.version === s.spec.version &&
         e.body?.format === 'spec/1',
     );
+  /** A frozen spec none of whose tasks can be built: the first reason, said before Create product. */
+  const unbuildable = (s: SpecStatus) => {
+    const body = SpecBodySchema.safeParse(entityOf(s)?.body);
+    if (!s.frozen_current || !body.success) return null;
+    const why = body.data.tasks.map((t) => buildBlockers(body.data, t.key));
+    return why.every((w) => w.length) ? why[0]![0]! : null;
+  };
   // Options chosen for build that have no spec of that exact version yet.
   const unwritten = d ? unwrittenOptions(d.selections, d.specEntities) : [];
   /** A spec written from a selection that has since been recorded again or replaced. */
@@ -425,6 +434,9 @@ export function BuildView({
                           : 'not frozen'}
                       {s.blockers.length > 0 && (
                         <small> · {s.blockers.join('; ')}</small>
+                      )}
+                      {unbuildable(s) && (
+                        <small> · Can't be built yet: {unbuildable(s)}</small>
                       )}{' '}
                       {owner && s.frozen_current && made.length === 0 && (
                         <button
@@ -705,6 +717,8 @@ const reviewOf = (r: StoredEntity, s: SpecStatus) => {
 
 type Data = {
   reviews: StoredEntity[];
+  /** Spec records (current versions): what a task's build would be tested against. */
+  specEntities: StoredEntity[];
   runs: z.infer<typeof RunControlSchema>[];
   names: ReadonlyMap<string, string>;
   budgets: z.infer<typeof EnvelopeSchema>[];
@@ -875,6 +889,7 @@ function Product({
             {task && owner && current && (
               <StartBuild
                 key={task.id}
+                taskKey={key}
                 specId={p.binding.spec_id}
                 specVersion={p.binding.spec_version}
                 data={data}
@@ -977,6 +992,7 @@ function Product({
 
 /** The build plan: which run, budget, pricing, humility review and builder; limits in range. */
 function StartBuild({
+  taskKey,
   specId,
   specVersion,
   data,
@@ -984,6 +1000,7 @@ function StartBuild({
   busy,
   start,
 }: {
+  taskKey: string;
   specId: string;
   specVersion: number;
   data: Data;
@@ -1039,6 +1056,13 @@ function StartBuild({
     ? price
     : (data.pricing[0]?.id ?? '');
   const chosen = reviews.find((r) => r.id === review) ?? reviews[0];
+  // What the frozen spec lacks for this task (e.g. test cases): the server refuses the same.
+  const entity = data.specEntities.find(
+    (e) =>
+      e.id.toLowerCase() === specId.toLowerCase() && e.version === specVersion,
+  );
+  const body = SpecBodySchema.safeParse(entity?.body);
+  const blockers = body.success ? buildBlockers(body.data, taskKey) : [];
   const missing = [
     !runId && 'an active run (register one under Sources or Discover)',
     !budgetId && 'an active budget (Monitor › Budgets)',
@@ -1050,7 +1074,7 @@ function StartBuild({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (missing.length || !chosen) return;
+    if (missing.length || blockers.length || !chosen) return;
     void start({
       format: 'build-plan/1',
       run_id: runId,
@@ -1192,11 +1216,26 @@ function StartBuild({
         <option value={1}>1</option>
         <option value={2}>2</option>
       </select>
+      {blockers.length > 0 && (
+        <div className="notice" role="note">
+          <p>
+            <strong>
+              This task can't be built from this spec version yet.
+            </strong>
+          </p>
+          {blockers.map((b) => (
+            <p key={b}>{b}</p>
+          ))}
+        </div>
+      )}
       {missing.length > 0 && (
         <p className="small">Still needed: {missing.join(', ')}.</p>
       )}
       <div className="actions">
-        <button className="primary" disabled={busy || missing.length > 0}>
+        <button
+          className="primary"
+          disabled={busy || missing.length > 0 || blockers.length > 0}
+        >
           Start build
         </button>
       </div>

@@ -636,3 +636,61 @@ export const FreezeOutcomeSchema = z.strictObject({
   freeze: SpecFreezeSchema.nullable(),
 });
 export type FreezeOutcome = z.infer<typeof FreezeOutcomeSchema>;
+
+/** The most executable cases one build runs (the build plan's limit). */
+export const MAX_BUILD_CASES = 10;
+const METHOD_NAMES: Record<string, string> = {
+  automated_test: 'automated test',
+  browser_check: 'browser check',
+  manual_review: 'manual review',
+  metric: 'metric',
+};
+const listed = (keys: readonly string[]) =>
+  keys.length === 1
+    ? keys[0]!
+    : `${keys.slice(0, -1).join(', ')} and ${keys[keys.length - 1]!}`;
+/**
+ * Why the studio's reviewed builder cannot build this task of a spec, in words for people; empty
+ * when it can. The build itself enforces the same rules: this only explains them before Start.
+ */
+export function buildBlockers(s: SpecContent, taskKey: string): string[] {
+  const fix =
+    'Revise the spec under Build, freeze the new version under Scores and specs, then create a product from it.';
+  const task = s.tasks.find((t) => t.key === taskKey);
+  if (!task) return [`Task ${taskKey} is not in this spec version.`];
+  if (task.role !== 'builder' || task.depends_on.length)
+    return [
+      `Task ${taskKey} can't be built here: the studio builds only builder tasks that depend on no other task.`,
+    ];
+  const checks = s.acceptance_checks.filter((a) =>
+    task.acceptance.includes(a.key),
+  );
+  if (!checks.length)
+    return [
+      `Task ${taskKey} delivers no acceptance checks, so there is nothing to test the build against. Give it at least one automated-test check with test cases. ${fix}`,
+    ];
+  const out: string[] = [];
+  const other = checks.filter((a) => a.method !== 'automated_test');
+  if (other.length)
+    out.push(
+      `${other.length === 1 ? 'Check' : 'Checks'} ${listed(other.map((a) => `${a.key} (${METHOD_NAMES[a.method] ?? a.method})`))} of task ${taskKey} ${other.length === 1 ? 'is not an automated test' : 'are not automated tests'}. The studio builds a task only when every check it delivers is an automated test with test cases; change the method or take the check off the task.`,
+    );
+  const empty = checks.filter(
+    (a) => a.method === 'automated_test' && !a.cases?.length,
+  );
+  if (empty.length)
+    out.push(
+      `${empty.length === 1 ? 'Check' : 'Checks'} ${listed(empty.map((a) => a.key))} of task ${taskKey} ${empty.length === 1 ? 'has' : 'have'} no test cases. A build needs at least one test case for each automated-test check: use "Add a case" under the check in the spec form.`,
+    );
+  const cases = checks.flatMap((a) => a.cases ?? []);
+  if (cases.length > MAX_BUILD_CASES)
+    out.push(
+      `Task ${taskKey} has ${cases.length} test cases across its checks, and a build runs at most ${MAX_BUILD_CASES}. Remove cases, or move a check to another task.`,
+    );
+  if (!other.length && !empty.length && !cases.some((c) => c.held_out))
+    out.push(
+      `None of task ${taskKey}'s test cases is held out. Tick "Held out (only QA sees this case)" on at least one case, so QA checks something the builder never saw.`,
+    );
+  if (out.length) out.push(fix);
+  return out;
+}

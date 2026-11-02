@@ -126,6 +126,50 @@ test('studio build routes: frozen-spec products, admission-gated builds, packagi
     );
   };
   const base = `workspaces/${ws}/products`;
+  // The seeded spec's builder check has no test cases: Start build is refused in words, not
+  // with the raw contract message ("cases: Too small"), before any build is recorded.
+  {
+    const seeded = await cli('spec', ws, specId);
+    if (!seeded.frozen_current) await freeze(seeded.spec.version);
+    const made = await http(base, { spec_id: specId });
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    const t1 = await http(`${base}/${made.body.id}/tasks`, {
+      task_key: 'T1',
+      expected_commit: made.body.initial_commit,
+    });
+    assert.equal(t1.status, 201, JSON.stringify(t1.body));
+    const r = (await http(`${base}/sample-review`, { spec_id: specId })).body;
+    const [budgets, pricing] = await Promise.all([
+      cli('budgets', ws),
+      cli('pricing', ws),
+    ]);
+    const empty = await http(`${base}/${made.body.id}/builds`, {
+      task_id: t1.body.id,
+      expected_commit: made.body.initial_commit,
+      plan: {
+        format: 'build-plan/1',
+        run_id: seed.run,
+        envelope_id: budgets[0].id,
+        pricing_snapshot_id: pricing[0].id,
+        humility_review: { id: r.id, version: r.version },
+        data_class: 'synthetic',
+        max_repairs: 0,
+        max_calls: 2,
+        timeout_ms: 10000,
+        max_output_tokens: 3000,
+        deadline: new Date(Date.now() + 600000).toISOString(),
+      },
+    });
+    assert.equal(empty.status, 409, JSON.stringify(empty.body));
+    assert.match(
+      empty.body.error.message,
+      /^This build can't start yet\. Check A1 of task T1 has no test cases\./,
+    );
+    assert.doesNotMatch(JSON.stringify(empty.body), /Too small/);
+    const listed = await http(base);
+    const entry = listed.body.find((x: any) => x.product.id === made.body.id);
+    assert.deepEqual(entry.builds, []);
+  }
   // The $0 sample puts the synthetic checklist into the spec; a real workspace refuses it.
   const real = await http('workspaces', {
     name: 'Real records',

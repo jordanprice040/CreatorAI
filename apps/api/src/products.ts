@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import {
   BrokerCallResultSchema,
   BuildApprovalResultSchema,
+  buildBlockers,
   ContractError,
   EntityDetailSchema,
   GrantSchema,
@@ -526,6 +527,13 @@ export class StudioBuilds {
     const ports = this.ports(ctx, ws, p);
     const { spec } = await ports.current();
     const task = await this.artifacts.products.task(p.id, req.task_id);
+    // Said in words before the build starts; the build supervisor enforces the same rules.
+    const blockers = buildBlockers(spec, task.key);
+    if (blockers.length)
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        `This build can't start yet. ${blockers.join(' ')}`,
+      );
     const assigned = spec.tasks.find((t) => t.key === task.key);
     const cases = frozenCases(spec, assigned?.acceptance ?? []).map(
       ({ held_out: _, ...c }) => c,
