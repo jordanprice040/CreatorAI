@@ -102,6 +102,12 @@ Checks (cloud): `cargo check --target x86_64-pc-windows-gnu` for the desktop cra
 
 Not checked: clicking a link in the real installed app on Windows, because this container has no Windows or WebView2. That needs the next installed-app upgrade and one click from Jordan.
 
+## Activity dots survive blocked storage (PR #107 re-review L-A) — November 2, 2026
+
+When `localStorage.setItem` threw (some private windows, a full quota), the seen state written by the activity dots was replaced by the stale stored copy, so opening one tab or switching workspace dropped unseen dots on the others. `storeSeenWith` (`apps/web/src/activity-marks.ts`) now returns the merge over what is stored only when the write succeeds; when it throws, it keeps the in-memory state plus this window's change. Web only: no migration, no ADR. L-B (a run that finishes after dropping off the newest-100 list never dots) is still open.
+
+Checks (cloud): typecheck and prettier pass; `web-activity-marks.test.ts` 11/11 (new: writes throwing with storage reading empty and reading a stale copy keep other tabs and workspaces, and the approval dot stays after opening Runs; working storage still merges over another window's write). Full `pnpm check` test run: 399 pass, 5 fail = the known PowerShell-wrapper tests (no pwsh in the cloud). Not walked in a browser.
+
 ## Activity dots on other pages and tabs — November 2, 2026
 
 Jordan's Nov 2 note: show when something finishes on a page he is not on (a run completing, a decision being made, a chat reply from a model). The sidebar already had two marks: the Projects dot for a new path step (PR #97 L-2) and the Monitor count of pending approvals (PR #90); both are unchanged. New: an activity dot on a sidebar page and on its tab (and Launch sub-tab) when, since that tab was last open, a workflow run finished (Monitor › Runs), an approval was asked for or changed status (Monitor › Approvals), a build or package stopped running (Projects › Build), or a model reply came back in Chat. Opening that tab clears it; on the page you are on, the tab row carries the dot instead of the sidebar. Tooltip and screen-reader text say what happened. Web only: no API, migration or ADR.
