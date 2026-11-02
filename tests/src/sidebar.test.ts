@@ -116,6 +116,10 @@ test('notes are per person and per workspace, versioned, and never audited', asy
     (await store.workspaceNote(owner, a.id)).text,
     'first idea\nsecond idea',
   );
+  // Notes leave with the person: removed and re-added, the viewer starts empty.
+  await store.removeMember(owner, a.id, viewer.actorId, 'test');
+  await store.addMember(owner, a.id, viewer.actorId, 'viewer');
+  assert.equal((await store.workspaceNote(viewer, a.id)).version, 0);
   // A non-member cannot read or write, and cannot learn the workspace exists.
   await assert.rejects(
     store.workspaceNote(stranger, a.id),
@@ -230,6 +234,13 @@ test('running now lists unfinished plan requests of this workspace only', async 
     ],
   );
   assert.equal(now.items[0]!.detail, 'gpt-x');
+  assert.ok(now.items.every((i) => i.active));
+  // Review L-2: a request cut off long ago is shown as stale, not as running.
+  await add(conn.id, 'task', 'in_flight', 31 * 60_000);
+  const later = await store.activityNow(owner, ws.id);
+  const stale = later.items.find((i) => i.purpose === 'task')!;
+  assert.equal(stale.active, false);
+  assert.match(stale.state, /no answer recorded/);
   const stranger = await person(store, 'stranger');
   await assert.rejects(store.activityNow(stranger, ws.id), isCode('NOT_FOUND'));
 });
@@ -296,6 +307,20 @@ test('notes and running-now routes: signed in, CSRF on save, stale saves refused
   assert.equal(stale.body.error.code, 'VERSION_CONFLICT');
   const read = await call('GET', `workspaces/${ws}/notes`);
   assert.equal(read.body.text, 'hello');
+  // Review M-1: a full-length note saves through the route even when JSON spells every
+  // character as an escape (control characters become \u00XX, six bytes each).
+  const longest = '\u0001'.repeat(NOTE_MAX);
+  const big = await call('POST', `workspaces/${ws}/notes`, {
+    expected_version: 1,
+    text: longest,
+  });
+  assert.equal(big.status, 200);
+  assert.equal(big.body.text.length, NOTE_MAX);
+  const tooBig = await call('POST', `workspaces/${ws}/notes`, {
+    expected_version: 2,
+    text: longest + 'x',
+  });
+  assert.equal(tooBig.status, 400);
   const now = await call('GET', `workspaces/${ws}/activity-now`);
   assert.equal(now.status, 200);
   assert.deepEqual(now.body.items, []);

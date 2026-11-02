@@ -19,6 +19,7 @@ import {
   parse,
   id as idSchema,
   type PaymentConnection,
+  NOTE_MAX,
 } from '@creator/contracts';
 import {
   allowedHosts,
@@ -117,6 +118,11 @@ import { searchRoutes } from './search.js';
 import { createOps } from './ops.js';
 
 const MAX_BODY = 65536;
+/**
+ * ADR-0060 review M-1: a note may hold NOTE_MAX characters, and JSON can spell each as
+ * \uXXXX (6 bytes), so the notes route accepts that much plus room for the envelope.
+ */
+const NOTES_MAX_BODY = NOTE_MAX * 6 + 1024;
 function respond(res: ServerResponse, status: number, value: unknown) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -702,7 +708,11 @@ export function createApi(
       if (method === 'POST')
         return send(
           200,
-          await store.saveWorkspaceNote(ctx, ws, await readJson(req)),
+          await store.saveWorkspaceNote(
+            ctx,
+            ws,
+            await readJson(req, NOTES_MAX_BODY),
+          ),
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown notes route.');

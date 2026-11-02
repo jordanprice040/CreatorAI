@@ -218,6 +218,8 @@ export function RightSidebar({
   open: (view: View, id?: string) => void;
 }) {
   const feed = useActivityFeed(workspace.id);
+  // Only work that is actually moving counts as running (review L-3).
+  const running = feed.now.filter((i) => i.active).length;
   const [seen, setSeen] = useState(readSeen);
   const latest = feed.recent[0]?.sequence ?? null;
   const seenHere = seen[workspace.id] ?? null;
@@ -248,15 +250,15 @@ export function RightSidebar({
     <nav className="aside-rail" aria-label="Sidebar">
       <button
         className="ghost icon-button"
-        aria-label={`Activity${unseen ? `, ${unseen} new` : ''}${feed.now.length ? `, ${feed.now.length} running` : ''}`}
+        aria-label={`Activity${unseen ? `, ${unseen} new` : ''}${running ? `, ${running} running` : ''}`}
         title="Activity (Ctrl+.)"
         aria-pressed={aside.isOpen && aside.tab === 'activity'}
         onClick={() => aside.show('activity')}
       >
         <Icon name="pulse" />
-        {(unseen > 0 || feed.now.length > 0) && (
+        {(unseen > 0 || running > 0) && (
           <span
-            className={feed.now.length ? 'rail-dot running' : 'rail-dot'}
+            className={running ? 'rail-dot running' : 'rail-dot'}
             aria-hidden="true"
           />
         )}
@@ -298,8 +300,8 @@ export function RightSidebar({
               onClick={() => aside.setTab(key)}
             >
               {label}
-              {key === 'activity' && feed.now.length > 0 && (
-                <span className="nav-count">{feed.now.length}</span>
+              {key === 'activity' && running > 0 && (
+                <span className="nav-count">{running}</span>
               )}
             </button>
           ))}
@@ -420,7 +422,10 @@ function ActivityTab({
               <li key={`${item.kind}:${item.id}`}>
                 <button className="aside-row" onClick={() => go(view, id)}>
                   <span className="aside-row-top">
-                    <span className="spinner-dot" aria-hidden="true" />
+                    <span
+                      className={item.active ? 'spinner-dot' : 'idle-dot'}
+                      aria-hidden="true"
+                    />
                     <strong>{item.label}</strong>
                     <span className="aside-time">
                       {elapsed(item.started_at, at)}
@@ -492,10 +497,41 @@ type SaveState =
   | { kind: 'failed'; error: string }
   | { kind: 'conflict'; theirs: WorkspaceNote };
 
+const DRAFT_KEY = (ws: string) => `creator.notes-draft.${ws}`;
+type Draft = { text: string; base_version: number };
+/**
+ * Review M-2: text not yet saved is kept in this tab's session storage, with the version it
+ * was based on, so folding or closing the sidebar, a resize or a workspace switch (which
+ * unmount the notepad) cannot drop it, even while a conflict is waiting for a choice.
+ */
+function readDraft(ws: string): Draft | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY(ws));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Partial<Draft>;
+    return typeof d.text === 'string' && typeof d.base_version === 'number'
+      ? { text: d.text, base_version: d.base_version }
+      : null;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(ws: string, draft: Draft | null) {
+  try {
+    if (draft) sessionStorage.setItem(DRAFT_KEY(ws), JSON.stringify(draft));
+    else sessionStorage.removeItem(DRAFT_KEY(ws));
+  } catch {
+    // Blocked storage: the text still saves normally; only the safety copy is missing.
+  }
+}
+/** Keepalive requests are limited to 64 KiB by browsers; stay under it. */
+const KEEPALIVE_MAX = 60_000;
+
 /**
  * The person's own notes for this workspace. Saved a moment after typing stops, when the
- * field loses focus and when the sidebar closes. A save from another window since this one
- * loaded is never overwritten silently: the person picks which text to keep.
+ * field loses focus, when the notepad closes and (best effort) when the page is closed. A save
+ * from another window since this one loaded is never overwritten silently: the person picks
+ * which text to keep. A failed save waits for more typing or "Try again" (review L-1).
  */
 function Notes({ ws, csrf }: { ws: string; csrf: string }) {
   const [text, setText] = useState('');
@@ -506,18 +542,39 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
   const pending = useRef<string | null>(null);
   const saving = useRef(false);
   const timer = useRef<number | undefined>(undefined);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const keepDraft = (value: string) =>
+    writeDraft(ws, { text: value, base_version: base.current?.version ?? 0 });
 
   async function load() {
     setLoadError('');
     try {
       const note = await api(WorkspaceNoteSchema, `workspaces/${ws}/notes`);
       base.current = note;
-      setText(note.text);
-      setState(
-        note.updated_at
-          ? { kind: 'saved', at: note.updated_at }
-          : { kind: 'idle' },
-      );
+      const draft = readDraft(ws);
+      if (draft && draft.text !== note.text) {
+        // Unsaved text from earlier in this tab comes back. If the server moved on since it
+        // was typed, the person chooses; otherwise it is simply saved now.
+        setText(draft.text);
+        pending.current = draft.text;
+        if (draft.base_version === note.version) {
+          setState({ kind: 'idle' });
+          schedule();
+        } else {
+          base.current = { ...note, version: draft.base_version };
+          setState({ kind: 'conflict', theirs: note });
+        }
+      } else {
+        writeDraft(ws, null);
+        setText(note.text);
+        setState(
+          note.updated_at
+            ? { kind: 'saved', at: note.updated_at }
+            : { kind: 'idle' },
+        );
+      }
       setLoaded(true);
     } catch (e) {
       setLoadError(message(e));
@@ -533,6 +590,7 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
     const value = pending.current;
     pending.current = null;
     saving.current = true;
+    let ok = false;
     setState({ kind: 'saving' });
     try {
       const note = await api(WorkspaceNoteSchema, `workspaces/${ws}/notes`, {
@@ -541,32 +599,34 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
         quiet: true,
       });
       base.current = note;
+      ok = true;
+      if (pending.current === null) writeDraft(ws, null);
+      else keepDraft(pending.current);
       setState({
         kind: 'saved',
         at: note.updated_at ?? new Date().toISOString(),
       });
     } catch (e) {
+      pending.current ??= value;
       if (e instanceof ApiError && e.code === 'VERSION_CONFLICT') {
         try {
           const theirs = await api(
             WorkspaceNoteSchema,
             `workspaces/${ws}/notes`,
           );
-          pending.current = value;
           setState({ kind: 'conflict', theirs });
         } catch (e2) {
-          pending.current ??= value;
           setState({ kind: 'failed', error: message(e2) });
         }
       } else {
-        pending.current ??= value;
         setState({ kind: 'failed', error: message(e) });
       }
     } finally {
       saving.current = false;
     }
-    // Typing that arrived during the save goes out next.
-    if (pending.current !== null && !saving.current) schedule();
+    // Typing that arrived during a successful save goes out next; after a failure nothing
+    // retries on its own (review L-1).
+    if (ok && pending.current !== null) schedule();
   }
   function schedule() {
     window.clearTimeout(timer.current);
@@ -575,25 +635,61 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
       if (stateRef.current.kind !== 'conflict') void flush();
     }, SAVE_DELAY_MS);
   }
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  // Save what is left when the sidebar closes or the workspace changes.
+  // Save what is left when the notepad closes or the workspace changes. During a conflict the
+  // text stays in the draft and the choice comes back next time.
   useEffect(
     () => () => {
+      window.clearTimeout(timer.current);
       if (stateRef.current.kind !== 'conflict') void flush();
     },
     [],
   );
+  // Review L-4: closing or reloading the page sends what is left with keepalive when it fits;
+  // the draft in session storage covers a reload either way.
+  useEffect(() => {
+    const leave = () => {
+      if (
+        pending.current === null ||
+        saving.current ||
+        !base.current ||
+        stateRef.current.kind === 'conflict'
+      )
+        return;
+      const body = JSON.stringify({
+        expected_version: base.current.version,
+        text: pending.current,
+      });
+      if (new Blob([body]).size > KEEPALIVE_MAX) return;
+      try {
+        void fetch(`/api/workspaces/${ws}/notes`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrf,
+          },
+          body,
+        }).catch(() => undefined);
+      } catch {
+        // The draft is still kept for a reload.
+      }
+    };
+    window.addEventListener('pagehide', leave);
+    return () => window.removeEventListener('pagehide', leave);
+  }, [ws, csrf]);
 
   function change(value: string) {
     setText(value);
     pending.current = value;
+    keepDraft(value);
+    if (state.kind === 'failed') setState({ kind: 'idle' });
     if (state.kind !== 'conflict') schedule();
   }
   function keepMine() {
     if (state.kind !== 'conflict') return;
     base.current = state.theirs;
     pending.current = text;
+    keepDraft(text);
     setState({ kind: 'idle' });
     void flush();
   }
@@ -601,6 +697,7 @@ function Notes({ ws, csrf }: { ws: string; csrf: string }) {
     if (state.kind !== 'conflict') return;
     base.current = state.theirs;
     pending.current = null;
+    writeDraft(ws, null);
     setText(state.theirs.text);
     setState(
       state.theirs.updated_at

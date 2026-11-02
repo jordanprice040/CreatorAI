@@ -142,6 +142,13 @@ log(
   await q.textContent('#aside-notes .notice p'),
 );
 await q.screenshot({ path: join(shots, 'conflict-dark-1600.png') });
+// Review M-2: text typed during the conflict survives folding and reopening the sidebar.
+await q.fill(field, 'Text from window B, plus more typed during the conflict');
+await q.click('.aside-head .icon-button');
+await q.waitForSelector('.aside-rail');
+await q.click('.aside-rail button[aria-label="Notes"]');
+await q.waitForSelector('#aside-notes .notice');
+log('conflict: text kept after fold and reopen', await q.inputValue(field));
 const kept = q.waitForResponse(
   (r) => r.url().endsWith('/notes') && r.request().method() === 'POST',
 );
@@ -150,6 +157,8 @@ log('conflict: keep mine saves', (await kept).status());
 await p.reload();
 await p.waitForSelector(field);
 log('conflict: window A after reload shows B', await p.inputValue(field));
+// Review M-1: a long note (70,000 characters, over the old 64 KiB body limit) saves.
+log('long note: save status', await typeAndSave(p, 'n'.repeat(70_000)));
 await q.close();
 
 // 3. Mid-size window: a rail; the panel slides over the page and Esc closes it.

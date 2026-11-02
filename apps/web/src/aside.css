@@ -183,6 +183,14 @@ button.aside-row:hover {
   background: var(--warn);
   animation: aside-pulse 1.6s ease-in-out infinite;
 }
+.idle-dot {
+  flex: none;
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-3);
+}
 @keyframes aside-pulse {
   50% {
     opacity: 0.35;

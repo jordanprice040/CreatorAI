@@ -47,6 +47,28 @@ const WORKFLOW_ROLE: Record<string, string> = {
 const words = (s: string) => s.replace(/_/g, ' ');
 
 /**
+ * Review L-2: a plan request still `in_flight` this long after it started was most likely cut
+ * off (studio stopped or crashed) and will stay that way until it is reconciled on Models.
+ */
+export const STALE_PLAN_REQUEST_MS = 30 * 60_000;
+
+/** Review L-3: plain words per workflow state, and whether it is moving on its own. */
+const WORKFLOW_STATE: Record<string, [string, boolean]> = {
+  queued: ['queued', true],
+  running: ['running', true],
+  reconciling: ['checking the outcome', true],
+  waiting_human: ['waiting for you', false],
+  waiting_dependency: ['waiting on another step', false],
+  paused_operator: ['paused', false],
+};
+const DESKTOP_STATE: Record<string, string> = {
+  queued: 'queued',
+  leased: 'starting',
+  running: 'running',
+  reconciling: 'checking the outcome',
+};
+
+/**
  * Work in this workspace that has started and not finished, newest first: plan requests still
  * in flight, unfinished workflows and product runs on a paired computer. Names, states and times
  * only; no prompts, outputs or inputs are read.
@@ -57,14 +79,16 @@ export async function activityNow(
 ): Promise<ActivityNowItem[]> {
   const items: ActivityNowItem[] = [];
   const plan = await c.query(
-    `select pr.id, pr.purpose, pr.model_id, pr.task_class, pr.run_id, pr.started_at
+    `select pr.id, pr.purpose, pr.model_id, pr.task_class, pr.run_id, pr.started_at,
+       pr.started_at < clock_timestamp() - make_interval(secs => $3::double precision / 1000) as stale
      from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
      where pc.workspace_id = $1 and pr.state = 'in_flight'
      order by pr.started_at desc limit $2`,
-    [ws, ACTIVITY_NOW_MAX],
+    [ws, ACTIVITY_NOW_MAX, STALE_PLAN_REQUEST_MS],
   );
   for (const r of plan.rows as Row[]) {
     const purpose = String(r.purpose);
+    const stale = Boolean(r.stale);
     items.push({
       kind: 'plan_request',
       id: String(r.id),
@@ -73,7 +97,10 @@ export async function activityNow(
         .filter(Boolean)
         .join(' · ')
         .slice(0, 200),
-      state: 'waiting for the model',
+      state: stale
+        ? 'no answer recorded; check Models and connections'
+        : 'waiting for the model',
+      active: !stale,
       purpose,
       run_id: r.run_id ? String(r.run_id) : null,
       started_at: iso(r.started_at),
@@ -87,6 +114,10 @@ export async function activityNow(
   );
   for (const r of flows.rows as Row[]) {
     const role = String(r.role);
+    const [stateText, active] = WORKFLOW_STATE[String(r.state)] ?? [
+      words(String(r.state)),
+      false,
+    ];
     items.push({
       kind: 'workflow',
       id: String(r.id),
@@ -96,7 +127,8 @@ export async function activityNow(
         String(r.reason ?? '') === String(r.state)
           ? ''
           : String(r.reason ?? '').slice(0, 200),
-      state: words(String(r.state)),
+      state: stateText,
+      active,
       purpose: null,
       run_id: String(r.run_id),
       started_at: iso(r.created_at),
@@ -114,7 +146,8 @@ export async function activityNow(
       id: String(r.id),
       label: 'Running a product on your computer',
       detail: '',
-      state: words(String(r.state)),
+      state: DESKTOP_STATE[String(r.state)] ?? words(String(r.state)),
+      active: true,
       purpose: null,
       run_id: null,
       started_at: iso(r.created_at),

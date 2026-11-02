@@ -28,7 +28,7 @@
   },
   {
     "check": "notes: status after typing",
-    "result": "Saved Nov 2, 2026, 8:44 AM"
+    "result": "Saved Nov 2, 2026, 9:10 AM"
   },
   {
     "check": "notes: tab remembered after reload",
@@ -60,7 +60,11 @@
   },
   {
     "check": "conflict: window B is asked",
-    "result": "These notes were changed in another window (Nov 2, 2026, 8:44 AM). Which text do you want to keep?"
+    "result": "These notes were changed in another window (Nov 2, 2026, 9:10 AM). Which text do you want to keep?"
+  },
+  {
+    "check": "conflict: text kept after fold and reopen",
+    "result": "Text from window B, plus more typed during the conflict"
   },
   {
     "check": "conflict: keep mine saves",
@@ -68,7 +72,11 @@
   },
   {
     "check": "conflict: window A after reload shows B",
-    "result": "Text from window B"
+    "result": "Text from window B, plus more typed during the conflict"
+  },
+  {
+    "check": "long note: save status",
+    "result": 200
   },
   {
     "check": "1280: layout",

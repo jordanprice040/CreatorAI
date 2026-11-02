@@ -45,6 +45,8 @@ export const ActivityNowItemSchema = z.strictObject({
   /** Extra detail, such as the model or the state; may be empty. */
   detail: z.string().max(200),
   state: z.string().max(40),
+  /** True while it is actually moving (spinner); false when paused, waiting for someone or stale. */
+  active: z.boolean(),
   /** For a plan request, what it is for (qualification, chat, codex_build…); otherwise null. */
   purpose: z.string().max(40).nullable(),
   run_id: id.nullable(),
