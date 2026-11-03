@@ -276,6 +276,14 @@ function currentForBuildRole(r: Row): boolean {
 }
 
 export class ConnectionStore extends PortfolioStore {
+  /**
+   * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
+   * can come back only to the process that sent the request, so these are the answers that are
+   * really still on their way, whatever the connection's timeout says now. Empty after a
+   * restart, when the stored timeout rule alone applies.
+   */
+  readonly #liveChatAnswers = new Set<string>();
+
   // ---- Owner configuration --------------------------------------------------------------
 
   async createPlanConnection(
@@ -524,15 +532,15 @@ export class ConnectionStore extends PortfolioStore {
       }
       // ADR-0062: a pending answer counts as live until its connection's request timeout plus
       // 15 minutes, the same point at which a stopped studio's answer is closed as failed.
-      // PR #124 timeout review L-1: that reads the current timeout, so a pending answer whose
-      // plan request is still in flight blocks too, even if the owner lowered the timeout since.
+      // That reads the current timeout, so an answer this studio is still waiting on blocks
+      // too, even if the owner lowered the timeout since (PR #124 timeout review L-1). After a
+      // restart nothing is waiting, so a request the stopped studio left in flight does not
+      // block forever (PR #126 review L-1).
       const pending = await c.query(
         `select 1 from chat_answers ca where ca.conversation_id = $1 and ca.state = 'pending'
-           and (ca.created_at >= ${CHAT_ANSWER_STALE_POINT}
-             or exists (select 1 from plan_requests pr
-               where pr.logical_operation_id = ca.logical_operation_id and pr.state = 'in_flight'))
+           and (ca.created_at >= ${CHAT_ANSWER_STALE_POINT} or ca.id = any($2::uuid[]))
          limit 1`,
-        [conversation.id],
+        [conversation.id, [...this.#liveChatAnswers]],
       );
       if (pending.rows.length)
         throw fail(
@@ -798,7 +806,7 @@ export class ConnectionStore extends PortfolioStore {
   }> {
     const ctx = normalize(ctxIn);
     const req = parse(ChatAnswerRequestSchema, raw);
-    return this.tx(async (c) => {
+    const begun = await this.tx(async (c) => {
       await this.requireOwner(c, uuid(ws), ctx.actorId);
       const conversation = await chatConversation(
         c,
@@ -826,8 +834,9 @@ export class ConnectionStore extends PortfolioStore {
         `update chat_answers ca set state = 'failed', finished_at = clock_timestamp(),
            reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'
          where ca.message_id = $1 and ca.state = 'pending'
-           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}`,
-        [msg.id],
+           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}
+           and not (ca.id = any($2::uuid[]))`,
+        [msg.id, [...this.#liveChatAnswers]],
       );
       const prior = (
         await c.query(
@@ -931,6 +940,8 @@ export class ConnectionStore extends PortfolioStore {
         logical_operation_id: op,
       };
     });
+    if (!begun.replay) this.#liveChatAnswers.add(begun.answer.id);
+    return begun;
   }
 
   /** ADR-0057: records how a pending chat answer ended. A settled answer never changes. */
@@ -946,6 +957,24 @@ export class ConnectionStore extends PortfolioStore {
     },
   ): Promise<ChatAnswer> {
     const ctx = normalize(ctxIn);
+    try {
+      return await this.#finishChatAnswer(ctx, ws, answerId, outcome);
+    } finally {
+      this.#liveChatAnswers.delete(answerId);
+    }
+  }
+
+  async #finishChatAnswer(
+    ctx: CommandContext,
+    ws: string,
+    answerId: string,
+    outcome: {
+      state: Exclude<ChatAnswerState, 'pending'>;
+      plan_request_id: string | null;
+      text: string | null;
+      reason: string | null;
+    },
+  ): Promise<ChatAnswer> {
     return this.tx(async (c) => {
       const cur = (
         await c.query(
@@ -953,8 +982,8 @@ export class ConnectionStore extends PortfolioStore {
           [uuid(ws), uuid(answerId)],
         )
       ).rows[0] as Row | undefined;
-      // PR #124 timeout review L-1: the only way a begun answer disappears is its conversation
-      // being deleted; say so instead of a bare "not found".
+      // PR #124 timeout review L-1: today the only way a begun answer disappears is its
+      // conversation being deleted; say so instead of a bare "not found".
       if (!cur)
         throw fail(
           'NOT_FOUND',
