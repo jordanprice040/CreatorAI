@@ -6,11 +6,11 @@ Context: Chat is the studio's front page (ADR-0055), and conversations could be 
 
 Decision:
 
-- A conversation can be deleted with everything in it: its messages and its model answers. Migration 38 (`chat_conversation_delete`) makes the foreign keys from `chat_messages` and `chat_answers` cascade, and replaces the triggers so a message or answer row may be deleted only when its conversation no longer exists. Messages still never change, answers still settle only once, and neither can be deleted on its own.
-- `POST /api/workspaces/{ws}/chats/{id}/delete` (POST with CSRF, like the other chat actions). Owners delete any conversation; editors only those they started; viewers none. Another workspace's id is not found.
+- A conversation can be deleted with everything in it: its messages and its model answers. Migration 39 (`chat_conversation_delete`; 38 belongs to PR #123) makes the foreign keys from `chat_messages` and `chat_answers` cascade, and replaces the triggers so a message or answer row may be deleted only when its conversation no longer exists. Messages still never change, answers still settle only once, and neither can be deleted on its own.
+- `POST /api/workspaces/{ws}/chats/{id}/delete` (POST with CSRF, like the other chat actions). Owners delete any conversation; editors only those they started in which every message is theirs and there are no model answers (answers are always the owner's), so an editor never deletes someone else's words (PR #124 review L-2); viewers none. Another workspace's id is not found.
 - Refused (`INVALID_TRANSITION`) while an answer in it is pending and less than 15 minutes old, so a reply can never land in a deleted conversation. Older pending answers are already treated as stopped (ADR-0057) and do not block.
 - Plan requests are kept. They hold no words, so chat usage and the daily chat limit are unchanged by a delete.
-- The audit event `chat.deleted` keeps the conversation id and the message and answer counts, never the title or words. Earlier `chat.*` events stay as they were (they already held only ids, intents and hashes).
+- The audit event `chat.deleted` keeps the conversation id and the message and answer counts, never the title or words. Earlier `chat.*` events stay as they were: ids, intents and SHA-256 hashes of each message and title. A hash is not the words, but a short text could be guessed from it (PR #124 review N-3).
 - The UI asks first, in place: "Delete "<title>" and its N messages? Model answers in it go too. This cannot be undone." with "Delete conversation" and "Keep it".
 - Hard delete, not hide: the conversations hold the person's own private words, and keeping them after "delete" would not be honest. The provenance that matters for spending (plan requests, audit counts) stays.
 

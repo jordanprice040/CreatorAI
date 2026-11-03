@@ -16,7 +16,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { announceActivity } from './activity-dots.js';
-import { api, message as errorText, when } from './oversight.js';
+import { api, ApiError, message as errorText, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { pathStages, type StudioFacts } from './next-rules.js';
 import {
@@ -124,7 +124,20 @@ export function Chat({
     } catch (e) {
       if (mine === detailSeq.current) {
         setDetail(null);
-        setError(errorText(e));
+        // PR #124 review L-3: deleted elsewhere (another tab or member). Leave it, so the next
+        // send starts a new conversation instead of failing against the gone one.
+        if (
+          e instanceof ApiError &&
+          e.code === 'NOT_FOUND' &&
+          id === focusRef.current
+        ) {
+          focusRef.current = '';
+          onFocus('');
+          setError(
+            'That conversation was deleted. Your next message starts a new one.',
+          );
+          void loadList();
+        } else setError(errorText(e));
       }
     }
   }
@@ -326,8 +339,13 @@ export function Chat({
               canWrite={canWrite}
               canDelete={
                 owner ||
+                // PR #124 review L-2: editors only when every word in it is theirs.
                 (canWrite &&
-                  detail.conversation.created_by === session.actor_id)
+                  detail.conversation.created_by === session.actor_id &&
+                  detail.messages.every(
+                    (m) => m.author_id === session.actor_id,
+                  ) &&
+                  detail.answers.length === 0)
               }
               remove={async () => {
                 const id = detail.conversation.id;
@@ -335,13 +353,15 @@ export function Chat({
                   csrf: session.csrf_token,
                   body: {},
                 });
-                askIds.current.clear();
+                for (const m of detail.messages) askIds.current.delete(m.id);
                 if (focusRef.current === id) {
                   focusRef.current = '';
                   setDetail(null);
                   onFocus('');
                 }
                 await loadList();
+                // PR #124 review L-4: keyboard focus goes to the message box, not the page.
+                inputRef.current?.focus();
               }}
               rename={async (title) => {
                 await api(
@@ -533,6 +553,17 @@ function ChatTitle({
   const [deleting, setDeleting] = useState(false);
   const [title, setTitle] = useState(conversation.title);
   const [error, setError] = useState('');
+  // PR #124 review L-4: the confirm takes focus when shown; cancelling returns it to Delete.
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    if (confirming) keepRef.current?.focus();
+    else if (returnFocus.current) {
+      returnFocus.current = false;
+      deleteRef.current?.focus();
+    }
+  }, [confirming]);
   if (confirming)
     return (
       <div
@@ -563,8 +594,10 @@ function ChatTitle({
         <button
           type="button"
           className="secondary"
+          ref={keepRef}
           disabled={deleting}
           onClick={() => {
+            returnFocus.current = true;
             setConfirming(false);
             setError('');
           }}
@@ -598,6 +631,7 @@ function ChatTitle({
           <button
             type="button"
             className="text"
+            ref={deleteRef}
             onClick={() => setConfirming(true)}
           >
             Delete

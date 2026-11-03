@@ -1,7 +1,7 @@
 [
   {
     "check": "workspace",
-    "result": "eaeb57ad-b1cd-463c-aa2a-f1a587984996"
+    "result": "d9bd1fcc-8ad1-4b74-a465-1cb3d1af4569"
   },
   {
     "check": "L-2 failed send error",
@@ -32,6 +32,14 @@
     "result": "Delete “Frame timing” and its 2 messages? Model answers in it go too. This cannot be undone."
   },
   {
+    "check": "L-4 focus on confirm (expect Keep it)",
+    "result": "Keep it"
+  },
+  {
+    "check": "L-4 focus after Keep it (expect Delete)",
+    "result": "Delete"
+  },
+  {
     "check": "Keep it keeps (count unchanged)",
     "result": true
   },
@@ -45,7 +53,26 @@
   },
   {
     "check": "after delete: address",
-    "result": "#/chat/conversations?ws=eaeb57ad-b1cd-463c-aa2a-f1a587984996"
+    "result": "#/chat/conversations?ws=d9bd1fcc-8ad1-4b74-a465-1cb3d1af4569"
+  },
+  {
+    "check": "L-4 focus after delete (expect the message box)",
+    "result": "chat-input"
+  },
+  {
+    "check": "L-3 open conversation",
+    "result": [
+      "#/chat/conversations?ws=d9bd1fcc-8ad1-4b74-a465-1cb3d1af4569&id=696e4921-7b0c-4779-8074-9d9a1d5c8974",
+      "696e4921-7b0c-4779-8074-9d9a1d5c8974"
+    ]
+  },
+  {
+    "check": "L-3 notice",
+    "result": "That conversation was deleted. Your next message starts a new one."
+  },
+  {
+    "check": "L-3 next send starts a new conversation (expect +1)",
+    "result": 1
   },
   {
     "check": "phone: horizontal overflow",
@@ -54,7 +81,8 @@
   {
     "check": "page errors (expect only the forced 503)",
     "result": [
-      "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+      "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
     ]
   }
 ]

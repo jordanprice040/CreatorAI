@@ -63,7 +63,10 @@ log('L-2 failed send error', await p.textContent('.chat .error'));
 await p.keyboard.press('Enter');
 await p.waitForSelector('.chat-turn');
 await p.waitForTimeout(400);
-log('L-2 conversations added by fail+retry (expect 1)', (await count()) - convosBefore);
+log(
+  'L-2 conversations added by fail+retry (expect 1)',
+  (await count()) - convosBefore,
+);
 await p.unroute('**/api/workspaces/*/chats/*/messages');
 
 // L-1: the card fills the fetch form once.
@@ -76,18 +79,27 @@ await p.fill('input[type="url"]', 'https://example.org/typed-by-hand');
 await p.click('.draft-page:not([hidden]) .page-reset');
 await p.click('button:has-text("Reset these fields")');
 await p.waitForTimeout(500);
-log('L-1 address after Reset (expect empty)', await p.$eval('.draft-page:not([hidden]) input[type="url"]', (i) => i.value));
+log(
+  'L-1 address after Reset (expect empty)',
+  await p.$eval('.draft-page:not([hidden]) input[type="url"]', (i) => i.value),
+);
 // Fill again from Chat, then open Sources in another workspace: it starts empty there.
 await p.click('.page-nav a:has-text("Chat")');
 await p.waitForSelector('.chat-turn');
 await p.click('.chat-actions button:has-text("Fill in the fetch form")');
 await p.waitForTimeout(400);
-log('L-1 refilled address', await p.$eval('.draft-page:not([hidden]) input[type="url"]', (i) => i.value));
+log(
+  'L-1 refilled address',
+  await p.$eval('.draft-page:not([hidden]) input[type="url"]', (i) => i.value),
+);
 const other = await p.evaluate(async () => {
   const s = await (await fetch('/api/auth/session')).json();
   const r = await fetch('/api/workspaces', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': s.csrf_token },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': s.csrf_token,
+    },
     body: JSON.stringify({ name: 'Walk B', record_mode: 'fixture' }),
   });
   return (await r.json()).id;
@@ -96,7 +108,10 @@ const sourcesHash = new URL(p.url()).hash;
 await p.goto(`${base}/${sourcesHash.replace(ws, other)}`);
 await p.waitForSelector('.draft-page:not([hidden]) input[type="url"]');
 await p.waitForTimeout(600);
-log('L-1 other workspace address (expect empty)', await p.$eval('.draft-page:not([hidden]) input[type="url"]', (i) => i.value));
+log(
+  'L-1 other workspace address (expect empty)',
+  await p.$eval('.draft-page:not([hidden]) input[type="url"]', (i) => i.value),
+);
 await p.goto(`${base}/${sourcesHash}`);
 await p.waitForTimeout(600);
 
@@ -115,23 +130,75 @@ await p.click('.chat-head button:has-text("Delete")');
 await p.waitForSelector('.chat-confirm');
 log('delete confirm text', await p.textContent('.chat-confirm p'));
 await p.screenshot({ path: join(shots, 'delete-confirm-dark.png') });
+log(
+  'L-4 focus on confirm (expect Keep it)',
+  await p.evaluate(() => document.activeElement?.textContent),
+);
 await p.click('.chat-confirm button:has-text("Keep it")');
+log(
+  'L-4 focus after Keep it (expect Delete)',
+  await p.evaluate(() => document.activeElement?.textContent),
+);
 await p.waitForSelector('.chat-head h3:has-text("Frame timing")');
 log('Keep it keeps (count unchanged)', (await count()) === n0);
 await p.click('.chat-head button:has-text("Delete")');
 await p.click('.chat-confirm button:has-text("Delete conversation")');
-await p.waitForFunction((n) => document.querySelectorAll('.chat-convo').length < n, n0);
+await p.waitForFunction(
+  (n) => document.querySelectorAll('.chat-convo').length < n,
+  n0,
+);
 log('after delete: conversations', (await count()) - n0);
-log('after delete: open conversation cleared', (await p.$('.chat-head')) === null);
+log(
+  'after delete: open conversation cleared',
+  (await p.$('.chat-head')) === null,
+);
 log('after delete: address', new URL(p.url()).hash);
+log(
+  'L-4 focus after delete (expect the message box)',
+  await p.evaluate(() => document.activeElement?.id),
+);
+// L-3: a conversation deleted elsewhere (here: straight through the API) while it is open.
+await send('Deleted from another tab');
+const goneId = new URL(p.url()).hash.match(/[?&]id=([0-9a-f-]{36})/)?.[1];
+log('L-3 open conversation', [new URL(p.url()).hash, goneId]);
+await p.evaluate(
+  async ([w, id]) => {
+    const s = await (await fetch('/api/auth/session')).json();
+    await fetch(`/api/workspaces/${w}/chats/${id}/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': s.csrf_token,
+      },
+      body: '{}',
+    });
+  },
+  [new URL(p.url()).hash.match(/ws=([0-9a-f-]{36})/)[1], goneId],
+);
+await p.click('.page-nav a:has-text("Sources")');
+await p.waitForTimeout(300);
+await p.click('.page-nav a:has-text("Chat")');
+await p.waitForSelector('.chat .error');
+log('L-3 notice', await p.textContent('.chat .error'));
+const beforeRetry = await count();
+await send('Next message after the delete');
+log(
+  'L-3 next send starts a new conversation (expect +1)',
+  (await count()) - beforeRetry,
+);
 await p.screenshot({ path: join(shots, 'after-delete-dark.png') });
 // Phone width: the confirm wraps without overflow.
 await p.setViewportSize({ width: 390, height: 844 });
 await send('Another note to delete');
 await p.click('.chat-head button:has-text("Delete")');
 await p.waitForSelector('.chat-confirm');
-log('phone: horizontal overflow', await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth));
+log(
+  'phone: horizontal overflow',
+  await p.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth,
+  ),
+);
 await p.screenshot({ path: join(shots, 'delete-confirm-phone.png') });
-log('page errors (expect only the forced 503)', errors);
+log('page errors (expect only the forced 503 and the L-3 404)', errors);
 await browser.close();
 await writeFile(join(here, 'walk.json'), JSON.stringify(out, null, 2) + '\n');

@@ -487,7 +487,7 @@ export class ConnectionStore extends PortfolioStore {
 
   /**
    * ADR-0063: deletes a conversation with its messages and answers. Owners delete any; editors
-   * only ones they started; viewers none. Refused while an answer is still on its way, so a
+   * only ones they started that hold nothing from anyone else; viewers none. Refused while an answer is still on its way, so a
    * reply can never come back to a conversation that is gone. The audit event keeps ids and
    * counts only, never the words; plan requests stay, so usage and daily limits are unchanged.
    */
@@ -505,6 +505,22 @@ export class ConnectionStore extends PortfolioStore {
           'ACCESS_DENIED',
           'Only the owner or the person who started this conversation can delete it.',
         );
+      // PR #124 review L-2: an editor never deletes anyone else's words. Answers are always
+      // asked for by the owner, so a conversation with any is the owner's to delete.
+      if (role !== 'owner') {
+        const others = await c.query(
+          `select 1 from chat_messages where conversation_id = $1 and author_id <> $2
+           union all
+           select 1 from chat_answers where conversation_id = $1 and created_by <> $2
+           limit 1`,
+          [conversation.id, ctx.actorId],
+        );
+        if (others.rows.length)
+          throw fail(
+            'ACCESS_DENIED',
+            'This conversation has messages or model answers from someone else, so only the owner can delete it.',
+          );
+      }
       const pending = await c.query(
         `select 1 from chat_answers where conversation_id = $1 and state = 'pending'
            and created_at >= clock_timestamp() - interval '15 minutes' limit 1`,

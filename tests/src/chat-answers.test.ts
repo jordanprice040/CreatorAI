@@ -714,6 +714,22 @@ test('deleting a conversation (ADR-0063): who may, not while an answer is coming
     client_id: randomUUID(),
     text: 'An editor note',
   });
+  // Review L-2: an editor's own conversation with someone else's message is the owner's to delete.
+  const shared = await store.createChat(editor, ws.id, {});
+  await store.postChatMessage(editor, ws.id, shared.id, {
+    client_id: randomUUID(),
+    text: 'Editor starts',
+  });
+  await store.postChatMessage(owner, ws.id, shared.id, {
+    client_id: randomUUID(),
+    text: 'Owner replies',
+  });
+  await rejects(
+    'ACCESS_DENIED',
+    store.deleteChat(editor, ws.id, shared.id),
+    /someone else/,
+  );
+  assert.equal((await store.deleteChat(owner, ws.id, shared.id)).messages, 2);
   assert.deepEqual(await store.deleteChat(editor, ws.id, mine.id), {
     id: mine.id,
     messages: 1,
