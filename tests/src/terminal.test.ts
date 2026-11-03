@@ -19,6 +19,7 @@ import {
   TerminalSupervisor,
   consoleCommand,
   digest,
+  jsonPublish,
   type Binding,
   type PackageFile,
   type TerminalPorts,
@@ -637,6 +638,61 @@ test('a partial outcome left by an older version does not break the listing (rev
   }
   // Reported, not overwritten: the broken record stays for inspection.
   assert.equal(await readFile(broken, 'utf8'), '{"id": "');
+});
+
+test('records are published without hard links where the volume has none, and never overwritten (re-review L-a, N-1)', async (t) => {
+  const parent = resolve('.verification/terminal');
+  await mkdir(parent, { recursive: true });
+  const dir = await mkdtemp(join(parent, 'publish-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  // exFAT/FAT32 report link() failures as EPERM, EISDIR (ERROR_INVALID_FUNCTION) or
+  // ENOTSUP depending on the platform; any failure but EEXIST writes in place instead.
+  for (const code of ['EPERM', 'EISDIR', 'ENOTSUP']) {
+    const noLinks = async () => {
+      throw Object.assign(new Error(code), { code });
+    };
+    const target = join(dir, `${code}.json`);
+    await jsonPublish(target, { code }, noLinks);
+    assert.deepEqual(JSON.parse(await readFile(target, 'utf8')), { code });
+    // Still exclusive: an existing record is not replaced.
+    await assert.rejects(jsonPublish(target, { code: 'again' }, noLinks), {
+      code: 'EEXIST',
+    });
+    assert.deepEqual(JSON.parse(await readFile(target, 'utf8')), { code });
+  }
+  // A temp write that fails (here: a value that cannot be serialized) leaves nothing.
+  const cyclic: Record<string, unknown> = {};
+  cyclic.self = cyclic;
+  await assert.rejects(jsonPublish(join(dir, 'cyclic.json'), cyclic));
+  assert.deepEqual((await readdir(dir)).sort(), [
+    'EISDIR.json',
+    'ENOTSUP.json',
+    'EPERM.json',
+  ]);
+});
+
+test('a partial intent left by an older version or a crash does not break the listing (re-review N-4)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  await h.windows[0]!.result({
+    exit_code: 0,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+  });
+  await until(async () => {
+    const [x] = await h.terminals.list(p, owner);
+    return x && x.state !== 'running' ? x : null;
+  });
+  const broken = join(h.products.dir(p), 'terminals', randomUUID());
+  await mkdir(broken);
+  await writeFile(join(broken, 'intent.json'), '{"id": "');
+  const all = await h.terminals.list(p, owner);
+  assert.deepEqual(
+    all.map((x) => x.id),
+    [s.id],
+  );
 });
 
 test('the bridge and the recorded policy agree on the interactive limits', async () => {

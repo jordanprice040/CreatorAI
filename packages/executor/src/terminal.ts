@@ -571,7 +571,8 @@ export class TerminalSupervisor {
     // restart from the listing is not refused as "already open" while the write and the
     // cleanup below run. The entry stays until the outcome is in place so a listing in
     // between cannot record it as lost (review N-2). The outcome appears only complete
-    // (jsonPublish), so readers never see a partial record, even after a crash.
+    // (jsonPublish), so readers do not see a partial record, even after a process crash,
+    // except on a data home without hard links.
     const entry = this.active.get(record.id);
     if (entry) entry.ending = true;
     await this.ports.beforeOutcome?.(record.id);
@@ -594,7 +595,8 @@ export class TerminalSupervisor {
     // Decide "ours" before reading the outcome: settle() lets go of a session only once
     // its outcome is in place, so a session ours at this point is either still open or
     // about to have its outcome. Checking afterwards could miss an outcome written in
-    // between and record the session as lost a second time.
+    // between; that second "lost" settle would now fail at the exclusive write and return
+    // the real record (below), so this ordering is belt and braces (re-review N-2).
     const ours = this.active.has(sessionId);
     const outcomePath = join(dir, 'outcome.json');
     let unreadable = false;
@@ -603,9 +605,11 @@ export class TerminalSupervisor {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
         // No outcome yet.
-      } else if (!ours && e instanceof SyntaxError) {
-        // A partial record left by a version that wrote outcomes in place (review L-2).
-        unreadable = true;
+      } else if (e instanceof SyntaxError) {
+        // Ours: being written in place on a data home without hard links (re-review
+        // L-a). Not ours: a partial record left by a crash mid-write there, or by a
+        // version that wrote outcomes in place (review L-2).
+        if (!ours) unreadable = true;
       } else throw e;
     }
     const intent = checked(
@@ -656,9 +660,15 @@ export class TerminalSupervisor {
         .filter((n) => id.safeParse(n).success)
         .map((n) =>
           this.status(productId, n).catch((e: unknown) => {
-            // A session being started right now has no intent record yet, and a folder
-            // left by a start that failed before its intent was never a session.
-            if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            // A session being started right now has no intent record yet (or, on a data
+            // home without hard links, a partly written one), and a folder left by a start
+            // that failed or crashed before its intent was complete was never a session
+            // (re-review N-4).
+            if (
+              (e as NodeJS.ErrnoException).code === 'ENOENT' ||
+              e instanceof SyntaxError
+            )
+              return null;
             throw e;
           }),
         ),

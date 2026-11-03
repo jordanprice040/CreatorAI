@@ -16,6 +16,16 @@ Review fixes (review `/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REVIEW
 
 Checks: the three new tests fail on the previous PR head (3 of 3 runs each) and pass on the new code; `terminal.test.ts` passes 20 of 20 runs; `pnpm test:db` on a local PostgreSQL 16: 696 tests, 664 pass, 27 skipped, 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass.
 
+Re-review fixes (re-review `/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REREVIEW_2026-11-03.md`: no Medium or above; Jordan asked for all Lows):
+
+- L-a: terminals no longer need a filesystem with hard links. If `link()` fails with anything but EEXIST (exFAT, FAT32, some network shares, where Windows reports EPERM, EISDIR or ENOTSUP), `jsonPublish` writes the record in place with the old exclusive `jsonWrite`, so those data homes behave as before this PR. Readers tolerate a partial record there: an open session's half-written outcome reads as its intent, a leftover one is reported as lost, and a half-written intent is left out of the listing.
+- N-1: the temporary file is removed when its own write fails too.
+- N-2: the comment in `status()` says the "ours first" ordering is belt and braces, since a second lost settle now fails at the exclusive write and returns the real record.
+- N-3: comments no longer say records survive any crash; after a power loss the newest record may be missing (directories are not synced).
+- N-4: a partly written intent (older version or crash) is left out of the listing instead of failing it.
+
+Checks: new tests for the fallback (link failing with EPERM, EISDIR and ENOTSUP via a `linker` test seam; still exclusive; failed temp write leaves nothing) and for a partial intent. The fallback test fails when the fallback is removed and the partial-intent test fails on a55d028; `terminal.test.ts` passes 15 of 15 runs (17 tests); `pnpm test:db` on a local PostgreSQL 16: 698 tests, 666 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass. Not run on Windows or a real exFAT volume.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

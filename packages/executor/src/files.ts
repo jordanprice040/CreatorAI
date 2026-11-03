@@ -71,18 +71,35 @@ export async function jsonWrite(path: string, value: unknown): Promise<void> {
 /**
  * Like jsonWrite, but the record appears only once complete: it is written and synced
  * under a temporary name, then linked into place (EEXIST if a record is already there, so
- * nothing is overwritten). A crash or failed write leaves at most the temporary file,
- * never a partial record that readers would fail on.
+ * nothing is overwritten). A process crash or failed write leaves at most the temporary
+ * file, never a partial record that readers would fail on; after a power loss the newest
+ * record may be missing (directories are not synced).
+ *
+ * A data home on a volume without hard links (exFAT, FAT32, some network shares) cannot
+ * link; there the record is written in place with jsonWrite, still exclusive, as before
+ * this helper existed, so readers must still tolerate a partial record (review L-a).
+ * `linker` is a test seam.
  */
-export async function jsonPublish(path: string, value: unknown): Promise<void> {
+export async function jsonPublish(
+  path: string,
+  value: unknown,
+  linker: (from: string, to: string) => Promise<void> = link,
+): Promise<void> {
   await canonical(path, true);
   const tmp = join(parse(path).dir, `.${parse(path).base}.${randomUUID()}.tmp`);
-  await jsonWrite(tmp, value);
+  let linked = false;
   try {
-    await link(tmp, path);
+    await jsonWrite(tmp, value);
+    try {
+      await linker(tmp, path);
+      linked = true;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw e;
+    }
   } finally {
     await unlink(tmp).catch(() => undefined);
   }
+  if (!linked) await jsonWrite(path, value);
 }
 export async function readJson(path: string): Promise<unknown> {
   await canonical(path);
