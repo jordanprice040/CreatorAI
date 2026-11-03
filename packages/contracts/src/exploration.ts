@@ -34,7 +34,10 @@ export const ExploreScopeSchema = z
     max_claims: z.number().int().min(1).max(30).default(30),
     /** Passages older than this many days count as stale (they are still read). */
     max_age_days: z.number().int().min(1).max(3650).default(180),
-    /** Claims the owner chose not to send, from the preview (PR #131 review L-2). */
+    /**
+     * Claims the owner chose not to send, from the preview (PR #131 review L-2). Kept on the
+     * studio side: the packet's copy of the scope always has this empty (re-review R-L1).
+     */
     leave_out: z.array(id).max(200).default([]),
   })
   .superRefine((s, ctx) => {
@@ -217,6 +220,8 @@ export const CreateExploredBriefRequestSchema = z.strictObject({
 export const ExplorationPreviewSchema = z.strictObject({
   packet: ExplorationPacketSchema,
   packet_hash: hash,
+  /** What was read, without the time it was read: the start compares it (re-review R-N4). */
+  preview_hash: hash,
   chars: counter,
   limit: counter,
 });

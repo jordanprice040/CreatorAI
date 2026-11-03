@@ -37,6 +37,9 @@ import {
 export const EXPLORATION_ROLE_VERSION = 'r01-exploration/1.0';
 /** The packet travels in one model message, like discovery's (20,000 characters). */
 export const MAX_EXPLORATION_PACKET_CHARS = 19_000;
+/** The packet's content without the time it was assessed, so a preview and a start compare. */
+export const explorationPreviewHash = (packet: ExplorationPacket) =>
+  canonicalHash({ ...packet, assessed_at: null });
 
 // ---- Scope ------------------------------------------------------------------------------
 
@@ -122,7 +125,8 @@ export function buildExplorationPacket(input: {
     packet_version: 'exploration-packet/1',
     kind: 'untrusted_evidence/1',
     authority: 'none',
-    scope: s,
+    // The owner's left-out claims stay on the studio side; the counts say they exist.
+    scope: { ...s, leave_out: [] },
     claims,
     catalog,
     usable_claims: claims.filter((c) => isUsable(c.status)).length,

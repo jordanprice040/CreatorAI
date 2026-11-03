@@ -197,6 +197,8 @@ export interface ExplorationWorkflowContext {
    * those it had no room for (PR #131 review N-6). Never sent to the model.
    */
   duplicates_against?: Omit<ExplorationCatalogEntry, 'ref'>[];
+  /** Claims the owner left out in the preview; never sent to the model (re-review R-L1). */
+  left_out?: string[];
 }
 /** What an answer is checked against: a discovery packet and task context, or an exploration packet. */
 export type OutputCheck =

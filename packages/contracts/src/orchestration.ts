@@ -322,6 +322,11 @@ export const StartExplorationRequestSchema = z
     resource_setup: WorkflowResourceSetupSchema,
     data_class: DataClassSchema,
     limits: WorkflowLimitsSchema,
+    /**
+     * The `preview_hash` of the preview the owner saw; the start is refused if what it would
+     * send differs (PR #131 re-review R-N4). Optional for the CLI.
+     */
+    preview_hash: hash.optional(),
   })
   .superRefine((r, ctx) => {
     if (r.resource_setup.kind !== 'subscription') {

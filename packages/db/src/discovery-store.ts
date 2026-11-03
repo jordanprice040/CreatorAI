@@ -24,6 +24,7 @@ import {
   MAX_PACKET_CHARS,
   briefFromCandidate,
   buildExplorationPacket,
+  explorationPreviewHash,
   buildPacket,
   canonicalHash,
   discoveryContext,
@@ -303,10 +304,16 @@ export class DiscoveryStore extends ResearchStore {
       return { id: runId, version: Number(row.version) };
     });
     const { packet, catalog } = await this.buildExploration(ctx, ws, req.scope);
+    if (req.preview_hash && explorationPreviewHash(packet) !== req.preview_hash)
+      throw fail(
+        'VERSION_CONFLICT',
+        'What Explore for me would send changed since the preview (a claim or record was added or changed). Check the preview again, then start.',
+      );
     const context: ExplorationWorkflowContext = {
       packet,
       packet_hash: canonicalHash(packet),
       duplicates_against: catalog,
+      left_out: req.scope.leave_out,
     };
     const id = await this.idempotent(
       ws,
@@ -349,6 +356,7 @@ export class DiscoveryStore extends ResearchStore {
             usable_claims: packet.usable_claims,
             catalog: packet.catalog.length,
             max_candidates: req.scope.max_candidates,
+            left_out: req.scope.leave_out.length,
           },
         });
         await this.insertTask(c, ctx, ws, workflowId, {
@@ -383,6 +391,7 @@ export class DiscoveryStore extends ResearchStore {
     return {
       packet,
       packet_hash: canonicalHash(packet),
+      preview_hash: explorationPreviewHash(packet),
       chars: JSON.stringify(packet).length,
       limit: MAX_EXPLORATION_PACKET_CHARS,
     };

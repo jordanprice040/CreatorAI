@@ -27,6 +27,16 @@ Review fixes (fresh review `/mnt/project-files/reviews/PR131_THEME_FREE_DISCOVER
 
 Checks: `exploration.test.ts` gains a 40-claim, 60-record packet test (fits, newest first, counts), preview/leave-out/catalog checks and a hidden-record duplicate check; `chat-api.test.ts` gains the anchored phrases. The walk adds the preview (leave a claim out and back), the cited-claim text and "Show what was sent"; 16 checks pass. Full `pnpm test:db` on PostgreSQL 16: 731 tests, 698 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
 
+Re-review fixes (`/mnt/project-files/reviews/PR131_THEME_FREE_DISCOVERY_REREVIEW_2026-11-03.md`; earlier findings all confirmed fixed):
+
+- R-L1: left-out claim ids no longer go to the model; the packet's scope has `leave_out` empty, the ids are kept in the workflow context and the audit keeps their count.
+- R-N1: when a start fails on the page (for example a timeout), the page first checks whether the run has an exploration; if it does, it opens it instead of undoing it. The start timeout is now 30 s.
+- R-N2: the "cited against the pick" labels clear once discovery starts.
+- R-N4: the start carries the preview's `preview_hash` and is refused (`VERSION_CONFLICT`) if what it would send changed; the page reads the preview again.
+- R-N3 (one long newest claim ends the list) is kept as the deliberate newest-first, contiguous rule.
+
+Checks: `exploration.test.ts` asserts the left-out id is nowhere in the packet, a start with an old preview hash is refused and a matching one starts. The walk now archives records after the preview and checks the start is refused and undone, then starts from the refreshed preview; 17 checks pass. Full `pnpm test:db` on PostgreSQL 16: 731 tests, 698 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
+
 ## Owner actions that were command-line only — November 3, 2026
 
 The five main-path forms from the revisions audit (item 4: scorecards, spec writing, humility review, qualification, pricing and charges) were already in the app (PRs #108, #112, #114–#116; caps and allowed work since #118). Every CLI command was then compared with the routes the app calls. These owner actions were still CLI-only and are now in the app. No migration, no ADR; each uses its existing API route and the server's own checks.

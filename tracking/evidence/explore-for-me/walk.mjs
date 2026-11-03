@@ -137,6 +137,18 @@ for (const kind of ['problem', 'idea', 'alternative', 'search_brief'])
       expected_version: e.version,
       reason: 'Walk: clear the catalog.',
     });
+// The page's preview still shows the old catalog, so the start is refused (re-review R-N4)
+// and the preview is read again; the second start sends what is now shown.
+const runsBefore = (await get(`${base}/runs`)).filter((r) => r.state === 'active').length;
+await page.getByRole('button', { name: 'Explore for me', exact: true }).click();
+await page.getByText(/changed since the preview/).waitFor({ timeout: 15000 });
+const runsAfter = await get(`${base}/runs`);
+check(
+  runsAfter.filter((r) => r.state === 'active').length <= runsBefore,
+  'Start: refused after the records changed; its run and permission are undone',
+);
+await page.waitForFunction(() => !/updating/.test(document.querySelector('.explore details.preview > summary')?.textContent ?? 'updating'));
+await page.waitForFunction(() => !document.querySelector('.explore button.primary')?.disabled);
 await page.getByRole('button', { name: 'Explore for me', exact: true }).click();
 await page.locator('.shortlist .card.candidate').first().waitFor({ timeout: 30000 });
 await page.locator('.shortlist').scrollIntoViewIfNeeded();

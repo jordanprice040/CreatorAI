@@ -346,12 +346,34 @@ export function Explore({
       const started = await api(
         WorkflowDetailSchema,
         `${base}/runs/${control.run_id}/explorations`,
-        { csrf: session.csrf_token, body: request, timeoutMs: 20_000 },
+        {
+          csrf: session.csrf_token,
+          body: { ...request, preview_hash: current?.data?.preview_hash },
+          timeoutMs: 30_000,
+        },
       );
       setOpenId(started.workflow.id);
       ctx.refresh();
     } catch (err) {
+      // A start that timed out here may still have begun on the server: if the run has an
+      // exploration, show it instead of undoing it (PR #131 re-review R-N1).
+      const begun = runId
+        ? await api(z.array(WorkflowSchema), `${base}/workflows`)
+            .then((all) =>
+              all.find(
+                (w) => w.run_id === runId && w.role === 'r01_exploration',
+              ),
+            )
+            .catch(() => undefined)
+        : undefined;
+      if (begun) {
+        setOpenId(begun.id);
+        ctx.refresh();
+        return;
+      }
       setError(message(err));
+      // A changed preview is read again so the owner can check it before retrying.
+      ctx.refresh();
       const undo = 'Explore for me did not start.';
       if (grant)
         await api(GrantSchema, `${base}/grants/${grant.id}/revoke`, {

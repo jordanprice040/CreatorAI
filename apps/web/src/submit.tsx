@@ -550,6 +550,7 @@ export function Submit({
           },
         }).catch(() => undefined);
       setExplored(null);
+      setAgainst(new Set());
       open('runs', started.workflow.id);
     } catch (err) {
       setError(message(err));

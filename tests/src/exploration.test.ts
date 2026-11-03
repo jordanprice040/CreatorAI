@@ -231,6 +231,38 @@ test('no theme in: an evidenced shortlist, a brief from a pick, the same brief o
   assert.equal(fewer.packet.claims.length, preview.packet.claims.length - 1);
   assert.ok(!fewer.packet.claims.some((c) => c.claim_id === skip));
   assert.equal(fewer.packet.not_searched.left_out_by_owner, 1);
+  // Re-review R-L1: the left-out ids stay on the studio side, not in the packet.
+  assert.deepEqual(fewer.packet.scope.leave_out, []);
+  assert.ok(!JSON.stringify(fewer.packet).includes(skip));
+  // Re-review R-N4: a start bound to a different preview is refused; the matching one starts.
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.startExploration(
+      owner,
+      s.ws.id,
+      await s.run(),
+      s.request({
+        scope: { ...scope, leave_out: [skip] },
+        preview_hash: preview.preview_hash,
+      }),
+    ),
+  );
+  const bound = await s.store.startExploration(
+    owner,
+    s.ws.id,
+    await s.run(),
+    s.request({
+      scope: { ...scope, leave_out: [skip] },
+      preview_hash: fewer.preview_hash,
+    }),
+  );
+  const sent = await s.store.explorationPacket(
+    owner,
+    s.ws.id,
+    bound.workflow.id,
+  );
+  assert.equal(sent.packet.claims.length, fewer.packet.claims.length);
+  assert.ok(!JSON.stringify(sent.packet).includes(skip));
   // Cards carry each cited claim's statement for display (review L-3).
   assert.ok(pick.claims.every((c) => c.statement.length > 0));
 });
