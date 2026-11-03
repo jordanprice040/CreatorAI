@@ -90,8 +90,9 @@ export function QualifyModel({
         {},
         Math.max(
           3_600_000,
+          // Plus 2 minutes a case for grading a patch in the worker (third review L-2).
           planWaitMs(
-            connection.settings.caps.responses.request_timeout_ms,
+            connection.settings.caps.responses.request_timeout_ms + 120_000,
             cases,
           ),
         ),

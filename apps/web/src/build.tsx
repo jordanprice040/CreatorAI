@@ -3,6 +3,7 @@ import { HumilityForm } from './humility.js';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArtifactSummarySchema,
+  buildDeadlineMs,
   EnvelopeSchema,
   GrantSchema,
   PlanConnectionSchema,
@@ -204,6 +205,7 @@ export function BuildView({
         label: `${c.label} · ${m.model_id}`,
         connection_label: c.label,
         data_classes: c.settings.allowed_data_classes,
+        build_timeout_ms: c.settings.caps.codex.build_timeout_ms,
       })),
     );
     const now = Date.now();
@@ -806,6 +808,8 @@ type Data = {
     connection_label: string;
     /** What the connection's settings allow; a build of another class is refused. */
     data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
+    /** The connection's Codex build timeout (ADR-0062: no 30-minute maximum). */
+    build_timeout_ms: number;
   }[];
   /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
@@ -1208,7 +1212,13 @@ function StartBuild({
       // A streamed plan answer can take up to the plan's 120 s request timeout.
       timeout_ms: connection?.kind === 'roles' ? 120000 : 30000,
       max_output_tokens: 3000,
-      deadline: new Date(Date.now() + 30 * 60_000).toISOString(),
+      deadline: new Date(
+        Date.now() +
+          buildDeadlineMs(
+            connection?.kind === 'codex' ? connection.build_timeout_ms : 0,
+            repairs,
+          ),
+      ).toISOString(),
       ...(connection
         ? {
             [connection.kind === 'roles' ? 'plan_roles' : 'codex_plan_builder']:

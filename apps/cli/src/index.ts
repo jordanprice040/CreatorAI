@@ -103,6 +103,7 @@ import {
   capabilitiesRequestFromConfig,
 } from '@creator/domain';
 import { batchesOf, readCorpus } from './context-index.js';
+import { httpRequest } from './http.js';
 import {
   CREDITS_OFF_STATEMENT,
   buildBlockers,
@@ -413,7 +414,7 @@ export async function runCli(
     )
       throw new Error('CLI requires a loopback HTTP API origin.');
     const saved = loadSession(url.origin);
-    let lastResponse: Response | null = null;
+    let lastSetCookies: string[] = [];
     async function call<T>(
       schema: z.ZodType<T>,
       path: string,
@@ -423,7 +424,8 @@ export async function runCli(
       const auth: Record<string, string> = saved
         ? { Cookie: `creator_session=${saved.token}` }
         : {};
-      const response = await fetch(`${url.origin}/api/${path}`, {
+      // node:http, not fetch: fetch stops at 300 s without headers (PR #123 third review M-1).
+      const response = await httpRequest(`${url.origin}/api/${path}`, {
         ...(body === undefined
           ? { headers: auth }
           : {
@@ -435,10 +437,10 @@ export async function runCli(
               },
               body: JSON.stringify(body),
             }),
-        signal: AbortSignal.timeout(timeoutMs),
+        timeoutMs,
       });
-      lastResponse = response;
-      const value: unknown = await response.json();
+      lastSetCookies = response.setCookies;
+      const value: unknown = JSON.parse(response.body);
       if (!response.ok)
         throw new Error(
           `API returned ${response.status}: ${JSON.stringify(value)}`,
@@ -1389,9 +1391,9 @@ export async function runCli(
         const session = await call(SessionInfoSchema, 'auth/dev-login', {
           code: rest[0],
         });
-        const cookie = (lastResponse as Response | null)?.headers
-          .getSetCookie()
-          .find((c) => c.startsWith('creator_session='));
+        const cookie = lastSetCookies.find((c) =>
+          c.startsWith('creator_session='),
+        );
         const value = cookie?.split(';')[0]?.slice('creator_session='.length);
         if (!value) throw new Error('The API did not start a session.');
         mkdirSync(dirname(sessionFile()), { recursive: true });
@@ -2035,8 +2037,10 @@ export async function runCli(
           );
           wait = Math.max(
             3_600_000,
+            // Plus 2 minutes a case for grading a patch in the worker (third review L-2).
             planWaitMs(
-              detail.connection.settings.caps.responses.request_timeout_ms,
+              detail.connection.settings.caps.responses.request_timeout_ms +
+                120_000,
               cases.length,
             ),
           );
