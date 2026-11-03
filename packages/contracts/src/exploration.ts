@@ -32,7 +32,10 @@ export const ExploreScopeSchema = z
     max_candidates: z.number().int().min(1).max(5).default(3),
     /** How many of the newest claims inside the scope go into the packet (1–30). */
     max_claims: z.number().int().min(1).max(30).default(30),
+    /** Passages older than this many days count as stale (they are still read). */
     max_age_days: z.number().int().min(1).max(3650).default(180),
+    /** Claims the owner chose not to send, from the preview (PR #131 review L-2). */
+    leave_out: z.array(id).max(200).default([]),
   })
   .superRefine((s, ctx) => {
     const both = s.only_hosts.filter((h) => s.excluded_hosts.includes(h));
@@ -65,8 +68,15 @@ export type ExplorationCatalogEntry = z.infer<
 
 /** What the packet did not read, so an empty or narrow answer can be read honestly. */
 export const NotSearchedSchema = z.strictObject({
-  /** Claims inside the scope but beyond max_claims (older ones). */
+  /**
+   * Older claims not read because the packet was full: past max_claims, past the packet's
+   * character budget, or past the 200 newest claims scanned.
+   */
   beyond_limit: counter,
+  /** Claims the owner left out in the preview. */
+  left_out_by_owner: counter,
+  /** Catalog entries not compared because the catalog part of the packet was full. */
+  catalog_beyond_limit: counter,
   excluded_by_topic: counter,
   excluded_by_website: counter,
   /** Claims with no passage at all (nothing recorded to read). */
@@ -184,6 +194,8 @@ export const ExplorationResultSchema = z.strictObject({
             claim_id: id,
             version,
             status: z.string().max(40),
+            /** The claim's statement as the packet held it, shortened for display. */
+            statement: z.string().max(300),
             contrary: z.boolean(),
           }),
         )
@@ -200,3 +212,12 @@ export const CreateExploredBriefRequestSchema = z.strictObject({
   /** Why the owner picked this one; kept with the brief's audit record. */
   reason: short.default('Chosen from the exploration shortlist.'),
 });
+
+/** What an exploration with this scope would send now: the exact packet and its size. */
+export const ExplorationPreviewSchema = z.strictObject({
+  packet: ExplorationPacketSchema,
+  packet_hash: hash,
+  chars: counter,
+  limit: counter,
+});
+export type ExplorationPreview = z.infer<typeof ExplorationPreviewSchema>;

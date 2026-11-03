@@ -46,6 +46,16 @@ test('chat messages are sorted by fixed rules, in a stable order', () => {
     ['Explore for me', 'start_discovery', {}],
     ['find me some problems to work on', 'start_discovery', {}],
     ['What should I build?', 'start_discovery', {}],
+    ['Surprise me!', 'start_discovery', {}],
+    [
+      'explore for me rural clinics',
+      'start_discovery',
+      { text: 'rural clinics' },
+    ],
+    // Messages about defects are not exploration requests (PR #131 review L-4).
+    ['show me problems with the build', 'note', {}],
+    ['find problems in my spec', 'note', {}],
+    ['show me a problem', 'note', {}],
     ['The demo went well today.', 'note', {}],
     // "saved" is not "save": a sentence that merely mentions saving stays a note.
     ['I saved the file yesterday.', 'note', {}],

@@ -66,9 +66,22 @@ export function classifyChat(raw: string): {
     const idea = strip(save[1] ?? '');
     return { intent: 'save_idea', target: idea ? { text: idea } : {} };
   }
-  // ADR-0065: asking the studio to look for problems itself, with no theme.
+  // ADR-0065: asking the studio to look for problems itself, with no theme. The phrases are
+  // anchored to the whole message, so "show me problems with the build" stays what it was;
+  // "explore for me <topic>" keeps the topic as the theme (PR #131 review L-4).
+  const explore =
+    /^(?:please\s+)?(?:can you\s+)?explore for me\b(?:\s+(?:on|about|into))?(.*)$/is.exec(
+      text,
+    );
+  if (explore) {
+    const theme = strip(explore[1] ?? '').replace(/[.!?]+$/, '');
+    return {
+      intent: 'start_discovery',
+      target: theme ? { text: theme } : {},
+    };
+  }
   if (
-    /^(?:please\s+)?(?:(?:can you\s+)?explore for me|(?:find|suggest|show)\s+(?:me\s+)?(?:some\s+|a\s+)?problems?\b|surprise me|what should i (?:build|work on))/i.test(
+    /^(?:please\s+)?(?:(?:can you\s+)?(?:find|suggest|show)\s+(?:me\s+)?(?:some\s+)?problems(?:\s+(?:to (?:work on|solve)|worth (?:solving|building|working on)|for me))?|surprise me|what should i (?:build|work on)(?:\s+next)?)[\s.!?]*$/i.test(
       text,
     )
   )

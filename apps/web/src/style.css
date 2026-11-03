@@ -2645,3 +2645,34 @@ table.usage-options th[scope='row'] {
     margin-top: 4px;
   }
 }
+
+/* Explore for me: cited claims, what is sent (PR #131 review L-2, L-3, L-6). */
+.shortlist ul.cited {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.shortlist ul.cited .text {
+  text-align: left;
+}
+.against {
+  color: var(--warn);
+  font-weight: 600;
+}
+.explore .preview {
+  margin: 0.5rem 0 0.75rem;
+}
+.explore ul.sent {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4rem 0;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+.explore ul.sent li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.explore ul.sent label.claim-attach {
+  text-align: left;
+}

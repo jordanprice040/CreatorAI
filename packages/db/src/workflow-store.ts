@@ -18,6 +18,7 @@ import {
   type DiscoveryTaskContext,
   type DiscoveryTaskKind,
   type EvidencePacket,
+  type ExplorationCatalogEntry,
   type ExplorationPacket,
   type ExplorerOutput,
   type LocatorOutput,
@@ -191,6 +192,11 @@ export interface DiscoveryWorkflowContext {
 export interface ExplorationWorkflowContext {
   packet: ExplorationPacket;
   packet_hash: string;
+  /**
+   * Existing records the app checks picks against for duplicates: the packet's catalog plus
+   * those it had no room for (PR #131 review N-6). Never sent to the model.
+   */
+  duplicates_against?: Omit<ExplorationCatalogEntry, 'ref'>[];
 }
 /** What an answer is checked against: a discovery packet and task context, or an exploration packet. */
 export type OutputCheck =
@@ -923,6 +929,7 @@ export class WorkflowStore extends BudgetStore {
         const disposed = disposeExploration({
           packet: exploration.packet,
           packet_hash: exploration.packet_hash,
+          catalog: exploration.duplicates_against,
           task:
             done?.output_hash && plan.terminal.state === 'succeeded'
               ? {

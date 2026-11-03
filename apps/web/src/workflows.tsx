@@ -293,7 +293,9 @@ export function Workflows({
                         : 'Skeptic review'}{' '}
                     {runName(w.run_id, names) &&
                       `· ${clipText(runName(w.run_id, names), 48)} `}
-                    · {w.perspectives.length} perspectives ·{' '}
+                    {w.role === 'r01_exploration'
+                      ? '·'
+                      : `· ${w.perspectives.length} perspectives ·`}{' '}
                     {when(w.created_at)}
                   </button>
                 </li>

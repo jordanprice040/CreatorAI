@@ -64,10 +64,20 @@ export function hostMatches(host: string, rule: string): boolean {
 const anyRule = (host: string, rules: string[]) =>
   rules.some((r) => hostMatches(host, r));
 
+/** Room kept for the notes and counts written after the claims are chosen. */
+const PACKET_RESERVE = 1_500;
+/** At most this much of the packet goes to the catalog, so claims always have room. */
+const CATALOG_BUDGET = 4_000;
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
+
 /**
  * Which claims the packet reads, newest first. Website rules are conservative so a claim's
  * recorded status stays exact: a claim citing any excluded website is not read, and with an
- * "only these websites" list every passage it cites must come from one of them.
+ * "only these websites" list every passage it cites must come from one of them. Claims are
+ * added while they fit: at most `max_claims`, and within the one-message character limit
+ * (PR #131 review M-1), so a workspace of any size starts; the rest are counted as not read.
+ * `unscanned` counts older claims the caller did not even load because the packet was full.
  */
 export function buildExplorationPacket(input: {
   scope: ExploreScope;
@@ -75,17 +85,59 @@ export function buildExplorationPacket(input: {
   evidence: ClaimEvidence[];
   catalog: Omit<ExplorationCatalogEntry, 'ref'>[];
   now: Date;
+  unscanned?: number;
+  /** Total character limit for the packet (the JSON text). */
+  limit?: number;
 }): ExplorationPacket {
   const s = input.scope;
+  const limit = input.limit ?? MAX_EXPLORATION_PACKET_CHARS;
   const not = {
-    beyond_limit: 0,
+    beyond_limit: input.unscanned ?? 0,
+    left_out_by_owner: 0,
+    catalog_beyond_limit: 0,
     excluded_by_topic: 0,
     excluded_by_website: 0,
     without_passages: 0,
     notes: [] as string[],
   };
-  const kept: ClaimEvidence[] = [];
+  // The catalog first, trimmed to its share: newest entries, shortened text.
+  const catalog: ExplorationCatalogEntry[] = [];
+  let catalogChars = 0;
+  for (const c of input.catalog) {
+    const entry: ExplorationCatalogEntry = {
+      ...c,
+      title: c.title.slice(0, 160),
+      summary: c.summary.slice(0, 200),
+      ref: `K${catalog.length + 1}`,
+    };
+    const size = JSON.stringify(entry).length + 1;
+    if (catalog.length >= 40 || catalogChars + size > CATALOG_BUDGET) {
+      not.catalog_beyond_limit += 1;
+      continue;
+    }
+    catalog.push(entry);
+    catalogChars += size;
+  }
+  const shell = (claims: ExplorationClaim[]): ExplorationPacket => ({
+    packet_version: 'exploration-packet/1',
+    kind: 'untrusted_evidence/1',
+    authority: 'none',
+    scope: s,
+    claims,
+    catalog,
+    usable_claims: claims.filter((c) => isUsable(c.status)).length,
+    not_searched: not,
+    assessed_at: input.now.toISOString(),
+  });
+  let room = limit - PACKET_RESERVE - JSON.stringify(shell([])).length;
+  const leaveOut = new Set(s.leave_out);
+  const claims: ExplorationClaim[] = [];
+  let full = false;
   for (const e of input.evidence) {
+    if (leaveOut.has(e.claim.id)) {
+      not.left_out_by_owner += 1;
+      continue;
+    }
     const rows = e.rows.filter(
       (r) => r.freshness !== 'retracted' && r.freshness !== 'claim_changed',
     );
@@ -106,69 +158,72 @@ export function buildExplorationPacket(input: {
       not.excluded_by_website += 1;
       continue;
     }
-    if (kept.length >= s.max_claims) {
+    if (full || claims.length >= s.max_claims) {
+      full = true;
       not.beyond_limit += 1;
       continue;
     }
-    kept.push(e);
+    const claim: ExplorationClaim = {
+      ref: `C${claims.length + 1}`,
+      claim_id: e.claim.id,
+      version: e.claim.version,
+      statement: (e.claim.statement ?? e.claim.title).slice(0, 2000),
+      basis: e.claim.basis,
+      status: e.status,
+      labels: e.labels,
+      independent_origins: e.independent_origins,
+      contrary_origins: e.contrary_origins,
+      passages: [...rows]
+        // The two strongest passages: breadth across claims matters more here than depth.
+        .sort((a, b) => Number(b.counted) - Number(a.counted))
+        .slice(0, 2)
+        .map((r) => ({
+          source: `${r.support.source_id}@v${r.support.source_version}`,
+          url: r.source_url,
+          stance: r.support.stance,
+          support_type: r.support.support_type,
+          freshness: r.freshness,
+          quote: r.support.quote ? r.support.quote.slice(0, 300) : null,
+        })),
+    };
+    const size = JSON.stringify(claim).length + 1;
+    if (size > room) {
+      // The packet is full: newest first, so every older claim is left out too.
+      full = true;
+      not.beyond_limit += 1;
+      continue;
+    }
+    claims.push(claim);
+    room -= size;
   }
   if (not.beyond_limit)
     not.notes.push(
-      `${not.beyond_limit} older claim${not.beyond_limit === 1 ? '' : 's'} inside the scope were left out to keep the packet to ${s.max_claims}.`,
+      `${plural(not.beyond_limit, 'older claim was', 'older claims were')} not read: the packet holds at most ${s.max_claims} claims and about ${limit.toLocaleString('en-US')} characters.`,
+    );
+  if (not.left_out_by_owner)
+    not.notes.push(
+      `${plural(not.left_out_by_owner, 'claim was', 'claims were')} left out by the owner.`,
     );
   if (not.excluded_by_topic)
     not.notes.push(
-      `${not.excluded_by_topic} claim${not.excluded_by_topic === 1 ? '' : 's'} mention an excluded topic.`,
+      `${plural(not.excluded_by_topic, 'claim mentions', 'claims mention')} an excluded topic.`,
     );
   if (not.excluded_by_website)
     not.notes.push(
-      `${not.excluded_by_website} claim${not.excluded_by_website === 1 ? '' : 's'} cite a website outside the scope.`,
+      `${plural(not.excluded_by_website, 'claim cites', 'claims cite')} a website outside the scope.`,
     );
   if (not.without_passages)
     not.notes.push(
-      `${not.without_passages} claim${not.without_passages === 1 ? ' has' : 's have'} no recorded passage to read.`,
+      `${plural(not.without_passages, 'claim has', 'claims have')} no recorded passage to read.`,
+    );
+  if (not.catalog_beyond_limit)
+    not.notes.push(
+      `${plural(not.catalog_beyond_limit, 'older problem, idea, option or brief was', 'older problems, ideas, options and briefs were')} not shown to the explorer; app rules still check every pick against them.`,
     );
   not.notes.push(
     'Only claims already recorded in this workspace were read; the explorer did not search the web or fetch pages.',
   );
-  const claims: ExplorationClaim[] = kept.map((e, i) => ({
-    ref: `C${i + 1}`,
-    claim_id: e.claim.id,
-    version: e.claim.version,
-    statement: (e.claim.statement ?? e.claim.title).slice(0, 2000),
-    basis: e.claim.basis,
-    status: e.status,
-    labels: e.labels,
-    independent_origins: e.independent_origins,
-    contrary_origins: e.contrary_origins,
-    passages: [...e.rows]
-      .filter(
-        (r) => r.freshness !== 'retracted' && r.freshness !== 'claim_changed',
-      )
-      .sort((a, b) => Number(b.counted) - Number(a.counted))
-      .slice(0, 3)
-      .map((r) => ({
-        source: `${r.support.source_id}@v${r.support.source_version}`,
-        url: r.source_url,
-        stance: r.support.stance,
-        support_type: r.support.support_type,
-        freshness: r.freshness,
-        quote: r.support.quote ? r.support.quote.slice(0, 300) : null,
-      })),
-  }));
-  return {
-    packet_version: 'exploration-packet/1',
-    kind: 'untrusted_evidence/1',
-    authority: 'none',
-    scope: s,
-    claims,
-    catalog: input.catalog
-      .slice(0, 40)
-      .map((c, i) => ({ ...c, ref: `K${i + 1}` })),
-    usable_claims: claims.filter((c) => isUsable(c.status)).length,
-    not_searched: not,
-    assessed_at: input.now.toISOString(),
-  };
+  return shell(claims);
 }
 
 // ---- Prompt and model input ---------------------------------------------------------------
@@ -340,8 +395,15 @@ export function disposeExploration(input: {
   packet: ExplorationPacket;
   packet_hash: string;
   task: { id: string; output_hash: string; output: ExplorerOutput } | null;
+  /**
+   * Every existing record to check duplicates against, including those the packet had no
+   * room to show the explorer (PR #131 review N-6). Defaults to the packet's catalog.
+   */
+  catalog?: Omit<ExplorationCatalogEntry, 'ref'>[] | undefined;
 }): ExplorationResult {
   const { packet } = input;
+  const refOf = new Map(packet.catalog.map((k) => [k.id, k.ref]));
+  const against = input.catalog ?? packet.catalog;
   const out = input.task?.output ?? null;
   const byRef = new Map(packet.claims.map((c) => [c.ref, c]));
   const kept: ExplorationCandidate[] = [];
@@ -359,7 +421,7 @@ export function disposeExploration(input: {
       disposition = 'excluded';
       reasons.push(`Mentions an excluded topic: ${excluded.join(', ')}.`);
     } else {
-      const match = packet.catalog
+      const match = against
         .map((k) => ({
           k,
           ...similarity(cardText(card), { title: k.title, body: k.summary }),
@@ -377,7 +439,7 @@ export function disposeExploration(input: {
           similarity: match.similarity,
         };
         reasons.push(
-          `Matches the existing ${match.k.kind.replace('_', ' ')} "${match.k.title}" (${match.k.ref}).`,
+          `Matches the existing ${match.k.kind.replace('_', ' ')} "${match.k.title.length > 120 ? `${match.k.title.slice(0, 119)}…` : match.k.title}"${refOf.has(match.k.id) ? ` (${refOf.get(match.k.id)})` : ''}.`,
         );
       } else if (earlier >= 0) {
         disposition = 'duplicate';
@@ -418,6 +480,10 @@ export function disposeExploration(input: {
           claim_id: c.claim_id,
           version: c.version,
           status: c.status,
+          statement:
+            c.statement.length > 300
+              ? `${c.statement.slice(0, 299)}…`
+              : c.statement,
           contrary,
         };
       });

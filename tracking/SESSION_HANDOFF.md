@@ -14,6 +14,19 @@ Checks run: new `tests/src/exploration.test.ts` (5 tests: packet rules for websi
 
 Limits: not run live on a plan connection or on the installed app. The explorer has no benchmark of its own. No web search, scheduling or autonomous selection.
 
+Review fixes (fresh review `/mnt/project-files/reviews/PR131_THEME_FREE_DISCOVERY_REVIEW_2026-11-03.md`, no High; Jordan's standing ask: the Medium, the Lows and cheap nits):
+
+- M-1: the packet now fills newest first within the 19,000-character limit (two passages per claim, catalog capped at 4,000 characters) and counts the rest as not read, so a workspace of any size starts. Claims are scanned in batches and reading stops when full (N-3).
+- L-1: a refused start revokes the 24-hour permission and cancels the run it made. The start button also waits for a successful preview.
+- L-2: "Sends N claims and M existing records to <model> (X of 19,000 characters)" before the start, listing every claim with status and websites, each of which can be left out; "Show what was sent to the model" after a run.
+- L-3: each card lists its cited claims' text, linked to Sources, with "weighs against" marked.
+- L-4: chat phrases must be the whole message; "explore for me <topic>" keeps the topic.
+- L-5: a pick's brief no workflow used is not in later catalogs; an edited form archives the pick's brief.
+- L-6: picked claims start as bearing on the problem only; claims cited against are labelled and left for the owner.
+- Nits: N-1 no "0 perspectives" on explorations; N-2 a non-candidate pick is `INVALID_TRANSITION`; N-4 ADR wording on `max_age_days`; N-5 index keys; N-6 duplicates are checked against up to 200 recent records, including those not shown to the explorer, and the notes say what was not shown.
+
+Checks: `exploration.test.ts` gains a 40-claim, 60-record packet test (fits, newest first, counts), preview/leave-out/catalog checks and a hidden-record duplicate check; `chat-api.test.ts` gains the anchored phrases. The walk adds the preview (leave a claim out and back), the cited-claim text and "Show what was sent"; 16 checks pass.
+
 ## Owner actions that were command-line only — November 3, 2026
 
 The five main-path forms from the revisions audit (item 4: scorecards, spec writing, humility review, qualification, pricing and charges) were already in the app (PRs #108, #112, #114–#116; caps and allowed work since #118). Every CLI command was then compared with the routes the app calls. These owner actions were still CLI-only and are now in the app. No migration, no ADR; each uses its existing API route and the server's own checks.

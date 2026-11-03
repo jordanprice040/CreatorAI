@@ -87,7 +87,29 @@ await go.waitFor({ timeout: 15000 });
 await page.locator('.explore').scrollIntoViewIfNeeded();
 await page.getByText('Narrow it (optional)').click();
 await page.getByLabel('Topics to leave out').fill('weather');
+// What would be sent (review L-2): counts, then leave one claim out and put it back.
+const sends = page.locator('.explore details.preview > summary');
+await sends.waitFor({ timeout: 15000 });
+await page.waitForFunction(() => /Sends \d+ claim/.test(document.querySelector('.explore details.preview > summary')?.textContent ?? ''));
+const firstCount = Number(/Sends (\d+)/.exec(await sends.textContent())[1]);
+await sends.click();
+await page.locator('.explore ul.sent input[type=checkbox]').first().click();
+await page.waitForFunction(
+  (n) => new RegExp(`Sends ${n - 1} claim`).test(document.querySelector('.explore details.preview > summary')?.textContent ?? ''),
+  firstCount,
+);
+check(
+  (await page.locator('.explore ul.sent li.left-out').count()) === 1,
+  `Preview: ${firstCount} claims listed; one left out drops it to ${firstCount - 1}`,
+);
+await page.locator('.explore ul.sent li.left-out input').click();
+await page.waitForFunction(
+  (n) => new RegExp(`Sends ${n} claim`).test(document.querySelector('.explore details.preview > summary')?.textContent ?? ''),
+  firstCount,
+);
 await shot('01-explore-form.png');
+await sends.click();
+await page.waitForFunction(() => !document.querySelector('.explore button.primary')?.disabled);
 check(await go.isEnabled(), 'Explore: the button is enabled with no theme');
 await go.click();
 const list = page.locator('.shortlist');
@@ -124,6 +146,19 @@ check(cards >= 1, `Explore: second shortlist shows ${cards} candidate(s)`);
 wfs = await get(`${base}/workflows`);
 ex = wfs.filter((w) => w.role === 'r01_exploration').sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
 check(ex?.result?.exploration?.outcome === 'candidates', 'Explore: server outcome is candidates');
+// Cards name the claims they cite, linked to Sources (review L-3).
+const cited = page.locator('.shortlist .card.candidate').first().locator('ul.cited button');
+const citedText = (await cited.first().textContent()) ?? '';
+check(
+  citedText.length > 20 && !/^C\d+$/.test(citedText),
+  `Cards: evidence shows the claim text ("${citedText.slice(0, 40)}…")`,
+);
+// What was sent, after the run (review L-2).
+await page.getByRole('button', { name: 'Show what was sent to the model' }).click();
+await page.locator('.exploration .preview ul.sent li').first().waitFor({ timeout: 10000 });
+const sentRows = await page.locator('.exploration .preview ul.sent li').count();
+check(sentRows >= 1, `Sent: ${sentRows} claim(s) shown as sent`);
+await page.getByRole('button', { name: 'Hide what was sent' }).click();
 
 // 2. Use the first candidate as a brief: the form below fills and its claims are attached.
 await page.getByRole('button', { name: 'Use as a brief' }).first().click();

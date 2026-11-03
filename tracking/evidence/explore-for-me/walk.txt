@@ -1,12 +1,16 @@
-Walk of "Explore for me" (ADR-0065), 2026-11-03, throwaway PostgreSQL 16 database explore_walk,
-review ports 5183/4330/4340, fixture provider only, $0, no plan or paid call.
-workspace 4129de4c-2142-405b-a1d2-2d9eaf0a8a2d
+Walk of "Explore for me" (ADR-0065) after the PR #131 review fixes, 2026-11-03, throwaway
+PostgreSQL 16 database explore_walk, review ports 5183/4330/4340, fixture provider only, $0,
+no plan or paid call.
+workspace 013fa256-14fb-44a2-bece-af71871923fa
+PASS Preview: 10 claims listed; one left out drops it to 9
 PASS Explore: the button is enabled with no theme
 PASS Explore: one exploration workflow, succeeded
 PASS Explore: every pick already in the catalog is marked duplicate; outcome no_candidates
 PASS Explore: no "Use as a brief" on duplicates
 PASS Explore: second shortlist shows 3 candidate(s)
 PASS Explore: server outcome is candidates
+PASS Cards: evidence shows the claim text ("Coordinators fill gaps by texting regula…")
+PASS Sent: 10 claim(s) shown as sent
 PASS Brief: theme is the pick's title ("Fixture problem: Coordinators fill gaps by texting")
 PASS Brief: one active search brief, made from the pick
 PASS Discovery: started from the same brief, none added

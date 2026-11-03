@@ -242,6 +242,8 @@ export function Submit({
   const [tried, setTried] = useState(false);
   /** A brief made from an exploration pick; reused on submit while the form still matches it. */
   const [explored, setExplored] = useState<ExploredPick['brief'] | null>(null);
+  /** Claims a pick cited against its problem, labelled in the list below. */
+  const [against, setAgainst] = useState<ReadonlySet<string>>(new Set());
   function takePick(pick: ExploredPick) {
     const b = pick.brief.body;
     setTheme(b.theme);
@@ -258,14 +260,24 @@ export function Submit({
     setConstraints(b.constraints.join('\n'));
     const known = new Set(ctx.data?.claims.map((x) => x.id) ?? []);
     const picked = pick.claims.filter((x) => known.has(x.claim_id));
+    // Supporting claims start as bearing on the problem only; claims cited against it are
+    // attached with no role, labelled, for the owner to decide (PR #131 review L-6).
     setRoles(
       Object.fromEntries(
-        picked.map((x) => [
-          x.claim_id,
-          x.contrary
-            ? (['problem'] as EvidenceRole[])
-            : (['problem', 'affected_users'] as EvidenceRole[]),
-        ]),
+        picked
+          .filter((x) => !x.contrary)
+          .map((x) => [x.claim_id, ['problem'] as EvidenceRole[]]),
+      ),
+    );
+    setAgainst(
+      new Set(
+        picked
+          .filter(
+            (x) =>
+              x.contrary &&
+              !picked.some((y) => !y.contrary && y.claim_id === x.claim_id),
+          )
+          .map((x) => x.claim_id),
       ),
     );
     setOpenClaims(new Set(picked.map((x) => x.claim_id)));
@@ -460,8 +472,9 @@ export function Submit({
     try {
       // An unedited exploration pick keeps its own brief (and its audited link to the
       // exploration); any edit saves a new brief as before.
+      const replaced = explored && stable(explored.body) !== stable(brief);
       const created =
-        explored && stable(explored.body) === stable(brief)
+        explored && !replaced
           ? explored
           : await api(StoredEntitySchema, `${base}/entities`, {
               csrf: session.csrf_token,
@@ -526,6 +539,17 @@ export function Submit({
           timeoutMs: 15000,
         },
       );
+      // The pick's own brief was replaced by the edited one: archive it so it does not linger
+      // as an unused brief (PR #131 review L-5). Best effort; the discovery has started.
+      if (replaced && explored)
+        await api(z.unknown(), `${base}/entities/${explored.id}/archive`, {
+          csrf: session.csrf_token,
+          body: {
+            expected_version: explored.version,
+            reason: 'Replaced by an edited brief before discovery started.',
+          },
+        }).catch(() => undefined);
+      setExplored(null);
       open('runs', started.workflow.id);
     } catch (err) {
       setError(message(err));
@@ -562,6 +586,7 @@ export function Submit({
         session={session}
         workspace={workspace}
         onUse={takePick}
+        open={open}
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
@@ -574,9 +599,11 @@ export function Submit({
       </p>
       {explored && (
         <p className="notice">
-          Filled from an Explore for me pick, with its cited claims attached.
-          Check every field and what each claim bears on before starting; if you
-          change the brief, it is saved as a new brief.
+          Filled from an Explore for me pick, with its cited claims attached:
+          supporting ones marked as bearing on the problem, ones cited against
+          it labelled and left for you to mark. Check every field and claim
+          before starting; if you change the brief, it is saved as a new brief
+          and the pick's brief is archived.
         </p>
       )}
       {workspace.record_mode === 'fixture' && (
@@ -758,6 +785,12 @@ export function Submit({
                             {ev ? words(ev.status) : 'unknown'}
                           </span>{' '}
                           {String(cl.body?.statement ?? cl.title)}
+                          {against.has(cl.id) && (
+                            <strong className="against">
+                              {' '}
+                              · cited against the pick
+                            </strong>
+                          )}
                         </label>
                         {attached && (
                           <div

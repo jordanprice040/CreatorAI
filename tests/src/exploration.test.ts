@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   ContractError,
+  ExplorationPacketSchema,
   SearchBriefBodySchema,
   WorkflowDetailSchema,
   WorkflowSchema,
@@ -15,6 +16,7 @@ import {
 import {
   DISCOVERY_SCENARIOS,
   EXPLORATION_MARKER,
+  MAX_EXPLORATION_PACKET_CHARS,
   buildExplorationPacket,
   checkExplorationOutput,
   disposeExploration,
@@ -118,6 +120,7 @@ async function setup(t: test.TestContext, adapter: ModelAdapter) {
       max_candidates: 3,
       max_claims: 30,
       max_age_days: 180,
+      leave_out: [],
     },
     resource_setup: {
       kind: 'api',
@@ -214,6 +217,22 @@ test('no theme in: an evidenced shortlist, a brief from a pick, the same brief o
     history.some((h) => h.action === 'exploration.brief_created'),
     'the pick is audited with the exploration',
   );
+  // PR #131 review L-2/L-5: the preview shows what would be sent, without the pick's brief
+  // (no workflow used it), and a claim the owner leaves out is not sent.
+  const scope = s.request().scope;
+  const preview = await s.store.previewExploration(owner, s.ws.id, scope);
+  assert.ok(preview.chars <= preview.limit);
+  assert.ok(!preview.packet.catalog.some((k) => k.id === made.brief.id));
+  const skip = preview.packet.claims[0]!.claim_id;
+  const fewer = await s.store.previewExploration(owner, s.ws.id, {
+    ...scope,
+    leave_out: [skip],
+  });
+  assert.equal(fewer.packet.claims.length, preview.packet.claims.length - 1);
+  assert.ok(!fewer.packet.claims.some((c) => c.claim_id === skip));
+  assert.equal(fewer.packet.not_searched.left_out_by_owner, 1);
+  // Cards carry each cited claim's statement for display (review L-3).
+  assert.ok(pick.claims.every((c) => c.statement.length > 0));
 });
 
 test('an empty workspace gives an honest empty result, and exclusions and websites narrow the packet', async (t) => {
@@ -337,7 +356,7 @@ test('a bad answer is repaired once; insufficient and excluded picks never becom
   );
   for (const ref of ['E2', 'E3'])
     await rejects(
-      'SCOPE_EXCEEDED',
+      'INVALID_TRANSITION',
       s.store.createExploredBrief(owner, s.ws.id, detail.workflow.id, ref, {}),
     );
 });
@@ -389,6 +408,7 @@ test('rules: host patterns, whole-word topics, ref checks and duplicates', () =>
       max_candidates: 1,
       max_claims: 30,
       max_age_days: 180,
+      leave_out: [],
     },
     evidence: [],
     catalog: [
@@ -443,4 +463,129 @@ test('rules: host patterns, whole-word topics, ref checks and duplicates', () =>
   assert.equal(r.candidates[0]!.disposition, 'duplicate');
   assert.equal(r.candidates[0]!.duplicate_of?.kind, 'problem');
   assert.equal(r.outcome, 'no_candidates');
+  // A record the packet had no room for still counts as a duplicate (review N-6).
+  const claimC1 = {
+    ref: 'C1',
+    claim_id: randomUUID(),
+    version: 1,
+    statement: 's',
+    basis: 'observation' as const,
+    status: 'supported' as const,
+    labels: [],
+    independent_origins: 1,
+    contrary_origins: 0,
+    passages: [],
+  };
+  const hidden = disposeExploration({
+    packet: { ...packet, catalog: [], claims: [claimC1] },
+    packet_hash: 'a'.repeat(64),
+    task: {
+      id: randomUUID(),
+      output_hash: 'b'.repeat(64),
+      output: { ...out, candidates: [card()] } as ExplorerOutput,
+    },
+    catalog: packet.catalog.map(({ ref: _ref, ...k }) => k),
+  });
+  assert.equal(hidden.candidates[0]!.disposition, 'duplicate');
+  assert.ok(!/\(K\d+\)/.test(hidden.candidates[0]!.reasons[0]!));
+});
+
+test('a large workspace fits the one-message limit: newest claims first, the rest counted (review M-1)', () => {
+  const long = (n: number, w: string) =>
+    `${w} `.repeat(Math.ceil(n / (w.length + 1))).slice(0, n);
+  const evidence = Array.from({ length: 40 }, (_, i) => {
+    const id = randomUUID();
+    return {
+      claim: {
+        id,
+        version: 1,
+        title: `Claim ${i}`,
+        statement: long(150, `volunteers${i}`),
+        basis: 'observation' as const,
+      },
+      status: 'supported' as const,
+      labels: [],
+      explanation: '',
+      independent_origins: 1,
+      contrary_origins: 0,
+      max_age_days: 180,
+      rows: Array.from({ length: 3 }, (_, j) => ({
+        support: {
+          id: randomUUID(),
+          workspace_id: randomUUID(),
+          claim_id: id,
+          claim_version: 1,
+          source_id: randomUUID(),
+          source_version: 1,
+          passage_id: randomUUID(),
+          stance: 'supports' as const,
+          support_type: null,
+          quote: long(160, 'quoted'),
+          rationale: 'r',
+          link_id: null,
+          asserted_by: randomUUID(),
+          created_at: new Date().toISOString(),
+          retracted_at: null,
+          retraction_reason: null,
+        },
+        freshness: 'current' as const,
+        counted: true,
+        origin_cluster: randomUUID(),
+        source_title: 'Source',
+        source_url: `https://www${j}.example.org/${'path/'.repeat(10)}${i}`,
+        source_current_version: 1,
+      })),
+    };
+  });
+  const catalog = Array.from({ length: 60 }, (_, i) => ({
+    id: randomUUID(),
+    kind: 'problem' as const,
+    version: 1,
+    title: long(500, `title${i}`),
+    summary: long(400, `summary${i}`),
+  }));
+  const packet = buildExplorationPacket({
+    scope: {
+      interests: [],
+      target_groups: [],
+      exclusions: [],
+      only_hosts: [],
+      excluded_hosts: [],
+      max_candidates: 3,
+      max_claims: 30,
+      max_age_days: 180,
+      leave_out: [evidence[1]!.claim.id],
+    },
+    evidence: evidence as never,
+    catalog,
+    now: new Date(),
+    unscanned: 5,
+  });
+  const size = JSON.stringify(packet).length;
+  assert.ok(
+    size <= MAX_EXPLORATION_PACKET_CHARS,
+    `packet is ${size} characters`,
+  );
+  assert.ok(packet.claims.length >= 10, `${packet.claims.length} claims fit`);
+  assert.ok(packet.claims.length < 30);
+  // Newest first, contiguous: the claims read are the newest ones not left out.
+  const expected = evidence
+    .filter((_, i) => i !== 1)
+    .slice(0, packet.claims.length)
+    .map((e) => e.claim.id);
+  assert.deepEqual(
+    packet.claims.map((c) => c.claim_id),
+    expected,
+  );
+  assert.equal(packet.not_searched.left_out_by_owner, 1);
+  assert.equal(packet.not_searched.beyond_limit, 39 - packet.claims.length + 5);
+  assert.ok(packet.not_searched.catalog_beyond_limit > 0);
+  assert.ok(packet.catalog.length >= 1);
+  assert.ok(
+    packet.not_searched.notes.some((n) => /not read: the packet holds/.test(n)),
+  );
+  assert.ok(
+    packet.not_searched.notes.some((n) => /not shown to the explorer/.test(n)),
+  );
+  ExplorationPacketSchema.parse(packet);
 });

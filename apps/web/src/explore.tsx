@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   EXPLORATION_TASK_CLASS,
   EnvelopeSchema,
+  ExplorationPreviewSchema,
   ExploreScopeSchema,
   GrantSchema,
   PlanConnectionDetailSchema,
@@ -14,6 +15,8 @@ import {
   WorkflowDetailSchema,
   WorkflowSchema,
   z,
+  type ExplorationPacket,
+  type ExplorationPreview,
   type ExplorationResult,
   type SearchBriefBody,
   type SessionInfo,
@@ -24,7 +27,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
-import { Empty, Status, useLoad } from './ui.js';
+import { Empty, Status, useLoad, type View } from './ui.js';
 
 // C53 "Explore for me" (ADR-0065). No theme: the studio reads claims already recorded here
 // and one explorer request proposes a short list of evidenced problems. Application rules
@@ -71,18 +74,30 @@ const LIVE = new Set([
 
 export interface ExploredPick {
   brief: { id: string; version: number; body: SearchBriefBody };
-  /** Cited claims: supporting ones bear on the problem and who is affected. */
+  /** Cited claims, and whether each one weighs against the problem. */
   claims: { claim_id: string; contrary: boolean }[];
 }
+
+const clip = (s: string, n: number) =>
+  s.length > n ? `${s.slice(0, n - 1)}…` : s;
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+};
 
 export function Explore({
   session,
   workspace,
   onUse,
+  open,
 }: {
   session: SessionInfo;
   workspace: Workspace;
   onUse: (pick: ExploredPick) => void;
+  open: (view: View, id?: string) => void;
 }) {
   const base = `workspaces/${workspace.id}`;
   const fixture = workspace.record_mode === 'fixture';
@@ -139,6 +154,8 @@ export function Explore({
   const [dataClass, setDataClass] = useState<
     'synthetic' | 'public' | 'private_approved'
   >(fixture ? 'synthetic' : 'public');
+  /** Claims the owner chose not to send, with their text so they can be sent again. */
+  const [leaveOut, setLeaveOut] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [openId, setOpenId] = useState('');
@@ -183,8 +200,37 @@ export function Explore({
     max_candidates: maxCandidates,
     max_claims: maxClaims,
     max_age_days: 180,
+    leave_out: [...leaveOut.keys()],
   };
   const scopeCheck = ExploreScopeSchema.safeParse(scope);
+  // What this scope would send now (PR #131 review L-2), read again when the scope changes.
+  const scopeKey = JSON.stringify(scope);
+  const [preview, setPreview] = useState<{
+    key: string;
+    data: ExplorationPreview | null;
+    error: string;
+  } | null>(null);
+  const previewSeq = useRef(0);
+  useEffect(() => {
+    if (!scopeCheck.success) return;
+    const seq = ++previewSeq.current;
+    const t = setTimeout(() => {
+      api(ExplorationPreviewSchema, `${base}/exploration-preview`, {
+        csrf: session.csrf_token,
+        body: scope,
+      }).then(
+        (data) =>
+          seq === previewSeq.current &&
+          setPreview({ key: scopeKey, data, error: '' }),
+        (e) =>
+          seq === previewSeq.current &&
+          setPreview({ key: scopeKey, data: null, error: message(e) }),
+      );
+    }, 400);
+    return () => clearTimeout(t);
+  }, [scopeKey, workspace.id, ctx.data]);
+  const current = preview?.key === scopeKey ? preview : null;
+  const packet = current?.data?.packet;
   const request = {
     scope,
     resource_setup:
@@ -239,6 +285,7 @@ export function Explore({
     : scopeCheck.error.issues.map((i) => i.message);
   const ready =
     !busy &&
+    !!packet &&
     workspace.role === 'owner' &&
     scopeIssues.length === 0 &&
     blockers.length === 0 &&
@@ -249,6 +296,9 @@ export function Explore({
     if (!ready) return;
     setBusy(true);
     setError('');
+    // What a refused start leaves behind is undone (PR #131 review L-1).
+    let runId = '';
+    let grant: { id: string; version: number } | null = null;
     try {
       const stamp = new Date().toLocaleString(undefined, {
         dateStyle: 'medium',
@@ -276,7 +326,8 @@ export function Explore({
           initial_grants: [],
         },
       });
-      await api(GrantSchema, `${base}/grants`, {
+      runId = control.run_id;
+      grant = await api(GrantSchema, `${base}/grants`, {
         csrf: session.csrf_token,
         body: {
           run_id: control.run_id,
@@ -301,6 +352,17 @@ export function Explore({
       ctx.refresh();
     } catch (err) {
       setError(message(err));
+      const undo = 'Explore for me did not start.';
+      if (grant)
+        await api(GrantSchema, `${base}/grants/${grant.id}/revoke`, {
+          csrf: session.csrf_token,
+          body: { expected_version: grant.version, reason: undo },
+        }).catch(() => undefined);
+      if (runId)
+        await api(RunControlSchema, `${base}/runs/${runId}/cancel`, {
+          csrf: session.csrf_token,
+          body: { reason: undo },
+        }).catch(() => undefined);
     } finally {
       setBusy(false);
     }
@@ -491,9 +553,20 @@ export function Explore({
                     ? `One request on your plan (plus one retry if the answer is malformed), within the connection's accepted caps. No API spending and no paid fallback.`
                     : `Metered under ${envelope?.name ?? 'no budget'}; at most two calls.`}{' '}
                   Starting registers a new run with a 24-hour permission for
-                  this request only.
+                  this request only; if the start is refused, both are closed
+                  again.
                 </p>
               </details>
+              <Preview
+                preview={preview}
+                stale={!current}
+                dataClass={dataClass}
+                model={
+                  resourceKind === 'subscription' ? model : 'the API model'
+                }
+                leaveOut={leaveOut}
+                setLeaveOut={setLeaveOut}
+              />
               {[...scopeIssues, ...blockers].length > 0 && (
                 <ul className="error small">
                   {[...scopeIssues, ...blockers].map((b) => (
@@ -538,6 +611,7 @@ export function Explore({
                 fixture={fixture}
                 owner={workspace.role !== 'viewer'}
                 onUse={onUse}
+                open={open}
                 onFinished={ctx.refresh}
               />
             )}
@@ -557,6 +631,7 @@ function Exploration({
   owner,
   onUse,
   onFinished,
+  open,
 }: {
   base: string;
   session: SessionInfo;
@@ -565,6 +640,7 @@ function Exploration({
   owner: boolean;
   onUse: (pick: ExploredPick) => void;
   onFinished: () => void;
+  open: (view: View, id?: string) => void;
 }) {
   const d = useLoad(
     () => api(WorkflowDetailSchema, `${base}/workflows/${id}`),
@@ -582,6 +658,24 @@ function Exploration({
   }, [wf?.finished_at]);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [sent, setSent] = useState<ExplorationPacket | null>(null);
+
+  async function showSent() {
+    if (sent) return setSent(null);
+    setBusy('packet');
+    setError('');
+    try {
+      const r = await api(
+        z.object({ packet: z.unknown() }).passthrough(),
+        `${base}/workflows/${id}/exploration-packet`,
+      );
+      setSent(r.packet as ExplorationPacket);
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy('');
+    }
+  }
 
   async function cancel(detail: WorkflowDetail) {
     setBusy('cancel');
@@ -657,8 +751,24 @@ function Exploration({
               owner={owner}
               busy={busy}
               onUse={(e) => void use(e)}
+              open={open}
             />
           )}
+          <p>
+            <button
+              type="button"
+              className="text"
+              disabled={busy === 'packet'}
+              onClick={() => void showSent()}
+            >
+              {sent
+                ? 'Hide what was sent'
+                : busy === 'packet'
+                  ? 'Reading…'
+                  : 'Show what was sent to the model'}
+            </button>
+          </p>
+          {sent && <Sent packet={sent} />}
           {error && (
             <p className="error" role="alert">
               {error}
@@ -677,6 +787,7 @@ function Result({
   owner,
   busy,
   onUse,
+  open,
 }: {
   result: ExplorationResult | null;
   explanation: string;
@@ -684,6 +795,7 @@ function Result({
   owner: boolean;
   busy: string;
   onUse: (e: ExplorationResult['candidates'][number]) => void;
+  open: (view: View, id?: string) => void;
 }) {
   if (!result) return <p className="error">{explanation}</p>;
   const order = (x: { disposition: string }) =>
@@ -731,17 +843,31 @@ function Result({
               <dd>{e.card.uncertainty}</dd>
               <dt>Evidence</dt>
               <dd>
-                {e.claims
-                  .map(
-                    (x) =>
-                      `${x.ref} ${words(x.status)}${x.contrary ? ' (against)' : ''}`,
-                  )
-                  .join(' · ')}
+                <ul className="cited">
+                  {e.claims.map((x) => (
+                    <li key={`${x.ref}-${x.contrary}`}>
+                      <button
+                        type="button"
+                        className="text"
+                        title="Open this claim under Sources"
+                        onClick={() => open('evidence', `claim:${x.claim_id}`)}
+                      >
+                        {clip(x.statement, 160)}
+                      </button>{' '}
+                      <span className="small">
+                        {words(x.status)}
+                        {x.contrary && (
+                          <strong className="against"> · weighs against</strong>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </dd>
             </dl>
             <ul className="small">
-              {e.reasons.map((r) => (
-                <li key={r}>{r}</li>
+              {e.reasons.map((r, i) => (
+                <li key={i}>{r}</li>
               ))}
             </ul>
             {e.disposition === 'candidate' && owner && (
@@ -761,8 +887,8 @@ function Result({
         <>
           <h4>Directions to research (not evidenced yet)</h4>
           <ul className="small">
-            {result.directions.map((x) => (
-              <li key={x.direction}>
+            {result.directions.map((x, i) => (
+              <li key={i}>
                 <strong>{x.direction}.</strong> {x.why} Question: {x.question}
               </li>
             ))}
@@ -772,11 +898,143 @@ function Result({
       <details>
         <summary>What was not read or assessed</summary>
         <ul className="small">
-          {[...result.not_searched.notes, ...result.not_covered].map((n) => (
-            <li key={n}>{n}</li>
+          {[...result.not_searched.notes, ...result.not_covered].map((n, i) => (
+            <li key={i}>{n}</li>
           ))}
         </ul>
       </details>
     </>
+  );
+}
+
+/**
+ * What this scope would send now: counts, every claim with its websites (each can be left
+ * out) and the existing records compared for duplicates (PR #131 review L-2).
+ */
+function Preview({
+  preview,
+  stale,
+  dataClass,
+  model,
+  leaveOut,
+  setLeaveOut,
+}: {
+  preview: { data: ExplorationPreview | null; error: string } | null;
+  /** The scope changed and is being read again; the last result stays open meanwhile. */
+  stale: boolean;
+  dataClass: string;
+  model: string;
+  leaveOut: Map<string, string>;
+  setLeaveOut: (m: Map<string, string>) => void;
+}) {
+  if (!preview) return <p className="small">Reading what would be sent…</p>;
+  if (!preview.data)
+    return stale ? (
+      <p className="small">Reading what would be sent…</p>
+    ) : (
+      <p className="error small" role="alert">
+        {preview.error}
+      </p>
+    );
+  const { packet, chars, limit } = preview.data;
+  const toggle = (id: string, text: string) => {
+    const next = new Map(leaveOut);
+    if (next.has(id)) next.delete(id);
+    else next.set(id, text);
+    setLeaveOut(next);
+  };
+  return (
+    <details className="preview">
+      <summary>
+        Sends {packet.claims.length} claim
+        {packet.claims.length === 1 ? '' : 's'} and {packet.catalog.length}{' '}
+        existing record{packet.catalog.length === 1 ? '' : 's'} to{' '}
+        {model || 'the model'} ({chars.toLocaleString()} of{' '}
+        {limit.toLocaleString()} characters)
+        {stale && ' · updating…'}
+      </summary>
+      <p className="small">
+        Everything listed goes to the model provider as {words(dataClass)}{' '}
+        evidence. Leave out any claim that may not be shared that way.
+      </p>
+      <ul className="sent">
+        {packet.claims.map((c) => (
+          <li key={c.claim_id}>
+            <label className="claim-attach">
+              <input
+                type="checkbox"
+                checked
+                onChange={() => toggle(c.claim_id, c.statement)}
+              />
+              <span>
+                {clip(c.statement, 200)}{' '}
+                <span className="small">
+                  {words(c.status)} ·{' '}
+                  {[...new Set(c.passages.map((x) => hostOf(x.url)))].join(
+                    ', ',
+                  )}
+                </span>
+              </span>
+            </label>
+          </li>
+        ))}
+        {[...leaveOut].map(([id, text]) => (
+          <li key={id} className="left-out">
+            <label className="claim-attach">
+              <input
+                type="checkbox"
+                checked={false}
+                onChange={() => toggle(id, text)}
+              />
+              <span>
+                <s>{clip(text, 200)}</s> <span className="small">left out</span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {packet.catalog.length > 0 && (
+        <p className="small">
+          Shown to the explorer as already in the studio:{' '}
+          {packet.catalog.map((k) => clip(k.title, 60)).join('; ')}
+        </p>
+      )}
+      <ul className="small">
+        {packet.not_searched.notes.map((n, i) => (
+          <li key={i}>{n}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** The packet an exploration read, as it was sent. */
+function Sent({ packet }: { packet: ExplorationPacket }) {
+  return (
+    <div className="preview">
+      <p className="small">
+        {packet.claims.length} claim{packet.claims.length === 1 ? '' : 's'} and{' '}
+        {packet.catalog.length} existing record
+        {packet.catalog.length === 1 ? '' : 's'}, assessed{' '}
+        {when(packet.assessed_at)}.
+      </p>
+      <ul className="sent">
+        {packet.claims.map((c) => (
+          <li key={c.claim_id}>
+            <strong>{c.ref}</strong> {clip(c.statement, 200)}{' '}
+            <span className="small">
+              {words(c.status)} ·{' '}
+              {[...new Set(c.passages.map((x) => hostOf(x.url)))].join(', ')}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {packet.catalog.length > 0 && (
+        <p className="small">
+          Shown to the explorer as already in the studio:{' '}
+          {packet.catalog.map((k) => clip(k.title, 60)).join('; ')}
+        </p>
+      )}
+    </div>
   );
 }

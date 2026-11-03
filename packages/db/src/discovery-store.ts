@@ -1,6 +1,7 @@
 import {
   CreateExploredBriefRequestSchema,
   ExplorationResultSchema,
+  ExploreScopeSchema,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
   StartExplorationRequestSchema,
@@ -8,6 +9,9 @@ import {
   type CatalogEntry,
   type ClaimEvidence,
   type ExplorationCatalogEntry,
+  type ExplorationPacket,
+  type ExplorationPreview,
+  type ExploreScope,
   type StoredEntity,
   type WorkflowDetail,
 } from '@creator/contracts';
@@ -287,67 +291,22 @@ export class DiscoveryStore extends ResearchStore {
     runId = uuid(runId);
     const req = parse(StartExplorationRequestSchema, raw);
     await this.studyWorkflowGate(ctx, ws, runId, null);
-    const scan = await this.tx(async (c) => {
+    const run = await this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const claims = (
-        await c.query<{ id: string }>(
-          `select id from entities where workspace_id = $1 and kind = 'claim'
-              and status = 'active'
-            order by updated_at desc, id desc limit 200`,
-          [ws],
-        )
-      ).rows.map((r) => r.id);
-      const rows = (
-        await c.query(
-          `select id, kind, version, title, body from entities
-            where workspace_id = $1 and kind in ('problem', 'idea', 'alternative', 'search_brief')
-              and status = 'active'
-            order by updated_at desc, id limit 40`,
-          [ws],
-        )
-      ).rows as Row[];
-      const run = (
+      const row = (
         await c.query<{ version: number }>(
           `select version from entities where workspace_id = $1 and id = $2 and kind = 'run'`,
           [ws, runId],
         )
       ).rows[0];
-      if (!run) throw fail('NOT_FOUND', 'Run record not found.');
-      return {
-        claims,
-        run: { id: runId, version: Number(run.version) },
-        catalog: rows.map((r): Omit<ExplorationCatalogEntry, 'ref'> => ({
-          id: String(r.id),
-          kind: r.kind as ExplorationCatalogEntry['kind'],
-          version: Number(r.version),
-          title: String(r.title),
-          summary: summaryOf(String(r.kind), r.body as Row | null),
-        })),
-      };
+      if (!row) throw fail('NOT_FOUND', 'Run record not found.');
+      return { id: runId, version: Number(row.version) };
     });
-    const evidence: ClaimEvidence[] = [];
-    for (const id of scan.claims)
-      evidence.push(
-        await this.claimEvidence(ctx, ws, id, req.scope.max_age_days),
-      );
-    const packet = buildExplorationPacket({
-      scope: req.scope,
-      evidence,
-      catalog: scan.catalog,
-      now: new Date(),
-    });
-    if (scan.claims.length === 200)
-      packet.not_searched.notes.unshift(
-        'Only the 200 most recently changed claims were considered.',
-      );
-    if (JSON.stringify(packet).length > MAX_EXPLORATION_PACKET_CHARS)
-      throw fail(
-        'INVALID_CONTRACT',
-        'The exploration packet is too large for one model message; lower the number of claims to read.',
-      );
+    const { packet, catalog } = await this.buildExploration(ctx, ws, req.scope);
     const context: ExplorationWorkflowContext = {
       packet,
       packet_hash: canonicalHash(packet),
+      duplicates_against: catalog,
     };
     const id = await this.idempotent(
       ws,
@@ -371,7 +330,7 @@ export class DiscoveryStore extends ResearchStore {
           role: 'r01_exploration',
           roleVersion: EXPLORATION_ROLE_VERSION,
           promptHash: EXPLORATION_PROMPT_HASH,
-          subject: scan.run,
+          subject: run,
           context: { ...context },
           limits: req.limits,
           envelopeId:
@@ -406,6 +365,118 @@ export class DiscoveryStore extends ResearchStore {
       },
     );
     return this.getWorkflow(ctx, ws, id);
+  }
+
+  /**
+   * What an exploration with this scope would send now, without starting anything: the exact
+   * packet, its hash and size (PR #131 review L-2). Any member may look.
+   */
+  async previewExploration(
+    ctx: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<ExplorationPreview> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const scope = parse(ExploreScopeSchema, raw ?? {});
+    const { packet } = await this.buildExploration(ctx, ws, scope);
+    return {
+      packet,
+      packet_hash: canonicalHash(packet),
+      chars: JSON.stringify(packet).length,
+      limit: MAX_EXPLORATION_PACKET_CHARS,
+    };
+  }
+
+  /**
+   * Builds an exploration packet from the workspace's active claims, newest first, and its
+   * catalog. Claims are read in small batches and reading stops once the packet is full, so a
+   * large workspace costs no more than the packet holds (PR #131 review N-3). Search briefs
+   * made from an earlier pick that no workflow used are not in the catalog, so an abandoned
+   * pick does not mark the same problem as a duplicate later (review L-5).
+   */
+  private async buildExploration(
+    ctx: CommandContext,
+    ws: string,
+    scope: ExploreScope,
+  ): Promise<{
+    packet: ExplorationPacket;
+    catalog: Omit<ExplorationCatalogEntry, 'ref'>[];
+  }> {
+    const scan = await this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const claims = (
+        await c.query<{ id: string }>(
+          `select id from entities where workspace_id = $1 and kind = 'claim'
+              and status = 'active'
+            order by updated_at desc, id desc limit 200`,
+          [ws],
+        )
+      ).rows.map((r) => r.id);
+      const rows = (
+        await c.query(
+          `select e.id, e.kind, e.version, e.title, e.body from entities e
+            where e.workspace_id = $1
+              and e.kind in ('problem', 'idea', 'alternative', 'search_brief')
+              and e.status = 'active'
+              and not (e.kind = 'search_brief'
+                and exists (select 1 from audit_events a where a.workspace_id = $1
+                  and a.action = 'exploration.brief_created' and a.subject_id = e.id)
+                and not exists (select 1 from workflows w where w.workspace_id = $1
+                  and w.subject_id = e.id))
+            order by e.updated_at desc, e.id limit 200`,
+          [ws],
+        )
+      ).rows as Row[];
+      return {
+        claims,
+        catalog: rows.map((r): Omit<ExplorationCatalogEntry, 'ref'> => ({
+          id: String(r.id),
+          kind: r.kind as ExplorationCatalogEntry['kind'],
+          version: Number(r.version),
+          title: String(r.title),
+          summary: summaryOf(String(r.kind), r.body as Row | null),
+        })),
+      };
+    });
+    const now = new Date();
+    const evidence: ClaimEvidence[] = [];
+    let packet = buildExplorationPacket({
+      scope,
+      evidence,
+      catalog: scan.catalog,
+      now,
+    });
+    for (let i = 0; i < scan.claims.length; i += 10) {
+      for (const id of scan.claims.slice(i, i + 10))
+        evidence.push(
+          await this.claimEvidence(ctx, ws, id, scope.max_age_days),
+        );
+      const unscanned = scan.claims.length - evidence.length;
+      packet = buildExplorationPacket({
+        scope,
+        evidence,
+        catalog: scan.catalog,
+        now,
+        unscanned,
+      });
+      // Full: a loaded claim did not fit, so no older one will.
+      if (packet.not_searched.beyond_limit > unscanned) break;
+    }
+    if (scan.claims.length === 200)
+      packet.not_searched.notes.unshift(
+        'Only the 200 most recently changed claims were considered.',
+      );
+    if (scan.catalog.length === 200)
+      packet.not_searched.notes.unshift(
+        'Picks were checked for duplicates against the 200 most recently changed problems, ideas, options and briefs only.',
+      );
+    if (JSON.stringify(packet).length > MAX_EXPLORATION_PACKET_CHARS)
+      throw fail(
+        'INVALID_CONTRACT',
+        'The exploration packet is too large for one model message; shorten the narrowing terms.',
+      );
+    return { packet, catalog: scan.catalog };
   }
 
   /** The packet an exploration read, for inspection. */
@@ -465,7 +536,7 @@ export class DiscoveryStore extends ResearchStore {
       if (!entry) throw fail('NOT_FOUND', `No ${candidate} in this shortlist.`);
       if (entry.disposition !== 'candidate')
         throw fail(
-          'SCOPE_EXCEEDED',
+          'INVALID_TRANSITION',
           `${candidate} is ${entry.disposition.replaceAll('_', ' ')}, not a candidate: ${entry.reasons.join(' ')}`,
         );
       const earlier = (
