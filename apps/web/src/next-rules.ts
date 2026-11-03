@@ -270,7 +270,10 @@ function tryStep(
   if (feedback.accepted > 0)
     return {
       tone: 'next',
-      text: `Revise the spec from your ${feedback.accepted === 1 ? 'accepted feedback item' : `${feedback.accepted} accepted feedback items`}: open the package under Try and press “Revise the spec from this feedback”. The revision is frozen, reviewed and built like the first version.`,
+      text:
+        feedback.accepted === 1
+          ? 'Revise the spec from your accepted feedback item: open the package under Try and press “Revise the spec from this feedback”. The revision is frozen, reviewed and built like the first version.'
+          : `Revise the spec once from your ${feedback.accepted} accepted feedback items: open the package under Try, press “Revise the spec from this feedback” on one of them and make all their changes in that one revision. The revision is frozen, reviewed and built like the first version.`,
       action: gallery,
     };
   if (feedback.undecided > 0)

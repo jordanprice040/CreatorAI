@@ -213,9 +213,12 @@ await ctx.route(`**/api/${base}/feedback/*/revision`, async (r) => {
   sent.push(body);
   const req = FeedbackRevisionRequestSchema.parse(body);
   const f = feedback.find((x) => x.id === id);
+  // The real route compares with the spec as stored now, not as the page loaded it.
+  const current = (await apiCall(`${base}/specs/${spec.id}`)).spec.version;
   if (
     req.expected_version !== f.version ||
-    req.expected_spec_version !== f.spec.version
+    req.expected_spec_version !== f.spec.version ||
+    current !== f.spec.version
   )
     return json(
       r,
@@ -280,6 +283,14 @@ console.log(
   'disabled:',
   await buttons.first().isDisabled(),
 );
+console.log(
+  'also accepted notice:',
+  JSON.stringify(await form.locator('.notice[role=note]').textContent()),
+);
+console.log(
+  'reason box max length:',
+  await page.locator('[id="sf-reason"]').getAttribute('maxlength'),
+);
 await shot('02-form-open');
 
 // An empty reason is refused before anything is sent.
@@ -329,11 +340,10 @@ console.log(
 );
 await shot('03-saved');
 
-// The other accepted item was given on the old version: the studio would refuse it now.
-await buttons.first().click();
-await page.waitForTimeout(1200);
+// The other accepted item was given on the old version: it says so without a click.
+console.log('revise buttons after the revision:', await buttons.count());
 console.log(
-  'stale item:',
+  'superseded item:',
   await page.locator('.feedback li p.small[role=status]').textContent(),
 );
 await shot('04-stale');
@@ -363,4 +373,40 @@ console.log('phone: form open', await form.count(), 'horizontal scroll', wide);
 await shot('05-phone');
 await page.getByRole('button', { name: 'Cancel' }).click();
 console.log('after cancel: form', await form.count());
+
+// Stale while open: another revision is saved behind the open form (review L-2).
+await page.setViewportSize({ width: 1280, height: 900 });
+await buttons.last().click();
+await page.waitForTimeout(1200);
+const behind = await apiCall(`${base}/entities/${spec.id}`);
+// The stored body carries the selection it came from; a revision takes only the content.
+const { format, alternative, selection_id, ...content } = behind.entity.body;
+await apiCall(`${base}/specs/${spec.id}/revisions`, {
+  expected_version: behind.entity.version,
+  title: behind.entity.title,
+  content: {
+    ...content,
+    non_goals: [...content.non_goals, 'Revised behind the form'],
+  },
+  reason: 'Walk: revised behind the open form',
+});
+await page.locator('[id="sf-reason"]').fill('Name the clinic in the header.');
+await page
+  .locator('[id="sf-scope"]')
+  .fill(
+    (await page.locator('[id="sf-scope"]').inputValue()) +
+      '\nClinic name in the header',
+  );
+await page.getByRole('button', { name: 'Save new version' }).click();
+await page.waitForTimeout(1500);
+console.log(
+  'stale while open:',
+  await form.locator('p.error[role=alert]').textContent(),
+  '| save disabled:',
+  await page.getByRole('button', { name: 'Save new version' }).isDisabled(),
+  '| form still open:',
+  await form.count(),
+);
+await form.locator('p.error').scrollIntoViewIfNeeded();
+await page.screenshot({ path: `${out}/06-stale-while-open.png` });
 await browser.close();

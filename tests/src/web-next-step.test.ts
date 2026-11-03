@@ -579,6 +579,11 @@ test('recording feedback on the newest package finishes Try, and Next moves on (
   // The form under Try is the route on the web and in the desktop app alike (audit L-8).
   assert.match(revise.text, /Revise the spec from this feedback/);
   assert.equal(revise.action?.view, 'gallery');
+  // Several accepted items make one revision: the first one moves the spec on (PR #121 L-1).
+  assert.match(
+    pipelineStep(tried({ total: 3, accepted: 2, undecided: 0 })).text,
+    /once from your 2 accepted feedback items.*all their changes in that one revision/,
+  );
   for (const desktop of [false, true])
     assert.doesNotMatch(
       pipelineStep({ ...accepted, desktop }).text,

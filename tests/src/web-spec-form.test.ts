@@ -24,6 +24,11 @@ type Fields = {
   unwrittenOptions: <T>(sel: T[], specs: unknown[]) => T[];
   buildNotes: (c: unknown) => string[];
   feedbackReason: (text: string) => string;
+  FEEDBACK_REASON_MAX: number;
+  feedbackSuperseded: (
+    f: { id: string; status: string; spec: { version: number } },
+    all: { id: string; revision: { version: number } | null }[],
+  ) => string | null;
   feedbackRevisionBlocker: (
     f: { status: string; spec: { version: number } },
     spec: { status: string; version: number; format: unknown },
@@ -285,4 +290,33 @@ test('accepted preview feedback opens the spec form only for the version it was 
   const exact = feedbackReason('y'.repeat(222));
   assert.equal(exact.length, 240);
   assert.ok(!exact.endsWith('…'));
+});
+
+test('once one accepted item revises the spec, the others on that version say so without a click (PR #121 review L-1, N-1)', async () => {
+  const { feedbackSuperseded, FEEDBACK_REASON_MAX } = await load();
+  const item = (id: string, status: string, revised?: number) => ({
+    id,
+    status,
+    spec: { version: 3 },
+    revision: revised ? { version: revised } : null,
+  });
+  const a = item('a', 'revised', 4);
+  const b = item('b', 'accepted');
+  const c = item('c', 'submitted');
+  // Nothing revised yet: every accepted item can still start the revision.
+  assert.equal(feedbackSuperseded(b, [b, c]), null);
+  assert.match(
+    feedbackSuperseded(b, [a, b, c])!,
+    /revised the spec to v4.*given on v3/,
+  );
+  // Only accepted items get the note; the revised item itself and undecided ones do not.
+  assert.equal(feedbackSuperseded(a, [a, b]), null);
+  assert.equal(feedbackSuperseded(c, [a, c]), null);
+  // A revision that did not move past this item's version is not a reason.
+  assert.equal(feedbackSuperseded(b, [item('x', 'revised', 3), b]), null);
+  // The reason box leaves room for " (feedback <uuid>)" (48 characters) within the stored
+  // 300, and not one character more.
+  const tail = ` (feedback ${crypto.randomUUID()})`.length;
+  assert.equal(tail, 48);
+  assert.equal(FEEDBACK_REASON_MAX + tail, 300);
 });

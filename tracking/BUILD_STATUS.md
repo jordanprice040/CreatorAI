@@ -10,6 +10,15 @@ Checks run: new test in `tests/src/web-spec-form.test.ts` (blocker for submitted
 
 Limits: not walked against a real packaged artifact or in the installed desktop app; the feedback-route stand-in saves the revision through the plain spec route, so the feedback row update itself is covered by `artifact-api.test.ts`, not the walk. No migration, no ADR.
 
+Review fixes (review of PR #121 at b0af43a, `/mnt/project-files/reviews/PR121_FEEDBACK_REVISION_REVIEW_2026-11-03.md`: READY, no Medium+; Jordan asked for all Lows):
+
+- L-1: a package's accepted feedback can start one revision, because the first one moves the spec on. The form now lists the other accepted items on the same version ("Also accepted on v2: … Make their changes in this revision too…"). Once another item has revised the spec, an accepted item shows "Other feedback revised the spec to vN, so this item, given on vM, can no longer start a revision" with Open Build instead of the button (`feedbackSuperseded`). With several accepted items, the Next step says to revise once and make all their changes in that one revision.
+- L-2: a VERSION_CONFLICT while the form is open disables Save. It says in plain words that the spec changed, that the edits were not saved, and where to go next, with an Open Build link.
+- N-1: in feedback mode the reason box takes at most 252 characters. The appended " (feedback <uuid>)" is 48 characters, not 47 as the review said, so the stored reason keeps the id within 300; a test checks this.
+- N-2: the walk now checks the open-form conflict against the real current spec version (another revision is saved behind the form, screenshot 06). It still stubs the feedback routes. The reviewer's walk (`/mnt/project-files/reviews/pr121-walk/`) covers the real `reviseFromFeedback` route.
+
+Checks: `pnpm test` with a PostgreSQL 16 test database: 694 tests, 662 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass; new tests in `web-spec-form` and `web-next-step`.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

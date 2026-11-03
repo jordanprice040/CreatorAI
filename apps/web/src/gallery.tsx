@@ -23,7 +23,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { SpecForm, type SpecFormMode } from './spec-form.js';
-import { feedbackRevisionBlocker } from './spec-fields.js';
+import { feedbackRevisionBlocker, feedbackSuperseded } from './spec-fields.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
 
@@ -1005,7 +1005,19 @@ function FeedbackPanel({
           kind: 'revise',
           spec,
           entity,
-          feedback: { id: f.id, version: f.version, text: f.text },
+          feedback: {
+            id: f.id,
+            version: f.version,
+            text: f.text,
+            others: d.feedback
+              .filter(
+                (x) =>
+                  x.id !== f.id &&
+                  x.status === 'accepted' &&
+                  x.spec.version === f.spec.version,
+              )
+              .map((x) => x.text),
+          },
         });
     } catch (e) {
       setBlocked({ id: f.id, text: message(e) });
@@ -1122,6 +1134,7 @@ function FeedbackPanel({
               {f.status === 'accepted' &&
                 session &&
                 owner &&
+                !feedbackSuperseded(f, d.feedback) &&
                 revising?.feedback?.id !== f.id && (
                   <>
                     {' '}
@@ -1136,6 +1149,18 @@ function FeedbackPanel({
                     </button>
                   </>
                 )}
+              {owner && feedbackSuperseded(f, d.feedback) && (
+                <p className="small" role="status">
+                  {feedbackSuperseded(f, d.feedback)}{' '}
+                  <button
+                    type="button"
+                    className="text"
+                    onClick={() => open('build')}
+                  >
+                    Open Build
+                  </button>
+                </p>
+              )}
               {blocked?.id === f.id && (
                 <p className="small" role="status">
                   {blocked.text}{' '}
@@ -1155,6 +1180,7 @@ function FeedbackPanel({
                   session={session}
                   mode={revising}
                   cancel={() => setRevising(null)}
+                  openBuild={() => open('build')}
                   saved={(s) => {
                     setRevising(null);
                     // The panel's notice outlives the reload that shows "became spec vN".

@@ -6,13 +6,15 @@ import {
   type SpecStatus,
   type StoredEntity,
 } from '@creator/contracts';
-import { api, message } from './oversight.js';
+import { ApiError, api, message } from './oversight.js';
 import {
   buildNotes,
   draftFromContent,
   draftToContent,
   emptyCase,
   emptySpecDraft,
+  FEEDBACK_REASON_MAX,
+  FEEDBACK_REVISION_STALE,
   feedbackReason,
   nextKey,
   argsShowable,
@@ -57,7 +59,16 @@ export type SpecFormMode =
       kind: 'revise';
       spec: SpecStatus;
       entity: StoredEntity;
-      feedback?: { id: string; version: number; text: string };
+      /**
+       * `others`: the other accepted items on the same spec version. One revision is all a
+       * package's feedback can start, so they belong in this one (PR #121 review L-1).
+       */
+      feedback?: {
+        id: string;
+        version: number;
+        text: string;
+        others: string[];
+      };
     };
 
 /**
@@ -70,12 +81,15 @@ export function SpecForm({
   mode,
   saved,
   cancel,
+  openBuild,
 }: {
   base: string;
   session: SessionInfo;
   mode: SpecFormMode;
   saved: (s: SpecStatus) => void;
   cancel: () => void;
+  /** Where a feedback revision that went stale sends the owner instead. */
+  openBuild?: () => void;
 }) {
   const [d, setD] = useState<SpecDraft>(() =>
     mode.kind === 'revise'
@@ -91,6 +105,8 @@ export function SpecForm({
   );
   // Set once a feedback revision is saved but the spec could not be read back.
   const [done, setDone] = useState(false);
+  // The spec moved on while the form was open: Save can only be refused again (L-2).
+  const [stale, setStale] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -174,12 +190,15 @@ export function SpecForm({
               expected_spec_version: mode.spec.spec.version,
               title: out.title,
               content: out.content,
-              reason: reason.trim().slice(0, 300),
+              reason: reason.trim().slice(0, FEEDBACK_REASON_MAX),
             },
           },
         );
       } catch (x) {
-        setError(message(x));
+        if (x instanceof ApiError && x.code === 'VERSION_CONFLICT') {
+          setStale(true);
+          setError(FEEDBACK_REVISION_STALE);
+        } else setError(message(x));
         setBusy(false);
         return;
       }
@@ -268,6 +287,27 @@ export function SpecForm({
         <blockquote className="sf-feedback">
           <strong>The feedback:</strong> {fromFeedback.text}
         </blockquote>
+      )}
+      {fromFeedback && fromFeedback.others.length > 0 && (
+        <div className="notice" role="note">
+          <strong>
+            {fromFeedback.others.length === 1
+              ? 'Also accepted on'
+              : `${fromFeedback.others.length} more items accepted on`}{' '}
+            v{mode.kind === 'revise' ? mode.spec.spec.version : ''}:
+          </strong>
+          <ul>
+            {fromFeedback.others.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+          <span>
+            Make their changes in this revision too. Once it is saved, the spec
+            is on a new version and{' '}
+            {fromFeedback.others.length === 1 ? 'that item' : 'those items'} can
+            no longer start a revision.
+          </span>
+        </div>
       )}
       <p className="small">
         A spec says what will be built and how it will be checked. Write the
@@ -833,7 +873,9 @@ export function SpecForm({
         </div>
       )}
       {mode.kind === 'revise' &&
-        box('reason', 'What changed and why', reason, setReason, { max: 300 })}
+        box('reason', 'What changed and why', reason, setReason, {
+          max: fromFeedback ? FEEDBACK_REASON_MAX : 300,
+        })}
       {Object.keys(errors).length > 0 && (
         <p className="error" role="alert">
           {Object.keys(errors).length} field
@@ -844,10 +886,18 @@ export function SpecForm({
       {error && (
         <p className="error" role="alert">
           {error}
+          {stale && openBuild && (
+            <>
+              {' '}
+              <button type="button" className="text" onClick={openBuild}>
+                Open Build
+              </button>
+            </>
+          )}
         </p>
       )}
       <div className="actions">
-        <button type="submit" disabled={busy || done}>
+        <button type="submit" disabled={busy || done || stale}>
           {mode.kind === 'create' ? 'Save spec' : 'Save new version'}
         </button>
         <button type="button" className="secondary" onClick={cancel}>

@@ -563,3 +563,36 @@ export function feedbackRevisionBlocker(
     return 'This spec is not in the format the form edits (spec/1).';
   return null;
 }
+
+/**
+ * The longest reason a feedback revision takes: the studio appends " (feedback <uuid>)"
+ * (48 characters) and keeps 300, so a longer reason would cut the feedback id off (PR #121
+ * review N-1).
+ */
+export const FEEDBACK_REASON_MAX = 252;
+
+/**
+ * A package's accepted feedback can start one spec revision: the first one moves the spec on
+ * and the others are given on a superseded version. Says so for an accepted item once another
+ * item of the same package has revised the spec, so it is known without a click (PR #121
+ * review L-1).
+ */
+export function feedbackSuperseded(
+  f: { id: string; status: string; spec: { version: number } },
+  all: readonly {
+    id: string;
+    revision: { version: number } | null;
+  }[],
+): string | null {
+  if (f.status !== 'accepted') return null;
+  const later = all
+    .filter((x) => x.id !== f.id && x.revision)
+    .map((x) => x.revision!.version)
+    .filter((v) => v > f.spec.version);
+  if (!later.length) return null;
+  return `Other feedback revised the spec to v${Math.max(...later)}, so this item, given on v${f.spec.version}, can no longer start a revision. Make the change in the current version on Build.`;
+}
+
+/** Shown when the spec or the feedback moved on while the revision form was open (L-2). */
+export const FEEDBACK_REVISION_STALE =
+  'The spec changed after this form opened (another revision was saved), so this feedback can no longer revise it. Your edits here were not saved. Make the change in the current version on Build.';
