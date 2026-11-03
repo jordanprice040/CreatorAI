@@ -1,3 +1,30 @@
+## Owner actions that were command-line only — November 3, 2026
+
+The five main-path forms from the revisions audit (item 4: scorecards, spec writing, humility review, qualification, pricing and charges) were already in the app (PRs #108, #112, #114–#116; caps and allowed work since #118). Every CLI command was then compared with the routes the app calls. These owner actions were still CLI-only and are now in the app. No migration, no ADR; each uses its existing API route and the server's own checks.
+
+What now works:
+
+- Models › connection: when the plan reported its usage limit reached (quota `exhausted`), every plan request on the connection stays refused until the owner clears it (`pnpm cli plan-quota-recheck` before). A "Plan usage limit reached" box shows when it was reported and offers "Usage has reset: allow requests again" (owner only; `quota-recheck`). The next request records the plan's answer again.
+- Monitor › Budgets: "Close this budget…" (owner only, as the server requires) asks for a reason, says what happens to the unspent amount (back to the parent, or no longer available) and that it can't be undone. A budget with a call in flight, an unknown outcome held or money moved to a child budget explains why it can't be closed instead of offering the button. Closed budgets show when they closed.
+- Sources › Library: "Archive…" on an active idea, problem, option, assumption, search brief or theme intent (editors and the owner), with a reason; the record leaves the active lists and pickers and keeps its versions, links and history. Records with their own lifecycle (specs, runs, products, artifacts, decisions, grants, sources, claims, scorecards, reviews) are not offered.
+- Sources › Sources and claims: "Retract…" on a claim's evidence row (editors and the owner), with a reason. The row stays, struck through with "Retracted <time>: <reason>", and no longer counts toward the claim.
+- Monitor › Runs › a discovery: "Show the evidence packet" shows the brief, whether the evidence was judged sufficient and why, the claims and catalog records it was given, the packet hash and the exact packet.
+- The three reason forms share `apps/web/src/reason-form.tsx` (one request at a time, a refusal shown next to the form with the reason kept); their rules are in `apps/web/src/owner-actions.ts`.
+
+Checks run: new `tests/src/web-owner-actions.test.ts` pins each form's reason limit to the server schema (it caught the archive limit, 500 not 200), the budget-close blocker against `closeEnvelope`'s rule, and which kinds and roles get "Archive". `web-display.test.ts` stubs the two new modules. Browser walk `tracking/evidence/owner-actions/walk.mjs` (with `stack.mjs`) on a throwaway PostgreSQL 16 database, ports 5183/4330/4340, fixture only, $0, no model call: `seed-discovery` through the real CLI, one ChatGPT plan connection with its quota set to exhausted by SQL (test seam), then every action through the app with the server state read back; blank reason refused; no overflow at 390 px; no page errors. Output in `walk.txt`, screenshots 01–09. Full `pnpm test:db` on PostgreSQL 16: 717 tests, 684 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); typecheck and Prettier pass.
+
+Limits and still CLI-only (closing a stuck plan request moved into the app separately, ADR-0064): workspace members (by user id only), records revise/link, Search's semantic search, saved queries, audit questions and lineage export/verify, payment events, payout reconcile and buyer access check, model routing and context tooling, and the study tools (parked). Not run on the installed app.
+
+Review fixes (fresh review `/mnt/project-files/reviews/PR129_OWNER_ACTIONS_REVIEW_2026-11-03.md`, no Medium or above; Jordan asked for the Lows):
+
+- L-1: archiving a problem or an option now warns, in the form, that its Decide and Build path stops for good (the selection report, selecting and writing a spec refuse an inactive problem or option, and archive can't be undone).
+- L-2: the budget-close form says the studio records that a reason was given, not its words (the server keeps only `reason_given`, as audit payloads hold no content).
+- L-3: a version conflict or "already closed/archived" refusal reads the budget or record again, keeps the typed reason and says so, so the next confirm sends the current version instead of failing the same way until the page is left.
+- L-4: the evidence-packet error is kept per discovery and no longer shows under another one.
+- Nits: N-1 the evidence row is not struck through while its retract form is open; N-2 a "Usage has reset" refusal shows next to its button, per connection; N-3 "Show the evidence packet" sends one request at a time and says it is reading. N-4 (component-level role tests) is not done: the walk covers the owner, the pure rules cover roles, and there is no browser harness for a second member yet.
+
+Checks: `web-owner-actions.test.ts` gains the archive warning and stale-refusal codes. The walk now revises the problem through the API while its archive form is open: the first confirm is refused with "It has been read again", the typed reason is kept, the note warns that Decide stops, and the second confirm archives it; 17 checks pass, no page errors. Full `pnpm test:db` on PostgreSQL 16: 718 tests, 685 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
+
 ## Close a stuck plan request in the app (ADR-0064, no migration) — November 3, 2026
 
 PR #126 re-review N-2 (a request a stopped studio left in flight blocks all chat on the connection; closing it was CLI-only) and N-1 (outdated `beginChatAnswer` comment). Jordan approved.

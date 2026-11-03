@@ -27,6 +27,8 @@ import { newestFirst } from './versions.js';
 import { useOnShow } from './page-active.js';
 import { recordLabel, runLabel } from './labels.js';
 import { runNames } from './ui.js';
+import { REASON_MAX } from './owner-actions.js';
+import { ReasonForm } from './reason-form.js';
 
 type Passage = SourceDetail['passages'][number];
 const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -86,6 +88,8 @@ export function Evidence({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [cite, setCite] = useState<Passage | null>(null);
+  // The claim evidence row whose "Retract…" form is open.
+  const [retracting, setRetracting] = useState('');
   // A claim the cite form saved whose evidence step then failed. Kept here, not in the form,
   // so switching passages attaches to it instead of creating it again.
   const [unevidenced, setUnevidenced] = useState<StoredEntity | null>(null);
@@ -425,7 +429,13 @@ export function Evidence({
                 {evidence.rows.map((r) => (
                   <li
                     key={r.support.id}
-                    className={r.counted ? '' : 'retracted'}
+                    // PR #129 review N-1: the row is not struck through while its retract
+                    // form is open, so the form reads normally.
+                    className={
+                      r.counted || retracting === r.support.id
+                        ? ''
+                        : 'retracted'
+                    }
                   >
                     <span className="relation">{words(r.support.stance)}</span>{' '}
                     {r.support.support_type
@@ -445,6 +455,54 @@ export function Evidence({
                     {r.support.quote && (
                       <blockquote>“{r.support.quote}”</blockquote>
                     )}
+                    {r.support.retracted_at && (
+                      <small className="retraction">
+                        Retracted {when(r.support.retracted_at)}
+                        {r.support.retraction_reason
+                          ? `: ${r.support.retraction_reason}`
+                          : ''}
+                      </small>
+                    )}
+                    {/* Was `pnpm cli support-retract` only; editors and the owner may retract. */}
+                    {editor &&
+                      !r.support.retracted_at &&
+                      (retracting === r.support.id ? (
+                        <ReasonForm
+                          id={`retract-${r.support.id}`}
+                          label="Why this evidence is wrong"
+                          placeholder="e.g. the quote is about a different clinic"
+                          note="The link stays on record, marked retracted, and no longer counts toward this claim's support. It can't be undone; cite the passage again if you need it back."
+                          confirm="Retract it"
+                          busyLabel="Retracting…"
+                          keep="Keep it"
+                          max={REASON_MAX.retract}
+                          onCancel={() => setRetracting('')}
+                          onConfirm={async (reason) => {
+                            try {
+                              await api(
+                                z.unknown(),
+                                `${base}/claim-support/${r.support.id}/retract`,
+                                {
+                                  csrf: session.csrf_token,
+                                  body: { reason },
+                                },
+                              );
+                            } catch (err) {
+                              return message(err);
+                            }
+                            setRetracting('');
+                            await openClaim(evidence.claim.id);
+                            return null;
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="text"
+                          onClick={() => setRetracting(r.support.id)}
+                        >
+                          Retract…
+                        </button>
+                      ))}
                   </li>
                 ))}
               </ul>

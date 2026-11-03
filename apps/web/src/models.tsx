@@ -127,6 +127,9 @@ export function Models({
   const [detail, setDetail] = useState<DetailT | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // "Usage has reset" error and request, per connection (PR #129 review N-2).
+  const [quotaError, setQuotaError] = useState({ id: '', text: '' });
+  const [quotaBusy, setQuotaBusy] = useState(false);
   const [checkedOn, setCheckedOn] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -835,6 +838,45 @@ export function Models({
                 ? 'Withdraw extra-usage confirmation'
                 : 'Withdraw credits confirmation'}
             </button>
+          )}
+          {owner && c.quota.state === 'exhausted' && (
+            <fieldset className="quota-recheck">
+              <legend>Plan usage limit reached</legend>
+              <p>
+                {claude ? 'Claude' : 'ChatGPT'} reported that this plan's usage
+                limit was reached
+                {c.quota.observed_at
+                  ? ` on ${new Date(c.quota.observed_at).toLocaleString()}`
+                  : ''}
+                , so every request on this connection is paused. Once your{' '}
+                {claude ? 'Claude usage settings' : 'ChatGPT usage settings'}{' '}
+                show the limit has reset, allow requests again. The next request
+                records the plan's answer, so if the limit is still reached it
+                pauses again.
+              </p>
+              <button
+                disabled={busy || quotaBusy || !session}
+                onClick={() => {
+                  const id = c.id;
+                  setQuotaError({ id: '', text: '' });
+                  setQuotaBusy(true);
+                  void act(
+                    `${p}/quota-recheck`,
+                    { expected_version: c.version },
+                    5000,
+                    (text) => setQuotaError({ id, text }),
+                  ).finally(() => setQuotaBusy(false));
+                }}
+              >
+                Usage has reset: allow requests again
+              </button>
+              {/* PR #129 review N-2: a refusal shows here, next to the button. */}
+              {quotaError.id === c.id && quotaError.text && (
+                <p className="error" role="alert">
+                  {quotaError.text}
+                </p>
+              )}
+            </fieldset>
           )}
           <h4>Model access</h4>
           {detail.model_access.length ? (

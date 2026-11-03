@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   EnvelopeSchema,
+  EvidencePacketSchema,
   PricingSnapshotSchema,
   RunControlSchema,
   StoredEntitySchema,
@@ -76,6 +77,19 @@ export function Workflows({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // The evidence packet a discovery was given (was `pnpm cli discovery-packet` only).
+  const [packet, setPacket] = useState<{
+    workflow: string;
+    packet: z.infer<typeof EvidencePacketSchema>;
+    packet_hash: string;
+  } | null>(null);
+  // Keyed by workflow like `packet`, so an error never shows under another discovery
+  // (PR #129 review L-4); `packetBusy` holds the one request in flight (N-3).
+  const [packetError, setPacketError] = useState<{
+    workflow: string;
+    text: string;
+  } | null>(null);
+  const [packetBusy, setPacketBusy] = useState('');
   const base = `workspaces/${workspace}`;
 
   async function load() {
@@ -455,6 +469,53 @@ export function Workflows({
                   )}
                 </>
               )}
+              {wf.role === 'r02_discovery' && (
+                <>
+                  <h3>Evidence it was given</h3>
+                  {packet?.workflow === wf.id ? (
+                    <PacketSummary
+                      packet={packet.packet}
+                      hash={packet.packet_hash}
+                    />
+                  ) : (
+                    <button
+                      className="secondary"
+                      disabled={packetBusy === wf.id}
+                      onClick={() => {
+                        const id = wf.id;
+                        if (packetBusy) return;
+                        setPacketError(null);
+                        setPacketBusy(id);
+                        void api(
+                          z.strictObject({
+                            packet: EvidencePacketSchema,
+                            packet_hash: z.string(),
+                          }),
+                          `${base}/workflows/${id}/packet`,
+                        )
+                          .then(
+                            (p) => setPacket({ workflow: id, ...p }),
+                            (err: unknown) =>
+                              setPacketError({
+                                workflow: id,
+                                text: message(err),
+                              }),
+                          )
+                          .finally(() => setPacketBusy(''));
+                      }}
+                    >
+                      {packetBusy === wf.id
+                        ? 'Reading the packet…'
+                        : 'Show the evidence packet'}
+                    </button>
+                  )}
+                  {packetError?.workflow === wf.id && (
+                    <p className="error" role="alert">
+                      {packetError.text}
+                    </p>
+                  )}
+                </>
+              )}
               <details>
                 <summary>Inspect bindings, context hashes and outputs</summary>
                 <pre>{JSON.stringify(detail, null, 2)}</pre>
@@ -469,6 +530,54 @@ export function Workflows({
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * The evidence packet a discovery read: its brief, whether the evidence was judged enough,
+ * the claims and catalog records it saw, and the exact packet with its hash. The packet is
+ * untrusted evidence with no authority; it is shown as text, never acted on.
+ */
+function PacketSummary({
+  packet,
+  hash,
+}: {
+  packet: z.infer<typeof EvidencePacketSchema>;
+  hash: string;
+}) {
+  return (
+    <div className="packet">
+      <p className="small">
+        Brief “{packet.brief.title}” v{packet.brief.version} · evidence judged{' '}
+        <strong>{packet.sufficiency.verdict}</strong> · assessed{' '}
+        {when(packet.assessed_at)} · claims up to {packet.max_age_days} days old
+        · packet hash <code>{hash.slice(0, 12)}</code>
+      </p>
+      {packet.sufficiency.reasons.length > 0 && (
+        <ul className="small">
+          {packet.sufficiency.reasons.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+      )}
+      <p className="small">
+        {packet.claims.length} {packet.claims.length === 1 ? 'claim' : 'claims'}
+        {' · '}
+        {packet.catalog.length} existing{' '}
+        {packet.catalog.length === 1 ? 'record' : 'records'} to compare with
+      </p>
+      <ol className="small">
+        {packet.claims.map((c) => (
+          <li key={c.claim_id}>
+            {c.statement} <small>({words(c.status)})</small>
+          </li>
+        ))}
+      </ol>
+      <details>
+        <summary>The exact packet</summary>
+        <pre>{JSON.stringify(packet, null, 2)}</pre>
+      </details>
+    </div>
   );
 }
 

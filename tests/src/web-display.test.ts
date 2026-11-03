@@ -64,6 +64,8 @@ test('money keeps every significant digit and drops trailing zeros', async () =>
     './pricing-bundle.js': {},
     './pricing-fields.js': {},
     './charge.js': {},
+    './owner-actions.js': {},
+    './reason-form.js': {},
   });
   assert.equal(money('55770000', true), '0.05577 sim');
   assert.equal(money('0', true), '0.00 sim');

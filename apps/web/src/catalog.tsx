@@ -10,10 +10,11 @@ import {
   z,
   type ActivityEntry,
   type EntityDetail,
+  type SessionInfo,
   type StoredLink,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, words } from './oversight.js';
+import { api, ApiError, message, words } from './oversight.js';
 import {
   Empty,
   Stamp,
@@ -23,6 +24,14 @@ import {
   useLoad,
   type View,
 } from './ui.js';
+import {
+  archiveWarning,
+  canArchive,
+  REASON_MAX,
+  STALE_CODES,
+  STALE_NOTE,
+} from './owner-actions.js';
+import { ReasonForm } from './reason-form.js';
 
 const LineageSchema = z.array(
   z.strictObject({ depth: z.number(), link: StoredLinkSchema }),
@@ -117,15 +126,19 @@ function LinkList({
 
 /**
  * Every saved record with filters, versions, typed links, bounded lineage and who changed
- * what. Read-only: records change through the views that own them (decisions, selection…).
+ * what. Records change through the views that own them (decisions, selection…); the one edit
+ * here is archiving a hand-curated record (idea, problem, option…) that is no longer wanted,
+ * which was `pnpm cli archive` only.
  */
 export function Catalog({
+  session,
   workspace,
   focus,
   onFocus,
   names: actorName,
   open: openView,
 }: {
+  session: SessionInfo;
   workspace: Workspace;
   /** An open record id, or `kind:<kind>` to filter. */
   focus: string;
@@ -160,6 +173,9 @@ export function Catalog({
   );
   const [depth, setDepth] = useState(3);
   const [error, setError] = useState('');
+  // The open record's "Archive…" form; closed whenever another record opens.
+  const [archiving, setArchiving] = useState(false);
+  const [notice, setNotice] = useState('');
   const [names, setNames] = useState(new Map<string, string>());
   useEffect(() => {
     if (list.data)
@@ -180,6 +196,8 @@ export function Catalog({
       setDetail(null);
       setLineage(null);
       setActivity([]);
+      setArchiving(false);
+      setNotice('');
     }
     if (!selected) return;
     setError('');
@@ -339,7 +357,85 @@ export function Catalog({
                 >
                   Find mentions of this id
                 </button>
+                {canArchive(e, workspace.role) && !archiving && (
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setNotice('');
+                      setArchiving(true);
+                    }}
+                  >
+                    Archive…
+                  </button>
+                )}
               </div>
+              {notice && (
+                <p className="small" role="status">
+                  {notice}
+                </p>
+              )}
+              {archiving && canArchive(e, workspace.role) && (
+                <ReasonForm
+                  id={`archive-${e.id}`}
+                  label={`Why archive this ${words(e.kind)}`}
+                  placeholder="e.g. duplicate of a newer problem"
+                  note={`An archived record leaves the pickers and lists that show active records, here and on the other pages. Its versions, links and history are kept. It can't be made active again.${archiveWarning(e.kind)}`}
+                  confirm="Archive it"
+                  busyLabel="Archiving…"
+                  keep="Keep it"
+                  max={REASON_MAX.archive}
+                  onCancel={() => setArchiving(false)}
+                  onConfirm={async (reason) => {
+                    try {
+                      await api(
+                        z.unknown(),
+                        `${base}/entities/${e.id}/archive`,
+                        {
+                          csrf: session.csrf_token,
+                          body: { expected_version: e.version, reason },
+                        },
+                      );
+                    } catch (err) {
+                      // PR #129 review L-3: read the record again so a retry sends its
+                      // current version (or the form goes away if it is no longer active).
+                      if (
+                        err instanceof ApiError &&
+                        STALE_CODES.includes(err.code)
+                      ) {
+                        try {
+                          setDetail(
+                            await api(
+                              EntityDetailSchema,
+                              `${base}/entities/${e.id}`,
+                            ),
+                          );
+                        } catch {
+                          // The refusal below already says what happened.
+                        }
+                        list.refresh();
+                        return message(err) + STALE_NOTE;
+                      }
+                      return message(err);
+                    }
+                    setArchiving(false);
+                    setNotice(
+                      'Archived. Set Status to “Archived” or “Any status” to find it again.',
+                    );
+                    try {
+                      setDetail(
+                        await api(
+                          EntityDetailSchema,
+                          `${base}/entities/${e.id}`,
+                        ),
+                      );
+                    } catch (err) {
+                      setError(message(err));
+                    }
+                    list.refresh();
+                    return null;
+                  }}
+                />
+              )}
               <Fields body={e.body} />
               <h3>Versions</h3>
               <ol className="rows">

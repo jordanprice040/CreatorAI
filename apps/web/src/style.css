@@ -943,6 +943,18 @@ fieldset label input[type='radio'],
   flex: 1 1 24rem;
   min-width: 0;
 }
+/* Close a budget, archive a record, retract evidence: the reason gets a full line, then the
+   note, then the two buttons. */
+.inline-form.reason-form {
+  margin-top: 8px;
+}
+.inline-form.reason-form label,
+.inline-form.reason-form input,
+.inline-form.reason-form p {
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0;
+}
 .filters,
 .chips,
 .searchbar {
@@ -1251,6 +1263,14 @@ button.text[aria-current='true'] {
 .retracted {
   text-decoration: line-through;
   opacity: 0.6;
+}
+/* The retraction note itself is read, not struck through (an inline-block stops the parent's
+   line-through from reaching it). */
+.retracted .retraction {
+  display: inline-block;
+  width: 100%;
+  text-decoration: none;
+  margin-top: 4px;
 }
 .not-counted {
   opacity: 0.7;
