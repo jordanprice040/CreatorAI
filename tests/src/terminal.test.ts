@@ -19,6 +19,7 @@ import {
   TerminalSupervisor,
   consoleCommand,
   digest,
+  jsonPublish,
   type Binding,
   type PackageFile,
   type TerminalPorts,
@@ -315,6 +316,30 @@ test('runs of the same window are recorded with the outcome; a malformed run lis
   assert.equal(stopped.run_count, undefined);
 });
 
+test('a new session can start as soon as the last one has an outcome', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  let s = await start(h.terminals, p);
+  for (let round = 0; round < 5; round++) {
+    await h.windows[round]!.result({
+      exit_code: 0,
+      reason: null,
+      cleaned: true,
+      unit_state: 'inactive',
+    });
+    // Restart the moment the listing shows the end (as the app's Run again does), polling
+    // as tightly as the event loop allows so the start lands while the event write and
+    // package-copy cleanup after the outcome are still in flight.
+    for (;;) {
+      const [x] = await h.terminals.list(p, owner);
+      if (x?.id === s.id && x.state !== 'running') break;
+      await new Promise((r) => setImmediate(r));
+    }
+    s = await start(h.terminals, p);
+  }
+  assert.equal(h.windows.length, 6);
+});
+
 test('one open session per product and a studio-wide cap', async (t) => {
   const h = await harness(t);
   const p = await h.product();
@@ -515,6 +540,221 @@ test('after a studio restart an open session is recorded as lost, not as running
   assert.equal(x!.id, s.id);
   assert.equal(x!.state, 'lost');
   assert.match(x!.reason ?? '', /not confirmed/);
+});
+
+/** The outcome events recorded for one session, and the files left in its folder. */
+async function recorded(
+  h: { products: ProductSupervisor },
+  p: string,
+  s: string,
+) {
+  const dir = join(h.products.dir(p), 'events');
+  const outcomes: unknown[] = [];
+  for (const name of await readdir(dir)) {
+    const e = JSON.parse(await readFile(join(dir, name), 'utf8'));
+    if (e.kind === 'terminal.outcome' && e.data.id === s) outcomes.push(e);
+  }
+  const files = await readdir(join(h.products.dir(p), 'terminals', s));
+  return { outcomes: outcomes.length, files: files.sort() };
+}
+
+test('while the end of a session is being recorded it shows as running, frees its slot, and gets one outcome (review L-3)', async (t) => {
+  let held: string | null = null;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const h = await harness(t, {
+    beforeOutcome: async (sessionId) => {
+      held = sessionId;
+      await gate;
+    },
+  });
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  await h.windows[0]!.result({
+    exit_code: 0,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+  });
+  await until(async () => held === s.id);
+  // Held between "ending" and the outcome write: listed as ours (not lost), and the
+  // product's slot is already free.
+  const [x] = await h.terminals.list(p, owner);
+  assert.equal(x!.id, s.id);
+  assert.equal(x!.state, 'running');
+  const during = h.terminals.status(p, s.id);
+  const next = await start(h.terminals, p);
+  assert.notEqual(next.id, s.id);
+  release();
+  // The status call made in the window neither fails nor records the session again.
+  assert.ok(['running', 'ended'].includes((await during).state));
+  const done = await until(async () => {
+    const all = await h.terminals.list(p, owner);
+    return all.find((y) => y.id === s.id && y.state !== 'running');
+  });
+  assert.equal(done.state, 'ended');
+  const r = await recorded(h, p, s.id);
+  assert.equal(r.outcomes, 1);
+  // The outcome was linked into place; no temporary file stays behind.
+  assert.deepEqual(r.files, ['intent.json', 'outcome.json']);
+});
+
+test('an open session whose outcome is being written in place still lists as running (re-review 2 N-a)', async (t) => {
+  // On a data home without hard links the outcome is written in place, so a listing can
+  // read it half-written while the session is still ours.
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let partial: string | null = null;
+  const h = await harness(t, {
+    beforeOutcome: async (sessionId) => {
+      partial = join(h.products.dir(p), 'terminals', sessionId, 'outcome.json');
+      await writeFile(partial, '{"id": "');
+      await gate;
+    },
+  });
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  await h.windows[0]!.result({
+    exit_code: 0,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+  });
+  await until(async () => partial !== null);
+  const [x] = await h.terminals.list(p, owner);
+  assert.equal(x!.id, s.id);
+  assert.equal(x!.state, 'running');
+  assert.equal((await h.terminals.status(p, s.id)).state, 'running');
+  // Let the real write through.
+  await rm(partial!);
+  release();
+  const done = await until(async () => {
+    const [y] = await h.terminals.list(p, owner);
+    return y && y.state !== 'running' ? y : null;
+  });
+  assert.equal(done.state, 'ended');
+});
+
+test('after a restart, concurrent listings record a leftover session as lost once (review L-1)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  const again = new TerminalSupervisor(h.products, 'Ubuntu', {
+    platform: 'win32',
+    workerPath: (x) => x,
+  });
+  const views = await Promise.all([
+    again.list(p, owner),
+    again.list(p, owner),
+    again.status(p, s.id),
+  ]);
+  for (const v of views) {
+    const x = Array.isArray(v) ? v[0]! : v;
+    assert.equal(x.id, s.id);
+    assert.equal(x.state, 'lost');
+  }
+  assert.equal((await recorded(h, p, s.id)).outcomes, 1);
+});
+
+test('a partial outcome left by an older version does not break the listing (review L-2)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  const broken = join(h.products.dir(p), 'terminals', s.id, 'outcome.json');
+  await writeFile(broken, '{"id": "');
+  const again = new TerminalSupervisor(h.products, 'Ubuntu', {
+    platform: 'win32',
+    workerPath: (x) => x,
+  });
+  for (let i = 0; i < 2; i++) {
+    const [x] = await again.list(p, owner);
+    assert.equal(x!.id, s.id);
+    assert.equal(x!.state, 'lost');
+    assert.match(x!.reason ?? '', /not recorded completely/);
+  }
+  // Reported, not overwritten: the broken record stays for inspection.
+  assert.equal(await readFile(broken, 'utf8'), '{"id": "');
+});
+
+test('records are published without hard links where the volume has none, and never overwritten (re-review L-a, N-1)', async (t) => {
+  const parent = resolve('.verification/terminal');
+  await mkdir(parent, { recursive: true });
+  const dir = await mkdtemp(join(parent, 'publish-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  // exFAT/FAT32 and some shares report link() failures as EPERM, EISDIR
+  // (ERROR_INVALID_FUNCTION), ENOTSUP, EOPNOTSUPP, ENOSYS or EXDEV; those write in place.
+  const noLinkCodes = [
+    'EPERM',
+    'EISDIR',
+    'ENOTSUP',
+    'EOPNOTSUPP',
+    'ENOSYS',
+    'EXDEV',
+  ];
+  for (const code of noLinkCodes) {
+    const noLinks = async () => {
+      throw Object.assign(new Error(code), { code });
+    };
+    const target = join(dir, `${code}.json`);
+    await jsonPublish(target, { code }, noLinks);
+    assert.deepEqual(JSON.parse(await readFile(target, 'utf8')), { code });
+    // Still exclusive: an existing record is not replaced.
+    await assert.rejects(jsonPublish(target, { code: 'again' }, noLinks), {
+      code: 'EEXIST',
+    });
+    assert.deepEqual(JSON.parse(await readFile(target, 'utf8')), { code });
+  }
+  // A real link failure (disk full, I/O, access) fails the publish instead of being
+  // retried in place, and leaves nothing behind (re-review 2 L-1).
+  for (const code of ['ENOSPC', 'EIO', 'EACCES', 'ENOENT']) {
+    const broken = async () => {
+      throw Object.assign(new Error(code), { code });
+    };
+    await assert.rejects(jsonPublish(join(dir, `${code}.json`), {}, broken), {
+      code,
+    });
+  }
+  // A temp write that fails (here: a value that cannot be serialized) leaves nothing.
+  const cyclic: Record<string, unknown> = {};
+  cyclic.self = cyclic;
+  await assert.rejects(jsonPublish(join(dir, 'cyclic.json'), cyclic));
+  assert.deepEqual(
+    (await readdir(dir)).sort(),
+    noLinkCodes.map((c) => `${c}.json`).sort(),
+  );
+});
+
+test('a partial intent left by an older version or a crash does not break the listing (re-review N-4)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  await h.windows[0]!.result({
+    exit_code: 0,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+  });
+  await until(async () => {
+    const [x] = await h.terminals.list(p, owner);
+    return x && x.state !== 'running' ? x : null;
+  });
+  const broken = join(h.products.dir(p), 'terminals', randomUUID());
+  await mkdir(broken);
+  await writeFile(join(broken, 'intent.json'), '{"id": "');
+  const warn = t.mock.method(console, 'warn', () => undefined);
+  for (let i = 0; i < 2; i++) {
+    const all = await h.terminals.list(p, owner);
+    assert.deepEqual(
+      all.map((x) => x.id),
+      [s.id],
+    );
+  }
+  // Not silent, and not repeated on every listing (re-review 2 N-c).
+  assert.equal(warn.mock.callCount(), 1);
+  assert.match(
+    String(warn.mock.calls[0]!.arguments[0]),
+    /unreadable start record/,
+  );
 });
 
 test('the bridge and the recorded policy agree on the interactive limits', async () => {

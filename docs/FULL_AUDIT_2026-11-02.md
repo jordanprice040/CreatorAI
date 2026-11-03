@@ -54,7 +54,7 @@ No High findings. One Medium found and fixed (the app pointed people to connecti
 
 **L-7 (Fixed, audit item 11): the sidebar footer said "Schema 1.0" and "Live calls need a provider, pricing, a grant and a budget",** which is out of date for the $0 plan routes. It now says "Local control" and "Models are used only through connections you approve."
 
-**L-8 (Open): in the desktop app, accepted preview feedback can't become a spec revision.**
+**L-8 (Fixed 2026-11-03, Try › "Revise the spec from this feedback"): in the desktop app, accepted preview feedback can't become a spec revision.**
 
 - Try › feedback › Accept says "Revising the spec from it needs the command line, which the desktop app does not have yet" (`gallery.tsx:1041`).
 - The route exists: `POST feedback/{id}/revision`, which takes the spec's full title and content.
@@ -72,7 +72,7 @@ No High findings. One Medium found and fixed (the app pointed people to connecti
 
 **L-11 (Fixed 2026-11-03, PR #96): the Codex plan builder's packet is still bounded only by the 1 MiB body.** `PLAN_ROLE_CONTEXT_MAX` applies only to `plan_roles` (`build.ts:393`).
 
-**L-12 (Open, pilot F14): the desktop app still doesn't detect a redirected data home** (the MSIX container case). No check exists in `apps/desktop/src-tauri`. Launching from the Claude desktop app's container still fails later with "Noncanonical path refused".
+**L-12 (Fixed in the follow-up branch claude/project-thread-xi5g92, pilot F14): the desktop app still doesn't detect a redirected data home** (the MSIX container case). No check exists in `apps/desktop/src-tauri`. Launching from the Claude desktop app's container still fails later with "Noncanonical path refused".
 
 ### Nits
 

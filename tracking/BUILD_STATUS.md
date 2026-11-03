@@ -20,6 +20,89 @@ Review fixes (fresh review `/mnt/project-files/reviews/PR122_SMALLER_AUDIT_ITEMS
 
 Checks: `pnpm test` on PostgreSQL 16: 693 tests, 661 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass; walk re-run.
 
+## Revise the spec from preview feedback in the app (audit L-8) — November 3, 2026
+
+What now works: on Try, accepted preview feedback has a "Revise the spec from this feedback" button (workspace owner only, as the server requires). It opens the Build page's spec form (PR #112) under that item in revise mode: the spec's current version is the starting body, the feedback is quoted above the form, and "What changed and why" is prefilled with "Preview feedback: …" (one line, at most 240 characters, so the studio's appended " (feedback <id>)" fits in 300). Saving posts to the existing `POST feedback/{id}/revision` with the feedback's and the spec's expected versions, so the feedback is marked revised and links to the new spec version in one transaction, as the CLI's `feedback-revise` did. The panel then says "<spec> vN saved from this feedback. Freeze it under Scores and specs, then build it on Build."
+
+- Before opening, the page reads the spec's status and stored body. If the spec has moved on since the feedback (or is archived, or is not spec/1), it says why in words with an Open Build link instead of opening a form the studio would refuse (`feedbackRevisionBlocker` in `apps/web/src/spec-fields.ts`).
+- Accept now says to press the button (non-owners: the owner can revise it). The "Next" step for accepted feedback points at the button under Try instead of the command line, on the web and in the desktop app; the last CLI-only wording helper (`cli` in next-rules, `NO_CLI_IN_DESKTOP`) is gone.
+- If the revision is saved but the spec can't be read back, the form says it was saved and disables Save (a second save would be refused).
+
+Checks run: new test in `tests/src/web-spec-form.test.ts` (blocker for submitted/revised feedback, non-owner, moved-on version, archived spec, other format; reason prefill collapse, 240-character cut, fits with a feedback id); `web-next-step` tests updated (no "command line" or "pnpm cli" on the web or desktop). `pnpm typecheck` and Prettier pass. Full suite with a PostgreSQL 16 test database: 693 tests, 661 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); the server route's own test (`artifact-api.test.ts`, revision and stale refusals) passes. Browser walk `tracking/evidence/feedback-revision/walk.mjs` on a throwaway database (5183/4330/4340, `seed-selection`, fixture, $0, no model call): the spec and its revision are real (v2 → v3 with the edited scope), the package and feedback routes are stand-ins checked against the contracts because a package needs the isolated worker; screenshots 01–05 (phone width has no horizontal scroll).
+
+Limits: not walked against a real packaged artifact or in the installed desktop app; the feedback-route stand-in saves the revision through the plain spec route, so the feedback row update itself is covered by `artifact-api.test.ts`, not the walk. No migration, no ADR.
+
+Review fixes (review of PR #121 at b0af43a, `/mnt/project-files/reviews/PR121_FEEDBACK_REVISION_REVIEW_2026-11-03.md`: READY, no Medium+; Jordan asked for all Lows):
+
+- L-1: a package's accepted feedback can start one revision, because the first one moves the spec on. The form now lists the other accepted items on the same version ("Also accepted on v2: … Make their changes in this revision too…"). Once another item has revised the spec, an accepted item shows "Other feedback revised the spec to vN, so this item, given on vM, can no longer start a revision" with Open Build instead of the button (`feedbackSuperseded`). With several accepted items, the Next step says to revise once and make all their changes in that one revision.
+- L-2: a VERSION_CONFLICT while the form is open disables Save. It says in plain words that the spec changed, that the edits were not saved, and where to go next, with an Open Build link.
+- N-1: in feedback mode the reason box takes at most 252 characters. The appended " (feedback <uuid>)" is 48 characters, not 47 as the review said, so the stored reason keeps the id within 300; a test checks this.
+- N-2: the walk now checks the open-form conflict against the real current spec version (another revision is saved behind the form, screenshot 06). It still stubs the feedback routes. The reviewer's walk (`/mnt/project-files/reviews/pr121-walk/`) covers the real `reviseFromFeedback` route.
+
+Checks: `pnpm test` with a PostgreSQL 16 test database: 694 tests, 662 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass; new tests in `web-spec-form` and `web-next-step`.
+
+## Refuse a redirected studio folder at startup (audit L-12, pilot F14) — November 3, 2026
+
+What now works: before it creates its studio folder, takes the single-instance lock or opens a window, the desktop app makes one empty probe folder at the deepest existing part of the studio folder, asks Windows where it really landed, and removes it. If the probe resolved into another app's `Packages\<package>\LocalCache` (the MSIX container redirect seen in the pilot when the app was started from the Claude desktop app), startup stops with a plain message box naming the package and telling the owner to start Creator Agent from the Start menu or its shortcut. Before, the app ran and builds failed later with "Noncanonical path refused". Any other unusable studio folder (OneDrive, relative path, folder creation failure) now also shows a message box on Windows instead of a silent startup panic. A studio folder the owner deliberately keeps inside a package folder is not refused (the check only fires when the request is outside a package cache and the probe lands inside one).
+
+Code: `apps/desktop/src-tauri/src/home.rs` (`check_not_redirected`, `redirected_package`, `redirect_message`, called from `Home::new`), `main.rs` (message box on a home error). No migration, no ADR.
+
+Checks: `cargo check --target x86_64-pc-windows-gnu` and clippy pass. On Linux, `cargo test home`: the three new tests pass (path rule incl. verbatim prefix, slashes and case; probe passes on an ordinary folder and leaves nothing behind; a symlink into a `Packages\…\LocalCache` folder stands in for the redirect and is refused end to end, also through `Home::new`). Two older home tests use Windows paths and fail on Linux on main too.
+
+Limits: not run on Windows or inside a real MSIX container; the detection relies on `canonicalize` (GetFinalPathNameByHandle) reporting the redirected path, as Node's realpath did in the pilot. Confirming needs Jordan to start the upgraded app once from inside the Claude app (expect the message) and once from the Start menu (expect a normal start).
+
+Review fixes (Jordan asked for all the Lows):
+
+- A second launch now takes the single-instance lock before the folder is opened or probed, so it only asks the running studio to show, even when it was started inside another app's container. Before, such a second launch was refused with the redirect message. The lock key is computed from the path alone (`Home::key_for`), the same value as before, so a running older version still sees the new one as a second launch.
+- Probe folders left behind by a crash or a failed delete are swept at the next start: only empty folders named `.creator-redirect-probe-*` in the probed folder are removed, anything else is left alone.
+
+Checks: `cargo check` and clippy for `x86_64-pc-windows-gnu` pass; Linux `cargo test home`: 6 pass incl. the new sweep test (the same 2 Windows-path tests fail on Linux as on main).
+
+Re-review fixes (`/mnt/project-files/reviews/PR120_MSIX_REDIRECT_REREVIEW_2026-11-03.md`, no Medium+):
+
+- L-1: a refused launch releases the single-instance lock and show signal before its message box, so starting from the Start menu while the box is open starts normally.
+- N-1: the message says "No studio data was changed" (the sweep may remove empty leftover probes).
+- N-2: the sweep skips probe folders younger than 60 s, so two studio folders with the same parent cannot remove each other's probe mid-check. The test checks a fresh probe is kept and an old enough one is removed.
+
+Checks: `cargo check` and clippy for `x86_64-pc-windows-gnu` pass with no warnings in the changed files; Linux `cargo test home`: 6 pass, same 2 Windows-path failures as main.
+
+## Fix terminal restart timing race — November 2, 2026
+
+What now works: "Run in terminal" can start a new session for a product as soon as the last one shows an outcome. Before, `TerminalSupervisor` released the product's slot only in `finish()`'s `finally`, after `settle()` had written `outcome.json`, written the outcome event and removed the package copy, so a restart in that window was refused as "already open" (the cause of the intermittent `terminal.test.ts` failure on PG18 CI). `settle()` now marks the session as ending before it writes the outcome (the file is visible while it is still being written and synced), which frees the product's slot and the studio-wide count, and removes the entry once the outcome is complete. A listing in between still sees the session as ours, not as lost (review N-2 kept).
+
+Also fixed, found by the new test: `status()` checked whether a session was ours only after reading the outcome, so a listing that read the outcome as missing just before `settle()` wrote it could then find the session gone, record it as lost and fail with EEXIST on the second outcome write. It now decides "ours" first; a session that is ours with a missing or partly written outcome reads as its intent.
+
+Checks run: new test "a new session can start as soon as the last one has an outcome" (five back-to-back restarts, polling the listing as tightly as the event loop allows) fails 10 of 10 runs on the old code and passes 40 of 40 on the new; `terminal.test.ts` passes 20 of 20 runs; `pnpm test` without a database: 689 tests, 447 pass, 237 skipped (database), 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass. CI on PR #119 ran `pnpm check` and `test:db` on PostgreSQL 18 green; the independent review ran `test:db` on PostgreSQL 16. No migration, no ADR.
+
+Review fixes (review `/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REVIEW_2026-11-02.md`: no Medium or above; Jordan asked for the Lows and nits):
+
+- L-2: terminal outcome and intent records now appear only complete. New `jsonPublish` in `packages/executor/src/files.ts` writes and syncs a temporary file, then links it into place (EEXIST if a record is already there, so nothing is overwritten) and removes the temporary name. A crash or failed write can no longer leave a partial `outcome.json` that breaks the product's terminal list. A partial outcome already left by an older version is reported as lost ("not recorded completely") without being overwritten, and the listing keeps working.
+- L-1: after a restart, two listings that both find a leftover session no longer fail: the second settle's link gets EEXIST and it returns the first one's complete record. One outcome event is recorded.
+- N-1: when a session is ours, only a missing outcome is ignored; other read errors surface.
+- L-3: optional test seam `TerminalPorts.beforeOutcome` (unset in the studio) holds a session between "ending" and the outcome write. A new test uses it to check, deterministically, that the session lists as running (not lost) in that window, the product's slot is already free, a status call made then neither fails nor records again, and exactly one outcome event and no temporary file remain. The earlier `status()` ordering fix cannot be pinned without a seam inside `status()`; with records linked into place, a second settle of the same session now fails at the link and returns the existing outcome, so that race can no longer write a second outcome or fail a listing, and the L-1 test covers that path.
+- N-2: this note now records where PostgreSQL ran.
+
+Checks: the three new tests fail on the previous PR head (3 of 3 runs each) and pass on the new code; `terminal.test.ts` passes 20 of 20 runs; `pnpm test:db` on a local PostgreSQL 16: 696 tests, 664 pass, 27 skipped, 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass.
+
+Re-review fixes (re-review `/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REREVIEW_2026-11-03.md`: no Medium or above; Jordan asked for all Lows):
+
+- L-a: terminals no longer need a filesystem with hard links. If `link()` fails with anything but EEXIST (exFAT, FAT32, some network shares, where Windows reports EPERM, EISDIR or ENOTSUP), `jsonPublish` writes the record in place with the old exclusive `jsonWrite`, so those data homes behave as before this PR. Readers tolerate a partial record there: an open session's half-written outcome reads as its intent, a leftover one is reported as lost, and a half-written intent is left out of the listing.
+- N-1: the temporary file is removed when its own write fails too.
+- N-2: the comment in `status()` says the "ours first" ordering is belt and braces, since a second lost settle now fails at the exclusive write and returns the real record.
+- N-3: comments no longer say records survive any crash; after a power loss the newest record may be missing (directories are not synced).
+- N-4: a partly written intent (older version or crash) is left out of the listing instead of failing it.
+
+Checks: new tests for the fallback (link failing with EPERM, EISDIR and ENOTSUP via a `linker` test seam; still exclusive; failed temp write leaves nothing) and for a partial intent. The fallback test fails when the fallback is removed and the partial-intent test fails on a55d028; `terminal.test.ts` passes 15 of 15 runs (17 tests); `pnpm test:db` on a local PostgreSQL 16: 698 tests, 666 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass. Not run on Windows or a real exFAT volume.
+
+Second re-review fixes (`/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REREVIEW2_2026-11-03.md`: no Medium or above; Jordan asked for all Lows):
+
+- L-1: `jsonPublish` writes in place only when `link()` says the volume has no hard links (EPERM, EISDIR, ENOTSUP, EOPNOTSUPP, ENOSYS, EXDEV). Real failures such as ENOSPC, EIO, EACCES or ENOENT fail the publish and leave nothing, so the next listing can still record the session properly. If the in-place write itself fails, the partial file it created is removed.
+- N-a: new test: an open session whose outcome is half-written in place still lists (and reads in `status()`) as running.
+- N-b: when a second "lost" settle loses the race and the winner's record is still being written in place, the read is retried once after 100 ms instead of dropping the session from that listing.
+- N-c: a session left out of the listing because its start record is unreadable is logged once per session (`console.warn`), not hidden silently.
+
+Checks: the fallback test now also covers ENOSPC, EIO, EACCES and ENOENT failing without a write. Each new check fails under a mutation that undoes its fix (any-error fallback, ours-branch revert, warning removed). `terminal.test.ts` passes 10 of 10 runs (18 tests); `pnpm test:db` on a local PostgreSQL 16: 699 tests, 667 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.
