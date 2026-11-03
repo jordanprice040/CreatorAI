@@ -243,7 +243,7 @@ export const ChatMessageRequestSchema = z.strictObject({
   client_id: id,
   text: z.string().trim().min(1).max(CHAT_TEXT_MAX),
 });
-/** ADR-0062: what a delete removed. The conversation's words are gone; these counts stay in the audit event. */
+/** ADR-0063: what a delete removed. The conversation's words are gone; these counts stay in the audit event. */
 export const ChatDeletedSchema = z.strictObject({
   id,
   messages: z.number().int().nonnegative(),

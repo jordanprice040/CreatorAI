@@ -523,7 +523,7 @@ function ChatTitle({
 }: {
   conversation: ChatConversation;
   canWrite: boolean;
-  /** ADR-0062: owners delete any conversation; editors the ones they started. */
+  /** ADR-0063: owners delete any conversation; editors the ones they started. */
   canDelete: boolean;
   rename: (title: string) => Promise<void>;
   remove: () => Promise<void>;

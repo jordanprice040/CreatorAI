@@ -2619,11 +2619,11 @@ create table workspace_notes (
 `,
   },
   {
-    // ADR-0062: a chat conversation can be deleted. Messages and answers still never change,
+    // ADR-0063: a chat conversation can be deleted. Messages and answers still never change,
     // and one cannot be deleted on its own: a row may go only once its conversation is gone,
     // which happens through the cascade from deleting the conversation. Plan requests keep no
     // words and stay, so usage counts and daily limits do not change.
-    version: 38,
+    version: 39,
     name: 'chat_conversation_delete',
     sql: `
 alter table chat_messages drop constraint chat_messages_workspace_id_conversation_id_fkey;

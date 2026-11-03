@@ -251,7 +251,7 @@ test('chat API: conversations, server-sorted messages, retries, search and acces
   });
   await assert.rejects(store.listChats(stranger, ws), /not found/i);
 
-  // ADR-0062: the delete route removes the conversation and its messages; a viewer cannot.
+  // ADR-0063: the delete route removes the conversation and its messages; a viewer cannot.
   await assert.rejects(store.deleteChat(viewer, ws, chat), /only read/);
   const deleted = await call(
     'POST',

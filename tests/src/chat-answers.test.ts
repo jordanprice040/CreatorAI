@@ -642,7 +642,7 @@ test('a provider refusal after the text was sent is a failure that shows what wa
   assert.equal(s.runs().length, before + 1, 'nothing more was started');
 });
 
-test('deleting a conversation (ADR-0062): who may, not while an answer is coming, and what stays', async (t) => {
+test('deleting a conversation (ADR-0063): who may, not while an answer is coming, and what stays', async (t) => {
   const s = await setup(t);
   if (!s) return;
   const { db, store, service, ws, chat } = s;

@@ -1,4 +1,4 @@
-// Chat delete and the prefill fixes (ADR-0062, PR #98 L-1/L-2): browser walk against a dev
+// Chat delete and the prefill fixes (ADR-0063, PR #98 L-1/L-2): browser walk against a dev
 // studio on a THROWAWAY database with at least one fixture workspace. Checks: a hand-off from
 // Chat fills Sources once (gone after "Reset"/revisit and in another workspace); a failed first
 // send is retried into the same conversation, not a new empty one; rename; delete asks first,

@@ -1,6 +1,6 @@
 # Decision log
 
-## ADR-0062 — Delete a chat conversation (accepted November 3, 2026)
+## ADR-0063 — Delete a chat conversation (accepted November 3, 2026)
 
 Context: Chat is the studio's front page (ADR-0055), and conversations could be renamed but never removed. The full audit of November 2 (improvement 4) asked for delete, together with PR #98 Lows L-1 (a Chat hand-off refilled its form after "Reset fields" and in another workspace) and L-2 (a failed first send left empty conversations). ADR-0055 and ADR-0057 made messages and answers rows that never change and are never deleted.
 

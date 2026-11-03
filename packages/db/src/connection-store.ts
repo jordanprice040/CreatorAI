@@ -486,7 +486,7 @@ export class ConnectionStore extends PortfolioStore {
   }
 
   /**
-   * ADR-0062: deletes a conversation with its messages and answers. Owners delete any; editors
+   * ADR-0063: deletes a conversation with its messages and answers. Owners delete any; editors
    * only ones they started; viewers none. Refused while an answer is still on its way, so a
    * reply can never come back to a conversation that is gone. The audit event keeps ids and
    * counts only, never the words; plan requests stay, so usage and daily limits are unchanged.

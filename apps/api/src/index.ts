@@ -792,7 +792,7 @@ export function createApi(
           await store.renameChat(ctx, ws, item, await readJson(req)),
           true,
         );
-      // ADR-0062: delete a conversation. POST like the other chat actions, so it carries CSRF.
+      // ADR-0063: delete a conversation. POST like the other chat actions, so it carries CSRF.
       if (item && action === 'delete' && method === 'POST') {
         await readJson(req);
         return send(200, await store.deleteChat(ctx, ws, item), true);
