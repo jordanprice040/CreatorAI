@@ -25,7 +25,7 @@ Review fixes (fresh review `/mnt/project-files/reviews/PR131_THEME_FREE_DISCOVER
 - L-6: picked claims start as bearing on the problem only; claims cited against are labelled and left for the owner.
 - Nits: N-1 no "0 perspectives" on explorations; N-2 a non-candidate pick is `INVALID_TRANSITION`; N-4 ADR wording on `max_age_days`; N-5 index keys; N-6 duplicates are checked against up to 200 recent records, including those not shown to the explorer, and the notes say what was not shown.
 
-Checks: `exploration.test.ts` gains a 40-claim, 60-record packet test (fits, newest first, counts), preview/leave-out/catalog checks and a hidden-record duplicate check; `chat-api.test.ts` gains the anchored phrases. The walk adds the preview (leave a claim out and back), the cited-claim text and "Show what was sent"; 16 checks pass.
+Checks: `exploration.test.ts` gains a 40-claim, 60-record packet test (fits, newest first, counts), preview/leave-out/catalog checks and a hidden-record duplicate check; `chat-api.test.ts` gains the anchored phrases. The walk adds the preview (leave a claim out and back), the cited-claim text and "Show what was sent"; 16 checks pass. Full `pnpm test:db` on PostgreSQL 16: 731 tests, 698 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
 
 ## Owner actions that were command-line only — November 3, 2026
 
