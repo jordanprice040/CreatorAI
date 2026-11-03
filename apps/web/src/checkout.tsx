@@ -1,6 +1,8 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   CheckoutSchema,
+  EntitlementSchema,
+  OfferSchema,
   TestCheckoutStateSchema,
   z,
   type Checkout as CheckoutRow,
@@ -110,6 +112,27 @@ export function Checkout({
   const connById = new Map(connections.map((c) => [c.id, c]));
   const checkouts = list.data ?? [];
   const selected = checkouts.find((c) => c.id === picked) ?? null;
+  // PR #125 review L-2: the open checkout's offer and its buyer's access are read by id, so a
+  // checkout for an offer past the loaded pages still shows them. Read again whenever the page's
+  // lists are (`entitlements` changes on each reload). Newest matching access wins.
+  const own = useLoad(async () => {
+    if (!selected) return null;
+    const [offer, access] = await Promise.all([
+      offerById.get(selected.offer_id) ??
+        api(OfferSchema, `${base}/payment-offers/${selected.offer_id}`),
+      api(
+        z.array(EntitlementSchema),
+        `${base}/entitlements?${new URLSearchParams({
+          offer_id: selected.offer_id,
+          customer_ref: selected.customer_ref,
+          limit: '1',
+        }).toString()}`,
+      ),
+    ]);
+    return { id: selected.id, offer, access: access[0] ?? null };
+  }, [selected?.id, offers, entitlements]);
+  // Only an answer for the checkout now open counts, not one still shown from the last pick.
+  const ownFor = own.data && own.data.id === selected?.id ? own.data : null;
 
   if (!owner)
     return (
@@ -201,18 +224,21 @@ export function Checkout({
           base={base}
           session={session}
           checkout={selected}
-          offer={offerById.get(selected.offer_id) ?? null}
+          offer={offerById.get(selected.offer_id) ?? ownFor?.offer ?? null}
           connection={
             connById.get(
-              offerById.get(selected.offer_id)?.connection_id ?? '',
+              (offerById.get(selected.offer_id) ?? ownFor?.offer)
+                ?.connection_id ?? '',
             ) ?? null
           }
           access={
+            ownFor?.access ??
             entitlements.find(
               (e) =>
                 e.offer_id === selected.offer_id &&
                 e.customer_ref === selected.customer_ref,
-            ) ?? null
+            ) ??
+            null
           }
           fixture={fixture}
           changed={changed}

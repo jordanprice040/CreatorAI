@@ -12,6 +12,14 @@ Checks run: new `tests/src/list-paging.test.ts`: six lists seeded with cap + 1 r
 
 Limits: the CLI has no `--before` option (the API takes it); the pickers that read the budget list for a default (Build, Discover, Runs, what's-next line) use the newest 200, so an active budget older than 200 newer ones is only on the Budgets page after "Show older". Schedules were paged at limit 2, not at 201 rows (same shared helper as the six lists tested at cap + 1). Records past the first page show as they were when fetched until the page is reloaded.
 
+Review fixes (fresh review `/mnt/project-files/reviews/PR125_REFRESH_AND_PAGING_REVIEW_2026-11-03.md`: no Medium or above; Jordan asked for the Lows):
+
+- L-1: records shown with "Show older" are read again each time the first page is (on return and after an action), page by page up to as many as were shown (`rereadOlder` in `apps/web/src/older-pages.ts`), so a closed budget, archived offer or cancelled schedule past the newest 200 shows its new state and its buttons follow. Only the latest read writes. `useOlder` returns the same `items` array until something changes.
+- L-2: Checkout reads the open checkout's offer by id when it is past the loaded pages (new `GET payment-offers/{id}`, `PaymentStore.getOffer`) and the buyer's access with `entitlements?offer_id&customer_ref&limit=1` (newest matching), refreshed with the page; it gets every offer and access record on screen, and "release replaced" covers older offers too.
+- N-1: re-opening a spec on return has a sequence guard, and a re-read whose selection lists fail keeps the run it found, so an open Freeze form stays. N-2: Models shows the updated list even when reading the open connection fails (and opens the first one if it is gone). N-3: `pnpm cli budgets|offers|entitlements|marketing-list|reinvest-allocations|reinvest-tranches <workspace> [older-than-id]` reads the next older page; the help says lists print newest first.
+
+Checks: `list-paging.test.ts` gains the one-offer route (200, unknown 404, other workspace 404) and a `rereadOlder` test (re-reads in order to the shown count, a changed state shows, a record pushed out of the first page is kept, a short first page reads nothing). Walk re-run: after "Show older", "Budget 1" closed through the API while Library was shown reads `closed` on return (`03-older-budget-refreshed.png`). `pnpm test` with PostgreSQL 16: 696 tests, 664 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

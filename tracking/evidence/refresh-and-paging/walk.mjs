@@ -93,6 +93,18 @@ console.log(
   await older.count(),
 );
 
+// PR #125 review L-1: an older budget closed elsewhere reads "closed" on return.
+const oldest = (await (await fetch(`${WEB}/api/workspaces/${ws.id}/budgets?limit=1&before=${(await (await fetch(`${WEB}/api/workspaces/${ws.id}/budgets?limit=200`, { headers: write })).json()).at(-1).id}`, { headers: write })).json())[0];
+await page.goto(`${WEB}/#/sources/library?ws=${ws.id}`);
+await page.waitForTimeout(1000);
+console.log('close oldest:', (await post(`workspaces/${ws.id}/budgets/${oldest.id}/close`, { expected_version: oldest.version, reason: 'Walk: closed elsewhere.' })).status);
+await page.goBack();
+await page.waitForTimeout(3000);
+const last = page.locator('.records-grid article.decision').last();
+console.log('after return:', (await names()).length, '| oldest row:', (await last.locator('.decision-head').innerText()).replace(/\s+/g, ' '), '| show older left:', await older.count());
+await last.scrollIntoViewIfNeeded();
+await page.screenshot({ path: `${out}/03-older-budget-refreshed.png` });
+
 // L-10
 await page.goto(`${WEB}/#/sources/library?ws=${ws.id}&id=${problem.id}`);
 await page.waitForTimeout(2500);

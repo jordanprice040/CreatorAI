@@ -76,6 +76,8 @@ export async function paymentRoutes(r: {
           await store.createOffer(ctx, ws, await r.body()),
           true,
         );
+      if (item && item !== 'owner-funding' && !action && get)
+        return send(200, await store.getOffer(ctx, ws, item), false);
       if (item && action === 'archive' && post)
         return send(200, await store.archiveOffer(ctx, ws, item), true);
       break;

@@ -544,6 +544,21 @@ export class PaymentStore extends DesktopJobStore {
       return toOffer(rows[0] as Row);
     });
   }
+  /** One offer, for a checkout whose offer is past the loaded pages (PR #125 review L-2). */
+  async getOffer(ctx: CommandContext, ws: string, id: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    id = uuid(id);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        'select * from payment_offers where workspace_id = $1 and id = $2',
+        [ws, id],
+      );
+      if (!rows[0]) throw fail('NOT_FOUND', 'Offer not found.');
+      return toOffer(rows[0] as Row);
+    });
+  }
   /** Newest first, one page of at most 200 (audit L-9); `before` reads the next older page. */
   async listOffers(ctx: CommandContext, ws: string, page?: PageRequest) {
     ctx = normalize(ctx);

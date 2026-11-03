@@ -218,6 +218,27 @@ test('L-9 capped lists read newest first and page with a cursor at cap + 1', asy
       own.body.map((r: { customer_ref: string }) => r.customer_ref),
       ['cust-3'],
     );
+    // PR #125 review L-2: one offer reads by id (a checkout whose offer is past the loaded
+    // pages); an unknown id is 404 and another workspace's offer is not readable here.
+    const offers = (await get(`workspaces/${ws}/payment-offers?limit=1`)).body;
+    const oldest = (
+      await pool.query<{ id: string }>(
+        'select id from payment_offers where workspace_id = $1 order by created_at, id limit 1',
+        [ws],
+      )
+    ).rows[0]!.id;
+    const one = await get(`workspaces/${ws}/payment-offers/${oldest}`);
+    assert.equal(one.status, 200);
+    assert.equal(one.body.id, oldest);
+    assert.notEqual(offers[0].id, oldest);
+    assert.equal(
+      (await get(`workspaces/${ws}/payment-offers/${randomUUID()}`)).status,
+      404,
+    );
+    assert.equal(
+      (await get(`workspaces/${other}/payment-offers/${oldest}`)).status,
+      404,
+    );
   } finally {
     await api.close();
   }
@@ -275,6 +296,12 @@ type OlderPages = {
   withOlder: <T extends { id: string }>(first: T[], older: T[]) => T[];
   mayHaveOlder: (lastPageLength: number, pageSize: number) => boolean;
   olderPath: (path: string, last: { id: string }) => string;
+  rereadOlder: <T extends { id: string }>(
+    fetchPage: (before: string) => Promise<T[]>,
+    first: T[],
+    shownBeyond: number,
+    pageSize: number,
+  ) => Promise<{ rows: T[]; lastLength: number | null }>;
 };
 async function olderPages(): Promise<OlderPages> {
   const source = await readFile('apps/web/src/older-pages.ts', 'utf8');
@@ -310,4 +337,45 @@ test('L-9 web: "Show older" keeps a record a refresh pushed out of the first pag
     olderPath('workspaces/w/entitlements?offer_id=o', r('x')),
     'workspaces/w/entitlements?offer_id=o&before=x',
   );
+});
+
+test('PR #125 review L-1: older pages shown are read again after the first page is', async () => {
+  const { rereadOlder, withOlder } = await olderPages();
+  type R = { id: string; state: string };
+  // Server list, newest first, pages of 2: e d | c b | a. "c" was closed since it was shown.
+  let rows: R[] = ['e', 'd', 'c', 'b', 'a'].map((id) => ({
+    id,
+    state: id === 'c' ? 'closed' : 'active',
+  }));
+  const asked: string[] = [];
+  const fetchPage = async (before: string) => {
+    asked.push(before);
+    const i = rows.findIndex((r) => r.id === before);
+    return rows.slice(i + 1, i + 3);
+  };
+  // Three were shown past the first page (c, b, a): two pages are read again, in order.
+  const again = await rereadOlder(fetchPage, rows.slice(0, 2), 3, 2);
+  assert.deepEqual(asked, ['d', 'b']);
+  assert.deepEqual(
+    again.rows.map((r) => `${r.id}:${r.state}`),
+    ['c:closed', 'b:active', 'a:active'],
+  );
+  assert.equal(again.lastLength, 1);
+  // Only one page had been shown (c, b): one page is read again, and more may follow.
+  asked.length = 0;
+  const one = await rereadOlder(fetchPage, rows.slice(0, 2), 2, 2);
+  assert.deepEqual(asked, ['d']);
+  assert.equal(one.lastLength, 2);
+  // A new record "f" pushes "d" out of the first page: "d" is read again with the older ones.
+  rows = [{ id: 'f', state: 'active' }, ...rows];
+  const pushed = await rereadOlder(fetchPage, rows.slice(0, 2), 3, 2);
+  assert.deepEqual(
+    withOlder(rows.slice(0, 2), pushed.rows).map((r) => r.id),
+    ['f', 'e', 'd', 'c', 'b', 'a'],
+  );
+  // A first page that is no longer full means nothing older exists: nothing is read.
+  asked.length = 0;
+  const short = await rereadOlder(fetchPage, rows.slice(0, 1), 3, 2);
+  assert.deepEqual(asked, []);
+  assert.deepEqual(short, { rows: [], lastLength: null });
 });

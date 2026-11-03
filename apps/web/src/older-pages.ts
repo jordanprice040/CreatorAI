@@ -27,3 +27,31 @@ export function mayHaveOlder(lastPageLength: number, pageSize: number) {
 export function olderPath(path: string, last: { id: string }) {
   return `${path}${path.includes('?') ? '&' : '?'}before=${encodeURIComponent(last.id)}`;
 }
+
+/**
+ * Reads again the records shown past the first page, after the first page was read again
+ * (PR #125 review L-1): from the first page's last record, page by page, until at least as many
+ * as were shown before, or the last page. So a record past the first page that changed (closed,
+ * archived, cancelled) shows its new state, and one a new record pushed out of the first page
+ * is still listed in order. `lastLength` is the length of the last page read, or null when the
+ * first page is not full and nothing older exists.
+ */
+export async function rereadOlder<T extends { id: string }>(
+  fetchPage: (before: string) => Promise<T[]>,
+  first: T[],
+  shownBeyond: number,
+  pageSize: number,
+): Promise<{ rows: T[]; lastLength: number | null }> {
+  const rows: T[] = [];
+  let lastLength: number | null = null;
+  let last = first[first.length - 1];
+  if (first.length < pageSize) return { rows, lastLength };
+  while (last && rows.length < shownBeyond) {
+    const page = await fetchPage(last.id);
+    rows.push(...page);
+    lastLength = page.length;
+    if (page.length < pageSize) break;
+    last = page[page.length - 1];
+  }
+  return { rows, lastLength };
+}

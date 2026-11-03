@@ -172,8 +172,9 @@ export function Payments({
   const stale = new Set(
     d?.artifacts.filter((a) => !a.current).map((a) => a.id) ?? [],
   );
+  // Every offer on screen, older pages included (PR #125 review L-2).
   const replaced = new Set(
-    d?.offers
+    offers.items
       .filter((o) => o.status === 'active' && stale.has(o.artifact_id))
       .map((o) => o.id) ?? [],
   );
@@ -321,9 +322,9 @@ export function Payments({
             <Checkout
               session={session}
               workspace={workspace}
-              offers={d.offers}
+              offers={offers.items}
               connections={d.connections}
-              entitlements={d.entitlements}
+              entitlements={access.items}
               replaced={replaced}
               changed={data.reload}
             />
