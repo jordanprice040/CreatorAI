@@ -113,6 +113,15 @@ export async function chatMessages(
 
 // ADR-0057: chat answers from a connected plan.
 
+/**
+ * ADR-0062: the point before which a pending answer (aliased `ca`) counts as abandoned: its
+ * connection's current request timeout plus 15 minutes. One fragment for both the close-as-failed
+ * sweep and the delete check, so they cannot drift apart (PR #124 timeout review N-2).
+ */
+export const CHAT_ANSWER_STALE_POINT = `clock_timestamp() - make_interval(secs => 900 + coalesce((
+   select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
+   from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)`;
+
 export const toChatAnswer = (r: Row): ChatAnswer => ({
   id: String(r.id),
   conversation_id: String(r.conversation_id),

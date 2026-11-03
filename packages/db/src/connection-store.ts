@@ -76,6 +76,7 @@ import {
 import { PortfolioStore } from './portfolio-store.js';
 import { usageSummary } from './usage-summary.js';
 import {
+  CHAT_ANSWER_STALE_POINT,
   chatAnswers,
   chatConversation,
   chatConversations,
@@ -523,11 +524,13 @@ export class ConnectionStore extends PortfolioStore {
       }
       // ADR-0062: a pending answer counts as live until its connection's request timeout plus
       // 15 minutes, the same point at which a stopped studio's answer is closed as failed.
+      // PR #124 timeout review L-1: that reads the current timeout, so a pending answer whose
+      // plan request is still in flight blocks too, even if the owner lowered the timeout since.
       const pending = await c.query(
         `select 1 from chat_answers ca where ca.conversation_id = $1 and ca.state = 'pending'
-           and ca.created_at >= clock_timestamp() - make_interval(secs => 900 + coalesce((
-             select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
-             from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)
+           and (ca.created_at >= ${CHAT_ANSWER_STALE_POINT}
+             or exists (select 1 from plan_requests pr
+               where pr.logical_operation_id = ca.logical_operation_id and pr.state = 'in_flight'))
          limit 1`,
         [conversation.id],
       );
@@ -823,9 +826,7 @@ export class ConnectionStore extends PortfolioStore {
         `update chat_answers ca set state = 'failed', finished_at = clock_timestamp(),
            reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'
          where ca.message_id = $1 and ca.state = 'pending'
-           and ca.created_at < clock_timestamp() - make_interval(secs => 900 + coalesce((
-             select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
-             from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)`,
+           and ca.created_at < ${CHAT_ANSWER_STALE_POINT}`,
         [msg.id],
       );
       const prior = (
@@ -952,7 +953,13 @@ export class ConnectionStore extends PortfolioStore {
           [uuid(ws), uuid(answerId)],
         )
       ).rows[0] as Row | undefined;
-      if (!cur) throw fail('NOT_FOUND', 'Chat answer not found.');
+      // PR #124 timeout review L-1: the only way a begun answer disappears is its conversation
+      // being deleted; say so instead of a bare "not found".
+      if (!cur)
+        throw fail(
+          'NOT_FOUND',
+          'The conversation was deleted while this answer was on its way, so the answer was not kept. The plan request is still counted.',
+        );
       if (cur.state !== 'pending') return toChatAnswer(cur);
       const text = outcome.state === 'completed' ? (outcome.text ?? '') : null;
       const { rows } = await c.query(

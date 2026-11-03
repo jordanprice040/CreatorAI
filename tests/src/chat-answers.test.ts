@@ -857,3 +857,86 @@ test('deleting a conversation (ADR-0063): who may, not while an answer is coming
   for (const row of audit.rows)
     assert.doesNotMatch(JSON.stringify(row.payload), /first build|bad one/);
 });
+
+test('a pending answer blocks delete until its stale point, and while its request is in flight (PR #124 timeout review)', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { db, store, ws, chat } = s;
+  await s.allowPrivate();
+  await store.setChatSettings(owner, ws.id, {
+    expected_version: 0,
+    enabled: true,
+    connection_id: s.conn.id,
+    model_id: MODEL,
+    include_snapshot: false,
+    daily_limit: 5,
+  });
+  const q = await s.say('Is this still coming?');
+  const begun = await store.beginChatAnswer(owner, ws.id, chat.id, q.id, {
+    client_id: randomUUID(),
+  });
+  const c = await db.pool.connect();
+  try {
+    await c.query(
+      'alter table chat_answers disable trigger chat_answers_settle_once',
+    );
+    await c.query(
+      `update chat_answers set created_at = created_at - interval '20 minutes' where id = $1`,
+      [begun.answer.id],
+    );
+    await c.query(
+      'alter table chat_answers enable trigger chat_answers_settle_once',
+    );
+  } finally {
+    c.release();
+  }
+  const timeout = (ms: number) =>
+    db.pool.query(
+      `update plan_connections set settings = jsonb_set(settings, '{caps,responses,request_timeout_ms}', $2::jsonb) where id = $1`,
+      [s.conn.id, JSON.stringify(ms)],
+    );
+  // L-1: the owner lowered the timeout to 1 s while the request is still in flight. The
+  // 20-minute-old answer is past the new stale point, but its live request still blocks.
+  const request = randomUUID();
+  await db.pool.query(
+    `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose, model_id,
+       data_class, state, created_by)
+     values ($1, $2, $3, 'responses', 'chat', $4, 'private_approved', 'in_flight', $5)`,
+    [request, s.conn.id, begun.logical_operation_id, MODEL, owner.actorId],
+  );
+  await timeout(1000);
+  await rejects(
+    'INVALID_TRANSITION',
+    store.deleteChat(owner, ws.id, chat.id),
+    /still on its way/,
+  );
+  // N-1: once the request is no longer in flight and the answer is past timeout + 15 min,
+  // nothing is on its way: the delete goes through and takes the pending answer with it.
+  await db.pool.query(
+    `update plan_requests set state = 'failed', finished_at = clock_timestamp() where id = $1`,
+    [request],
+  );
+  const gone = await store.deleteChat(owner, ws.id, chat.id);
+  assert.equal(gone.answers, 1);
+  // A reply that still comes back says what happened instead of a bare "not found".
+  await rejects(
+    'NOT_FOUND',
+    store.finishChatAnswer(owner, ws.id, begun.answer.id, {
+      state: 'completed',
+      plan_request_id: null,
+      text: 'late',
+      reason: null,
+    }),
+    /deleted while this answer was on its way/,
+  );
+  // The plan request stays.
+  assert.equal(
+    (
+      await db.pool.query(
+        'select count(*)::int as n from plan_requests where id = $1',
+        [request],
+      )
+    ).rows[0].n,
+    1,
+  );
+});
