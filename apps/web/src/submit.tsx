@@ -178,7 +178,9 @@ export function Submit({
 
   const [theme, setTheme] = useState('');
   useEffect(() => {
-    if (prefill) setTheme(prefill.value.slice(0, 300));
+    if (!prefill) return;
+    setTheme(prefill.value.slice(0, 300));
+    prefill.used();
   }, [prefill?.nonce]);
   const [fieldA, setFieldA] = useState('');
   const [fieldB, setFieldB] = useState('');

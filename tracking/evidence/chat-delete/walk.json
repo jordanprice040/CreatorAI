@@ -1,0 +1,60 @@
+[
+  {
+    "check": "workspace",
+    "result": "eaeb57ad-b1cd-463c-aa2a-f1a587984996"
+  },
+  {
+    "check": "L-2 failed send error",
+    "result": "API error 503 Your message is kept; send it again to retry."
+  },
+  {
+    "check": "L-2 conversations added by fail+retry (expect 1)",
+    "result": 1
+  },
+  {
+    "check": "L-1 filled address",
+    "result": "https://example.org/frame-timing"
+  },
+  {
+    "check": "L-1 address after Reset (expect empty)",
+    "result": ""
+  },
+  {
+    "check": "L-1 refilled address",
+    "result": "https://example.org/frame-timing"
+  },
+  {
+    "check": "L-1 other workspace address (expect empty)",
+    "result": ""
+  },
+  {
+    "check": "delete confirm text",
+    "result": "Delete “Frame timing” and its 2 messages? Model answers in it go too. This cannot be undone."
+  },
+  {
+    "check": "Keep it keeps (count unchanged)",
+    "result": true
+  },
+  {
+    "check": "after delete: conversations",
+    "result": -1
+  },
+  {
+    "check": "after delete: open conversation cleared",
+    "result": true
+  },
+  {
+    "check": "after delete: address",
+    "result": "#/chat/conversations?ws=eaeb57ad-b1cd-463c-aa2a-f1a587984996"
+  },
+  {
+    "check": "phone: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "page errors (expect only the forced 503)",
+    "result": [
+      "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    ]
+  }
+]

@@ -1,5 +1,21 @@
 # Decision log
 
+## ADR-0062 — Delete a chat conversation (accepted November 3, 2026)
+
+Context: Chat is the studio's front page (ADR-0055), and conversations could be renamed but never removed. The full audit of November 2 (improvement 4) asked for delete, together with PR #98 Lows L-1 (a Chat hand-off refilled its form after "Reset fields" and in another workspace) and L-2 (a failed first send left empty conversations). ADR-0055 and ADR-0057 made messages and answers rows that never change and are never deleted.
+
+Decision:
+
+- A conversation can be deleted with everything in it: its messages and its model answers. Migration 38 (`chat_conversation_delete`) makes the foreign keys from `chat_messages` and `chat_answers` cascade, and replaces the triggers so a message or answer row may be deleted only when its conversation no longer exists. Messages still never change, answers still settle only once, and neither can be deleted on its own.
+- `POST /api/workspaces/{ws}/chats/{id}/delete` (POST with CSRF, like the other chat actions). Owners delete any conversation; editors only those they started; viewers none. Another workspace's id is not found.
+- Refused (`INVALID_TRANSITION`) while an answer in it is pending and less than 15 minutes old, so a reply can never land in a deleted conversation. Older pending answers are already treated as stopped (ADR-0057) and do not block.
+- Plan requests are kept. They hold no words, so chat usage and the daily chat limit are unchanged by a delete.
+- The audit event `chat.deleted` keeps the conversation id and the message and answer counts, never the title or words. Earlier `chat.*` events stay as they were (they already held only ids, intents and hashes).
+- The UI asks first, in place: "Delete "<title>" and its N messages? Model answers in it go too. This cannot be undone." with "Delete conversation" and "Keep it".
+- Hard delete, not hide: the conversations hold the person's own private words, and keeping them after "delete" would not be honest. The provenance that matters for spending (plan requests, audit counts) stays.
+
+Consequences: a deleted conversation cannot be recovered, and "What was sent" for its model answers goes with it; the plan request rows remain as the record that something was sent. Anyone with database access can still delete rows only through the conversation.
+
 ## ADR-0061 — Open public links from the desktop app in the system browser (accepted November 2, 2026)
 
 Context: after PR #106, links in chat answers in the installed app showed their address and a Copy button but could not be opened, because the studio window refuses every new window except private previews. Jordan asked (Nov 2) for links to open in the browser from within the app.

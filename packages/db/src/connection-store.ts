@@ -52,6 +52,7 @@ import {
   type ChatAnswer,
   type ChatAnswerState,
   type ChatConversation,
+  type ChatDeleted,
   type ChatDetail,
   type ChatSettings,
   type ChatMessage,
@@ -481,6 +482,65 @@ export class ConnectionStore extends PortfolioStore {
         payload: {},
       });
       return chatConversation(c, uuid(ws), uuid(id));
+    });
+  }
+
+  /**
+   * ADR-0062: deletes a conversation with its messages and answers. Owners delete any; editors
+   * only ones they started; viewers none. Refused while an answer is still on its way, so a
+   * reply can never come back to a conversation that is gone. The audit event keeps ids and
+   * counts only, never the words; plan requests stay, so usage and daily limits are unchanged.
+   */
+  async deleteChat(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<ChatDeleted> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      const role = await this.role(c, uuid(ws), ctx.actorId, true);
+      const conversation = await chatConversation(c, uuid(ws), uuid(id), true);
+      if (role !== 'owner' && conversation.created_by !== ctx.actorId)
+        throw fail(
+          'ACCESS_DENIED',
+          'Only the owner or the person who started this conversation can delete it.',
+        );
+      const pending = await c.query(
+        `select 1 from chat_answers where conversation_id = $1 and state = 'pending'
+           and created_at >= clock_timestamp() - interval '15 minutes' limit 1`,
+        [conversation.id],
+      );
+      if (pending.rows.length)
+        throw fail(
+          'INVALID_TRANSITION',
+          'An answer is still on its way in this conversation. Delete it once the answer is back.',
+        );
+      const answers = Number(
+        (
+          await c.query(
+            'select count(*)::int as n from chat_answers where conversation_id = $1',
+            [conversation.id],
+          )
+        ).rows[0]?.n ?? 0,
+      );
+      await c.query(
+        'delete from chat_conversations where workspace_id = $1 and id = $2',
+        [uuid(ws), conversation.id],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.deleted',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ id: conversation.id }),
+        payload: { messages: conversation.messages, answers },
+      });
+      return {
+        id: conversation.id,
+        messages: conversation.messages,
+        answers,
+      };
     });
   }
 

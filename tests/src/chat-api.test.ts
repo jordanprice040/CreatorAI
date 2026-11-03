@@ -250,4 +250,23 @@ test('chat API: conversations, server-sorted messages, retries, search and acces
     display_name: 'x',
   });
   await assert.rejects(store.listChats(stranger, ws), /not found/i);
+
+  // ADR-0062: the delete route removes the conversation and its messages; a viewer cannot.
+  await assert.rejects(store.deleteChat(viewer, ws, chat), /only read/);
+  const deleted = await call(
+    'POST',
+    `workspaces/${ws}/chats/${chat}/delete`,
+    {},
+  );
+  assert.equal(deleted.status, 200);
+  assert.deepEqual(deleted.body, { id: chat, messages: 4, answers: 0 });
+  assert.equal(
+    (await call('GET', `workspaces/${ws}/chats/${chat}`)).status,
+    404,
+  );
+  assert.equal(
+    (await call('POST', `workspaces/${ws}/chats/${chat}/delete`, {})).status,
+    404,
+  );
+  assert.equal((await call('GET', `workspaces/${ws}/chats`)).body.length, 0);
 });

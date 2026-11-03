@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ChatAnswerSchema,
   ChatConversationSchema,
+  ChatDeletedSchema,
   ChatDetailSchema,
   ChatMessageSchema,
   ChatSettingsSchema,
@@ -188,6 +189,10 @@ export function Chat({
           body: {},
         });
         id = created.id;
+        // PR #98 L-2: open the new conversation before posting, so a failed post is retried
+        // into it instead of starting another empty one.
+        focusRef.current = id;
+        onFocus(id);
       }
       const posted = await api(ChatMessageSchema, `${base}/${id}/messages`, {
         csrf: session.csrf_token,
@@ -195,10 +200,7 @@ export function Chat({
       });
       clientId.current = crypto.randomUUID();
       setDraft('');
-      if (id !== focus) {
-        focusRef.current = id;
-        onFocus(id);
-      } else await loadDetail(id);
+      if (id === focusRef.current) await loadDetail(id);
       await loadList();
       // ADR-0057: a message the rules keep as a note goes to the chosen plan when answers are on.
       if (answersOn && owner && posted.intent === 'note')
@@ -322,6 +324,25 @@ export function Chat({
               key={detail.conversation.id}
               conversation={detail.conversation}
               canWrite={canWrite}
+              canDelete={
+                owner ||
+                (canWrite &&
+                  detail.conversation.created_by === session.actor_id)
+              }
+              remove={async () => {
+                const id = detail.conversation.id;
+                await api(ChatDeletedSchema, `${base}/${id}/delete`, {
+                  csrf: session.csrf_token,
+                  body: {},
+                });
+                askIds.current.clear();
+                if (focusRef.current === id) {
+                  focusRef.current = '';
+                  setDetail(null);
+                  onFocus('');
+                }
+                await loadList();
+              }}
               rename={async (title) => {
                 await api(
                   ChatConversationSchema,
@@ -496,15 +517,67 @@ function MessageItem({
 function ChatTitle({
   conversation,
   canWrite,
+  canDelete,
   rename,
+  remove,
 }: {
   conversation: ChatConversation;
   canWrite: boolean;
+  /** ADR-0062: owners delete any conversation; editors the ones they started. */
+  canDelete: boolean;
   rename: (title: string) => Promise<void>;
+  remove: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [title, setTitle] = useState(conversation.title);
   const [error, setError] = useState('');
+  if (confirming)
+    return (
+      <div
+        className="chat-head chat-confirm"
+        role="group"
+        aria-label="Delete conversation"
+      >
+        <p>
+          Delete “{conversation.title}” and its {conversation.messages}{' '}
+          {conversation.messages === 1 ? 'message' : 'messages'}? Model answers
+          in it go too. This cannot be undone.
+        </p>
+        <button
+          type="button"
+          className="secondary danger"
+          disabled={deleting}
+          onClick={() => {
+            setDeleting(true);
+            setError('');
+            remove().catch((err: unknown) => {
+              setError(errorText(err));
+              setDeleting(false);
+            });
+          }}
+        >
+          {deleting ? 'Deleting…' : 'Delete conversation'}
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          disabled={deleting}
+          onClick={() => {
+            setConfirming(false);
+            setError('');
+          }}
+        >
+          Keep it
+        </button>
+        {error && (
+          <span className="error" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    );
   if (!editing)
     return (
       <div className="chat-head">
@@ -519,6 +592,15 @@ function ChatTitle({
             }}
           >
             Rename
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            className="text"
+            onClick={() => setConfirming(true)}
+          >
+            Delete
           </button>
         )}
       </div>

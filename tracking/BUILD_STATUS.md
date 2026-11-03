@@ -1,3 +1,15 @@
+## Delete chat conversations and clear the Chat prefill (audit improvement 4, ADR-0062, migration 38) — November 3, 2026
+
+What now works:
+
+- Chat › open conversation › "Delete" asks first, then removes the conversation with its messages and model answers. Owners delete any conversation; editors the ones they started; viewers see no button and the server refuses them. Refused while a model answer is still on its way. Plan requests and audit counts stay, so usage and the daily chat limit do not change. Rename was already there (next to Delete).
+- PR #98 L-1: a "Fill in the fetch form" / "Use as a theme" hand-off fills its field once, in the workspace it came from. "Reset fields" and other workspaces start empty.
+- PR #98 L-2: a new conversation is opened before its first message is posted, so a failed first send is retried into it instead of adding another empty "New conversation".
+
+Checks run: `pnpm typecheck` and Prettier pass. New DB test `deleting a conversation (ADR-0062)` in `tests/src/chat-answers.test.ts` (pending answer blocks, single-row deletes and edits still refused, editor/viewer/owner rules, other workspace, cascade empties both tables, `used_24h` unchanged, audit payload without words) and a delete-route section in `tests/src/chat-api.test.ts`; full `pnpm test:db` on PostgreSQL 16: 693 tests, 661 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); `storage.test` now expects schema 38. Browser walk `tracking/evidence/chat-delete/walk.mjs` on a throwaway database (5183/4330/4340, $0, no model call): a forced 503 on the first send then retry adds exactly one conversation; Reset empties the filled address; another workspace's Sources starts empty; confirm text, "Keep it", delete, phone width without overflow.
+
+Limits: not run on the installed app; the dev studio and installed app need schema 38. Open from PR #98: L-3 (rule misreads), L-5 (fill overwrites typed text, Discover cuts to 300).
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.
