@@ -4,7 +4,17 @@ What now works: "Run in terminal" can start a new session for a product as soon 
 
 Also fixed, found by the new test: `status()` checked whether a session was ours only after reading the outcome, so a listing that read the outcome as missing just before `settle()` wrote it could then find the session gone, record it as lost and fail with EEXIST on the second outcome write. It now decides "ours" first; a session that is ours with a missing or partly written outcome reads as its intent.
 
-Checks run: new test "a new session can start as soon as the last one has an outcome" (five back-to-back restarts, polling the listing as tightly as the event loop allows) fails 10 of 10 runs on the old code and passes 40 of 40 on the new; `terminal.test.ts` passes 20 of 20 runs; `pnpm test` without a database: 689 tests, 447 pass, 237 skipped (database), 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass. Not run against PostgreSQL here; CI runs `test:db` on PG18. No migration, no ADR.
+Checks run: new test "a new session can start as soon as the last one has an outcome" (five back-to-back restarts, polling the listing as tightly as the event loop allows) fails 10 of 10 runs on the old code and passes 40 of 40 on the new; `terminal.test.ts` passes 20 of 20 runs; `pnpm test` without a database: 689 tests, 447 pass, 237 skipped (database), 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass. CI on PR #119 ran `pnpm check` and `test:db` on PostgreSQL 18 green; the independent review ran `test:db` on PostgreSQL 16. No migration, no ADR.
+
+Review fixes (review `/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REVIEW_2026-11-02.md`: no Medium or above; Jordan asked for the Lows and nits):
+
+- L-2: terminal outcome and intent records now appear only complete. New `jsonPublish` in `packages/executor/src/files.ts` writes and syncs a temporary file, then links it into place (EEXIST if a record is already there, so nothing is overwritten) and removes the temporary name. A crash or failed write can no longer leave a partial `outcome.json` that breaks the product's terminal list. A partial outcome already left by an older version is reported as lost ("not recorded completely") without being overwritten, and the listing keeps working.
+- L-1: after a restart, two listings that both find a leftover session no longer fail: the second settle's link gets EEXIST and it returns the first one's complete record. One outcome event is recorded.
+- N-1: when a session is ours, only a missing outcome is ignored; other read errors surface.
+- L-3: optional test seam `TerminalPorts.beforeOutcome` (unset in the studio) holds a session between "ending" and the outcome write. A new test uses it to check, deterministically, that the session lists as running (not lost) in that window, the product's slot is already free, a status call made then neither fails nor records again, and exactly one outcome event and no temporary file remain. The earlier `status()` ordering fix cannot be pinned without a seam inside `status()`; with records linked into place, a second settle of the same session now fails at the link and returns the existing outcome, so that race can no longer write a second outcome or fail a listing, and the L-1 test covers that path.
+- N-2: this note now records where PostgreSQL ran.
+
+Checks: the three new tests fail on the previous PR head (3 of 3 runs each) and pass on the new code; `terminal.test.ts` passes 20 of 20 runs; `pnpm test:db` on a local PostgreSQL 16: 696 tests, 664 pass, 27 skipped, 5 fail (known PowerShell wrapper, no pwsh); typecheck and Prettier pass.
 
 ## Full audit and fixes — November 2, 2026
 

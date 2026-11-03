@@ -6,6 +6,7 @@ import {
   writeFile,
   open,
   unlink,
+  link,
 } from 'node:fs/promises';
 import { resolve, join, parse, relative, isAbsolute } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -65,6 +66,22 @@ export async function jsonWrite(path: string, value: unknown): Promise<void> {
     await f.sync();
   } finally {
     await f.close();
+  }
+}
+/**
+ * Like jsonWrite, but the record appears only once complete: it is written and synced
+ * under a temporary name, then linked into place (EEXIST if a record is already there, so
+ * nothing is overwritten). A crash or failed write leaves at most the temporary file,
+ * never a partial record that readers would fail on.
+ */
+export async function jsonPublish(path: string, value: unknown): Promise<void> {
+  await canonical(path, true);
+  const tmp = join(parse(path).dir, `.${parse(path).base}.${randomUUID()}.tmp`);
+  await jsonWrite(tmp, value);
+  try {
+    await link(tmp, path);
+  } finally {
+    await unlink(tmp).catch(() => undefined);
   }
 }
 export async function readJson(path: string): Promise<unknown> {

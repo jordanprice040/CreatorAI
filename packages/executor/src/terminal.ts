@@ -23,6 +23,7 @@ import {
   canonical,
   event,
   fileAt,
+  jsonPublish,
   jsonWrite,
   newFile,
   readJson,
@@ -92,6 +93,11 @@ export interface TerminalPorts {
   ) => Promise<{ cleaned: boolean; unit_state: string } | null>;
   workerPath: (p: string) => string;
   heartbeatMs: number;
+  /**
+   * Test seam: awaited after a session is marked as ending and before its outcome is
+   * written, so tests can observe that window deterministically. Unset in the studio.
+   */
+  beforeOutcome?: (sessionId: string) => Promise<void>;
 }
 
 function system32(name: string): string {
@@ -340,7 +346,7 @@ export class TerminalSupervisor {
         },
       };
       checked(TerminalSessionSchema, record);
-      await jsonWrite(join(dir, 'intent.json'), record);
+      await jsonPublish(join(dir, 'intent.json'), record);
     } catch (e) {
       await rm(dir, { recursive: true, force: true }).catch(() => undefined);
       throw e;
@@ -561,13 +567,15 @@ export class TerminalSupervisor {
       exit_code: end.exit_code ?? null,
       finished_at: new Date().toISOString(),
     });
-    // The session is over: free the product's slot before the outcome is written, since
-    // the file is visible while it is still being written and synced, and a restart from
-    // the listing must not be refused as "already open". The entry stays until the
-    // outcome is complete so a listing in between cannot record it as lost (review N-2).
+    // The session is over: free the product's slot before the outcome is written, so a
+    // restart from the listing is not refused as "already open" while the write and the
+    // cleanup below run. The entry stays until the outcome is in place so a listing in
+    // between cannot record it as lost (review N-2). The outcome appears only complete
+    // (jsonPublish), so readers never see a partial record, even after a crash.
     const entry = this.active.get(record.id);
     if (entry) entry.ending = true;
-    await jsonWrite(join(dir, 'outcome.json'), outcome);
+    await this.ports.beforeOutcome?.(record.id);
+    await jsonPublish(join(dir, 'outcome.json'), outcome);
     this.active.delete(record.id);
     await event(
       this.products.dir(record.product_id),
@@ -584,30 +592,49 @@ export class TerminalSupervisor {
   async status(productId: string, sessionId: string): Promise<TerminalSession> {
     const dir = this.dir(productId, sessionId);
     // Decide "ours" before reading the outcome: settle() lets go of a session only once
-    // its outcome is complete, so a session ours at this point is either still open or has
-    // an outcome being written (absent or partly written now). Checking afterwards could
-    // miss an outcome written in between and record the session as lost a second time.
+    // its outcome is in place, so a session ours at this point is either still open or
+    // about to have its outcome. Checking afterwards could miss an outcome written in
+    // between and record the session as lost a second time.
     const ours = this.active.has(sessionId);
+    const outcomePath = join(dir, 'outcome.json');
+    let unreadable = false;
     try {
-      return checked(
-        TerminalSessionSchema,
-        await readJson(join(dir, 'outcome.json')),
-      );
+      return checked(TerminalSessionSchema, await readJson(outcomePath));
     } catch (e) {
-      if (!ours && (e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+        // No outcome yet.
+      } else if (!ours && e instanceof SyntaxError) {
+        // A partial record left by a version that wrote outcomes in place (review L-2).
+        unreadable = true;
+      } else throw e;
     }
     const intent = checked(
       TerminalSessionSchema,
       await readJson(join(dir, 'intent.json')),
     );
     if (ours) return intent;
+    if (unreadable)
+      // Reported, not recorded: the broken file stays for inspection and is never
+      // overwritten, and the listing keeps working.
+      return {
+        ...intent,
+        state: 'lost',
+        reason:
+          'The end of this terminal was not recorded completely (its outcome record is unreadable). The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
+      };
     // Not ours and not finished: the studio restarted while it was open. The worker ends a
     // session within 5 seconds of losing the heartbeat; record that honestly.
-    return this.settle(intent, dir, join(dir, 'job'), {
-      state: 'lost',
-      reason:
-        'The studio stopped while this terminal was open. The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
-    });
+    try {
+      return await this.settle(intent, dir, join(dir, 'job'), {
+        state: 'lost',
+        reason:
+          'The studio stopped while this terminal was open. The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
+      });
+    } catch (e) {
+      // Another listing recorded it first (review L-1); its record is complete.
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      return checked(TerminalSessionSchema, await readJson(outcomePath));
+    }
   }
 
   /** Newest first, for one artifact's sessions. */

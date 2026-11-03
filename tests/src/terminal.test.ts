@@ -541,6 +541,104 @@ test('after a studio restart an open session is recorded as lost, not as running
   assert.match(x!.reason ?? '', /not confirmed/);
 });
 
+/** The outcome events recorded for one session, and the files left in its folder. */
+async function recorded(
+  h: { products: ProductSupervisor },
+  p: string,
+  s: string,
+) {
+  const dir = join(h.products.dir(p), 'events');
+  const outcomes: unknown[] = [];
+  for (const name of await readdir(dir)) {
+    const e = JSON.parse(await readFile(join(dir, name), 'utf8'));
+    if (e.kind === 'terminal.outcome' && e.data.id === s) outcomes.push(e);
+  }
+  const files = await readdir(join(h.products.dir(p), 'terminals', s));
+  return { outcomes: outcomes.length, files: files.sort() };
+}
+
+test('while the end of a session is being recorded it shows as running, frees its slot, and gets one outcome (review L-3)', async (t) => {
+  let held: string | null = null;
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const h = await harness(t, {
+    beforeOutcome: async (sessionId) => {
+      held = sessionId;
+      await gate;
+    },
+  });
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  await h.windows[0]!.result({
+    exit_code: 0,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+  });
+  await until(async () => held === s.id);
+  // Held between "ending" and the outcome write: listed as ours (not lost), and the
+  // product's slot is already free.
+  const [x] = await h.terminals.list(p, owner);
+  assert.equal(x!.id, s.id);
+  assert.equal(x!.state, 'running');
+  const during = h.terminals.status(p, s.id);
+  const next = await start(h.terminals, p);
+  assert.notEqual(next.id, s.id);
+  release();
+  // The status call made in the window neither fails nor records the session again.
+  assert.ok(['running', 'ended'].includes((await during).state));
+  const done = await until(async () => {
+    const all = await h.terminals.list(p, owner);
+    return all.find((y) => y.id === s.id && y.state !== 'running');
+  });
+  assert.equal(done.state, 'ended');
+  const r = await recorded(h, p, s.id);
+  assert.equal(r.outcomes, 1);
+  // The outcome was linked into place; no temporary file stays behind.
+  assert.deepEqual(r.files, ['intent.json', 'outcome.json']);
+});
+
+test('after a restart, concurrent listings record a leftover session as lost once (review L-1)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  const again = new TerminalSupervisor(h.products, 'Ubuntu', {
+    platform: 'win32',
+    workerPath: (x) => x,
+  });
+  const views = await Promise.all([
+    again.list(p, owner),
+    again.list(p, owner),
+    again.status(p, s.id),
+  ]);
+  for (const v of views) {
+    const x = Array.isArray(v) ? v[0]! : v;
+    assert.equal(x.id, s.id);
+    assert.equal(x.state, 'lost');
+  }
+  assert.equal((await recorded(h, p, s.id)).outcomes, 1);
+});
+
+test('a partial outcome left by an older version does not break the listing (review L-2)', async (t) => {
+  const h = await harness(t);
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  const broken = join(h.products.dir(p), 'terminals', s.id, 'outcome.json');
+  await writeFile(broken, '{"id": "');
+  const again = new TerminalSupervisor(h.products, 'Ubuntu', {
+    platform: 'win32',
+    workerPath: (x) => x,
+  });
+  for (let i = 0; i < 2; i++) {
+    const [x] = await again.list(p, owner);
+    assert.equal(x!.id, s.id);
+    assert.equal(x!.state, 'lost');
+    assert.match(x!.reason ?? '', /not recorded completely/);
+  }
+  // Reported, not overwritten: the broken record stays for inspection.
+  assert.equal(await readFile(broken, 'utf8'), '{"id": "');
+});
+
 test('the bridge and the recorded policy agree on the interactive limits', async () => {
   const bridge = await readFile('packages/executor/worker/bridge.py', 'utf8');
   const recipe = await readFile('packages/executor/worker/terminal.py', 'utf8');
