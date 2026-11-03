@@ -5,6 +5,7 @@ import {
   ChatDetailSchema,
   ChatMessageSchema,
   ChatSettingsSchema,
+  planWaitMs,
   z,
   type ChatAnswer,
   type ChatSettings,
@@ -26,8 +27,20 @@ import {
 import { placeLabel, type View } from './pages.js';
 import { AnswerView } from './chat-answers.js';
 
-/** A plan answer can take minutes (Claude Code's own timeout is up to 5 minutes). */
+/**
+ * A plan answer can take as long as the connection's request timeout, which the owner sets
+ * with no maximum (ADR-0062); this is the wait when that timeout cannot be read.
+ */
 const ANSWER_TIMEOUT_MS = 330_000;
+const ConnectionTimeoutSchema = z.object({
+  connection: z.object({
+    settings: z.object({
+      caps: z.object({
+        responses: z.object({ request_timeout_ms: z.number() }),
+      }),
+    }),
+  }),
+});
 
 const EXAMPLES = [
   "What's next?",
@@ -149,13 +162,28 @@ export function Chat({
     setAsking(messageId);
     setError('');
     try {
+      // PR #123 re-review L-1: wait as long as the chosen connection may take.
+      let timeoutMs = ANSWER_TIMEOUT_MS;
+      if (settings?.connection_id)
+        try {
+          const d = await api(
+            ConnectionTimeoutSchema,
+            `workspaces/${workspace.id}/plan-connections/${settings.connection_id}`,
+          );
+          timeoutMs = Math.max(
+            ANSWER_TIMEOUT_MS,
+            planWaitMs(d.connection.settings.caps.responses.request_timeout_ms),
+          );
+        } catch {
+          // Keep the default wait; the answer request itself reports real problems.
+        }
       await api(
         ChatAnswerSchema,
         `${base}/${conversation}/messages/${messageId}/answer`,
         {
           csrf: session.csrf_token,
           body: { client_id: cid },
-          timeoutMs: ANSWER_TIMEOUT_MS,
+          timeoutMs,
         },
       );
       askIds.current.delete(messageId);

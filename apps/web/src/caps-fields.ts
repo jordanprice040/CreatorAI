@@ -28,7 +28,11 @@ export type CapField = {
   unit: string;
   scale: number;
   min: number;
-  max: number;
+  /**
+   * null: no upper limit (ADR-0062). Only the two timeouts keep one, the longest a timer can
+   * wait (about 24.8 days), which is a technical bound rather than a cap.
+   */
+  max: number | null;
   /** Only ChatGPT plan connections have a Codex path. */
   codexOnly: boolean;
 };
@@ -40,7 +44,7 @@ const f = (
   unit: string,
   scale: number,
   min: number,
-  max: number,
+  max: number | null,
 ): CapField => ({
   key: `${group}.${name}`,
   group,
@@ -53,7 +57,9 @@ const f = (
   codexOnly: group === 'codex',
 });
 
-// Ranges in display units; they must equal PlanCapsSchema's bounds divided by scale.
+// Ranges in display units; they must equal PlanCapsSchema's bounds divided by scale. The
+// timer bounds are written out because this file has no imports: TIMER_MAX_MS (2^31 - 1 ms)
+// rounded down to whole seconds and whole minutes.
 export const CAP_FIELDS: readonly CapField[] = [
   f(
     'shared',
@@ -62,7 +68,7 @@ export const CAP_FIELDS: readonly CapField[] = [
     'requests',
     1,
     1,
-    300,
+    null,
   ),
   f(
     'responses',
@@ -71,7 +77,7 @@ export const CAP_FIELDS: readonly CapField[] = [
     'requests',
     1,
     1,
-    50,
+    null,
   ),
   f(
     'responses',
@@ -80,7 +86,7 @@ export const CAP_FIELDS: readonly CapField[] = [
     'seconds',
     1000,
     5,
-    300,
+    2_147_483,
   ),
   f(
     'responses',
@@ -89,7 +95,7 @@ export const CAP_FIELDS: readonly CapField[] = [
     'characters',
     1,
     500,
-    200_000,
+    null,
   ),
   f(
     'responses',
@@ -98,10 +104,18 @@ export const CAP_FIELDS: readonly CapField[] = [
     'characters',
     1,
     500,
-    200_000,
+    null,
   ),
-  f('codex', 'max_builds_per_day', 'Codex builds a day', 'builds', 1, 0, 20),
-  f('codex', 'max_turns_per_build', 'Codex turns per build', 'turns', 1, 1, 3),
+  f('codex', 'max_builds_per_day', 'Codex builds a day', 'builds', 1, 0, null),
+  f(
+    'codex',
+    'max_turns_per_build',
+    'Codex turns per build',
+    'turns',
+    1,
+    1,
+    null,
+  ),
   f(
     'codex',
     'max_model_requests_per_build',
@@ -109,7 +123,7 @@ export const CAP_FIELDS: readonly CapField[] = [
     'requests',
     1,
     1,
-    60,
+    null,
   ),
   f(
     'codex',
@@ -118,9 +132,25 @@ export const CAP_FIELDS: readonly CapField[] = [
     'minutes',
     60_000,
     1,
-    30,
+    35_791,
   ),
 ];
+
+/** "from 1 to 30" or, with no upper limit, "of 1 or more". */
+export function capRange(x: CapField): string {
+  const n = (v: number) => v.toLocaleString('en-US');
+  return x.max === null
+    ? `of ${n(x.min)} or more`
+    : `from ${n(x.min)} to ${n(x.max)}`;
+}
+
+/** The form label's hint, e.g. "requests, 1 or more" or "seconds, 5–2,147,483". */
+export function capHint(x: CapField): string {
+  const n = (v: number) => v.toLocaleString('en-US');
+  return x.max === null
+    ? `${x.unit}, ${n(x.min)} or more`
+    : `${x.unit}, ${n(x.min)}–${n(x.max)}`;
+}
 
 export const capFieldsFor = (kind: string) =>
   CAP_FIELDS.filter((x) => !x.codexOnly || kind === 'chatgpt_plan');
@@ -156,9 +186,13 @@ export function draftToCaps(
   for (const x of capFieldsFor(kind)) {
     const text = (draft[x.key] ?? '').trim().replaceAll(',', '');
     const n = /^\d+$/.test(text) ? Number(text) : NaN;
-    if (!Number.isSafeInteger(n) || n < x.min || n > x.max) {
-      errors[x.key] =
-        `Enter a whole number from ${x.min.toLocaleString('en-US')} to ${x.max.toLocaleString('en-US')} ${x.unit}.`;
+    if (
+      !Number.isSafeInteger(n) ||
+      !Number.isSafeInteger(n * x.scale) ||
+      n < x.min ||
+      (x.max !== null && n > x.max)
+    ) {
+      errors[x.key] = `Enter a whole number ${capRange(x)} ${x.unit}.`;
       continue;
     }
     (next[x.group] as Record<string, number>)[x.name] = n * x.scale;

@@ -36,14 +36,15 @@ export const GitHubCredentialSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 export type GitHubCredential = z.infer<typeof GitHubCredentialSchema>;
+/** ADR-0062: the owner sets these numeric limits with no upper limit; each must be at least 1. */
 export const GitHubLimitsSchema = z.strictObject({
   /** Repositories the studio creates must start with this prefix. */
   repo_prefix: z.string().regex(/^[a-z0-9][a-z0-9-]{1,30}-$/),
   /** Branches the studio creates or pushes must start with this prefix. */
   branch_prefix: z.string().regex(/^[a-z0-9][a-z0-9-]{0,30}\/$/),
-  max_repositories: z.number().int().min(1).max(50),
-  max_mutations_per_hour: z.number().int().min(1).max(500),
-  max_open_prs_per_repo: z.number().int().min(1).max(50),
+  max_repositories: z.number().int().min(1),
+  max_mutations_per_hour: z.number().int().min(1),
+  max_open_prs_per_repo: z.number().int().min(1),
 });
 export const RegisterGitHubConnectionRequestSchema = z
   .strictObject({

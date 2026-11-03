@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import type { PlanQualification } from '@creator/contracts';
+import {
+  PlanQualificationResultsSchema,
+  planWaitMs,
+  type PlanQualification,
+} from '@creator/contracts';
 import specification from '../../../config/connections/benchmarks/specification-synthetic-v1.json';
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
-import { words } from './oversight.js';
+import { api, words } from './oversight.js';
 
 /**
  * The frozen benchmarks this app can start a plan qualification with (audit item 4, piece 4).
@@ -25,6 +29,7 @@ export const BENCHMARKS = [specification, summarization, builder, reviewer].map(
 
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
 export function QualifyModel({
+  base,
   connection,
   models,
   allowed,
@@ -32,7 +37,14 @@ export function QualifyModel({
   busy,
   act,
 }: {
-  connection: { id: string; version: number; fixture: boolean };
+  /** The workspace's API path, e.g. `workspaces/<id>`. */
+  base: string;
+  connection: {
+    id: string;
+    version: number;
+    fixture: boolean;
+    settings: { caps: { responses: { request_timeout_ms: number } } };
+  };
   /** Models verified on the Responses path of this connection. */
   models: string[];
   /** Task classes this connection's settings allow. */
@@ -60,10 +72,30 @@ export function QualifyModel({
     setOutcome('');
     setRunningId(q.id);
     try {
+      // PR #123 re-review L-1: one plan call per benchmark case, each up to the connection's
+      // request timeout, which has no 300 s maximum any more (ADR-0062).
+      let cases = 0;
+      try {
+        cases = (
+          await api(
+            PlanQualificationResultsSchema,
+            `${base}/plan-qualifications/${q.id}`,
+          )
+        ).cases.length;
+      } catch {
+        cases = 0;
+      }
       const out = await act(
         `plan-qualifications/${q.id}/run`,
         {},
-        3_600_000,
+        Math.max(
+          3_600_000,
+          // Plus 2 minutes a case for grading a patch in the worker (third review L-2).
+          planWaitMs(
+            connection.settings.caps.responses.request_timeout_ms + 120_000,
+            cases,
+          ),
+        ),
         setError,
       );
       setOutcome(runOutcome(q, out));

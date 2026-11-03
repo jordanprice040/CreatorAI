@@ -62,6 +62,10 @@ unknown (timeout, cut stream) blocks the connection until Jordan reconciles it.
 Plus shares its five-hour allowance with Jordan's own ChatGPT and Codex use, so these
 are set low. They are studio limits; OpenAI can still refuse earlier.
 
+The owner can raise any of them in Models › "Change caps or allowed work" with no upper
+limit (ADR-0062); only the minimums stay, plus the two timeouts' timer bound (about 24.8
+days). Every change withdraws the caps acceptance until the owner accepts the new values.
+
 | Cap                            | Proposed                     | Why                                                                                                                                          |
 | ------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Requests in flight             | 1                            | Fixed; no parallel plan usage.                                                                                                               |

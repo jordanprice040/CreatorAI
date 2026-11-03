@@ -103,6 +103,7 @@ import {
   capabilitiesRequestFromConfig,
 } from '@creator/domain';
 import { batchesOf, readCorpus } from './context-index.js';
+import { httpRequest } from './http.js';
 import {
   CREDITS_OFF_STATEMENT,
   buildBlockers,
@@ -111,8 +112,10 @@ import {
   PlanConnectionSchema,
   PlanConnectionDetailSchema,
   PlanQualificationSchema,
+  PlanQualificationResultsSchema,
   PlanRequestSchema,
   PlanVerificationGrantSchema,
+  planWaitMs,
 } from '@creator/contracts';
 import {
   GitHubConnectionSchema,
@@ -411,7 +414,7 @@ export async function runCli(
     )
       throw new Error('CLI requires a loopback HTTP API origin.');
     const saved = loadSession(url.origin);
-    let lastResponse: Response | null = null;
+    let lastSetCookies: string[] = [];
     async function call<T>(
       schema: z.ZodType<T>,
       path: string,
@@ -421,7 +424,8 @@ export async function runCli(
       const auth: Record<string, string> = saved
         ? { Cookie: `creator_session=${saved.token}` }
         : {};
-      const response = await fetch(`${url.origin}/api/${path}`, {
+      // node:http, not fetch: fetch stops at 300 s without headers (PR #123 third review M-1).
+      const response = await httpRequest(`${url.origin}/api/${path}`, {
         ...(body === undefined
           ? { headers: auth }
           : {
@@ -433,10 +437,10 @@ export async function runCli(
               },
               body: JSON.stringify(body),
             }),
-        signal: AbortSignal.timeout(timeoutMs),
+        timeoutMs,
       });
-      lastResponse = response;
-      const value: unknown = await response.json();
+      lastSetCookies = response.setCookies;
+      const value: unknown = JSON.parse(response.body);
       if (!response.ok)
         throw new Error(
           `API returned ${response.status}: ${JSON.stringify(value)}`,
@@ -637,6 +641,20 @@ export async function runCli(
         // ADR-0042: the API holds the ChatGPT sign-in, relay and Codex jail; T12 keeps review and QA.
         codexBuilder: async (target, packet) => {
           const p = await local.product(productId);
+          // PR #123 re-review M-1: the API holds this request for the whole Codex turn, up to
+          // the connection's build timeout, which has no 30-minute maximum any more.
+          const detail = await call(
+            z.object({
+              connection: z.object({
+                settings: z.object({
+                  caps: z.object({
+                    codex: z.object({ build_timeout_ms: z.number() }),
+                  }),
+                }),
+              }),
+            }),
+            `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}`,
+          );
           const { evidence: _, ...out } = await call(
             z.object({ evidence: z.unknown() }).passthrough(),
             `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/codex-builds`,
@@ -647,7 +665,11 @@ export async function runCli(
               data_class: target.data_class,
               packet,
             },
-            1_900_000,
+            planWaitMs(
+              detail.connection.settings.caps.codex.build_timeout_ms,
+              1,
+              120_000,
+            ),
           );
           return out;
         },
@@ -1369,9 +1391,9 @@ export async function runCli(
         const session = await call(SessionInfoSchema, 'auth/dev-login', {
           code: rest[0],
         });
-        const cookie = (lastResponse as Response | null)?.headers
-          .getSetCookie()
-          .find((c) => c.startsWith('creator_session='));
+        const cookie = lastSetCookies.find((c) =>
+          c.startsWith('creator_session='),
+        );
         const value = cookie?.split(';')[0]?.slice('creator_session='.length);
         if (!value) throw new Error('The API did not start a session.');
         mkdirSync(dirname(sessionFile()), { recursive: true });
@@ -1975,14 +1997,25 @@ export async function runCli(
           },
         );
         break;
-      case 'plan-verify':
+      case 'plan-verify': {
+        // Fourth review L-1: wait as long as the connection's request timeout allows.
+        const detail = await call(
+          PlanConnectionDetailSchema.extend({ sign_in_attempt: z.unknown() }),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}`,
+        );
         data = await call(
           z.unknown(),
           `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/verify`,
           { grant_id: rest[2], model_id: rest[3] },
-          330000,
+          Math.max(
+            330_000,
+            planWaitMs(
+              detail.connection.settings.caps.responses.request_timeout_ms,
+            ),
+          ),
         );
         break;
+      }
       case 'plan-qualify': {
         const [n, d] = (rest[6] ?? '').split('/').map(Number);
         data = await call(
@@ -1999,14 +2032,38 @@ export async function runCli(
         break;
       }
       case 'plan-qualify-run':
-      case 'plan-qualify-finish':
+      case 'plan-qualify-finish': {
+        const path = `${ws(rest[0])}/plan-qualifications/${encodeURIComponent(rest[1] ?? '')}`;
+        let wait = 5000;
+        if (command === 'plan-qualify-run') {
+          // PR #123 re-review L-1: one plan call per benchmark case, each up to the
+          // connection's request timeout (no 300 s maximum any more).
+          const { qualification: q, cases } = await call(
+            PlanQualificationResultsSchema,
+            path,
+          );
+          const detail = await call(
+            PlanConnectionDetailSchema.extend({ sign_in_attempt: z.unknown() }),
+            `${ws(rest[0])}/plan-connections/${q.connection_id}`,
+          );
+          wait = Math.max(
+            3_600_000,
+            // Plus 2 minutes a case for grading a patch in the worker (third review L-2).
+            planWaitMs(
+              detail.connection.settings.caps.responses.request_timeout_ms +
+                120_000,
+              cases.length,
+            ),
+          );
+        }
         data = await call(
           z.unknown(),
-          `${ws(rest[0])}/plan-qualifications/${encodeURIComponent(rest[1] ?? '')}/${command === 'plan-qualify-run' ? 'run' : 'finish'}`,
+          `${path}/${command === 'plan-qualify-run' ? 'run' : 'finish'}`,
           {},
-          command === 'plan-qualify-run' ? 3_600_000 : 5000,
+          wait,
         );
         break;
+      }
       case 'plan-requests':
         data = await call(
           z.array(PlanRequestSchema),
