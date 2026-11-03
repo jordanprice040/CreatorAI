@@ -23,6 +23,17 @@ type Fields = {
   nextKey: (p: string, used: string[], stored?: string[]) => string | null;
   unwrittenOptions: <T>(sel: T[], specs: unknown[]) => T[];
   buildNotes: (c: unknown) => string[];
+  feedbackReason: (text: string) => string;
+  FEEDBACK_REASON_MAX: number;
+  feedbackSuperseded: (
+    f: { id: string; status: string; spec: { version: number } },
+    all: { id: string; revision: { version: number } | null }[],
+  ) => string | null;
+  feedbackRevisionBlocker: (
+    f: { status: string; spec: { version: number } },
+    spec: { status: string; version: number; format: unknown },
+    owner: boolean,
+  ) => string | null;
 };
 
 // spec-fields.ts has no imports, so it loads without a browser or stubs.
@@ -237,4 +248,75 @@ test('a task may wait for at most 20 others (review L-3)', async () => {
   d.tasks[0].depends_on = keys;
   const out = f.draftToContent(d);
   assert.match(out.errors?.['tasks.0.depends_on'] ?? '', /at most 20/);
+});
+
+test('accepted preview feedback opens the spec form only for the version it was given on (audit L-8)', async () => {
+  const { feedbackReason, feedbackRevisionBlocker } = await load();
+  const accepted = { status: 'accepted', spec: { version: 3 } };
+  const spec = { status: 'active', version: 3, format: 'spec/1' };
+  assert.equal(feedbackRevisionBlocker(accepted, spec, true), null);
+  // The studio refuses these; the form is not offered for them.
+  assert.match(
+    feedbackRevisionBlocker({ ...accepted, status: 'submitted' }, spec, true)!,
+    /Accept/,
+  );
+  assert.match(
+    feedbackRevisionBlocker({ ...accepted, status: 'revised' }, spec, true)!,
+    /Accept/,
+  );
+  assert.match(feedbackRevisionBlocker(accepted, spec, false)!, /owner/);
+  assert.match(
+    feedbackRevisionBlocker(accepted, { ...spec, version: 4 }, true)!,
+    /now v4.*given on v3/,
+  );
+  assert.match(
+    feedbackRevisionBlocker(accepted, { ...spec, status: 'archived' }, true)!,
+    /archived/,
+  );
+  assert.match(
+    feedbackRevisionBlocker(accepted, { ...spec, format: 'legacy' }, true)!,
+    /spec\/1/,
+  );
+  // The reason starts from the feedback, collapsed to one line, and leaves room for the
+  // " (feedback <uuid>)" the studio appends within its 300 characters.
+  assert.equal(
+    feedbackReason('  Show the\n  totals  '),
+    'Preview feedback: Show the totals',
+  );
+  const long = feedbackReason('x'.repeat(2000));
+  assert.equal(long.length, 240);
+  assert.ok(long.endsWith('…'));
+  assert.ok(`${long} (feedback ${crypto.randomUUID()})`.length <= 300);
+  const exact = feedbackReason('y'.repeat(222));
+  assert.equal(exact.length, 240);
+  assert.ok(!exact.endsWith('…'));
+});
+
+test('once one accepted item revises the spec, the others on that version say so without a click (PR #121 review L-1, N-1)', async () => {
+  const { feedbackSuperseded, FEEDBACK_REASON_MAX } = await load();
+  const item = (id: string, status: string, revised?: number) => ({
+    id,
+    status,
+    spec: { version: 3 },
+    revision: revised ? { version: revised } : null,
+  });
+  const a = item('a', 'revised', 4);
+  const b = item('b', 'accepted');
+  const c = item('c', 'submitted');
+  // Nothing revised yet: every accepted item can still start the revision.
+  assert.equal(feedbackSuperseded(b, [b, c]), null);
+  assert.match(
+    feedbackSuperseded(b, [a, b, c])!,
+    /revised the spec to v4.*given on v3/,
+  );
+  // Only accepted items get the note; the revised item itself and undecided ones do not.
+  assert.equal(feedbackSuperseded(a, [a, b]), null);
+  assert.equal(feedbackSuperseded(c, [a, c]), null);
+  // A revision that did not move past this item's version is not a reason.
+  assert.equal(feedbackSuperseded(b, [item('x', 'revised', 3), b]), null);
+  // The reason box leaves room for " (feedback <uuid>)" (48 characters) within the stored
+  // 300, and not one character more.
+  const tail = ` (feedback ${crypto.randomUUID()})`.length;
+  assert.equal(tail, 48);
+  assert.equal(FEEDBACK_REASON_MAX + tail, 300);
 });
