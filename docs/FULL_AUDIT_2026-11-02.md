@@ -72,7 +72,7 @@ No High findings. One Medium found and fixed (the app pointed people to connecti
 
 **L-11 (Open, PR #96): the Codex plan builder's packet is still bounded only by the 1 MiB body.** `PLAN_ROLE_CONTEXT_MAX` applies only to `plan_roles` (`build.ts:393`).
 
-**L-12 (Open, pilot F14): the desktop app still doesn't detect a redirected data home** (the MSIX container case). No check exists in `apps/desktop/src-tauri`. Launching from the Claude desktop app's container still fails later with "Noncanonical path refused".
+**L-12 (Fixed in the follow-up branch claude/project-thread-xi5g92, pilot F14): the desktop app still doesn't detect a redirected data home** (the MSIX container case). No check exists in `apps/desktop/src-tauri`. Launching from the Claude desktop app's container still fails later with "Noncanonical path refused".
 
 ### Nits
 
