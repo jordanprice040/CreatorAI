@@ -69,15 +69,30 @@ export async function jsonWrite(path: string, value: unknown): Promise<void> {
   }
 }
 /**
+ * link() errors that mean the volume cannot make hard links (exFAT, FAT32, some network
+ * shares; Windows reports ERROR_INVALID_FUNCTION as EISDIR). Anything else is a real
+ * failure and is not retried another way (re-review 2 L-1).
+ */
+const NO_HARD_LINKS = new Set([
+  'EPERM',
+  'EISDIR',
+  'ENOTSUP',
+  'EOPNOTSUPP',
+  'ENOSYS',
+  'EXDEV',
+]);
+
+/**
  * Like jsonWrite, but the record appears only once complete: it is written and synced
  * under a temporary name, then linked into place (EEXIST if a record is already there, so
  * nothing is overwritten). A process crash or failed write leaves at most the temporary
  * file, never a partial record that readers would fail on; after a power loss the newest
  * record may be missing (directories are not synced).
  *
- * A data home on a volume without hard links (exFAT, FAT32, some network shares) cannot
- * link; there the record is written in place with jsonWrite, still exclusive, as before
- * this helper existed, so readers must still tolerate a partial record (review L-a).
+ * A data home on a volume without hard links cannot link; there the record is written in
+ * place with jsonWrite, still exclusive, as before this helper existed, so readers must
+ * still tolerate a partial record (re-review L-a). If that in-place write fails, the
+ * partial file it created is removed so a later complete record can still be written.
  * `linker` is a test seam.
  */
 export async function jsonPublish(
@@ -94,12 +109,20 @@ export async function jsonPublish(
       await linker(tmp, path);
       linked = true;
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'EEXIST') throw e;
+      if (!NO_HARD_LINKS.has((e as NodeJS.ErrnoException).code ?? '')) throw e;
     }
   } finally {
     await unlink(tmp).catch(() => undefined);
   }
-  if (!linked) await jsonWrite(path, value);
+  if (linked) return;
+  try {
+    await jsonWrite(path, value);
+  } catch (e) {
+    // EEXIST: the record there is someone else's. Otherwise the file is ours and partial.
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST')
+      await unlink(path).catch(() => undefined);
+    throw e;
+  }
 }
 export async function readJson(path: string): Promise<unknown> {
   await canonical(path);

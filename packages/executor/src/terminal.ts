@@ -196,6 +196,8 @@ const resultSchema = TerminalSessionSchema.pick({
  */
 export class TerminalSupervisor {
   private readonly active = new Map<string, Active>();
+  /** Sessions already reported as having an unreadable start record. */
+  private readonly unreadable = new Set<string>();
   private readonly ports: TerminalPorts;
   constructor(
     readonly products: ProductSupervisor,
@@ -635,9 +637,17 @@ export class TerminalSupervisor {
           'The studio stopped while this terminal was open. The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
       });
     } catch (e) {
-      // Another listing recorded it first (review L-1); its record is complete.
+      // Another listing recorded it first (review L-1). Its record is complete, except on
+      // a data home without hard links, where it may still be being written: read once
+      // more after a moment rather than drop the session from this listing (N-b).
       if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
-      return checked(TerminalSessionSchema, await readJson(outcomePath));
+      try {
+        return checked(TerminalSessionSchema, await readJson(outcomePath));
+      } catch (again) {
+        if (!(again instanceof SyntaxError)) throw again;
+        await new Promise((r) => setTimeout(r, 100));
+        return checked(TerminalSessionSchema, await readJson(outcomePath));
+      }
     }
   }
 
@@ -664,11 +674,18 @@ export class TerminalSupervisor {
             // home without hard links, a partly written one), and a folder left by a start
             // that failed or crashed before its intent was complete was never a session
             // (re-review N-4).
-            if (
-              (e as NodeJS.ErrnoException).code === 'ENOENT' ||
-              e instanceof SyntaxError
-            )
+            if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            if (e instanceof SyntaxError) {
+              // Left out, but not silently: a corrupt record stays visible in the log,
+              // once per session (re-review 2 N-c).
+              if (!this.unreadable.has(n)) {
+                this.unreadable.add(n);
+                console.warn(
+                  `Terminal session ${n} of product ${productId} has an unreadable start record and is not listed.`,
+                );
+              }
               return null;
+            }
             throw e;
           }),
         ),

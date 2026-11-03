@@ -26,6 +26,15 @@ Re-review fixes (re-review `/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_
 
 Checks: new tests for the fallback (link failing with EPERM, EISDIR and ENOTSUP via a `linker` test seam; still exclusive; failed temp write leaves nothing) and for a partial intent. The fallback test fails when the fallback is removed and the partial-intent test fails on a55d028; `terminal.test.ts` passes 15 of 15 runs (17 tests); `pnpm test:db` on a local PostgreSQL 16: 698 tests, 666 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass. Not run on Windows or a real exFAT volume.
 
+Second re-review fixes (`/mnt/project-files/reviews/PR119_TERMINAL_SLOT_RACE_REREVIEW2_2026-11-03.md`: no Medium or above; Jordan asked for all Lows):
+
+- L-1: `jsonPublish` writes in place only when `link()` says the volume has no hard links (EPERM, EISDIR, ENOTSUP, EOPNOTSUPP, ENOSYS, EXDEV). Real failures such as ENOSPC, EIO, EACCES or ENOENT fail the publish and leave nothing, so the next listing can still record the session properly. If the in-place write itself fails, the partial file it created is removed.
+- N-a: new test: an open session whose outcome is half-written in place still lists (and reads in `status()`) as running.
+- N-b: when a second "lost" settle loses the race and the winner's record is still being written in place, the read is retried once after 100 ms instead of dropping the session from that listing.
+- N-c: a session left out of the listing because its start record is unreadable is logged once per session (`console.warn`), not hidden silently.
+
+Checks: the fallback test now also covers ENOSPC, EIO, EACCES and ENOENT failing without a write. Each new check fails under a mutation that undoes its fix (any-error fallback, ours-branch revert, warning removed). `terminal.test.ts` passes 10 of 10 runs (18 tests); `pnpm test:db` on a local PostgreSQL 16: 699 tests, 667 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

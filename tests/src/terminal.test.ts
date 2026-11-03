@@ -599,6 +599,42 @@ test('while the end of a session is being recorded it shows as running, frees it
   assert.deepEqual(r.files, ['intent.json', 'outcome.json']);
 });
 
+test('an open session whose outcome is being written in place still lists as running (re-review 2 N-a)', async (t) => {
+  // On a data home without hard links the outcome is written in place, so a listing can
+  // read it half-written while the session is still ours.
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let partial: string | null = null;
+  const h = await harness(t, {
+    beforeOutcome: async (sessionId) => {
+      partial = join(h.products.dir(p), 'terminals', sessionId, 'outcome.json');
+      await writeFile(partial, '{"id": "');
+      await gate;
+    },
+  });
+  const p = await h.product();
+  const s = await start(h.terminals, p);
+  await h.windows[0]!.result({
+    exit_code: 0,
+    reason: null,
+    cleaned: true,
+    unit_state: 'inactive',
+  });
+  await until(async () => partial !== null);
+  const [x] = await h.terminals.list(p, owner);
+  assert.equal(x!.id, s.id);
+  assert.equal(x!.state, 'running');
+  assert.equal((await h.terminals.status(p, s.id)).state, 'running');
+  // Let the real write through.
+  await rm(partial!);
+  release();
+  const done = await until(async () => {
+    const [y] = await h.terminals.list(p, owner);
+    return y && y.state !== 'running' ? y : null;
+  });
+  assert.equal(done.state, 'ended');
+});
+
 test('after a restart, concurrent listings record a leftover session as lost once (review L-1)', async (t) => {
   const h = await harness(t);
   const p = await h.product();
@@ -645,9 +681,17 @@ test('records are published without hard links where the volume has none, and ne
   await mkdir(parent, { recursive: true });
   const dir = await mkdtemp(join(parent, 'publish-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  // exFAT/FAT32 report link() failures as EPERM, EISDIR (ERROR_INVALID_FUNCTION) or
-  // ENOTSUP depending on the platform; any failure but EEXIST writes in place instead.
-  for (const code of ['EPERM', 'EISDIR', 'ENOTSUP']) {
+  // exFAT/FAT32 and some shares report link() failures as EPERM, EISDIR
+  // (ERROR_INVALID_FUNCTION), ENOTSUP, EOPNOTSUPP, ENOSYS or EXDEV; those write in place.
+  const noLinkCodes = [
+    'EPERM',
+    'EISDIR',
+    'ENOTSUP',
+    'EOPNOTSUPP',
+    'ENOSYS',
+    'EXDEV',
+  ];
+  for (const code of noLinkCodes) {
     const noLinks = async () => {
       throw Object.assign(new Error(code), { code });
     };
@@ -660,15 +704,24 @@ test('records are published without hard links where the volume has none, and ne
     });
     assert.deepEqual(JSON.parse(await readFile(target, 'utf8')), { code });
   }
+  // A real link failure (disk full, I/O, access) fails the publish instead of being
+  // retried in place, and leaves nothing behind (re-review 2 L-1).
+  for (const code of ['ENOSPC', 'EIO', 'EACCES', 'ENOENT']) {
+    const broken = async () => {
+      throw Object.assign(new Error(code), { code });
+    };
+    await assert.rejects(jsonPublish(join(dir, `${code}.json`), {}, broken), {
+      code,
+    });
+  }
   // A temp write that fails (here: a value that cannot be serialized) leaves nothing.
   const cyclic: Record<string, unknown> = {};
   cyclic.self = cyclic;
   await assert.rejects(jsonPublish(join(dir, 'cyclic.json'), cyclic));
-  assert.deepEqual((await readdir(dir)).sort(), [
-    'EISDIR.json',
-    'ENOTSUP.json',
-    'EPERM.json',
-  ]);
+  assert.deepEqual(
+    (await readdir(dir)).sort(),
+    noLinkCodes.map((c) => `${c}.json`).sort(),
+  );
 });
 
 test('a partial intent left by an older version or a crash does not break the listing (re-review N-4)', async (t) => {
@@ -688,10 +741,19 @@ test('a partial intent left by an older version or a crash does not break the li
   const broken = join(h.products.dir(p), 'terminals', randomUUID());
   await mkdir(broken);
   await writeFile(join(broken, 'intent.json'), '{"id": "');
-  const all = await h.terminals.list(p, owner);
-  assert.deepEqual(
-    all.map((x) => x.id),
-    [s.id],
+  const warn = t.mock.method(console, 'warn', () => undefined);
+  for (let i = 0; i < 2; i++) {
+    const all = await h.terminals.list(p, owner);
+    assert.deepEqual(
+      all.map((x) => x.id),
+      [s.id],
+    );
+  }
+  // Not silent, and not repeated on every listing (re-review 2 N-c).
+  assert.equal(warn.mock.callCount(), 1);
+  assert.match(
+    String(warn.mock.calls[0]!.arguments[0]),
+    /unreadable start record/,
   );
 });
 
