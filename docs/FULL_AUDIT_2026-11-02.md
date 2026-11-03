@@ -54,7 +54,7 @@ No High findings. One Medium found and fixed (the app pointed people to connecti
 
 **L-7 (Fixed, audit item 11): the sidebar footer said "Schema 1.0" and "Live calls need a provider, pricing, a grant and a budget",** which is out of date for the $0 plan routes. It now says "Local control" and "Models are used only through connections you approve."
 
-**L-8 (Open): in the desktop app, accepted preview feedback can't become a spec revision.**
+**L-8 (Fixed 2026-11-03, Try › "Revise the spec from this feedback"): in the desktop app, accepted preview feedback can't become a spec revision.**
 
 - Try › feedback › Accept says "Revising the spec from it needs the command line, which the desktop app does not have yet" (`gallery.tsx:1041`).
 - The route exists: `POST feedback/{id}/revision`, which takes the spec's full title and content.

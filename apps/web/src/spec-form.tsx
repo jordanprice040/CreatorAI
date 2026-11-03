@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
+  FeedbackSchema,
   SpecStatusSchema,
   type SessionInfo,
   type SpecStatus,
@@ -12,6 +13,7 @@ import {
   draftToContent,
   emptyCase,
   emptySpecDraft,
+  feedbackReason,
   nextKey,
   argsShowable,
   storedKeys,
@@ -46,8 +48,17 @@ export type SpecFormMode =
         problem_statement?: string;
       };
     }
-  /** The spec's status and its stored current version (the body to start from). */
-  | { kind: 'revise'; spec: SpecStatus; entity: StoredEntity };
+  /**
+   * The spec's status and its stored current version (the body to start from). With
+   * feedback, the revision is saved through that accepted preview feedback, which the
+   * studio then marks revised (audit L-8).
+   */
+  | {
+      kind: 'revise';
+      spec: SpecStatus;
+      entity: StoredEntity;
+      feedback?: { id: string; version: number; text: string };
+    };
 
 /**
  * "Write a spec" on Build: the spec/1 content for an option a current selection chose for
@@ -74,7 +85,12 @@ export function SpecForm({
         )
       : emptySpecDraft(mode.prefill),
   );
-  const [reason, setReason] = useState('');
+  const fromFeedback = mode.kind === 'revise' ? mode.feedback : undefined;
+  const [reason, setReason] = useState(() =>
+    fromFeedback ? feedbackReason(fromFeedback.text) : '',
+  );
+  // Set once a feedback revision is saved but the spec could not be read back.
+  const [done, setDone] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -144,6 +160,44 @@ export function SpecForm({
     }
     setErrors({});
     setBusy(true);
+    if (mode.kind === 'revise' && mode.feedback) {
+      const fb = mode.feedback;
+      let revised;
+      try {
+        revised = await api(
+          FeedbackSchema,
+          `${base}/feedback/${fb.id}/revision`,
+          {
+            csrf: session.csrf_token,
+            body: {
+              expected_version: fb.version,
+              expected_spec_version: mode.spec.spec.version,
+              title: out.title,
+              content: out.content,
+              reason: reason.trim().slice(0, 300),
+            },
+          },
+        );
+      } catch (x) {
+        setError(message(x));
+        setBusy(false);
+        return;
+      }
+      try {
+        saved(
+          await api(SpecStatusSchema, `${base}/specs/${mode.spec.spec.id}`),
+        );
+      } catch (x) {
+        // The revision is stored; saving again would be refused, so say so instead.
+        setDone(true);
+        setError(
+          `Saved as spec v${revised.revision?.version ?? '?'}, but the spec could not be read back (${message(x)}). Open Build to see it.`,
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     try {
       const s = await api(
         SpecStatusSchema,
@@ -208,8 +262,13 @@ export function SpecForm({
       <h3 id="sf-title-h">
         {mode.kind === 'create'
           ? 'Write a spec'
-          : `Revise ${mode.spec.spec.title} (now v${mode.spec.spec.version})`}
+          : `Revise ${mode.spec.spec.title} (now v${mode.spec.spec.version})${fromFeedback ? ' from preview feedback' : ''}`}
       </h3>
+      {fromFeedback && (
+        <blockquote className="sf-feedback">
+          <strong>The feedback:</strong> {fromFeedback.text}
+        </blockquote>
+      )}
       <p className="small">
         A spec says what will be built and how it will be checked. Write the
         lists one item per line. Keys (F1, A1, T1) are given for you and stay
@@ -788,7 +847,7 @@ export function SpecForm({
         </p>
       )}
       <div className="actions">
-        <button type="submit" disabled={busy}>
+        <button type="submit" disabled={busy || done}>
           {mode.kind === 'create' ? 'Save spec' : 'Save new version'}
         </button>
         <button type="button" className="secondary" onClick={cancel}>

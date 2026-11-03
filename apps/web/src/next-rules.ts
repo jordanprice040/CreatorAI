@@ -135,12 +135,6 @@ export type Step = {
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;
 
-/** A command-line-only step, worded for where the person is. */
-const cli = (f: StudioFacts, command: string) =>
-  f.desktop
-    ? 'from the command line, which the desktop app does not have yet'
-    : `from the command line (pnpm cli ${command}); there is no form for it yet`;
-
 /**
  * The next step along the studio's main path: evidence, discovery, scoring, selection,
  * spec, freeze, build, package, try. Approvals are left to `nextStep`, which puts them first.
@@ -236,7 +230,7 @@ function productStep(f: StudioFacts): Step {
           text: 'The build is verified. Package it, then try it under Try.',
           action: build,
         };
-      return tryStep(f, p.feedback);
+      return tryStep(p.feedback);
   }
 }
 
@@ -264,7 +258,6 @@ const items = (n: number) => plural(n, 'feedback item');
  * either has accepted feedback to revise from, or it is finished for this product.
  */
 function tryStep(
-  f: StudioFacts,
   feedback: { total: number; accepted: number; undecided: number } | undefined,
 ): Step {
   const gallery = { view: 'gallery' } as const;
@@ -277,7 +270,7 @@ function tryStep(
   if (feedback.accepted > 0)
     return {
       tone: 'next',
-      text: `Revise the spec from your ${feedback.accepted === 1 ? 'accepted feedback item' : `${feedback.accepted} accepted feedback items`} ${cli(f, 'feedback-revise')}. The revision is frozen, reviewed and built like the first version.`,
+      text: `Revise the spec from your ${feedback.accepted === 1 ? 'accepted feedback item' : `${feedback.accepted} accepted feedback items`}: open the package under Try and press “Revise the spec from this feedback”. The revision is frozen, reviewed and built like the first version.`,
       action: gallery,
     };
   if (feedback.undecided > 0)

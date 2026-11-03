@@ -107,7 +107,7 @@ test('the main path names the first missing step and the page that takes it', as
 // scoring, specs and the humility review have forms (review of PR #112, N-3).
 test('the desktop app is never told to run a command it does not have', async () => {
   const { pipelineStep } = await load<Rules>('next-rules.ts');
-  // Revising from accepted feedback still needs the command line.
+  // Revising from accepted feedback has a form under Try now (audit L-8).
   const step = pipelineStep({
     ...done,
     desktop: true,
@@ -116,8 +116,8 @@ test('the desktop app is never told to run a command it does not have', async ()
       feedback: { total: 1, accepted: 1, undecided: 0 },
     },
   });
-  assert.doesNotMatch(step.text, /pnpm cli/);
-  assert.match(step.text, /desktop app does not have/);
+  assert.doesNotMatch(step.text, /pnpm cli|command line/);
+  assert.match(step.text, /under Try/);
 });
 
 test('each build state gets its own next step; a stopped build reads as blocked', async () => {
@@ -576,11 +576,14 @@ test('recording feedback on the newest package finishes Try, and Next moves on (
   const accepted = tried({ total: 2, accepted: 1, undecided: 0 });
   const revise = pipelineStep(accepted);
   assert.equal(revise.tone, 'next');
-  assert.match(revise.text, /pnpm cli feedback-revise/);
-  assert.doesNotMatch(
-    pipelineStep({ ...accepted, desktop: true }).text,
-    /pnpm cli/,
-  );
+  // The form under Try is the route on the web and in the desktop app alike (audit L-8).
+  assert.match(revise.text, /Revise the spec from this feedback/);
+  assert.equal(revise.action?.view, 'gallery');
+  for (const desktop of [false, true])
+    assert.doesNotMatch(
+      pipelineStep({ ...accepted, desktop }).text,
+      /command line|pnpm cli/,
+    );
   // Everything decided (declined, or praise only): the path is finished for this product.
   const closed = pipelineStep(tried({ total: 1, accepted: 0, undecided: 0 }));
   assert.equal(closed.tone, 'clear');

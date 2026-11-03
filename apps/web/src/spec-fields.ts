@@ -532,3 +532,34 @@ export function buildNotes(s: SpecContentShape): string[] {
   }
   return notes;
 }
+
+/**
+ * The reason a spec revision from preview feedback starts with. The studio appends
+ * " (feedback <id>)" and keeps 300 characters, so the feedback's own words are cut at 240.
+ */
+export function feedbackReason(text: string): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  const words = t.length > 222 ? `${t.slice(0, 221).trimEnd()}…` : t;
+  return `Preview feedback: ${words}`;
+}
+
+/**
+ * Why accepted preview feedback cannot open the spec form now, in words, or null when it
+ * can. The feedback names the spec version it was given on; the studio refuses a revision
+ * once that spec has moved on, so the form is not offered for it (audit L-8).
+ */
+export function feedbackRevisionBlocker(
+  f: { status: string; spec: { version: number } },
+  spec: { status: string; version: number; format: unknown },
+  owner: boolean,
+): string | null {
+  if (f.status !== 'accepted') return 'Accept the feedback first.';
+  if (!owner) return 'Only the workspace owner can revise the spec.';
+  if (spec.status !== 'active')
+    return `The spec is ${spec.status}, so it cannot be revised.`;
+  if (spec.version !== f.spec.version)
+    return `The spec is now v${spec.version}; this feedback was given on v${f.spec.version}, so it can no longer revise it. Revise the current version on Build.`;
+  if (spec.format !== 'spec/1')
+    return 'This spec is not in the format the form edits (spec/1).';
+  return null;
+}

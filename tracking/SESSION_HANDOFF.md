@@ -1,3 +1,15 @@
+## Revise the spec from preview feedback in the app (audit L-8) — November 3, 2026
+
+What now works: on Try, accepted preview feedback has a "Revise the spec from this feedback" button (workspace owner only, as the server requires). It opens the Build page's spec form (PR #112) under that item in revise mode: the spec's current version is the starting body, the feedback is quoted above the form, and "What changed and why" is prefilled with "Preview feedback: …" (one line, at most 240 characters, so the studio's appended " (feedback <id>)" fits in 300). Saving posts to the existing `POST feedback/{id}/revision` with the feedback's and the spec's expected versions, so the feedback is marked revised and links to the new spec version in one transaction, as the CLI's `feedback-revise` did. The panel then says "<spec> vN saved from this feedback. Freeze it under Scores and specs, then build it on Build."
+
+- Before opening, the page reads the spec's status and stored body. If the spec has moved on since the feedback (or is archived, or is not spec/1), it says why in words with an Open Build link instead of opening a form the studio would refuse (`feedbackRevisionBlocker` in `apps/web/src/spec-fields.ts`).
+- Accept now says to press the button (non-owners: the owner can revise it). The "Next" step for accepted feedback points at the button under Try instead of the command line, on the web and in the desktop app; the last CLI-only wording helper (`cli` in next-rules, `NO_CLI_IN_DESKTOP`) is gone.
+- If the revision is saved but the spec can't be read back, the form says it was saved and disables Save (a second save would be refused).
+
+Checks run: new test in `tests/src/web-spec-form.test.ts` (blocker for submitted/revised feedback, non-owner, moved-on version, archived spec, other format; reason prefill collapse, 240-character cut, fits with a feedback id); `web-next-step` tests updated (no "command line" or "pnpm cli" on the web or desktop). `pnpm typecheck` and Prettier pass. Full suite with a PostgreSQL 16 test database: see the PR; the server route's own test (`artifact-api.test.ts`, revision and stale refusals) passes. Browser walk `tracking/evidence/feedback-revision/walk.mjs` on a throwaway database (5183/4330/4340, `seed-selection`, fixture, $0, no model call): the spec and its revision are real (v2 → v3 with the edited scope), the package and feedback routes are stand-ins checked against the contracts because a package needs the isolated worker; screenshots 01–05 (phone width has no horizontal scroll).
+
+Limits: not walked against a real packaged artifact or in the installed desktop app; the feedback-route stand-in saves the revision through the plain spec route, so the feedback row update itself is covered by `artifact-api.test.ts`, not the walk. No migration, no ADR.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

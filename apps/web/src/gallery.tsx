@@ -4,9 +4,11 @@ import {
   ArtifactDetailSchema,
   ArtifactGuideSchema,
   ArtifactSummarySchema,
+  EntityDetailSchema,
   FeedbackSchema,
   PreviewSchema,
   PreviewStartSchema,
+  SpecStatusSchema,
   TerminalSessionSchema,
   terminalCommand,
   z,
@@ -20,7 +22,8 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
-import { NO_CLI_IN_DESKTOP, useDesktopApp } from './desktop-app.js';
+import { SpecForm, type SpecFormMode } from './spec-form.js';
+import { feedbackRevisionBlocker } from './spec-fields.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
 
@@ -108,6 +111,7 @@ export function Gallery({
                 summary={selected}
                 all={list.data}
                 session={session}
+                owner={workspace.role === 'owner'}
                 open={open}
                 reloadList={list.reload}
               />
@@ -124,6 +128,7 @@ function ArtifactPanel({
   summary,
   all,
   session,
+  owner,
   open,
   reloadList,
 }: {
@@ -131,6 +136,7 @@ function ArtifactPanel({
   summary: ArtifactSummary;
   all: ArtifactSummary[];
   session: SessionInfo | null;
+  owner: boolean;
   open: (view: View, id?: string) => void;
   reloadList: () => void;
 }) {
@@ -303,6 +309,10 @@ function ArtifactPanel({
             />
             <FeedbackPanel
               d={d}
+              base={base}
+              session={session}
+              owner={owner}
+              open={open}
               busy={busy || !csrf}
               act={act}
               submit={(category, text) =>
@@ -932,12 +942,20 @@ function Previews({
 
 function FeedbackPanel({
   d,
+  base,
+  session,
+  owner,
+  open,
   busy,
   act,
   submit,
   decide,
 }: {
   d: ArtifactDetail;
+  base: string;
+  session: SessionInfo | null;
+  owner: boolean;
+  open: (view: View, id?: string) => void;
   busy: boolean;
   act: (work: () => Promise<string>) => Promise<void>;
   submit: (category: Feedback['category'], text: string) => Promise<Feedback>;
@@ -947,12 +965,54 @@ function FeedbackPanel({
     rationale: string,
   ) => Promise<Feedback>;
 }) {
-  const desktop = useDesktopApp();
   const [category, setCategory] =
     useState<Feedback['category']>('change_request');
   const [text, setText] = useState('');
   // One "works as intended" per version: a second click would only add a duplicate note.
   const praised = d.feedback.some((f) => f.category === 'praise');
+  // The spec form for one accepted item, and why another item can't open it (audit L-8).
+  const [revising, setRevising] = useState<
+    (SpecFormMode & { kind: 'revise' }) | null
+  >(null);
+  const [blocked, setBlocked] = useState<{ id: string; text: string } | null>(
+    null,
+  );
+  const [loading, setLoading] = useState('');
+  async function startRevision(f: Feedback) {
+    setBlocked(null);
+    setLoading(f.id);
+    try {
+      const [spec, detail] = await Promise.all([
+        api(SpecStatusSchema, `${base}/specs/${f.spec.id}`),
+        api(EntityDetailSchema, `${base}/entities/${f.spec.id}`),
+      ]);
+      const entity = detail.entity;
+      const why =
+        entity.version === spec.spec.version
+          ? feedbackRevisionBlocker(
+              f,
+              {
+                status: spec.spec.status,
+                version: spec.spec.version,
+                format: entity.body?.format,
+              },
+              owner,
+            )
+          : 'The spec changed while it was loading. Try again.';
+      if (why) setBlocked({ id: f.id, text: why });
+      else
+        setRevising({
+          kind: 'revise',
+          spec,
+          entity,
+          feedback: { id: f.id, version: f.version, text: f.text },
+        });
+    } catch (e) {
+      setBlocked({ id: f.id, text: message(e) });
+    } finally {
+      setLoading('');
+    }
+  }
   return (
     <div className="feedback">
       <h4>Feedback on this exact version</h4>
@@ -1037,9 +1097,9 @@ function FeedbackPanel({
                           'accept',
                           'Owner accepted for revision',
                         );
-                        return desktop
-                          ? `Accepted. Revising the spec from it ${NO_CLI_IN_DESKTOP}.`
-                          : 'Accepted. Revise the spec from it with pnpm cli feedback-revise.';
+                        return owner
+                          ? 'Accepted. Press “Revise the spec from this feedback” to write the next spec version.'
+                          : 'Accepted. The workspace owner can now revise the spec from it.';
                       })
                     }
                   >
@@ -1058,6 +1118,52 @@ function FeedbackPanel({
                     Decline
                   </button>
                 </>
+              )}
+              {f.status === 'accepted' &&
+                session &&
+                owner &&
+                revising?.feedback?.id !== f.id && (
+                  <>
+                    {' '}
+                    <button
+                      className="secondary"
+                      disabled={busy || loading === f.id || Boolean(revising)}
+                      onClick={() => void startRevision(f)}
+                    >
+                      {loading === f.id
+                        ? 'Opening the spec…'
+                        : 'Revise the spec from this feedback'}
+                    </button>
+                  </>
+                )}
+              {blocked?.id === f.id && (
+                <p className="small" role="status">
+                  {blocked.text}{' '}
+                  <button
+                    type="button"
+                    className="text"
+                    onClick={() => open('build')}
+                  >
+                    Open Build
+                  </button>
+                </p>
+              )}
+              {revising?.feedback?.id === f.id && session && (
+                <SpecForm
+                  key={`fb:${f.id}:${revising.spec.spec.version}`}
+                  base={base}
+                  session={session}
+                  mode={revising}
+                  cancel={() => setRevising(null)}
+                  saved={(s) => {
+                    setRevising(null);
+                    // The panel's notice outlives the reload that shows "became spec vN".
+                    void act(
+                      async () =>
+                        `${s.spec.title} v${s.spec.version} saved from this feedback.${s.problems.length ? ` Fix before freezing: ${s.problems.map((p) => p.detail).join(' ')}` : ' Freeze it under Scores and specs, then build it on Build.'}`,
+                    );
+                  }}
+                />
               )}
             </li>
           ))}
