@@ -6,7 +6,11 @@ import {
   PortfolioReasonSchema,
   PortfolioJobReconcileSchema,
 } from '@creator/contracts';
-import type { PortfolioStore, CommandContext } from '@creator/db';
+import {
+  pageQuery,
+  type PortfolioStore,
+  type CommandContext,
+} from '@creator/db';
 
 function schedulerError(e: unknown) {
   const raw = e && typeof e === 'object' && 'code' in e ? e.code : null;
@@ -213,6 +217,7 @@ export const PORTFOLIO_ROUTE =
 export async function portfolioRoutes(r: {
   store: PortfolioStore;
   service: PortfolioService;
+  url: URL;
   ctx: CommandContext;
   ws: string;
   collection: string;
@@ -261,6 +266,17 @@ export async function portfolioRoutes(r: {
         }
       }
   }
+  // Older schedules than the portfolio view's first page (audit L-9).
+  if (collection === 'portfolio-schedules' && !item && method === 'GET')
+    return send(
+      200,
+      await store.listPortfolioSchedules(
+        ctx,
+        ws,
+        pageQuery((k) => r.url.searchParams.get(k)),
+      ),
+      false,
+    );
   if (collection === 'portfolio-schedules' && method === 'POST') {
     if (!item)
       return send(

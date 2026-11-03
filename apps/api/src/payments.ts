@@ -1,5 +1,5 @@
 import type { PaymentService } from '@creator/broker';
-import type { CommandContext, PaymentStore } from '@creator/db';
+import { pageQuery, type CommandContext, type PaymentStore } from '@creator/db';
 
 /** X07 routes under /api/workspaces/:ws/<collection>. Matched separately from RECORD_ROUTE. */
 export const PAYMENTS_ROUTE =
@@ -69,13 +69,15 @@ export async function paymentRoutes(r: {
       break;
     case 'payment-offers':
       if (!item && get)
-        return send(200, await store.listOffers(ctx, ws), false);
+        return send(200, await store.listOffers(ctx, ws, pageQuery(q)), false);
       if (!item && post)
         return send(
           201,
           await store.createOffer(ctx, ws, await r.body()),
           true,
         );
+      if (item && item !== 'owner-funding' && !action && get)
+        return send(200, await store.getOffer(ctx, ws, item), false);
       if (item && action === 'archive' && post)
         return send(200, await store.archiveOffer(ctx, ws, item), true);
       break;
@@ -143,10 +145,17 @@ export async function paymentRoutes(r: {
       if (!item && get)
         return send(
           200,
-          await store.listEntitlements(ctx, ws, {
-            ...(q('offer_id') ? { offer_id: q('offer_id')! } : {}),
-            ...(q('customer_ref') ? { customer_ref: q('customer_ref')! } : {}),
-          }),
+          await store.listEntitlements(
+            ctx,
+            ws,
+            {
+              ...(q('offer_id') ? { offer_id: q('offer_id')! } : {}),
+              ...(q('customer_ref')
+                ? { customer_ref: q('customer_ref')! }
+                : {}),
+            },
+            pageQuery(q),
+          ),
           false,
         );
       if (item === 'check' && !action && get)
@@ -208,7 +217,11 @@ export async function paymentRoutes(r: {
           true,
         );
       if (item === 'allocations' && !action && get)
-        return send(200, await store.listAllocations(ctx, ws), false);
+        return send(
+          200,
+          await store.listAllocations(ctx, ws, pageQuery(q)),
+          false,
+        );
       if (item === 'allocations' && !action && post)
         return send(
           201,
@@ -216,7 +229,11 @@ export async function paymentRoutes(r: {
           true,
         );
       if (item === 'tranches' && !action && get)
-        return send(200, await store.listTranches(ctx, ws), false);
+        return send(
+          200,
+          await store.listTranches(ctx, ws, pageQuery(q)),
+          false,
+        );
       if (item === 'settle-losses' && !action && post)
         return send(200, await store.settleReinvestmentLosses(ctx, ws), true);
       break;

@@ -353,6 +353,8 @@ export function Scoring({
   useOnShow(() => {
     void loadWorkspace();
     setShown((n) => n + 1);
+    // An open spec may have been frozen or approved elsewhere (audit L-10).
+    if (spec) void openSpec(spec.spec.id, true);
   });
   useEffect(() => {
     if (!problem) return;
@@ -377,7 +379,11 @@ export function Scoring({
       }
     })();
   }, [problem, workspace, shown]);
-  async function openSpec(id: string) {
+  // PR #125 review N-1: only the latest open may write, so a slow re-read on return can't put
+  // back a spec the person has since moved away from.
+  const specSeq = useRef(0);
+  async function openSpec(id: string, refresh = false) {
+    const mine = ++specSeq.current;
     setError('');
     try {
       // A spec freezes only under the run that made its selection; find that run before
@@ -392,12 +398,15 @@ export function Scoring({
           ).catch(() => []),
         ),
       ]);
-      setSpecRun(
-        lists.flat().find((s) => s.id === selectionId)?.run_id ?? null,
-      );
+      if (mine !== specSeq.current) return;
+      const run =
+        lists.flat().find((s) => s.id === selectionId)?.run_id ?? null;
+      // A re-read whose selection lists failed keeps the run it found before, so an open
+      // Freeze form is not replaced by "Couldn't find the run".
+      setSpecRun((before) => (refresh && run === null ? before : run));
       setSpec(status);
     } catch (e) {
-      setError(message(e));
+      if (mine === specSeq.current) setError(message(e));
     }
   }
   const names = new Map(alternatives.map((a) => [a.id, a.title]));

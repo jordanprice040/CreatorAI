@@ -1,0 +1,7 @@
+budgets shown: 200 | first: Budget 201 | last: Budget 2
+show older button: 1
+after show older: 201 | last: Budget 1 | button left: 0
+close oldest: closed
+after return: 201 | oldest row: GLOBAL Budget 1 closed | show older left: 0
+library before: PROBLEM Walk problem, first title
+library after return: PROBLEM Walk problem, revised elsewhere | address id kept: true

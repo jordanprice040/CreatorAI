@@ -61,14 +61,14 @@ No High findings. One Medium found and fixed (the app pointed people to connecti
 - The spec form from PR #112 can already edit that content.
 - Suggested: a "Revise the spec from this feedback" button that opens the spec form in revise mode, with the reason filled in, and posts to the feedback route. This is the last main-path CLI-only step I found.
 
-**L-9 (Open, audit item 7): some lists still keep the oldest records past a cap.**
+**L-9 (Fixed November 3, 2026: newest first with a `before` cursor and "Show older"; audit item 7): some lists still keep the oldest records past a cap.**
 
 - These are `order by created_at limit 200`: budget envelopes (`budget-store.ts:929`), payment offers (`payment-store.ts:546`), campaigns (`marketing-store.ts:178`) and schedules (`portfolio-store.ts:278`).
 - These are `limit 500`: payment-store lines 1183 and 1876.
 - Past the cap, the newest records disappear. That is unlikely for one owner today (the seeded workspaces have one envelope each).
 - Suggested: newest first with paging, and a test with cap + 1 records.
 
-**L-10 (Open, audit item 6): most pages load once and don't refresh when you return.** Budgets uses `useOnShow` and Decide reloads, but many tabs still need "Reset fields" or a manual Refresh. A shared "reload when shown" hook would fix it everywhere.
+**L-10 (Fixed November 3, 2026: the remaining tabs read again on return; audit item 6): most pages load once and don't refresh when you return.** Budgets uses `useOnShow` and Decide reloads, but many tabs still need "Reset fields" or a manual Refresh. A shared "reload when shown" hook would fix it everywhere.
 
 **L-11 (Fixed 2026-11-03, PR #96): the Codex plan builder's packet is still bounded only by the 1 MiB body.** `PLAN_ROLE_CONTEXT_MAX` applies only to `plan_roles` (`build.ts:393`).
 

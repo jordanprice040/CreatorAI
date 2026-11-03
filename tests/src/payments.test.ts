@@ -1104,10 +1104,11 @@ test('reinvested earnings stay unallocated until the owner assigns them; a portf
       target: 'portfolio',
     }),
   );
+  // Newest first (audit L-9): the portfolio allocation was made after the standalone one.
   const listed = await store.listAllocations(owner, ws);
   assert.deepEqual(
     listed.map((a) => (a as Record<string, unknown>).target),
-    ['standalone', 'portfolio'],
+    ['portfolio', 'standalone'],
   );
 });
 

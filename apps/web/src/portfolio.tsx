@@ -8,6 +8,7 @@ import {
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import { useOnShow } from './page-active.js';
+import { ShowOlder, useOlder } from './older.js';
 
 const Policy = PortfolioPolicyRequestSchema.extend({
   version: z.number(),
@@ -23,6 +24,14 @@ const Candidate = z.object({
   active: z.boolean().nullable(),
   body: KnowledgeProposalSchema,
 });
+const Schedule = z.object({
+  id: z.string(),
+  run_id: z.string(),
+  lane: z.string(),
+  next_due_at: z.string(),
+  cancelled: z.boolean(),
+  body: z.object({ label: z.string(), operation: z.unknown() }),
+});
 const View = z.object({
   state: z
     .object({
@@ -34,16 +43,7 @@ const View = z.object({
       unhealthy: z.number(),
     })
     .nullable(),
-  schedules: z.array(
-    z.object({
-      id: z.string(),
-      run_id: z.string(),
-      lane: z.string(),
-      next_due_at: z.string(),
-      cancelled: z.boolean(),
-      body: z.object({ label: z.string(), operation: z.unknown() }),
-    }),
-  ),
+  schedules: z.array(Schedule),
   jobs: z.array(
     z.object({
       id: z.string(),
@@ -155,6 +155,13 @@ export function Portfolio({
     };
   }, [workspace.id]);
   useOnShow(() => void load());
+  // Newest first; schedules past the newest 200 come a page at a time (audit L-9).
+  const schedules = useOlder(
+    view?.schedules,
+    Schedule,
+    `${base}/portfolio-schedules`,
+    200,
+  );
   async function act(path: string, body: unknown) {
     if (!session) return;
     setBusy(true);
@@ -271,7 +278,7 @@ export function Portfolio({
         <p>No maintenance or exploration schedules.</p>
       )}
       <ul>
-        {view?.schedules.map((s) => (
+        {schedules.items.map((s) => (
           <li key={s.id}>
             <strong>{s.body.label}</strong> · {s.lane} ·{' '}
             {s.cancelled ? 'cancelled' : 'next due ' + s.next_due_at}
@@ -290,6 +297,7 @@ export function Portfolio({
           </li>
         ))}
       </ul>
+      <ShowOlder list={schedules} what="schedules" />
       <h3>Scheduled outcomes</h3>
       {view?.jobs.length === 0 && (
         <p className="small">No scheduled work has run yet.</p>

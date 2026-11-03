@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useShown } from './page-active.js';
 import {
   ActivityPageSchema,
   EntityDetailSchema,
@@ -168,30 +169,40 @@ export function Catalog({
         return n;
       });
   }, [list.data]);
+  // The open record is read again when this tab is shown again (audit L-10); a return keeps
+  // what is on screen until the new read arrives, and a traced lineage stays open.
+  const shown = useShown();
+  const openFor = useRef('');
   useEffect(() => {
-    setDetail(null);
-    setLineage(null);
-    setActivity([]);
+    const key = `${workspace.id}:${selected}`;
+    if (openFor.current !== key) {
+      openFor.current = key;
+      setDetail(null);
+      setLineage(null);
+      setActivity([]);
+    }
     if (!selected) return;
     setError('');
+    let stop = false;
     void (async () => {
       try {
         const d = await api(EntityDetailSchema, `${base}/entities/${selected}`);
+        if (stop) return;
         setDetail(d);
         setNames((m) => new Map(m).set(d.entity.id, d.entity.title));
-        setActivity(
-          (
-            await api(
-              ActivityPageSchema,
-              `${base}/activity?subject=${selected}&limit=30`,
-            )
-          ).entries,
+        const page = await api(
+          ActivityPageSchema,
+          `${base}/activity?subject=${selected}&limit=30`,
         );
+        if (!stop) setActivity(page.entries);
       } catch (e) {
-        setError(message(e));
+        if (!stop) setError(message(e));
       }
     })();
-  }, [selected, workspace.id]);
+    return () => {
+      stop = true;
+    };
+  }, [selected, workspace.id, shown]);
   async function trace() {
     if (!selected) return;
     setError('');

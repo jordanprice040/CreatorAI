@@ -212,7 +212,7 @@ const USAGE = `Usage:
   pnpm cli broker-status
   pnpm cli pricing <workspace>
   pnpm cli pricing-add <workspace> <pricing-file.json>
-  pnpm cli marketing-list <workspace>
+  pnpm cli marketing-list <workspace> [older-than-id]
   pnpm cli portfolio <workspace>
   pnpm cli portfolio-command <workspace> <policy|runs|tick|reconcile|health|scheduler-resume> <json|file.json>
   pnpm cli portfolio-schedule <workspace> <json|file.json>
@@ -240,7 +240,7 @@ const USAGE = `Usage:
   pnpm cli pay-revoke <workspace> <connection-id> <expected-version> <reason>
   pnpm cli pay-events <workspace> <connection-id>
   pnpm cli offer-create <workspace> <offer-json|file.json>
-  pnpm cli offers <workspace>
+  pnpm cli offers <workspace> [older-than-id]
   pnpm cli offer-archive <workspace> <offer-id>
   pnpm cli checkout <workspace> <checkout-json|file.json>
   pnpm cli pay-reconcile <workspace> <connection-id> <payment-id>
@@ -248,7 +248,7 @@ const USAGE = `Usage:
   pnpm cli ledger <workspace>
   pnpm cli ledger-balances <workspace>
   pnpm cli owner-funding <workspace> <amount-nano-usd> <evidence>
-  pnpm cli entitlements <workspace>
+  pnpm cli entitlements <workspace> [older-than-id]
   pnpm cli entitlement-check <workspace> <artifact-id> <customer-ref>
   pnpm cli rails <workspace>
   pnpm cli rail-add <workspace> <rail-json|file.json>
@@ -261,8 +261,8 @@ const USAGE = `Usage:
   pnpm cli reinvest <workspace>
   pnpm cli reinvest-policy <workspace> [policy-json|file.json]
   pnpm cli reinvest-allocate <workspace> <allocation-json|file.json>
-  pnpm cli reinvest-allocations <workspace>
-  pnpm cli reinvest-tranches <workspace>
+  pnpm cli reinvest-allocations <workspace> [older-than-id]
+  pnpm cli reinvest-tranches <workspace> [older-than-id]
   pnpm cli reinvest-settle <workspace>
   pnpm cli route-registry-add <workspace> <config/routing/model-registry*.json>
   pnpm cli route-registries <workspace>
@@ -316,7 +316,7 @@ const USAGE = `Usage:
   pnpm cli context-eval-create <workspace> <evaluation-request-json|file.json>
   pnpm cli context-eval-run|context-eval <workspace> <evaluation-id>
   pnpm cli context-usage <workspace> [run-id]
-  pnpm cli budgets <workspace>
+  pnpm cli budgets <workspace> [older-than-id]
   pnpm cli budget <workspace> <envelope-id>
   pnpm cli budget-create <workspace> <envelope-json>
   pnpm cli budget-close <workspace> <envelope-id> <expected-version> <reason>
@@ -353,7 +353,9 @@ const USAGE = `Usage:
 Workflows run on the API server's worker (or \`pnpm worker\`), not in this command: exiting the
 CLI or closing the web page does not stop or cancel them.
 
-Sign-in state is kept in CREATOR_SESSION_FILE (default .creator/cli-session.json).`;
+Sign-in state is kept in CREATOR_SESSION_FILE (default .creator/cli-session.json).
+Lists marked [older-than-id] print newest first, 200 (500 for entitlements and tranches)
+at a time; pass the id of the last record printed to read the next older page.`;
 interface Saved {
   origin: string;
   token: string;
@@ -451,6 +453,10 @@ export async function runCli(
       if (!raw) throw new Error(USAGE);
       return `workspaces/${encodeURIComponent(raw)}`;
     };
+    // Lists read newest first, one page at a time (audit L-9); an optional last argument names
+    // the oldest record already printed, to read the next older page.
+    const olderThan = (id: string | undefined) =>
+      id ? `?before=${encodeURIComponent(id)}` : '';
     const [command = 'health', ...rest] = args;
     // Same product store as the API: the dev studio launcher sets CREATOR_PRODUCTS_ROOT to
     // .creator/studio/products, and a CLI run from that shell must see the same products.
@@ -1647,7 +1653,10 @@ export async function runCli(
         break;
       }
       case 'marketing-list':
-        data = await call(z.unknown(), `${ws(rest[0])}/marketing-campaigns`);
+        data = await call(
+          z.unknown(),
+          `${ws(rest[0])}/marketing-campaigns${olderThan(rest[1])}`,
+        );
         break;
       case 'marketing-get':
         data = await call(
@@ -1736,7 +1745,7 @@ export async function runCli(
       case 'offers':
         data = await call(
           z.array(OfferSchema),
-          `${ws(rest[0])}/payment-offers`,
+          `${ws(rest[0])}/payment-offers${olderThan(rest[1])}`,
         );
         break;
       case 'offer-archive':
@@ -1782,7 +1791,7 @@ export async function runCli(
       case 'entitlements':
         data = await call(
           z.array(EntitlementSchema),
-          `${ws(rest[0])}/entitlements`,
+          `${ws(rest[0])}/entitlements${olderThan(rest[1])}`,
         );
         break;
       case 'entitlement-check':
@@ -1865,13 +1874,13 @@ export async function runCli(
       case 'reinvest-allocations':
         data = await call(
           z.array(z.unknown()),
-          `${ws(rest[0])}/reinvestment/allocations`,
+          `${ws(rest[0])}/reinvestment/allocations${olderThan(rest[1])}`,
         );
         break;
       case 'reinvest-tranches':
         data = await call(
           z.array(z.unknown()),
-          `${ws(rest[0])}/reinvestment/tranches`,
+          `${ws(rest[0])}/reinvestment/tranches${olderThan(rest[1])}`,
         );
         break;
       case 'reinvest-settle':
@@ -2401,7 +2410,10 @@ export async function runCli(
         );
         break;
       case 'budgets':
-        data = await call(z.array(EnvelopeSchema), `${ws(rest[0])}/budgets`);
+        data = await call(
+          z.array(EnvelopeSchema),
+          `${ws(rest[0])}/budgets${olderThan(rest[1])}`,
+        );
         break;
       case 'budget':
         data = await call(

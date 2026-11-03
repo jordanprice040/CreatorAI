@@ -150,28 +150,51 @@ export function Models({
   const loadSequence = useRef(0);
   async function load(id = selected) {
     const sequence = ++loadSequence.current;
+    // PR #125 review N-2: a failed read of the open connection no longer keeps the list from
+    // updating; the list is shown, and the error after it.
+    let failed: unknown = null;
     const [rows, next] = await Promise.all([
       api(z.array(PlanConnectionSchema), `${base}/plan-connections`),
       id
-        ? api(Detail, `${base}/plan-connections/${id}`)
+        ? api(Detail, `${base}/plan-connections/${id}`).catch((e: unknown) => {
+            failed = e;
+            return null;
+          })
         : Promise.resolve(null),
     ]);
     if (sequence !== loadSequence.current) return;
     setList(rows);
     setLoaded(true);
+    if (failed) {
+      // The open connection is gone from the list: open the first one instead.
+      if (!rows.some((r) => r.id === id) && rows[0]) {
+        setSelected(rows[0].id);
+        await load(rows[0].id);
+        return;
+      }
+      throw failed;
+    }
     setDetail(next);
     if (!id && rows[0]) {
       setSelected(rows[0].id);
       await load(rows[0].id);
     }
   }
+  // Read when first shown and again on each return (audit L-10). A return keeps the open
+  // connection and what is on screen; only a new workspace or person starts over.
+  const loadedFor = useRef('');
   useEffect(() => {
     if (!active || !session) return;
-    setSelected('');
-    setDetail(null);
-    setLoaded(false);
+    const key = `${workspace.id}:${session.actor_id}`;
+    const again = loadedFor.current === key;
+    loadedFor.current = key;
+    if (!again) {
+      setSelected('');
+      setDetail(null);
+      setLoaded(false);
+    }
     setError('');
-    load('').catch((e) => setError(message(e)));
+    load(again ? selected : '').catch((e) => setError(message(e)));
     return () => {
       loadSequence.current++;
     };

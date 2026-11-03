@@ -13,6 +13,13 @@ import {
 import { canonicalHash, marketingContent } from '@creator/domain';
 import { PaymentStore } from './payment-store.js';
 import {
+  checkPageStart,
+  newestOrder,
+  olderThan,
+  readPage,
+  type PageRequest,
+} from './paging.js';
+import {
   fail,
   normalize,
   uuid,
@@ -169,14 +176,19 @@ export class MarketingStore extends PaymentStore {
       },
     );
   }
-  async listCampaigns(ctx: CommandContext, ws: string) {
+  /** Newest first, one page of at most 200 (audit L-9); `before` reads the next older page. */
+  async listCampaigns(ctx: CommandContext, ws: string, page?: PageRequest) {
     ws = uuid(ws);
+    const { before, limit } = readPage(page, 200);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      await checkPageStart(c, 'marketing_campaigns', ws, before);
       return (
         await c.query(
-          'select * from marketing_campaigns where workspace_id=$1 order by created_at,id limit 200',
-          [ws],
+          `select * from marketing_campaigns where workspace_id=$1
+             and ${olderThan('marketing_campaigns', 2)}
+           order by ${newestOrder('marketing_campaigns')} limit $3`,
+          [ws, before, limit],
         )
       ).rows as CampaignRow[];
     });

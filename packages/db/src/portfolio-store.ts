@@ -17,6 +17,13 @@ import { MarketingStore } from './marketing-store.js';
 import { portfolioActionGate, portfolioState } from './portfolio-gates.js';
 import { knowledgeSources } from './knowledge-context.js';
 import {
+  checkPageStart,
+  newestOrder,
+  olderThan,
+  readPage,
+  type PageRequest,
+} from './paging.js';
+import {
   fail,
   normalize,
   uuid,
@@ -268,17 +275,42 @@ export class PortfolioStore extends MarketingStore {
       },
     );
   }
+  /** One page of schedules, newest first (audit L-9). */
+  private async schedulePage(
+    c: PoolClient,
+    ws: string,
+    page: PageRequest | undefined,
+  ) {
+    const { before, limit } = readPage(page, 200);
+    await checkPageStart(c, 'portfolio_schedules', ws, before);
+    return (
+      await c.query(
+        `select * from portfolio_schedules where workspace_id=$1
+           and ${olderThan('portfolio_schedules', 2)}
+         order by ${newestOrder('portfolio_schedules')} limit $3`,
+        [ws, before, limit],
+      )
+    ).rows;
+  }
+  /** Older schedules than the portfolio view's first page: `before` is the last one shown. */
+  async listPortfolioSchedules(
+    ctx: CommandContext,
+    ws: string,
+    page?: PageRequest,
+  ) {
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      return this.schedulePage(c, ws, page);
+    });
+  }
   async inspectPortfolio(ctx: CommandContext, ws: string) {
     ws = uuid(ws);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
       const state = await portfolioState(c, ws, null);
-      const schedules = (
-        await c.query(
-          'select * from portfolio_schedules where workspace_id=$1 order by created_at limit 200',
-          [ws],
-        )
-      ).rows;
+      // Newest first, at most 200; older ones come from listPortfolioSchedules.
+      const schedules = await this.schedulePage(c, ws, undefined);
       const jobs = (
         await c.query(
           'select * from portfolio_jobs where workspace_id=$1 order by created_at desc limit 200',
