@@ -734,7 +734,10 @@ export class ConnectionStore extends PortfolioStore {
       // and blocks new requests on the connection until it is reconciled.
       // ADR-0062: the request timeout has no 5-minute maximum any more, so an answer counts
       // as abandoned only after its connection's request timeout plus 15 minutes (never under
-      // 15 minutes); a live request is never closed early and asked a second time.
+      // 15 minutes); a live request is never closed early and asked a second time. The
+      // current timeout is read, not the one at the start (PR #123 review L-2): if the owner
+      // lowers it mid-request the answer may be closed early, but the question still cannot be
+      // sent twice while that plan request is in flight or unresolved (max_in_flight is 1).
       await c.query(
         `update chat_answers ca set state = 'failed', finished_at = clock_timestamp(),
            reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'

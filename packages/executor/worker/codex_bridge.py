@@ -30,6 +30,7 @@ MAX_FILES = 200
 MAX_FILE_BYTES = 256 * 1024
 MAX_TOTAL_BYTES = 1024 * 1024
 MAX_LOG_BYTES = 16 * 1024
+MAX_TIMEOUT_S = 35_791 * 60 + 5  # PLAN_BUILD_TIMEOUT_MAX_MS / 1000 + 5 (ADR-0062)
 HELPER = (
     'import socket,sys\n'
     's=socket.socket(socket.AF_INET,socket.SOCK_STREAM)\n'
@@ -64,7 +65,9 @@ def check_job(job):
     for c in job['config']:
         if not isinstance(c, str) or '\n' in c or len(c) > 300:
             raise RuntimeError('Invalid config item')
-    if not 10 <= int(job['timeout_s']) <= 1800:
+    # ADR-0062: the owner's Codex build timeout has no maximum beyond the JavaScript timer
+    # bound (35,791 minutes); the host sends ceil(timeout_ms / 1000) + 5 seconds.
+    if not isinstance(job['timeout_s'], int) or not 10 <= job['timeout_s'] <= MAX_TIMEOUT_S:
         raise RuntimeError('Invalid timeout')
 
 

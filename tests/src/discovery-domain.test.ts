@@ -171,6 +171,35 @@ test('start requests name every response type and include a non-software option'
     false,
     'calls must cover the minimum run',
   );
+  // ADR-0062 (PR #123 review M-2): a plan-backed run's calls follow the connection's request
+  // timeout, which may exceed 10 minutes now, with a wall time to match; API runs keep the
+  // broker's 600 s per-call bound. The plan output cap has no 100,000-character ceiling.
+  const plan = {
+    ...base,
+    envelope_id: undefined,
+    pricing_snapshot_id: undefined,
+    resource_setup: {
+      kind: 'subscription',
+      connection_id: randomUUID(),
+      model_id: 'gpt-x',
+      settings_hash: 'a'.repeat(64),
+      max_output_chars: 400_000,
+    },
+    limits: {
+      ...limits,
+      max_concurrency: 1,
+      call_timeout_ms: 3_600_000,
+      max_wall_seconds: 24 * 3600 + 60,
+    },
+  };
+  const planCheck = StartDiscoveryRequestSchema.safeParse(plan);
+  assert.equal(planCheck.success, true, JSON.stringify(planCheck.error));
+  assert.equal(
+    bad({ limits: { ...limits, call_timeout_ms: 900_000 } }),
+    false,
+    'API calls stay within 600 s',
+  );
+  assert.equal(bad({ limits: { ...limits, call_timeout_ms: 600_000 } }), true);
 });
 
 test('sufficiency depends on current problem evidence; other gaps are named', () => {

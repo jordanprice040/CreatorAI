@@ -52,7 +52,9 @@ const words = (s: string) => s.replace(/_/g, ' ');
  * Re-review L-C: it must outlast the request's own timeout. ADR-0062 removed the timeouts'
  * upper limits, so the wait is the connection's timeout for that kind of request (the build
  * timeout for a Codex build, else the request timeout) plus STALE_PLAN_REQUEST_MARGIN_MS, and
- * never less than STALE_PLAN_REQUEST_MS.
+ * never less than STALE_PLAN_REQUEST_MS. It reads the connection's current timeout, not the one
+ * in force when the request started: lowering it mid-request can only show the request as
+ * stale early (a label), never send anything (PR #123 review L-2).
  */
 export const STALE_PLAN_REQUEST_MS = 45 * 60_000;
 export const STALE_PLAN_REQUEST_MARGIN_MS = 15 * 60_000;
