@@ -1,3 +1,13 @@
+## Refuse a redirected studio folder at startup (audit L-12, pilot F14) — November 3, 2026
+
+What now works: before it creates its studio folder, takes the single-instance lock or opens a window, the desktop app makes one empty probe folder at the deepest existing part of the studio folder, asks Windows where it really landed, and removes it. If the probe resolved into another app's `Packages\<package>\LocalCache` (the MSIX container redirect seen in the pilot when the app was started from the Claude desktop app), startup stops with a plain message box naming the package and telling the owner to start Creator Agent from the Start menu or its shortcut. Before, the app ran and builds failed later with "Noncanonical path refused". Any other unusable studio folder (OneDrive, relative path, folder creation failure) now also shows a message box on Windows instead of a silent startup panic. A studio folder the owner deliberately keeps inside a package folder is not refused (the check only fires when the request is outside a package cache and the probe lands inside one).
+
+Code: `apps/desktop/src-tauri/src/home.rs` (`check_not_redirected`, `redirected_package`, `redirect_message`, called from `Home::new`), `main.rs` (message box on a home error). No migration, no ADR.
+
+Checks: `cargo check --target x86_64-pc-windows-gnu` and clippy pass. On Linux, `cargo test home`: the three new tests pass (path rule incl. verbatim prefix, slashes and case; probe passes on an ordinary folder and leaves nothing behind; a symlink into a `Packages\…\LocalCache` folder stands in for the redirect and is refused end to end, also through `Home::new`). Two older home tests use Windows paths and fail on Linux on main too.
+
+Limits: not run on Windows or inside a real MSIX container; the detection relies on `canonicalize` (GetFinalPathNameByHandle) reporting the redirected path, as Node's realpath did in the pilot. Confirming needs Jordan to start the upgraded app once from inside the Claude app (expect the message) and once from the Start menu (expect a normal start).
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

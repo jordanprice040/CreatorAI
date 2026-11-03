@@ -567,6 +567,13 @@ fn main() {
     } else {
         Some(studio_home())
     };
+    // A studio folder that cannot be used (e.g. redirected into another app's package by an
+    // MSIX container, pilot F14) is refused here in words, before any window or service.
+    #[cfg(windows)]
+    if let Some(Err(e)) = &home {
+        winsys::message("Creator Agent", e);
+        return;
+    }
     #[cfg(windows)]
     if let Some(Ok(h)) = &home {
         match winsys::single_instance(&h.key()) {
