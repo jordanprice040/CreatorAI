@@ -5,6 +5,7 @@ import {
   CHAT_DAILY_LIMIT_MAX,
   ChatSettingsSchema,
   PlanConnectionDetailSchema,
+  PLAN_RECONCILE_HINT,
   PlanConnectionSchema,
   z,
   type ChatAnswer,
@@ -54,7 +55,7 @@ export function AnswerView({
       {a.state === 'refused' && (
         <p>
           <strong>Not asked.</strong> Nothing was sent. {a.reason}
-          {openModels && /reconcile it/.test(a.reason ?? '') && (
+          {openModels && (a.reason ?? '').includes(PLAN_RECONCILE_HINT) && (
             <>
               {' '}
               <button type="button" className="text" onClick={openModels}>
@@ -190,9 +191,10 @@ export function ChatAnswersCard({
       ? ['No model is verified on this connection yet.']
       : []),
     // ADR-0064: one request at a time, and an open one blocks chat until it is closed.
-    ...(chosen?.open_requests.length
+    // A request this studio is still waiting on is a normal running request, not a problem.
+    ...(chosen?.open_requests.some((o) => !o.waiting)
       ? [
-          'A request on this connection has no recorded outcome yet (still running, or left by a stopped studio). See "Requests without a recorded outcome" under Plan connections.',
+          'A request on this connection has no recorded outcome yet (it may be running, or a stopped studio left it). See "Requests without a recorded outcome" under Plan connections.',
         ]
       : []),
   ];

@@ -92,7 +92,9 @@ function OpenRequest({
     r.state === 'unknown'
       ? `Outcome unknown${r.reason_code ? ` (${r.reason_code})` : ''}. The studio could not tell whether ${r.model_id} answered.`
       : o.waiting
-        ? 'Running. The studio is still waiting on it.'
+        ? o.closable_after && Date.parse(o.closable_after) <= Date.now()
+          ? 'The studio is still waiting on it, well past its time limit. It cannot be closed while the studio waits; restarting the studio lets you close it here.'
+          : `Running. The studio is still waiting on it (time limit ends ${when(o.closable_after!)}).`
         : o.closable
           ? 'Still marked as running, but well past its time limit: the studio most likely stopped during it.'
           : `Running, or the studio stopped during it. If nothing finishes it, it can be closed after ${when(o.closable_after!)}.`;

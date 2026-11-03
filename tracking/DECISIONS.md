@@ -12,7 +12,7 @@ Decision:
 - `PlanConnectionDetail` gains `open_requests` (`request`, `closable`, `waiting`, `closable_after`).
 - A chat answer refused because of an open request says to reconcile it in Models and connections and shows an "Open Models and connections" button.
 
-Consequences: no migration. A request a live studio is waiting on can no longer be closed from the CLI either; if a running studio never settles one (a hung adapter), restarting the studio makes it closable once past the stale point. One studio process per database is assumed, as in ADR-0063.
+Consequences: no migration. A request a live studio is waiting on can no longer be closed from the CLI either; if a running studio never settles one (a hung adapter), restarting the studio makes it closable once past the stale point. The page says so once such a request is past its time limit (PR #128 review L-1), and the Codex relay settles a request when Codex disconnects mid-response instead of waiting forever. A close of a waiting request is refused before any lock is taken, so it cannot deadlock with that request's settle (review L-2). Refusals caused by an open request end with the shared `PLAN_RECONCILE_HINT` text, which the chat button keys on. One studio process per database is assumed, as in ADR-0063.
 
 ## ADR-0063 — Delete a chat conversation (accepted November 3, 2026)
 

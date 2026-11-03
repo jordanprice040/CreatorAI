@@ -14,6 +14,14 @@ Checks: two new tests in `tests/src/plan-connections.test.ts` (waiting → refus
 
 Limits: the worker process's requests are covered by the time rule only; the chat "Open Models and connections" button was not walked (it shows on a refused answer whose reason names reconcile).
 
+Review fixes (fresh review `/mnt/project-files/reviews/PR128_STUCK_REQUEST_RECONCILE_REVIEW_2026-11-03.md`: no Medium or above; Jordan asked for the Lows):
+
+- L-1: a request the studio is still waiting on past its time limit now reads "…well past its time limit. It cannot be closed while the studio waits; restarting the studio lets you close it here." (before the limit it shows when the limit ends). The Codex relay (`codex-host.ts`) no longer waits forever for `drain` when Codex disconnects under backpressure: it stops on `close`, records the request as unknown and settles it, so it leaves the waiting set.
+- L-2: closing a request the studio is waiting on is refused before any lock is taken (settle locks the request row before the connection, the reverse order), so it cannot deadlock with that request's settle; the in-transaction check stays.
+- N-1: the Chat answers card warns only about open requests the studio is not waiting on. N-2: the chat button keys on the shared `PLAN_RECONCILE_HINT` constant (contracts) that both admission blockers use. N-3: tests now cover an editor being refused (ACCESS_DENIED) and "did not run" being refused for an in-flight request with observed output.
+
+Checks after the fixes: typecheck and Prettier pass; `pnpm test` on PostgreSQL 16: 716 tests, 683 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests). The Codex relay disconnect path has no new test (it needs a client that stops reading mid-stream).
+
 ## Chat delete timeout follow-up (PR #124 timeout review) — November 3, 2026
 
 Review `/mnt/project-files/reviews/PR124_DELETE_TIMEOUT_REVIEW_2026-11-03.md` (no Medium or above) of the merge that made chat delete follow ADR-0062's stale point. Jordan asked for the fixes.

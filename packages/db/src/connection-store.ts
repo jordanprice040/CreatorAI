@@ -1233,6 +1233,15 @@ export class ConnectionStore extends PortfolioStore {
   ) {
     const ctx = normalize(ctxIn);
     const req = parse(ReconcilePlanRequestSchema, body);
+    // PR #128 review L-2: refuse before taking any lock. Settling locks the request row before
+    // the connection, the reverse of this path, so closing a request at the moment it settles
+    // could deadlock and lose the real result. The check inside the transaction stays too.
+    const waiting = () =>
+      fail(
+        'INVALID_TRANSITION',
+        'The studio is still waiting on this request. It can be closed once it finishes, or after the studio restarts.',
+      );
+    if (this.#livePlanRequests.has(String(uuid(requestId)))) throw waiting();
     return this.#ownerChange(
       ctx,
       ws,
@@ -1253,10 +1262,7 @@ export class ConnectionStore extends PortfolioStore {
         const open = observed.rows[0] as Row | undefined;
         if (open?.state === 'in_flight') {
           if (this.#livePlanRequests.has(String(uuid(requestId))))
-            throw fail(
-              'INVALID_TRANSITION',
-              'The studio is still waiting on this request. It can be closed once it finishes, or after the studio restarts.',
-            );
+            throw waiting();
           if (!open.overdue)
             throw fail(
               'INVALID_TRANSITION',

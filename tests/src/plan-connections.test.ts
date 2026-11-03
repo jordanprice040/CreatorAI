@@ -859,6 +859,18 @@ test('ADR-0064: the owner closes a request a stopped studio left in flight, only
   );
   d = await restarted.planConnectionDetail(owner, s.ws.id, c.id);
   assert.equal(d.open_requests[0]!.closable, true);
+  // Part of an answer was seen: it cannot be recorded as not run (PR #128 review N-3).
+  await s.db.pool.query('update plan_requests set output_chars=3 where id=$1', [
+    rid,
+  ]);
+  await assert.rejects(
+    restarted.reconcilePlanRequest(owner, s.ws.id, c.id, rid, {
+      expected_version: d.connection.version,
+      outcome: 'did_not_run',
+      note: 'Checked.',
+    }),
+    /observed output/,
+  );
   await close(restarted, d.connection.version);
   d = await restarted.planConnectionDetail(owner, s.ws.id, c.id);
   assert.deepEqual(d.open_requests, []);
@@ -915,6 +927,22 @@ test('ADR-0064: a request with an unknown outcome is closable at once and still 
   assert.equal(d.open_requests[0]!.waiting, false);
   assert.equal(d.open_requests[0]!.closable_after, null);
   const before = d.usage.last_24h_requests;
+  // Only the owner closes a request (PR #128 review N-3).
+  const editor = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: editor.actorId,
+    kind: 'human',
+    display_name: 'editor',
+  });
+  await s.store.addMember(owner, s.ws.id, editor.actorId, 'editor');
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.reconcilePlanRequest(editor, s.ws.id, c.id, request_id, {
+      expected_version: d.connection.version,
+      outcome: 'ran',
+      note: 'Not mine to close.',
+    }),
+  );
   await s.store.reconcilePlanRequest(owner, s.ws.id, c.id, request_id, {
     expected_version: d.connection.version,
     outcome: 'did_not_run',

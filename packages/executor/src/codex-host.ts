@@ -408,8 +408,26 @@ export class PlanRelay {
           }
           forwarded.update(block);
           outcome.output_chars += block.length;
-          if (!res.write(block))
-            await new Promise((ok) => res.once('drain', ok));
+          // PR #128 review L-1: also stop waiting when Codex disconnects, so the request is
+          // settled (and leaves the studio's waiting set) instead of hanging until a restart.
+          if (!res.write(block)) {
+            if (res.destroyed || res.writableEnded)
+              throw new Error('Codex disconnected during the response.');
+            await new Promise<void>((ok, fail) => {
+              const done = () => {
+                res.off('drain', done);
+                res.off('close', gone);
+                ok();
+              };
+              const gone = () => {
+                res.off('drain', done);
+                res.off('close', gone);
+                fail(new Error('Codex disconnected during the response.'));
+              };
+              res.once('drain', done);
+              res.once('close', gone);
+            });
+          }
         }
       }
       res.end();
