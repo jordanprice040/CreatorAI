@@ -144,6 +144,104 @@ fn resolved(path: &Path) -> PathBuf {
     }
 }
 
+/// The deepest folder on `path` that already exists (the path itself when it does).
+fn existing_ancestor(path: &Path) -> Option<PathBuf> {
+    path.ancestors().find(|p| p.is_dir()).map(Path::to_path_buf)
+}
+
+/// Lowercased path segments with any `\\?\` verbatim prefix, separators and `.` dropped.
+fn segments(p: &Path) -> Vec<String> {
+    let s = p.to_string_lossy().replace('/', "\\");
+    let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+    s.split('\\')
+        .filter(|x| !x.is_empty() && *x != ".")
+        .map(str::to_string)
+        .collect()
+}
+
+/// The MSIX package whose private `Packages\<package>\LocalCache` folder holds `p`.
+fn package_cache(p: &Path) -> Option<String> {
+    let segs = segments(p);
+    segs.windows(3)
+        .find(|w| w[0].eq_ignore_ascii_case("packages") && w[2].eq_ignore_ascii_case("localcache"))
+        .map(|w| w[1].clone())
+}
+
+/// When a folder created at `requested` actually landed at `observed` inside another app's
+/// package cache, the package that redirected it (pilot finding F14).
+pub fn redirected_package(requested: &Path, observed: &Path) -> Option<String> {
+    match (package_cache(requested), package_cache(observed)) {
+        (None, Some(pkg)) => Some(pkg),
+        _ => None,
+    }
+}
+
+/// The plain refusal shown when Windows redirects the studio folder into `package`.
+pub fn redirect_message(package: &str) -> String {
+    format!(
+        "Creator Agent was started from inside another app ({package}).\n\n\
+         Windows quietly moves new files from apps started that way into that app's own \
+         storage, so studio data would be split between two folders and builds would later \
+         fail with \"Noncanonical path refused\".\n\n\
+         No studio data was changed. Close this message and start Creator Agent yourself from the \
+         Start menu or its desktop shortcut, not from inside another app such as Claude."
+    )
+}
+
+const PROBE_PREFIX: &str = ".creator-redirect-probe-";
+
+/// Leftover probes younger than this are left alone: another studio folder with the same
+/// parent may be probing right now under a different single-instance lock.
+const PROBE_MIN_AGE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Removes empty probe folders an earlier start left behind (a crash between making and
+/// removing one, or a failed delete). Only empty folders with the probe prefix that are at
+/// least `min_age` old are touched.
+fn sweep_probes(base: &Path, min_age: std::time::Duration) {
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let old_enough = || {
+            e.metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age >= min_age)
+        };
+        let is_probe = e.file_name().to_string_lossy().starts_with(PROBE_PREFIX)
+            && e.file_type().is_ok_and(|t| t.is_dir())
+            && old_enough();
+        if is_probe {
+            let _ = std::fs::remove_dir(e.path());
+        }
+    }
+}
+
+/// Refuses a studio folder whose new files Windows would redirect into an app package's
+/// LocalCache (a process started inside an MSIX container, e.g. by the Claude desktop app).
+/// It creates and removes one empty probe folder at the deepest existing part of `root` and
+/// compares where it really landed. If no probe can be made, Home::new reports the problem.
+pub fn check_not_redirected(root: &Path) -> Result<(), String> {
+    let Some(base) = existing_ancestor(root) else {
+        return Ok(());
+    };
+    let Ok(tag) = crate::studio::random_hex(8) else {
+        return Ok(());
+    };
+    sweep_probes(&base, PROBE_MIN_AGE);
+    let probe = base.join(format!("{PROBE_PREFIX}{tag}"));
+    if std::fs::create_dir(&probe).is_err() {
+        return Ok(());
+    }
+    let observed = std::fs::canonicalize(&probe);
+    let _ = std::fs::remove_dir(&probe);
+    match observed.ok().and_then(|o| redirected_package(&probe, &o)) {
+        Some(pkg) => Err(redirect_message(&pkg)),
+        None => Ok(()),
+    }
+}
+
 /// True when one folder is the other or contains it (case-insensitive, as on Windows).
 pub fn overlaps(a: &Path, b: &Path) -> bool {
     let parts = |p: &Path| -> Vec<String> {
@@ -165,6 +263,7 @@ pub struct Home {
 impl Home {
     pub fn new(root: PathBuf) -> Result<Self, String> {
         check_home(&root)?;
+        check_not_redirected(&root)?;
         std::fs::create_dir_all(&root).map_err(|_| "Could not create the studio folder")?;
         for d in ["logs", "secrets", "backups"] {
             std::fs::create_dir_all(root.join(d)).map_err(|_| "Could not create studio folders")?;
@@ -190,9 +289,11 @@ impl Home {
         self.root.join("postgres").join("data")
     }
     /// Short stable key for per-home kernel object names.
-    pub fn key(&self) -> String {
+    /// Taken from the path alone, so the single-instance lock can come before the folder
+    /// is opened or probed.
+    pub fn key_for(root: &Path) -> String {
         use sha2::{Digest, Sha256};
-        let lower = self.root.to_string_lossy().to_lowercase();
+        let lower = root.to_string_lossy().to_lowercase();
         format!("{:x}", Sha256::digest(lower.as_bytes()))[..16].to_string()
     }
     pub fn load(&self) -> Result<Option<StudioConfig>, String> {
@@ -301,6 +402,102 @@ mod tests {
         std::fs::write(home.config_path(), v.to_string()).unwrap();
         assert!(home.load().is_err());
         let _ = std::fs::remove_dir_all(root);
+    }
+    #[test]
+    fn names_the_package_only_when_a_new_folder_lands_in_its_cache() {
+        let requested = Path::new(r"C:\Users\j\AppData\Local\com.creatoragent.studio\p");
+        let redirected = Path::new(
+            r"\\?\C:\Users\j\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\com.creatoragent.studio\p",
+        );
+        assert_eq!(
+            redirected_package(requested, redirected).as_deref(),
+            Some("Claude_pzs8sxrjxfjjc")
+        );
+        // Verbatim prefix, forward slashes and case differences alone are not a redirect.
+        for same in [
+            r"\\?\C:\Users\j\AppData\Local\com.creatoragent.studio\p",
+            "c:/users/j/appdata/local/com.creatoragent.studio/p",
+            r"C:\Users\j\AppData\Local\Packages\NotACache\p",
+        ] {
+            assert_eq!(
+                redirected_package(requested, Path::new(same)),
+                None,
+                "{same}"
+            );
+        }
+        // An owner who deliberately keeps the studio in a package folder is not refused.
+        assert_eq!(redirected_package(redirected, redirected), None);
+        let m = redirect_message("Claude_pzs8sxrjxfjjc");
+        assert!(m.contains("Claude_pzs8sxrjxfjjc") && m.contains("Start menu"));
+        assert!(m.contains("Noncanonical path refused"));
+    }
+    #[test]
+    fn probe_passes_on_an_ordinary_folder_and_leaves_nothing_behind() {
+        let base = std::env::temp_dir().join(format!(
+            "creator-redirect-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        std::fs::create_dir_all(&base).unwrap();
+        // Home not created yet: the probe goes in the deepest existing folder.
+        assert!(check_not_redirected(&base.join("new").join("home")).is_ok());
+        assert!(check_not_redirected(&base).is_ok());
+        assert_eq!(std::fs::read_dir(&base).unwrap().count(), 0);
+        assert!(!base.join("new").exists());
+        let _ = std::fs::remove_dir_all(base);
+    }
+    #[test]
+    fn probe_sweeps_empty_leftovers_and_keeps_anything_else() {
+        let base = std::env::temp_dir().join(format!(
+            "creator-redirect-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        let left = base.join(format!("{PROBE_PREFIX}0011223344556677"));
+        let full = base.join(format!("{PROBE_PREFIX}8899aabbccddeeff"));
+        std::fs::create_dir_all(&left).unwrap();
+        std::fs::create_dir_all(&full).unwrap();
+        std::fs::write(full.join("keep.txt"), b"x").unwrap();
+        std::fs::write(base.join(format!("{PROBE_PREFIX}file")), b"x").unwrap();
+        std::fs::create_dir_all(base.join("products")).unwrap();
+        assert!(check_not_redirected(&base).is_ok());
+        assert!(
+            left.exists(),
+            "a probe made just now may be another studio's"
+        );
+        sweep_probes(&base, std::time::Duration::ZERO);
+        assert!(
+            !left.exists(),
+            "an old enough empty leftover probe is removed"
+        );
+        assert!(
+            full.join("keep.txt").exists(),
+            "a folder with files is kept"
+        );
+        assert!(base.join(format!("{PROBE_PREFIX}file")).exists());
+        assert!(base.join("products").exists());
+        let _ = std::fs::remove_dir_all(base);
+    }
+    /// Stands in for the MSIX redirect with a symlink: the probe is made under a folder that
+    /// really resolves into a package's LocalCache, so the whole check runs end to end.
+    #[cfg(unix)]
+    #[test]
+    fn probe_refuses_a_folder_that_resolves_into_a_package_cache() {
+        let base = std::env::temp_dir().join(format!(
+            "creator-redirect-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        let cache = base
+            .join("Packages")
+            .join("Claude_pzs8sxrjxfjjc")
+            .join("LocalCache")
+            .join("Local");
+        std::fs::create_dir_all(&cache).unwrap();
+        let local = base.join("Local");
+        std::os::unix::fs::symlink(&cache, &local).unwrap();
+        let err = check_not_redirected(&local.join("com.creatoragent.studio")).unwrap_err();
+        assert!(err.contains("Claude_pzs8sxrjxfjjc"), "{err}");
+        assert!(Home::new(local.join("com.creatoragent.studio")).is_err());
+        assert_eq!(std::fs::read_dir(&cache).unwrap().count(), 0);
+        let _ = std::fs::remove_dir_all(base);
     }
     #[test]
     fn overlap_sees_through_spelling_and_nesting() {

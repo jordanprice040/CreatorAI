@@ -99,7 +99,12 @@ function toEnvelope(r: Row): Envelope {
     closed_at: nullableIso(r.closed_at),
   };
 }
-export function toReservation(r: Row): Reservation {
+/**
+ * withEvidence adds the owner's reconcile evidence from the stored result. Callers pass it only
+ * for the owner, so the text never reaches members or a broker replay.
+ */
+export function toReservation(r: Row, withEvidence = false): Reservation {
+  const result = (r.result as Row | null | undefined) ?? null;
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
@@ -127,6 +132,10 @@ export function toReservation(r: Row): Reservation {
       r.provider_response_id === null || r.provider_response_id === undefined
         ? null
         : String(r.provider_response_id),
+    reconcile_evidence:
+      withEvidence && result?.reconciled === true && result.evidence
+        ? String(result.evidence)
+        : null,
     fixture: Boolean(r.fixture),
     created_at: iso(r.created_at),
     finished_at: nullableIso(r.finished_at),
@@ -970,7 +979,7 @@ export class BudgetStore extends OversightStore {
     ctx = normalize(ctx);
     ws = uuid(ws);
     return this.tx(async (c) => {
-      await this.role(c, ws, ctx.actorId, false);
+      const role = await this.role(c, ws, ctx.actorId, false);
       const { rows } = await c.query(
         `${RESERVATION_SELECT} where r.workspace_id = $1
            and ($2::uuid is null or r.envelope_id = $2)
@@ -984,7 +993,7 @@ export class BudgetStore extends OversightStore {
           filter.operationId ? uuid(filter.operationId) : null,
         ],
       );
-      return rows.map((r: Row) => toReservation(r));
+      return rows.map((r: Row) => toReservation(r, role === 'owner'));
     });
   }
   /** Attempts of one logical operation, oldest first, with each attempt's stored result. */
@@ -1643,7 +1652,14 @@ export class BudgetStore extends OversightStore {
               evidence: req.evidence,
             },
           });
-    return done.reservation;
+    // Only the owner reconciles, so the answer carries the stored evidence. It is read back
+    // rather than taken from this request: a reconcile that lost a race gets the winner's
+    // outcome with the winner's evidence (PR #122 review N-1).
+    const { rows } = await this.pool.query(
+      `${RESERVATION_SELECT} where r.id = $1`,
+      [done.reservation.id],
+    );
+    return toReservation(rows[0] as Row, true);
   }
   /**
    * Crash recovery: an attempt still in flight past its deadline plus the late-result window

@@ -434,6 +434,12 @@ export function BuildView({
               <ul className="rows">
                 {d.specs.map((s) => {
                   const cannot = unbuildable(s, entityOf(s), fixture);
+                  const revisable =
+                    writer &&
+                    !specForm &&
+                    s.spec.status === 'active' &&
+                    !stale(s) &&
+                    !!entityOf(s);
                   const made = d.products.filter(
                     (p) =>
                       p.product.binding.spec_id === s.spec.id &&
@@ -476,34 +482,34 @@ export function BuildView({
                             : "· Its selection was recorded again, so it can't be frozen: write a new spec from the current selection above."}
                         </small>
                       )}
-                      {writer &&
-                        !specForm &&
-                        s.spec.status === 'active' &&
-                        !stale(s) &&
-                        entityOf(s) && (
-                          <button
-                            className="text"
-                            onClick={() => {
-                              setNote('');
-                              setSpecForm({
-                                kind: 'revise',
-                                spec: s,
-                                entity: entityOf(s)!,
-                              });
-                            }}
-                          >
-                            Revise
-                          </button>
-                        )}{' '}
+                      {revisable && (
+                        <button
+                          className="text"
+                          onClick={() => {
+                            setNote('');
+                            setSpecForm({
+                              kind: 'revise',
+                              spec: s,
+                              entity: entityOf(s)!,
+                            });
+                          }}
+                        >
+                          Revise
+                        </button>
+                      )}{' '}
                       {!s.frozen_current &&
                         s.spec.status === 'active' &&
                         !stale(s) && (
-                          <button
-                            className="text"
-                            onClick={() => open('scores')}
-                          >
-                            Freeze it under Scores and specs
-                          </button>
+                          <>
+                            {/* Full audit N-1: keep the two actions apart. */}
+                            {revisable && <span aria-hidden="true">· </span>}
+                            <button
+                              className="text"
+                              onClick={() => open('scores')}
+                            >
+                              Freeze it under Scores and specs
+                            </button>
+                          </>
                         )}
                       {s.spec.status === 'active' &&
                         (!stale(s) || s.frozen_current) && (

@@ -346,7 +346,9 @@ export function Models({
               ChatGPT sign-in failed ({attempt.code}): {attempt.message}
             </p>
           )}
+          {/* PR #118 re-review N-a: only the owner has Check Claude Code and signs in. */}
           {claude &&
+            owner &&
             !(
               c.sign_in.state === 'signed_in' && c.sign_in.plan_usage_granted
             ) && (
