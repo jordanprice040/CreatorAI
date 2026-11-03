@@ -2902,9 +2902,12 @@ function discoverySummary(detail: WorkflowDetail) {
  * software-suitable case with cross-field reasoning and a known duplicate, an existing-tool
  * case, and insufficient evidence. Requires the API worker (on by default).
  */
-async function seedDiscovery(call: Call) {
+async function seedDiscovery(
+  call: Call,
+  name = 'Fixture discovery demonstration',
+) {
   const ws = await call(WorkspaceSchema, 'workspaces', {
-    name: 'Fixture discovery demonstration',
+    name,
     record_mode: 'fixture',
   });
   const base = `workspaces/${ws.id}`;
@@ -3133,7 +3136,11 @@ const specSummary = (s: SpecStatus) => ({
  * asks for is answered here as the signed-in owner, approve-once, for the exact version shown.
  */
 async function seedSelection(call: Call) {
-  const seeded = await seedDiscovery(call);
+  // Full audit N-2: its own name, so the two seeds differ in the workspace picker.
+  const seeded = await seedDiscovery(
+    call,
+    'Fixture selection and spec demonstration',
+  );
   const clinic = seeded.results.find((r) => r.scenario === 'software');
   const problemId = clinic?.discovery?.catalog_records.problem?.id;
   if (!clinic || !problemId)

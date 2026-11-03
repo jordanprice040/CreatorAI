@@ -70,15 +70,15 @@ No High findings. One Medium found and fixed (the app pointed people to connecti
 
 **L-10 (Open, audit item 6): most pages load once and don't refresh when you return.** Budgets uses `useOnShow` and Decide reloads, but many tabs still need "Reset fields" or a manual Refresh. A shared "reload when shown" hook would fix it everywhere.
 
-**L-11 (Open, PR #96): the Codex plan builder's packet is still bounded only by the 1 MiB body.** `PLAN_ROLE_CONTEXT_MAX` applies only to `plan_roles` (`build.ts:393`).
+**L-11 (Fixed 2026-11-03, PR #96): the Codex plan builder's packet is still bounded only by the 1 MiB body.** `PLAN_ROLE_CONTEXT_MAX` applies only to `plan_roles` (`build.ts:393`).
 
 **L-12 (Open, pilot F14): the desktop app still doesn't detect a redirected data home** (the MSIX container case). No check exists in `apps/desktop/src-tauri`. Launching from the Claude desktop app's container still fails later with "Noncanonical path refused".
 
 ### Nits
 
-- **N-1 (Open):** on Build's spec row, "Revise" and "Freeze it under Scores and specs" run together with no separator ("Revise Freeze it under…").
-- **N-2 (Open):** `seed-discovery` and `seed-selection` both name their workspace "Fixture discovery demonstration", so two seeds look identical in the workspace picker.
-- **N-3 (Open):** on Models, the Chat answers card has an empty first line above its heading.
+- **N-1 (Fixed 2026-11-03):** on Build's spec row, "Revise" and "Freeze it under Scores and specs" run together with no separator ("Revise Freeze it under…").
+- **N-2 (Fixed 2026-11-03):** `seed-discovery` and `seed-selection` both name their workspace "Fixture discovery demonstration", so two seeds look identical in the workspace picker.
+- **N-3 (Fixed 2026-11-03):** on Models, the Chat answers card has an empty first line above its heading.
 - **N-4 (Left, as chosen):** PR #107 L-B. A run that finishes after dropping off the 100-item list never gets a dot.
 
 ## 3. Known Lows re-checked
@@ -109,9 +109,9 @@ Lows carried from the PR #99 audit, not re-verified one by one in this pass:
 2. **Reload-when-shown for every page, and newest-first lists with paging** (L-9, L-10). Stale lists are the most common "it didn't work" moment in the walks.
 3. **A redirected data home check in the desktop app** (L-12). Refuse at start with a plain message instead of failing mid-build.
 4. **Delete and rename chat conversations, and clear the prefill** (#98 L-1 and L-2). Chat is now the front page.
-5. **Show the stored reconcile evidence** on Budgets (PR #116 N-3). It is already saved on the reservation.
+5. **Show the stored reconcile evidence** on Budgets (PR #116 N-3). Done 2026-11-03.
 6. **Theme-free discovery** (C53). Still unbuilt, and the biggest functional addition before the final UX pass.
-7. **Codex packet bound** (L-11). It is a one-line change in `build.ts`, plus a test.
+7. **Codex packet bound** (L-11). Done 2026-11-03.
 8. **Final UX pass and X10 on the exact candidate** (runbook step 9). Do it after 1–3, on the installed app.
 
 ## Checks run on the fix branch

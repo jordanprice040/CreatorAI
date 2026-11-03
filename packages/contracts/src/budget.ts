@@ -230,6 +230,11 @@ export const ReservationSchema = z.strictObject({
     ])
     .nullable(),
   provider_response_id: z.string().max(200).nullable(),
+  /**
+   * Where the owner checked when reconciling an unknown outcome (PR #116 N-3). Shown only to
+   * the owner on the reservations list; null everywhere else, including broker results.
+   */
+  reconcile_evidence: z.string().max(1200).nullable(),
   fixture: z.boolean(),
   created_at: timestamp,
   finished_at: timestamp.nullable(),
