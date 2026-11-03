@@ -201,6 +201,28 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
     bigCodex.body.code ?? bigCodex.body.error?.code,
     'INVALID_CONFIG',
   );
+  // Full audit L-11: a builder packet past the plan-role ceiling is refused at the contract,
+  // though it fits the 1 MiB body allowance.
+  const runawayCodex = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/codex-builds`,
+    {
+      build_id: crypto.randomUUID(),
+      run_id: crypto.randomUUID(),
+      model_id: 'fixture-plan-model',
+      data_class: 'synthetic',
+      packet: {
+        candidate: 'a'.repeat(40),
+        files: [
+          { path: 'src/a.txt', content: 'x'.repeat(PLAN_ROLE_CONTEXT_MAX) },
+        ],
+        task: { file_scope: ['src'] },
+      },
+    },
+  );
+  assert.equal(
+    runawayCodex.body.code ?? runawayCodex.body.error?.code,
+    'INVALID_CONTRACT',
+  );
   // A build-role call on the plan route is admitted only for a qualified class and a real run.
   const runEntity = (
     await post(`workspaces/${ws}/entities`, {

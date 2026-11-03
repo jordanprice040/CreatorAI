@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
+  BrokerCallResultSchema,
   ContractError,
   type AutonomyMode,
   type BrokerCallRequest,
@@ -674,6 +675,43 @@ test('rate limits release and retry; malformed output is charged; unknown outcom
   assert.equal(
     released.at(-1)?.result?.evidence,
     'Provider usage page shows no request at that time.',
+  );
+  assert.equal(
+    charged.reconcile_evidence,
+    'Provider usage export row for the request.',
+  );
+  // Budgets shows the stored evidence to the owner only (full audit item 5, PR #116 N-3);
+  // members and the broker's attempt records never carry it.
+  const byId = async (actor: typeof owner) =>
+    new Map(
+      (
+        await s.store.listReservations(actor, s.ws.id, { envelopeId: env.id })
+      ).map((r) => [r.id, r.reconcile_evidence]),
+    );
+  const ownerView = await byId(owner);
+  assert.equal(
+    ownerView.get(lost.attempts[0]!.id),
+    'Provider usage page shows no request at that time.',
+  );
+  assert.equal(
+    ownerView.get(reset.attempts[0]!.id),
+    'Provider usage export row for the request.',
+  );
+  assert.equal(ownerView.get(retried.attempts[1]!.id), null);
+  for (const evidence of (await byId(agent)).values())
+    assert.equal(evidence, null);
+  assert.equal(kept.at(-1)?.reservation.reconcile_evidence, null);
+  // A call outcome saved before reconcile_evidence existed still parses (PR #122 review L-1:
+  // the artifact packager re-reads call-N-outcome.json from disk).
+  const older = JSON.parse(JSON.stringify(retried)) as {
+    attempts: Record<string, unknown>[];
+  };
+  for (const a of older.attempts) delete a.reconcile_evidence;
+  assert.deepEqual(
+    BrokerCallResultSchema.parse(older).attempts.map(
+      (a) => a.reconcile_evidence,
+    ),
+    [null, null],
   );
   await rejects(
     'INVALID_TRANSITION',

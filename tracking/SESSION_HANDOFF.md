@@ -1,3 +1,25 @@
+## Smaller audit items: reconcile evidence, Codex packet bound, nits — November 3, 2026
+
+From the full audit (`docs/FULL_AUDIT_2026-11-02.md`) and the PR #118 re-review.
+
+What now works:
+
+- Budgets › Recent calls shows "Where you checked: …" under a call the owner reconciled (charged or no charge), from the evidence already stored on the reservation (audit item 5, PR #116 N-3). `ReservationSchema` has a new `reconcile_evidence` field; `listReservations` fills it for the owner only, and the reconcile answer carries it. Members, broker results and replays always get null.
+- The Codex plan builder's packet has the same 200,000-character ceiling as plan-role packets (L-11): the build supervisor refuses before Codex is asked, and the `codex-builds` route refuses a larger packet with `INVALID_CONTRACT` though it fits the 1 MiB body. The intent's `context_hash` is now of the exact packet sent (it includes `allowed_tools`).
+- Nits: Build's spec row reads "Revise · Freeze it under Scores and specs" (N-1); `seed-selection` names its workspace "Fixture selection and spec demonstration", so it differs from `seed-discovery` (N-2); the Chat answers card on Models has no empty space above its heading (N-3); the "Sign in to Claude Code yourself" box shows to the owner only, since only the owner has Check Claude Code (PR #118 re-review N-a).
+
+Checks run: new assertions in `tests/src/broker.test.ts` (owner sees both reconcile evidences, an unreconciled call and an editor see null, the broker's attempt record stays null), new test in `tests/src/build.test.ts` (eight visible cases at their schema maximums push the Codex packet past 200,000; no Codex turn, no commit) and a new oversized `codex-builds` post in `tests/src/plan-connections-api.test.ts`. Both new packet tests fail with the fix removed. `pnpm test` with a PostgreSQL 16 test database: 693 tests, 661 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh). Typecheck and Prettier pass. Browser walk `tracking/evidence/smaller-audit-items/walk.mjs` on a throwaway database (5183/4330/4340, fixture, $0, no model call): screenshots 01–04 and `walk.txt`. The Budgets evidence line and the non-owner view are rendered from data rewritten in the browser only (the fixture has no unknown call to reconcile); the server side is covered by the tests.
+
+Limits: no migration, no ADR. Tracking evidence JSON from older seeds still shows the old seed-selection workspace name.
+
+Review fixes (fresh review `/mnt/project-files/reviews/PR122_SMALLER_AUDIT_ITEMS_REVIEW_2026-11-03.md`: no Medium or above; Jordan asked for all Lows and nits):
+
+- L-1: `reconcile_evidence` defaults to null, so call outcome files saved before the field existed still parse, and an older metered build can still be packaged. `broker.test.ts` parses a broker result whose attempts lack the key; it fails without the default.
+- N-1: the reconcile answer reads the stored row back instead of overlaying the request's evidence, so a reconcile that lost a race shows the winner's outcome with the winner's evidence.
+- N-2: the walk's Budgets step now shapes the injected row as a no-charge reconcile (released, `reconciled_no_charge`), so the screenshot no longer shows evidence on a plainly settled call.
+
+Checks: `pnpm test` on PostgreSQL 16: 693 tests, 661 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass; walk re-run.
+
 ## Revise the spec from preview feedback in the app (audit L-8) — November 3, 2026
 
 What now works: on Try, accepted preview feedback has a "Revise the spec from this feedback" button (workspace owner only, as the server requires). It opens the Build page's spec form (PR #112) under that item in revise mode: the spec's current version is the starting body, the feedback is quoted above the form, and "What changed and why" is prefilled with "Preview feedback: …" (one line, at most 240 characters, so the studio's appended " (feedback <id>)" fits in 300). Saving posts to the existing `POST feedback/{id}/revision` with the feedback's and the spec's expected versions, so the feedback is marked revised and links to the new spec version in one transaction, as the CLI's `feedback-revise` did. The panel then says "<spec> vN saved from this feedback. Freeze it under Scores and specs, then build it on Build."

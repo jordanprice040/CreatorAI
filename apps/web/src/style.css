@@ -2260,6 +2260,10 @@ fieldset.flagged {
   border-radius: var(--radius);
   background: var(--surface-raised);
 }
+/* Full audit N-3: the heading's page margin read as an empty first line inside the card. */
+.chat-answers-card > h3:first-child {
+  margin-top: 0;
+}
 .chat-answers-card .form-grid {
   display: grid;
   gap: 10px;
