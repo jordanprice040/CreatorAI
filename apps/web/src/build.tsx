@@ -3,6 +3,7 @@ import { HumilityForm } from './humility.js';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArtifactSummarySchema,
+  buildDeadlineMs,
   EnvelopeSchema,
   GrantSchema,
   PlanConnectionSchema,
@@ -204,6 +205,7 @@ export function BuildView({
         label: `${c.label} · ${m.model_id}`,
         connection_label: c.label,
         data_classes: c.settings.allowed_data_classes,
+        build_timeout_ms: c.settings.caps.codex.build_timeout_ms,
       })),
     );
     const now = Date.now();
@@ -432,6 +434,12 @@ export function BuildView({
               <ul className="rows">
                 {d.specs.map((s) => {
                   const cannot = unbuildable(s, entityOf(s), fixture);
+                  const revisable =
+                    writer &&
+                    !specForm &&
+                    s.spec.status === 'active' &&
+                    !stale(s) &&
+                    !!entityOf(s);
                   const made = d.products.filter(
                     (p) =>
                       p.product.binding.spec_id === s.spec.id &&
@@ -474,34 +482,34 @@ export function BuildView({
                             : "· Its selection was recorded again, so it can't be frozen: write a new spec from the current selection above."}
                         </small>
                       )}
-                      {writer &&
-                        !specForm &&
-                        s.spec.status === 'active' &&
-                        !stale(s) &&
-                        entityOf(s) && (
-                          <button
-                            className="text"
-                            onClick={() => {
-                              setNote('');
-                              setSpecForm({
-                                kind: 'revise',
-                                spec: s,
-                                entity: entityOf(s)!,
-                              });
-                            }}
-                          >
-                            Revise
-                          </button>
-                        )}{' '}
+                      {revisable && (
+                        <button
+                          className="text"
+                          onClick={() => {
+                            setNote('');
+                            setSpecForm({
+                              kind: 'revise',
+                              spec: s,
+                              entity: entityOf(s)!,
+                            });
+                          }}
+                        >
+                          Revise
+                        </button>
+                      )}{' '}
                       {!s.frozen_current &&
                         s.spec.status === 'active' &&
                         !stale(s) && (
-                          <button
-                            className="text"
-                            onClick={() => open('scores')}
-                          >
-                            Freeze it under Scores and specs
-                          </button>
+                          <>
+                            {/* Full audit N-1: keep the two actions apart. */}
+                            {revisable && <span aria-hidden="true">· </span>}
+                            <button
+                              className="text"
+                              onClick={() => open('scores')}
+                            >
+                              Freeze it under Scores and specs
+                            </button>
+                          </>
                         )}
                       {s.spec.status === 'active' &&
                         (!stale(s) || s.frozen_current) && (
@@ -806,6 +814,8 @@ type Data = {
     connection_label: string;
     /** What the connection's settings allow; a build of another class is refused. */
     data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
+    /** The connection's Codex build timeout (ADR-0062: no 30-minute maximum). */
+    build_timeout_ms: number;
   }[];
   /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
@@ -1208,7 +1218,13 @@ function StartBuild({
       // A streamed plan answer can take up to the plan's 120 s request timeout.
       timeout_ms: connection?.kind === 'roles' ? 120000 : 30000,
       max_output_tokens: 3000,
-      deadline: new Date(Date.now() + 30 * 60_000).toISOString(),
+      deadline: new Date(
+        Date.now() +
+          buildDeadlineMs(
+            connection?.kind === 'codex' ? connection.build_timeout_ms : 0,
+            repairs,
+          ),
+      ).toISOString(),
       ...(connection
         ? {
             [connection.kind === 'roles' ? 'plan_roles' : 'codex_plan_builder']:

@@ -545,18 +545,33 @@ function App() {
     });
   // A value Chat hands to the fetch form (Sources) or the theme field (Discover). It only
   // fills the field; the person still submits the form there.
+  // PR #98 L-1: a hand-off fills its field once, in the workspace it came from. The page
+  // calls `used` after filling, so "Reset these fields" or a later visit starts empty.
   const [prefill, setPrefill] = useState<{
+    ws: string;
     view: 'evidence' | 'submit';
     value: string;
     nonce: number;
   } | null>(null);
+  const prefillSeq = useRef(0);
   const fill = (view: 'evidence' | 'submit', value: string) => {
-    setPrefill((p) => ({ view, value, nonce: (p?.nonce ?? 0) + 1 }));
+    if (!workspace) return;
+    setPrefill({
+      ws: workspace.id,
+      view,
+      value,
+      nonce: ++prefillSeq.current,
+    });
     open(view);
   };
-  const prefillFor = (view: 'evidence' | 'submit'): Prefill =>
-    prefill && prefill.view === view
-      ? { value: prefill.value, nonce: prefill.nonce }
+  const prefillFor = (view: 'evidence' | 'submit', ws: string): Prefill =>
+    prefill && prefill.view === view && prefill.ws === ws
+      ? {
+          value: prefill.value,
+          nonce: prefill.nonce,
+          used: () =>
+            setPrefill((p) => (p?.nonce === prefill.nonce ? null : p)),
+        }
       : null;
 
   function body(pageRoute = route) {
@@ -680,7 +695,7 @@ function App() {
             session={s}
             workspace={workspace}
             open={open}
-            prefill={prefillFor('submit')}
+            prefill={prefillFor('submit', workspace.id)}
           />
         );
       case 'catalog':
@@ -710,7 +725,7 @@ function App() {
             workspace={workspace}
             focus={pageRoute.id}
             onFocus={focus}
-            prefill={prefillFor('evidence')}
+            prefill={prefillFor('evidence', workspace.id)}
           />
         );
       case 'decisions':

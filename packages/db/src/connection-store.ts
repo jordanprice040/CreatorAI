@@ -52,6 +52,7 @@ import {
   type ChatAnswer,
   type ChatAnswerState,
   type ChatConversation,
+  type ChatDeleted,
   type ChatDetail,
   type ChatSettings,
   type ChatMessage,
@@ -485,6 +486,86 @@ export class ConnectionStore extends PortfolioStore {
   }
 
   /**
+   * ADR-0063: deletes a conversation with its messages and answers. Owners delete any; editors
+   * only ones they started that hold nothing from anyone else; viewers none. Refused while an answer is still on its way, so a
+   * reply can never come back to a conversation that is gone. The audit event keeps ids and
+   * counts only, never the words; plan requests stay, so usage and daily limits are unchanged.
+   */
+  async deleteChat(
+    ctxIn: CommandContext,
+    ws: string,
+    id: string,
+  ): Promise<ChatDeleted> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      const role = await this.role(c, uuid(ws), ctx.actorId, true);
+      const conversation = await chatConversation(c, uuid(ws), uuid(id), true);
+      if (role !== 'owner' && conversation.created_by !== ctx.actorId)
+        throw fail(
+          'ACCESS_DENIED',
+          'Only the owner or the person who started this conversation can delete it.',
+        );
+      // PR #124 review L-2: an editor never deletes anyone else's words. Answers are always
+      // asked for by an owner, so a conversation with any answer is the owner's to delete.
+      if (role !== 'owner') {
+        const others = await c.query(
+          `select 1 from chat_messages where conversation_id = $1 and author_id <> $2
+           union all
+           select 1 from chat_answers where conversation_id = $1
+           limit 1`,
+          [conversation.id, ctx.actorId],
+        );
+        if (others.rows.length)
+          throw fail(
+            'ACCESS_DENIED',
+            'This conversation has messages or model answers from someone else, so only the owner can delete it.',
+          );
+      }
+      // ADR-0062: a pending answer counts as live until its connection's request timeout plus
+      // 15 minutes, the same point at which a stopped studio's answer is closed as failed.
+      const pending = await c.query(
+        `select 1 from chat_answers ca where ca.conversation_id = $1 and ca.state = 'pending'
+           and ca.created_at >= clock_timestamp() - make_interval(secs => 900 + coalesce((
+             select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
+             from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)
+         limit 1`,
+        [conversation.id],
+      );
+      if (pending.rows.length)
+        throw fail(
+          'INVALID_TRANSITION',
+          'An answer is still on its way in this conversation. Delete it once the answer is back.',
+        );
+      const answers = Number(
+        (
+          await c.query(
+            'select count(*)::int as n from chat_answers where conversation_id = $1',
+            [conversation.id],
+          )
+        ).rows[0]?.n ?? 0,
+      );
+      await c.query(
+        'delete from chat_conversations where workspace_id = $1 and id = $2',
+        [uuid(ws), conversation.id],
+      );
+      await this.append(c, ctx, {
+        workspaceId: uuid(ws),
+        action: 'chat.deleted',
+        subjectKind: 'chat_conversation',
+        subjectId: conversation.id,
+        subjectVersion: null,
+        contentHash: canonicalHash({ id: conversation.id }),
+        payload: { messages: conversation.messages, answers },
+      });
+      return {
+        id: conversation.id,
+        messages: conversation.messages,
+        answers,
+      };
+    });
+  }
+
+  /**
    * Adds the person's message. The server decides its intent with `classifyChat`; a repeated
    * `client_id` returns the message already saved (a retried send), and the same id with other
    * text is refused. A conversation still called "New conversation" takes its title from its
@@ -732,10 +813,19 @@ export class ConnectionStore extends PortfolioStore {
       // An answer left pending by a studio that stopped mid-request is closed as failed, so
       // the message can be asked again. Its plan request, if one was sent, stays unresolved
       // and blocks new requests on the connection until it is reconciled.
+      // ADR-0062: the request timeout has no 5-minute maximum any more, so an answer counts
+      // as abandoned only after its connection's request timeout plus 15 minutes (never under
+      // 15 minutes); a live request is never closed early and asked a second time. The
+      // current timeout is read, not the one at the start (PR #123 review L-2): if the owner
+      // lowers it mid-request the answer may be closed early, but the question still cannot be
+      // sent twice while that plan request is in flight or unresolved (max_in_flight is 1).
       await c.query(
-        `update chat_answers set state = 'failed', finished_at = clock_timestamp(),
+        `update chat_answers ca set state = 'failed', finished_at = clock_timestamp(),
            reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'
-         where message_id = $1 and state = 'pending' and created_at < clock_timestamp() - interval '15 minutes'`,
+         where ca.message_id = $1 and ca.state = 'pending'
+           and ca.created_at < clock_timestamp() - make_interval(secs => 900 + coalesce((
+             select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
+             from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)`,
         [msg.id],
       );
       const prior = (

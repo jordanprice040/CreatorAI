@@ -50,7 +50,7 @@ and grading reasons (F10).
 - F11: the build-roles preflight passes when the run has room for only one of the two role requests.
 - F12: a build stopped at a checkpoint can't be resumed or restarted on the same task ("Stale build candidate", with no next step). The page offers one task per product and hides Create product once one exists.
 - F13: the plan route needs a model.generate standing grant that the app can't create, and the preflight raises no decision for it.
-- F14: the installed app breaks when launched from a Claude session (MSIX path redirect). It should detect a redirected home and refuse with a clear message.
+- F14: the installed app breaks when launched from a Claude session (MSIX path redirect). It should detect a redirected home and refuse with a clear message. Fixed 2026-11-03: startup now probes for the redirect and refuses with a message box.
 - F16: the private preview gives no hint of what to type (arguments, stdin format). It should show the spec's usage and one visible example case. Fixed in the friction pass: the preview now shows the task's flows and up to 3 visible spec cases with a fill-in button; held-out cases stay hidden.
 - F15: the $0 plan route still needs an envelope, a pricing snapshot and a commit_build approval per repair cycle (U04). That is a lot of setup.
 - F17: the studio can build only headless Python CLIs that are verified by fixed stdin/stdout cases. It has no interactive or web template, so a live input tester (real-time key capture plus a timing cue) can't be built or verified, and the preview can't run interactive programs.

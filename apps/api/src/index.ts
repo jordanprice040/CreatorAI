@@ -608,7 +608,7 @@ export function createApi(
   const USAGE_ROUTE = /^\/api\/workspaces\/([^/]+)\/(usage)$/;
   const EVIDENCE_SITES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(evidence-sites)$/;
   const CHAT_ROUTE =
-    /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title))?)?$/;
+    /^\/api\/workspaces\/([^/]+)\/(chats)(?:\/([^/]+)(?:\/(messages|title|delete))?)?$/;
   // ADR-0057: a model answer to one saved message, and the owner's chat-answer setting.
   const CHAT_ANSWER_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/messages\/([^/]+)\/answer$/;
@@ -793,6 +793,11 @@ export function createApi(
           await store.renameChat(ctx, ws, item, await readJson(req)),
           true,
         );
+      // ADR-0063: delete a conversation. POST like the other chat actions, so it carries CSRF.
+      if (item && action === 'delete' && method === 'POST') {
+        await readJson(req);
+        return send(200, await store.deleteChat(ctx, ws, item), true);
+      }
       throw new ContractError('NOT_FOUND', 'Unknown chat route.');
     }
     // Narrower per-run and per-model limits under that ceiling (ADR-0044); same audience.

@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  PLAN_REQUEST_TIMEOUT_MAX_MS,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
+  WORKFLOW_WALL_MAX_SECONDS,
   type DiscoveryTaskContext,
   type EvidencePacket,
   type PacketClaim,
@@ -170,6 +172,67 @@ test('start requests name every response type and include a non-software option'
     bad({ limits: { ...limits, max_calls: 4 } }),
     false,
     'calls must cover the minimum run',
+  );
+  // ADR-0062 (PR #123 review M-2): a plan-backed run's calls follow the connection's request
+  // timeout, which may exceed 10 minutes now, with a wall time to match; API runs keep the
+  // broker's 600 s per-call bound. The plan output cap has no 100,000-character ceiling.
+  const plan = {
+    ...base,
+    envelope_id: undefined,
+    pricing_snapshot_id: undefined,
+    resource_setup: {
+      kind: 'subscription',
+      connection_id: randomUUID(),
+      model_id: 'gpt-x',
+      settings_hash: 'a'.repeat(64),
+      max_output_chars: 400_000,
+    },
+    limits: {
+      ...limits,
+      max_concurrency: 1,
+      call_timeout_ms: 3_600_000,
+      max_wall_seconds: 24 * 3600 + 60,
+    },
+  };
+  const planCheck = StartDiscoveryRequestSchema.safeParse(plan);
+  assert.equal(planCheck.success, true, JSON.stringify(planCheck.error));
+  assert.equal(
+    bad({ limits: { ...limits, call_timeout_ms: 900_000 } }),
+    false,
+    'API calls stay within 600 s',
+  );
+  assert.equal(bad({ limits: { ...limits, call_timeout_ms: 600_000 } }), true);
+  assert.equal(
+    bad({ limits: { ...limits, max_wall_seconds: 86_401 } }),
+    false,
+    'API runs end within a day',
+  );
+  // Re-review L-3: Submit's wall time at the very top of the range, clamped, is accepted.
+  const top = Math.min(
+    WORKFLOW_WALL_MAX_SECONDS,
+    Math.ceil((60 * PLAN_REQUEST_TIMEOUT_MAX_MS) / 1000) + 60,
+  );
+  assert.equal(
+    StartDiscoveryRequestSchema.safeParse({
+      ...plan,
+      limits: {
+        ...plan.limits,
+        max_calls: 60,
+        call_timeout_ms: PLAN_REQUEST_TIMEOUT_MAX_MS,
+        max_wall_seconds: top,
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    StartDiscoveryRequestSchema.safeParse({
+      ...plan,
+      limits: {
+        ...plan.limits,
+        max_wall_seconds: WORKFLOW_WALL_MAX_SECONDS + 1,
+      },
+    }).success,
+    false,
   );
 });
 

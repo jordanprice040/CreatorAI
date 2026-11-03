@@ -40,7 +40,11 @@ type Refusal = Extract<
 const SHIMS = new Set(['.cmd', '.bat', '.ps1', '.vbs', '.com']);
 const STATUS_TIMEOUT_MS = 20_000;
 const MAX_STDOUT_BYTES = 8 * 1024 * 1024;
-/** Longer than any request may run (the timeout cap is 300 s), so only leftovers match. */
+/**
+ * Instruction files older than this are swept as crash leftovers. The request timeout has no
+ * 300 s maximum any more (ADR-0062), so a long request's file can be removed while it still
+ * runs; that is harmless because Claude Code reads the file once, when it starts.
+ */
 const STALE_PROMPT_MS = 15 * 60_000;
 /** Environment names copied from the studio into the child; everything else is dropped. */
 const ENV_ALLOW = [

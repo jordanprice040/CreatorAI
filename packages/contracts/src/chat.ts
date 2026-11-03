@@ -135,7 +135,11 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
  * request (purpose `chat`), within a separate daily chat limit. Answers are advice only.
  */
 export const CHAT_DAILY_LIMIT_DEFAULT = 20;
-export const CHAT_DAILY_LIMIT_MAX = 100;
+/**
+ * Not a cap (ADR-0062: the owner's limits have no upper limit): the largest value the
+ * PostgreSQL integer column holds.
+ */
+export const CHAT_DAILY_LIMIT_MAX = 2_147_483_647;
 /** How many earlier messages and answers go with a question. */
 export const CHAT_HISTORY_TURNS = 10;
 export const CHAT_INSTRUCTIONS_VERSION = 'chat-assistant-v1' as const;
@@ -243,6 +247,14 @@ export const ChatMessageRequestSchema = z.strictObject({
   client_id: id,
   text: z.string().trim().min(1).max(CHAT_TEXT_MAX),
 });
+/** ADR-0063: what a delete removed. The conversation's words are gone; these counts stay in the audit event. */
+export const ChatDeletedSchema = z.strictObject({
+  id,
+  messages: z.number().int().nonnegative(),
+  answers: z.number().int().nonnegative(),
+});
+export type ChatDeleted = z.infer<typeof ChatDeletedSchema>;
+
 export const ChatRenameRequestSchema = z.strictObject({
   title: z.string().trim().min(1).max(CHAT_TITLE_MAX),
 });

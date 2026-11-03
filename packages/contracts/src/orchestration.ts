@@ -10,6 +10,7 @@ import {
 } from './primitives.js';
 import { DataClassSchema, TargetRefSchema } from './oversight.js';
 import { ReservationSchema } from './budget.js';
+import { PLAN_REQUEST_TIMEOUT_MAX_MS } from './connections.js';
 import {
   DiscoveryResultSchema,
   DiscoveryTaskContextSchema,
@@ -61,6 +62,18 @@ export const TaskKindSchema = z.enum([
 ]);
 export type TaskKind = z.infer<typeof TaskKindSchema>;
 
+/** Metered (API) and local calls: the broker's own per-call timeout bound (budget.ts). */
+export const METERED_CALL_TIMEOUT_MAX_MS = 600_000;
+/** Metered (API) and local workflows: the one-day wall time they had before ADR-0062. */
+export const METERED_WALL_MAX_SECONDS = 86_400;
+/**
+ * ADR-0062: a plan-backed (subscription) call may run as long as the connection's request
+ * timeout, which has no owner maximum beyond the timer bound; a workflow's wall time must be
+ * able to hold its largest call budget (60 calls) at that timeout, one at a time.
+ */
+export const WORKFLOW_WALL_MAX_SECONDS =
+  60 * Math.ceil(PLAN_REQUEST_TIMEOUT_MAX_MS / 1000);
+
 /** Hard ceilings; a workflow's own limits must sit inside them. */
 export const WorkflowLimitsSchema = z
   .strictObject({
@@ -74,8 +87,9 @@ export const WorkflowLimitsSchema = z
     /** Total provider attempts the workflow may cause, including repairs and retries. */
     max_calls: counter.min(2).max(60),
     max_output_tokens: counter.min(16).max(8000),
-    call_timeout_ms: counter.min(100).max(600000),
-    max_wall_seconds: counter.min(5).max(86400),
+    /** Up to the plan timer bound; metered and local runs are held to 600 s below. */
+    call_timeout_ms: counter.min(100).max(PLAN_REQUEST_TIMEOUT_MAX_MS),
+    max_wall_seconds: counter.min(5).max(WORKFLOW_WALL_MAX_SECONDS),
   })
   .superRefine((l, ctx) => {
     if (l.max_calls < (l.max_children + 1) * l.max_attempts)
@@ -112,6 +126,18 @@ export const StartWorkflowRequestSchema = z
       });
     if (new Set(r.perspectives).size !== r.perspectives.length)
       ctx.addIssue({ code: 'custom', message: 'Perspectives must differ.' });
+    // PR #123 re-review L-2: this workflow is always metered, so it keeps the broker's 600 s
+    // per-call bound and the one-day wall time it had before ADR-0062.
+    if (r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'API workflow calls time out within 600 seconds.',
+      });
+    if (r.limits.max_wall_seconds > METERED_WALL_MAX_SECONDS)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'API workflows end within one day.',
+      });
   });
 export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
 export const WorkflowControlRequestSchema = z.strictObject({
@@ -160,7 +186,8 @@ export const WorkflowResourceSetupSchema = z.discriminatedUnion('kind', [
     connection_id: id,
     model_id: short,
     settings_hash: hash,
-    max_output_chars: counter.min(100).max(100000),
+    /** ADR-0062: bounded by the connection's accepted output cap (checked at start), no more. */
+    max_output_chars: counter.min(100),
   }),
   z.strictObject({ kind: z.literal('local'), model_id: short }),
 ]);
@@ -208,6 +235,22 @@ export const StartDiscoveryRequestSchema = z
         message:
           'Use either typed resource setup or legacy budget/pricing, not both.',
       });
+    // ADR-0062: only plan-backed calls may outlast the broker's 600 s per-call bound; the
+    // subscription start also checks the timeout against the connection's accepted cap.
+    if (r.resource_setup?.kind !== 'subscription') {
+      if (r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS)
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'API and local workflow calls time out within 600 seconds; only plan-backed calls follow the connection timeout.',
+        });
+      if (r.limits.max_wall_seconds > METERED_WALL_MAX_SECONDS)
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'API and local workflows end within one day; only plan-backed runs may run longer.',
+        });
+    }
     const named = [...r.perspectives, ...r.excluded.map((e) => e.perspective)];
     if (new Set(named).size !== named.length)
       ctx.addIssue({

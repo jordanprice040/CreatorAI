@@ -5,6 +5,7 @@ import {
   CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
   PlanConnectionDetailSchema,
   PlanConnectionSchema,
+  planWaitMs,
   type PlanConnection,
   type SessionInfo,
   type Workspace,
@@ -15,6 +16,7 @@ import { QualificationResults } from './qualification-results.js';
 import { QualifyModel } from './qualify.js';
 import {
   capChanges,
+  capHint,
   capFieldsFor,
   capsToDraft,
   classChanges,
@@ -367,7 +369,9 @@ export function Models({
               ChatGPT sign-in failed ({attempt.code}): {attempt.message}
             </p>
           )}
+          {/* PR #118 re-review N-a: only the owner has Check Claude Code and signs in. */}
           {claude &&
+            owner &&
             !(
               c.sign_in.state === 'signed_in' && c.sign_in.plan_usage_granted
             ) && (
@@ -684,8 +688,7 @@ export function Models({
                       const err = capsErrors[x.key];
                       return (
                         <label key={x.key} htmlFor={id}>
-                          {x.label} ({x.unit}, {x.min.toLocaleString('en-US')}–
-                          {x.max.toLocaleString('en-US')})
+                          {x.label} ({capHint(x)})
                           <input
                             id={id}
                             inputMode="numeric"
@@ -707,6 +710,13 @@ export function Models({
                           {err && (
                             <span id={`${id}-error`} className="error">
                               {err}
+                            </span>
+                          )}
+                          {x.key === 'codex.build_timeout_ms' && (
+                            <span className="small">
+                              A build approval lasts at most 24 hours, so a
+                              build's turns (one, plus one per repair round)
+                              must fit in that time.
                             </span>
                           )}
                         </label>
@@ -885,7 +895,14 @@ export function Models({
                     void act(
                       `${p}/${grantCheck === 'availability_recheck' ? 'availability-recheck' : 'verify'}`,
                       { grant_id: grantId, model_id: grantModel },
-                      330000,
+                      // Fourth review L-1: the call runs under the connection's request
+                      // timeout, which has no 300 s maximum any more (ADR-0062).
+                      Math.max(
+                        330_000,
+                        planWaitMs(
+                          c?.settings.caps.responses.request_timeout_ms ?? 0,
+                        ),
+                      ),
                     )
                   }
                 >
@@ -910,6 +927,7 @@ export function Models({
           )}
           {owner && (
             <QualifyModel
+              base={base}
               connection={c}
               models={detail.model_access
                 .filter(

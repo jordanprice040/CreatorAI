@@ -23,6 +23,7 @@ import {
   canonical,
   event,
   fileAt,
+  jsonPublish,
   jsonWrite,
   newFile,
   readJson,
@@ -92,6 +93,11 @@ export interface TerminalPorts {
   ) => Promise<{ cleaned: boolean; unit_state: string } | null>;
   workerPath: (p: string) => string;
   heartbeatMs: number;
+  /**
+   * Test seam: awaited after a session is marked as ending and before its outcome is
+   * written, so tests can observe that window deterministically. Unset in the studio.
+   */
+  beforeOutcome?: (sessionId: string) => Promise<void>;
 }
 
 function system32(name: string): string {
@@ -166,6 +172,11 @@ const defaultPorts: TerminalPorts = {
 interface Active {
   productId: string;
   cancelled: boolean;
+  /**
+   * Set when the session's end is being recorded. It no longer holds the product's slot
+   * or counts toward the cap, but stays listed as ours until its outcome is readable.
+   */
+  ending?: boolean;
   finished: Promise<TerminalSession>;
 }
 
@@ -185,6 +196,8 @@ const resultSchema = TerminalSessionSchema.pick({
  */
 export class TerminalSupervisor {
   private readonly active = new Map<string, Active>();
+  /** Sessions already reported as having an unreadable start record. */
+  private readonly unreadable = new Set<string>();
   private readonly ports: TerminalPorts;
   constructor(
     readonly products: ProductSupervisor,
@@ -248,12 +261,13 @@ export class TerminalSupervisor {
         'LIVE_DISABLED',
         'Running a package in a terminal needs the Windows studio with its WSL worker. Nothing was started.',
       );
-    if ([...this.active.values()].some((a) => a.productId === o.productId))
+    const holding = [...this.active.values()].filter((a) => !a.ending);
+    if (holding.some((a) => a.productId === o.productId))
       throw new ContractError(
         'INVALID_TRANSITION',
         'A terminal for this product is already open. Stop it or close its window first.',
       );
-    if (this.active.size >= TERMINAL_LIMIT)
+    if (holding.length >= TERMINAL_LIMIT)
       throw new ContractError(
         'LIMIT_EXCEEDED',
         `At most ${TERMINAL_LIMIT} terminals can be open at once. Stop one first.`,
@@ -334,7 +348,7 @@ export class TerminalSupervisor {
         },
       };
       checked(TerminalSessionSchema, record);
-      await jsonWrite(join(dir, 'intent.json'), record);
+      await jsonPublish(join(dir, 'intent.json'), record);
     } catch (e) {
       await rm(dir, { recursive: true, force: true }).catch(() => undefined);
       throw e;
@@ -555,7 +569,17 @@ export class TerminalSupervisor {
       exit_code: end.exit_code ?? null,
       finished_at: new Date().toISOString(),
     });
-    await jsonWrite(join(dir, 'outcome.json'), outcome);
+    // The session is over: free the product's slot before the outcome is written, so a
+    // restart from the listing is not refused as "already open" while the write and the
+    // cleanup below run. The entry stays until the outcome is in place so a listing in
+    // between cannot record it as lost (review N-2). The outcome appears only complete
+    // (jsonPublish), so readers do not see a partial record, even after a process crash,
+    // except on a data home without hard links.
+    const entry = this.active.get(record.id);
+    if (entry) entry.ending = true;
+    await this.ports.beforeOutcome?.(record.id);
+    await jsonPublish(join(dir, 'outcome.json'), outcome);
+    this.active.delete(record.id);
     await event(
       this.products.dir(record.product_id),
       'terminal.outcome',
@@ -570,26 +594,61 @@ export class TerminalSupervisor {
 
   async status(productId: string, sessionId: string): Promise<TerminalSession> {
     const dir = this.dir(productId, sessionId);
+    // Decide "ours" before reading the outcome: settle() lets go of a session only once
+    // its outcome is in place, so a session ours at this point is either still open or
+    // about to have its outcome. Checking afterwards could miss an outcome written in
+    // between; that second "lost" settle would now fail at the exclusive write and return
+    // the real record (below), so this ordering is belt and braces (re-review N-2).
+    const ours = this.active.has(sessionId);
+    const outcomePath = join(dir, 'outcome.json');
+    let unreadable = false;
     try {
-      return checked(
-        TerminalSessionSchema,
-        await readJson(join(dir, 'outcome.json')),
-      );
+      return checked(TerminalSessionSchema, await readJson(outcomePath));
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+        // No outcome yet.
+      } else if (e instanceof SyntaxError) {
+        // Ours: being written in place on a data home without hard links (re-review
+        // L-a). Not ours: a partial record left by a crash mid-write there, or by a
+        // version that wrote outcomes in place (review L-2).
+        if (!ours) unreadable = true;
+      } else throw e;
     }
     const intent = checked(
       TerminalSessionSchema,
       await readJson(join(dir, 'intent.json')),
     );
-    if (this.active.has(sessionId)) return intent;
+    if (ours) return intent;
+    if (unreadable)
+      // Reported, not recorded: the broken file stays for inspection and is never
+      // overwritten, and the listing keeps working.
+      return {
+        ...intent,
+        state: 'lost',
+        reason:
+          'The end of this terminal was not recorded completely (its outcome record is unreadable). The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
+      };
     // Not ours and not finished: the studio restarted while it was open. The worker ends a
     // session within 5 seconds of losing the heartbeat; record that honestly.
-    return this.settle(intent, dir, join(dir, 'job'), {
-      state: 'lost',
-      reason:
-        'The studio stopped while this terminal was open. The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
-    });
+    try {
+      return await this.settle(intent, dir, join(dir, 'job'), {
+        state: 'lost',
+        reason:
+          'The studio stopped while this terminal was open. The worker ends a session within 5 seconds of losing the studio, but that was not confirmed here.',
+      });
+    } catch (e) {
+      // Another listing recorded it first (review L-1). Its record is complete, except on
+      // a data home without hard links, where it may still be being written: read once
+      // more after a moment rather than drop the session from this listing (N-b).
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+      try {
+        return checked(TerminalSessionSchema, await readJson(outcomePath));
+      } catch (again) {
+        if (!(again instanceof SyntaxError)) throw again;
+        await new Promise((r) => setTimeout(r, 100));
+        return checked(TerminalSessionSchema, await readJson(outcomePath));
+      }
+    }
   }
 
   /** Newest first, for one artifact's sessions. */
@@ -611,9 +670,22 @@ export class TerminalSupervisor {
         .filter((n) => id.safeParse(n).success)
         .map((n) =>
           this.status(productId, n).catch((e: unknown) => {
-            // A session being started right now has no intent record yet, and a folder
-            // left by a start that failed before its intent was never a session.
+            // A session being started right now has no intent record yet (or, on a data
+            // home without hard links, a partly written one), and a folder left by a start
+            // that failed or crashed before its intent was complete was never a session
+            // (re-review N-4).
             if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            if (e instanceof SyntaxError) {
+              // Left out, but not silently: a corrupt record stays visible in the log,
+              // once per session (re-review 2 N-c).
+              if (!this.unreadable.has(n)) {
+                this.unreadable.add(n);
+                console.warn(
+                  `Terminal session ${n} of product ${productId} has an unreadable start record and is not listed.`,
+                );
+              }
+              return null;
+            }
             throw e;
           }),
         ),

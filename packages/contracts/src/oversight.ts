@@ -217,6 +217,23 @@ export const BUILD_APPROVAL_MAX_REQUESTS = 6;
 export const BUILD_APPROVAL_MAX_REPAIRS = 2;
 /** The longest a build approval lasts, whatever deadline the build states (review L-1). */
 export const BUILD_APPROVAL_MAX_MS = 24 * 3_600_000;
+/**
+ * How long a build may run from the Build form (PR #123 third review L-1). Plan-role and
+ * broker builds keep 30 minutes. A Codex build runs one turn per round (first try plus each
+ * repair), each up to the connection's build timeout, which has no maximum (ADR-0062), plus 30
+ * minutes for review and checks; never past the build approval's 24 hours (less 5 minutes so
+ * the approval's own check, made a moment later, still passes).
+ */
+export function buildDeadlineMs(codexBuildTimeoutMs: number, repairs: number) {
+  const base = 30 * 60_000;
+  return Math.min(
+    BUILD_APPROVAL_MAX_MS - 5 * 60_000,
+    Math.max(
+      base,
+      (Math.max(0, repairs) + 1) * Math.max(0, codexBuildTimeoutMs) + base,
+    ),
+  );
+}
 export const BuildApprovalRequestSchema = z
   .strictObject({
     build_id: id,

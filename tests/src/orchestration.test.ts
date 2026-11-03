@@ -159,6 +159,25 @@ test('limits and role input are bounded; subject text is passed as data', () => 
     }).success,
     false,
   );
+  // PR #123 re-review L-2: the skeptic workflow is always metered, so it keeps the broker's
+  // 600 s per-call bound and a one-day wall time although WorkflowLimitsSchema allows more for
+  // plan-backed discovery (ADR-0062).
+  const skeptic = (over: Partial<WorkflowLimits>) =>
+    StartWorkflowRequestSchema.safeParse({
+      role: 'r05_skeptic',
+      subject: { id: '00000000-0000-4000-8000-000000000009', version: 1 },
+      constraints: [],
+      perspectives: ['a', 'b'],
+      envelope_id: '00000000-0000-4000-8000-000000000009',
+      pricing_snapshot_id: '00000000-0000-4000-8000-000000000009',
+      data_class: 'synthetic',
+      limits: { ...limits, ...over },
+    }).success;
+  assert.equal(skeptic({}), true);
+  assert.equal(skeptic({ call_timeout_ms: 600_000 }), true);
+  assert.equal(skeptic({ call_timeout_ms: 600_001 }), false);
+  assert.equal(skeptic({ max_wall_seconds: 86_400 }), true);
+  assert.equal(skeptic({ max_wall_seconds: 86_401 }), false);
   const input = roleInput('critique', {
     context_version: 'skeptic-context/1',
     role_version: 'r05-skeptic/1.0',

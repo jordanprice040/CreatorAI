@@ -247,6 +247,34 @@ test('running now lists unfinished plan requests of this workspace only', async 
     later.items.find((i) => i.purpose === 'verification')!.active,
     true,
   );
+  // ADR-0062: timeouts have no 30-minute maximum now, so the stale point follows the
+  // connection's own timeout (plus 15 minutes): a 2-hour request timeout keeps a 90-minute-old
+  // request running, while one older than 2 h 15 min is stale.
+  const slow = await store.createPlanConnection(owner, ws.id, {
+    label: 'Slow plan',
+    settings: {
+      ...SETTINGS,
+      caps: {
+        ...SETTINGS.caps,
+        responses: {
+          ...SETTINGS.caps.responses,
+          request_timeout_ms: 7_200_000,
+        },
+      },
+    },
+  });
+  await add(slow.id, 'chat', 'in_flight', 90 * 60_000);
+  await add(slow.id, 'qualification', 'in_flight', 140 * 60_000);
+  const slowItems = (await store.activityNow(owner, ws.id)).items.filter(
+    (i) => i.started_at < new Date(Date.now() - 80 * 60_000).toISOString(),
+  );
+  assert.deepEqual(
+    slowItems.map((i) => [i.purpose, i.active]),
+    [
+      ['chat', true],
+      ['qualification', false],
+    ],
+  );
   const stranger = await person(store, 'stranger');
   await assert.rejects(store.activityNow(stranger, ws.id), isCode('NOT_FOUND'));
 });

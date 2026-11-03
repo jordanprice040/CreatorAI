@@ -48,7 +48,12 @@ const CodexBuildBody = z.strictObject({
         file_scope: z.array(z.string().min(1).max(300)).min(1).max(20),
       }),
     })
-    .passthrough(),
+    .passthrough()
+    // Full audit L-11: the same runaway ceiling the executor and plan-role calls use; the 1 MiB
+    // body allowance alone let a packet reach about five times that.
+    .refine((p) => JSON.stringify(p).length <= PLAN_ROLE_CONTEXT_MAX, {
+      message: `The builder packet exceeds ${PLAN_ROLE_CONTEXT_MAX} characters.`,
+    }),
 });
 /**
  * Ingress allowance for a build-calls body. The input is a JSON packet sent as a JSON string, so

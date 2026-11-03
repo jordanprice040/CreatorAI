@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   ContractError,
+  GitHubLimitsSchema,
   type ErrorCode,
   type GitHubConnection,
   type GitHubOperation,
@@ -836,4 +837,25 @@ test('X04 real workspaces: live off by default, expired tokens and missing grant
   );
   assert.equal(state(expired), 'refused:credential_expired');
   assert.deepEqual(standIn.calls, ['identity', 'identity']);
+});
+
+test('GitHub connection limits have no maximum, only a minimum of 1 (ADR-0062)', () => {
+  const limits = {
+    repo_prefix: 'ca-',
+    branch_prefix: 'creator/',
+    max_repositories: 5_000,
+    max_mutations_per_hour: 100_000,
+    max_open_prs_per_repo: 1_000,
+  };
+  assert.ok(GitHubLimitsSchema.safeParse(limits).success);
+  for (const k of [
+    'max_repositories',
+    'max_mutations_per_hour',
+    'max_open_prs_per_repo',
+  ] as const)
+    for (const bad of [0, 1.5, -1])
+      assert.ok(
+        !GitHubLimitsSchema.safeParse({ ...limits, [k]: bad }).success,
+        `${k} ${bad}`,
+      );
 });

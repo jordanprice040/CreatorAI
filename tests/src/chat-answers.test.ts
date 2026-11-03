@@ -478,9 +478,39 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
   );
   // Editors can still read the setting.
   assert.equal((await store.chatSettings(editor, ws.id)).enabled, true);
+  // ADR-0062: the owner's answers-a-day limit has no maximum (it was 100); it must be at least 1.
+  const many = {
+    enabled: true,
+    connection_id: s.conn.id,
+    model_id: MODEL,
+    include_snapshot: false,
+  };
+  await rejects(
+    'ACCESS_DENIED',
+    store.setChatSettings(editor, ws.id, {
+      ...many,
+      expected_version: 1,
+      daily_limit: 5000,
+    }),
+  );
+  const raised = await store.setChatSettings(owner, ws.id, {
+    ...many,
+    expected_version: 1,
+    daily_limit: 5000,
+  });
+  assert.equal(raised.daily_limit, 5000);
+  assert.equal((await store.chatSettings(owner, ws.id)).daily_limit, 5000);
+  await rejects(
+    'INVALID_CONTRACT',
+    store.setChatSettings(owner, ws.id, {
+      ...many,
+      expected_version: 2,
+      daily_limit: 0,
+    }),
+  );
 
-  // A pending answer from a studio that stopped mid-request: blocked for 15 minutes, then
-  // closed as failed so the message can be asked again.
+  // A pending answer from a studio that stopped mid-request: blocked for the connection's
+  // request timeout plus 15 minutes, then closed as failed so the message can be asked again.
   const begun = await store.beginChatAnswer(owner, ws.id, chat.id, q.id, {
     client_id: randomUUID(),
   });
@@ -507,6 +537,26 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
     await c.query(
       'alter table chat_answers enable trigger chat_answers_settle_once',
     );
+    // ADR-0062 (PR #124 review L-1): with a 1-hour request timeout the request may still be
+    // live after 20 minutes, so the answer stays pending and nothing is asked twice.
+    const timeout = (
+      await c.query(
+        `select settings #> '{caps,responses,request_timeout_ms}' as t from plan_connections where id = $1`,
+        [s.conn.id],
+      )
+    ).rows[0].t;
+    const setTimeoutCap = (v: unknown) =>
+      c.query(
+        `update plan_connections set settings = jsonb_set(settings, '{caps,responses,request_timeout_ms}', $2::jsonb) where id = $1`,
+        [s.conn.id, JSON.stringify(v)],
+      );
+    await setTimeoutCap(3_600_000);
+    const still = await service.chatAnswer(owner, ws.id, chat.id, q.id, {
+      client_id: randomUUID(),
+    });
+    assert.equal(still.id, begun.answer.id);
+    assert.equal(still.state, 'pending');
+    await setTimeoutCap(timeout);
   } finally {
     c.release();
   }
@@ -640,4 +690,170 @@ test('a provider refusal after the text was sent is a failure that shows what wa
   assert.equal(b.state, 'refused', b.reason ?? '');
   assert.equal(b.sent, null);
   assert.equal(s.runs().length, before + 1, 'nothing more was started');
+});
+
+test('deleting a conversation (ADR-0063): who may, not while an answer is coming, and what stays', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { db, store, service, ws, chat } = s;
+  await s.allowPrivate();
+  await store.setChatSettings(owner, ws.id, {
+    expected_version: 0,
+    enabled: true,
+    connection_id: s.conn.id,
+    model_id: MODEL,
+    include_snapshot: false,
+    daily_limit: 5,
+  });
+  const q = await s.say('What makes a good first build?');
+  const answered = await service.chatAnswer(owner, ws.id, chat.id, q.id, {
+    client_id: randomUUID(),
+  });
+  assert.equal(answered.state, 'completed');
+  const usedBefore = (await store.chatSettings(owner, ws.id)).used_24h;
+  assert.equal(usedBefore, 1);
+
+  // A pending answer blocks the delete, so a reply never lands in a conversation that is gone.
+  const q2 = await s.say('And what makes a bad one?');
+  const begun = await store.beginChatAnswer(owner, ws.id, chat.id, q2.id, {
+    client_id: randomUUID(),
+  });
+  await rejects(
+    'INVALID_TRANSITION',
+    store.deleteChat(owner, ws.id, chat.id),
+    /still on its way/,
+  );
+  // ADR-0062: with a 1-hour request timeout a 20-minute-old pending answer may still be live,
+  // so it still blocks the delete (it was a fixed 15 minutes before).
+  const backdate = await db.pool.connect();
+  try {
+    await backdate.query(
+      'alter table chat_answers disable trigger chat_answers_settle_once',
+    );
+    await backdate.query(
+      `update chat_answers set created_at = created_at - interval '20 minutes' where id = $1`,
+      [begun.answer.id],
+    );
+    await backdate.query(
+      'alter table chat_answers enable trigger chat_answers_settle_once',
+    );
+  } finally {
+    backdate.release();
+  }
+  const timeoutCap = (v: unknown) =>
+    db.pool.query(
+      `update plan_connections set settings = jsonb_set(settings, '{caps,responses,request_timeout_ms}', $2::jsonb) where id = $1 returning 1`,
+      [s.conn.id, JSON.stringify(v)],
+    );
+  const oldTimeout = (
+    await db.pool.query(
+      `select settings #> '{caps,responses,request_timeout_ms}' as t from plan_connections where id = $1`,
+      [s.conn.id],
+    )
+  ).rows[0].t;
+  await timeoutCap(3_600_000);
+  await rejects(
+    'INVALID_TRANSITION',
+    store.deleteChat(owner, ws.id, chat.id),
+    /still on its way/,
+  );
+  await timeoutCap(oldTimeout);
+  await store.finishChatAnswer(owner, ws.id, begun.answer.id, {
+    state: 'failed',
+    plan_request_id: null,
+    text: null,
+    reason: 'test',
+  });
+
+  // Messages and answers still cannot be changed or deleted one by one.
+  await assert.rejects(
+    db.pool.query('delete from chat_messages where id = $1', [q.id]),
+    /go only with their conversation/,
+  );
+  await assert.rejects(
+    db.pool.query('delete from chat_answers where id = $1', [answered.id]),
+    /change only once/,
+  );
+  await assert.rejects(
+    db.pool.query(`update chat_messages set text = 'x' where id = $1`, [q.id]),
+  );
+
+  // Editors delete only conversations they started; viewers none; owners any.
+  const editor: CommandContext = { actorId: randomUUID() };
+  const viewer: CommandContext = { actorId: randomUUID() };
+  for (const [who, role] of [
+    [editor, 'editor'],
+    [viewer, 'viewer'],
+  ] as const) {
+    await store.ensureActor({
+      id: who.actorId,
+      kind: 'human',
+      display_name: role,
+    });
+    await store.addMember(owner, ws.id, who.actorId, role);
+  }
+  await rejects('ACCESS_DENIED', store.deleteChat(editor, ws.id, chat.id));
+  await rejects('ACCESS_DENIED', store.deleteChat(viewer, ws.id, chat.id));
+  const mine = await store.createChat(editor, ws.id, {});
+  await store.postChatMessage(editor, ws.id, mine.id, {
+    client_id: randomUUID(),
+    text: 'An editor note',
+  });
+  // Review L-2: an editor's own conversation with someone else's message is the owner's to delete.
+  const shared = await store.createChat(editor, ws.id, {});
+  await store.postChatMessage(editor, ws.id, shared.id, {
+    client_id: randomUUID(),
+    text: 'Editor starts',
+  });
+  await store.postChatMessage(owner, ws.id, shared.id, {
+    client_id: randomUUID(),
+    text: 'Owner replies',
+  });
+  await rejects(
+    'ACCESS_DENIED',
+    store.deleteChat(editor, ws.id, shared.id),
+    /someone else/,
+  );
+  assert.equal((await store.deleteChat(owner, ws.id, shared.id)).messages, 2);
+  assert.deepEqual(await store.deleteChat(editor, ws.id, mine.id), {
+    id: mine.id,
+    messages: 1,
+    answers: 0,
+  });
+  // Another workspace cannot reach it.
+  const other = await store.createWorkspace(owner, {
+    name: 'Other',
+    record_mode: 'fixture',
+  });
+  await rejects('NOT_FOUND', store.deleteChat(owner, other.id, chat.id));
+
+  const gone = await store.deleteChat(owner, ws.id, chat.id);
+  assert.deepEqual(gone, { id: chat.id, messages: 2, answers: 2 });
+  await rejects('NOT_FOUND', store.chatDetail(owner, ws.id, chat.id));
+  await rejects('NOT_FOUND', store.deleteChat(owner, ws.id, chat.id));
+  assert.equal((await store.listChats(owner, ws.id)).length, 0);
+  for (const table of ['chat_messages', 'chat_answers'])
+    assert.equal(
+      (
+        await db.pool.query(
+          `select count(*)::int as n from ${table} where conversation_id = $1`,
+          [chat.id],
+        )
+      ).rows[0].n,
+      0,
+      table,
+    );
+  // The plan request stays, so usage and the daily chat limit do not reset.
+  assert.equal((await store.chatSettings(owner, ws.id)).used_24h, usedBefore);
+  // The audit trail records the delete with counts only, never the words.
+  const audit = await db.pool.query(
+    `select action, payload from audit_events where subject_id = $1 order by sequence`,
+    [chat.id],
+  );
+  const last = audit.rows.at(-1);
+  assert.equal(last.action, 'chat.deleted');
+  assert.equal(last.payload.messages, 2);
+  assert.equal(last.payload.answers, 2);
+  for (const row of audit.rows)
+    assert.doesNotMatch(JSON.stringify(row.payload), /first build|bad one/);
 });
