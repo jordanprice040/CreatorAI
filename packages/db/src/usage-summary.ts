@@ -39,16 +39,21 @@ export async function usageSummary(
     [ws],
   );
   // The per-run cap counts a run's requests over its whole life, so a run that is still active
-  // and at its cap stays listed after its last request leaves the 24-hour window.
+  // and at its cap stays listed after its last request leaves the 24-hour window. Runs never
+  // finish on their own (they can only be cancelled), so a capped run drops off once it is
+  // archived, or after 7 days without a request (PR #96 review L-2).
   const runs = await c.query(
     `select r.connection_id, r.run_id, count(*) as n, max(r.started_at) as last
        from plan_requests r
        join plan_connections p on p.id = r.connection_id
        left join run_controls rc on rc.workspace_id = p.workspace_id and rc.run_id = r.run_id
+       left join entities e on e.workspace_id = p.workspace_id and e.id = r.run_id
       where r.run_id is not null and r.path = 'responses' and p.workspace_id = $1
-      group by r.connection_id, r.run_id, p.settings, rc.state
+      group by r.connection_id, r.run_id, p.settings, rc.state, e.status
      having max(r.started_at) > clock_timestamp() - interval '24 hours'
          or (coalesce(rc.state, 'active') <> 'cancelled'
+             and coalesce(e.status, 'active') = 'active'
+             and max(r.started_at) > clock_timestamp() - interval '7 days'
              and count(*) >= (p.settings->'caps'->'responses'->>'max_requests_per_run')::bigint)
       order by max(r.started_at) desc`,
     [ws],

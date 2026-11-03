@@ -414,14 +414,21 @@ pre{background:#fff;border:1px solid #ccc;padding:.75rem;white-space:pre-wrap;mi
 .example pre{min-height:0;margin:0}
 .flows{padding-left:1.2rem}.flows ol{margin:.2rem 0 .5rem}
 code{font:13px ui-monospace,monospace}
-@media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe7}pre,textarea,input{background:#222;color:#ecebe7;border-color:#444}dt,.muted{color:#aaa}.example{border-color:#444}}`;
-const SCRIPT = `const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');
+textarea::placeholder,input::placeholder{color:#6b6b66;opacity:1}
+@media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe7}pre,textarea,input{background:#222;color:#ecebe7;border-color:#444}dt,.muted{color:#aaa}.example{border-color:#444}textarea::placeholder,input::placeholder{color:#a8a8a2}}`;
+// One argument per line cannot hold an empty or multi-line argument, so "Use this example" keeps
+// the spec's exact list (and standard input) and sends it while the boxes still show that example
+// (PR #94 review Low).
+const SCRIPT = `const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
 form.addEventListener('submit',async(e)=>{e.preventDefault();const b=form.querySelector('button');b.disabled=true;out.textContent='Running the exact package in the isolated worker…';meta.textContent='';
-const args=document.getElementById('args').value.split('\\n').filter((s)=>s.length);const stdin=document.getElementById('stdin').value;
+const box=document.getElementById('args');const input=document.getElementById('stdin');const args=exact&&box.value===exact.text?exact.args:box.value.split('\\n').filter((s)=>s.length);const stdin=exact&&input.value===exact.stdinText?exact.stdin:input.value;
 try{const r=await fetch(location.pathname+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({args,stdin})});const v=await r.json();
 if(!r.ok){out.textContent='Refused: '+(v.error?v.error.message:r.status);out.className='error';}else{out.className='';out.textContent=v.stdout||'(no output)';meta.textContent='Exit '+v.exit_code+' · '+v.state+(v.reason?' · '+v.reason:'')+' · run '+v.runs_used+' of '+v.max_runs;}}
 catch(err){out.textContent='Request failed';out.className='error';}finally{b.disabled=false;}});
-for(const x of document.querySelectorAll('button[data-example]'))x.addEventListener('click',()=>{document.getElementById('args').value=JSON.parse(x.dataset.args).join('\\n');document.getElementById('stdin').value=x.dataset.stdin;form.querySelector('button[type=submit]').focus();});`;
+for(const x of document.querySelectorAll('button[data-example]'))x.addEventListener('click',()=>{const a=JSON.parse(x.dataset.args);const box=document.getElementById('args');const input=document.getElementById('stdin');box.value=a.join('\\n');const stdin=JSON.parse(x.dataset.stdin);input.value=stdin;
+// Both travel as JSON (HTML turns CR LF into LF); compare with what the boxes now hold.
+exact={args:a,text:box.value,stdin,stdinText:input.value};
+note.textContent=a.some((v)=>!v.length||/[\\r\\n]/.test(v))?'This example has an empty or multi-line argument. It runs exactly as in the spec while this box is unchanged.':'';form.querySelector('button[type=submit]').focus();});`;
 
 /** One argument as it would be typed in a POSIX shell, for display only. */
 const shellWord = (v: string) =>
@@ -453,7 +460,7 @@ function usage(command: string[], guide: PreviewGuide | null) {
           (x, i) =>
             `<details class="example"${i === 0 ? ' open' : ''}><summary>${html(x.check_key)}: ${html(x.statement)}</summary>
 ${block('Command line', [...command, ...x.args].map(shellWord).join(' '))}${block('Standard input', x.stdin)}${block(`Expected output (exit ${x.exit_code})`, x.stdout)}
-<button type="button" data-example data-args="${html(JSON.stringify(x.args))}" data-stdin="${html(x.stdin)}">Use this example</button></details>`,
+<button type="button" data-example data-args="${html(JSON.stringify(x.args))}" data-stdin="${html(JSON.stringify(x.stdin))}">Use this example</button></details>`,
         )
         .join('')}${
         guide.more_examples
@@ -586,7 +593,7 @@ export function createPreviewServer(
 <dt>Expires</dt><dd>${html(a.preview.expires_at)}</dd><dt>Runs</dt><dd>${html(a.preview.runs_used)} of ${html(a.preview.max_runs)}</dd>
 <dt>Command</dt><dd>${html(mf.startup.command.join(' '))} [arguments]</dd></dl>
 ${usage(mf.startup.command, a.guide)}
-<form id="run"><label for="args">Arguments, one per line</label><textarea id="args" rows="3"${placeholder(first?.args.join('\n'))}></textarea>
+<form id="run"><label for="args">Arguments, one per line</label><textarea id="args" rows="3"${placeholder(first?.args.join('\n'))}></textarea><p id="args-note" class="muted" aria-live="polite"></p>
 <label for="stdin">Standard input</label><textarea id="stdin" rows="3"${placeholder(first?.stdin)}></textarea>
 <button type="submit">Run in isolated worker</button></form>
 <h2>Output</h2><pre id="out" aria-live="polite">Not run yet.</pre><p id="meta"></p>

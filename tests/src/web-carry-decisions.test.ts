@@ -90,6 +90,7 @@ type Mod = {
     problem_review: boolean;
     rationale_signature: string;
     override_signature: string;
+    override_needed: boolean;
   };
 };
 
@@ -362,13 +363,17 @@ test('M-1: an advanced option newly outranked is flagged and the override reason
   assert.ok(needsReview(c).includes(A));
   const g = formGate(c, overridden, after, state({ edited: [A, C] }));
   assert.equal(g.override_review, true);
-  // Confirming or rewriting the reason clears it.
+  // Confirming or rewriting the reason clears it: both record the current signature.
   assert.equal(
     formGate(
       c,
       overridden,
       after,
-      state({ edited: [A, C], override_edited: true }),
+      state({
+        edited: [A, C],
+        override_edited: true,
+        override_kept: g.override_signature,
+      }),
     ).override_review,
     false,
   );
@@ -529,7 +534,8 @@ test('M-A: changed choices put the carried rationale up for review; keeping bind
     ).rationale_review,
     true,
   );
-  // Unchanged choices leave the rationale alone; typing a new one clears the flag.
+  // Unchanged choices leave the rationale alone; typing a new one (which records the
+  // signature of the choices it was typed for) clears the flag.
   assert.equal(
     formGate(
       c,
@@ -546,7 +552,11 @@ test('M-A: changed choices put the carried rationale up for review; keeping bind
       c,
       decided,
       after,
-      state({ dispositions: switched, rationale_edited: true }),
+      state({
+        dispositions: switched,
+        rationale_edited: true,
+        rationale_kept: g.rationale_signature,
+      }),
     ).rationale_review,
     false,
   );
@@ -659,5 +669,150 @@ test('L-C: earlier reasons under a new disposition need a rewrite or a keep', as
       }),
     ).stale_reasons,
     [],
+  );
+});
+
+// Second re-review Lows (PR #95 re-review 2, L-1..L-4).
+
+test('re-review 2 L-1: an advanced option dropped from the problem puts the rationale up for review', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  // A (select for build) is no longer part of the problem; B and C keep their choices.
+  const after = report('s', [cand(B, s(60), 1), cand(C, s(50), 2)]);
+  const c = carryDecisions(decided, after, alts([B, C]));
+  assert.equal(c.dropped, 1);
+  const dispositions = { [B]: 'defer', [C]: 'reject' };
+  const g = formGate(c, decided, after, state({ dispositions }));
+  assert.equal(g.rationale_review, true);
+  assert.equal(
+    formGate(
+      c,
+      decided,
+      after,
+      state({ dispositions, rationale_kept: g.rationale_signature }),
+    ).rationale_review,
+    false,
+  );
+  // A dropped option that was only rejected does not by itself flag it.
+  const onlyC = report('t', [cand(A, s(60), 1), cand(B, s(50), 2)]);
+  const c2 = carryDecisions(decided, onlyC, alts([A, B]));
+  assert.equal(
+    formGate(
+      c2,
+      decided,
+      onlyC,
+      state({ dispositions: { [A]: 'select_for_build', [B]: 'defer' } }),
+    ).rationale_review,
+    false,
+  );
+});
+
+test('re-review 2 L-2: typing in a field binds it to the choices of that moment, not forever', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  const after = report('u', [
+    cand(B, s(70), 1),
+    cand(C, s(55), 2),
+    cand(A, s(40), 3),
+  ]);
+  const c = carryDecisions(decided, after, alts([A, B, C]));
+  // A typo fixed before any choice changed: the form records the signature of the
+  // unchanged choices.
+  const typed = formGate(
+    c,
+    decided,
+    after,
+    state({
+      dispositions: { [A]: 'select_for_build', [B]: 'defer', [C]: 'reject' },
+    }),
+  ).rationale_signature;
+  const switched = { [A]: 'reject', [B]: 'select_for_build', [C]: 'reject' };
+  assert.equal(
+    formGate(
+      c,
+      decided,
+      after,
+      state({
+        dispositions: switched,
+        edited: [A, B],
+        rationale_edited: true,
+        rationale_kept: typed,
+      }),
+    ).rationale_review,
+    true,
+  );
+  // The same holds for the override reason: typed for one override set, then the
+  // choices create another.
+  const ranked = report('v', [
+    cand(C, s(70), 1),
+    cand(B, s(60), 2),
+    cand(A, s(50), 3),
+  ]);
+  const c2 = carryDecisions(overridden, ranked, alts([A, B, C]));
+  const typedFor = formGate(c2, overridden, ranked, state()).override_signature;
+  assert.equal(
+    formGate(
+      c2,
+      overridden,
+      ranked,
+      state({
+        dispositions: {
+          [A]: 'reject',
+          [B]: 'proceed_to_validation',
+          [C]: 'reject',
+        },
+        override_edited: true,
+        override_kept: typedFor,
+      }),
+    ).override_review,
+    true,
+  );
+});
+
+test('re-review 2 L-3: editing only "would reverse if" keeps the stale-reasons flag', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  const after = report('w', [
+    cand(B, s(70), 1),
+    cand(A, s(60), 2),
+    cand(C, s(40), 3),
+  ]);
+  const c = carryDecisions(decided, after, alts([A, B, C]));
+  const dispositions = { [A]: 'defer', [B]: 'select_for_build', [C]: 'reject' };
+  const texts = {
+    [A]: { reasons: 'best fit', reverse_if: 'B falls behind again' },
+    [B]: { reasons: 'now first', reverse_if: 'fit drops' },
+    [C]: { reasons: 'weak', reverse_if: 'new evidence' },
+  };
+  assert.deepEqual(
+    formGate(c, decided, after, state({ dispositions, texts, edited: [A, B] }))
+      .stale_reasons,
+    [A],
+  );
+});
+
+test('re-review 2 L-4: no override reason is needed, or sent, when nothing is advanced over a higher option', async () => {
+  const { carryDecisions, formGate } = await load<Mod>('carry-decisions.ts');
+  // A now outranks B, so validating A needs no override.
+  const after = report('x', [
+    cand(A, s(70), 1),
+    cand(B, s(60), 2),
+    cand(C, s(40), 3),
+  ]);
+  const c = carryDecisions(overridden, after, alts([A, B, C]));
+  assert.equal(c.override_reason, 'A is cheaper than B.');
+  const g = formGate(c, overridden, after, state());
+  assert.equal(g.override_needed, false);
+  assert.equal(g.override_review, false);
+  const back = report('y', [
+    cand(B, s(70), 1),
+    cand(A, s(60), 2),
+    cand(C, s(40), 3),
+  ]);
+  assert.equal(
+    formGate(
+      carryDecisions(overridden, back, alts([A, B, C])),
+      overridden,
+      back,
+      state(),
+    ).override_needed,
+    true,
   );
 });

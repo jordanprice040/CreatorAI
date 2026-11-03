@@ -122,7 +122,9 @@ export function QualificationResults({
             <p className="muted">
               Held-out answers are shown below. If the role's prompt is changed
               after reading them, those held-out cases no longer test it fairly:
-              requalify on fresh held-out cases (ADR-0052).
+              requalify on fresh held-out cases (ADR-0052). The studio records
+              that you opened these results and refuses a benchmark that reuses
+              these held-out cases with a different prompt.
             </p>
           )}
           <ol className="qualification-cases">

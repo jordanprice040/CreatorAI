@@ -9,8 +9,10 @@ import {
   type PlanConnection,
   type SessionInfo,
   type Workspace,
+  latestDecided,
 } from '@creator/contracts';
-import { api, message } from './oversight.js';
+import { ApiError, api, message } from './oversight.js';
+import { STALE_NOTE } from './owner-actions.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
 import { QualifyModel } from './qualify.js';
@@ -244,7 +246,12 @@ export function Models({
       await load();
       return out;
     } catch (e) {
-      (local ?? setError)(message(e));
+      // PR #129 re-review N-6: a stale version is read again, so a retry sends the current one
+      // instead of failing the same way until the page is refreshed.
+      if (e instanceof ApiError && e.code === 'VERSION_CONFLICT') {
+        await load().catch(() => {});
+        (local ?? setError)(message(e) + STALE_NOTE);
+      } else (local ?? setError)(message(e));
       return null;
     } finally {
       if (!local) setBusy(false);
@@ -709,6 +716,9 @@ export function Models({
                             aria-describedby={err ? `${id}-error` : undefined}
                             onChange={(e) => {
                               const value = e.target.value;
+                              // PR #103 review L2: an error is about the value it was shown
+                              // for; clear it once the value changes.
+                              setCapsErrors(({ [x.key]: _, ...rest }) => rest);
                               setCapsDraft((d) =>
                                 d
                                   ? {
@@ -967,11 +977,24 @@ export function Models({
           <h4>Qualified tasks</h4>
           {detail.qualifications.length ? (
             <ul>
-              {detail.qualifications.map((q) => (
-                <li key={q.id}>
-                  <QualificationResults base={base} q={q} />
-                </li>
-              ))}
+              {detail.qualifications.map((q) => {
+                const latest = latestDecided(
+                  detail.qualifications,
+                  q.model_id,
+                  q.task_class,
+                );
+                return (
+                  <li key={q.id}>
+                    <QualificationResults base={base} q={q} />
+                    {q.state === 'qualified' && latest?.state === 'failed' && (
+                      <p className="small">
+                        No longer counts: a newer qualification of this model
+                        for the same job failed.
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p>No qualification yet.</p>

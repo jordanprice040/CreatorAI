@@ -5,6 +5,7 @@ import {
   claudeCodeVersionSupported,
   ContractError,
   ErrorCodeSchema,
+  isQualified,
   type ChatAnswer,
   type PlanConnection,
   type PlanTaskClass,
@@ -1112,14 +1113,7 @@ export class PlanConnectionService {
       const tc = BUILD_ROLE_TASK_CLASSES[role];
       if (!d.connection.settings.allowed_task_classes.includes(tc))
         out.push(`Task class ${tc} is not allowed on this connection.`);
-      if (
-        !admitting.some(
-          (q) =>
-            q.model_id === b.model_id &&
-            q.task_class === tc &&
-            q.state === 'qualified',
-        )
-      )
+      if (!isQualified(admitting, b.model_id, tc))
         out.push(
           `Model ${b.model_id} is not qualified for ${tc} (the T12 ${role}) under its current prompt.`,
         );

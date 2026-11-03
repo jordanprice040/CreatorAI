@@ -446,6 +446,32 @@ export const PlanQualificationSchema = z.strictObject({
   decided_at: timestamp.nullable(),
 });
 export type PlanQualification = z.infer<typeof PlanQualificationSchema>;
+/**
+ * PR #75 review L-2: the newest decided qualification of a model for a task class is the one
+ * that counts. A later failure withdraws an earlier pass; a later pass restores it. Running
+ * and abandoned rows decide nothing. Callers pass only rows that may admit work (build roles
+ * under the current prompts, ADR-0049).
+ */
+export function latestDecided(
+  qualifications: readonly PlanQualification[],
+  model_id: string,
+  task_class: string,
+): PlanQualification | null {
+  let out: PlanQualification | null = null;
+  for (const q of qualifications) {
+    if (q.model_id !== model_id || q.task_class !== task_class) continue;
+    if (q.state !== 'qualified' && q.state !== 'failed') continue;
+    const t = Date.parse(q.decided_at ?? q.created_at);
+    const best = out ? Date.parse(out.decided_at ?? out.created_at) : -Infinity;
+    if (t > best || (t === best && q.created_at > out!.created_at)) out = q;
+  }
+  return out;
+}
+export const isQualified = (
+  qualifications: readonly PlanQualification[],
+  model_id: string,
+  task_class: string,
+) => latestDecided(qualifications, model_id, task_class)?.state === 'qualified';
 
 /**
  * One benchmark case of a qualification as it was graded (F10): the stored answer (synthetic or

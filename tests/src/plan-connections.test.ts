@@ -374,6 +374,50 @@ test('pure admission keeps sign-in, credits, caps, model access and qualificatio
   assert.deepEqual(verifiedOnly, [
     'Model m is not qualified for summarization on this connection.',
   ]);
+  // PR #75 review L-2: the newest decided qualification counts. A later failure withdraws an
+  // earlier pass, a later pass restores it, and a running or abandoned one decides nothing.
+  const q = (state: string, decided: string | null, created: string) => ({
+    id: randomUUID(),
+    connection_id: ready.id,
+    model_id: 'm',
+    task_class: 'summarization',
+    state,
+    decided_at: decided,
+    created_at: created,
+  });
+  const qualifiedWith = (qualifications: unknown[]) =>
+    !admissionBlockers({
+      connection: ready,
+      request,
+      access: [
+        {
+          connection_id: ready.id,
+          model_id: 'm',
+          path: 'responses',
+          access: 'verified',
+        },
+      ] as never,
+      qualifications: qualifications as never,
+      grant: null,
+      usage,
+      now,
+    }).some((x) => /not qualified/.test(x));
+  const pass = q('qualified', '2026-10-01T10:00:00Z', '2026-10-01T09:00:00Z');
+  const fail = q('failed', '2026-10-02T10:00:00Z', '2026-10-02T09:00:00Z');
+  const again = q('qualified', '2026-10-03T10:00:00Z', '2026-10-03T09:00:00Z');
+  assert.equal(qualifiedWith([pass]), true);
+  assert.equal(qualifiedWith([fail, pass]), false);
+  assert.equal(qualifiedWith([again, fail, pass]), true);
+  assert.equal(
+    qualifiedWith([
+      q('running', null, '2026-10-04T09:00:00Z'),
+      q('abandoned', '2026-10-04T10:00:00Z', '2026-10-04T09:00:00Z'),
+      pass,
+    ]),
+    true,
+  );
+  // Another model's or task class's failure does not touch this one.
+  assert.equal(qualifiedWith([{ ...fail, model_id: 'other' }, pass]), true);
   assert.ok(
     admissionBlockers({
       connection: ready,
@@ -660,6 +704,55 @@ test('sign-in, credits, caps, verification and qualification are separate record
       /caps/i.test(b),
     ),
   );
+  // PR #86 review L-5 (ADR-0052): viewing a qualification's results shows its held-out cases,
+  // so the view is recorded once per person, and those held-out cases are refused for a
+  // different prompt. The same prompt may still be retried on them.
+  const manifest = read('config/routing/benchmark.fixture.json') as {
+    cases: { input: { role: string; text: string }[] }[];
+  };
+  const views = () =>
+    s.db.pool.query(
+      `select body from plan_connection_events where kind = 'qualification_held_out_viewed'`,
+    );
+  assert.equal((await views()).rowCount, 0);
+  await store.planQualificationResults(owner, ws.id, q.id);
+  await store.planQualificationResults(owner, ws.id, q.id);
+  const viewed = await views();
+  assert.equal(viewed.rowCount, 1);
+  assert.equal(viewed.rows[0].body.qualification_id, q.id);
+  assert.equal(viewed.rows[0].body.held_out.length, 8);
+  const revised = {
+    ...manifest,
+    cases: manifest.cases.map((k) => ({
+      ...k,
+      input: k.input.map((m) =>
+        m.role === 'system' ? { ...m, text: `${m.text} Be brief.` } : m,
+      ),
+    })),
+  };
+  const version = async () =>
+    (await store.planConnectionDetail(owner, ws.id, c.id)).connection.version;
+  await assert.rejects(
+    store.startPlanQualification(owner, ws.id, c.id, {
+      expected_version: await version(),
+      model_id: 'm',
+      manifest: revised,
+      min_held_out_cases: 8,
+      floor: { numerator: 7, denominator: 8 },
+    }),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_CONTRACT' &&
+      /8 held-out cases were viewed on .* fresh held-out cases/.test(e.message),
+  );
+  const retry = await store.startPlanQualification(owner, ws.id, c.id, {
+    expected_version: await version(),
+    model_id: 'm',
+    manifest,
+    min_held_out_cases: 8,
+    floor: { numerator: 7, denominator: 8 },
+  });
+  assert.equal(retry.state, 'running');
 });
 
 test('provider refusals are recorded as eligibility and quota states and stop admission', async (t) => {

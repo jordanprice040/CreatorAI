@@ -213,6 +213,19 @@ which applied). The policy is read just before admission, so a change racing a f
 to whichever it is recorded with. Brave public search (off by default) still filters by the
 startup list. Rolling back to an older app leaves migration 35's table unused.
 
+Amended November 3, 2026 (PR #103 review Lows, no migration): a change in a fixture workspace is
+refused, because fixture workspaces always use the fixture policy, and Settings says so (L1). A
+`*.` pattern under a shared public suffix (a usual registry label such as `co`, `org` or `gov`
+under a two-letter country code, or a shared hosting domain such as `github.io`) is refused by
+the schema and the Settings box alike, since it reaches nearly as far as "any public website"
+without its warnings; this is a short list, not the full public suffix list (L3). The sources
+status note says where the websites come from now that the live adapter is always on (L4). "Any
+public website" is described as the websites the owner or a scheduled refresh asks for, since
+no model picks URLs today; if automated URL choice is ever added, revisit the warnings, because
+URL query strings could then carry workspace text out (L5). While the startup list is in force
+(version 0), the page sends the list it showed and a save is refused with VERSION_CONFLICT if a
+restart changed it, so `previous_hosts` is what the owner saw (L6).
+
 ## ADR-0055 — Studio chat, first version: saved conversations with rule-based replies, no model (accepted November 1, 2026)
 
 Context: runbook step 9 page consolidation. The approved page map (design doc, Jordan's "go")
@@ -412,6 +425,19 @@ Those still show only the signal.
 Consequences: no migration. The installed app must be launched by the owner, never from a Claude
 session. Settings saved while it ran in the container (`studio.json` with the approved websites)
 were copied back to the real home with the owner's OK on October 31.
+
+Amended November 3, 2026 (PR #86 re-review L-5 and PR #75 review L-2, no migration). Opening a
+qualification's results when any held-out case ran is recorded once per person as a
+`qualification_held_out_viewed` connection event (the qualification, its task class, a hash of
+the prompt and one key per held-out case: everything but the system message). Starting a
+qualification is refused if any of its held-out cases match ones viewed for the same task class
+in this workspace under a different prompt, naming the date: freeze fresh held-out cases.
+Retrying the same prompt on them stays allowed (for example after a worker failure). A prompt
+carried in a user message rather than the system message is not detected. Separately, the
+newest decided qualification of a model for a task class is the one that counts (`isQualified`):
+a later failure withdraws an earlier pass, a later pass restores it, and running or abandoned
+rows decide nothing. Admission, the build-roles-ready preflight and the Submit page all use it,
+and Models marks a pass that no longer counts.
 
 ## ADR-0051 — Owner-approved evidence websites in the installed app (accepted October 30, 2026)
 

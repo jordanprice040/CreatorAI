@@ -1235,16 +1235,21 @@ export class ResearchStore extends WorkflowStore {
         version: 0,
         ...startup,
       };
-      if (body.expected_version !== cur.version)
+      const sorted = (h: readonly string[]) => JSON.stringify([...h].sort());
+      if (
+        body.expected_version !== cur.version ||
+        // The startup list can change on a restart while the page is open (PR #103 L6).
+        (cur.version === 0 &&
+          body.expected_startup &&
+          (body.expected_startup.mode !== cur.mode ||
+            sorted(body.expected_startup.hosts) !== sorted(cur.hosts)))
+      )
         throw fail(
           'VERSION_CONFLICT',
           'The evidence websites changed since this page loaded them; reload and decide again.',
         );
       const hosts = [...body.hosts].sort();
-      if (
-        body.mode === cur.mode &&
-        JSON.stringify(hosts) === JSON.stringify([...cur.hosts].sort())
-      )
+      if (body.mode === cur.mode && JSON.stringify(hosts) === sorted(cur.hosts))
         throw fail(
           'INVALID_CONTRACT',
           'Nothing changed: the mode and websites are the same as now.',

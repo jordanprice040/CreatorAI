@@ -59,6 +59,58 @@ export const EVIDENCE_SITES_MAX = 100;
 export const EvidenceSiteModeSchema = z.enum(['listed', 'any_public']);
 export type EvidenceSiteMode = z.infer<typeof EvidenceSiteModeSchema>;
 /** An exact host or `*.example.org`; a named host, never a bare IP address. */
+/**
+ * PR #103 review L3: `*.` under a shared public suffix (`*.co.uk`, `*.github.io`) is close to
+ * "any public website" without its warnings, so it is refused. Not a full public suffix list:
+ * a two-label parent whose first label is a usual registry label under a two-letter country
+ * code, plus common shared hosting domains. Mirrored in apps/web/src/site-list.ts.
+ */
+const SHARED_PARENT_LABELS = new Set([
+  'ac',
+  'co',
+  'com',
+  'edu',
+  'go',
+  'gov',
+  'govt',
+  'ltd',
+  'me',
+  'ne',
+  'net',
+  'nhs',
+  'or',
+  'org',
+  'plc',
+  'sch',
+]);
+const SHARED_HOSTING = new Set([
+  'appspot.com',
+  'azurewebsites.net',
+  'blogspot.com',
+  'cloudfront.net',
+  'firebaseapp.com',
+  'github.io',
+  'gitlab.io',
+  'herokuapp.com',
+  'netlify.app',
+  'pages.dev',
+  'substack.com',
+  'vercel.app',
+  'web.app',
+  'wordpress.com',
+  'workers.dev',
+]);
+export function sharedSuffixWildcard(host: string): boolean {
+  if (!host.startsWith('*.')) return false;
+  const parent = host.slice(2);
+  const labels = parent.split('.');
+  return (
+    SHARED_HOSTING.has(parent) ||
+    (labels.length === 2 &&
+      labels[1]!.length === 2 &&
+      SHARED_PARENT_LABELS.has(labels[0]!))
+  );
+}
 export const EvidenceSiteHostSchema = z
   .string()
   .trim()
@@ -67,11 +119,25 @@ export const EvidenceSiteHostSchema = z
   .regex(
     /^(\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]*[a-z][a-z0-9-]*$/,
     'Enter a website host such as www.example.org or *.example.org, with no https:// or path.',
-  );
+  )
+  .refine((h) => !sharedSuffixWildcard(h), {
+    message:
+      'A *. pattern under a shared suffix such as co.uk or github.io covers many unrelated websites; list the websites, or use any public website.',
+  });
 export const ChangeEvidenceSitesRequestSchema = z
   .strictObject({
     /** The version the page showed; 0 while the startup list is in force. */
     expected_version: z.number().int().min(0),
+    /**
+     * PR #103 review L6: with version 0, the startup list the page showed. The startup list can
+     * change on a restart, so the server refuses the save if it no longer matches.
+     */
+    expected_startup: z
+      .strictObject({
+        mode: EvidenceSiteModeSchema,
+        hosts: z.array(z.string().max(253)).max(EVIDENCE_SITES_MAX),
+      })
+      .optional(),
     mode: EvidenceSiteModeSchema,
     hosts: z.array(EvidenceSiteHostSchema).max(EVIDENCE_SITES_MAX),
     reason: note,

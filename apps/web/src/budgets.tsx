@@ -377,7 +377,12 @@ export function Budgets({
                 {/* Closing is owner-only on the server, so only the owner is offered it. */}
                 {current.role === 'owner' &&
                   e.status !== 'closed' &&
-                  (closing === e.id ? (
+                  // PR #129 re-review N-5: a blocker found on the reload (a call began after
+                  // the page loaded) replaces an open form, so it does not invite a retry
+                  // that is refused the same way.
+                  (budgetCloseBlocker(e) ? (
+                    <p className="small">{budgetCloseBlocker(e)}</p>
+                  ) : closing === e.id ? (
                     <ReasonForm
                       id={`close-${e.id}`}
                       label="Why close this budget"
@@ -419,8 +424,6 @@ export function Budgets({
                         return null;
                       }}
                     />
-                  ) : budgetCloseBlocker(e) ? (
-                    <p className="small">{budgetCloseBlocker(e)}</p>
                   ) : (
                     <button className="text" onClick={() => setClosing(e.id)}>
                       Close this budget…
