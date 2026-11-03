@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOnShow } from './page-active.js';
 import {
   CHAT_DAILY_LIMIT_DEFAULT,
@@ -16,6 +16,7 @@ import {
 } from '@creator/contracts';
 import { Markdown } from './markdown-view.js';
 import { api, message, when } from './oversight.js';
+import { withFreshCount } from './usage-refresh.js';
 
 // ADR-0057: chat answers from a connected plan. The answer view labels every answer as a model
 // answer that nobody checked and shows exactly what was sent; the settings card is the owner's
@@ -112,17 +113,22 @@ export function ChatAnswersCard({
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
   const [busy, setBusy] = useState(false);
+  // The connection version "Allow" was sent from: until a newer one is read, a second click
+  // would only be refused as out of date (PR #127 re-review N-A).
+  const [allowedFrom, setAllowedFrom] = useState<string | null>(null);
 
+  // Only the newest connections read may show (PR #127 review N-3).
+  const detailsSeq = useRef(0);
   async function loadDetails() {
+    const mine = ++detailsSeq.current;
     const conns = await api(
       z.array(PlanConnectionSchema),
       `${base}/plan-connections`,
     );
-    setDetails(
-      await Promise.all(
-        conns.map((c) => api(Detail, `${base}/plan-connections/${c.id}`)),
-      ),
+    const d = await Promise.all(
+      conns.map((c) => api(Detail, `${base}/plan-connections/${c.id}`)),
     );
+    if (mine === detailsSeq.current) setDetails(d);
   }
   async function load() {
     const [s, conns] = await Promise.all([
@@ -148,14 +154,27 @@ export function ChatAnswersCard({
     if (!session) return;
     load().catch((e) => setError(message(e)));
   }, [workspace.id, session?.actor_id]);
+  /**
+   * Reads the connections and the chat count again without touching the form, so what the
+   * owner picked or typed stays put. Only the count and its limit are taken from the fresh
+   * settings: the saved version stays the one the form was filled from, so saving never
+   * silently overwrites a change made elsewhere.
+   */
+  async function refresh() {
+    const [s] = await Promise.all([
+      api(ChatSettingsSchema, `${base}/chat-settings`),
+      loadDetails(),
+    ]);
+    setSettings((prev) => withFreshCount(prev, s));
+  }
   useEffect(() => {
     if (!session || !settings || !stamp) return;
     loadDetails().catch((e) => setError(message(e)));
   }, [stamp]);
-  // Connections checked or changed elsewhere show when the page is shown again (audit L-10);
-  // the settings form keeps what the owner typed.
+  // Connections checked or changed elsewhere, and chat answers asked since, show when the
+  // page is shown again (audit L-10); the settings form keeps what the owner typed.
   useOnShow(() => {
-    if (session && settings) loadDetails().catch((e) => setError(message(e)));
+    if (session && settings) refresh().catch((e) => setError(message(e)));
   });
 
   const chosen = details.find((d) => d.connection.id === form.connection_id);
@@ -222,8 +241,13 @@ export function ChatAnswersCard({
           },
         },
       });
-      await load();
-      onChanged?.();
+      // Keep the form as the owner left it: reloading the saved settings here snapped an
+      // unsaved connection choice back to the saved one (plan-backed chat rough edge 1).
+      // The page's own reload changes `stamp` (the connection's version moved), which reads
+      // the connections again, so only read them here when nobody else will (review N-3).
+      setAllowedFrom(`${c.id}:${c.version}`);
+      if (onChanged) onChanged();
+      else await loadDetails();
     } catch (e) {
       setError(message(e));
     } finally {
@@ -355,7 +379,12 @@ export function ChatAnswersCard({
                 <button
                   type="button"
                   className="secondary"
-                  disabled={busy || !session}
+                  disabled={
+                    busy ||
+                    !session ||
+                    allowedFrom ===
+                      `${chosen.connection.id}:${chosen.connection.version}`
+                  }
                   onClick={() => void allowPrivate()}
                 >
                   Allow my private text on this connection
