@@ -9,6 +9,7 @@ import {
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
   pathForTaskClass,
+  isQualified,
   PLAN_RECONCILE_HINT,
 } from '@creator/contracts';
 
@@ -226,14 +227,10 @@ export function admissionBlockers(input: {
         out.push(
           `Model ${r.model_id} has no verified access on the ${r.path} path.`,
         );
+      // The newest decided qualification counts: a later failure withdraws a pass.
       const qualified =
         r.task_class !== null &&
-        input.qualifications.some(
-          (q) =>
-            q.model_id === r.model_id &&
-            q.task_class === r.task_class &&
-            q.state === 'qualified',
-        );
+        isQualified(input.qualifications, r.model_id, r.task_class);
       if (!qualified)
         out.push(
           `Model ${r.model_id} is not qualified for ${r.task_class ?? 'this task'} on this connection.`,

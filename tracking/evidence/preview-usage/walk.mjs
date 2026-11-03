@@ -1,5 +1,11 @@
-import { createPreviewServer } from '/home/user/CreatorAI/apps/api/dist/artifacts.js';
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Run from the repository root after `pnpm build:code`: node tracking/evidence/preview-usage/walk.mjs
+// Screenshots go to $WALK_OUT (default .verification/preview-usage). Needs Playwright on the path.
+import { mkdir } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { createPreviewServer } from '../../../apps/api/dist/artifacts.js';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const out = process.env.WALK_OUT ?? '.verification/preview-usage';
+await mkdir(out, { recursive: true });
 const id = '11111111-2222-4333-8444-555555555555';
 const guide = {
   flows: [{ key: 'F1', name: 'Analyze input timings', steps: ['Run with --fps and the frame rate', 'Paste one press time in milliseconds per line', 'Read each press’s frame, offset and on-frame status'] }],
@@ -23,6 +29,6 @@ for (const scheme of ['dark', 'light']) {
   await p.goto(`http://127.0.0.1:${port}/preview/${id}?ticket=t`);
   await p.click('button[data-example]');
   console.log(scheme, JSON.stringify(await p.inputValue('#args')), JSON.stringify(await p.inputValue('#stdin')), await p.evaluate(() => document.activeElement.textContent));
-  await p.screenshot({ path: `/tmp/walk/preview-${scheme}.png`, fullPage: true });
+  await p.screenshot({ path: `${out}/preview-${scheme}.png`, fullPage: true });
 }
 await b.close(); srv.close();

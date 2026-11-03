@@ -42,7 +42,10 @@ import {
 } from './carry-decisions.js';
 
 /** What still needs the owner's look, in words, for the line above Record. */
-function pendingReviews(g: ReturnType<typeof formGate>): string[] {
+function pendingReviews(
+  g: ReturnType<typeof formGate>,
+  overrideText: string,
+): string[] {
   const out: string[] = [];
   const n = g.unreviewed.length;
   if (n) out.push(`keep or change ${n} flagged option${n === 1 ? '' : 's'}`);
@@ -50,6 +53,8 @@ function pendingReviews(g: ReturnType<typeof formGate>): string[] {
     out.push('rewrite or keep the reasons written for an earlier choice');
   if (g.rationale_review) out.push('review the overall rationale');
   if (g.override_review) out.push('review the override reason');
+  else if (g.override_needed && !overrideText.trim())
+    out.push('give an override reason');
   if (g.problem_review) out.push('confirm the revised problem');
   return out;
 }
@@ -330,6 +335,7 @@ export function Compare({
     !gate?.problem_review &&
     !gate?.rationale_review &&
     !gate?.stale_reasons.length &&
+    !(gate?.override_needed && !override.trim()) &&
     rationale.trim().length > 0 &&
     !!runId;
   const request = () => ({
@@ -344,7 +350,8 @@ export function Compare({
         reverse_if: r.reverse_if.trim(),
       };
     }),
-    override_reason: override.trim() || null,
+    // PR #95 re-review L-4: a reason the current choices do not need is not stored.
+    override_reason: gate?.override_needed ? override.trim() || null : null,
     rationale: rationale.trim(),
     shortlist_size: 3,
     data_class: workspace.record_mode === 'fixture' ? 'synthetic' : 'public',
@@ -912,14 +919,19 @@ export function Compare({
                   rows={2}
                   maxLength={1200}
                   value={rationale}
-                  onChange={(e) => setRationale(e.target.value)}
+                  onChange={(e) => {
+                    setRationale(e.target.value);
+                    // Typing binds the rationale to the choices as they are now; a later
+                    // change of choices flags it again (PR #95 re-review L-2).
+                    if (gate) setRationaleKept(gate.rationale_signature);
+                  }}
                 />
                 {gate?.rationale_review && rationale.trim() && (
                   <div className="carry-flag">
                     <strong>Review the overall rationale.</strong> It was
-                    written for your earlier choices, and some choices are
-                    different now. Keep it if it still explains this decision,
-                    or rewrite it.
+                    written for your earlier decision, and the options or your
+                    choices are different now. Keep it if it still explains this
+                    decision, or rewrite it.
                     <div>
                       <button
                         type="button"
@@ -941,13 +953,22 @@ export function Compare({
                   id="dec-override"
                   maxLength={1200}
                   value={override}
-                  onChange={(e) => setOverride(e.target.value)}
+                  onChange={(e) => {
+                    setOverride(e.target.value);
+                    if (gate) setOverrideKept(gate.override_signature);
+                  }}
                 />
+                {gate && !gate.override_needed && override.trim() && (
+                  <p className="small">
+                    Not needed for these choices: no option is advanced over a
+                    higher-ranked one, so this reason is not recorded.
+                  </p>
+                )}
                 {gate?.override_review && (
                   <div className="carry-flag">
                     <strong>Review the override reason.</strong>{' '}
                     {override.trim()
-                      ? 'Your choices now advance an option over a different set of higher-ranked options than the reason was written for. Keep it if it still explains the choice, or rewrite it.'
+                      ? 'The options this reason compares have changed. Keep it if it still explains the choice, or rewrite it.'
                       : 'Your choices now advance an option over higher-ranked options; give a reason.'}
                     {override.trim() && (
                       <div>
@@ -980,9 +1001,10 @@ export function Compare({
                     </option>
                   ))}
                 </select>
-                {gate && pendingReviews(gate).length > 0 && (
+                {gate && pendingReviews(gate, override).length > 0 && (
                   <p className="small">
-                    Before you can record: {pendingReviews(gate).join('; ')}.
+                    Before you can record:{' '}
+                    {pendingReviews(gate, override).join('; ')}.
                   </p>
                 )}
                 <button

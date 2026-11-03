@@ -130,6 +130,13 @@ export class SourceBroker {
         'INVALID_CONFIG',
         'Live evidence fetching is turned off for this studio (CREATOR_SOURCE_FETCH=off), so website settings would have no effect.',
       );
+    // PR #103 review L1: a fixture workspace always uses the fixture policy, so a change
+    // there would be recorded but never used.
+    if (await this.store.isFixtureWorkspace(ctx, ws))
+      throw new ContractError(
+        'INVALID_CONTRACT',
+        'Fixture workspaces always use the built-in fixture sources; evidence websites apply to real workspaces only.',
+      );
     await this.store.changeEvidenceSites(ctx, ws, raw, this.startupSites);
     return this.evidenceSites(ctx, ws);
   }
@@ -379,8 +386,10 @@ const list = (v: string | undefined) =>
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
 /**
- * A live fetch adapter exists only when the owner opts in and names the approved hosts. The
- * policy is still enforced per hop, and each fetch still needs a covering grant.
+ * The live fetch adapter exists whenever CREATOR_SOURCE_FETCH=live (the installed studio always
+ * sets it, ADR-0056); the startup policy exists only when hosts are named, and the owner's
+ * Settings list replaces it. The policy is still enforced per hop, and each fetch still needs a
+ * covering grant.
  */
 export function sourceConfigFromEnv(env: Record<string, string | undefined>): {
   adapter: SourceAdapter | null;

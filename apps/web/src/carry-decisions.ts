@@ -395,21 +395,30 @@ export interface FormGate {
   unchanged: boolean;
   /**
    * The override reason was written for other overrides: the set needed now differs, or
-   * an option in one of them changed score, status or version. Cleared by editing the
-   * reason or keeping it for exactly the current overrides (`override_signature`).
+   * an option in one of them changed score, status or version. Cleared by keeping or
+   * editing the reason for exactly the current overrides (`override_signature`): the form
+   * records the signature when the owner presses Keep or types in the field, so a later
+   * change of choices flags it again (PR #95 re-review L-2).
    */
   override_review: boolean;
   /**
    * The rationale was written for other choices: some option's disposition differs from
-   * the earlier decision. Cleared by editing it or keeping it for exactly the current
-   * choices (`rationale_signature`).
+   * the earlier decision, or an option that the earlier decision advanced is no longer
+   * part of the problem (PR #95 re-review L-1). Cleared by keeping or editing it for
+   * exactly the current choices (`rationale_signature`, recorded on Keep and on typing).
    */
   rationale_review: boolean;
   /**
    * Options whose disposition differs from the earlier one while their reasons are still
-   * the earlier text, so the old reasons would be recorded under a new choice.
+   * the earlier text, so the old reasons would be recorded under a new choice. Editing only
+   * "would reverse if" does not clear it (PR #95 re-review L-3).
    */
   stale_reasons: string[];
+  /**
+   * The current choices need an override reason. When false the form submits none, so an
+   * earlier reason is not stored on a decision it does not explain (PR #95 re-review L-4).
+   */
+  override_needed: boolean;
   /** The problem was revised and the owner has not confirmed reading it. */
   problem_review: boolean;
   /** What a "keep" confirmation is bound to; a later change makes it stale. */
@@ -442,10 +451,10 @@ export function formGate(
     dispositions: Record<string, string>;
     /** Current reason texts per option, as the form shows them. */
     texts?: Record<string, { reasons: string; reverse_if: string }>;
-    /** The owner typed in these fields. */
+    /** The owner typed in these fields (this alone no longer clears a review flag). */
     rationale_edited: boolean;
     override_edited: boolean;
-    /** Signatures the owner pressed "keep" for, or null. */
+    /** Signatures the owner pressed "keep" for, or last typed in the field for, or null. */
     rationale_kept?: string | null;
     override_kept?: string | null;
     /** Per option, the disposition the owner kept the earlier reasons for. */
@@ -457,7 +466,21 @@ export function formGate(
   const ids = Object.keys(state.dispositions).sort();
   const choices = ids.map((id) => [id.toLowerCase(), state.dispositions[id]]);
   const now = overridesFor(report, state.dispositions);
-  const rationale_signature = JSON.stringify([report.report_hash, choices]);
+  const shownIds = new Set(ids.map((id) => id.toLowerCase()));
+  // Options the earlier decision advanced that are no longer part of the problem.
+  const droppedAdvanced = (previous?.dispositions ?? [])
+    .filter(
+      (d) =>
+        !shownIds.has(d.alternative.id.toLowerCase()) &&
+        advancing(d.disposition),
+    )
+    .map((d) => d.alternative.id.toLowerCase())
+    .sort();
+  const rationale_signature = JSON.stringify([
+    report.report_hash,
+    choices,
+    droppedAdvanced,
+  ]);
   const override_signature = JSON.stringify([
     report.report_hash,
     [...overrideKeys(now)].sort(),
@@ -489,14 +512,13 @@ export function formGate(
     });
   const override_review =
     !!previous &&
-    !state.override_edited &&
     state.override_kept !== override_signature &&
     (overridesChanged(previous.overrides, now) || involvedChanged);
   const rationale_review =
     !!previous &&
-    !state.rationale_edited &&
     state.rationale_kept !== rationale_signature &&
-    ids.some((id) => state.dispositions[id] !== was.get(id.toLowerCase()));
+    (droppedAdvanced.length > 0 ||
+      ids.some((id) => state.dispositions[id] !== was.get(id.toLowerCase())));
   const stale_reasons = previous
     ? ids.filter((id) => {
         const before = was.get(id.toLowerCase());
@@ -510,7 +532,6 @@ export function formGate(
           !!carried &&
           !!text &&
           text.reasons === carried.reasons &&
-          text.reverse_if === carried.reverse_if &&
           state.reasons_kept?.[id] !== cur
         );
       })
@@ -524,5 +545,6 @@ export function formGate(
     problem_review: c.problem_version_changed && !state.problem_confirmed,
     rationale_signature,
     override_signature,
+    override_needed: now.length > 0,
   };
 }
