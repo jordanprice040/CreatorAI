@@ -521,9 +521,14 @@ export class ConnectionStore extends PortfolioStore {
             'This conversation has messages or model answers from someone else, so only the owner can delete it.',
           );
       }
+      // ADR-0062: a pending answer counts as live until its connection's request timeout plus
+      // 15 minutes, the same point at which a stopped studio's answer is closed as failed.
       const pending = await c.query(
-        `select 1 from chat_answers where conversation_id = $1 and state = 'pending'
-           and created_at >= clock_timestamp() - interval '15 minutes' limit 1`,
+        `select 1 from chat_answers ca where ca.conversation_id = $1 and ca.state = 'pending'
+           and ca.created_at >= clock_timestamp() - make_interval(secs => 900 + coalesce((
+             select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
+             from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)
+         limit 1`,
         [conversation.id],
       );
       if (pending.rows.length)
@@ -808,10 +813,19 @@ export class ConnectionStore extends PortfolioStore {
       // An answer left pending by a studio that stopped mid-request is closed as failed, so
       // the message can be asked again. Its plan request, if one was sent, stays unresolved
       // and blocks new requests on the connection until it is reconciled.
+      // ADR-0062: the request timeout has no 5-minute maximum any more, so an answer counts
+      // as abandoned only after its connection's request timeout plus 15 minutes (never under
+      // 15 minutes); a live request is never closed early and asked a second time. The
+      // current timeout is read, not the one at the start (PR #123 review L-2): if the owner
+      // lowers it mid-request the answer may be closed early, but the question still cannot be
+      // sent twice while that plan request is in flight or unresolved (max_in_flight is 1).
       await c.query(
-        `update chat_answers set state = 'failed', finished_at = clock_timestamp(),
+        `update chat_answers ca set state = 'failed', finished_at = clock_timestamp(),
            reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'
-         where message_id = $1 and state = 'pending' and created_at < clock_timestamp() - interval '15 minutes'`,
+         where ca.message_id = $1 and ca.state = 'pending'
+           and ca.created_at < clock_timestamp() - make_interval(secs => 900 + coalesce((
+             select (pc.settings #>> '{caps,responses,request_timeout_ms}')::double precision
+             from plan_connections pc where pc.id = ca.connection_id), 0) / 1000)`,
         [msg.id],
       );
       const prior = (

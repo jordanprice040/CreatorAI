@@ -18,6 +18,7 @@ import {
   scorePatchCase,
   gradePatchCase,
   qaCaseSchema,
+  PLAN_ROLE_CONTEXT_MAX,
   type Execution,
   type Binding,
   type BuildApprovalScope,
@@ -481,6 +482,56 @@ test('a Codex builder change outside the task scope is refused by the scoped pat
   );
   assert.equal(result.state, 'checkpoint');
   assert.match(result.reason, /scope/);
+  assert.equal(result.commit, s.product.initial_commit);
+  assert.equal(s.requests.length, 0);
+});
+
+test('a Codex builder packet past the plan-role ceiling stops before Codex is asked', async (t) => {
+  // Full audit L-11: the Codex packet was bounded only by the API's 1 MiB body.
+  // Visible frozen cases at their schema maximums are the largest valid part of a packet.
+  const s = await setup(t, (spec) => {
+    const [a1, ...rest] = spec.acceptance_checks;
+    const big = Array.from({ length: 8 }, () => ({
+      args: Array.from({ length: 12 }, () => 'a'.repeat(500)),
+      stdin: 'i'.repeat(4000),
+      stdout: '"'.repeat(12000),
+      exit_code: 0,
+      held_out: false,
+    }));
+    return {
+      ...spec,
+      acceptance_checks: [{ ...a1!, cases: [...a1!.cases!, ...big] }, ...rest],
+    };
+  });
+  let asked = 0;
+  const result = await s.builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    {
+      ...s.plan,
+      cases: frozenCases(s.spec).map(({ held_out: _, ...c }) => c),
+      codex_plan_builder: {
+        connection_id: randomUUID(),
+        model_id: 'fixture-plan-model',
+      },
+    },
+    {
+      ...s.ports,
+      codexBuilder: async () => {
+        asked++;
+        throw new Error('no Codex turn may start');
+      },
+    },
+  );
+  assert.equal(result.state, 'checkpoint');
+  assert.match(
+    result.reason,
+    new RegExp(
+      `Codex builder context exceeds bounded packet \\(\\d+ > ${PLAN_ROLE_CONTEXT_MAX}`,
+    ),
+  );
+  assert.equal(asked, 0);
   assert.equal(result.commit, s.product.initial_commit);
   assert.equal(s.requests.length, 0);
 });

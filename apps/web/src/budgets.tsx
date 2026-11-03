@@ -513,6 +513,14 @@ export function Budgets({
                       <small>{r.explanation}</small>
                     </>
                   )}
+                  {r.reconcile_evidence && (
+                    <>
+                      <br />
+                      <small className="reconcile-evidence">
+                        Where you checked: {r.reconcile_evidence}
+                      </small>
+                    </>
+                  )}
                   {r.status === 'unknown' && (
                     <>
                       {' '}

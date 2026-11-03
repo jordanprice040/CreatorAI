@@ -2619,6 +2619,16 @@ create table workspace_notes (
 `,
   },
   {
+    // ADR-0062: owner-set caps and limits have no upper limit. The chat answers-a-day limit
+    // was capped at 100; it now only has to be at least 1 (the integer column still bounds it).
+    version: 38,
+    name: 'chat_daily_limit_uncapped',
+    sql: `
+alter table chat_settings drop constraint chat_settings_daily_limit_check;
+alter table chat_settings add constraint chat_settings_daily_limit_check check (daily_limit >= 1);
+`,
+    },
+    {
     // ADR-0063: a chat conversation can be deleted. Messages and answers still never change,
     // and one cannot be deleted on its own: a row may go only once its conversation is gone,
     // which happens through the cascade from deleting the conversation. Plan requests keep no

@@ -8,6 +8,6 @@ export * from './study-build.js';
 export * from './paired.js';
 export * from './codex-host.js';
 export * from './plan-qualification.js';
-export { lockHolder, withLock } from './files.js';
+export { jsonPublish, lockHolder, withLock } from './files.js';
 export * from './terminal.js';
 export * from './cli-options.js';

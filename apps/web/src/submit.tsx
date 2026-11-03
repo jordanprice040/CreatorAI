@@ -17,6 +17,7 @@ import {
   StoredEntitySchema,
   WorkflowDetailSchema,
   WorkflowSchema,
+  WORKFLOW_WALL_MAX_SECONDS,
   z,
   type ClaimEvidence,
   type EvidenceRole,
@@ -306,21 +307,33 @@ export function Submit({
             ),
         ]
       : [];
+  const planTimeout =
+    plan?.connection.settings.caps.responses.request_timeout_ms ??
+    LIMITS.call_timeout_ms;
+  const planCalls = Math.min(
+    LIMITS.max_calls,
+    plan?.connection.settings.caps.responses.max_requests_per_run ?? 10,
+  );
   const limits =
     resourceKind === 'subscription'
       ? {
           ...LIMITS,
           max_concurrency: 1,
           max_attempts: 1,
-          max_calls: Math.min(
-            LIMITS.max_calls,
-            plan?.connection.settings.caps.responses.max_requests_per_run ?? 10,
-          ),
+          max_calls: planCalls,
           // A plan call streams for up to the connection's accepted timeout (e.g. 120 s); the
           // 10 s default would cut live calls off mid-stream and leave unknown outcomes.
-          call_timeout_ms:
-            plan?.connection.settings.caps.responses.request_timeout_ms ??
-            LIMITS.call_timeout_ms,
+          call_timeout_ms: planTimeout,
+          // ADR-0062: the timeout has no owner maximum, so the workflow's wall time grows to
+          // hold every allowed call at that timeout, one at a time (never under the default).
+          // Clamped to the schema's ceiling (PR #123 re-review L-3).
+          max_wall_seconds: Math.min(
+            WORKFLOW_WALL_MAX_SECONDS,
+            Math.max(
+              LIMITS.max_wall_seconds,
+              Math.ceil((planCalls * planTimeout) / 1000) + 60,
+            ),
+          ),
         }
       : LIMITS;
   const request = {
@@ -337,11 +350,9 @@ export function Submit({
             connection_id: plan?.connection.id ?? '',
             model_id: model,
             settings_hash: plan?.connection.settings_hash ?? '',
-            max_output_chars: Math.min(
-              100000,
+            max_output_chars:
               plan?.connection.settings.caps.responses.max_output_chars ??
-                16000,
-            ),
+              16000,
           },
         }
       : {

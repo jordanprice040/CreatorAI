@@ -49,7 +49,7 @@ export async function usageSummary(
       group by r.connection_id, r.run_id, p.settings, rc.state
      having max(r.started_at) > clock_timestamp() - interval '24 hours'
          or (coalesce(rc.state, 'active') <> 'cancelled'
-             and count(*) >= (p.settings->'caps'->'responses'->>'max_requests_per_run')::int)
+             and count(*) >= (p.settings->'caps'->'responses'->>'max_requests_per_run')::bigint)
       order by max(r.started_at) desc`,
     [ws],
   );

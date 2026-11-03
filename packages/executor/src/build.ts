@@ -527,9 +527,20 @@ export class BuildSupervisor {
           if (plan.codex_plan_builder) {
             if (!ports.codexBuilder)
               throw new Error('Codex plan builder is not configured');
+            // Full audit L-11: the Codex packet gets the same runaway ceiling as plan roles,
+            // not just the API's 1 MiB body allowance.
+            const codexPacket = {
+              ...builderPacket,
+              allowed_tools: ['apply_patch in the task workspace'],
+            };
+            const codexText = JSON.stringify(codexPacket);
+            if (codexText.length > PLAN_ROLE_CONTEXT_MAX)
+              throw new Error(
+                `Codex builder context exceeds bounded packet (${codexText.length} > ${PLAN_ROLE_CONTEXT_MAX} characters)`,
+              );
             await jsonWrite(join(dir, `codex-${cycle}-intent.json`), {
               candidate: commit,
-              context_hash: digest(JSON.stringify(builderPacket)),
+              context_hash: digest(codexText),
             });
             built = checked(
               builderSchema,
@@ -540,10 +551,7 @@ export class BuildSupervisor {
                   run_id: plan.run_id,
                   data_class: plan.data_class,
                 },
-                {
-                  ...builderPacket,
-                  allowed_tools: ['apply_patch in the task workspace'],
-                },
+                codexPacket,
               ),
             );
             await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), built);

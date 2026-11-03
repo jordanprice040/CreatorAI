@@ -478,9 +478,39 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
   );
   // Editors can still read the setting.
   assert.equal((await store.chatSettings(editor, ws.id)).enabled, true);
+  // ADR-0062: the owner's answers-a-day limit has no maximum (it was 100); it must be at least 1.
+  const many = {
+    enabled: true,
+    connection_id: s.conn.id,
+    model_id: MODEL,
+    include_snapshot: false,
+  };
+  await rejects(
+    'ACCESS_DENIED',
+    store.setChatSettings(editor, ws.id, {
+      ...many,
+      expected_version: 1,
+      daily_limit: 5000,
+    }),
+  );
+  const raised = await store.setChatSettings(owner, ws.id, {
+    ...many,
+    expected_version: 1,
+    daily_limit: 5000,
+  });
+  assert.equal(raised.daily_limit, 5000);
+  assert.equal((await store.chatSettings(owner, ws.id)).daily_limit, 5000);
+  await rejects(
+    'INVALID_CONTRACT',
+    store.setChatSettings(owner, ws.id, {
+      ...many,
+      expected_version: 2,
+      daily_limit: 0,
+    }),
+  );
 
-  // A pending answer from a studio that stopped mid-request: blocked for 15 minutes, then
-  // closed as failed so the message can be asked again.
+  // A pending answer from a studio that stopped mid-request: blocked for the connection's
+  // request timeout plus 15 minutes, then closed as failed so the message can be asked again.
   const begun = await store.beginChatAnswer(owner, ws.id, chat.id, q.id, {
     client_id: randomUUID(),
   });
@@ -507,6 +537,26 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
     await c.query(
       'alter table chat_answers enable trigger chat_answers_settle_once',
     );
+    // ADR-0062 (PR #124 review L-1): with a 1-hour request timeout the request may still be
+    // live after 20 minutes, so the answer stays pending and nothing is asked twice.
+    const timeout = (
+      await c.query(
+        `select settings #> '{caps,responses,request_timeout_ms}' as t from plan_connections where id = $1`,
+        [s.conn.id],
+      )
+    ).rows[0].t;
+    const setTimeoutCap = (v: unknown) =>
+      c.query(
+        `update plan_connections set settings = jsonb_set(settings, '{caps,responses,request_timeout_ms}', $2::jsonb) where id = $1`,
+        [s.conn.id, JSON.stringify(v)],
+      );
+    await setTimeoutCap(3_600_000);
+    const still = await service.chatAnswer(owner, ws.id, chat.id, q.id, {
+      client_id: randomUUID(),
+    });
+    assert.equal(still.id, begun.answer.id);
+    assert.equal(still.state, 'pending');
+    await setTimeoutCap(timeout);
   } finally {
     c.release();
   }
@@ -673,6 +723,41 @@ test('deleting a conversation (ADR-0063): who may, not while an answer is coming
     store.deleteChat(owner, ws.id, chat.id),
     /still on its way/,
   );
+  // ADR-0062: with a 1-hour request timeout a 20-minute-old pending answer may still be live,
+  // so it still blocks the delete (it was a fixed 15 minutes before).
+  const backdate = await db.pool.connect();
+  try {
+    await backdate.query(
+      'alter table chat_answers disable trigger chat_answers_settle_once',
+    );
+    await backdate.query(
+      `update chat_answers set created_at = created_at - interval '20 minutes' where id = $1`,
+      [begun.answer.id],
+    );
+    await backdate.query(
+      'alter table chat_answers enable trigger chat_answers_settle_once',
+    );
+  } finally {
+    backdate.release();
+  }
+  const timeoutCap = (v: unknown) =>
+    db.pool.query(
+      `update plan_connections set settings = jsonb_set(settings, '{caps,responses,request_timeout_ms}', $2::jsonb) where id = $1 returning 1`,
+      [s.conn.id, JSON.stringify(v)],
+    );
+  const oldTimeout = (
+    await db.pool.query(
+      `select settings #> '{caps,responses,request_timeout_ms}' as t from plan_connections where id = $1`,
+      [s.conn.id],
+    )
+  ).rows[0].t;
+  await timeoutCap(3_600_000);
+  await rejects(
+    'INVALID_TRANSITION',
+    store.deleteChat(owner, ws.id, chat.id),
+    /still on its way/,
+  );
+  await timeoutCap(oldTimeout);
   await store.finishChatAnswer(owner, ws.id, begun.answer.id, {
     state: 'failed',
     plan_request_id: null,

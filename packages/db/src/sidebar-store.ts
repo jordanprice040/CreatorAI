@@ -49,9 +49,15 @@ const words = (s: string) => s.replace(/_/g, ' ');
 /**
  * Review L-2: a plan request still `in_flight` this long after it started was most likely cut
  * off (studio stopped or crashed) and will stay that way until it is reconciled on Models.
- * Re-review L-C: above the longest allowed plan timeout (build_timeout_ms, 30 minutes).
+ * Re-review L-C: it must outlast the request's own timeout. ADR-0062 removed the timeouts'
+ * upper limits, so the wait is the connection's timeout for that kind of request (the build
+ * timeout for a Codex build, else the request timeout) plus STALE_PLAN_REQUEST_MARGIN_MS, and
+ * never less than STALE_PLAN_REQUEST_MS. It reads the connection's current timeout, not the one
+ * in force when the request started: lowering it mid-request can only show the request as
+ * stale early (a label), never send anything (PR #123 review L-2).
  */
 export const STALE_PLAN_REQUEST_MS = 45 * 60_000;
+export const STALE_PLAN_REQUEST_MARGIN_MS = 15 * 60_000;
 
 /** Review L-3: plain words per workflow state, and whether it is moving on its own. */
 const WORKFLOW_STATE: Record<string, [string, boolean]> = {
@@ -81,11 +87,16 @@ export async function activityNow(
   const items: ActivityNowItem[] = [];
   const plan = await c.query(
     `select pr.id, pr.purpose, pr.model_id, pr.task_class, pr.run_id, pr.started_at,
-       pr.started_at < clock_timestamp() - make_interval(secs => $3::double precision / 1000) as stale
+       pr.started_at < clock_timestamp() - make_interval(secs => greatest(
+         $3::double precision,
+         coalesce((pc.settings #>> case when pr.purpose = 'codex_build'
+           then '{caps,codex,build_timeout_ms}'::text[]
+           else '{caps,responses,request_timeout_ms}'::text[] end)::double precision, 0)
+           + $4::double precision) / 1000) as stale
      from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
      where pc.workspace_id = $1 and pr.state = 'in_flight'
      order by pr.started_at desc limit $2`,
-    [ws, ACTIVITY_NOW_MAX, STALE_PLAN_REQUEST_MS],
+    [ws, ACTIVITY_NOW_MAX, STALE_PLAN_REQUEST_MS, STALE_PLAN_REQUEST_MARGIN_MS],
   );
   for (const r of plan.rows as Row[]) {
     const purpose = String(r.purpose);

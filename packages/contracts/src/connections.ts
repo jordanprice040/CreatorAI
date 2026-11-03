@@ -48,26 +48,54 @@ export const pathForTaskClass = (t: PlanTaskClass): PlanPath =>
   t === 'code_build' ? 'codex' : 'responses';
 
 /**
+ * The longest timeout a JavaScript timer can wait (2^31 - 1 ms, about 24.8 days); a longer
+ * delay fires at once. This is a technical bound, not an owner cap (ADR-0062), and the cap
+ * maxima below are rounded down to the unit the Models form shows (seconds, minutes).
+ */
+export const TIMER_MAX_MS = 2_147_483_647;
+export const PLAN_REQUEST_TIMEOUT_MAX_MS =
+  Math.floor(TIMER_MAX_MS / 1000) * 1000;
+export const PLAN_BUILD_TIMEOUT_MAX_MS =
+  Math.floor(TIMER_MAX_MS / 60_000) * 60_000;
+
+/**
+ * How long a client waits for a request that holds one or more plan calls open, from the
+ * connection's own timeout (ADR-0062: no fixed wait sized for the old maxima). Each call may
+ * take the full timeout; the margin covers admission, settling and transport. Never above the
+ * timer bound.
+ */
+export function planWaitMs(timeoutMs: number, calls = 1, marginMs = 60_000) {
+  return Math.min(
+    TIMER_MAX_MS,
+    Math.max(1, Math.ceil(calls)) * Math.max(0, timeoutMs) + marginMs,
+  );
+}
+
+/**
  * Studio-side caps, in units the studio can enforce itself. They are not OpenAI's limits: a
  * request can still be refused by the provider's own (shared) plan allowance.
+ *
+ * ADR-0062: the owner sets these with no upper limit (a bigger plan or an API budget may need
+ * more). Only the minimums stay, plus the timer bound on the two timeouts; every change still
+ * clears the caps acceptance and needs the owner.
  */
 export const PlanCapsSchema = z.strictObject({
   responses: z.strictObject({
-    max_requests_per_run: counter.min(1).max(50),
-    request_timeout_ms: counter.min(5_000).max(300_000),
+    max_requests_per_run: counter.min(1),
+    request_timeout_ms: counter.min(5_000).max(PLAN_REQUEST_TIMEOUT_MAX_MS),
     /** Enforced client-side by ending the stream; the plan route rejects max_output_tokens. */
-    max_output_chars: counter.min(500).max(200_000),
-    max_input_chars: counter.min(500).max(200_000),
+    max_output_chars: counter.min(500),
+    max_input_chars: counter.min(500),
   }),
   codex: z.strictObject({
-    max_builds_per_day: counter.min(0).max(20),
-    max_turns_per_build: counter.min(1).max(3),
-    max_model_requests_per_build: counter.min(1).max(60),
-    build_timeout_ms: counter.min(60_000).max(1_800_000),
+    max_builds_per_day: counter,
+    max_turns_per_build: counter.min(1),
+    max_model_requests_per_build: counter.min(1),
+    build_timeout_ms: counter.min(60_000).max(PLAN_BUILD_TIMEOUT_MAX_MS),
   }),
   shared: z.strictObject({
     /** Rolling 24 hours, both paths together. */
-    max_model_requests_per_day: counter.min(1).max(300),
+    max_model_requests_per_day: counter.min(1),
     max_in_flight: z.literal(1),
   }),
 });

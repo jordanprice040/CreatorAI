@@ -532,3 +532,67 @@ export function buildNotes(s: SpecContentShape): string[] {
   }
   return notes;
 }
+
+/**
+ * The reason a spec revision from preview feedback starts with. The studio appends
+ * " (feedback <id>)" and keeps 300 characters, so the feedback's own words are cut at 240.
+ */
+export function feedbackReason(text: string): string {
+  const t = text.replace(/\s+/g, ' ').trim();
+  const words = t.length > 222 ? `${t.slice(0, 221).trimEnd()}…` : t;
+  return `Preview feedback: ${words}`;
+}
+
+/**
+ * Why accepted preview feedback cannot open the spec form now, in words, or null when it
+ * can. The feedback names the spec version it was given on; the studio refuses a revision
+ * once that spec has moved on, so the form is not offered for it (audit L-8).
+ */
+export function feedbackRevisionBlocker(
+  f: { status: string; spec: { version: number } },
+  spec: { status: string; version: number; format: unknown },
+  owner: boolean,
+): string | null {
+  if (f.status !== 'accepted') return 'Accept the feedback first.';
+  if (!owner) return 'Only the workspace owner can revise the spec.';
+  if (spec.status !== 'active')
+    return `The spec is ${spec.status}, so it cannot be revised.`;
+  if (spec.version !== f.spec.version)
+    return `The spec is now v${spec.version}; this feedback was given on v${f.spec.version}, so it can no longer revise it. Revise the current version on Build.`;
+  if (spec.format !== 'spec/1')
+    return 'This spec is not in the format the form edits (spec/1).';
+  return null;
+}
+
+/**
+ * The longest reason a feedback revision takes: the studio appends " (feedback <uuid>)"
+ * (48 characters) and keeps 300, so a longer reason would cut the feedback id off (PR #121
+ * review N-1).
+ */
+export const FEEDBACK_REASON_MAX = 252;
+
+/**
+ * A package's accepted feedback can start one spec revision: the first one moves the spec on
+ * and the others are given on a superseded version. Says so for an accepted item once another
+ * item of the same package has revised the spec, so it is known without a click (PR #121
+ * review L-1).
+ */
+export function feedbackSuperseded(
+  f: { id: string; status: string; spec: { version: number } },
+  all: readonly {
+    id: string;
+    revision: { version: number } | null;
+  }[],
+): string | null {
+  if (f.status !== 'accepted') return null;
+  const later = all
+    .filter((x) => x.id !== f.id && x.revision)
+    .map((x) => x.revision!.version)
+    .filter((v) => v > f.spec.version);
+  if (!later.length) return null;
+  return `Other feedback revised the spec to v${Math.max(...later)}, so this item, given on v${f.spec.version}, can no longer start a revision. Make the change in the current version on Build.`;
+}
+
+/** Shown when the spec or the feedback moved on while the revision form was open (L-2). */
+export const FEEDBACK_REVISION_STALE =
+  'The spec changed after this form opened (another revision was saved), so this feedback can no longer revise it. Your edits here were not saved. Make the change in the current version on Build.';
