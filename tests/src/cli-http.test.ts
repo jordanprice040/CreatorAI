@@ -61,7 +61,7 @@ test('the CLI request returns status, cookies and body, and stops at its own tim
   t.after(slow.close);
   await assert.rejects(
     httpRequest(slow.url, { timeoutMs: 200 }),
-    /did not answer within 0 s/,
+    /did not answer within 200 ms/,
   );
 });
 

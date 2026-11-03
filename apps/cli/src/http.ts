@@ -38,7 +38,7 @@ export function httpRequest(
     const timer = setTimeout(() => {
       req.destroy(
         new Error(
-          `The API did not answer within ${Math.round(init.timeoutMs / 1000)} s.`,
+          `The API did not answer within ${init.timeoutMs < 1000 ? `${init.timeoutMs} ms` : `${Math.round(init.timeoutMs / 1000)} s`}.`,
         ),
       );
     }, init.timeoutMs);

@@ -5,6 +5,7 @@ import {
   CLAUDE_EXTRA_USAGE_OFF_STATEMENT,
   PlanConnectionDetailSchema,
   PlanConnectionSchema,
+  planWaitMs,
   type PlanConnection,
   type SessionInfo,
   type Workspace,
@@ -686,6 +687,13 @@ export function Models({
                               {err}
                             </span>
                           )}
+                          {x.key === 'codex.build_timeout_ms' && (
+                            <span className="small">
+                              A build approval lasts at most 24 hours, so a
+                              build's turns (one, plus one per repair round)
+                              must fit in that time.
+                            </span>
+                          )}
                         </label>
                       );
                     })}
@@ -862,7 +870,14 @@ export function Models({
                     void act(
                       `${p}/${grantCheck === 'availability_recheck' ? 'availability-recheck' : 'verify'}`,
                       { grant_id: grantId, model_id: grantModel },
-                      330000,
+                      // Fourth review L-1: the call runs under the connection's request
+                      // timeout, which has no 300 s maximum any more (ADR-0062).
+                      Math.max(
+                        330_000,
+                        planWaitMs(
+                          c?.settings.caps.responses.request_timeout_ms ?? 0,
+                        ),
+                      ),
                     )
                   }
                 >

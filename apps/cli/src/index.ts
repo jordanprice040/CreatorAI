@@ -1997,14 +1997,25 @@ export async function runCli(
           },
         );
         break;
-      case 'plan-verify':
+      case 'plan-verify': {
+        // Fourth review L-1: wait as long as the connection's request timeout allows.
+        const detail = await call(
+          PlanConnectionDetailSchema.extend({ sign_in_attempt: z.unknown() }),
+          `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}`,
+        );
         data = await call(
           z.unknown(),
           `${ws(rest[0])}/plan-connections/${encodeURIComponent(rest[1] ?? '')}/verify`,
           { grant_id: rest[2], model_id: rest[3] },
-          330000,
+          Math.max(
+            330_000,
+            planWaitMs(
+              detail.connection.settings.caps.responses.request_timeout_ms,
+            ),
+          ),
         );
         break;
+      }
       case 'plan-qualify': {
         const [n, d] = (rest[6] ?? '').split('/').map(Number);
         data = await call(
