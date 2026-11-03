@@ -1,5 +1,21 @@
 # Decision log
 
+## ADR-0062 — Owner-set caps and limits have no upper limit (accepted November 3, 2026)
+
+Context: Jordan asked (Nov 3) that the caps and limits the owner sets have no maximum. The Models form stopped at fixed numbers (for example 20 Codex builds and 300 model requests a day, 50 requests per run), the chat "Answers a day" stopped at 100, and GitHub connection limits at 50 repositories, 500 changes an hour and 50 open pull requests. An owner with a bigger plan, or paying for API use and fine with the amount, should be able to set them higher.
+
+Decision:
+
+- Plan connection caps (`PlanCapsSchema`, ADR-0056 form): requests a day, requests per run, input and output characters per request, Codex builds a day, Codex turns per build and model requests per Codex build keep only their minimums (1, or 500 characters, or 0 builds) and must be whole numbers. The request timeout and Codex build timeout keep one technical bound, the longest a JavaScript timer can wait (2^31 − 1 ms, about 24.8 days; a longer delay would fire at once), rounded down to the units the form shows: 2,147,483 seconds and 35,791 minutes. `max_in_flight` stays fixed at 1.
+- Chat answers a day (ADR-0057): at least 1, no maximum. Migration 38 replaces the `chat_settings` check `between 1 and 100` with `>= 1`; the integer column still holds at most 2,147,483,647.
+- GitHub connection limits: at least 1, no maximum.
+- Unchanged: only the workspace owner changes caps; every caps change still clears the caps acceptance and needs a fresh owner acceptance before live use; the spending ceiling and spend limits (ADR-0043, ADR-0044) already had no practical maximum (15 whole-dollar digits) and the per-run and per-model limits still cannot exceed the ceiling in force. `config/spending.json` values are not touched.
+- The running-now panel's stale point for an in-flight plan request (it was a fixed 45 minutes, above the old 30-minute build timeout) now follows the connection: its build timeout for a Codex build, else its request timeout, plus 15 minutes, and never under 45 minutes.
+
+Kept as technical or safety bounds, not owner caps: request body sizes (64 KiB, 1 MiB build calls), the plan-role build packet ceiling (`PLAN_ROLE_CONTEXT_MAX`, 200,000 characters, so an input cap above that does not enlarge a build packet), the per-role build call timeout (120 s), the one-approval-per-build limits (at most 2 repair rounds, 6 requests; ADR-0054), standing approval expiry (90 days), the evidence-site list length (100 hosts; "any public site" covers more), the fixture marketing delivery cap (100), list lengths and the study protocol's time caps.
+
+Consequences: an owner can set caps as high as they like; the provider's own plan allowance or the API bill is then the real limit, and the spending ceiling still bounds paid spend. A typo such as an extra zero is no longer stopped by a maximum; the form shows the change in words before saving and the owner must accept the new caps before they apply.
+
 ## ADR-0061 — Open public links from the desktop app in the system browser (accepted November 2, 2026)
 
 Context: after PR #106, links in chat answers in the installed app showed their address and a Copy button but could not be opened, because the studio window refuses every new window except private previews. Jordan asked (Nov 2) for links to open in the browser from within the app.

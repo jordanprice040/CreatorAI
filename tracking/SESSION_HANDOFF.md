@@ -1,3 +1,9 @@
+## No maximum on owner-set caps and limits (ADR-0062, migration 38) — November 3, 2026
+
+Jordan asked (Nov 3) that caps and limits the owner sets have no maximum, so a bigger plan or an API budget can use more. What now works: Models › "Change caps or allowed work" accepts any whole number at or above each minimum for requests a day, requests per run, input and output characters, Codex builds a day, Codex turns and requests per build (labels read "requests, 1 or more"); the two timeouts go up to the timer bound (2,147,483 seconds, 35,791 minutes). The server schema matches. Chat "Answers a day" has no maximum (migration 38 drops the 1–100 check). GitHub connection limits have no maximum. Owner-only changes and caps re-acceptance are unchanged; `config/spending.json` is untouched. The running-now panel marks a plan request stale after the connection's own timeout plus 15 minutes (at least 45 minutes) instead of a fixed 45 minutes.
+
+Checks (cloud, PostgreSQL 16): typecheck passes; `web-caps-form` (no maximum except the timeouts' timer bound, high values accepted, 0/fractions/unsafe integers refused), `chat-answers` (owner saves 5000 answers a day, editor refused, 0 refused), `sidebar` (2-hour request timeout keeps a 90-minute request running, 140 minutes is stale), `github` (limits of 100,000 accepted, 0 refused), `storage` (schema 38). Full `pnpm test:db` run: 693 tests, 661 pass, 27 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); Prettier clean. Not live on the dev studio or installed app (needs schema 38). Kept bounds and open questions are listed in ADR-0062 and the PR.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

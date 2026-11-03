@@ -16,7 +16,7 @@ type Field = {
   name: string;
   scale: number;
   min: number;
-  max: number;
+  max: number | null;
 };
 type CapsFields = {
   CAP_FIELDS: readonly Field[];
@@ -96,12 +96,30 @@ test('every form range is exactly what PlanCapsSchema accepts', async () => {
     const ok = (n: number) =>
       PlanCapsSchema.safeParse(withValue(CAPS, f, n)).success;
     assert.ok(ok(f.min * f.scale), `${f.key} min`);
-    assert.ok(ok(f.max * f.scale), `${f.key} max`);
     // One display unit outside the range is refused by the server's schema too.
     assert.ok(!ok((f.min - 1) * f.scale) || f.min === 0, `${f.key} below`);
     assert.ok(!ok(f.min * f.scale - 1), `${f.key} just below`);
-    assert.ok(!ok(f.max * f.scale + 1), `${f.key} just above`);
+    if (f.max === null) {
+      // ADR-0062: no upper limit; far above every old maximum is still accepted.
+      assert.ok(ok(1_000_000_000 * f.scale), `${f.key} large`);
+    } else {
+      // Only the two timeouts keep a bound: the longest a JavaScript timer can wait.
+      assert.match(f.key, /timeout_ms$/);
+      assert.ok(ok(f.max * f.scale), `${f.key} max`);
+      assert.ok(!ok(f.max * f.scale + 1), `${f.key} just above`);
+      assert.ok(f.max * f.scale <= 2 ** 31 - 1, `${f.key} timer bound`);
+      assert.ok(
+        (f.max + 1) * f.scale > 2 ** 31 - 1,
+        `${f.key} is the largest whole display unit`,
+      );
+    }
   }
+  assert.deepEqual(
+    CAP_FIELDS.filter((f) => f.max !== null)
+      .map((f) => f.key)
+      .sort(),
+    ['codex.build_timeout_ms', 'responses.request_timeout_ms'],
+  );
 });
 
 test('the draft round-trips and only changed fields are reported', async () => {
@@ -137,7 +155,7 @@ test('the draft round-trips and only changed fields are reported', async () => {
 test('out-of-range, fractional and empty entries are refused before sending', async () => {
   const { capsToDraft, draftToCaps } = await load();
   const draft = capsToDraft(CAPS);
-  for (const bad of ['51', '0', '2.5', '', '-3', '1e2', 'ten']) {
+  for (const bad of ['0', '2.5', '', '-3', '1e2', 'ten', '9007199254740993']) {
     const out = draftToCaps(
       CAPS,
       { ...draft, 'responses.max_requests_per_run': bad },
@@ -146,9 +164,43 @@ test('out-of-range, fractional and empty entries are refused before sending', as
     assert.equal(out.caps, null, bad);
     assert.match(
       out.errors!['responses.max_requests_per_run']!,
-      /from 1 to 50 requests/,
+      /of 1 or more requests/,
     );
   }
+  // ADR-0062: no maximum. Jordan's example: more Codex builds and requests a day than the
+  // old 20 and 300, for a bigger plan or an API budget.
+  const high = draftToCaps(
+    CAPS,
+    {
+      ...draft,
+      'codex.max_builds_per_day': '500',
+      'shared.max_model_requests_per_day': '25,000',
+      'responses.max_requests_per_run': '1000',
+      'codex.max_turns_per_build': '12',
+      'responses.max_output_chars': '2,000,000',
+    },
+    'chatgpt_plan',
+  );
+  assert.equal(high.errors, null);
+  assert.equal(high.caps!.codex.max_builds_per_day, 500);
+  assert.equal(high.caps!.shared.max_model_requests_per_day, 25_000);
+  assert.ok(PlanCapsSchema.safeParse(high.caps).success);
+  // The timeouts keep the timer bound: 35,791 minutes is the most, 35,792 is refused.
+  const longest = draftToCaps(
+    CAPS,
+    { ...draft, 'codex.build_timeout_ms': '35,791' },
+    'chatgpt_plan',
+  );
+  assert.ok(PlanCapsSchema.safeParse(longest.caps).success);
+  const tooLong = draftToCaps(
+    CAPS,
+    { ...draft, 'codex.build_timeout_ms': '35792' },
+    'chatgpt_plan',
+  );
+  assert.match(
+    tooLong.errors!['codex.build_timeout_ms']!,
+    /from 1 to 35,791 minutes/,
+  );
   // Thousands separators are accepted for character counts.
   const big = draftToCaps(
     CAPS,

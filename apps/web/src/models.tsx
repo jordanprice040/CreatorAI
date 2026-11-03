@@ -15,6 +15,7 @@ import { QualificationResults } from './qualification-results.js';
 import { QualifyModel } from './qualify.js';
 import {
   capChanges,
+  capHint,
   capFieldsFor,
   capsToDraft,
   classChanges,
@@ -661,8 +662,7 @@ export function Models({
                       const err = capsErrors[x.key];
                       return (
                         <label key={x.key} htmlFor={id}>
-                          {x.label} ({x.unit}, {x.min.toLocaleString('en-US')}–
-                          {x.max.toLocaleString('en-US')})
+                          {x.label} ({capHint(x)})
                           <input
                             id={id}
                             inputMode="numeric"

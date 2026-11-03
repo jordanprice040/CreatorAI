@@ -135,7 +135,11 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
  * request (purpose `chat`), within a separate daily chat limit. Answers are advice only.
  */
 export const CHAT_DAILY_LIMIT_DEFAULT = 20;
-export const CHAT_DAILY_LIMIT_MAX = 100;
+/**
+ * Not a cap (ADR-0062: the owner's limits have no upper limit): the largest value the
+ * PostgreSQL integer column holds.
+ */
+export const CHAT_DAILY_LIMIT_MAX = 2_147_483_647;
 /** How many earlier messages and answers go with a question. */
 export const CHAT_HISTORY_TURNS = 10;
 export const CHAT_INSTRUCTIONS_VERSION = 'chat-assistant-v1' as const;

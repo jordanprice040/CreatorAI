@@ -478,6 +478,36 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
   );
   // Editors can still read the setting.
   assert.equal((await store.chatSettings(editor, ws.id)).enabled, true);
+  // ADR-0062: the owner's answers-a-day limit has no maximum (it was 100); it must be at least 1.
+  const many = {
+    enabled: true,
+    connection_id: s.conn.id,
+    model_id: MODEL,
+    include_snapshot: false,
+  };
+  await rejects(
+    'ACCESS_DENIED',
+    store.setChatSettings(editor, ws.id, {
+      ...many,
+      expected_version: 1,
+      daily_limit: 5000,
+    }),
+  );
+  const raised = await store.setChatSettings(owner, ws.id, {
+    ...many,
+    expected_version: 1,
+    daily_limit: 5000,
+  });
+  assert.equal(raised.daily_limit, 5000);
+  assert.equal((await store.chatSettings(owner, ws.id)).daily_limit, 5000);
+  await rejects(
+    'INVALID_CONTRACT',
+    store.setChatSettings(owner, ws.id, {
+      ...many,
+      expected_version: 2,
+      daily_limit: 0,
+    }),
+  );
 
   // A pending answer from a studio that stopped mid-request: blocked for 15 minutes, then
   // closed as failed so the message can be asked again.
