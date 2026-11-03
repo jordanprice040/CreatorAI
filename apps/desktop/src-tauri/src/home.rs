@@ -183,22 +183,35 @@ pub fn redirect_message(package: &str) -> String {
          Windows quietly moves new files from apps started that way into that app's own \
          storage, so studio data would be split between two folders and builds would later \
          fail with \"Noncanonical path refused\".\n\n\
-         Nothing was changed. Close this message and start Creator Agent yourself from the \
+         No studio data was changed. Close this message and start Creator Agent yourself from the \
          Start menu or its desktop shortcut, not from inside another app such as Claude."
     )
 }
 
 const PROBE_PREFIX: &str = ".creator-redirect-probe-";
 
+/// Leftover probes younger than this are left alone: another studio folder with the same
+/// parent may be probing right now under a different single-instance lock.
+const PROBE_MIN_AGE: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Removes empty probe folders an earlier start left behind (a crash between making and
-/// removing one, or a failed delete). Only empty folders with the probe prefix are touched.
-fn sweep_probes(base: &Path) {
+/// removing one, or a failed delete). Only empty folders with the probe prefix that are at
+/// least `min_age` old are touched.
+fn sweep_probes(base: &Path, min_age: std::time::Duration) {
     let Ok(entries) = std::fs::read_dir(base) else {
         return;
     };
     for e in entries.flatten() {
+        let old_enough = || {
+            e.metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .is_some_and(|age| age >= min_age)
+        };
         let is_probe = e.file_name().to_string_lossy().starts_with(PROBE_PREFIX)
-            && e.file_type().is_ok_and(|t| t.is_dir());
+            && e.file_type().is_ok_and(|t| t.is_dir())
+            && old_enough();
         if is_probe {
             let _ = std::fs::remove_dir(e.path());
         }
@@ -216,7 +229,7 @@ pub fn check_not_redirected(root: &Path) -> Result<(), String> {
     let Ok(tag) = crate::studio::random_hex(8) else {
         return Ok(());
     };
-    sweep_probes(&base);
+    sweep_probes(&base, PROBE_MIN_AGE);
     let probe = base.join(format!("{PROBE_PREFIX}{tag}"));
     if std::fs::create_dir(&probe).is_err() {
         return Ok(());
@@ -446,7 +459,15 @@ mod tests {
         std::fs::write(base.join(format!("{PROBE_PREFIX}file")), b"x").unwrap();
         std::fs::create_dir_all(base.join("products")).unwrap();
         assert!(check_not_redirected(&base).is_ok());
-        assert!(!left.exists(), "an empty leftover probe is removed");
+        assert!(
+            left.exists(),
+            "a probe made just now may be another studio's"
+        );
+        sweep_probes(&base, std::time::Duration::ZERO);
+        assert!(
+            !left.exists(),
+            "an old enough empty leftover probe is removed"
+        );
         assert!(
             full.join("keep.txt").exists(),
             "a folder with files is kept"

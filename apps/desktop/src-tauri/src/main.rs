@@ -587,6 +587,10 @@ fn main() {
     // MSIX container, pilot F14) is refused here in words, before any window or service.
     #[cfg(windows)]
     if let Some(Err(e)) = &home {
+        // Let go of the lock first, so a launch from the Start menu while this box is open
+        // starts normally instead of signalling this refused process.
+        drop(instance_guard.take());
+        drop(show_signal.take());
         winsys::message("Creator Agent", e);
         return;
     }

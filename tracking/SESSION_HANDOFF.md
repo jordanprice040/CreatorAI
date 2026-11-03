@@ -15,6 +15,14 @@ Review fixes (Jordan asked for all the Lows):
 
 Checks: `cargo check` and clippy for `x86_64-pc-windows-gnu` pass; Linux `cargo test home`: 6 pass incl. the new sweep test (the same 2 Windows-path tests fail on Linux as on main).
 
+Re-review fixes (`/mnt/project-files/reviews/PR120_MSIX_REDIRECT_REREVIEW_2026-11-03.md`, no Medium+):
+
+- L-1: a refused launch releases the single-instance lock and show signal before its message box, so starting from the Start menu while the box is open starts normally.
+- N-1: the message says "No studio data was changed" (the sweep may remove empty leftover probes).
+- N-2: the sweep skips probe folders younger than 60 s, so two studio folders with the same parent cannot remove each other's probe mid-check. The test checks a fresh probe is kept and an old enough one is removed.
+
+Checks: `cargo check` and clippy for `x86_64-pc-windows-gnu` pass with no warnings in the changed files; Linux `cargo test home`: 6 pass, same 2 Windows-path failures as main.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.
