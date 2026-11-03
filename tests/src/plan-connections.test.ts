@@ -9,7 +9,13 @@ import {
   type ErrorCode,
   type PlanConnection,
 } from '@creator/contracts';
-import { ConnectionStore, type CommandContext } from '@creator/db';
+import {
+  ConnectionStore,
+  heldOutKeys,
+  promptHash,
+  type CommandContext,
+  type ManifestCase,
+} from '@creator/db';
 import {
   AGENT_NAME_HINT,
   DYNAMIC_CLIENT,
@@ -2063,4 +2069,31 @@ test('a patch-build qualification is graded by the studio scorer, and a scorer c
     store.planQualificationResults(owner, other.id, crashedQ.id),
     /not found/i,
   );
+});
+
+test('PR #130 review L-1: a revised discovery role keeps the held-out case keys and changes the prompt', () => {
+  const m = read(
+    'config/connections/benchmarks/discovery-synthetic-v2/scoring.json',
+  ) as { cases: ManifestCase[] };
+  const revised = m.cases.map((k) => {
+    const check = k.check as { context: { role_version: string } };
+    return {
+      ...k,
+      input: k.input.map((x) =>
+        x.role === 'system'
+          ? {
+              ...x,
+              text: x.text.replace('r02-discovery/1.1', 'r02-discovery/9.9'),
+            }
+          : x,
+      ),
+      check: {
+        ...check,
+        context: { ...check.context, role_version: 'r02-discovery/9.9' },
+      },
+    };
+  });
+  assert.ok(heldOutKeys(m.cases).length > 0);
+  assert.deepEqual(heldOutKeys(revised), heldOutKeys(m.cases));
+  assert.notEqual(promptHash(revised), promptHash(m.cases));
 });

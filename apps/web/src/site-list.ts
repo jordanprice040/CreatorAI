@@ -7,7 +7,7 @@
  * a two-label parent whose first label is a usual registry label under a two-letter country
  * code, plus common shared hosting domains. Mirrors packages/contracts research.ts (the server checks again).
  */
-const SHARED_PARENT_LABELS = new Set([
+export const SHARED_PARENT_LABELS = new Set([
   'ac',
   'co',
   'com',
@@ -25,7 +25,7 @@ const SHARED_PARENT_LABELS = new Set([
   'plc',
   'sch',
 ]);
-const SHARED_HOSTING = new Set([
+export const SHARED_HOSTING = new Set([
   'appspot.com',
   'azurewebsites.net',
   'blogspot.com',

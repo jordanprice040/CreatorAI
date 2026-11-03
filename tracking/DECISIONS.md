@@ -432,8 +432,11 @@ qualification's results when any held-out case ran is recorded once per person a
 the prompt and one key per held-out case: everything but the system message). Starting a
 qualification is refused if any of its held-out cases match ones viewed for the same task class
 in this workspace under a different prompt, naming the date: freeze fresh held-out cases.
-Retrying the same prompt on them stays allowed (for example after a worker failure). A prompt
-carried in a user message rather than the system message is not detected. Separately, the
+Retrying the same prompt on them stays allowed (for example after a worker failure). For
+discovery task classes the case key also leaves out the check's `role_version` and
+`packet_hash`, and the role version counts as part of the prompt, so a revised discovery role
+is caught too (PR #130 review L-1). A prompt carried in a user message rather than the system
+message is not detected. Separately, the
 newest decided qualification of a model for a task class is the one that counts (`isQualified`):
 a later failure withdraws an earlier pass, a later pass restores it, and running or abandoned
 rows decide nothing. Admission, the build-roles-ready preflight and the Submit page all use it,

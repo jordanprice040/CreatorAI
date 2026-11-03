@@ -762,7 +762,11 @@ function TerminalPanel({
             id={`term-args-${summary.id}`}
             rows={2}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              // Any edit drops the example's exact list (PR #130 review N-1).
+              setExample(null);
+            }}
           />
           <div className="actions">
             <button className="primary" disabled={busy || !csrf || open}>

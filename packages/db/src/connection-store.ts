@@ -284,30 +284,51 @@ function currentForBuildRole(r: Row): boolean {
  * and the prompt a benchmark gives its model. A case is the same case when everything but its
  * system message matches; the prompt is the set of system messages across the cases.
  */
-type ManifestCase = {
+export type ManifestCase = {
   case_id: string;
   split: string;
   input: { role: string; text: string }[];
   output_format?: unknown;
   check?: unknown;
 };
-const heldOutKeys = (cases: readonly ManifestCase[]) =>
+export const heldOutKeys = (cases: readonly ManifestCase[]) =>
   cases
     .filter((k) => k.split === 'held_out')
     .map((k) =>
       canonicalHash({
         input: k.input.filter((m) => m.role !== 'system'),
         output_format: k.output_format ?? null,
-        check: k.check ?? null,
+        check: withoutRoleVersion(k.check),
       }),
     );
-const promptHash = (cases: readonly ManifestCase[]) =>
+/**
+ * PR #130 review L-1: a discovery check names the role version (and the packet's hash, which
+ * follows the packet already in the key), so a revised discovery role would change every key.
+ * The role's prompt sits in the system message, which the prompt hash covers.
+ */
+function withoutRoleVersion(check: unknown): unknown {
+  const c = check as {
+    kind?: string;
+    context?: Record<string, unknown>;
+  } | null;
+  if (c?.kind !== 'discovery_contract' || !c.context) return check ?? null;
+  const { role_version: _v, packet_hash: _p, ...context } = c.context;
+  return { ...c, context };
+}
+export const promptHash = (cases: readonly ManifestCase[]) =>
   canonicalHash(
     [
       ...new Set(
-        cases.flatMap((k) =>
-          k.input.filter((m) => m.role === 'system').map((m) => m.text),
-        ),
+        cases.flatMap((k) => [
+          ...k.input.filter((m) => m.role === 'system').map((m) => m.text),
+          // A discovery role's version counts as part of its prompt.
+          ...((k.check as { context?: { role_version?: string } } | undefined)
+            ?.context?.role_version
+            ? [
+                `role:${(k.check as { context: { role_version: string } }).context.role_version}`,
+              ]
+            : []),
+        ]),
       ),
     ].sort(),
   );

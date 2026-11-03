@@ -135,12 +135,21 @@ test('a preview without a usage guide says so and offers no example button', asy
 
 /** A minimal stand-in DOM for the preview script: just the elements it touches. */
 function runScript(html: string, script: string) {
-  const el = (id: string) => ({
-    id,
-    value: '',
-    textContent: '',
-    className: '',
-  });
+  const el = (id: string) => {
+    const on: Record<string, () => void> = {};
+    return {
+      id,
+      value: '',
+      textContent: '',
+      className: '',
+      addEventListener: (k: string, f: () => void) => (on[k] = f),
+      /** The owner types in the box. */
+      type(v: string) {
+        this.value = v;
+        on.input?.();
+      },
+    };
+  };
   const nodes = {
     run: null as unknown,
     out: el('out'),
@@ -197,7 +206,7 @@ function runScript(html: string, script: string) {
   return {
     nodes: nodes as unknown as Record<
       string,
-      { value: string; textContent: string }
+      { value: string; textContent: string; type: (v: string) => void }
     >,
     buttons,
     sent,
@@ -234,7 +243,7 @@ test('"Use this example" sends empty and multi-line arguments exactly until the 
     stdin: 'a\r\nb\n',
   });
   // Edited: the lines are read again, one argument per non-empty line.
-  page.nodes.args!.value = '--name\nx';
+  page.nodes.args!.type('--name\nx');
   await page.submit();
   assert.deepEqual(page.sent[1]!.args, ['--name', 'x']);
   assert.equal(page.sent[1]!.stdin, 'a\r\nb\n');
@@ -263,4 +272,55 @@ test("the terminal panel keeps an example's exact arguments while its box is unc
   assert.deepEqual(m.argsToSend('--fps\n60', null), ['--fps', '60']);
   assert.equal(m.needsExactArgs(args), true);
   assert.equal(m.needsExactArgs(['--fps', '60']), false);
+});
+
+test('an edit drops the exact list even when the box ends up the same (PR #130 review N-1)', async () => {
+  const guide: Guide = {
+    flows: [],
+    examples: [
+      {
+        check_key: 'A1',
+        statement: 'One empty argument',
+        args: [''],
+        stdin: '',
+        stdout: '',
+        exit_code: 0,
+      },
+    ],
+    more_examples: 0,
+    held_out_hidden: false,
+  };
+  const { html, script } = await previewPage(guide);
+  const page = runScript(html, script);
+  page.buttons[0]!.click();
+  await page.submit();
+  assert.deepEqual(page.sent[0]!.args, ['']);
+  page.nodes.args!.type('x');
+  page.nodes.args!.type('');
+  await page.submit();
+  assert.deepEqual(page.sent[1]!.args, []);
+});
+
+test('the Settings box and the server use the same shared-suffix lists (PR #130 review N-3)', async () => {
+  const source = await readFile('apps/web/src/site-list.ts', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const web = {} as {
+    SHARED_PARENT_LABELS: Set<string>;
+    SHARED_HOSTING: Set<string>;
+  };
+  new Function('exports', code)(web);
+  const server = await import('@creator/contracts');
+  assert.deepEqual(
+    [...web.SHARED_PARENT_LABELS].sort(),
+    [...server.SHARED_PARENT_LABELS].sort(),
+  );
+  assert.deepEqual(
+    [...web.SHARED_HOSTING].sort(),
+    [...server.SHARED_HOSTING].sort(),
+  );
 });

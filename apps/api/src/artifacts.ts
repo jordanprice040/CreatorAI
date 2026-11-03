@@ -420,8 +420,11 @@ textarea::placeholder,input::placeholder{color:#6b6b66;opacity:1}
 // the spec's exact list (and standard input) and sends it while the boxes still show that example
 // (PR #94 review Low).
 const SCRIPT = `const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
+// Any edit of a box drops that box's exact value, even one that leaves the same text (PR #130 N-1).
+document.getElementById('args').addEventListener('input',()=>{if(exact)exact.args=null;note.textContent='';});
+document.getElementById('stdin').addEventListener('input',()=>{if(exact)exact.stdin=null;});
 form.addEventListener('submit',async(e)=>{e.preventDefault();const b=form.querySelector('button');b.disabled=true;out.textContent='Running the exact package in the isolated worker…';meta.textContent='';
-const box=document.getElementById('args');const input=document.getElementById('stdin');const args=exact&&box.value===exact.text?exact.args:box.value.split('\\n').filter((s)=>s.length);const stdin=exact&&input.value===exact.stdinText?exact.stdin:input.value;
+const box=document.getElementById('args');const input=document.getElementById('stdin');const args=exact&&exact.args&&box.value===exact.text?exact.args:box.value.split('\\n').filter((s)=>s.length);const stdin=exact&&exact.stdin!==null&&input.value===exact.stdinText?exact.stdin:input.value;
 try{const r=await fetch(location.pathname+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({args,stdin})});const v=await r.json();
 if(!r.ok){out.textContent='Refused: '+(v.error?v.error.message:r.status);out.className='error';}else{out.className='';out.textContent=v.stdout||'(no output)';meta.textContent='Exit '+v.exit_code+' · '+v.state+(v.reason?' · '+v.reason:'')+' · run '+v.runs_used+' of '+v.max_runs;}}
 catch(err){out.textContent='Request failed';out.className='error';}finally{b.disabled=false;}});
