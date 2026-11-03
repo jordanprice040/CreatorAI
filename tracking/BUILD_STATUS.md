@@ -8,6 +8,13 @@ Checks: `cargo check --target x86_64-pc-windows-gnu` and clippy pass. On Linux, 
 
 Limits: not run on Windows or inside a real MSIX container; the detection relies on `canonicalize` (GetFinalPathNameByHandle) reporting the redirected path, as Node's realpath did in the pilot. Confirming needs Jordan to start the upgraded app once from inside the Claude app (expect the message) and once from the Start menu (expect a normal start).
 
+Review fixes (Jordan asked for all the Lows):
+
+- A second launch now takes the single-instance lock before the folder is opened or probed, so it only asks the running studio to show, even when it was started inside another app's container. Before, such a second launch was refused with the redirect message. The lock key is computed from the path alone (`Home::key_for`), the same value as before, so a running older version still sees the new one as a second launch.
+- Probe folders left behind by a crash or a failed delete are swept at the next start: only empty folders named `.creator-redirect-probe-*` in the probed folder are removed, anything else is left alone.
+
+Checks: `cargo check` and clippy for `x86_64-pc-windows-gnu` pass; Linux `cargo test home`: 6 pass incl. the new sweep test (the same 2 Windows-path tests fail on Linux as on main).
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

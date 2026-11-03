@@ -203,15 +203,14 @@ impl Probes {
     }
 }
 
-fn studio_home() -> Result<home::Home, String> {
-    let root = match std::env::var("CREATOR_STUDIO_HOME") {
+fn studio_root() -> Result<std::path::PathBuf, String> {
+    Ok(match std::env::var("CREATOR_STUDIO_HOME") {
         Ok(p) if !p.is_empty() => std::path::PathBuf::from(p),
         _ => std::path::PathBuf::from(
             std::env::var("LOCALAPPDATA").map_err(|_| "LOCALAPPDATA is not set")?,
         )
         .join(IDENTIFIER),
-    };
-    home::Home::new(root)
+    })
 }
 
 fn studio_resources(app: &AppHandle) -> std::path::PathBuf {
@@ -562,21 +561,16 @@ fn main() {
     let mut show_signal = None;
     #[cfg(windows)]
     let mut instance_guard = None;
-    let home = if probes.any() {
+    let root = if probes.any() {
         None
     } else {
-        Some(studio_home())
+        Some(studio_root())
     };
-    // A studio folder that cannot be used (e.g. redirected into another app's package by an
-    // MSIX container, pilot F14) is refused here in words, before any window or service.
+    // The lock comes first, so a second launch (even one started inside another app's
+    // container) only asks the running studio to show and never touches the folder.
     #[cfg(windows)]
-    if let Some(Err(e)) = &home {
-        winsys::message("Creator Agent", e);
-        return;
-    }
-    #[cfg(windows)]
-    if let Some(Ok(h)) = &home {
-        match winsys::single_instance(&h.key()) {
+    if let Some(Ok(r)) = &root {
+        match winsys::single_instance(&home::Home::key_for(r)) {
             Ok(winsys::Instance::Second) => return,
             Ok(winsys::Instance::First { _mutex, show }) => {
                 instance_guard = Some(_mutex);
@@ -587,6 +581,14 @@ fn main() {
                 return;
             }
         }
+    }
+    let home = root.map(|r| r.and_then(home::Home::new));
+    // A studio folder that cannot be used (e.g. redirected into another app's package by an
+    // MSIX container, pilot F14) is refused here in words, before any window or service.
+    #[cfg(windows)]
+    if let Some(Err(e)) = &home {
+        winsys::message("Creator Agent", e);
+        return;
     }
     let app = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![

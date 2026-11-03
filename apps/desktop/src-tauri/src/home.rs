@@ -188,6 +188,23 @@ pub fn redirect_message(package: &str) -> String {
     )
 }
 
+const PROBE_PREFIX: &str = ".creator-redirect-probe-";
+
+/// Removes empty probe folders an earlier start left behind (a crash between making and
+/// removing one, or a failed delete). Only empty folders with the probe prefix are touched.
+fn sweep_probes(base: &Path) {
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let is_probe = e.file_name().to_string_lossy().starts_with(PROBE_PREFIX)
+            && e.file_type().is_ok_and(|t| t.is_dir());
+        if is_probe {
+            let _ = std::fs::remove_dir(e.path());
+        }
+    }
+}
+
 /// Refuses a studio folder whose new files Windows would redirect into an app package's
 /// LocalCache (a process started inside an MSIX container, e.g. by the Claude desktop app).
 /// It creates and removes one empty probe folder at the deepest existing part of `root` and
@@ -199,7 +216,8 @@ pub fn check_not_redirected(root: &Path) -> Result<(), String> {
     let Ok(tag) = crate::studio::random_hex(8) else {
         return Ok(());
     };
-    let probe = base.join(format!(".creator-redirect-probe-{tag}"));
+    sweep_probes(&base);
+    let probe = base.join(format!("{PROBE_PREFIX}{tag}"));
     if std::fs::create_dir(&probe).is_err() {
         return Ok(());
     }
@@ -258,9 +276,11 @@ impl Home {
         self.root.join("postgres").join("data")
     }
     /// Short stable key for per-home kernel object names.
-    pub fn key(&self) -> String {
+    /// Taken from the path alone, so the single-instance lock can come before the folder
+    /// is opened or probed.
+    pub fn key_for(root: &Path) -> String {
         use sha2::{Digest, Sha256};
-        let lower = self.root.to_string_lossy().to_lowercase();
+        let lower = root.to_string_lossy().to_lowercase();
         format!("{:x}", Sha256::digest(lower.as_bytes()))[..16].to_string()
     }
     pub fn load(&self) -> Result<Option<StudioConfig>, String> {
@@ -410,6 +430,29 @@ mod tests {
         assert!(check_not_redirected(&base).is_ok());
         assert_eq!(std::fs::read_dir(&base).unwrap().count(), 0);
         assert!(!base.join("new").exists());
+        let _ = std::fs::remove_dir_all(base);
+    }
+    #[test]
+    fn probe_sweeps_empty_leftovers_and_keeps_anything_else() {
+        let base = std::env::temp_dir().join(format!(
+            "creator-redirect-{}",
+            crate::studio::random_hex(8).unwrap()
+        ));
+        let left = base.join(format!("{PROBE_PREFIX}0011223344556677"));
+        let full = base.join(format!("{PROBE_PREFIX}8899aabbccddeeff"));
+        std::fs::create_dir_all(&left).unwrap();
+        std::fs::create_dir_all(&full).unwrap();
+        std::fs::write(full.join("keep.txt"), b"x").unwrap();
+        std::fs::write(base.join(format!("{PROBE_PREFIX}file")), b"x").unwrap();
+        std::fs::create_dir_all(base.join("products")).unwrap();
+        assert!(check_not_redirected(&base).is_ok());
+        assert!(!left.exists(), "an empty leftover probe is removed");
+        assert!(
+            full.join("keep.txt").exists(),
+            "a folder with files is kept"
+        );
+        assert!(base.join(format!("{PROBE_PREFIX}file")).exists());
+        assert!(base.join("products").exists());
         let _ = std::fs::remove_dir_all(base);
     }
     /// Stands in for the MSIX redirect with a symlink: the probe is made under a folder that
