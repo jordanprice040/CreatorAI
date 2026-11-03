@@ -12,6 +12,7 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { money } from './budgets.js';
 import { usdToNano } from './amounts.js';
+import { ShowOlder, useOlder } from './older.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 
 const nano = z.string().regex(/^-?(0|[1-9][0-9]{0,29})$/);
@@ -214,6 +215,13 @@ export function Funding({
       portfolio,
     };
   }, [workspace.id]);
+  // Read newest first; allocations past the newest 200 come a page at a time (audit L-9).
+  const allocations = useOlder(
+    data.data?.allocations,
+    AllocationRowSchema,
+    `${base}/reinvestment/allocations`,
+    200,
+  );
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -318,26 +326,24 @@ export function Funding({
               <Empty>No earnings have been turned into budget.</Empty>
             ) : (
               <ul className="rows">
-                {d.allocations
-                  .slice()
-                  .reverse()
-                  .map((a) => (
-                    <li key={a.id}>
-                      <strong>{usd(a.amount_nano)}</strong>
-                      {a.amount_nano !== a.requested_nano &&
-                        ` of ${usd(a.requested_nano)} asked`}{' '}
-                      <span className="badge">
-                        {a.target === 'portfolio' ? 'portfolio' : 'own budget'}
-                      </span>
-                      <small>
-                        {' '}
-                        · policy v{a.policy_version} · budget{' '}
-                        {shortId(a.envelope_id)} · {when(a.created_at)}
-                      </small>
-                    </li>
-                  ))}
+                {allocations.items.map((a) => (
+                  <li key={a.id}>
+                    <strong>{usd(a.amount_nano)}</strong>
+                    {a.amount_nano !== a.requested_nano &&
+                      ` of ${usd(a.requested_nano)} asked`}{' '}
+                    <span className="badge">
+                      {a.target === 'portfolio' ? 'portfolio' : 'own budget'}
+                    </span>
+                    <small>
+                      {' '}
+                      · policy v{a.policy_version} · budget{' '}
+                      {shortId(a.envelope_id)} · {when(a.created_at)}
+                    </small>
+                  </li>
+                ))}
               </ul>
             )}
+            <ShowOlder list={allocations} what="allocations" />
             {owner &&
               (d.capacity.enabled && BigInt(d.capacity.capacity_nano) > 0n ? (
                 <details className="gh-add" key={`alloc-${done}`}>
@@ -919,6 +925,9 @@ function AllocateForm({
   );
 }
 
+/** The most settled sales the server sends in one page. */
+const TRANCHE_PAGE = 500;
+
 function Tranches({
   tranches,
   now,
@@ -935,11 +944,15 @@ function Tranches({
         payments, your own funding and payouts never do.
       </p>
     );
-  const shown = tranches.slice(-10).reverse();
+  // The server sends the newest settled first, at most 500 (audit L-9).
+  const shown = tranches.slice(0, 10);
   return (
     <details>
       <summary>
-        Earnings from settled sales ({tranches.length}
+        Earnings from settled sales (
+        {tranches.length >= TRANCHE_PAGE
+          ? `${TRANCHE_PAGE} or more`
+          : tranches.length}
         {tranches.length > shown.length ? `, latest ${shown.length} shown` : ''}
         )
       </summary>

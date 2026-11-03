@@ -42,8 +42,10 @@ async function load<T>(file: string, stubs: Record<string, unknown> = {}) {
         : name === './pages.js'
           ? pagesModule()
           : name === './page-active.js'
-            ? { useOnShow: () => {} }
-            : require(name),
+            ? { useOnShow: () => {}, useShown: () => 0 }
+            : name === './older.js'
+              ? { useOlder: () => {}, ShowOlder: () => null }
+              : require(name),
     exports,
   );
   return exports;

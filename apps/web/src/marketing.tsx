@@ -8,6 +8,7 @@ import {
 } from '@creator/contracts';
 import { api, message } from './oversight.js';
 import { useOnShow } from './page-active.js';
+import { ShowOlder, useOlder } from './older.js';
 
 const Campaign = z.object({
   id: z.string(),
@@ -87,6 +88,13 @@ export function Marketing({
     'Owner requested local fixture control.',
   );
   const [note, setNote] = useState('');
+  // Newest first; campaigns past the newest 200 come a page at a time (audit L-9).
+  const shown = useOlder(
+    campaigns,
+    Campaign,
+    `${base}/marketing-campaigns`,
+    200,
+  );
   const loadSequence = useRef(0);
   async function load(id = selected) {
     const sequence = ++loadSequence.current;
@@ -278,7 +286,7 @@ export function Marketing({
           }}
         >
           <option value="">Select a campaign</option>
-          {campaigns.map((c) => (
+          {shown.items.map((c) => (
             <option key={c.id} value={c.id}>
               {c.id}
               {c.cancelled ? ' · cancelled' : ''}
@@ -286,6 +294,7 @@ export function Marketing({
           ))}
         </select>
       </label>
+      <ShowOlder list={shown} what="campaigns" />
       {detail && (
         <>
           <p>

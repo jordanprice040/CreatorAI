@@ -143,6 +143,7 @@ owner session/CSRF controls. Read access uses current workspace membership.
 | Method/path                           | Action                                                                                     |
 | ------------------------------------- | ------------------------------------------------------------------------------------------ |
 | GET `portfolio`                       | Policy, reserve/backlog/capacity, schedules, jobs, health, feedback and knowledge evidence |
+| GET `portfolio-schedules`             | Older schedules than the view's newest 200 (`?before=<id>&limit=`, newest first)           |
 | POST `portfolio/policy`               | Configure/update exact allocations, mode and limits with `expected_version`                |
 | POST `portfolio/runs`                 | Assign an immutable run lane                                                               |
 | POST `portfolio/tick`                 | One bounded pass; body `{}`                                                                |

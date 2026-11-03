@@ -353,6 +353,8 @@ export function Scoring({
   useOnShow(() => {
     void loadWorkspace();
     setShown((n) => n + 1);
+    // An open spec may have been frozen or approved elsewhere (audit L-10).
+    if (spec) void openSpec(spec.spec.id);
   });
   useEffect(() => {
     if (!problem) return;

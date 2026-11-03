@@ -77,7 +77,7 @@ All routes use the existing authenticated workspace API and CSRF checks:
 
 | Method/path under `/api/workspaces/:ws`  | Purpose                                                                             |
 | ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| GET/POST `marketing-campaigns`           | List / create immutable draft                                                       |
+| GET/POST `marketing-campaigns`           | List (newest first, 200 a page; `?before=<id>&limit=`) / create immutable draft     |
 | GET `marketing-campaigns/:id`            | Complete review, evidence status, grants, delivery and measurement history          |
 | POST `marketing-campaigns/:id/grant`     | `content_hash`, `expires_at`, `max_deliveries`, `budget_nano_usd: "0"`, `rationale` |
 | POST `marketing-campaigns/:id/deliver`   | `grant_id`, `recipient`, `simulation`                                               |

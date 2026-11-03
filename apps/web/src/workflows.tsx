@@ -21,7 +21,7 @@ import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopeFor } from './build-defaults.js';
 import { money } from './budgets.js';
-import { usePageActive } from './page-drafts.js';
+import { useOnShow, usePageActive } from './page-drafts.js';
 import {
   clipText,
   distinctLabels,
@@ -125,6 +125,9 @@ export function Workflows({
     setDetail(null);
     void load();
   }, [workspace]);
+  // Runs, subjects and budgets made elsewhere appear when this tab is shown again (audit
+  // L-10); the picks stay when they still exist.
+  useOnShow(() => void load());
   // Poll the durable state while the selected workflow is live.
   useEffect(() => {
     if (!active || !selected || !workspace) return;

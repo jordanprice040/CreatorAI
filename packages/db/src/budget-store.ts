@@ -44,6 +44,13 @@ import {
 } from '@creator/domain';
 import { OversightStore } from './oversight-store.js';
 import {
+  checkPageStart,
+  newestOrder,
+  olderThan,
+  readPage,
+  type PageRequest,
+} from './paging.js';
+import {
   fail,
   iso,
   normalize,
@@ -920,14 +927,23 @@ export class BudgetStore extends OversightStore {
     });
   }
 
-  async listEnvelopes(ctx: CommandContext, ws: string): Promise<Envelope[]> {
+  /** Newest first, one page of at most 200 (audit L-9); `before` reads the next older page. */
+  async listEnvelopes(
+    ctx: CommandContext,
+    ws: string,
+    page?: PageRequest,
+  ): Promise<Envelope[]> {
     ctx = normalize(ctx);
     ws = uuid(ws);
+    const { before, limit } = readPage(page, 200);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      await checkPageStart(c, 'budget_envelopes', ws, before);
       const { rows } = await c.query<{ id: string }>(
-        'select id from budget_envelopes where workspace_id = $1 order by created_at limit 200',
-        [ws],
+        `select id from budget_envelopes where workspace_id = $1
+           and ${olderThan('budget_envelopes', 2)}
+         order by ${newestOrder('budget_envelopes')} limit $3`,
+        [ws, before, limit],
       );
       const out: Envelope[] = [];
       for (const r of rows) out.push(await this.readEnvelope(c, ws, r.id));

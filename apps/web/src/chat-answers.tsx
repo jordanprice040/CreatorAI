@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useOnShow } from './page-active.js';
 import {
   CHAT_DAILY_LIMIT_DEFAULT,
   CHAT_DAILY_LIMIT_MAX,
@@ -151,6 +152,11 @@ export function ChatAnswersCard({
     if (!session || !settings || !stamp) return;
     loadDetails().catch((e) => setError(message(e)));
   }, [stamp]);
+  // Connections checked or changed elsewhere show when the page is shown again (audit L-10);
+  // the settings form keeps what the owner typed.
+  useOnShow(() => {
+    if (session && settings) loadDetails().catch((e) => setError(message(e)));
+  });
 
   const chosen = details.find((d) => d.connection.id === form.connection_id);
   const models = verifiedModels(details, form.connection_id);

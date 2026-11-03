@@ -44,6 +44,7 @@ import {
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
+  pageQuery,
   type CommandContext,
 } from '@creator/db';
 import {
@@ -813,6 +814,7 @@ export function createApi(
       (await portfolioRoutes({
         store,
         service: portfolio!,
+        url,
         ctx,
         ws,
         collection,
@@ -830,6 +832,7 @@ export function createApi(
       MARKETING_ROUTE.test(url.pathname) &&
       (await marketingRoutes({
         store,
+        url,
         ctx,
         ws,
         collection,
@@ -1451,7 +1454,15 @@ export function createApi(
         );
     } else if (collection === 'budgets') {
       if (!item && method === 'GET')
-        return send(200, await store.listEnvelopes(ctx, ws), false);
+        return send(
+          200,
+          await store.listEnvelopes(
+            ctx,
+            ws,
+            pageQuery((k) => url.searchParams.get(k)),
+          ),
+          false,
+        );
       if (!item && method === 'POST')
         return send(
           201,

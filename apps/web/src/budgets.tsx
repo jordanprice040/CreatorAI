@@ -17,6 +17,7 @@ import {
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
+import { ShowOlder, useOlder } from './older.js';
 import { runLabel } from './labels.js';
 import { runNames } from './ui.js';
 // The same file `pnpm cli pricing-add` takes; bundled so a fixture studio needs no CLI.
@@ -124,6 +125,13 @@ export function Budgets({
   const [fundName, setFundName] = useState('');
   const [fundCap, setFundCap] = useState('');
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
+  // Budgets past the newest 200 come one page at a time (audit L-9).
+  const shownEnvelopes = useOlder(
+    envelopes,
+    EnvelopeSchema,
+    `workspaces/${workspace}/budgets`,
+    200,
+  );
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [pricing, setPricing] = useState<PricingSnapshot[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
@@ -340,7 +348,7 @@ export function Budgets({
               No budgets. Without one, no model or tool call can be sent.
             </p>
           ) : (
-            envelopes.map((e) => (
+            shownEnvelopes.items.map((e) => (
               <article key={e.id} className="decision">
                 <div className="decision-head">
                   <span className="kind">{e.kind}</span>
@@ -359,6 +367,7 @@ export function Budgets({
               </article>
             ))
           )}
+          <ShowOlder list={shownEnvelopes} what="budgets" />
           {current.role !== 'viewer' && (
             <form onSubmit={(e) => void fund(e)}>
               <h3>Fund a budget</h3>

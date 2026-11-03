@@ -48,6 +48,13 @@ import {
 } from '@creator/domain';
 import { DesktopJobStore } from './desktop-job-store.js';
 import {
+  checkPageStart,
+  newestOrder,
+  olderThan,
+  readPage,
+  type PageRequest,
+} from './paging.js';
+import {
   fail,
   iso,
   normalize,
@@ -537,14 +544,19 @@ export class PaymentStore extends DesktopJobStore {
       return toOffer(rows[0] as Row);
     });
   }
-  async listOffers(ctx: CommandContext, ws: string) {
+  /** Newest first, one page of at most 200 (audit L-9); `before` reads the next older page. */
+  async listOffers(ctx: CommandContext, ws: string, page?: PageRequest) {
     ctx = normalize(ctx);
     ws = uuid(ws);
+    const { before, limit } = readPage(page, 200);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      await checkPageStart(c, 'payment_offers', ws, before);
       const { rows } = await c.query(
-        'select * from payment_offers where workspace_id = $1 order by created_at limit 200',
-        [ws],
+        `select * from payment_offers where workspace_id = $1
+           and ${olderThan('payment_offers', 2)}
+         order by ${newestOrder('payment_offers')} limit $3`,
+        [ws, before, limit],
       );
       return rows.map((r) => toOffer(r as Row));
     });
@@ -1172,19 +1184,26 @@ export class PaymentStore extends DesktopJobStore {
     ctx: CommandContext,
     ws: string,
     filter: { offer_id?: string; customer_ref?: string } = {},
+    page?: PageRequest,
   ) {
     ctx = normalize(ctx);
     ws = uuid(ws);
+    // Newest first, one page of at most 500 (audit L-9); `before` reads the next older page.
+    const { before, limit } = readPage(page, 500);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      await checkPageStart(c, 'entitlements', ws, before);
       const { rows } = await c.query(
         `select * from entitlements where workspace_id = $1
          and ($2::uuid is null or offer_id = $2) and ($3::text is null or customer_ref = $3)
-         order by created_at limit 500`,
+         and ${olderThan('entitlements', 4)}
+         order by ${newestOrder('entitlements')} limit $5`,
         [
           ws,
           filter.offer_id ? uuid(filter.offer_id) : null,
           filter.customer_ref ?? null,
+          before,
+          limit,
         ],
       );
       return rows.map((r) => toEntitlement(r as Row));
@@ -1865,16 +1884,21 @@ export class PaymentStore extends DesktopJobStore {
       },
     );
   }
-  async listTranches(ctx: CommandContext, ws: string) {
+  /** Newest settled first, one page of at most 500 (audit L-9); `before` reads older ones. */
+  async listTranches(ctx: CommandContext, ws: string, page?: PageRequest) {
     ctx = normalize(ctx);
     ws = uuid(ws);
+    const { before, limit } = readPage(page, 500);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      await checkPageStart(c, 'earnings_tranches', ws, before);
       const { rows } = await c.query(
         `select id, payment_id, bps, earned_nano::text, loss_nano::text, cap_nano::text,
            consumed_nano::text, clawed_nano::text, disputed, settled_at, eligible_at
-         from earnings_tranches where workspace_id = $1 order by settled_at limit 500`,
-        [ws],
+         from earnings_tranches where workspace_id = $1
+           and ${olderThan('earnings_tranches', 2)}
+         order by ${newestOrder('earnings_tranches')} limit $3`,
+        [ws, before, limit],
       );
       return rows.map((r) => ({
         ...(r as Row),
@@ -1883,11 +1907,14 @@ export class PaymentStore extends DesktopJobStore {
       }));
     });
   }
-  async listAllocations(ctx: CommandContext, ws: string) {
+  /** Newest first, one page of at most 200 (audit L-9); `before` reads the next older page. */
+  async listAllocations(ctx: CommandContext, ws: string, page?: PageRequest) {
     ctx = normalize(ctx);
     ws = uuid(ws);
+    const { before, limit } = readPage(page, 200);
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      await checkPageStart(c, 'reinvestment_allocations', ws, before);
       const { rows } = await c.query(
         `select a.id, a.amount_nano::text, a.requested_nano::text, a.envelope_id,
            a.policy_version, a.period_start, a.created_at,
@@ -1895,8 +1922,10 @@ export class PaymentStore extends DesktopJobStore {
              then 'portfolio' else 'standalone' end as target,
            coalesce((select json_agg(r.envelope_id order by r.created_at)
              from reinvestment_envelopes r where r.allocation_id = a.id), '[]') as envelopes
-         from reinvestment_allocations a where a.workspace_id = $1 order by a.created_at limit 200`,
-        [ws],
+         from reinvestment_allocations a where a.workspace_id = $1
+           and ${olderThan('reinvestment_allocations', 2, 'a')}
+         order by ${newestOrder('reinvestment_allocations', 'a')} limit $3`,
+        [ws, before, limit],
       );
       return rows.map((r) => ({
         ...(r as Row),

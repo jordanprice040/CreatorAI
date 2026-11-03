@@ -163,13 +163,21 @@ export function Models({
       await load(rows[0].id);
     }
   }
+  // Read when first shown and again on each return (audit L-10). A return keeps the open
+  // connection and what is on screen; only a new workspace or person starts over.
+  const loadedFor = useRef('');
   useEffect(() => {
     if (!active || !session) return;
-    setSelected('');
-    setDetail(null);
-    setLoaded(false);
+    const key = `${workspace.id}:${session.actor_id}`;
+    const again = loadedFor.current === key;
+    loadedFor.current = key;
+    if (!again) {
+      setSelected('');
+      setDetail(null);
+      setLoaded(false);
+    }
     setError('');
-    load('').catch((e) => setError(message(e)));
+    load(again ? selected : '').catch((e) => setError(message(e)));
     return () => {
       loadSequence.current++;
     };

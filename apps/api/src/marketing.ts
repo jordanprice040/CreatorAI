@@ -1,10 +1,15 @@
-import type { MarketingStore, CommandContext } from '@creator/db';
+import {
+  pageQuery,
+  type MarketingStore,
+  type CommandContext,
+} from '@creator/db';
 import { MarketingReasonSchema, parse, z } from '@creator/contracts';
 
 export const MARKETING_ROUTE =
   /^\/api\/workspaces\/([^/]+)\/(marketing-campaigns|marketing-suppressions)(?:\/([^/]+)(?:\/(grant|cancel|revoke|deliver|reconcile|observe))?)?$/;
 export async function marketingRoutes(r: {
   store: MarketingStore;
+  url: URL;
   ctx: CommandContext;
   ws: string;
   collection: string;
@@ -23,7 +28,15 @@ export async function marketingRoutes(r: {
     );
   if (collection !== 'marketing-campaigns') return false;
   if (!item && method === 'GET')
-    return send(200, await store.listCampaigns(ctx, ws), false);
+    return send(
+      200,
+      await store.listCampaigns(
+        ctx,
+        ws,
+        pageQuery((k) => r.url.searchParams.get(k)),
+      ),
+      false,
+    );
   if (!item && method === 'POST')
     return send(201, await store.draftCampaign(ctx, ws, await r.body()), true);
   if (item && !action && method === 'GET')

@@ -16,6 +16,7 @@ import { Funding } from './funding.js';
 import { Checkout } from './checkout.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
+import { ShowOlder, useOlder } from './older.js';
 
 const BalancesSchema = z.strictObject({
   balances: z.record(z.string(), z.string()),
@@ -129,6 +130,20 @@ export function Payments({
       artifacts: newestFirst(artifacts),
     };
   }, [workspace.id]);
+  // Offers past the newest 200 and buyer access past the newest 500 come a page at a time
+  // (audit L-9).
+  const offers = useOlder(
+    data.data?.offers,
+    OfferSchema,
+    `${base}/payment-offers`,
+    200,
+  );
+  const access = useOlder(
+    data.data?.entitlements,
+    EntitlementSchema,
+    `${base}/entitlements`,
+    500,
+  );
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -233,7 +248,7 @@ export function Payments({
               <Empty>No offers. An offer sells one verified release.</Empty>
             ) : (
               <ul className="rows">
-                {d.offers.map((o) => (
+                {offers.items.map((o) => (
                   <li key={o.id}>
                     <strong>{o.label}</strong> · {usd(o.price_nano_usd)}{' '}
                     <span
@@ -273,6 +288,7 @@ export function Payments({
                 ))}
               </ul>
             )}
+            <ShowOlder list={offers} what="offers" />
             {!viewer &&
               d.connections.some((c) => c.status === 'active') &&
               (verified.length === 0 ? (
@@ -336,7 +352,7 @@ export function Payments({
               <Empty>No one has bought access yet.</Empty>
             ) : (
               <ul className="rows">
-                {d.entitlements.map((e) => (
+                {access.items.map((e) => (
                   <li key={e.id}>
                     <span
                       className={`badge ${e.status === 'active' ? 'ok' : e.status === 'suspended' ? 'warn' : 'bad'}`}
@@ -353,6 +369,7 @@ export function Payments({
                 ))}
               </ul>
             )}
+            <ShowOlder list={access} what="buyer access" />
 
             <Funding
               session={session}
