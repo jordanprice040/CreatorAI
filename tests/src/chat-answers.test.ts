@@ -509,8 +509,8 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
     }),
   );
 
-  // A pending answer from a studio that stopped mid-request: blocked for 15 minutes, then
-  // closed as failed so the message can be asked again.
+  // A pending answer from a studio that stopped mid-request: blocked for the connection's
+  // request timeout plus 15 minutes, then closed as failed so the message can be asked again.
   const begun = await store.beginChatAnswer(owner, ws.id, chat.id, q.id, {
     client_id: randomUUID(),
   });
@@ -537,6 +537,26 @@ test('chat answers: only the owner asks or changes the switch; a stopped studio 
     await c.query(
       'alter table chat_answers enable trigger chat_answers_settle_once',
     );
+    // ADR-0062 (PR #124 review L-1): with a 1-hour request timeout the request may still be
+    // live after 20 minutes, so the answer stays pending and nothing is asked twice.
+    const timeout = (
+      await c.query(
+        `select settings #> '{caps,responses,request_timeout_ms}' as t from plan_connections where id = $1`,
+        [s.conn.id],
+      )
+    ).rows[0].t;
+    const setTimeoutCap = (v: unknown) =>
+      c.query(
+        `update plan_connections set settings = jsonb_set(settings, '{caps,responses,request_timeout_ms}', $2::jsonb) where id = $1`,
+        [s.conn.id, JSON.stringify(v)],
+      );
+    await setTimeoutCap(3_600_000);
+    const still = await service.chatAnswer(owner, ws.id, chat.id, q.id, {
+      client_id: randomUUID(),
+    });
+    assert.equal(still.id, begun.answer.id);
+    assert.equal(still.state, 'pending');
+    await setTimeoutCap(timeout);
   } finally {
     c.release();
   }
