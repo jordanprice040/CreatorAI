@@ -42,6 +42,10 @@ test('chat messages are sorted by fixed rules, in a stable order', () => {
       'start_discovery',
       { text: 'input timing drills' },
     ],
+    // ADR-0065: no theme at all is a request to explore, not a theme called "me".
+    ['Explore for me', 'start_discovery', {}],
+    ['find me some problems to work on', 'start_discovery', {}],
+    ['What should I build?', 'start_discovery', {}],
     ['The demo went well today.', 'note', {}],
     // "saved" is not "save": a sentence that merely mentions saving stays a note.
     ['I saved the file yesterday.', 'note', {}],

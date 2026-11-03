@@ -221,7 +221,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -1335,6 +1335,12 @@ export function createApi(
           await store.startDiscovery(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && method === 'POST' && action === 'explorations')
+        return send(
+          201,
+          await store.startExploration(ctx, ws, item, await readJson(req)),
+          true,
+        );
       if (item && method === 'POST' && action === 'selections')
         return send(
           200,
@@ -1516,6 +1522,20 @@ export function createApi(
         return send(200, await store.getWorkflow(ctx, ws, item), false);
       if (item && action === 'packet' && method === 'GET')
         return send(200, await store.discoveryPacket(ctx, ws, item), false);
+      if (item && action === 'exploration-packet' && method === 'GET')
+        return send(200, await store.explorationPacket(ctx, ws, item), false);
+      if (item && action === 'explored-briefs' && method === 'POST') {
+        const body = ((await readJson(req)) ?? {}) as Record<string, unknown>;
+        const { candidate, ...rest } = body;
+        const made = await store.createExploredBrief(
+          ctx,
+          ws,
+          item,
+          String(candidate ?? ''),
+          rest,
+        );
+        return send(made.created ? 201 : 200, made, made.created);
+      }
       if (
         item &&
         method === 'POST' &&

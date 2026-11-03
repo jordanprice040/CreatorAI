@@ -2580,3 +2580,68 @@ table.usage-options th[scope='row'] {
 .open-request-close > summary {
   cursor: pointer;
 }
+
+/* ADR-0065: Explore for me on Discover. */
+.explore {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  padding: 4px 16px 16px;
+  margin-bottom: 24px;
+}
+.explore form {
+  margin-bottom: 12px;
+}
+.explore details {
+  margin: 8px 0;
+}
+.shortlist {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.shortlist .card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  padding: 12px 14px;
+}
+.shortlist .card.candidate {
+  border-color: var(--ok-border);
+}
+.shortlist .card:not(.candidate) {
+  opacity: 0.85;
+}
+.shortlist h4 {
+  margin: 0 0 8px;
+}
+.shortlist dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0 0 8px;
+  border-top: 0;
+  font-size: 13px;
+}
+.shortlist dt {
+  color: var(--muted);
+}
+.shortlist dd {
+  margin: 0;
+  text-align: left;
+  justify-self: start;
+}
+.badge.ok {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok);
+}
+@media (max-width: 640px) {
+  .shortlist dl {
+    grid-template-columns: 1fr;
+  }
+  .shortlist dt {
+    margin-top: 4px;
+  }
+}

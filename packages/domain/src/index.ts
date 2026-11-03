@@ -8,6 +8,8 @@ export * from './orchestration.js';
 export * from './research.js';
 export * from './discovery.js';
 export * from './discovery-fixture.js';
+export * from './exploration.js';
+export * from './exploration-fixture.js';
 export * from './discovery-scenarios.js';
 export * from './selection.js';
 export * from './selection-fixture.js';

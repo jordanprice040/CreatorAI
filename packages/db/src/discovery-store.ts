@@ -1,28 +1,43 @@
 import {
+  CreateExploredBriefRequestSchema,
+  ExplorationResultSchema,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
+  StartExplorationRequestSchema,
   parse,
   type CatalogEntry,
   type ClaimEvidence,
+  type ExplorationCatalogEntry,
+  type StoredEntity,
   type WorkflowDetail,
 } from '@creator/contracts';
 import {
   DISCOVERY_PROMPT_HASH,
   DISCOVERY_ROLE_VERSION,
+  EXPLORATION_PROMPT_HASH,
+  EXPLORATION_ROLE_VERSION,
+  MAX_EXPLORATION_PACKET_CHARS,
   MAX_PACKET_CHARS,
+  briefFromCandidate,
+  buildExplorationPacket,
   buildPacket,
   canonicalHash,
   discoveryContext,
+  explorationContext,
 } from '@creator/domain';
 import { ResearchStore } from './research-store.js';
 import {
   fail,
   normalize,
+  toEntity,
   uuid,
   type CommandContext,
   type Row,
 } from './store.js';
-import type { DiscoveryWorkflowContext } from './workflow-store.js';
+import type {
+  DiscoveryWorkflowContext,
+  ExplorationWorkflowContext,
+} from './workflow-store.js';
 
 const summaryOf = (kind: string, body: Row | null): string => {
   if (!body) return '';
@@ -31,7 +46,9 @@ const summaryOf = (kind: string, body: Row | null): string => {
       ? body.statement
       : kind === 'idea'
         ? body.summary
-        : body.rationale;
+        : kind === 'search_brief'
+          ? body.measurable_problem
+          : body.rationale;
   return typeof text === 'string' ? text.slice(0, 400) : '';
 };
 
@@ -248,6 +265,259 @@ export class DiscoveryStore extends ResearchStore {
       if (!rows.length) throw fail('NOT_FOUND', 'Workflow not found.');
       const d = await this.discoveryContextOf(c, workflowId);
       return { packet: d.packet, packet_hash: d.packet_hash };
+    });
+  }
+
+  /**
+   * C53 "Explore for me" (ADR-0065): starts an exploration with no theme. The packet is built
+   * here from the workspace's active claims, newest first, as the owner reads them now and
+   * inside the scope, plus the catalog of problems, ideas, alternatives and search briefs; it
+   * is bound by hash into the workflow and never changes. One explorer task runs on the T05
+   * workflow path, so caps, leases, cancellation, restart and plan admission are the same as
+   * discovery's. Frozen study runs are refused: this is not a study condition.
+   */
+  async startExploration(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    raw: unknown,
+  ): Promise<WorkflowDetail> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    runId = uuid(runId);
+    const req = parse(StartExplorationRequestSchema, raw);
+    await this.studyWorkflowGate(ctx, ws, runId, null);
+    const scan = await this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const claims = (
+        await c.query<{ id: string }>(
+          `select id from entities where workspace_id = $1 and kind = 'claim'
+              and status = 'active'
+            order by updated_at desc, id desc limit 200`,
+          [ws],
+        )
+      ).rows.map((r) => r.id);
+      const rows = (
+        await c.query(
+          `select id, kind, version, title, body from entities
+            where workspace_id = $1 and kind in ('problem', 'idea', 'alternative', 'search_brief')
+              and status = 'active'
+            order by updated_at desc, id limit 40`,
+          [ws],
+        )
+      ).rows as Row[];
+      const run = (
+        await c.query<{ version: number }>(
+          `select version from entities where workspace_id = $1 and id = $2 and kind = 'run'`,
+          [ws, runId],
+        )
+      ).rows[0];
+      if (!run) throw fail('NOT_FOUND', 'Run record not found.');
+      return {
+        claims,
+        run: { id: runId, version: Number(run.version) },
+        catalog: rows.map((r): Omit<ExplorationCatalogEntry, 'ref'> => ({
+          id: String(r.id),
+          kind: r.kind as ExplorationCatalogEntry['kind'],
+          version: Number(r.version),
+          title: String(r.title),
+          summary: summaryOf(String(r.kind), r.body as Row | null),
+        })),
+      };
+    });
+    const evidence: ClaimEvidence[] = [];
+    for (const id of scan.claims)
+      evidence.push(
+        await this.claimEvidence(ctx, ws, id, req.scope.max_age_days),
+      );
+    const packet = buildExplorationPacket({
+      scope: req.scope,
+      evidence,
+      catalog: scan.catalog,
+      now: new Date(),
+    });
+    if (scan.claims.length === 200)
+      packet.not_searched.notes.unshift(
+        'Only the 200 most recently changed claims were considered.',
+      );
+    if (JSON.stringify(packet).length > MAX_EXPLORATION_PACKET_CHARS)
+      throw fail(
+        'INVALID_CONTRACT',
+        'The exploration packet is too large for one model message; lower the number of claims to read.',
+      );
+    const context: ExplorationWorkflowContext = {
+      packet,
+      packet_hash: canonicalHash(packet),
+    };
+    const id = await this.idempotent(
+      ws,
+      ctx,
+      { op: 'exploration.start', runId, req },
+      async (c) => {
+        const { rows } = await c.query<{ id: string; version: number }>(
+          `select id, version from entities where workspace_id = $1 and id = any($2::uuid[])
+             and kind = 'claim' for share`,
+          [ws, packet.claims.map((x) => x.claim_id)],
+        );
+        for (const claim of packet.claims)
+          if (
+            rows.find((r) => r.id === claim.claim_id)?.version !== claim.version
+          )
+            throw fail(
+              'VERSION_CONFLICT',
+              `Claim ${claim.ref} changed while the packet was built; start again.`,
+            );
+        const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
+          role: 'r01_exploration',
+          roleVersion: EXPLORATION_ROLE_VERSION,
+          promptHash: EXPLORATION_PROMPT_HASH,
+          subject: scan.run,
+          context: { ...context },
+          limits: req.limits,
+          envelopeId:
+            req.resource_setup.kind === 'api'
+              ? req.resource_setup.envelope_id
+              : null,
+          pricingSnapshotId:
+            req.resource_setup.kind === 'api'
+              ? req.resource_setup.pricing_snapshot_id
+              : null,
+          resourceSetup: req.resource_setup,
+          dataClass: req.data_class,
+          audit: {
+            packet_hash: context.packet_hash,
+            claims: packet.claims.length,
+            usable_claims: packet.usable_claims,
+            catalog: packet.catalog.length,
+            max_candidates: req.scope.max_candidates,
+          },
+        });
+        await this.insertTask(c, ctx, ws, workflowId, {
+          kind: 'explore',
+          ordinal: 0,
+          round: 0,
+          repair: 0,
+          repairOf: null,
+          state: 'queued',
+          context: explorationContext(context.packet_hash),
+        });
+        await this.coordinateIn(c, ctx, ws, workflowId);
+        return workflowId;
+      },
+    );
+    return this.getWorkflow(ctx, ws, id);
+  }
+
+  /** The packet an exploration read, for inspection. */
+  async explorationPacket(ctx: CommandContext, ws: string, workflowId: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    workflowId = uuid(workflowId);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        'select 1 from workflows where workspace_id = $1 and id = $2',
+        [ws, workflowId],
+      );
+      if (!rows.length) throw fail('NOT_FOUND', 'Workflow not found.');
+      return this.explorationContextOf(c, workflowId);
+    });
+  }
+
+  /**
+   * Turns one shortlisted problem into a versioned search brief, written by application code
+   * from the card (the owner edits it before discovery). Only a `candidate` qualifies; asking
+   * again for the same card returns the brief made the first time. The choice is audited with
+   * the exploration, its packet hash, the card and the owner's reason.
+   */
+  async createExploredBrief(
+    ctx: CommandContext,
+    ws: string,
+    workflowId: string,
+    candidate: string,
+    raw: unknown,
+  ): Promise<{ brief: StoredEntity; created: boolean }> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    workflowId = uuid(workflowId);
+    const req = parse(CreateExploredBriefRequestSchema, raw ?? {});
+    if (!/^E[1-5]$/.test(candidate))
+      throw fail('INVALID_CONTRACT', 'Name a shortlist entry E1–E5.');
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, true);
+      const wf = (
+        await c.query(
+          `select id, run_id, role, state, result, fixture, context from workflows
+            where workspace_id = $1 and id = $2 for update`,
+          [ws, workflowId],
+        )
+      ).rows[0] as Row | undefined;
+      if (!wf || wf.role !== 'r01_exploration')
+        throw fail('NOT_FOUND', 'Exploration not found.');
+      const result = (wf.result as Row | null)?.exploration;
+      if (!result || wf.state !== 'succeeded')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This exploration did not finish with a shortlist.',
+        );
+      const r = parse(ExplorationResultSchema, result);
+      const entry = r.candidates.find((x) => x.ref === candidate);
+      if (!entry) throw fail('NOT_FOUND', `No ${candidate} in this shortlist.`);
+      if (entry.disposition !== 'candidate')
+        throw fail(
+          'SCOPE_EXCEEDED',
+          `${candidate} is ${entry.disposition.replaceAll('_', ' ')}, not a candidate: ${entry.reasons.join(' ')}`,
+        );
+      const earlier = (
+        await c.query<{ subject_id: string }>(
+          `select subject_id from audit_events where workspace_id = $1
+              and action = 'exploration.brief_created'
+              and payload->>'workflow_id' = $2 and payload->>'candidate' = $3
+            order by sequence desc limit 1`,
+          [ws, workflowId, candidate],
+        )
+      ).rows[0];
+      if (earlier) {
+        const row = (
+          await c.query(
+            'select * from entities where workspace_id = $1 and id = $2',
+            [ws, earlier.subject_id],
+          )
+        ).rows[0] as Row | undefined;
+        if (row && row.status === 'active')
+          return { brief: toEntity(row), created: false };
+      }
+      const scope = (wf.context as ExplorationWorkflowContext).packet.scope;
+      const body = parse(
+        SearchBriefBodySchema,
+        briefFromCandidate(entry.card, scope, Boolean(wf.fixture)),
+      );
+      const brief = await this.insertEntity(
+        c,
+        ctx,
+        ws,
+        'search_brief',
+        body.theme,
+        body,
+      );
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'exploration.brief_created',
+        subjectKind: 'search_brief',
+        subjectId: brief.id,
+        subjectVersion: 1,
+        contentHash: brief.content_hash,
+        payload: {
+          workflow_id: workflowId,
+          candidate,
+          packet_hash: r.packet_hash,
+          output_hash: r.task?.output_hash ?? null,
+          claims: entry.claims.map((x) => x.claim_id),
+          reason: req.reason,
+        },
+        relatedIds: [workflowId, String(wf.run_id)],
+      });
+      return { brief, created: true };
     });
   }
 }

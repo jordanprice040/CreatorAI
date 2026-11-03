@@ -839,8 +839,8 @@
       "id": "C53",
       "title": "Theme-free problem discovery",
       "states": {
-        "implemented": "not_verified",
-        "fixture": "not_verified",
+        "implemented": "verified",
+        "fixture": "verified",
         "contract": "not_verified",
         "live": "not_verified",
         "activated": "not_verified",
@@ -849,9 +849,12 @@
       "required": ["implemented", "live", "native"],
       "evidence": [
         "docs/COMPLETION_RUNBOOK.md",
-        "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md"
+        "docs/WORKFLOW_ALIGNMENT_REVIEW_2026-10-20.md",
+        "tests/src/exploration.test.ts",
+        "tests/src/subscription-workflow.test.ts",
+        "tracking/evidence/explore-for-me/walk.mjs"
       ],
-      "blocked_on": "Owner-accepted planning only (§2.18); implementation and exact-candidate acceptance remain outstanding."
+      "blocked_on": "Explore for me is built (ADR-0065) and verified with fixtures and a browser walk; no live run on a plan connection and no installed-app check yet. It reads recorded claims only (no web search of its own)."
     },
     {
       "id": "C54",

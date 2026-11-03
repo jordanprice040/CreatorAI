@@ -66,6 +66,13 @@ export function classifyChat(raw: string): {
     const idea = strip(save[1] ?? '');
     return { intent: 'save_idea', target: idea ? { text: idea } : {} };
   }
+  // ADR-0065: asking the studio to look for problems itself, with no theme.
+  if (
+    /^(?:please\s+)?(?:(?:can you\s+)?explore for me|(?:find|suggest|show)\s+(?:me\s+)?(?:some\s+|a\s+)?problems?\b|surprise me|what should i (?:build|work on))/i.test(
+      text,
+    )
+  )
+    return { intent: 'start_discovery', target: {} };
   const discover =
     /^(?:please\s+)?(?:(?:start|run|begin|kick\s+off)\s+(?:a\s+|the\s+)?discovery|research|discover|explore)\b(?:\s+(?:on|about|into|for))?(.*)$/is.exec(
       text,

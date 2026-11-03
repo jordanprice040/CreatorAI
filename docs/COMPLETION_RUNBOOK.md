@@ -26,7 +26,7 @@ study.
 | Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Owner funding, funding sources, commitments, reinvestment policy and allocation added Oct 27 (step 2). Test-mode checkout screen with a simulated test buyer added Oct 27 (step 3).          | `docs/PAYMENTS.md`                                                          |
 | Desktop app (X05)                              | Tauri app; interactive Windows acceptance passed Oct 19. The installed copy is Jordan's operational studio and is off-limits for testing. The usability-pass build has not been packaged or exercised in the desktop shell.                                                  | `apps/desktop/INTERACTIVE_ACCEPTANCE.md`, `docs/DESKTOP_STUDIO.md`          |
 | Hosted (X06), campaigns (X08)                  | Code and fixture checks only. Not activated, by owner decision.                                                                                                                                                                                                              | `docs/HOSTED_OPERATION.md`, `docs/X06_X07_AUDIT.md`                         |
-| Central chat (C52), theme-free discovery (C53) | Not built.                                                                                                                                                                                                                                                                   | `config/readiness.json`                                                     |
+| Central chat (C52), theme-free discovery (C53) | Chat built (PRs #98, #102, #124, #127). Explore for me built (ADR-0065): fixture and browser walk verified; no live plan run yet. | `config/readiness.json` |
 | Theme-intent native acceptance                 | NOT READY. Reviewed designs and fixture slices exist (upgrade helper v3, observation classifier v4, CW-01 fixture core v4, CW-01 adapter design v1.3). Missing: the `cw01-native` adapters and core v5, the collector, the PR-01/SH-01 inspector, and Jordan's attestations. | `BUILD_STATUS` Oct 24–26 entries                                            |
 | Thesis study                                   | Deprioritized. Blocked on RD1–RD10 answers (RD5 needs committee/IRB), T15 partial, T16 blocked, and 36 of 66 X10 rows needing owner inputs.                                                                                                                                  | `docs/X10_ACCEPTANCE.md`, `docs/PILOT_AND_PROTOCOL.md`                      |
 
@@ -98,8 +98,7 @@ payment calls unless it says so, and those need Jordan's go-ahead first.
    (first launch, running work, errors, recovery, export), fix what blocks release,
    then repeat X10 on the exact candidate.
 
-**Later, each its own task:** central studio chat (C52); theme-free problem discovery
-(C53); Ollama as a local model route; live GitHub verification on one new private
+**Later, each its own task:** Ollama as a local model route; live GitHub verification on one new private
 `creator-agent-` repo (#33–#35); signed Windows distribution and updates, then the
 public-release package (#36–#43); hosted staging after a costed plan (#44–#46); live
 payments; campaigns (#50–#52); owner file uploads as evidence, a file library and

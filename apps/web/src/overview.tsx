@@ -172,7 +172,9 @@ export function Overview({
                     <button className="text" onClick={() => open('runs', w.id)}>
                       {w.role === 'r02_discovery'
                         ? 'Discovery'
-                        : 'Skeptic review'}{' '}
+                        : w.role === 'r01_exploration'
+                          ? 'Exploration'
+                          : 'Skeptic review'}{' '}
                       {shortId(w.id)}
                     </button>
                     <small>
@@ -251,7 +253,9 @@ export function Overview({
                         >
                           {w.role === 'r02_discovery'
                             ? 'Discovery'
-                            : 'Skeptic review'}{' '}
+                            : w.role === 'r01_exploration'
+                              ? 'Exploration'
+                              : 'Skeptic review'}{' '}
                           {shortId(w.id)}
                         </button>
                         <small>

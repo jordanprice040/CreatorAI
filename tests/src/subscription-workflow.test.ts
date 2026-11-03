@@ -15,8 +15,10 @@ import {
 import {
   canonicalHash,
   DISCOVERY_SCENARIOS,
+  EXPLORATION_MARKER,
   discoveryFixtureAnswer,
   discoveryRoleInput,
+  explorationFixtureAnswer,
 } from '@creator/domain';
 import { ConnectionStore, ORCHESTRATOR_ACTOR_ID } from '@creator/db';
 import {
@@ -72,7 +74,14 @@ async function setup(t: test.TestContext) {
             ...JSON.parse(body.input[0].content),
           ]
         : [];
-      const text = messages.length ? discoveryFixtureAnswer(messages)! : 'ok';
+      const explore = body.instructions.includes(EXPLORATION_MARKER)
+        ? explorationFixtureAnswer([
+            { role: 'system', text: body.instructions },
+            ...JSON.parse(body.input[0].content),
+          ])
+        : null;
+      const text =
+        explore ?? (messages.length ? discoveryFixtureAnswer(messages)! : 'ok');
       const ev = (v: unknown) => `data: ${JSON.stringify(v)}\n\n`;
       return new Response(
         ev({ type: 'response.output_text.delta', delta: text }) +
@@ -158,8 +167,12 @@ async function setup(t: test.TestContext) {
     limits: { ...legacy.limits, max_concurrency: 1, max_calls: 30 },
   };
   // Explicit test-only qualified fixtures test plumbing, never model quality or real entitlement.
-  const qualify = async () => {
-    for (const task_class of new Set(Object.values(DISCOVERY_TASK_CLASSES))) {
+  const qualify = async (
+    classes: Iterable<string> = new Set(Object.values(DISCOVERY_TASK_CLASSES)),
+  ) => {
+    for (const task_class of classes as Iterable<
+      (typeof DISCOVERY_TASK_CLASSES)[keyof typeof DISCOVERY_TASK_CLASSES]
+    >) {
       const qualifiedManifest =
         currentDiscoveryQualificationFixture(task_class);
       await h.db.pool.query(
@@ -252,6 +265,52 @@ test('subscription discovery needs role qualifications, no envelope/pricing, and
       )
     ).rows[0].n,
     0,
+  );
+});
+
+test('exploration on a plan needs only the locator qualification and spends nothing metered (ADR-0065)', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const req = {
+    scope: { max_candidates: 2 },
+    resource_setup: s.resource,
+    data_class: 'synthetic' as const,
+    limits: {
+      max_children: 1,
+      max_concurrency: 1,
+      max_depth: 1,
+      max_attempts: 1,
+      max_repairs: 1,
+      max_calls: 2,
+      max_output_tokens: 4000,
+      call_timeout_ms: 5000,
+      max_wall_seconds: 600,
+    },
+  };
+  await assert.rejects(
+    s.store.startExploration(owner, s.ws.id, s.runId, req),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'ACCESS_DENIED' &&
+      e.message === 'Exploration route is not ready.' &&
+      e.details.some((d) => d.includes('not qualified')),
+  );
+  await s.qualify(['research_synthesis']);
+  const started = await s.store.startExploration(owner, s.ws.id, s.runId, req);
+  await s.worker().settle();
+  const done = await s.store.getWorkflow(owner, s.ws.id, started.workflow.id);
+  assert.equal(done.workflow.state, 'succeeded', done.workflow.reason);
+  assert.equal(done.workflow.result?.exploration?.outcome, 'candidates');
+  assert.ok(done.workflow.result!.exploration!.candidates.length <= 2);
+  assert.equal(done.subscription_usage!.requests, 1);
+  assert.equal(done.reservations.length, 0);
+  const plan = await s.db.pool.query(
+    'select task_class from plan_requests where run_id=$1',
+    [s.runId],
+  );
+  assert.deepEqual(
+    plan.rows.map((r) => r.task_class),
+    ['research_synthesis'],
   );
 });
 

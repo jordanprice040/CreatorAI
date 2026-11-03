@@ -1,3 +1,19 @@
+## Explore for me: discovery without a theme (ADR-0065, migration 40) — November 3, 2026
+
+C53, runbook §2.18. Jordan asked for it before the final UX pass; he chose to reuse the discovery locator's qualification (decision card, Nov 3).
+
+What now works:
+
+- Discover › "Explore for me" starts discovery with no theme. Optional narrowing (interests, who it is for, topics to exclude, only/never these websites, 1–5 picks) and model access (a plan connection by default, $0; API in fixture mode) sit in collapsed sections. Blockers are shown before the button, including a missing `research_synthesis` qualification on the chosen plan connection.
+- It creates a run "Explore for me · <date>", a model.generate grant on it, and one exploration workflow (role `r01_exploration`, task `explore`) through the normal worker, caps, pause, Stop and reconcile paths. Progress updates every 2 seconds.
+- The explorer reads only recorded claims and the workspace catalog (no web search). Application code marks each pick candidate, duplicate, insufficient evidence or excluded, with reasons and the cited claims. No candidates gives an honest empty result. The page also shows directions the model saw but could not support, and what it was not given.
+- "Use as a brief" turns a candidate into a search brief once (repeat clicks reuse it), fills the Discover form with the pick and its claims, and submitting the unchanged form reuses that brief.
+- Chat: "explore for me", "surprise me", "what should I build" and similar point to it with an "Open Explore for me" button.
+
+Checks run: new `tests/src/exploration.test.ts` (5 tests: packet rules for websites, exclusions and limits; dispositions; one repair; cancel; brief idempotency and refusals; schema parse of the workflow views) and a plan-route test in `subscription-workflow.test.ts` (needs only `research_synthesis`, one plan request, no reservation). Browser walk `tracking/evidence/explore-for-me/walk.mjs` on a throwaway database, review ports, fixture only, $0: 13 checks pass, including the all-duplicates empty result, the shortlist, brief reuse, chat and 390 px width (`walk.txt`, screenshots 01–07). Full `pnpm test:db` on PostgreSQL 16: 730 tests, 697 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); typecheck and Prettier pass. No CI (Actions minutes exhausted).
+
+Limits: not run live on a plan connection or on the installed app. The explorer has no benchmark of its own. No web search, scheduling or autonomous selection.
+
 ## Owner actions that were command-line only — November 3, 2026
 
 The five main-path forms from the revisions audit (item 4: scorecards, spec writing, humility review, qualification, pricing and charges) were already in the app (PRs #108, #112, #114–#116; caps and allowed work since #118). Every CLI command was then compared with the routes the app calls. These owner actions were still CLI-only and are now in the app. No migration, no ADR; each uses its existing API route and the server's own checks.

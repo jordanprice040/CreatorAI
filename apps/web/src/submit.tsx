@@ -31,9 +31,23 @@ import { envelopesFor } from './build-defaults.js';
 import { useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
+import { Explore, type ExploredPick } from './explore.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
 
+/** Key-order-free JSON, so a stored brief (jsonb reorders keys) compares with the form. */
+const stable = (v: unknown): string =>
+  Array.isArray(v)
+    ? `[${v.map(stable).join(',')}]`
+    : v && typeof v === 'object'
+      ? `{${Object.keys(v)
+          .sort()
+          .map(
+            (k) =>
+              `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`,
+          )
+          .join(',')}}`
+      : JSON.stringify(v);
 const lines = (s: string) =>
   s
     .split(/\n|,/)
@@ -226,6 +240,41 @@ export function Submit({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [tried, setTried] = useState(false);
+  /** A brief made from an exploration pick; reused on submit while the form still matches it. */
+  const [explored, setExplored] = useState<ExploredPick['brief'] | null>(null);
+  function takePick(pick: ExploredPick) {
+    const b = pick.brief.body;
+    setTheme(b.theme);
+    setFieldA(b.fields[0]);
+    setFieldB(b.fields[1]);
+    setUsers(b.target_users);
+    setContext(b.context ?? '');
+    setProblem(b.measurable_problem);
+    setMeasure(b.outcome_measure);
+    setData(b.data_and_tools.join('\n'));
+    setTimeLimit(b.time_limit);
+    setBudgetLimit(b.budget_limit);
+    setSeed(b.nae_seed ?? '');
+    setConstraints(b.constraints.join('\n'));
+    const known = new Set(ctx.data?.claims.map((x) => x.id) ?? []);
+    const picked = pick.claims.filter((x) => known.has(x.claim_id));
+    setRoles(
+      Object.fromEntries(
+        picked.map((x) => [
+          x.claim_id,
+          x.contrary
+            ? (['problem'] as EvidenceRole[])
+            : (['problem', 'affected_users'] as EvidenceRole[]),
+        ]),
+      ),
+    );
+    setOpenClaims(new Set(picked.map((x) => x.claim_id)));
+    setExplored(pick.brief);
+    setTried(false);
+    document
+      .querySelector('#discover')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   const brief = {
     theme: theme.trim(),
@@ -409,10 +458,15 @@ export function Submit({
     setBusy(true);
     setError('');
     try {
-      const created = await api(StoredEntitySchema, `${base}/entities`, {
-        csrf: session.csrf_token,
-        body: { kind: 'search_brief', title: brief.theme, body: brief },
-      });
+      // An unedited exploration pick keeps its own brief (and its audited link to the
+      // exploration); any edit saves a new brief as before.
+      const created =
+        explored && stable(explored.body) === stable(brief)
+          ? explored
+          : await api(StoredEntitySchema, `${base}/entities`, {
+              csrf: session.csrf_token,
+              body: { kind: 'search_brief', title: brief.theme, body: brief },
+            });
       let runId = runChoice;
       if (runChoice === 'new') {
         const run = await api(StoredEntitySchema, `${base}/entities`, {
@@ -484,8 +538,9 @@ export function Submit({
     <section className="panel" aria-labelledby="sub-title">
       <h2 id="sub-title">Discover</h2>
       <p>
-        Two ways in: save a rough theme as a draft and plan it later, or fill in
-        the full brief under{' '}
+        Three ways in: let the studio explore your recorded evidence for
+        problems with no theme at all, save a rough theme as a draft and plan it
+        later, or fill in the full brief under{' '}
         <button
           type="button"
           className="text"
@@ -502,6 +557,12 @@ export function Submit({
         </button>{' '}
         to start a discovery run now.
       </p>
+      <Explore
+        key={`explore-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+        onUse={takePick}
+      />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
       <p>
@@ -511,6 +572,13 @@ export function Submit({
         claims you attach, with their recorded sources; the locator does not
         search the web.
       </p>
+      {explored && (
+        <p className="notice">
+          Filled from an Explore for me pick, with its cited claims attached.
+          Check every field and what each claim bears on before starting; if you
+          change the brief, it is saved as a new brief.
+        </p>
+      )}
       {workspace.record_mode === 'fixture' && (
         <p className="notice">
           Fixture workspace: the deterministic adapter answers from rules over
