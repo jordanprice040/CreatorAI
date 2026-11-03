@@ -3,7 +3,7 @@
     "check": "form before allow [on, connection, model, snapshot, per day]",
     "result": [
       true,
-      "b611fe5b-e217-437c-b221-6a9470751e1a",
+      "5bbfb16e-50dd-4737-a873-1d06c98373a4",
       "claude-sonnet-5-5",
       false,
       "7"
@@ -13,7 +13,7 @@
     "check": "form after allow",
     "result": [
       true,
-      "b611fe5b-e217-437c-b221-6a9470751e1a",
+      "5bbfb16e-50dd-4737-a873-1d06c98373a4",
       "claude-sonnet-5-5",
       false,
       "7"
@@ -23,7 +23,7 @@
     "check": "form after accepting caps",
     "result": [
       true,
-      "b611fe5b-e217-437c-b221-6a9470751e1a",
+      "5bbfb16e-50dd-4737-a873-1d06c98373a4",
       "claude-sonnet-5-5",
       false,
       "7"
@@ -47,12 +47,25 @@
       "text": "Claude 3/30API $0.00/$20.00",
       "changed": true,
       "same_address": true,
-      "ms_after_answer": 507
+      "ms_after_answer": 510
+    }
+  },
+  {
+    "check": "usage button after a background plan request (no write of its own)",
+    "result": {
+      "background_answer": {
+        "status": 200,
+        "state": "completed"
+      },
+      "before": "Claude 3/30API $0.00/$20.00",
+      "after": "Claude 4/30API $0.00/$20.00",
+      "changed": true,
+      "ms_after_write": 3475
     }
   },
   {
     "check": "card count after returning to Models",
-    "result": "2 of 7 chat answers used in the last 24 hours"
+    "result": "3 of 7 chat answers used in the last 24 hours"
   },
   {
     "check": "page errors",

@@ -7,13 +7,12 @@ import {
 } from '@creator/contracts';
 import { api, message, STUDIO_CHANGED } from './oversight.js';
 import { money } from './budgets.js';
+import { nextReadMs, watchAfterRead, WATCH_MS } from './usage-refresh.js';
 import './usage.css';
 
 // Runbook step 9: one glance at the limits that stop work. Plan requests are counted against
 // the studio's own caps exactly as admission counts them (rolling 24 hours); the provider's own
 // plan allowance is not visible to the app, so it is never shown as a number.
-
-const REFRESH_MS = 60_000;
 
 const PROVIDER: Record<
   PlanConnectionUsage['kind'],
@@ -254,7 +253,10 @@ export function UsagePanel({
   );
 }
 
-/** The top bar's usage button; it refreshes every minute, on focus and on page changes. */
+/**
+ * The top bar's usage button; it reads every minute, on focus, on page changes, and every few
+ * seconds after a write here or while a plan request is running.
+ */
 export function UsageIndicator({ workspace }: { workspace: Workspace }) {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [error, setError] = useState('');
@@ -262,27 +264,47 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
   const ref = useRef<HTMLDetailsElement>(null);
   // Only the newest read may show, so a slow older answer cannot put back an older count.
   const seq = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Until when to read every few seconds (usage-refresh.ts).
+  const watchUntil = useRef(0);
   const load = useCallback(() => {
     const mine = ++seq.current;
+    clearTimeout(timer.current);
     api(UsageSummarySchema, `workspaces/${workspace.id}/usage`)
       .then((u) => {
         if (mine !== seq.current) return;
+        watchUntil.current = watchAfterRead(
+          u.plans,
+          Date.now(),
+          watchUntil.current,
+        );
         setUsage(u);
         setError('');
         setNow(Date.now());
       })
       .catch((e: unknown) => {
         if (mine === seq.current) setError(message(e));
+      })
+      .finally(() => {
+        // Each read schedules the next one; a newer read or unmount cancels it.
+        if (mine !== seq.current) return;
+        timer.current = setTimeout(
+          load,
+          nextReadMs(Date.now(), watchUntil.current, document.hidden),
+        );
       });
   }, [workspace.id]);
   useEffect(() => {
     setUsage(null);
+    watchUntil.current = 0;
     load();
-    const timer = setInterval(load, REFRESH_MS);
-    // Any write in the app (a chat answer, a build, a qualification) may have used a plan
-    // request, so read again shortly after one ends instead of waiting for the minute.
+    // A write in this window (a chat answer, starting a build or a qualification) may use plan
+    // requests now or, for work that carries on on the server, over the next while: read
+    // shortly after it ends, then keep watching (usage-refresh.ts). Requests made from the CLI
+    // or another window show at the next minute's read, or sooner if one is seen running.
     let soon: ReturnType<typeof setTimeout> | undefined;
     const changed = () => {
+      watchUntil.current = Math.max(watchUntil.current, Date.now() + WATCH_MS);
       clearTimeout(soon);
       soon = setTimeout(load, 300);
     };
@@ -290,7 +312,7 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
     window.addEventListener('hashchange', load);
     window.addEventListener(STUDIO_CHANGED, changed);
     return () => {
-      clearInterval(timer);
+      clearTimeout(timer.current);
       clearTimeout(soon);
       seq.current++;
       window.removeEventListener('focus', load);

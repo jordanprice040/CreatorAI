@@ -6,6 +6,8 @@
 //    saved settings.
 // 2. The top bar's usage button counts a chat answer within a few seconds, with no page change,
 //    and the card's "N of M chat answers used" count is current when Models is shown again.
+// 3. A plan request started outside the app's own calls a little after a write (as a build or
+//    qualification does on the server) is counted within seconds (PR #127 review L-1).
 // Usage: node tracking/evidence/chat-rough-edges/walk.mjs [base-url] [out-name]
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -85,6 +87,15 @@ log('card count before answers', await countText());
 const pill = () => p.textContent('.usage-summary');
 await p.goto(chatUrl);
 await p.waitForSelector('#chat-input');
+async function ask0(page, text) {
+  const n = await page.$$eval('.chat-turn', (t) => t.length);
+  await page.fill('#chat-input', text);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(
+    (k) => document.querySelectorAll('.chat-turn').length > k,
+    n,
+  );
+}
 async function ask(text, n) {
   await p.fill('#chat-input', text);
   await p.keyboard.press('Enter');
@@ -113,6 +124,56 @@ log('usage button after second answer (same page, no hash change)', {
   ms_after_answer: Date.now() - t0,
 });
 await p.screenshot({ path: join(shots, `${name}-usage-after-answer.png`) });
+
+// 3. (review L-1) Plan work that starts on the server after the click: a rule question is a
+// write here (no answer), then 2 s later a plan request is made outside the app's own calls
+// (as a build or qualification would on the server). The button counts it within seconds.
+await ask0(p, "What's next?");
+const before3 = await pill();
+const t3 = Date.now();
+await p.waitForTimeout(2000);
+const bg = await p.evaluate(async () => {
+  const ws = new URLSearchParams(location.hash.split('?')[1]).get('ws');
+  const s = await (await fetch('/api/auth/session')).json();
+  const list = await (await fetch(`/api/workspaces/${ws}/chats`)).json();
+  const c = list[0].id;
+  const h = {
+    'Content-Type': 'application/json',
+    'X-CSRF-Token': s.csrf_token,
+  };
+  // A new note, then its answer: each message is answered once, so a fresh one is needed.
+  const m = await (
+    await fetch(`/api/workspaces/${ws}/chats/${c}/messages`, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        client_id: crypto.randomUUID(),
+        text: 'Background question asked outside the app',
+      }),
+    })
+  ).json();
+  const r = await fetch(
+    `/api/workspaces/${ws}/chats/${c}/messages/${m.id}/answer`,
+    {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ client_id: crypto.randomUUID() }),
+    },
+  );
+  return { status: r.status, state: (await r.json()).state };
+});
+let after3 = before3;
+while (Date.now() - t3 < 12000 && after3 === before3) {
+  await p.waitForTimeout(250);
+  after3 = await pill();
+}
+log('usage button after a background plan request (no write of its own)', {
+  background_answer: bg,
+  before: before3,
+  after: after3,
+  changed: after3 !== before3,
+  ms_after_write: Date.now() - t3,
+});
 
 // The card's own count is current when Models is shown again (pages stay mounted).
 await p.evaluate(
