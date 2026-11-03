@@ -7,7 +7,12 @@ import {
 } from '@creator/contracts';
 import { api, message, STUDIO_CHANGED } from './oversight.js';
 import { money } from './budgets.js';
-import { nextReadMs, watchAfterRead, WATCH_MS } from './usage-refresh.js';
+import {
+  NO_WATCH,
+  nextReadMs,
+  watchAfterRead,
+  watchAfterWrite,
+} from './usage-refresh.js';
 import './usage.css';
 
 // Runbook step 9: one glance at the limits that stop work. Plan requests are counted against
@@ -255,7 +260,7 @@ export function UsagePanel({
 
 /**
  * The top bar's usage button; it reads every minute, on focus, on page changes, and every few
- * seconds after a write here or while a plan request is running.
+ * seconds for a while after a write here.
  */
 export function UsageIndicator({ workspace }: { workspace: Workspace }) {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
@@ -266,18 +271,14 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Until when to read every few seconds (usage-refresh.ts).
-  const watchUntil = useRef(0);
+  const watch = useRef(NO_WATCH);
   const load = useCallback(() => {
     const mine = ++seq.current;
     clearTimeout(timer.current);
     api(UsageSummarySchema, `workspaces/${workspace.id}/usage`)
       .then((u) => {
         if (mine !== seq.current) return;
-        watchUntil.current = watchAfterRead(
-          u.plans,
-          Date.now(),
-          watchUntil.current,
-        );
+        watch.current = watchAfterRead(u.plans, Date.now(), watch.current);
         setUsage(u);
         setError('');
         setNow(Date.now());
@@ -290,21 +291,21 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
         if (mine !== seq.current) return;
         timer.current = setTimeout(
           load,
-          nextReadMs(Date.now(), watchUntil.current, document.hidden),
+          nextReadMs(Date.now(), watch.current, document.hidden),
         );
       });
   }, [workspace.id]);
   useEffect(() => {
     setUsage(null);
-    watchUntil.current = 0;
+    watch.current = NO_WATCH;
     load();
     // A write in this window (a chat answer, starting a build or a qualification) may use plan
     // requests now or, for work that carries on on the server, over the next while: read
-    // shortly after it ends, then keep watching (usage-refresh.ts). Requests made from the CLI
-    // or another window show at the next minute's read, or sooner if one is seen running.
+    // shortly after it ends, then keep watching, at most 10 minutes (usage-refresh.ts).
+    // Requests made from the CLI or another window show at the next minute's read.
     let soon: ReturnType<typeof setTimeout> | undefined;
     const changed = () => {
-      watchUntil.current = Math.max(watchUntil.current, Date.now() + WATCH_MS);
+      watch.current = watchAfterWrite(Date.now(), watch.current);
       clearTimeout(soon);
       soon = setTimeout(load, 300);
     };

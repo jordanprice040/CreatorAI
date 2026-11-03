@@ -55,6 +55,17 @@ log(
   await formState(),
 );
 await p.click('text=Allow my private text on this connection');
+// Re-review N-A: while it is still shown (before the new connection version is read), the
+// button cannot be clicked again.
+log(
+  'allow button right after the click (gone, or disabled)',
+  await p.evaluate(() => {
+    const b = [...document.querySelectorAll('.chat-problems button')].find(
+      (x) => x.textContent?.includes('Allow my private text'),
+    );
+    return b ? (b.disabled ? 'disabled' : 'ENABLED') : 'gone';
+  }),
+);
 await p.waitForFunction(
   () =>
     ![...document.querySelectorAll('.chat-problems li')].some((l) =>

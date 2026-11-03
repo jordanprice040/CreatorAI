@@ -3,17 +3,21 @@
     "check": "form before allow [on, connection, model, snapshot, per day]",
     "result": [
       true,
-      "5bbfb16e-50dd-4737-a873-1d06c98373a4",
+      "f933f086-f76a-4499-b647-efc2043b2cc5",
       "claude-sonnet-5-5",
       false,
       "7"
     ]
   },
   {
+    "check": "allow button right after the click (gone, or disabled)",
+    "result": "disabled"
+  },
+  {
     "check": "form after allow",
     "result": [
       true,
-      "5bbfb16e-50dd-4737-a873-1d06c98373a4",
+      "f933f086-f76a-4499-b647-efc2043b2cc5",
       "claude-sonnet-5-5",
       false,
       "7"
@@ -23,7 +27,7 @@
     "check": "form after accepting caps",
     "result": [
       true,
-      "5bbfb16e-50dd-4737-a873-1d06c98373a4",
+      "f933f086-f76a-4499-b647-efc2043b2cc5",
       "claude-sonnet-5-5",
       false,
       "7"
@@ -47,7 +51,7 @@
       "text": "Claude 3/30API $0.00/$20.00",
       "changed": true,
       "same_address": true,
-      "ms_after_answer": 510
+      "ms_after_answer": 508
     }
   },
   {
@@ -60,7 +64,7 @@
       "before": "Claude 3/30API $0.00/$20.00",
       "after": "Claude 4/30API $0.00/$20.00",
       "changed": true,
-      "ms_after_write": 3475
+      "ms_after_write": 3525
     }
   },
   {

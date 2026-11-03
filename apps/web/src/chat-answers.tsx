@@ -113,6 +113,9 @@ export function ChatAnswersCard({
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
   const [busy, setBusy] = useState(false);
+  // The connection version "Allow" was sent from: until a newer one is read, a second click
+  // would only be refused as out of date (PR #127 re-review N-A).
+  const [allowedFrom, setAllowedFrom] = useState<string | null>(null);
 
   // Only the newest connections read may show (PR #127 review N-3).
   const detailsSeq = useRef(0);
@@ -242,6 +245,7 @@ export function ChatAnswersCard({
       // unsaved connection choice back to the saved one (plan-backed chat rough edge 1).
       // The page's own reload changes `stamp` (the connection's version moved), which reads
       // the connections again, so only read them here when nobody else will (review N-3).
+      setAllowedFrom(`${c.id}:${c.version}`);
       if (onChanged) onChanged();
       else await loadDetails();
     } catch (e) {
@@ -375,7 +379,12 @@ export function ChatAnswersCard({
                 <button
                   type="button"
                   className="secondary"
-                  disabled={busy || !session}
+                  disabled={
+                    busy ||
+                    !session ||
+                    allowedFrom ===
+                      `${chosen.connection.id}:${chosen.connection.version}`
+                  }
                   onClick={() => void allowPrivate()}
                 >
                   Allow my private text on this connection

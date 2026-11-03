@@ -7,16 +7,20 @@ import ts from 'typescript';
 // work may still be running after the click that started it, and the chat answers card shows a
 // fresh count against the limit from the same read. usage-refresh.ts has no imports.
 type Settings = { used_24h: number; daily_limit: number; version: number };
+type Watch = { until: number; cap: number };
 type Refresh = {
   REFRESH_MS: number;
   FAST_MS: number;
   WATCH_MS: number;
-  nextReadMs: (now: number, watchUntil: number, hidden: boolean) => number;
+  MAX_WATCH_MS: number;
+  NO_WATCH: Watch;
+  nextReadMs: (now: number, w: Watch, hidden: boolean) => number;
+  watchAfterWrite: (now: number, w: Watch) => Watch;
   watchAfterRead: (
     plans: { in_flight: number }[],
     now: number,
-    watchUntil: number,
-  ) => number;
+    w: Watch,
+  ) => Watch;
   withFreshCount: (prev: Settings | null, fresh: Settings) => Settings;
 };
 async function load(): Promise<Refresh> {
@@ -36,26 +40,50 @@ test('usage reads stay fast while a background plan request runs, then fall back
   const r = await load();
   assert.ok(r.FAST_MS < r.REFRESH_MS);
   const t0 = 1_000_000;
-  // A write in this window starts a watch; nothing running is seen yet (a build's first request
-  // has not started), but reads stay fast for the watch.
-  let until = t0 + r.WATCH_MS;
-  assert.equal(r.nextReadMs(t0 + 300, until, false), r.FAST_MS);
+  const running = [{ in_flight: 0 }, { in_flight: 1 }];
+  // Idle: a running request seen at the minute's read (CLI, another window) starts nothing.
+  assert.deepEqual(r.watchAfterRead(running, t0, r.NO_WATCH), r.NO_WATCH);
+  assert.equal(r.nextReadMs(t0, r.NO_WATCH, false), r.REFRESH_MS);
+  // A write in this window starts a watch; nothing is running yet (a build's first request has
+  // not started), but reads stay fast for the watch.
+  let w = r.watchAfterWrite(t0, r.NO_WATCH);
+  assert.equal(r.nextReadMs(t0 + 300, w, false), r.FAST_MS);
   // A read sees a request running (a build, or an answer the browser stopped waiting for): the
   // watch extends past the original window, so the request's end is counted within seconds.
   const seen = t0 + r.WATCH_MS - 1_000;
-  until = r.watchAfterRead([{ in_flight: 0 }, { in_flight: 1 }], seen, until);
-  assert.equal(until, seen + r.WATCH_MS);
-  assert.equal(r.nextReadMs(t0 + r.WATCH_MS + 5_000, until, false), r.FAST_MS);
-  // Nothing running: the watch is not extended, and once over reads go back to every minute.
-  assert.equal(r.watchAfterRead([{ in_flight: 0 }], until - 1, until), until);
-  assert.equal(r.nextReadMs(until, until, false), r.REFRESH_MS);
+  w = r.watchAfterRead(running, seen, w);
+  assert.equal(w.until, seen + r.WATCH_MS);
+  assert.equal(r.nextReadMs(t0 + r.WATCH_MS + 5_000, w, false), r.FAST_MS);
+  // Nothing running: not extended, and once over, reads go back to every minute.
+  assert.deepEqual(r.watchAfterRead([{ in_flight: 0 }], w.until - 1, w), w);
+  assert.equal(r.nextReadMs(w.until, w, false), r.REFRESH_MS);
   // A hidden window never reads fast.
-  assert.equal(r.nextReadMs(t0, until, true), r.REFRESH_MS);
-  // A watch already further out is never shortened by a later read.
-  assert.equal(
-    r.watchAfterRead([{ in_flight: 2 }], t0, t0 + 10 * r.WATCH_MS),
-    t0 + 10 * r.WATCH_MS,
-  );
+  assert.equal(r.nextReadMs(t0, w, true), r.REFRESH_MS);
+});
+
+test('a request stuck in flight cannot keep the watch going past its cap', async () => {
+  const r = await load();
+  const t0 = 1_000_000;
+  const stuck = [{ in_flight: 1 }];
+  let w = r.watchAfterWrite(t0, r.NO_WATCH);
+  // Every fast read sees the stuck request; the watch stops at the cap all the same.
+  let now = t0;
+  let reads = 0;
+  while (r.nextReadMs(now, w, false) === r.FAST_MS && reads < 10_000) {
+    now += r.FAST_MS;
+    w = r.watchAfterRead(stuck, now, w);
+    reads++;
+  }
+  assert.ok(now <= t0 + r.MAX_WATCH_MS + r.FAST_MS);
+  assert.ok(reads <= r.MAX_WATCH_MS / r.FAST_MS + 1);
+  // Later minute reads still see it running, but no new watch starts without a write.
+  assert.deepEqual(r.watchAfterRead(stuck, now + r.REFRESH_MS, w), w);
+  assert.equal(r.nextReadMs(now + r.REFRESH_MS, w, false), r.REFRESH_MS);
+  // A new write starts a new, again capped, watch.
+  const later = now + 5 * r.REFRESH_MS;
+  const w2 = r.watchAfterWrite(later, w);
+  assert.equal(w2.cap, later + r.MAX_WATCH_MS);
+  assert.equal(r.nextReadMs(later + 1, w2, false), r.FAST_MS);
 });
 
 test('the chat card takes count and limit from the fresh read but keeps its version', async () => {
