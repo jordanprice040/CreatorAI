@@ -827,6 +827,33 @@ export function Models({
                 : 'Withdraw credits confirmation'}
             </button>
           )}
+          {owner && c.quota.state === 'exhausted' && (
+            <fieldset className="quota-recheck">
+              <legend>Plan usage limit reached</legend>
+              <p>
+                {claude ? 'Claude' : 'ChatGPT'} reported that this plan's usage
+                limit was reached
+                {c.quota.observed_at
+                  ? ` on ${new Date(c.quota.observed_at).toLocaleString()}`
+                  : ''}
+                , so every request on this connection is paused. Once your{' '}
+                {claude ? 'Claude usage settings' : 'ChatGPT usage settings'}{' '}
+                show the limit has reset, allow requests again. The next request
+                records the plan's answer, so if the limit is still reached it
+                pauses again.
+              </p>
+              <button
+                disabled={busy || !session}
+                onClick={() =>
+                  void act(`${p}/quota-recheck`, {
+                    expected_version: c.version,
+                  })
+                }
+              >
+                Usage has reset: allow requests again
+              </button>
+            </fieldset>
+          )}
           <h4>Model access</h4>
           {detail.model_access.length ? (
             <ul>

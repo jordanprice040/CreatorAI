@@ -701,6 +701,7 @@ function App() {
       case 'catalog':
         return (
           <Catalog
+            session={s}
             workspace={workspace}
             focus={pageRoute.id}
             onFocus={focus}

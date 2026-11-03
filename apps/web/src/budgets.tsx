@@ -31,6 +31,8 @@ import {
   samePricing,
 } from './pricing-fields.js';
 import { RecordCharge } from './charge.js';
+import { budgetCloseBlocker, REASON_MAX } from './owner-actions.js';
+import { ReasonForm } from './reason-form.js';
 
 /**
  * Exact decimal display of nano-USD: every non-zero digit is kept, trailing zeros past the
@@ -149,6 +151,8 @@ export function Budgets({
   const [last, setLast] = useState<BrokerCallResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [charging, setCharging] = useState('');
+  // The budget whose "Close this budget…" form is open (was `pnpm cli budget-close` only).
+  const [closing, setClosing] = useState('');
   async function load() {
     if (!workspace) return;
     setError('');
@@ -363,7 +367,51 @@ export function Budgets({
                   {e.ends_at
                     ? ` · ${when(e.starts_at!)} – ${when(e.ends_at)}`
                     : ''}
+                  {e.closed_at ? ` · closed ${when(e.closed_at)}` : ''}
                 </p>
+                {/* Closing is owner-only on the server, so only the owner is offered it. */}
+                {current.role === 'owner' &&
+                  e.status !== 'closed' &&
+                  (closing === e.id ? (
+                    <ReasonForm
+                      id={`close-${e.id}`}
+                      label="Why close this budget"
+                      placeholder="e.g. the pilot is finished"
+                      note={`No new call can draw on a closed budget. ${
+                        e.parent_id
+                          ? 'What it has not spent goes back to its parent budget.'
+                          : 'What it has not spent is no longer available.'
+                      } This can't be undone; fund a new budget if you need one later.`}
+                      confirm="Close this budget"
+                      busyLabel="Closing…"
+                      keep="Keep it open"
+                      max={REASON_MAX.budget}
+                      onCancel={() => setClosing('')}
+                      onConfirm={async (reason) => {
+                        try {
+                          await api(
+                            EnvelopeSchema,
+                            `workspaces/${workspace}/budgets/${e.id}/close`,
+                            {
+                              csrf: session.csrf_token,
+                              body: { expected_version: e.version, reason },
+                            },
+                          );
+                        } catch (err) {
+                          return message(err);
+                        }
+                        setClosing('');
+                        await load();
+                        return null;
+                      }}
+                    />
+                  ) : budgetCloseBlocker(e) ? (
+                    <p className="small">{budgetCloseBlocker(e)}</p>
+                  ) : (
+                    <button className="text" onClick={() => setClosing(e.id)}>
+                      Close this budget…
+                    </button>
+                  ))}
               </article>
             ))
           )}

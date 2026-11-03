@@ -1,0 +1,15 @@
+workspace aa23a1a9-50d0-4b5a-9ecf-31962093d82d
+PASS plan connection created (ok)
+PASS seeded problem, supported claim, discovery
+PASS Models: reset box gone after the click
+PASS Models: quota state is now unknown
+PASS Budgets: blank reason refused before sending
+PASS Budgets: badge reads closed
+PASS Budgets: server says closed
+PASS Library: server says archived
+PASS Library: no Archive button on an archived record
+PASS Evidence: one fewer Retract button
+PASS Evidence: server marks the row retracted and not counted
+PASS Runs: packet summary shown
+PASS Phone width: no horizontal overflow on Budgets
+PASS no page errors
