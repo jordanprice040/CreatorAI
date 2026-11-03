@@ -15,7 +15,7 @@ import {
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, when, words } from './oversight.js';
+import { api, ApiError, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { ShowOlder, useOlder } from './older.js';
 import { runLabel } from './labels.js';
@@ -31,7 +31,12 @@ import {
   samePricing,
 } from './pricing-fields.js';
 import { RecordCharge } from './charge.js';
-import { budgetCloseBlocker, REASON_MAX } from './owner-actions.js';
+import {
+  budgetCloseBlocker,
+  REASON_MAX,
+  STALE_CODES,
+  STALE_NOTE,
+} from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 
 /**
@@ -381,7 +386,7 @@ export function Budgets({
                         e.parent_id
                           ? 'What it has not spent goes back to its parent budget.'
                           : 'What it has not spent is no longer available.'
-                      } This can't be undone; fund a new budget if you need one later.`}
+                      } This can't be undone; fund a new budget if you need one later. The studio records that you gave a reason, not its words.`}
                       confirm="Close this budget"
                       busyLabel="Closing…"
                       keep="Keep it open"
@@ -398,6 +403,15 @@ export function Budgets({
                             },
                           );
                         } catch (err) {
+                          // PR #129 review L-3: read the budget again so a retry sends its
+                          // current version instead of failing the same way every time.
+                          if (
+                            err instanceof ApiError &&
+                            STALE_CODES.includes(err.code)
+                          ) {
+                            await load();
+                            return message(err) + STALE_NOTE;
+                          }
                           return message(err);
                         }
                         setClosing('');

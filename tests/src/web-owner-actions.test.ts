@@ -23,6 +23,8 @@ type OwnerActions = {
   }) => string | null;
   ARCHIVABLE_KINDS: readonly string[];
   canArchive: (e: { kind: string; status: string }, role: string) => boolean;
+  archiveWarning: (kind: string) => string;
+  STALE_CODES: readonly string[];
 };
 
 // owner-actions.ts has no imports, so it loads without a browser or stubs.
@@ -131,4 +133,20 @@ test('the Library offers archiving only for hand-curated active records to membe
     'humility_review',
   ])
     assert.ok(!canArchive({ kind: k, status: 'active' }, 'owner'), k);
+});
+
+test('archiving a problem or option warns that its Decide and Build path stops', async () => {
+  const { archiveWarning, STALE_CODES } = await load();
+  assert.match(archiveWarning('problem'), /Decide stops/);
+  assert.match(
+    archiveWarning('alternative'),
+    /selecting it and writing its spec/,
+  );
+  for (const k of ['idea', 'assumption', 'search_brief', 'theme_intent'])
+    assert.equal(archiveWarning(k), '', k);
+  // The refusals that mean the record on screen is out of date and is read again (review L-3).
+  assert.deepEqual([...STALE_CODES].sort(), [
+    'INVALID_TRANSITION',
+    'VERSION_CONFLICT',
+  ]);
 });

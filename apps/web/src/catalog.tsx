@@ -14,7 +14,7 @@ import {
   type StoredLink,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, words } from './oversight.js';
+import { api, ApiError, message, words } from './oversight.js';
 import {
   Empty,
   Stamp,
@@ -24,7 +24,13 @@ import {
   useLoad,
   type View,
 } from './ui.js';
-import { canArchive, REASON_MAX } from './owner-actions.js';
+import {
+  archiveWarning,
+  canArchive,
+  REASON_MAX,
+  STALE_CODES,
+  STALE_NOTE,
+} from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
 
 const LineageSchema = z.array(
@@ -373,7 +379,7 @@ export function Catalog({
                   id={`archive-${e.id}`}
                   label={`Why archive this ${words(e.kind)}`}
                   placeholder="e.g. duplicate of a newer problem"
-                  note="An archived record leaves the pickers and lists that show active records, here and on the other pages. Its versions, links and history are kept. It can't be made active again."
+                  note={`An archived record leaves the pickers and lists that show active records, here and on the other pages. Its versions, links and history are kept. It can't be made active again.${archiveWarning(e.kind)}`}
                   confirm="Archive it"
                   busyLabel="Archiving…"
                   keep="Keep it"
@@ -390,6 +396,25 @@ export function Catalog({
                         },
                       );
                     } catch (err) {
+                      // PR #129 review L-3: read the record again so a retry sends its
+                      // current version (or the form goes away if it is no longer active).
+                      if (
+                        err instanceof ApiError &&
+                        STALE_CODES.includes(err.code)
+                      ) {
+                        try {
+                          setDetail(
+                            await api(
+                              EntityDetailSchema,
+                              `${base}/entities/${e.id}`,
+                            ),
+                          );
+                        } catch {
+                          // The refusal below already says what happened.
+                        }
+                        list.refresh();
+                        return message(err) + STALE_NOTE;
+                      }
                       return message(err);
                     }
                     setArchiving(false);

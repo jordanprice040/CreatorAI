@@ -5,6 +5,17 @@
 /** The server's reason limits: budget close 200 characters, archive 500, retract 500. */
 export const REASON_MAX = { budget: 200, archive: 500, retract: 500 } as const;
 
+/**
+ * Refusals that mean the record on screen is out of date (changed or closed elsewhere). The
+ * forms read it again, so the next confirm sends the current version (PR #129 review L-3).
+ */
+export const STALE_CODES: readonly string[] = [
+  'VERSION_CONFLICT',
+  'INVALID_TRANSITION',
+];
+export const STALE_NOTE =
+  ' It has been read again: check it, then confirm again if you still want to.';
+
 /** A typed reason, trimmed, or why it can't be sent. */
 export function reasonCheck(
   raw: string,
@@ -54,6 +65,19 @@ export const ARCHIVABLE_KINDS: readonly string[] = [
   'search_brief',
   'theme_intent',
 ];
+
+/**
+ * Extra warning for kinds the main path builds on (PR #129 review L-1): the selection report,
+ * selecting an option and writing its spec all refuse a problem or option that is no longer
+ * active, and archiving can't be undone, so that path stops for good.
+ */
+export function archiveWarning(kind: string): string {
+  if (kind === 'problem')
+    return ' Decide stops working for this problem: comparing and selecting its options need an active problem, so you would have to add the problem again.';
+  if (kind === 'alternative')
+    return ' If this option is selected, or you might select it, that stops: selecting it and writing its spec need an active option, so you would have to add it again.';
+  return '';
+}
 
 /** Whether the Library offers "Archive" for this record and this member. */
 export function canArchive(

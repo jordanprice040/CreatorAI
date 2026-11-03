@@ -429,7 +429,13 @@ export function Evidence({
                 {evidence.rows.map((r) => (
                   <li
                     key={r.support.id}
-                    className={r.counted ? '' : 'retracted'}
+                    // PR #129 review N-1: the row is not struck through while its retract
+                    // form is open, so the form reads normally.
+                    className={
+                      r.counted || retracting === r.support.id
+                        ? ''
+                        : 'retracted'
+                    }
                   >
                     <span className="relation">{words(r.support.stance)}</span>{' '}
                     {r.support.support_type

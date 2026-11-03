@@ -126,6 +126,9 @@ export function Models({
   const [detail, setDetail] = useState<DetailT | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // "Usage has reset" error and request, per connection (PR #129 review N-2).
+  const [quotaError, setQuotaError] = useState({ id: '', text: '' });
+  const [quotaBusy, setQuotaBusy] = useState(false);
   const [checkedOn, setCheckedOn] = useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -843,15 +846,27 @@ export function Models({
                 pauses again.
               </p>
               <button
-                disabled={busy || !session}
-                onClick={() =>
-                  void act(`${p}/quota-recheck`, {
-                    expected_version: c.version,
-                  })
-                }
+                disabled={busy || quotaBusy || !session}
+                onClick={() => {
+                  const id = c.id;
+                  setQuotaError({ id: '', text: '' });
+                  setQuotaBusy(true);
+                  void act(
+                    `${p}/quota-recheck`,
+                    { expected_version: c.version },
+                    5000,
+                    (text) => setQuotaError({ id, text }),
+                  ).finally(() => setQuotaBusy(false));
+                }}
               >
                 Usage has reset: allow requests again
               </button>
+              {/* PR #129 review N-2: a refusal shows here, next to the button. */}
+              {quotaError.id === c.id && quotaError.text && (
+                <p className="error" role="alert">
+                  {quotaError.text}
+                </p>
+              )}
             </fieldset>
           )}
           <h4>Model access</h4>

@@ -162,6 +162,30 @@ await page.goto(`${WEB}/#/catalog?ws=${ws}&id=${problem.id}`);
 await page.getByRole('button', { name: 'Archive…' }).click();
 await page.getByLabel('Why archive this problem').fill('Duplicate of a newer problem (walk).');
 await shot('04-library-archive-form.png');
+// Review L-3: the record changes elsewhere while the form is open. The first confirm is refused
+// and the record is read again, so the second confirm (same typed reason) goes through.
+await post(`${base}/entities/${problem.id}/revisions`, {
+  expected_version: problem.version,
+  title: `${problem.title} (revised elsewhere)`,
+  body: problem.body,
+  reason: 'Walk: changed while the archive form was open.',
+  corrects_version: null,
+});
+await page.getByRole('button', { name: 'Archive it' }).click();
+const stale = page.locator('.reason-form [role=alert]');
+await stale.waitFor({ timeout: 5000 });
+check(
+  (await stale.innerText()).includes('It has been read again'),
+  'Library: a stale version is refused and the record read again',
+);
+check(
+  (await page.getByLabel('Why archive this problem').inputValue()).includes('Duplicate'),
+  'Library: the typed reason is kept',
+);
+check(
+  (await page.locator('.reason-form .small').innerText()).includes('Decide stops'),
+  'Library: archiving a problem warns that Decide stops',
+);
 await page.getByRole('button', { name: 'Archive it' }).click();
 await page.getByText('Archived. Set Status').waitFor({ timeout: 5000 });
 const archived = await get(`${base}/entities/${problem.id}`);

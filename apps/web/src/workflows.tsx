@@ -83,7 +83,13 @@ export function Workflows({
     packet: z.infer<typeof EvidencePacketSchema>;
     packet_hash: string;
   } | null>(null);
-  const [packetError, setPacketError] = useState('');
+  // Keyed by workflow like `packet`, so an error never shows under another discovery
+  // (PR #129 review L-4); `packetBusy` holds the one request in flight (N-3).
+  const [packetError, setPacketError] = useState<{
+    workflow: string;
+    text: string;
+  } | null>(null);
+  const [packetBusy, setPacketBusy] = useState('');
   const base = `workspaces/${workspace}`;
 
   async function load() {
@@ -474,27 +480,38 @@ export function Workflows({
                   ) : (
                     <button
                       className="secondary"
+                      disabled={packetBusy === wf.id}
                       onClick={() => {
-                        setPacketError('');
                         const id = wf.id;
+                        if (packetBusy) return;
+                        setPacketError(null);
+                        setPacketBusy(id);
                         void api(
                           z.strictObject({
                             packet: EvidencePacketSchema,
                             packet_hash: z.string(),
                           }),
                           `${base}/workflows/${id}/packet`,
-                        ).then(
-                          (p) => setPacket({ workflow: id, ...p }),
-                          (err: unknown) => setPacketError(message(err)),
-                        );
+                        )
+                          .then(
+                            (p) => setPacket({ workflow: id, ...p }),
+                            (err: unknown) =>
+                              setPacketError({
+                                workflow: id,
+                                text: message(err),
+                              }),
+                          )
+                          .finally(() => setPacketBusy(''));
                       }}
                     >
-                      Show the evidence packet
+                      {packetBusy === wf.id
+                        ? 'Reading the packet…'
+                        : 'Show the evidence packet'}
                     </button>
                   )}
-                  {packetError && (
+                  {packetError?.workflow === wf.id && (
                     <p className="error" role="alert">
-                      {packetError}
+                      {packetError.text}
                     </p>
                   )}
                 </>

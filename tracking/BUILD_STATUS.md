@@ -15,6 +15,16 @@ Checks run: new `tests/src/web-owner-actions.test.ts` pins each form's reason li
 
 Limits and still CLI-only: stuck plan request reconcile (being handled with chat's stuck requests), workspace members (by user id only), records revise/link, Search's semantic search, saved queries, audit questions and lineage export/verify, payment events, payout reconcile and buyer access check, model routing and context tooling, and the study tools (parked). Not run on the installed app.
 
+Review fixes (fresh review `/mnt/project-files/reviews/PR129_OWNER_ACTIONS_REVIEW_2026-11-03.md`, no Medium or above; Jordan asked for the Lows):
+
+- L-1: archiving a problem or an option now warns, in the form, that its Decide and Build path stops for good (the selection report, selecting and writing a spec refuse an inactive problem or option, and archive can't be undone).
+- L-2: the budget-close form says the studio records that a reason was given, not its words (the server keeps only `reason_given`, as audit payloads hold no content).
+- L-3: a version conflict or "already closed/archived" refusal reads the budget or record again, keeps the typed reason and says so, so the next confirm sends the current version instead of failing the same way until the page is left.
+- L-4: the evidence-packet error is kept per discovery and no longer shows under another one.
+- Nits: N-1 the evidence row is not struck through while its retract form is open; N-2 a "Usage has reset" refusal shows next to its button, per connection; N-3 "Show the evidence packet" sends one request at a time and says it is reading. N-4 (component-level role tests) is not done: the walk covers the owner, the pure rules cover roles, and there is no browser harness for a second member yet.
+
+Checks: `web-owner-actions.test.ts` gains the archive warning and stale-refusal codes. The walk now revises the problem through the API while its archive form is open: the first confirm is refused with "It has been read again", the typed reason is kept, the note warns that Decide stops, and the second confirm archives it; 17 checks pass, no page errors. Full `pnpm test:db` on PostgreSQL 16: 718 tests, 685 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
+
 ## Chat delete timeout follow-up (PR #124 timeout review) — November 3, 2026
 
 Review `/mnt/project-files/reviews/PR124_DELETE_TIMEOUT_REVIEW_2026-11-03.md` (no Medium or above) of the merge that made chat delete follow ADR-0062's stale point. Jordan asked for the fixes.
