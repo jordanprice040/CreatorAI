@@ -1,3 +1,20 @@
+## Chat delete timeout follow-up (PR #124 timeout review) — November 3, 2026
+
+Review `/mnt/project-files/reviews/PR124_DELETE_TIMEOUT_REVIEW_2026-11-03.md` (no Medium or above) of the merge that made chat delete follow ADR-0062's stale point. Jordan asked for the fixes.
+
+What now works:
+
+- L-1: a pending chat answer this studio is still waiting on blocks deleting its conversation whatever its age (see the #126 review fix below), so lowering a connection's request timeout mid-request no longer lets a delete through before the reply lands. If a conversation is gone anyway when a reply comes back, the person sees "The conversation was deleted while this answer was on its way, so the answer was not kept. The plan request is still counted." instead of "Chat answer not found."
+- N-1: a new test covers both sides: refused while this studio waits on the answer with the timeout lowered to 1 s, allowed after a restart once the answer is past timeout + 15 minutes even with its request stuck in flight (the pending answer goes with it, the plan request stays, a late finish gets the new message).
+- N-2: the stale point is one SQL fragment (`CHAT_ANSWER_STALE_POINT` in `packages/db/src/chat-store.ts`) used by both the close-as-failed sweep and the delete check.
+- N-3: ADR-0057's "15 minutes" points to ADR-0062/ADR-0063; ADR-0063 records the in-flight rule.
+
+No migration, no new ADR.
+
+Review of PR #126 (`/mnt/project-files/reviews/PR126_CHAT_DELETE_TIMEOUT_REVIEW_2026-11-03.md`, no Medium or above) fixes: L-1 the in-flight check made a request left in flight by a stopped studio block deleting forever (reconcile is CLI-only). Now the store remembers, in memory, the chat answers this studio process has begun and not finished; those block the delete whatever their age, and after a restart only the timeout rule applies. N-1 the close-as-failed sweep skips the same answers, so it can't close an answer this studio still waits on (a second ask returns it). N-2 comment says "today". N-3 the test now covers a stuck in-flight request after a restart (allowed); the stopped-studio test begins its answer on a separate store. The new test fails without the live-answer check.
+
+Checks: see the PR (GitHub Actions minutes are exhausted; verified locally on PostgreSQL 16).
+
 ## Refresh pages on return and keep the newest records — November 3, 2026
 
 Audit items L-10 and L-9 (`docs/FULL_AUDIT_2026-11-02.md`). No migration, no ADR.
