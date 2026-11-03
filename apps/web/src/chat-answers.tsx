@@ -148,14 +148,27 @@ export function ChatAnswersCard({
     if (!session) return;
     load().catch((e) => setError(message(e)));
   }, [workspace.id, session?.actor_id]);
+  /**
+   * Reads the connections and the chat count again without touching the form, so what the
+   * owner picked or typed stays put. Only the count is taken from the fresh settings: the
+   * saved version stays the one the form was filled from, so saving never silently overwrites
+   * a change made elsewhere.
+   */
+  async function refresh() {
+    const [s] = await Promise.all([
+      api(ChatSettingsSchema, `${base}/chat-settings`),
+      loadDetails(),
+    ]);
+    setSettings((prev) => (prev ? { ...prev, used_24h: s.used_24h } : s));
+  }
   useEffect(() => {
     if (!session || !settings || !stamp) return;
     loadDetails().catch((e) => setError(message(e)));
   }, [stamp]);
-  // Connections checked or changed elsewhere show when the page is shown again (audit L-10);
-  // the settings form keeps what the owner typed.
+  // Connections checked or changed elsewhere, and chat answers asked since, show when the
+  // page is shown again (audit L-10); the settings form keeps what the owner typed.
   useOnShow(() => {
-    if (session && settings) loadDetails().catch((e) => setError(message(e)));
+    if (session && settings) refresh().catch((e) => setError(message(e)));
   });
 
   const chosen = details.find((d) => d.connection.id === form.connection_id);
@@ -222,7 +235,9 @@ export function ChatAnswersCard({
           },
         },
       });
-      await load();
+      // Keep the form as the owner left it: reloading the saved settings here snapped an
+      // unsaved connection choice back to the saved one (plan-backed chat rough edge 1).
+      await loadDetails();
       onChanged?.();
     } catch (e) {
       setError(message(e));

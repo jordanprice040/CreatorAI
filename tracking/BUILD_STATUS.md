@@ -1,3 +1,14 @@
+## Plan-backed chat rough edges — November 3, 2026
+
+The two rough edges left from the PR #102 live check (ADR-0057). No migration, no ADR.
+
+What now works:
+
+- Models › Chat answers: "Allow my private text on this connection" no longer resets the card's form to the saved settings. Before, a ticked "Answer questions in Chat", a changed connection, model, snapshot choice or daily number snapped back to what was saved; now only the connections are read again (`apps/web/src/chat-answers.tsx`). When Models is shown again the card also reads the current "N of M chat answers used" count, still without touching the form or the saved version the form was filled from.
+- The top bar's usage button reads again 300 ms after any write in the app ends (the existing `creator:studio-changed` event), so a chat answer, build or qualification shows in the count within a second instead of after the next minute, focus or page change. Only the newest read may show, so a slow older read can't put back an older count (`apps/web/src/usage.tsx`).
+
+Checks run: typecheck and Prettier pass; `pnpm test:db` on PostgreSQL 16: 714 tests, 681 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh). Browser walk `tracking/evidence/chat-rough-edges/walk.mjs` on throwaway databases with the chat-answers walk server (fake `claude`, $0, no real model), run on main and on this change: on main the form went from [on, no snapshot, 7] to [off, snapshot, 20] after "Allow", the usage button stayed at "Claude 1/30" 5 s after a second answer, and the card still said 0 used; with the change the form kept [on, no snapshot, 7], the button went 2/30 → 3/30 about 0.5 s after the answer on the same address, and the card said 2 of 7 used on return (`before.json`, `after.json`, screenshots in `screens/`). Not tested on the desktop shell or the installed app.
+
 ## Chat delete timeout follow-up (PR #124 timeout review) — November 3, 2026
 
 Review `/mnt/project-files/reviews/PR124_DELETE_TIMEOUT_REVIEW_2026-11-03.md` (no Medium or above) of the merge that made chat delete follow ADR-0062's stale point. Jordan asked for the fixes.

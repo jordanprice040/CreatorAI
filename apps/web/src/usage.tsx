@@ -5,7 +5,7 @@ import {
   type UsageSummary,
   type Workspace,
 } from '@creator/contracts';
-import { api, message } from './oversight.js';
+import { api, message, STUDIO_CHANGED } from './oversight.js';
 import { money } from './budgets.js';
 import './usage.css';
 
@@ -260,25 +260,42 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const ref = useRef<HTMLDetailsElement>(null);
+  // Only the newest read may show, so a slow older answer cannot put back an older count.
+  const seq = useRef(0);
   const load = useCallback(() => {
+    const mine = ++seq.current;
     api(UsageSummarySchema, `workspaces/${workspace.id}/usage`)
       .then((u) => {
+        if (mine !== seq.current) return;
         setUsage(u);
         setError('');
         setNow(Date.now());
       })
-      .catch((e: unknown) => setError(message(e)));
+      .catch((e: unknown) => {
+        if (mine === seq.current) setError(message(e));
+      });
   }, [workspace.id]);
   useEffect(() => {
     setUsage(null);
     load();
     const timer = setInterval(load, REFRESH_MS);
+    // Any write in the app (a chat answer, a build, a qualification) may have used a plan
+    // request, so read again shortly after one ends instead of waiting for the minute.
+    let soon: ReturnType<typeof setTimeout> | undefined;
+    const changed = () => {
+      clearTimeout(soon);
+      soon = setTimeout(load, 300);
+    };
     window.addEventListener('focus', load);
     window.addEventListener('hashchange', load);
+    window.addEventListener(STUDIO_CHANGED, changed);
     return () => {
       clearInterval(timer);
+      clearTimeout(soon);
+      seq.current++;
       window.removeEventListener('focus', load);
       window.removeEventListener('hashchange', load);
+      window.removeEventListener(STUDIO_CHANGED, changed);
     };
   }, [load]);
   useEffect(() => {
