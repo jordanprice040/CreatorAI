@@ -191,8 +191,14 @@ export function ChatAnswersCard({
       ? ['No model is verified on this connection yet.']
       : []),
     // ADR-0064: one request at a time, and an open one blocks chat until it is closed.
-    // A request this studio is still waiting on is a normal running request, not a problem.
-    ...(chosen?.open_requests.some((o) => !o.waiting)
+    // A request this studio is still waiting on is a normal running request, not a problem,
+    // unless it is past its time limit (PR #128 re-review N-5: then a restart is needed).
+    ...(chosen?.open_requests.some(
+      (o) =>
+        !o.waiting ||
+        (o.closable_after !== null &&
+          Date.parse(o.closable_after) <= Date.now()),
+    )
       ? [
           'A request on this connection has no recorded outcome yet (it may be running, or a stopped studio left it). See "Requests without a recorded outcome" under Plan connections.',
         ]

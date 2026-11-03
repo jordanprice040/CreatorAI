@@ -20,7 +20,9 @@ Review fixes (fresh review `/mnt/project-files/reviews/PR128_STUCK_REQUEST_RECON
 - L-2: closing a request the studio is waiting on is refused before any lock is taken (settle locks the request row before the connection, the reverse order), so it cannot deadlock with that request's settle; the in-transaction check stays.
 - N-1: the Chat answers card warns only about open requests the studio is not waiting on. N-2: the chat button keys on the shared `PLAN_RECONCILE_HINT` constant (contracts) that both admission blockers use. N-3: tests now cover an editor being refused (ACCESS_DENIED) and "did not run" being refused for an in-flight request with observed output.
 
-Checks after the fixes: typecheck and Prettier pass; `pnpm test` on PostgreSQL 16: 716 tests, 683 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests). The Codex relay disconnect path has no new test (it needs a client that stops reading mid-stream).
+Checks after the fixes: typecheck and Prettier pass; `pnpm test` on PostgreSQL 16: 716 tests, 683 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests). The Codex relay disconnect path had no test at that point (added in the re-review fixes below).
+
+Re-review fixes (`/mnt/project-files/reviews/PR128_STUCK_REQUEST_RECONCILE_REREVIEW_2026-11-03.md`: no Medium or above): L-3 when Codex disconnects mid-response the relay now aborts the upstream call (in `finally`, after the outcome is classified) and records `codex_disconnected`; a new test in `tests/src/codex-host.test.ts` streams from a fake upstream, stops reading, disconnects, and checks the request settles and the upstream connection closes (it hangs with the abort removed). N-4 recorded in ADR-0064. N-5 the Chat answers card also warns about a request still waited on past its time limit. ADR wording: "no longer takes locks in the reverse order" instead of "cannot deadlock". Checks: typecheck and Prettier pass; `pnpm test` on PostgreSQL 16: 717 tests, 684 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests).
 
 ## Chat delete timeout follow-up (PR #124 timeout review) — November 3, 2026
 

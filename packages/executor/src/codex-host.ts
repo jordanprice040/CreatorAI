@@ -211,6 +211,10 @@ export interface RelayOptions {
   fetchImpl?: typeof fetch;
 }
 // Preview limitations: these parameters are refused on plan usage.
+/** PR #128 re-review L-3: Codex went away mid-response, so the relay stopped the upstream call. */
+const CODEX_DISCONNECTED = 'codex_disconnected';
+class CodexDisconnected extends Error {}
+
 const STRIPPED = [
   'max_output_tokens',
   'temperature',
@@ -412,7 +416,9 @@ export class PlanRelay {
           // settled (and leaves the studio's waiting set) instead of hanging until a restart.
           if (!res.write(block)) {
             if (res.destroyed || res.writableEnded)
-              throw new Error('Codex disconnected during the response.');
+              throw new CodexDisconnected(
+                'Codex disconnected during the response.',
+              );
             await new Promise<void>((ok, fail) => {
               const done = () => {
                 res.off('drain', done);
@@ -422,7 +428,11 @@ export class PlanRelay {
               const gone = () => {
                 res.off('drain', done);
                 res.off('close', gone);
-                fail(new Error('Codex disconnected during the response.'));
+                fail(
+                  new CodexDisconnected(
+                    'Codex disconnected during the response.',
+                  ),
+                );
               };
               res.once('drain', done);
               res.once('close', gone);
@@ -431,15 +441,23 @@ export class PlanRelay {
         }
       }
       res.end();
-    } catch {
+    } catch (e) {
       if (outcome.kind !== 'completed') {
         outcome.kind = 'unknown';
-        outcome.reason_code = controller.signal.aborted
-          ? 'timeout'
-          : 'stream_error';
+        outcome.reason_code =
+          e instanceof CodexDisconnected
+            ? CODEX_DISCONNECTED
+            : controller.signal.aborted
+              ? 'timeout'
+              : 'stream_error';
       }
       res.destroy();
     } finally {
+      // PR #128 re-review L-3: whatever ended the relay's side (Codex gone, a stream error),
+      // stop the upstream call too, so the model does not keep generating against the plan.
+      // After a finished stream this does nothing; the outcome is classified above, first.
+      if (!controller.signal.aborted)
+        controller.abort(new Error('relay finished'));
       outcome.output_hash = forwarded.digest('hex');
       clearTimeout(timer);
       this.#upstream.delete(controller);
