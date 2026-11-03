@@ -26,6 +26,7 @@ import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { feedbackRevisionBlocker, feedbackSuperseded } from './spec-fields.js';
 import { Empty, Status, shortId, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
+import { argsToSend, needsExactArgs } from './terminal-args.js';
 
 const LABELS = {
   source_archive: 'Source archive',
@@ -456,9 +457,6 @@ function Facts({ d }: { d: ArtifactDetail }) {
   );
 }
 
-export function terminalArgs(text: string): string[] {
-  return text.split(/\r?\n/).filter((s) => s.length);
-}
 const TERMINAL_STATES: Record<TerminalSession['state'], string> = {
   running: 'Open',
   ended: 'Ended',
@@ -691,6 +689,10 @@ function TerminalPanel({
     [path],
   );
   const [text, setText] = useState('');
+  const [example, setExample] = useState<{
+    args: string[];
+    text: string;
+  } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -705,7 +707,7 @@ function TerminalPanel({
     const t = setInterval(() => reloadRef.current(), 3000);
     return () => clearInterval(t);
   }, [open]);
-  const args = terminalArgs(text);
+  const args = argsToSend(text, example);
   async function run(work: () => Promise<string>) {
     setBusy(true);
     setError('');
@@ -734,9 +736,14 @@ function TerminalPanel({
         summary={summary}
         use={(a) => {
           setText(a.join('\n'));
+          setExample({ args: a, text: a.join('\n') });
           setConfirming(false);
           setError('');
-          setNotice('Arguments filled in below.');
+          setNotice(
+            needsExactArgs(a)
+              ? 'Arguments filled in below. One of them is empty or has a line break, so it is sent exactly as in the spec while the box is unchanged.'
+              : 'Arguments filled in below.',
+          );
         }}
       />
       {!confirming ? (
@@ -755,7 +762,11 @@ function TerminalPanel({
             id={`term-args-${summary.id}`}
             rows={2}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              // Any edit drops the example's exact list (PR #130 review N-1).
+              setExample(null);
+            }}
           />
           <div className="actions">
             <button className="primary" disabled={busy || !csrf || open}>

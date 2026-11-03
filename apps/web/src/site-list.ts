@@ -1,6 +1,59 @@
 // Turns the Settings "Evidence websites" text box into host rules (ADR-0056). No imports, so
 // the tests can load it without a browser. The server validates every entry again.
 
+/**
+ * PR #103 review L3: `*.` under a shared public suffix (`*.co.uk`, `*.github.io`) is close to
+ * "any public website" without its warnings, so it is refused. Not a full public suffix list:
+ * a two-label parent whose first label is a usual registry label under a two-letter country
+ * code, plus common shared hosting domains. Mirrors packages/contracts research.ts (the server checks again).
+ */
+export const SHARED_PARENT_LABELS = new Set([
+  'ac',
+  'co',
+  'com',
+  'edu',
+  'go',
+  'gov',
+  'govt',
+  'ltd',
+  'me',
+  'ne',
+  'net',
+  'nhs',
+  'or',
+  'org',
+  'plc',
+  'sch',
+]);
+export const SHARED_HOSTING = new Set([
+  'appspot.com',
+  'azurewebsites.net',
+  'blogspot.com',
+  'cloudfront.net',
+  'firebaseapp.com',
+  'github.io',
+  'gitlab.io',
+  'herokuapp.com',
+  'netlify.app',
+  'pages.dev',
+  'substack.com',
+  'vercel.app',
+  'web.app',
+  'wordpress.com',
+  'workers.dev',
+]);
+export function sharedSuffixWildcard(host: string): boolean {
+  if (!host.startsWith('*.')) return false;
+  const parent = host.slice(2);
+  const labels = parent.split('.');
+  return (
+    SHARED_HOSTING.has(parent) ||
+    (labels.length === 2 &&
+      labels[1]!.length === 2 &&
+      SHARED_PARENT_LABELS.has(labels[0]!))
+  );
+}
+
 const HOST =
   /^(\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]*[a-z][a-z0-9-]*$/;
 
@@ -30,7 +83,7 @@ export function parseSiteList(text: string): {
       }
     } else if (host.endsWith('/')) host = host.slice(0, -1);
     host = host.replace(/\.$/, '');
-    if (host.length > 253 || !HOST.test(host)) {
+    if (host.length > 253 || !HOST.test(host) || sharedSuffixWildcard(host)) {
       invalid.push(entry);
       continue;
     }

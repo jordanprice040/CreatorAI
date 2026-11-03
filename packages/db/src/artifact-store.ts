@@ -19,6 +19,7 @@ import {
   type BuildManifest,
   type Feedback,
   type Preview,
+  type SpecBody,
   type SpecGuide,
 } from '@creator/contracts';
 import { canonicalHash, frozenCases } from '@creator/domain';
@@ -695,34 +696,7 @@ export class ArtifactStore extends StudyBuildStore {
     )
       return null;
     const spec = SpecBodySchema.safeParse(v.body);
-    if (!spec.success) return null;
-    const task = spec.data.tasks.find((t) => t.key === mf.task.key);
-    if (!task) return null;
-    const cases = frozenCases(spec.data, task.acceptance);
-    const visible = cases.filter((x) => !x.held_out);
-    const statement = (key: string) =>
-      spec.data.acceptance_checks.find((a) => a.key === key)?.statement ?? '';
-    const flowKeys = new Set(
-      spec.data.acceptance_checks
-        .filter((a) => task.acceptance.includes(a.key) && a.flow)
-        .map((a) => a.flow),
-    );
-    return {
-      // The task's own flows first; a spec whose checks name no flow shows them all.
-      flows: spec.data.user_flows
-        .filter((f) => !flowKeys.size || flowKeys.has(f.key))
-        .map((f) => ({ key: f.key, name: f.name, steps: f.steps })),
-      examples: visible.slice(0, MAX_PREVIEW_EXAMPLES).map((x) => ({
-        check_key: x.check_key,
-        statement: statement(x.check_key),
-        args: x.args,
-        stdin: x.stdin,
-        stdout: x.stdout,
-        exit_code: x.exit_code,
-      })),
-      more_examples: Math.max(0, visible.length - MAX_PREVIEW_EXAMPLES),
-      held_out_hidden: cases.some((x) => x.held_out),
-    };
+    return spec.success ? specGuide(spec.data, mf.task.key) : null;
   }
   async recordPreviewRun(
     actorId: string,
@@ -1004,4 +978,49 @@ export class ArtifactStore extends StudyBuildStore {
       };
     });
   }
+}
+
+/**
+ * The usage guide of one task from a frozen spec: its flows, and its visible example cases
+ * only. Null when the spec has no such task. Exported for tests.
+ */
+export function specGuide(
+  spec: SpecBody,
+  taskKey: string,
+): PreviewGuide | null {
+  const task = spec.tasks.find((t) => t.key === taskKey);
+  if (!task) return null;
+  const cases = frozenCases(spec, task.acceptance);
+  const visible = cases.filter((x) => !x.held_out);
+  const statement = (key: string) =>
+    spec.acceptance_checks.find((a) => a.key === key)?.statement ?? '';
+  const flowsOf = (keys: string[]) =>
+    new Set(
+      spec.acceptance_checks
+        .filter((a) => keys.includes(a.key) && a.flow)
+        .map((a) => a.flow),
+    );
+  const flowKeys = flowsOf(task.acceptance);
+  // PR #94 review Low: when this task's checks name no flow, show only the flows no other
+  // task's checks claim, so a many-task spec does not list other tasks' flows as this one's.
+  const claimed = flowsOf(
+    spec.tasks.filter((t) => t.key !== task.key).flatMap((t) => t.acceptance),
+  );
+  return {
+    flows: spec.user_flows
+      .filter((f) =>
+        flowKeys.size ? flowKeys.has(f.key) : !claimed.has(f.key),
+      )
+      .map((f) => ({ key: f.key, name: f.name, steps: f.steps })),
+    examples: visible.slice(0, MAX_PREVIEW_EXAMPLES).map((x) => ({
+      check_key: x.check_key,
+      statement: statement(x.check_key),
+      args: x.args,
+      stdin: x.stdin,
+      stdout: x.stdout,
+      exit_code: x.exit_code,
+    })),
+    more_examples: Math.max(0, visible.length - MAX_PREVIEW_EXAMPLES),
+    held_out_hidden: cases.some((x) => x.held_out),
+  };
 }

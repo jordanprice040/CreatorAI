@@ -281,6 +281,61 @@ function currentForBuildRole(r: Row): boolean {
   );
 }
 
+/**
+ * PR #86 review L-5 (ADR-0052): what identifies a held-out case apart from the role prompt,
+ * and the prompt a benchmark gives its model. A case is the same case when everything but its
+ * system message matches; the prompt is the set of system messages across the cases.
+ */
+export type ManifestCase = {
+  case_id: string;
+  split: string;
+  input: { role: string; text: string }[];
+  output_format?: unknown;
+  check?: unknown;
+};
+export const heldOutKeys = (cases: readonly ManifestCase[]) =>
+  cases
+    .filter((k) => k.split === 'held_out')
+    .map((k) =>
+      canonicalHash({
+        input: k.input.filter((m) => m.role !== 'system'),
+        output_format: k.output_format ?? null,
+        check: withoutRoleVersion(k.check),
+      }),
+    );
+/**
+ * PR #130 review L-1: a discovery check names the role version (and the packet's hash, which
+ * follows the packet already in the key), so a revised discovery role would change every key.
+ * The role's prompt sits in the system message, which the prompt hash covers.
+ */
+function withoutRoleVersion(check: unknown): unknown {
+  const c = check as {
+    kind?: string;
+    context?: Record<string, unknown>;
+  } | null;
+  if (c?.kind !== 'discovery_contract' || !c.context) return check ?? null;
+  const { role_version: _v, packet_hash: _p, ...context } = c.context;
+  return { ...c, context };
+}
+export const promptHash = (cases: readonly ManifestCase[]) =>
+  canonicalHash(
+    [
+      ...new Set(
+        cases.flatMap((k) => [
+          ...k.input.filter((m) => m.role === 'system').map((m) => m.text),
+          // A discovery role's version counts as part of its prompt.
+          ...((k.check as { context?: { role_version?: string } } | undefined)
+            ?.context?.role_version
+            ? [
+                `role:${(k.check as { context: { role_version: string } }).context.role_version}`,
+              ]
+            : []),
+        ]),
+      ),
+    ].sort(),
+  );
+const HELD_OUT_VIEWED = 'qualification_held_out_viewed';
+
 export class ConnectionStore extends PortfolioStore {
   /**
    * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
@@ -2487,6 +2542,27 @@ export class ConnectionStore extends PortfolioStore {
         const heldOut = req.manifest.cases.filter(
           (x) => x.split === 'held_out',
         ).length;
+        // ADR-0052: held-out cases whose results someone has viewed no longer test a prompt
+        // revised after that view. Retrying the same prompt on them stays allowed.
+        const keys = new Set(heldOutKeys(req.manifest.cases));
+        const prompt = promptHash(req.manifest.cases);
+        const views = await c.query(
+          `select e.body, e.created_at from plan_connection_events e
+             join plan_connections p on p.id = e.connection_id
+            where p.workspace_id = $1 and e.kind = $2 and e.body->>'task_class' = $3
+            order by e.created_at`,
+          [conn.workspace_id, HELD_OUT_VIEWED, tc],
+        );
+        for (const v of views.rows as Row[]) {
+          const b = v.body as { prompt_hash: string; held_out: string[] };
+          if (b.prompt_hash === prompt) continue;
+          const seen = b.held_out.filter((k) => keys.has(k)).length;
+          if (seen)
+            throw fail(
+              'INVALID_CONTRACT',
+              `${seen} held-out case${seen === 1 ? ' was' : 's were'} viewed on ${iso(v.created_at).slice(0, 10)} under a different ${tc} prompt, so ${seen === 1 ? 'it no longer tests' : 'they no longer test'} this one fairly (ADR-0052). Freeze a benchmark with fresh held-out cases.`,
+            );
+        }
         if (heldOut < req.min_held_out_cases)
           throw fail(
             'INVALID_CONTRACT',
@@ -2685,6 +2761,38 @@ export class ConnectionStore extends PortfolioStore {
       const byCase = new Map(
         requests.rows.map((r) => [String(r.case_id), r as Row]),
       );
+      // PR #86 review L-5: these results show held-out outcomes, reasons and answers, so the
+      // view is recorded once per person, and a later benchmark that reuses these held-out
+      // cases with a different prompt is refused (startPlanQualification).
+      const full = rows[0].manifest as { cases: ManifestCase[] };
+      if (
+        full.cases.some((k) => k.split === 'held_out' && byCase.has(k.case_id))
+      ) {
+        const seen = await c.query(
+          `select 1 from plan_connection_events where connection_id = $1 and kind = $2
+             and actor_id = $3 and body->>'qualification_id' = $4`,
+          [
+            rows[0].connection_id,
+            HELD_OUT_VIEWED,
+            ctx.actorId,
+            String(rows[0].id),
+          ],
+        );
+        if (!seen.rowCount)
+          await this.#event(
+            c,
+            String(rows[0].connection_id),
+            HELD_OUT_VIEWED,
+            {
+              qualification_id: String(rows[0].id),
+              task_class: String(rows[0].task_class),
+              manifest_hash: String(rows[0].manifest_hash),
+              prompt_hash: promptHash(full.cases),
+              held_out: heldOutKeys(full.cases),
+            },
+            ctx,
+          );
+      }
       return {
         qualification: toQualification(rows[0] as Row),
         manifest_name:

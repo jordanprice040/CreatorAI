@@ -24,6 +24,7 @@ import {
   type ResponseType,
   type SessionInfo,
   type Workspace,
+  isQualified,
 } from '@creator/contracts';
 import { api, message, words } from './oversight.js';
 import { newestFirst } from './versions.js';
@@ -354,15 +355,7 @@ export function Submit({
               ]
             : []),
           ...[...new Set(Object.values(DISCOVERY_TASK_CLASSES))]
-            .filter(
-              (tc) =>
-                !plan?.qualifications.some(
-                  (q) =>
-                    q.model_id === model &&
-                    q.task_class === tc &&
-                    q.state === 'qualified',
-                ),
-            )
+            .filter((tc) => !isQualified(plan?.qualifications ?? [], model, tc))
             .map(
               (tc) => `Model is not qualified for ${tc.replaceAll('_', ' ')}.`,
             ),

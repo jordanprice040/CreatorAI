@@ -173,23 +173,32 @@ test('an active run at its lifetime cap stays listed after 24 hours; a stopped o
   const capped = await run();
   const stopped = await run();
   const under = await run();
+  const idle = await run();
+  const archived = await run();
   const cap = SETTINGS.caps.responses.max_requests_per_run;
-  const add = (run_id: string, n: number) =>
+  const add = (run_id: string, n: number, age = '30 hours') =>
     db.pool.query(
       `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose,
          model_id, data_class, run_id, state, created_by, started_at)
        select gen_random_uuid(), $1, gen_random_uuid(), 'responses', 'task', 'm', 'synthetic',
-              $2, 'completed', $3, clock_timestamp() - interval '30 hours'
+              $2, 'completed', $3, clock_timestamp() - $5::interval
          from generate_series(1, $4)`,
-      [conn.id, run_id, owner.actorId, n],
+      [conn.id, run_id, owner.actorId, n, age],
     );
   await add(capped, cap);
   await add(stopped, cap);
   await add(under, cap - 1);
+  await add(idle, cap, '8 days');
+  await add(archived, cap);
   await store.cancelRun(owner, ws.id, stopped, { reason: 'stop' });
+  await store.archiveEntity(owner, ws.id, archived, {
+    expected_version: 1,
+    reason: 'done with it',
+  });
   const p = (await store.usageSummary(owner, ws.id)).plans[0]!;
   // Admission still refuses the capped run (it counts the run's whole life), so the panel keeps
-  // showing it; the stopped run and the run under its cap leave with the 24-hour window.
+  // showing it; the stopped run and the run under its cap leave with the 24-hour window. A
+  // capped run with no request for 7 days, or an archived one, leaves too (PR #96 review L-2).
   assert.deepEqual(
     p.runs.map((r) => [r.run_id, r.requests]),
     [[capped, cap]],

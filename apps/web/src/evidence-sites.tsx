@@ -33,6 +33,7 @@ export function EvidenceSites({
   const path = `workspaces/${workspace.id}/evidence-sites`;
   const data = useLoad(() => api(EvidenceSitesSchema, path), [workspace.id]);
   const d = data.data;
+  const fixture = workspace.record_mode === 'fixture';
   const [mode, setMode] = useState<EvidenceSiteMode>('listed');
   const [text, setText] = useState('');
   const [reason, setReason] = useState('');
@@ -88,6 +89,11 @@ export function EvidenceSites({
         csrf: session.csrf_token,
         body: {
           expected_version: snap.version,
+          // PR #103 review L6: while the startup list applies (version 0), the server also
+          // checks it is still the list this page showed.
+          ...(snap.version === 0
+            ? { expected_startup: { mode: snap.mode, hosts: snap.hosts } }
+            : {}),
           mode,
           hosts: parsed.hosts,
           reason: reason.trim(),
@@ -128,7 +134,13 @@ export function EvidenceSites({
       >
         {d && (
           <>
-            {!d.live_available && (
+            {fixture && (
+              <p className="notice">
+                This is a fixture workspace: it always uses the built-in fixture
+                sources, so these settings can&apos;t be changed here.
+              </p>
+            )}
+            {!fixture && !d.live_available && (
               <p className="notice">
                 Live evidence fetching is turned off for this studio, so these
                 settings have no effect here. Real workspaces in the desktop app
@@ -158,7 +170,7 @@ export function EvidenceSites({
               <div className="actions">
                 <button
                   className="secondary"
-                  disabled={!d.live_available}
+                  disabled={!d.live_available || fixture}
                   onClick={startEdit}
                 >
                   Change evidence websites
@@ -185,7 +197,7 @@ export function EvidenceSites({
                       <small>
                         {m === 'listed'
                           ? ' Only the websites below. Safer: you choose every source.'
-                          : ' Any public website a run picks, plus the list below. Off unless you turn it on.'}
+                          : ' Any public website you or a scheduled refresh asks for, plus the list below. Off unless you turn it on.'}
                       </small>
                     </label>
                   ))}
@@ -211,7 +223,10 @@ export function EvidenceSites({
                   {parsed.invalid.length > 0 && (
                     <p className="error">
                       Not a website name: {parsed.invalid.join(', ')}. Use names
-                      like www.example.org, not IP addresses, ports or paths.
+                      like www.example.org, not IP addresses, ports or paths. A{' '}
+                      <code>*.</code> pattern under a shared suffix such as{' '}
+                      <code>co.uk</code> or <code>github.io</code> is refused
+                      too: list the websites instead.
                     </p>
                   )}
                   {tooMany && (

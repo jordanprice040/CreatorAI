@@ -285,6 +285,32 @@ test('the evidence websites box keeps host names only and flags IPs, ports and s
   );
 });
 
+test('the box and the server refuse the same shared-suffix wildcards (PR #103 L3)', async () => {
+  const { parseSiteList } = await siteList();
+  const { EvidenceSiteHostSchema } = await import('@creator/contracts');
+  const sample = [
+    '*.co.uk',
+    '*.org.uk',
+    '*.com.au',
+    '*.co.jp',
+    '*.github.io',
+    '*.netlify.app',
+    '*.bbc.co.uk',
+    '*.nih.gov',
+    '*.example.org',
+    'www.example.co.uk',
+    'co.uk',
+  ];
+  const box = parseSiteList(sample.join('\n'));
+  assert.deepEqual(box.invalid, sample.slice(0, 6));
+  for (const h of sample)
+    assert.equal(
+      EvidenceSiteHostSchema.safeParse(h).success,
+      box.hosts.includes(h),
+      h,
+    );
+});
+
 test('allowed-work choices are exactly the classes plan settings accept', async () => {
   // Full audit 2026-11-02: data and task classes can now be changed in the app.
   const m = await load();

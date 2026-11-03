@@ -303,3 +303,49 @@ test('with live fetching off for the deployment, changes are refused', async (t)
     }),
   );
 });
+
+// PR #103 review Lows L1, L3 and L6.
+test('fixture workspaces, shared-suffix wildcards and a changed startup list are refused', async (t) => {
+  const s = await setup(t, { CREATOR_SOURCE_HOSTS: 'www.speedrun.com' });
+  if (!s) return;
+  const body = {
+    expected_version: 0,
+    expected_startup: { mode: 'listed', hosts: ['www.speedrun.com'] },
+    mode: 'listed',
+    hosts: ['www.speedrun.com', 'tasvideos.org'],
+    reason: 'Add the TAS site.',
+  };
+  // L1: a fixture workspace always uses the fixture policy, so a change would do nothing.
+  const fx = await s.store.createWorkspace(owner, {
+    name: 'Fixture research',
+    record_mode: 'fixture',
+  });
+  await rejects(
+    'INVALID_CONTRACT',
+    s.broker.changeEvidenceSites(owner, fx.id, body),
+    /Fixture workspaces/,
+  );
+  // L3: *. under a shared public suffix is refused; a registrable domain is fine.
+  for (const host of ['*.co.uk', '*.github.io', '*.com.au'])
+    await rejects(
+      'INVALID_CONTRACT',
+      s.broker.changeEvidenceSites(owner, s.ws.id, {
+        ...body,
+        hosts: [host],
+      }),
+    );
+  // L6: the page showed another startup list (the studio restarted meanwhile).
+  await rejects(
+    'VERSION_CONFLICT',
+    s.broker.changeEvidenceSites(owner, s.ws.id, {
+      ...body,
+      expected_startup: { mode: 'listed', hosts: ['old.example.org'] },
+    }),
+  );
+  const view = await s.broker.changeEvidenceSites(owner, s.ws.id, {
+    ...body,
+    hosts: ['*.bbc.co.uk', 'www.speedrun.com'],
+  });
+  assert.equal(view.version, 1);
+  assert.deepEqual(view.history[0]!.previous_hosts, ['www.speedrun.com']);
+});

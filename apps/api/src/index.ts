@@ -1807,8 +1807,10 @@ export function createApi(
             policy_hash: sourceConfig.policy
               ? sourcePolicyHash(sourceConfig.policy)
               : null,
+            // PR #103 review L4: the installed studio always turns the live adapter on, so say
+            // where the websites come from instead of implying some are approved.
             note: sourceConfig.adapter
-              ? 'Live fetch is configured for the approved hosts; each fetch still needs a covering source.fetch grant. No live fetch has been verified.'
+              ? `Live fetch is on. ${sourceConfig.policy ? 'The hosts above are the startup list; ' : 'The startup list names no websites; '}each workspace's Settings › Evidence websites replaces it once saved, and each fetch still needs a covering source.fetch grant.`
               : 'Live source fetching is off. Fixture workspaces read the synthetic corpus; real workspaces can fetch only after the operator approves source hosts in the studio configuration.',
           }),
         );
@@ -1991,3 +1993,4 @@ import {
   portfolioRoutes,
 } from './portfolio.js';
 export { visitorKey } from './desktop.js';
+export { createPreviewServer } from './artifacts.js';
