@@ -2569,3 +2569,14 @@ table.usage-options th[scope='row'] {
 .score-form .inline-form input[type='date'] {
   width: auto;
 }
+
+/* ADR-0064: requests without a recorded outcome on Models and connections. */
+.open-requests {
+  margin-bottom: 1rem;
+}
+.open-requests li {
+  margin-bottom: 0.75rem;
+}
+.open-request-close > summary {
+  cursor: pointer;
+}

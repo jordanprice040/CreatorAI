@@ -90,7 +90,11 @@ import {
   toChatMessage,
 } from './chat-store.js';
 import { toRun } from './oversight-store.js';
-import { activityNow, workspaceNote } from './sidebar-store.js';
+import {
+  activityNow,
+  PLAN_REQUEST_STALE_AFTER,
+  workspaceNote,
+} from './sidebar-store.js';
 import {
   buildApprovalBlockers,
   buildApprovalScopeNote,
@@ -283,6 +287,13 @@ export class ConnectionStore extends PortfolioStore {
    * restart, when the stored timeout rule alone applies.
    */
   readonly #liveChatAnswers = new Set<string>();
+  /**
+   * ADR-0064: plan requests this studio process admitted and has not settled yet. The owner
+   * cannot close one of these from the app, whatever its age: its result can still come back.
+   * Empty after a restart, when the time rule alone applies (requests run by the worker process
+   * are covered by the time rule only).
+   */
+  readonly #livePlanRequests = new Set<string>();
 
   // ---- Owner configuration --------------------------------------------------------------
 
@@ -823,13 +834,15 @@ export class ConnectionStore extends PortfolioStore {
       if (!msg) throw fail('NOT_FOUND', 'Message not found.');
       // An answer left pending by a studio that stopped mid-request is closed as failed, so
       // the message can be asked again. Its plan request, if one was sent, stays unresolved
-      // and blocks new requests on the connection until it is reconciled.
+      // and blocks new requests on the connection until the owner reconciles it (in Models
+      // and connections, ADR-0064).
       // ADR-0062: the request timeout has no 5-minute maximum any more, so an answer counts
       // as abandoned only after its connection's request timeout plus 15 minutes (never under
-      // 15 minutes); a live request is never closed early and asked a second time. The
-      // current timeout is read, not the one at the start (PR #123 review L-2): if the owner
-      // lowers it mid-request the answer may be closed early, but the question still cannot be
-      // sent twice while that plan request is in flight or unresolved (max_in_flight is 1).
+      // 15 minutes). Answers this studio is still waiting on are skipped whatever the timeout
+      // says (PR #126), so a live request is never closed early and asked a second time. The
+      // current timeout is read, not the one at the start (PR #123 review L-2): only after a
+      // restart can a lowered timeout close an answer early, and even then the question cannot
+      // be sent twice while that plan request is in flight or unresolved (max_in_flight is 1).
       await c.query(
         `update chat_answers ca set state = 'failed', finished_at = clock_timestamp(),
            reason = 'The studio stopped before this answer was recorded. Nothing more is known about it.'
@@ -1220,6 +1233,15 @@ export class ConnectionStore extends PortfolioStore {
   ) {
     const ctx = normalize(ctxIn);
     const req = parse(ReconcilePlanRequestSchema, body);
+    // PR #128 review L-2: refuse before taking any lock. Settling locks the request row before
+    // the connection, the reverse of this path, so closing a request at the moment it settles
+    // could deadlock and lose the real result. The check inside the transaction stays too.
+    const waiting = () =>
+      fail(
+        'INVALID_TRANSITION',
+        'The studio is still waiting on this request. It can be closed once it finishes, or after the studio restarts.',
+      );
+    if (this.#livePlanRequests.has(String(uuid(requestId)))) throw waiting();
     return this.#ownerChange(
       ctx,
       ws,
@@ -1228,10 +1250,25 @@ export class ConnectionStore extends PortfolioStore {
       'request_reconciled',
       async (c, conn) => {
         const observed = await c.query(
-          `select output_chars from plan_requests where id=$1 and connection_id=$2
-           and state in ('unknown','in_flight') for update`,
+          `select pr.output_chars, pr.state, ${PLAN_REQUEST_STALE_AFTER} <= clock_timestamp() as overdue
+           from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
+           where pr.id=$1 and pr.connection_id=$2
+           and pr.state in ('unknown','in_flight') for update of pr`,
           [uuid(requestId), conn.id],
         );
+        // ADR-0064: an in-flight request may still be running. It can be closed only once this
+        // studio is not waiting on it and it is past the running-now panel's stale point (its
+        // timeout plus 15 minutes, at least 45 minutes), so a live result is never overwritten.
+        const open = observed.rows[0] as Row | undefined;
+        if (open?.state === 'in_flight') {
+          if (this.#livePlanRequests.has(String(uuid(requestId))))
+            throw waiting();
+          if (!open.overdue)
+            throw fail(
+              'INVALID_TRANSITION',
+              'This request may still be running. It can be closed once its timeout plus 15 minutes (at least 45 minutes) has passed.',
+            );
+        }
         if (
           req.outcome === 'did_not_run' &&
           Number(observed.rows[0]?.output_chars ?? 0) > 0
@@ -1943,6 +1980,33 @@ export class ConnectionStore extends PortfolioStore {
         'INVALID_CONTRACT',
         'Qualification requests name exactly one benchmark case.',
       );
+    const out = await this.#admitPlanRequest(
+      ctx,
+      ws,
+      req,
+      qualificationCase,
+      workflow,
+    );
+    // ADR-0064: a newly admitted request is live in this process until it is settled.
+    if (out.request_id && !out.replay && !out.admission)
+      this.#livePlanRequests.add(out.request_id);
+    return out;
+  }
+
+  async #admitPlanRequest(
+    ctx: CommandContext,
+    ws: string,
+    req: PlanAdmissionRequest,
+    qualificationCase:
+      { case_id: string; split: 'development' | 'held_out' } | undefined,
+    workflow:
+      { task_id: string; lease_token: string; input_hash: string } | undefined,
+  ): Promise<{
+    request_id: string;
+    connection: PlanConnection;
+    replay?: Row;
+    admission?: Admission;
+  }> {
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, true);
       let wf: Row | undefined;
@@ -2206,6 +2270,18 @@ export class ConnectionStore extends PortfolioStore {
     observed: PlanObservation = {},
   ): Promise<PlanRequest> {
     const s = parse(PlanSettlementSchema, raw);
+    try {
+      return await this.#settlePlanRequest(requestId, s, observed);
+    } finally {
+      this.#livePlanRequests.delete(String(uuid(requestId)));
+    }
+  }
+
+  async #settlePlanRequest(
+    requestId: string,
+    s: PlanSettlement,
+    observed: PlanObservation,
+  ): Promise<PlanRequest> {
     return this.tx(async (c) => {
       const { rows } = await c.query(
         'select * from plan_requests where id = $1 for update',
@@ -2717,6 +2793,14 @@ export class ConnectionStore extends PortfolioStore {
       [id],
     );
     const usage = await this.#usage(c, id, null, null);
+    const open = await c.query(
+      `select pr.*, ${PLAN_REQUEST_STALE_AFTER} as closable_after,
+         ${PLAN_REQUEST_STALE_AFTER} <= clock_timestamp() as overdue
+       from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
+       where pr.connection_id = $1 and pr.state in ('in_flight','unknown')
+       order by pr.started_at, pr.id`,
+      [id],
+    );
     return {
       connection,
       model_access: await this.#access(c, id),
@@ -2728,6 +2812,16 @@ export class ConnectionStore extends PortfolioStore {
         in_flight: usage.in_flight,
         unresolved: usage.unresolved,
       },
+      open_requests: (open.rows as Row[]).map((r) => {
+        const flying = r.state === 'in_flight';
+        const waiting = flying && this.#livePlanRequests.has(String(r.id));
+        return {
+          request: toRequest(r),
+          closable: !flying || (!waiting && Boolean(r.overdue)),
+          waiting,
+          closable_after: flying ? iso(r.closable_after) : null,
+        };
+      }),
       blockers: connectionBlockers(connection),
     };
   }

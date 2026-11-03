@@ -789,6 +789,171 @@ test('one request at a time: a concurrent admission is refused while one is in f
   assert.ok(await admit(other.id, other.model_id));
 });
 
+test('ADR-0064: the owner closes a request a stopped studio left in flight, only once it cannot still be running', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  const c = await s.ready();
+  const g = await s.store.createPlanVerificationGrant(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  const admitted = await s.store.admitPlanRequest(owner, s.ws.id, {
+    connection_id: c.id,
+    logical_operation_id: randomUUID(),
+    path: 'responses',
+    purpose: 'verification',
+    model_id: 'm',
+    task_class: null,
+    data_class: 'synthetic',
+    run_id: null,
+    build_id: null,
+    grant_id: g.id,
+    qualification_id: null,
+    input_chars: 10,
+  });
+  const rid = admitted.request_id;
+  const close = (store: ConnectionStore, version: number) =>
+    store.reconcilePlanRequest(owner, s.ws.id, c.id, rid, {
+      expected_version: version,
+      outcome: 'ran',
+      note: 'The app was closed while it was asking.',
+    });
+  // This studio is still waiting on it: shown, not closable, and the store refuses to close it.
+  let d = await s.store.planConnectionDetail(owner, s.ws.id, c.id);
+  assert.equal(d.open_requests.length, 1);
+  assert.equal(d.open_requests[0]!.request.id, rid);
+  assert.equal(d.open_requests[0]!.waiting, true);
+  assert.equal(d.open_requests[0]!.closable, false);
+  await assert.rejects(
+    close(s.store, d.connection.version),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_TRANSITION' &&
+      /still waiting/.test(e.message),
+  );
+  // After a restart nothing waits on it, but inside its timeout plus 15 minutes it may still run.
+  const restarted = new ConnectionStore(s.db.pool);
+  d = await restarted.planConnectionDetail(owner, s.ws.id, c.id);
+  const open = d.open_requests[0]!;
+  assert.equal(open.waiting, false);
+  assert.equal(open.closable, false);
+  // The running-now panel's point: the timeout plus 15 minutes, never under 45 minutes.
+  const after =
+    Date.parse(open.request.started_at) +
+    Math.max(2_700_000, 900_000 + c.settings.caps.responses.request_timeout_ms);
+  assert.ok(Math.abs(Date.parse(open.closable_after!) - after) < 1000);
+  await assert.rejects(
+    close(restarted, d.connection.version),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_TRANSITION' &&
+      /may still be running/.test(e.message),
+  );
+  // Past that point it is closable; closing frees the connection but still counts as used.
+  await s.db.pool.query(
+    `update plan_requests set started_at = started_at - interval '1 day' where id = $1`,
+    [rid],
+  );
+  d = await restarted.planConnectionDetail(owner, s.ws.id, c.id);
+  assert.equal(d.open_requests[0]!.closable, true);
+  // Part of an answer was seen: it cannot be recorded as not run (PR #128 review N-3).
+  await s.db.pool.query('update plan_requests set output_chars=3 where id=$1', [
+    rid,
+  ]);
+  await assert.rejects(
+    restarted.reconcilePlanRequest(owner, s.ws.id, c.id, rid, {
+      expected_version: d.connection.version,
+      outcome: 'did_not_run',
+      note: 'Checked.',
+    }),
+    /observed output/,
+  );
+  await close(restarted, d.connection.version);
+  d = await restarted.planConnectionDetail(owner, s.ws.id, c.id);
+  assert.deepEqual(d.open_requests, []);
+  assert.equal(d.usage.in_flight, 0);
+  const [row] = await restarted.planRequests(owner, s.ws.id, c.id);
+  assert.equal(row!.state, 'reconciled');
+  assert.equal(row!.reason_code, 'owner_ran');
+  // A settle from the old process arriving late cannot overwrite the owner's record.
+  await assert.rejects(
+    s.store.settlePlanRequest(rid, {
+      state: 'unknown',
+      reason_code: 'timeout',
+      upstream_request_id: null,
+      output_chars: null,
+    }),
+    /already settled/,
+  );
+});
+
+test('ADR-0064: a request with an unknown outcome is closable at once and still counts toward the day', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  const c = await s.ready();
+  const g = await s.store.createPlanVerificationGrant(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  const { request_id } = await s.store.admitPlanRequest(owner, s.ws.id, {
+    connection_id: c.id,
+    logical_operation_id: randomUUID(),
+    path: 'responses',
+    purpose: 'verification',
+    model_id: 'm',
+    task_class: null,
+    data_class: 'synthetic',
+    run_id: null,
+    build_id: null,
+    grant_id: g.id,
+    qualification_id: null,
+    input_chars: 10,
+  });
+  await s.store.settlePlanRequest(request_id, {
+    state: 'unknown',
+    reason_code: 'timeout',
+    upstream_request_id: null,
+    output_chars: null,
+  });
+  let d = await s.store.planConnectionDetail(owner, s.ws.id, c.id);
+  assert.equal(d.open_requests.length, 1);
+  assert.equal(d.open_requests[0]!.closable, true);
+  assert.equal(d.open_requests[0]!.waiting, false);
+  assert.equal(d.open_requests[0]!.closable_after, null);
+  const before = d.usage.last_24h_requests;
+  // Only the owner closes a request (PR #128 review N-3).
+  const editor = { actorId: randomUUID() };
+  await s.store.ensureActor({
+    id: editor.actorId,
+    kind: 'human',
+    display_name: 'editor',
+  });
+  await s.store.addMember(owner, s.ws.id, editor.actorId, 'editor');
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.reconcilePlanRequest(editor, s.ws.id, c.id, request_id, {
+      expected_version: d.connection.version,
+      outcome: 'ran',
+      note: 'Not mine to close.',
+    }),
+  );
+  await s.store.reconcilePlanRequest(owner, s.ws.id, c.id, request_id, {
+    expected_version: d.connection.version,
+    outcome: 'did_not_run',
+    note: 'Nothing on the plan usage page.',
+  });
+  d = await s.store.planConnectionDetail(owner, s.ws.id, c.id);
+  assert.deepEqual(d.open_requests, []);
+  assert.equal(d.usage.unresolved, 0);
+  assert.equal(d.usage.last_24h_requests, before);
+});
+
 test('unknown duplicate refuses redispatch and retains durable observations', async (t) => {
   const s = await setup(t, { responses: [{ kind: 'cut', text: 'partial' }] });
   if (!s) return;

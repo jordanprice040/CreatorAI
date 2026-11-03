@@ -475,6 +475,29 @@ export type PlanQualificationResults = z.infer<
   typeof PlanQualificationResultsSchema
 >;
 
+/**
+ * ADR-0064: the words every admission refusal caused by an open plan request ends with. The
+ * chat page shows its "Open Models and connections" button when a refusal contains them.
+ */
+export const PLAN_RECONCILE_HINT = 'reconcile it in Models and connections';
+
+/**
+ * ADR-0064: a request whose outcome the studio never recorded, as shown to the owner. While it
+ * is open no other request can start on the connection (one at a time), so the owner can close
+ * it from the app. `closable_after` is when an in-flight one counts as left behind by a stopped
+ * studio; an `unknown` one can be closed at once. Closing never removes it from usage counts.
+ */
+export const PlanOpenRequestSchema = z.strictObject({
+  request: PlanRequestSchema,
+  /** The owner can close (reconcile) it now. */
+  closable: z.boolean(),
+  /** This studio process is still waiting on it, so it cannot be closed yet. */
+  waiting: z.boolean(),
+  /** An in-flight request can be closed after this time; null when not in flight. */
+  closable_after: timestamp.nullable(),
+});
+export type PlanOpenRequest = z.infer<typeof PlanOpenRequestSchema>;
+
 export const PlanConnectionDetailSchema = z.strictObject({
   connection: PlanConnectionSchema,
   model_access: z.array(PlanModelAccessSchema),
@@ -486,6 +509,8 @@ export const PlanConnectionDetailSchema = z.strictObject({
     in_flight: counter,
     unresolved: counter,
   }),
+  /** ADR-0064: in-flight or unknown requests, oldest first. */
+  open_requests: z.array(PlanOpenRequestSchema),
   /** Every reason inference would be refused right now, in plain words. Empty means ready. */
   blockers: z.array(note),
 });

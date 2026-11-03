@@ -291,6 +291,7 @@ const USAGE = `Usage:
   pnpm cli plan-qualify-run|plan-qualify-finish <workspace> <qualification-id>
   pnpm cli plan-requests <workspace> <connection-id>
   pnpm cli plan-reconcile <workspace> <connection-id> <request-id> <expected-version> <did_not_run|ran> <note>
+                                   (also in the app: Models and connections; an in-flight one only once past its stale point)
   pnpm cli plan-quota-recheck <workspace> <connection-id> <expected-version>
   pnpm cli claude-connect <workspace> <label> [config/connections/claude-code.json]
   pnpm cli claude-check <workspace> <connection-id>

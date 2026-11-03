@@ -390,3 +390,85 @@ for (const [name, items] of Object.entries(ATTACKS))
       );
     }
   });
+
+test('a Codex disconnect mid-response stops the upstream call and settles the request (PR #128 re-review L-3)', async (t) => {
+  // An upstream that keeps streaming until its client goes away.
+  let upstreamClosed = false;
+  let markGone = () => {};
+  const upstreamGone = new Promise<void>((ok) => (markGone = ok));
+  const up = http.createServer((req, res) => {
+    req.resume();
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    const block = `data: ${JSON.stringify({
+      type: 'response.output_text.delta',
+      delta: 'x'.repeat(16_000),
+    })}\n\n`;
+    const tick = setInterval(() => res.write(block), 2);
+    res.on('close', () => {
+      clearInterval(tick);
+      upstreamClosed = true;
+      markGone();
+    });
+  });
+  await new Promise<void>((ok) => up.listen(0, '127.0.0.1', ok));
+  t.after(() => {
+    up.closeAllConnections();
+    up.close();
+  });
+  const upAddr = up.address() as { port: number };
+  const settled: RelayOutcome[] = [];
+  const done = new Promise<void>((ok) => {
+    const relay = new PlanRelay({
+      request_timeout_ms: 60_000,
+      onViolation() {},
+      admit: async () => ({
+        api_base: `http://127.0.0.1:${upAddr.port}/v1`,
+        access_token: 'studio-held-token',
+        settle: async (o) => {
+          settled.push(o);
+          ok();
+        },
+      }),
+    });
+    t.after(() => relay.close());
+    void relay.start().then((port) => {
+      // Codex reads a little, stops reading (backpressure), then disconnects.
+      const req = http.request({
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path: '/v1/responses',
+        headers: {
+          authorization: `Bearer ${relay.capability}`,
+          'content-type': 'application/json',
+        },
+      });
+      req.on('response', (res) => {
+        res.once('data', () => {
+          res.pause();
+          setTimeout(() => req.destroy(), 200);
+        });
+      });
+      req.on('error', () => {});
+      req.end(
+        JSON.stringify({
+          model: 'm',
+          input: 'hi',
+          tools: [],
+          store: false,
+          stream: true,
+        }),
+      );
+    });
+  });
+  await Promise.race([
+    Promise.all([done, upstreamGone]),
+    new Promise((_, fail) =>
+      setTimeout(() => fail(new Error('relay hung after disconnect')), 10_000),
+    ),
+  ]);
+  assert.equal(settled.length, 1);
+  assert.equal(settled[0]!.kind, 'unknown');
+  assert.equal(settled[0]!.reason_code, 'codex_disconnected');
+  assert.ok(upstreamClosed, 'the upstream call was stopped');
+});

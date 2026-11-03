@@ -1,0 +1,61 @@
+[
+  {
+    "check": "form before allow [on, connection, model, snapshot, per day]",
+    "result": [
+      true,
+      "7062d907-f9e4-46e5-808f-63f8aa159fb4",
+      "claude-sonnet-5-5",
+      false,
+      "7"
+    ]
+  },
+  {
+    "check": "form after allow",
+    "result": [
+      false,
+      "7062d907-f9e4-46e5-808f-63f8aa159fb4",
+      "claude-sonnet-5-5",
+      true,
+      "20"
+    ]
+  },
+  {
+    "check": "form after accepting caps",
+    "result": [
+      false,
+      "7062d907-f9e4-46e5-808f-63f8aa159fb4",
+      "claude-sonnet-5-5",
+      true,
+      "20"
+    ]
+  },
+  {
+    "check": "saved",
+    "result": "Chat answers are on."
+  },
+  {
+    "check": "card count before answers",
+    "result": "0 of 7 chat answers used in the last 24 hours"
+  },
+  {
+    "check": "usage button after first answer",
+    "result": "Claude 1/30API $0.00/$20.00"
+  },
+  {
+    "check": "usage button after second answer (same page, no hash change)",
+    "result": {
+      "text": "Claude 1/30API $0.00/$20.00",
+      "changed": false,
+      "same_address": true,
+      "ms_after_answer": 5112
+    }
+  },
+  {
+    "check": "card count after returning to Models",
+    "result": "0 of 7 chat answers used in the last 24 hours"
+  },
+  {
+    "check": "page errors",
+    "result": []
+  }
+]

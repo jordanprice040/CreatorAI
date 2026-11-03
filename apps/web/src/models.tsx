@@ -28,6 +28,7 @@ import {
   draftToCaps,
 } from './caps-fields.js';
 import { ChatAnswersCard } from './chat-answers.js';
+import { OpenRequests } from './open-requests.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -483,6 +484,14 @@ export function Models({
               </ul>
             </>
           )}
+          {/* ADR-0064: shown before the forms, since it blocks every request here. */}
+          <OpenRequests
+            connection={c}
+            open={detail.open_requests}
+            owner={owner}
+            busy={busy || !session}
+            act={act}
+          />
           {owner && (
             <div className="actions">
               {claude ? (
