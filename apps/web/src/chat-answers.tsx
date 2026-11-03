@@ -25,7 +25,14 @@ export const planName = (kind: ChatAnswer['connection_kind']) =>
   kind === 'claude_code' ? 'Claude' : 'ChatGPT';
 
 /** A model answer, or why there is none, with the "What was sent" panel. */
-export function AnswerView({ a }: { a: ChatAnswer }) {
+export function AnswerView({
+  a,
+  openModels,
+}: {
+  a: ChatAnswer;
+  /** ADR-0064: where a request blocked by an earlier one can be closed. */
+  openModels?: () => void;
+}) {
   const who = `${planName(a.connection_kind)} · ${a.model_id}`;
   return (
     <div className={`chat-studio chat-model chat-model-${a.state}`}>
@@ -47,6 +54,14 @@ export function AnswerView({ a }: { a: ChatAnswer }) {
       {a.state === 'refused' && (
         <p>
           <strong>Not asked.</strong> Nothing was sent. {a.reason}
+          {openModels && /reconcile it/.test(a.reason ?? '') && (
+            <>
+              {' '}
+              <button type="button" className="text" onClick={openModels}>
+                Open Models and connections
+              </button>
+            </>
+          )}
         </p>
       )}
       {a.state === 'failed' && (
@@ -173,6 +188,12 @@ export function ChatAnswersCard({
       : []),
     ...(chosen && models.length === 0
       ? ['No model is verified on this connection yet.']
+      : []),
+    // ADR-0064: one request at a time, and an open one blocks chat until it is closed.
+    ...(chosen?.open_requests.length
+      ? [
+          'A request on this connection has no recorded outcome yet (still running, or left by a stopped studio). See "Requests without a recorded outcome" under Plan connections.',
+        ]
       : []),
   ];
 

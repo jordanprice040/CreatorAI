@@ -145,10 +145,12 @@ export function admissionBlockers(input: {
     out.push('This task class belongs to the other path.');
   if (u.unresolved > 0)
     out.push(
-      'An earlier plan request has an unknown outcome; reconcile it first.',
+      'An earlier plan request has an unknown outcome; reconcile it first in Models and connections.',
     );
   if (u.in_flight >= caps.shared.max_in_flight)
-    out.push('Another plan request is already running (one at a time).');
+    out.push(
+      'Another plan request is already running (one at a time). If the studio stopped during it, reconcile it in Models and connections.',
+    );
   if (u.last_24h_requests >= caps.shared.max_model_requests_per_day)
     out.push('The studio daily request cap for this connection is reached.');
   if (r.path === 'responses') {

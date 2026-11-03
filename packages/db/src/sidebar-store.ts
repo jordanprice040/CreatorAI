@@ -59,6 +59,18 @@ const words = (s: string) => s.replace(/_/g, ' ');
 export const STALE_PLAN_REQUEST_MS = 45 * 60_000;
 export const STALE_PLAN_REQUEST_MARGIN_MS = 15 * 60_000;
 
+/**
+ * The time after which an in-flight plan request (aliased `pr`, its connection `pc`) counts as
+ * cut off, by the rule above. One fragment for this panel and for when the owner may close the
+ * request on Models (ADR-0064), so the two cannot disagree.
+ */
+export const PLAN_REQUEST_STALE_AFTER = `pr.started_at + make_interval(secs => greatest(
+   ${STALE_PLAN_REQUEST_MS}::double precision,
+   coalesce((pc.settings #>> case when pr.purpose = 'codex_build'
+     then '{caps,codex,build_timeout_ms}'::text[]
+     else '{caps,responses,request_timeout_ms}'::text[] end)::double precision, 0)
+     + ${STALE_PLAN_REQUEST_MARGIN_MS}::double precision) / 1000)`;
+
 /** Review L-3: plain words per workflow state, and whether it is moving on its own. */
 const WORKFLOW_STATE: Record<string, [string, boolean]> = {
   queued: ['queued', true],
@@ -87,16 +99,11 @@ export async function activityNow(
   const items: ActivityNowItem[] = [];
   const plan = await c.query(
     `select pr.id, pr.purpose, pr.model_id, pr.task_class, pr.run_id, pr.started_at,
-       pr.started_at < clock_timestamp() - make_interval(secs => greatest(
-         $3::double precision,
-         coalesce((pc.settings #>> case when pr.purpose = 'codex_build'
-           then '{caps,codex,build_timeout_ms}'::text[]
-           else '{caps,responses,request_timeout_ms}'::text[] end)::double precision, 0)
-           + $4::double precision) / 1000) as stale
+       ${PLAN_REQUEST_STALE_AFTER} < clock_timestamp() as stale
      from plan_requests pr join plan_connections pc on pc.id = pr.connection_id
      where pc.workspace_id = $1 and pr.state = 'in_flight'
      order by pr.started_at desc limit $2`,
-    [ws, ACTIVITY_NOW_MAX, STALE_PLAN_REQUEST_MS, STALE_PLAN_REQUEST_MARGIN_MS],
+    [ws, ACTIVITY_NOW_MAX],
   );
   for (const r of plan.rows as Row[]) {
     const purpose = String(r.purpose);
