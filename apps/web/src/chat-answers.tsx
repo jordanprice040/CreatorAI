@@ -5,6 +5,7 @@ import {
   CHAT_DAILY_LIMIT_MAX,
   ChatSettingsSchema,
   PlanConnectionDetailSchema,
+  PLAN_RECONCILE_HINT,
   PlanConnectionSchema,
   z,
   type ChatAnswer,
@@ -26,7 +27,14 @@ export const planName = (kind: ChatAnswer['connection_kind']) =>
   kind === 'claude_code' ? 'Claude' : 'ChatGPT';
 
 /** A model answer, or why there is none, with the "What was sent" panel. */
-export function AnswerView({ a }: { a: ChatAnswer }) {
+export function AnswerView({
+  a,
+  openModels,
+}: {
+  a: ChatAnswer;
+  /** ADR-0064: where a request blocked by an earlier one can be closed. */
+  openModels?: () => void;
+}) {
   const who = `${planName(a.connection_kind)} · ${a.model_id}`;
   return (
     <div className={`chat-studio chat-model chat-model-${a.state}`}>
@@ -48,6 +56,14 @@ export function AnswerView({ a }: { a: ChatAnswer }) {
       {a.state === 'refused' && (
         <p>
           <strong>Not asked.</strong> Nothing was sent. {a.reason}
+          {openModels && (a.reason ?? '').includes(PLAN_RECONCILE_HINT) && (
+            <>
+              {' '}
+              <button type="button" className="text" onClick={openModels}>
+                Open Models and connections
+              </button>
+            </>
+          )}
         </p>
       )}
       {a.state === 'failed' && (
@@ -192,6 +208,19 @@ export function ChatAnswersCard({
       : []),
     ...(chosen && models.length === 0
       ? ['No model is verified on this connection yet.']
+      : []),
+    // ADR-0064: one request at a time, and an open one blocks chat until it is closed.
+    // A request this studio is still waiting on is a normal running request, not a problem,
+    // unless it is past its time limit (PR #128 re-review N-5: then a restart is needed).
+    ...(chosen?.open_requests.some(
+      (o) =>
+        !o.waiting ||
+        (o.closable_after !== null &&
+          Date.parse(o.closable_after) <= Date.now()),
+    )
+      ? [
+          'A request on this connection has no recorded outcome yet (it may be running, or a stopped studio left it). See "Requests without a recorded outcome" under Plan connections.',
+        ]
       : []),
   ];
 

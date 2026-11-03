@@ -446,6 +446,7 @@ export function Chat({
                 act={act}
                 label={actionLabel}
                 answers={answersFor.get(m.id) ?? []}
+                openModels={() => open('models')}
                 ask={
                   owner && answersOn && detail
                     ? () => void ask(detail.conversation.id, m.id)
@@ -504,6 +505,7 @@ function MessageItem({
   act,
   label,
   answers,
+  openModels,
   ask,
   askLabel,
   asking,
@@ -514,6 +516,7 @@ function MessageItem({
   act: (a: ReplyAction) => void;
   label: (a: ReplyAction) => string;
   answers: ChatAnswer[];
+  openModels: () => void;
   ask: (() => void) | null;
   askLabel: string;
   asking: boolean;
@@ -550,7 +553,7 @@ function MessageItem({
         )}
       </div>
       {answers.map((a) => (
-        <AnswerView key={a.id} a={a} />
+        <AnswerView key={a.id} a={a} openModels={openModels} />
       ))}
       {asking && !live && (
         <div className="chat-studio chat-model">

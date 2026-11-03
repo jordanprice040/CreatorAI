@@ -1,0 +1,6 @@
+items: 3
+close buttons: 2 (expected 2: old in-flight and unknown)
+recent: Running, or the studio stopped during it. If nothing finishes it, it can be closed after Nov 3, 2026, 10:51 AM.
+recent can be closed: 0
+after closing the old in-flight one: 2 left
+old request: reconciled owner_ran

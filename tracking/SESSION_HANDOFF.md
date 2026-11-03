@@ -1,3 +1,29 @@
+## Close a stuck plan request in the app (ADR-0064, no migration) — November 3, 2026
+
+PR #126 re-review N-2 (a request a stopped studio left in flight blocks all chat on the connection; closing it was CLI-only) and N-1 (outdated `beginChatAnswer` comment). Jordan approved.
+
+What now works:
+
+- Models and connections lists a connection's requests without a recorded outcome (in flight or unknown) above the forms, with when each started and what it was for. The owner closes one in place ("It ran, or I cannot tell" or "It did not run", with a note). The page says it still counts toward the day's requests and the plan usage stays used.
+- An in-flight request can be closed only when this studio is not waiting on it and it is past the running-now panel's stale point (timeout + 15 min, at least 45 min); before that the page shows when. The store enforces it for the CLI too. One shared SQL fragment `PLAN_REQUEST_STALE_AFTER` (sidebar-store.ts).
+- A chat answer refused by an open request says to reconcile it in Models and connections, with a button that opens it. The admission blocker texts name the page.
+- The `beginChatAnswer` sweep comment now says live answers are skipped and only a restart can close one early (N-1).
+- The Models "Chat answers" card lists an open request among the reasons chat would be refused.
+
+Checks: two new tests in `tests/src/plan-connections.test.ts` (waiting → refused; after a restart inside the window → refused with the time shown; past it → closable, closed, still counted, a late settle cannot overwrite; unknown → closable at once, `did_not_run` keeps the day's count). The first fails with the in-flight guard removed. `pnpm typecheck`, Prettier, and `pnpm test` on PostgreSQL 16: 716 tests, 683 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh). GitHub Actions minutes are exhausted, so no CI. Browser walk `tracking/evidence/open-plan-requests/walk.mjs` on a throwaway database (review ports, $0, no model call; requests inserted with SQL): three open requests listed, two closable, the one that started a minute ago shows when it can be closed; the old in-flight one closed in the app reads `reconciled owner_ran` (`walk.txt`, screenshots).
+
+Limits: the worker process's requests are covered by the time rule only; the chat "Open Models and connections" button was not walked (it shows on a refused answer whose reason names reconcile).
+
+Review fixes (fresh review `/mnt/project-files/reviews/PR128_STUCK_REQUEST_RECONCILE_REVIEW_2026-11-03.md`: no Medium or above; Jordan asked for the Lows):
+
+- L-1: a request the studio is still waiting on past its time limit now reads "…well past its time limit. It cannot be closed while the studio waits; restarting the studio lets you close it here." (before the limit it shows when the limit ends). The Codex relay (`codex-host.ts`) no longer waits forever for `drain` when Codex disconnects under backpressure: it stops on `close`, records the request as unknown and settles it, so it leaves the waiting set.
+- L-2: closing a request the studio is waiting on is refused before any lock is taken (settle locks the request row before the connection, the reverse order), so it cannot deadlock with that request's settle; the in-transaction check stays.
+- N-1: the Chat answers card warns only about open requests the studio is not waiting on. N-2: the chat button keys on the shared `PLAN_RECONCILE_HINT` constant (contracts) that both admission blockers use. N-3: tests now cover an editor being refused (ACCESS_DENIED) and "did not run" being refused for an in-flight request with observed output.
+
+Checks after the fixes: typecheck and Prettier pass; `pnpm test` on PostgreSQL 16: 716 tests, 683 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests). The Codex relay disconnect path had no test at that point (added in the re-review fixes below).
+
+Re-review fixes (`/mnt/project-files/reviews/PR128_STUCK_REQUEST_RECONCILE_REREVIEW_2026-11-03.md`: no Medium or above): L-3 when Codex disconnects mid-response the relay now aborts the upstream call (in `finally`, after the outcome is classified) and records `codex_disconnected`; a new test in `tests/src/codex-host.test.ts` streams from a fake upstream, stops reading, disconnects, and checks the request settles and the upstream connection closes (it hangs with the abort removed). N-4 recorded in ADR-0064. N-5 the Chat answers card also warns about a request still waited on past its time limit. ADR wording: "no longer takes locks in the reverse order" instead of "cannot deadlock". Checks: typecheck and Prettier pass; `pnpm test` on PostgreSQL 16: 717 tests, 684 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests).
+
 ## Plan-backed chat rough edges — November 3, 2026
 
 The two rough edges left from the PR #102 live check (ADR-0057). No migration, no ADR.

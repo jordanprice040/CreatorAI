@@ -9,6 +9,7 @@ import {
   CLAUDE_CODE_MIN_VERSION,
   claudeCodeVersionSupported,
   pathForTaskClass,
+  PLAN_RECONCILE_HINT,
 } from '@creator/contracts';
 
 // Deterministic admission for ChatGPT-plan requests (§2.4). The store evaluates this under a
@@ -145,10 +146,12 @@ export function admissionBlockers(input: {
     out.push('This task class belongs to the other path.');
   if (u.unresolved > 0)
     out.push(
-      'An earlier plan request has an unknown outcome; reconcile it first.',
+      `An earlier plan request has an unknown outcome; ${PLAN_RECONCILE_HINT}.`,
     );
   if (u.in_flight >= caps.shared.max_in_flight)
-    out.push('Another plan request is already running (one at a time).');
+    out.push(
+      `Another plan request is already running (one at a time). If the studio stopped during it, ${PLAN_RECONCILE_HINT}.`,
+    );
   if (u.last_24h_requests >= caps.shared.max_model_requests_per_day)
     out.push('The studio daily request cap for this connection is reached.');
   if (r.path === 'responses') {
