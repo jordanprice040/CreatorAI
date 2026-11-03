@@ -194,8 +194,8 @@ export function Chat({
     if (!text || busy || !canWrite) return;
     setBusy(true);
     setError('');
+    let id = focus;
     try {
-      let id = focus;
       if (!id) {
         const created = await api(ChatConversationSchema, base, {
           csrf: session.csrf_token,
@@ -219,6 +219,17 @@ export function Chat({
       if (answersOn && owner && posted.intent === 'note')
         void ask(id, posted.id);
     } catch (err) {
+      // PR #124 re-review L-A: the open conversation was deleted elsewhere. Leave it (the same
+      // check as on load), so the kept draft goes into a new conversation on the next send.
+      if (
+        err instanceof ApiError &&
+        err.code === 'NOT_FOUND' &&
+        id &&
+        id === focusRef.current
+      ) {
+        await loadDetail(id);
+        return;
+      }
       // The draft and its id stay, so sending again cannot add the message twice.
       setError(
         `${errorText(err)} Your message is kept; send it again to retry.`,
@@ -543,7 +554,10 @@ function ChatTitle({
 }: {
   conversation: ChatConversation;
   canWrite: boolean;
-  /** ADR-0063: owners delete any conversation; editors the ones they started. */
+  /**
+   * ADR-0063: owners delete any conversation; editors only ones they started that hold only
+   * their own messages and no model answers.
+   */
   canDelete: boolean;
   rename: (title: string) => Promise<void>;
   remove: () => Promise<void>;
@@ -558,12 +572,13 @@ function ChatTitle({
   const deleteRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
   useEffect(() => {
-    if (confirming) keepRef.current?.focus();
-    else if (returnFocus.current) {
+    // Also after a refused delete re-enables the buttons (PR #124 re-review N-A).
+    if (confirming && !deleting) keepRef.current?.focus();
+    else if (!confirming && returnFocus.current) {
       returnFocus.current = false;
       deleteRef.current?.focus();
     }
-  }, [confirming]);
+  }, [confirming, deleting]);
   if (confirming)
     return (
       <div

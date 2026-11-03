@@ -506,12 +506,12 @@ export class ConnectionStore extends PortfolioStore {
           'Only the owner or the person who started this conversation can delete it.',
         );
       // PR #124 review L-2: an editor never deletes anyone else's words. Answers are always
-      // asked for by the owner, so a conversation with any is the owner's to delete.
+      // asked for by an owner, so a conversation with any answer is the owner's to delete.
       if (role !== 'owner') {
         const others = await c.query(
           `select 1 from chat_messages where conversation_id = $1 and author_id <> $2
            union all
-           select 1 from chat_answers where conversation_id = $1 and created_by <> $2
+           select 1 from chat_answers where conversation_id = $1
            limit 1`,
           [conversation.id, ctx.actorId],
         );

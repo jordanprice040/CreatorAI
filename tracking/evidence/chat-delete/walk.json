@@ -1,7 +1,7 @@
 [
   {
     "check": "workspace",
-    "result": "d9bd1fcc-8ad1-4b74-a465-1cb3d1af4569"
+    "result": "8d337106-f3db-473d-95b2-4442a20fe19b"
   },
   {
     "check": "L-2 failed send error",
@@ -53,7 +53,7 @@
   },
   {
     "check": "after delete: address",
-    "result": "#/chat/conversations?ws=d9bd1fcc-8ad1-4b74-a465-1cb3d1af4569"
+    "result": "#/chat/conversations?ws=8d337106-f3db-473d-95b2-4442a20fe19b"
   },
   {
     "check": "L-4 focus after delete (expect the message box)",
@@ -62,8 +62,8 @@
   {
     "check": "L-3 open conversation",
     "result": [
-      "#/chat/conversations?ws=d9bd1fcc-8ad1-4b74-a465-1cb3d1af4569&id=696e4921-7b0c-4779-8074-9d9a1d5c8974",
-      "696e4921-7b0c-4779-8074-9d9a1d5c8974"
+      "#/chat/conversations?ws=8d337106-f3db-473d-95b2-4442a20fe19b&id=9134c75f-63a6-45ab-ba46-a17e1ce73845",
+      "9134c75f-63a6-45ab-ba46-a17e1ce73845"
     ]
   },
   {
@@ -75,13 +75,27 @@
     "result": 1
   },
   {
+    "check": "L-A notice after a failed send",
+    "result": "That conversation was deleted. Your next message starts a new one."
+  },
+  {
+    "check": "L-A draft kept",
+    "result": "Sent without leaving Chat"
+  },
+  {
+    "check": "L-A resend starts a new conversation (expect +1)",
+    "result": 1
+  },
+  {
     "check": "phone: horizontal overflow",
     "result": false
   },
   {
-    "check": "page errors (expect only the forced 503)",
+    "check": "page errors (expect only the forced 503 and the L-3/L-A 404s)",
     "result": [
       "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
       "Failed to load resource: the server responded with a status of 404 (Not Found)"
     ]
   }

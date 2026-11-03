@@ -161,20 +161,22 @@ log(
 await send('Deleted from another tab');
 const goneId = new URL(p.url()).hash.match(/[?&]id=([0-9a-f-]{36})/)?.[1];
 log('L-3 open conversation', [new URL(p.url()).hash, goneId]);
-await p.evaluate(
-  async ([w, id]) => {
-    const s = await (await fetch('/api/auth/session')).json();
-    await fetch(`/api/workspaces/${w}/chats/${id}/delete`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': s.csrf_token,
-      },
-      body: '{}',
-    });
-  },
-  [new URL(p.url()).hash.match(/ws=([0-9a-f-]{36})/)[1], goneId],
-);
+const deleteElsewhere = (id) =>
+  p.evaluate(
+    async ([w, id]) => {
+      const s = await (await fetch('/api/auth/session')).json();
+      await fetch(`/api/workspaces/${w}/chats/${id}/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': s.csrf_token,
+        },
+        body: '{}',
+      });
+    },
+    [new URL(p.url()).hash.match(/ws=([0-9a-f-]{36})/)[1], id],
+  );
+await deleteElsewhere(goneId);
 await p.click('.page-nav a:has-text("Sources")');
 await p.waitForTimeout(300);
 await p.click('.page-nav a:has-text("Chat")');
@@ -185,6 +187,23 @@ await send('Next message after the delete');
 log(
   'L-3 next send starts a new conversation (expect +1)',
   (await count()) - beforeRetry,
+);
+// L-A: deleted elsewhere while the person stays on Chat and sends.
+await deleteElsewhere(
+  new URL(p.url()).hash.match(/[?&]id=([0-9a-f-]{36})/)?.[1],
+);
+await p.fill('#chat-input', 'Sent without leaving Chat');
+await p.keyboard.press('Enter');
+await p.waitForSelector('.chat .error:has-text("was deleted")');
+log('L-A notice after a failed send', await p.textContent('.chat .error'));
+log('L-A draft kept', await p.$eval('#chat-input', (i) => i.value));
+const beforeResend = await count();
+await p.keyboard.press('Enter');
+await p.waitForSelector('.chat-turn');
+await p.waitForTimeout(400);
+log(
+  'L-A resend starts a new conversation (expect +1)',
+  (await count()) - beforeResend,
 );
 await p.screenshot({ path: join(shots, 'after-delete-dark.png') });
 // Phone width: the confirm wraps without overflow.
@@ -199,6 +218,6 @@ log(
   ),
 );
 await p.screenshot({ path: join(shots, 'delete-confirm-phone.png') });
-log('page errors (expect only the forced 503 and the L-3 404)', errors);
+log('page errors (expect only the forced 503 and the L-3/L-A 404s)', errors);
 await browser.close();
 await writeFile(join(here, 'walk.json'), JSON.stringify(out, null, 2) + '\n');

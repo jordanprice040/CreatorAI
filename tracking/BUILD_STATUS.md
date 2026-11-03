@@ -10,6 +10,8 @@ Checks run: `pnpm typecheck` and Prettier pass. New DB test `deleting a conversa
 
 Review fixes (fresh review `/mnt/project-files/reviews/PR124_CHAT_DELETE_REVIEW_2026-11-03.md`, no Medium or above; Jordan asked for the Lows): L-2 an editor can delete only a conversation they started in which every message is theirs and there are no model answers (server and button); L-3 a conversation deleted elsewhere while open is left with "That conversation was deleted. Your next message starts a new one." instead of failing every send; L-4 the confirm focuses "Keep it", cancel returns focus to Delete, and after a delete focus goes to the message box; N-1 ADR says migration 39; N-2 only the deleted conversation's retry ids are dropped; N-3 the ADR says earlier audit events keep hashes. L-1 (15-minute pending window vs unbounded request timeouts) is handled in PR #123. Checks: chat and storage DB tests pass (new editor-with-owner-message case); typecheck and Prettier pass; walk re-run with L-3/L-4 checks.
 
+Re-review fixes (`/mnt/project-files/reviews/PR124_CHAT_DELETE_REREVIEW_2026-11-03.md`, no Medium or above): L-A a send that fails because the open conversation was deleted elsewhere runs the same check, so Chat says so and the kept draft goes into a new conversation on the next send (walk: notice, draft kept, resend +1); N-A a refused delete puts focus back on "Keep it"; N-B the server refuses an editor for any answer, matching the ADR and button; N-C comment; N-D walk.json re-run from the committed script.
+
 Limits: not run on the installed app; the dev studio and installed app need schema 39. Open from PR #98: L-3 (rule misreads), L-5 (fill overwrites typed text, Discover cuts to 300).
 
 ## Full audit and fixes — November 2, 2026
