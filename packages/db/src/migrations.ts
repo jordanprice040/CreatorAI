@@ -2628,6 +2628,54 @@ alter table chat_settings drop constraint chat_settings_daily_limit_check;
 alter table chat_settings add constraint chat_settings_daily_limit_check check (daily_limit >= 1);
 `,
   },
+  {
+    // ADR-0063: a chat conversation can be deleted. Messages and answers still never change,
+    // and one cannot be deleted on its own: a row may go only once its conversation is gone,
+    // which happens through the cascade from deleting the conversation. Plan requests keep no
+    // words and stay, so usage counts and daily limits do not change.
+    version: 39,
+    name: 'chat_conversation_delete',
+    sql: `
+alter table chat_messages drop constraint chat_messages_workspace_id_conversation_id_fkey;
+alter table chat_messages add constraint chat_messages_workspace_id_conversation_id_fkey
+ foreign key (workspace_id, conversation_id) references chat_conversations (workspace_id, id)
+ on delete cascade;
+alter table chat_answers drop constraint chat_answers_workspace_id_conversation_id_fkey;
+alter table chat_answers add constraint chat_answers_workspace_id_conversation_id_fkey
+ foreign key (workspace_id, conversation_id) references chat_conversations (workspace_id, id)
+ on delete cascade;
+alter table chat_answers drop constraint chat_answers_message_id_fkey;
+alter table chat_answers add constraint chat_answers_message_id_fkey
+ foreign key (message_id) references chat_messages (id) on delete cascade;
+drop trigger chat_messages_immutable on chat_messages;
+create function chat_messages_guard() returns trigger language plpgsql as $$
+begin
+ if tg_op = 'DELETE' and not exists
+   (select 1 from chat_conversations where id = old.conversation_id) then
+   return old;
+ end if;
+ raise exception 'chat messages never change and go only with their conversation'
+   using errcode = 'P0001';
+end $$;
+create trigger chat_messages_guard before update or delete on chat_messages
+ for each row execute function chat_messages_guard();
+create or replace function chat_answers_settle_once() returns trigger language plpgsql as $$
+begin
+ if tg_op = 'DELETE' and not exists
+   (select 1 from chat_conversations where id = old.conversation_id) then
+   return old;
+ end if;
+ if tg_op = 'DELETE' or old.state <> 'pending' or new.state = 'pending'
+   or (to_jsonb(new) - array['state','plan_request_id','text','output_hash','reason','finished_at'])
+      is distinct from (to_jsonb(old) - array['state','plan_request_id','text','output_hash','reason','finished_at'])
+ then
+   raise exception 'chat answers change only once, from pending to their outcome'
+     using errcode = 'P0001';
+ end if;
+ return new;
+end $$;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ChatAnswerSchema,
   ChatConversationSchema,
+  ChatDeletedSchema,
   ChatDetailSchema,
   ChatMessageSchema,
   ChatSettingsSchema,
@@ -16,7 +17,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { announceActivity } from './activity-dots.js';
-import { api, message as errorText, when } from './oversight.js';
+import { api, ApiError, message as errorText, when } from './oversight.js';
 import { usePageActive } from './page-drafts.js';
 import { pathStages, type StudioFacts } from './next-rules.js';
 import {
@@ -136,7 +137,20 @@ export function Chat({
     } catch (e) {
       if (mine === detailSeq.current) {
         setDetail(null);
-        setError(errorText(e));
+        // PR #124 review L-3: deleted elsewhere (another tab or member). Leave it, so the next
+        // send starts a new conversation instead of failing against the gone one.
+        if (
+          e instanceof ApiError &&
+          e.code === 'NOT_FOUND' &&
+          id === focusRef.current
+        ) {
+          focusRef.current = '';
+          onFocus('');
+          setError(
+            'That conversation was deleted. Your next message starts a new one.',
+          );
+          void loadList();
+        } else setError(errorText(e));
       }
     }
   }
@@ -208,14 +222,18 @@ export function Chat({
     if (!text || busy || !canWrite) return;
     setBusy(true);
     setError('');
+    let id = focus;
     try {
-      let id = focus;
       if (!id) {
         const created = await api(ChatConversationSchema, base, {
           csrf: session.csrf_token,
           body: {},
         });
         id = created.id;
+        // PR #98 L-2: open the new conversation before posting, so a failed post is retried
+        // into it instead of starting another empty one.
+        focusRef.current = id;
+        onFocus(id);
       }
       const posted = await api(ChatMessageSchema, `${base}/${id}/messages`, {
         csrf: session.csrf_token,
@@ -223,15 +241,23 @@ export function Chat({
       });
       clientId.current = crypto.randomUUID();
       setDraft('');
-      if (id !== focus) {
-        focusRef.current = id;
-        onFocus(id);
-      } else await loadDetail(id);
+      if (id === focusRef.current) await loadDetail(id);
       await loadList();
       // ADR-0057: a message the rules keep as a note goes to the chosen plan when answers are on.
       if (answersOn && owner && posted.intent === 'note')
         void ask(id, posted.id);
     } catch (err) {
+      // PR #124 re-review L-A: the open conversation was deleted elsewhere. Leave it (the same
+      // check as on load), so the kept draft goes into a new conversation on the next send.
+      if (
+        err instanceof ApiError &&
+        err.code === 'NOT_FOUND' &&
+        id &&
+        id === focusRef.current
+      ) {
+        await loadDetail(id);
+        return;
+      }
       // The draft and its id stay, so sending again cannot add the message twice.
       setError(
         `${errorText(err)} Your message is kept; send it again to retry.`,
@@ -350,6 +376,32 @@ export function Chat({
               key={detail.conversation.id}
               conversation={detail.conversation}
               canWrite={canWrite}
+              canDelete={
+                owner ||
+                // PR #124 review L-2: editors only when every word in it is theirs.
+                (canWrite &&
+                  detail.conversation.created_by === session.actor_id &&
+                  detail.messages.every(
+                    (m) => m.author_id === session.actor_id,
+                  ) &&
+                  detail.answers.length === 0)
+              }
+              remove={async () => {
+                const id = detail.conversation.id;
+                await api(ChatDeletedSchema, `${base}/${id}/delete`, {
+                  csrf: session.csrf_token,
+                  body: {},
+                });
+                for (const m of detail.messages) askIds.current.delete(m.id);
+                if (focusRef.current === id) {
+                  focusRef.current = '';
+                  setDetail(null);
+                  onFocus('');
+                }
+                await loadList();
+                // PR #124 review L-4: keyboard focus goes to the message box, not the page.
+                inputRef.current?.focus();
+              }}
               rename={async (title) => {
                 await api(
                   ChatConversationSchema,
@@ -524,15 +576,84 @@ function MessageItem({
 function ChatTitle({
   conversation,
   canWrite,
+  canDelete,
   rename,
+  remove,
 }: {
   conversation: ChatConversation;
   canWrite: boolean;
+  /**
+   * ADR-0063: owners delete any conversation; editors only ones they started that hold only
+   * their own messages and no model answers.
+   */
+  canDelete: boolean;
   rename: (title: string) => Promise<void>;
+  remove: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [title, setTitle] = useState(conversation.title);
   const [error, setError] = useState('');
+  // PR #124 review L-4: the confirm takes focus when shown; cancelling returns it to Delete.
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+  useEffect(() => {
+    // Also after a refused delete re-enables the buttons (PR #124 re-review N-A).
+    if (confirming && !deleting) keepRef.current?.focus();
+    else if (!confirming && returnFocus.current) {
+      returnFocus.current = false;
+      deleteRef.current?.focus();
+    }
+  }, [confirming, deleting]);
+  if (confirming)
+    return (
+      <div
+        className="chat-head chat-confirm"
+        role="group"
+        aria-label="Delete conversation"
+      >
+        <p>
+          Delete “{conversation.title}” and its {conversation.messages}{' '}
+          {conversation.messages === 1 ? 'message' : 'messages'}? Model answers
+          in it go too. This cannot be undone.
+        </p>
+        <button
+          type="button"
+          className="secondary danger"
+          disabled={deleting}
+          onClick={() => {
+            setDeleting(true);
+            setError('');
+            remove().catch((err: unknown) => {
+              setError(errorText(err));
+              setDeleting(false);
+            });
+          }}
+        >
+          {deleting ? 'Deleting…' : 'Delete conversation'}
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          ref={keepRef}
+          disabled={deleting}
+          onClick={() => {
+            returnFocus.current = true;
+            setConfirming(false);
+            setError('');
+          }}
+        >
+          Keep it
+        </button>
+        {error && (
+          <span className="error" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    );
   if (!editing)
     return (
       <div className="chat-head">
@@ -547,6 +668,16 @@ function ChatTitle({
             }}
           >
             Rename
+          </button>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            className="text"
+            ref={deleteRef}
+            onClick={() => setConfirming(true)}
+          >
+            Delete
           </button>
         )}
       </div>

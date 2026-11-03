@@ -1,0 +1,102 @@
+[
+  {
+    "check": "workspace",
+    "result": "8d337106-f3db-473d-95b2-4442a20fe19b"
+  },
+  {
+    "check": "L-2 failed send error",
+    "result": "API error 503 Your message is kept; send it again to retry."
+  },
+  {
+    "check": "L-2 conversations added by fail+retry (expect 1)",
+    "result": 1
+  },
+  {
+    "check": "L-1 filled address",
+    "result": "https://example.org/frame-timing"
+  },
+  {
+    "check": "L-1 address after Reset (expect empty)",
+    "result": ""
+  },
+  {
+    "check": "L-1 refilled address",
+    "result": "https://example.org/frame-timing"
+  },
+  {
+    "check": "L-1 other workspace address (expect empty)",
+    "result": ""
+  },
+  {
+    "check": "delete confirm text",
+    "result": "Delete “Frame timing” and its 2 messages? Model answers in it go too. This cannot be undone."
+  },
+  {
+    "check": "L-4 focus on confirm (expect Keep it)",
+    "result": "Keep it"
+  },
+  {
+    "check": "L-4 focus after Keep it (expect Delete)",
+    "result": "Delete"
+  },
+  {
+    "check": "Keep it keeps (count unchanged)",
+    "result": true
+  },
+  {
+    "check": "after delete: conversations",
+    "result": -1
+  },
+  {
+    "check": "after delete: open conversation cleared",
+    "result": true
+  },
+  {
+    "check": "after delete: address",
+    "result": "#/chat/conversations?ws=8d337106-f3db-473d-95b2-4442a20fe19b"
+  },
+  {
+    "check": "L-4 focus after delete (expect the message box)",
+    "result": "chat-input"
+  },
+  {
+    "check": "L-3 open conversation",
+    "result": [
+      "#/chat/conversations?ws=8d337106-f3db-473d-95b2-4442a20fe19b&id=9134c75f-63a6-45ab-ba46-a17e1ce73845",
+      "9134c75f-63a6-45ab-ba46-a17e1ce73845"
+    ]
+  },
+  {
+    "check": "L-3 notice",
+    "result": "That conversation was deleted. Your next message starts a new one."
+  },
+  {
+    "check": "L-3 next send starts a new conversation (expect +1)",
+    "result": 1
+  },
+  {
+    "check": "L-A notice after a failed send",
+    "result": "That conversation was deleted. Your next message starts a new one."
+  },
+  {
+    "check": "L-A draft kept",
+    "result": "Sent without leaving Chat"
+  },
+  {
+    "check": "L-A resend starts a new conversation (expect +1)",
+    "result": 1
+  },
+  {
+    "check": "phone: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "page errors (expect only the forced 503 and the L-3/L-A 404s)",
+    "result": [
+      "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  }
+]

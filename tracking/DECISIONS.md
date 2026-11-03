@@ -1,5 +1,21 @@
 # Decision log
 
+## ADR-0063 — Delete a chat conversation (accepted November 3, 2026)
+
+Context: Chat is the studio's front page (ADR-0055), and conversations could be renamed but never removed. The full audit of November 2 (improvement 4) asked for delete, together with PR #98 Lows L-1 (a Chat hand-off refilled its form after "Reset fields" and in another workspace) and L-2 (a failed first send left empty conversations). ADR-0055 and ADR-0057 made messages and answers rows that never change and are never deleted.
+
+Decision:
+
+- A conversation can be deleted with everything in it: its messages and its model answers. Migration 39 (`chat_conversation_delete`; 38 belongs to PR #123) makes the foreign keys from `chat_messages` and `chat_answers` cascade, and replaces the triggers so a message or answer row may be deleted only when its conversation no longer exists. Messages still never change, answers still settle only once, and neither can be deleted on its own.
+- `POST /api/workspaces/{ws}/chats/{id}/delete` (POST with CSRF, like the other chat actions). Owners delete any conversation; editors only those they started in which every message is theirs and there are no model answers (answers are always the owner's), so an editor never deletes someone else's words (PR #124 review L-2); viewers none. Another workspace's id is not found.
+- Refused (`INVALID_TRANSITION`) while an answer in it is pending and younger than its connection's request timeout plus 15 minutes (the stale point ADR-0062 set; it was a fixed 15 minutes before PR #123 removed the 5-minute timeout maximum), so a reply can never land in a deleted conversation. Older pending answers are already treated as stopped (ADR-0057, ADR-0062) and do not block.
+- Plan requests are kept. They hold no words, so chat usage and the daily chat limit are unchanged by a delete.
+- The audit event `chat.deleted` keeps the conversation id and the message and answer counts, never the title or words. Earlier `chat.*` events stay as they were: ids, intents and SHA-256 hashes of each message and title. A hash is not the words, but a short text could be guessed from it (PR #124 review N-3).
+- The UI asks first, in place: "Delete "<title>" and its N messages? Model answers in it go too. This cannot be undone." with "Delete conversation" and "Keep it".
+- Hard delete, not hide: the conversations hold the person's own private words, and keeping them after "delete" would not be honest. The provenance that matters for spending (plan requests, audit counts) stays.
+
+Consequences: a deleted conversation cannot be recovered, and "What was sent" for its model answers goes with it; the plan request rows remain as the record that something was sent. Anyone with database access can still delete rows only through the conversation.
+
 ## ADR-0062 — Owner-set caps and limits have no upper limit (accepted November 3, 2026)
 
 Context: Jordan asked (Nov 3) that the caps and limits the owner sets have no maximum. The Models form stopped at fixed numbers (for example 20 Codex builds and 300 model requests a day, 50 requests per run), the chat "Answers a day" stopped at 100, and GitHub connection limits at 50 repositories, 500 changes an hour and 50 open pull requests. An owner with a bigger plan, or paying for API use and fine with the amount, should be able to set them higher.

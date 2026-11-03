@@ -77,7 +77,9 @@ export function Evidence({
   const [runId, setRunId] = useState('');
   const [url, setUrl] = useState('');
   useEffect(() => {
-    if (prefill) setUrl(prefill.value);
+    if (!prefill) return;
+    setUrl(prefill.value);
+    prefill.used();
   }, [prefill?.nonce]);
   const [last, setLast] = useState<Retrieval | null>(null);
   const [status, setStatus] = useState('');
