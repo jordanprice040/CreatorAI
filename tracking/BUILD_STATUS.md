@@ -12,6 +12,14 @@ Checks run: new assertions in `tests/src/broker.test.ts` (owner sees both reconc
 
 Limits: no migration, no ADR. Tracking evidence JSON from older seeds still shows the old seed-selection workspace name.
 
+Review fixes (fresh review `/mnt/project-files/reviews/PR122_SMALLER_AUDIT_ITEMS_REVIEW_2026-11-03.md`: no Medium or above; Jordan asked for all Lows and nits):
+
+- L-1: `reconcile_evidence` defaults to null, so call outcome files saved before the field existed still parse, and an older metered build can still be packaged. `broker.test.ts` parses a broker result whose attempts lack the key; it fails without the default.
+- N-1: the reconcile answer reads the stored row back instead of overlaying the request's evidence, so a reconcile that lost a race shows the winner's outcome with the winner's evidence.
+- N-2: the walk's Budgets step now shapes the injected row as a no-charge reconcile (released, `reconciled_no_charge`), so the screenshot no longer shows evidence on a plainly settled call.
+
+Checks: `pnpm test` on PostgreSQL 16: 693 tests, 661 pass, 27 skipped, 5 fail (known PowerShell wrapper); typecheck and Prettier pass; walk re-run.
+
 ## Full audit and fixes — November 2, 2026
 
 Audit of main at `85ff0d5` (report `docs/FULL_AUDIT_2026-11-02.md`, also `/mnt/project-files/reviews/FULL_AUDIT_2026-11-02.md`): no High, one Medium (fixed), PR #117's last two commits checked with no findings.

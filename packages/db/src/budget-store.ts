@@ -1652,8 +1652,14 @@ export class BudgetStore extends OversightStore {
               evidence: req.evidence,
             },
           });
-    // Only the owner reconciles, so the answer carries the evidence just stored.
-    return { ...done.reservation, reconcile_evidence: req.evidence };
+    // Only the owner reconciles, so the answer carries the stored evidence. It is read back
+    // rather than taken from this request: a reconcile that lost a race gets the winner's
+    // outcome with the winner's evidence (PR #122 review N-1).
+    const { rows } = await this.pool.query(
+      `${RESERVATION_SELECT} where r.id = $1`,
+      [done.reservation.id],
+    );
+    return toReservation(rows[0] as Row, true);
   }
   /**
    * Crash recovery: an attempt still in flight past its deadline plus the late-result window

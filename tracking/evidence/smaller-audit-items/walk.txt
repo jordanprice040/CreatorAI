@@ -1,6 +1,6 @@
 spec row: "No-show risk flags prototype (fixture) v2 · changed since its last freeze Revise · Freeze it under Scores and specs\nNo humility review of v2 yet; a build needs one. Add a humility review"
 evidence lines: 1
-evidence row: "CHARGED model · generate · fixture/fixture-model-v1 · attempt 1\nsettled · reserved 0.4285375 sim · charged 0.05577 sim · 4557 in / 204 out tokens · Nov 3, 2026, 12:30 AM\nWhere you checked: Provider usage page for Nov 2: no request at 14:05."
+evidence row: "NOT CHARGED model · generate · fixture/fixture-model-v1 · attempt 1\nreconciled no charge · reserved 0.4285375 sim · charged — · Nov 3, 2026, 12:30 AM\nOwner confirmed from provider records that nothing was charged.\nWhere you checked: Provider usage page for Nov 2: no request at 14:05."
 chat answers heading offset from card top: 13
 owner sign-in box: 1
 owner Check button: 1

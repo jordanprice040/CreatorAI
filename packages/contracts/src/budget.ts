@@ -234,7 +234,9 @@ export const ReservationSchema = z.strictObject({
    * Where the owner checked when reconciling an unknown outcome (PR #116 N-3). Shown only to
    * the owner on the reservations list; null everywhere else, including broker results.
    */
-  reconcile_evidence: z.string().max(1200).nullable(),
+  // Defaults to null so outcome files written before the field existed still parse
+  // (PR #122 review L-1: the artifact packager re-reads call outcomes from disk).
+  reconcile_evidence: z.string().max(1200).nullable().default(null),
   fixture: z.boolean(),
   created_at: timestamp,
   finished_at: timestamp.nullable(),

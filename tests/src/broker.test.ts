@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
+  BrokerCallResultSchema,
   ContractError,
   type AutonomyMode,
   type BrokerCallRequest,
@@ -700,6 +701,18 @@ test('rate limits release and retry; malformed output is charged; unknown outcom
   for (const evidence of (await byId(agent)).values())
     assert.equal(evidence, null);
   assert.equal(kept.at(-1)?.reservation.reconcile_evidence, null);
+  // A call outcome saved before reconcile_evidence existed still parses (PR #122 review L-1:
+  // the artifact packager re-reads call-N-outcome.json from disk).
+  const older = JSON.parse(JSON.stringify(retried)) as {
+    attempts: Record<string, unknown>[];
+  };
+  for (const a of older.attempts) delete a.reconcile_evidence;
+  assert.deepEqual(
+    BrokerCallResultSchema.parse(older).attempts.map(
+      (a) => a.reconcile_evidence,
+    ),
+    [null, null],
+  );
   await rejects(
     'INVALID_TRANSITION',
     s.store.reconcile(owner, s.ws.id, reset.attempts[0]!.id, {

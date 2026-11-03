@@ -6,8 +6,8 @@
 //    CREATOR_PREVIEW_PORT=4340 CREATOR_DEV_LOGIN_CODE=<32+ chars> node scripts/dev.mjs
 // 3. CLI (CREATOR_API_URL=http://127.0.0.1:4330): login <code>; seed-selection
 // 4. node tracking/evidence/smaller-audit-items/walk.mjs <login code> <seed-selection ws id> [out]
-// The fixture has no unknown call to reconcile, so the Budgets step adds reconcile_evidence to
-// the first listed call in this browser only; the server side is covered by broker.test.ts.
+// The fixture has no unknown call to reconcile, so the Budgets step rewrites the first listed
+// call as a no-charge reconcile with evidence, in this browser only; the server side is covered by broker.test.ts.
 // The non-owner view likewise rewrites the workspace role in this browser only.
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -55,7 +55,18 @@ await row.screenshot({ path: `${out}/01-spec-row.png` });
 await page.route('**/reservations', async (route) => {
   const r = await route.fetch();
   const list = await r.json();
-  if (list[0]) list[0].reconcile_evidence = 'Provider usage page for Nov 2: no request at 14:05.';
+  // Shaped like a no-charge reconcile of an unknown call (PR #122 review N-2), so the
+  // screenshot doesn't show evidence on a plainly settled call.
+  if (list[0])
+    Object.assign(list[0], {
+      status: 'released',
+      reason_code: 'reconciled_no_charge',
+      explanation: 'Owner confirmed from provider records that nothing was charged.',
+      incurred: null,
+      usage: null,
+      usage_source: null,
+      reconcile_evidence: 'Provider usage page for Nov 2: no request at 14:05.',
+    });
   await route.fulfill({ response: r, json: list });
 });
 await page.goto(`${WEB}/#/monitor/budgets?ws=${seeded}`);
