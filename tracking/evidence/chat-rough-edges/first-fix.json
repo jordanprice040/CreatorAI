@@ -1,0 +1,74 @@
+[
+  {
+    "check": "form before allow [on, connection, model, snapshot, per day]",
+    "result": [
+      true,
+      "faf8b3de-11f1-4b47-9165-c6c9c16ba732",
+      "claude-sonnet-5-5",
+      false,
+      "7"
+    ]
+  },
+  {
+    "check": "form after allow",
+    "result": [
+      true,
+      "faf8b3de-11f1-4b47-9165-c6c9c16ba732",
+      "claude-sonnet-5-5",
+      false,
+      "7"
+    ]
+  },
+  {
+    "check": "form after accepting caps",
+    "result": [
+      true,
+      "faf8b3de-11f1-4b47-9165-c6c9c16ba732",
+      "claude-sonnet-5-5",
+      false,
+      "7"
+    ]
+  },
+  {
+    "check": "saved",
+    "result": "Chat answers are on."
+  },
+  {
+    "check": "card count before answers",
+    "result": "0 of 7 chat answers used in the last 24 hours"
+  },
+  {
+    "check": "usage button after first answer",
+    "result": "Claude 2/30API $0.00/$20.00"
+  },
+  {
+    "check": "usage button after second answer (same page, no hash change)",
+    "result": {
+      "text": "Claude 3/30API $0.00/$20.00",
+      "changed": true,
+      "same_address": true,
+      "ms_after_answer": 512
+    }
+  },
+  {
+    "check": "usage button after a background plan request (no write of its own)",
+    "result": {
+      "background_answer": {
+        "status": 200,
+        "state": "completed"
+      },
+      "before": "Claude 3/30API $0.00/$20.00",
+      "after": "Claude 3/30API $0.00/$20.00",
+      "changed": false,
+      "ms_after_write": 12141
+    }
+  },
+  {
+    "check": "card count after returning to Models",
+    "result": "3 of 7 chat answers used in the last 24 hours"
+  },
+  {
+    "check": "page errors",
+    "result": []
+  }
+]

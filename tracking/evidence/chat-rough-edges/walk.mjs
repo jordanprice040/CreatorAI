@@ -1,0 +1,201 @@
+// Browser walk for the two plan-backed chat rough edges (ADR-0057 follow-up), against
+// tracking/evidence/chat-answers/serve.mjs (throwaway database, ports 5183/4330/4340, a FAKE
+// `claude` behind a fixture Claude Code connection; no real model).
+// 1. Models › Chat answers: what the owner set in the form (answers on, 7 a day, no snapshot)
+//    stays after "Allow my private text on this connection" instead of snapping back to the
+//    saved settings.
+// 2. The top bar's usage button counts a chat answer within a few seconds, with no page change,
+//    and the card's "N of M chat answers used" count is current when Models is shown again.
+// 3. A plan request started outside the app's own calls a little after a write (as a build or
+//    qualification does on the server) is counted within seconds (PR #127 review L-1).
+// Usage: node tracking/evidence/chat-rough-edges/walk.mjs [base-url] [out-name]
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const [, , base = 'http://127.0.0.1:5183', name = 'walk'] = process.argv;
+const code = 'walk-login-code-0123456789abcdefghijkl';
+const { chromium } = createRequire(import.meta.url)(
+  process.env.PLAYWRIGHT_MODULE ?? 'playwright',
+);
+const here = dirname(fileURLToPath(import.meta.url));
+const shots = join(here, 'screens');
+await mkdir(shots, { recursive: true });
+const out = [];
+const log = (k, v) => {
+  out.push({ check: k, result: v });
+  console.log(k, JSON.stringify(v));
+};
+const browser = await chromium.launch();
+const p = await browser.newPage({
+  viewport: { width: 1280, height: 900 },
+  colorScheme: 'dark',
+});
+const errors = [];
+p.on('pageerror', (e) => errors.push(String(e)));
+p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+await p.goto(`${base}/#login=${code}`);
+await p.waitForSelector('#chat-title', { timeout: 15000 });
+const chatUrl = p.url();
+const card = '.chat-answers-card';
+const formState = () =>
+  p.$$eval(`${card} input, ${card} select`, (els) =>
+    els.map((e) => (e.type === 'checkbox' ? e.checked : e.value)),
+  );
+
+// 1. Form keeps the owner's choices after allowing private text.
+await p.goto(chatUrl.replace(/#\/chat[^?]*/, '#/connections/models'));
+await p.waitForSelector('.chat-problems', { timeout: 10000 });
+await p.check(`${card} input[type=checkbox] >> nth=0`);
+await p.uncheck(`${card} input[type=checkbox] >> nth=1`);
+await p.fill(`${card} input[type=number]`, '7');
+log(
+  'form before allow [on, connection, model, snapshot, per day]',
+  await formState(),
+);
+await p.click('text=Allow my private text on this connection');
+// Re-review N-A: while it is still shown (before the new connection version is read), the
+// button cannot be clicked again.
+log(
+  'allow button right after the click (gone, or disabled)',
+  await p.evaluate(() => {
+    const b = [...document.querySelectorAll('.chat-problems button')].find(
+      (x) => x.textContent?.includes('Allow my private text'),
+    );
+    return b ? (b.disabled ? 'disabled' : 'ENABLED') : 'gone';
+  }),
+);
+await p.waitForFunction(
+  () =>
+    ![...document.querySelectorAll('.chat-problems li')].some((l) =>
+      l.textContent?.includes('private text'),
+    ),
+  null,
+  { timeout: 10000 },
+);
+log('form after allow', await formState());
+await p
+  .locator(card)
+  .screenshot({ path: join(shots, `${name}-after-allow.png`) });
+await p.click('text=Accept these caps');
+await p.waitForFunction(() => !document.querySelector('.chat-problems'), null, {
+  timeout: 15000,
+});
+log('form after accepting caps', await formState());
+// Set the choices again if they were lost, so part 2 can run on either version.
+await p.check(`${card} input[type=checkbox] >> nth=0`);
+await p.uncheck(`${card} input[type=checkbox] >> nth=1`);
+await p.fill(`${card} input[type=number]`, '7');
+await p.click('text=Save chat answers');
+await p.waitForSelector(`${card} [role=status]`);
+log('saved', await p.textContent(`${card} [role=status]`));
+const countText = () =>
+  p.$eval(`${card} p.small`, (x) => x.textContent?.split('.')[0]);
+log('card count before answers', await countText());
+
+// 2. Usage button follows chat answers without a page change.
+const pill = () => p.textContent('.usage-summary');
+await p.goto(chatUrl);
+await p.waitForSelector('#chat-input');
+async function ask0(page, text) {
+  const n = await page.$$eval('.chat-turn', (t) => t.length);
+  await page.fill('#chat-input', text);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(
+    (k) => document.querySelectorAll('.chat-turn').length > k,
+    n,
+  );
+}
+async function ask(text, n) {
+  await p.fill('#chat-input', text);
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(
+    (k) => document.querySelectorAll('.chat-model-completed').length >= k,
+    n,
+    { timeout: 20000 },
+  );
+}
+await ask('Which of my ideas should I build first?', 1);
+await p.waitForTimeout(2000);
+const before = await pill();
+const hash = p.url();
+log('usage button after first answer', before);
+await ask('Is a terminal app OK for people who are not programmers?', 2);
+const t0 = Date.now();
+let after = before;
+while (Date.now() - t0 < 5000 && after === before) {
+  await p.waitForTimeout(250);
+  after = await pill();
+}
+log('usage button after second answer (same page, no hash change)', {
+  text: after,
+  changed: after !== before,
+  same_address: p.url() === hash,
+  ms_after_answer: Date.now() - t0,
+});
+await p.screenshot({ path: join(shots, `${name}-usage-after-answer.png`) });
+
+// 3. (review L-1) Plan work that starts on the server after the click: a rule question is a
+// write here (no answer), then 2 s later a plan request is made outside the app's own calls
+// (as a build or qualification would on the server). The button counts it within seconds.
+await ask0(p, "What's next?");
+const before3 = await pill();
+const t3 = Date.now();
+await p.waitForTimeout(2000);
+const bg = await p.evaluate(async () => {
+  const ws = new URLSearchParams(location.hash.split('?')[1]).get('ws');
+  const s = await (await fetch('/api/auth/session')).json();
+  const list = await (await fetch(`/api/workspaces/${ws}/chats`)).json();
+  const c = list[0].id;
+  const h = {
+    'Content-Type': 'application/json',
+    'X-CSRF-Token': s.csrf_token,
+  };
+  // A new note, then its answer: each message is answered once, so a fresh one is needed.
+  const m = await (
+    await fetch(`/api/workspaces/${ws}/chats/${c}/messages`, {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({
+        client_id: crypto.randomUUID(),
+        text: 'Background question asked outside the app',
+      }),
+    })
+  ).json();
+  const r = await fetch(
+    `/api/workspaces/${ws}/chats/${c}/messages/${m.id}/answer`,
+    {
+      method: 'POST',
+      headers: h,
+      body: JSON.stringify({ client_id: crypto.randomUUID() }),
+    },
+  );
+  return { status: r.status, state: (await r.json()).state };
+});
+let after3 = before3;
+while (Date.now() - t3 < 12000 && after3 === before3) {
+  await p.waitForTimeout(250);
+  after3 = await pill();
+}
+log('usage button after a background plan request (no write of its own)', {
+  background_answer: bg,
+  before: before3,
+  after: after3,
+  changed: after3 !== before3,
+  ms_after_write: Date.now() - t3,
+});
+
+// The card's own count is current when Models is shown again (pages stay mounted).
+await p.evaluate(
+  (u) => {
+    location.hash = new URL(u).hash;
+  },
+  chatUrl.replace(/#\/chat[^?]*/, '#/connections/models'),
+);
+await p.waitForSelector(card);
+await p.waitForTimeout(1500);
+log('card count after returning to Models', await countText());
+log('page errors', errors);
+await browser.close();
+await writeFile(join(here, `${name}.json`), JSON.stringify(out, null, 2));
