@@ -887,6 +887,7 @@ export function Models({
           )}
           {owner && (
             <QualifyModel
+              base={base}
               connection={c}
               models={detail.model_access
                 .filter(

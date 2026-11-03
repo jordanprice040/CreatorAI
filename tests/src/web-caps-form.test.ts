@@ -7,6 +7,8 @@ import {
   PlanSettingsSchema,
   PlanTaskClassSchema,
   PlanCapsSchema,
+  planWaitMs,
+  TIMER_MAX_MS,
   type PlanCaps,
 } from '@creator/contracts';
 
@@ -354,4 +356,22 @@ test('allowed work needs at least one class each, and changes are said in words'
     m.classSummary(['synthetic', 'public'], ['specification']),
     'Synthetic (made-up) data, Public data · tasks: Specification writing',
   );
+});
+
+test('client waits follow the connection timeout, per call, under the timer bound', () => {
+  // PR #123 re-review M-1 and L-1: no wait sized for the old 300 s / 30-minute maxima.
+  assert.equal(planWaitMs(120_000), 180_000);
+  assert.equal(
+    planWaitMs(60 * 60_000, 1, 120_000),
+    62 * 60_000,
+    'one-hour build',
+  );
+  assert.equal(
+    planWaitMs(15 * 60_000, 6),
+    91 * 60_000,
+    '6 cases at 15 minutes',
+  );
+  assert.equal(planWaitMs(120_000, 0), 180_000, 'at least one call');
+  assert.equal(planWaitMs(2_147_460_000, 1, 120_000), TIMER_MAX_MS);
+  assert.equal(planWaitMs(2_000_000_000, 8), TIMER_MAX_MS);
 });

@@ -64,6 +64,8 @@ export type TaskKind = z.infer<typeof TaskKindSchema>;
 
 /** Metered (API) and local calls: the broker's own per-call timeout bound (budget.ts). */
 export const METERED_CALL_TIMEOUT_MAX_MS = 600_000;
+/** Metered (API) and local workflows: the one-day wall time they had before ADR-0062. */
+export const METERED_WALL_MAX_SECONDS = 86_400;
 /**
  * ADR-0062: a plan-backed (subscription) call may run as long as the connection's request
  * timeout, which has no owner maximum beyond the timer bound; a workflow's wall time must be
@@ -124,6 +126,18 @@ export const StartWorkflowRequestSchema = z
       });
     if (new Set(r.perspectives).size !== r.perspectives.length)
       ctx.addIssue({ code: 'custom', message: 'Perspectives must differ.' });
+    // PR #123 re-review L-2: this workflow is always metered, so it keeps the broker's 600 s
+    // per-call bound and the one-day wall time it had before ADR-0062.
+    if (r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'API workflow calls time out within 600 seconds.',
+      });
+    if (r.limits.max_wall_seconds > METERED_WALL_MAX_SECONDS)
+      ctx.addIssue({
+        code: 'custom',
+        message: 'API workflows end within one day.',
+      });
   });
 export type StartWorkflowRequest = z.infer<typeof StartWorkflowRequestSchema>;
 export const WorkflowControlRequestSchema = z.strictObject({
@@ -223,15 +237,20 @@ export const StartDiscoveryRequestSchema = z
       });
     // ADR-0062: only plan-backed calls may outlast the broker's 600 s per-call bound; the
     // subscription start also checks the timeout against the connection's accepted cap.
-    if (
-      r.resource_setup?.kind !== 'subscription' &&
-      r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS
-    )
-      ctx.addIssue({
-        code: 'custom',
-        message:
-          'API and local workflow calls time out within 600 seconds; only plan-backed calls follow the connection timeout.',
-      });
+    if (r.resource_setup?.kind !== 'subscription') {
+      if (r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS)
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'API and local workflow calls time out within 600 seconds; only plan-backed calls follow the connection timeout.',
+        });
+      if (r.limits.max_wall_seconds > METERED_WALL_MAX_SECONDS)
+        ctx.addIssue({
+          code: 'custom',
+          message:
+            'API and local workflows end within one day; only plan-backed runs may run longer.',
+        });
+    }
     const named = [...r.perspectives, ...r.excluded.map((e) => e.perspective)];
     if (new Set(named).size !== named.length)
       ctx.addIssue({

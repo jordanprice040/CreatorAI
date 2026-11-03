@@ -17,6 +17,7 @@ import {
   StoredEntitySchema,
   WorkflowDetailSchema,
   WorkflowSchema,
+  WORKFLOW_WALL_MAX_SECONDS,
   z,
   type ClaimEvidence,
   type EvidenceRole,
@@ -323,9 +324,13 @@ export function Submit({
           call_timeout_ms: planTimeout,
           // ADR-0062: the timeout has no owner maximum, so the workflow's wall time grows to
           // hold every allowed call at that timeout, one at a time (never under the default).
-          max_wall_seconds: Math.max(
-            LIMITS.max_wall_seconds,
-            Math.ceil((planCalls * planTimeout) / 1000) + 60,
+          // Clamped to the schema's ceiling (PR #123 re-review L-3).
+          max_wall_seconds: Math.min(
+            WORKFLOW_WALL_MAX_SECONDS,
+            Math.max(
+              LIMITS.max_wall_seconds,
+              Math.ceil((planCalls * planTimeout) / 1000) + 60,
+            ),
           ),
         }
       : LIMITS;

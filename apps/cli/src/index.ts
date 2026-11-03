@@ -111,8 +111,10 @@ import {
   PlanConnectionSchema,
   PlanConnectionDetailSchema,
   PlanQualificationSchema,
+  PlanQualificationResultsSchema,
   PlanRequestSchema,
   PlanVerificationGrantSchema,
+  planWaitMs,
 } from '@creator/contracts';
 import {
   GitHubConnectionSchema,
@@ -637,6 +639,20 @@ export async function runCli(
         // ADR-0042: the API holds the ChatGPT sign-in, relay and Codex jail; T12 keeps review and QA.
         codexBuilder: async (target, packet) => {
           const p = await local.product(productId);
+          // PR #123 re-review M-1: the API holds this request for the whole Codex turn, up to
+          // the connection's build timeout, which has no 30-minute maximum any more.
+          const detail = await call(
+            z.object({
+              connection: z.object({
+                settings: z.object({
+                  caps: z.object({
+                    codex: z.object({ build_timeout_ms: z.number() }),
+                  }),
+                }),
+              }),
+            }),
+            `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}`,
+          );
           const { evidence: _, ...out } = await call(
             z.object({ evidence: z.unknown() }).passthrough(),
             `${ws(p.binding.workspace_id)}/plan-connections/${target.connection_id}/codex-builds`,
@@ -647,7 +663,11 @@ export async function runCli(
               data_class: target.data_class,
               packet,
             },
-            1_900_000,
+            planWaitMs(
+              detail.connection.settings.caps.codex.build_timeout_ms,
+              1,
+              120_000,
+            ),
           );
           return out;
         },
@@ -1999,14 +2019,36 @@ export async function runCli(
         break;
       }
       case 'plan-qualify-run':
-      case 'plan-qualify-finish':
+      case 'plan-qualify-finish': {
+        const path = `${ws(rest[0])}/plan-qualifications/${encodeURIComponent(rest[1] ?? '')}`;
+        let wait = 5000;
+        if (command === 'plan-qualify-run') {
+          // PR #123 re-review L-1: one plan call per benchmark case, each up to the
+          // connection's request timeout (no 300 s maximum any more).
+          const { qualification: q, cases } = await call(
+            PlanQualificationResultsSchema,
+            path,
+          );
+          const detail = await call(
+            PlanConnectionDetailSchema.extend({ sign_in_attempt: z.unknown() }),
+            `${ws(rest[0])}/plan-connections/${q.connection_id}`,
+          );
+          wait = Math.max(
+            3_600_000,
+            planWaitMs(
+              detail.connection.settings.caps.responses.request_timeout_ms,
+              cases.length,
+            ),
+          );
+        }
         data = await call(
           z.unknown(),
-          `${ws(rest[0])}/plan-qualifications/${encodeURIComponent(rest[1] ?? '')}/${command === 'plan-qualify-run' ? 'run' : 'finish'}`,
+          `${path}/${command === 'plan-qualify-run' ? 'run' : 'finish'}`,
           {},
-          command === 'plan-qualify-run' ? 3_600_000 : 5000,
+          wait,
         );
         break;
+      }
       case 'plan-requests':
         data = await call(
           z.array(PlanRequestSchema),

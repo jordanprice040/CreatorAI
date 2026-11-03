@@ -43,7 +43,7 @@ test('the Codex bridge accepts every build timeout the caps form allows (ADR-006
       timeout_s,
     };
     const script = [
-      'import importlib.util, json, sys',
+      'import importlib.util, json, sys; sys.dont_write_bytecode = True',
       `spec = importlib.util.spec_from_file_location('bridge', ${JSON.stringify(BRIDGE)})`,
       'm = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)',
       'try:',

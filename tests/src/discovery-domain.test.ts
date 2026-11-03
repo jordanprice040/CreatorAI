@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  PLAN_REQUEST_TIMEOUT_MAX_MS,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
+  WORKFLOW_WALL_MAX_SECONDS,
   type DiscoveryTaskContext,
   type EvidencePacket,
   type PacketClaim,
@@ -200,6 +202,38 @@ test('start requests name every response type and include a non-software option'
     'API calls stay within 600 s',
   );
   assert.equal(bad({ limits: { ...limits, call_timeout_ms: 600_000 } }), true);
+  assert.equal(
+    bad({ limits: { ...limits, max_wall_seconds: 86_401 } }),
+    false,
+    'API runs end within a day',
+  );
+  // Re-review L-3: Submit's wall time at the very top of the range, clamped, is accepted.
+  const top = Math.min(
+    WORKFLOW_WALL_MAX_SECONDS,
+    Math.ceil((60 * PLAN_REQUEST_TIMEOUT_MAX_MS) / 1000) + 60,
+  );
+  assert.equal(
+    StartDiscoveryRequestSchema.safeParse({
+      ...plan,
+      limits: {
+        ...plan.limits,
+        max_calls: 60,
+        call_timeout_ms: PLAN_REQUEST_TIMEOUT_MAX_MS,
+        max_wall_seconds: top,
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    StartDiscoveryRequestSchema.safeParse({
+      ...plan,
+      limits: {
+        ...plan.limits,
+        max_wall_seconds: WORKFLOW_WALL_MAX_SECONDS + 1,
+      },
+    }).success,
+    false,
+  );
 });
 
 test('sufficiency depends on current problem evidence; other gaps are named', () => {

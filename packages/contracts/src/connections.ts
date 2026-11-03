@@ -59,6 +59,19 @@ export const PLAN_BUILD_TIMEOUT_MAX_MS =
   Math.floor(TIMER_MAX_MS / 60_000) * 60_000;
 
 /**
+ * How long a client waits for a request that holds one or more plan calls open, from the
+ * connection's own timeout (ADR-0062: no fixed wait sized for the old maxima). Each call may
+ * take the full timeout; the margin covers admission, settling and transport. Never above the
+ * timer bound.
+ */
+export function planWaitMs(timeoutMs: number, calls = 1, marginMs = 60_000) {
+  return Math.min(
+    TIMER_MAX_MS,
+    Math.max(1, Math.ceil(calls)) * Math.max(0, timeoutMs) + marginMs,
+  );
+}
+
+/**
  * Studio-side caps, in units the studio can enforce itself. They are not OpenAI's limits: a
  * request can still be refused by the provider's own (shared) plan allowance.
  *
