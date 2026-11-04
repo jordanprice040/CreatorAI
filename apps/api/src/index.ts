@@ -1982,6 +1982,10 @@ export function createApi(
     deployment,
     configHash,
     authMode: authn.mode,
+    inference: {
+      api_model: live ? `${live.provider}/${live.model_id}` : null,
+      plan_connections: planService !== null,
+    },
     /** The development login code generated at startup, if one was not configured. */
     loginCode: authn.generatedCode,
   };

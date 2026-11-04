@@ -2690,6 +2690,17 @@ alter table workflow_tasks add constraint workflow_tasks_kind_check
   check (kind in ('critique', 'synthesis', 'locate', 'propose', 'skeptic', 'revise', 'explore'));
 `,
   },
+  {
+    // Auth follow-up: session identity survives settings edits and token rotation.
+    // Old requests have no binding; their outcomes remain counted but cannot invalidate a login.
+    version: 41,
+    name: 'plan_auth_generation',
+    sql: `
+alter table plan_connections add column auth_generation bigint not null default 0 check (auth_generation >= 0);
+alter table plan_requests add column auth_generation bigint check (auth_generation >= 0);
+alter table plan_requests add column credential_ref text;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

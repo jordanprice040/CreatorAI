@@ -1,12 +1,12 @@
 # X06 hosted image: API, workflow worker and migration runner share one build. Reviewable
 # configuration only; it was not built or deployed when written (no Docker daemon there).
-FROM node:22.21.0-bookworm-slim AS build
+FROM node:22.23.4-bookworm-slim AS build
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
 COPY . .
 RUN pnpm install --frozen-lockfile && pnpm build
 
-FROM node:22.21.0-bookworm-slim AS runtime
+FROM node:22.23.4-bookworm-slim AS runtime
 # Match the supported PostgreSQL 18 server; Bookworm's default client is too old
 # to dump 16+ servers. Use the PostgreSQL project's signed package repository.
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \

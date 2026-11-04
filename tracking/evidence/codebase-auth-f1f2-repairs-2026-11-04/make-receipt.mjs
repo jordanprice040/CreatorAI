@@ -1,0 +1,11 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+const h = (p) => { const b = readFileSync(p); return { bytes: b.length, sha256: createHash('sha256').update(b).digest('hex') }; };
+const files = ['packages/db/src/connection-store.ts','tests/src/plan-connections.test.ts','tests/src/claude-code.test.ts','tracking/DECISIONS.md','tracking/SESSION_HANDOFF.md','tracking/BUILD_STATUS.md','docs/CURRENT_STATUS.md','docs/CODEBASE_AUTH_F1F2_REPAIRS_2026-11-04.md','docs/CODEBASE_AUTH_FOLLOWUP_INDEPENDENT_REVIEW_2026-11-04.md','tracking/evidence/codebase-auth-followup-independent-review-2026-11-04/races.mjs','tracking/evidence/codebase-auth-followup-independent-review-2026-11-04/races.log','tracking/evidence/codebase-auth-followup-2026-11-04/receipt.json','.codex/config.toml'];
+const logs = ['full-tests.log','safety.log','focused.log','f1-mutation.log','review-races-after.log','format-final.log','tsc-final.log','web-typecheck.log'].map((f) => `.verification/f1f2-repair-2026-11-04/${f}`);
+const r = { schema: 'creator-auth-f1f2-repairs/1', recorded_at: new Date().toISOString(), baseline_commit: '171430b639b4dbd4170292894444cf2c01f3f27b', candidate: 'Uncommitted working tree; implemented by the Claude thread that wrote the follow-up review, at Jordan’s request', adr: 'ADR-0068', migration: 41,
+  checks: { full_database_suite: { tests: 769, pass: 742, fail: 0, cancelled: 0, skipped: 27 }, current_safety_suite: { tests: 22, pass: 22, fail: 0 }, new_regressions: { tests: 12, pass: 12, fail: 0 }, f1_mutation: 'F1 disabled in compiled store: stale_limit and stale_success fail; restored byte-for-byte', typescript_build: 'exit 0', web_typecheck: 'exit 0', format_check: 'exit 0', git_diff_check: 'exit 0', environment: 'Node 22.23.4; disposable PostgreSQL 18.6 on 127.0.0.1:55452 (removed); fakes/loopback only' },
+  independent_recheck: 'pending', earlier_evidence_changed: false,
+  file_hashes: Object.fromEntries(files.map((f) => [f, h(f)])), log_hashes: Object.fromEntries(logs.map((f) => [f, h(f)])) };
+writeFileSync(new URL('./receipt.json', import.meta.url), JSON.stringify(r, null, 2) + '\n');
+console.log('receipt written', Object.keys(r.file_hashes).length, Object.keys(r.log_hashes).length);

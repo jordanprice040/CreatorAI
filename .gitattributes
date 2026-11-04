@@ -1,6 +1,14 @@
 # Keep pnpm format:check reproducible on Windows and Linux.
 * text=auto eol=lf
 
+# Exact pre-repair document bytes, bound by the November 4 archive receipt.
+docs/CURRENT_STATUS_HISTORY_2026-11-04.md -text whitespace=cr-at-eol
+docs/COMPLETION_RUNBOOK_HISTORY_2026-11-04.md -text whitespace=cr-at-eol
+docs/CODE_AUDIT_AND_PRODUCT_GUIDE_HISTORY_2026-11-04.md -text whitespace=cr-at-eol
+tracking/BUILD_STATUS_HISTORY_2026-11-04.md -text whitespace=cr-at-eol
+tracking/SESSION_HANDOFF_HISTORY_2026-11-04.md -text whitespace=cr-at-eol
+tracking/evidence/codebase-audit-2026-11-04/signout-race.log -text whitespace=cr-at-eol
+
 # Evidence hashes and archive manifests bind exact bytes, including line endings.
 tracking/evidence/t18/** -text whitespace=cr-at-eol
 tracking/evidence/t19/** -text whitespace=cr-at-eol

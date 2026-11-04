@@ -1,0 +1,9 @@
+{"fixture_only":true,"scenario":"current_credential_401","outcome":"rejected","before":["signed_in",5],"after":["reauthorization_required",6],"request":"rejected"}
+{"fixture_only":true,"scenario":"replacement_login_before_bind","outcome":["rejected","unauthenticated"],"responses_sent":0,"before":["signed_in",8],"after":["signed_in",8],"requests":[["rejected","unauthenticated"]]}
+{"fixture_only":true,"scenario":"late_401_after_same_login_refresh","before":["signed_in",6],"after":["signed_in",6]}
+{"fixture_only":true,"scenario":"stale_quota_after_new_login","before":["signed_in",8,"unknown"],"after":["signed_in",8,"exhausted"],"blockers":["The ChatGPT plan usage limit was reached. Plan requests pause; check ChatGPT Settings > Usage."]}
+{"fixture_only":true,"scenario":"disconnect_during_code_exchange","attempt":{"state":"failed","code":"sign_in_failed","message":"The login changed during sign-in. Start a new sign-in.","finished_at":"2026-11-04T11:25:16.387Z"},"state":"signed_out","ref":null,"vault_entries":0}
+{"fixture_only":true,"scenario":"competing_sign_ins_two_services","first":"completed","second":["failed","sign_in_failed"],"state":"signed_in","vault_entries":1,"current_ref_in_vault":true}
+{"fixture_only":true,"scenario":"owner_changes_during_first_sign_in","attempt":"completed","state":"signed_in","vault_entries":1}
+{"fixture_only":true,"scenario":"refresh_during_sign_in_again_cleanup","attempt":"completed","refs_distinct":true,"a_in_vault":false,"b_in_vault":false,"current_in_vault":true,"vault_entries":1}
+{"fixture_only":true,"scenario":"concurrency_stress","iterations":16,"errors":[],"unsettled":0,"final":{"signed_in/admitted_under_final_login=false/sent=1/invalid_token":10,"reauthorization_required/admitted_under_final_login=true/sent=1/invalid_token":6}}

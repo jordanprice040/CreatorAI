@@ -1,0 +1,22 @@
+{
+  "source": "creator_playwright MCP; production assets on review ports 5183/4330/4340",
+  "database": "disposable fixture workspace; worker off; no model calls",
+  "initial_assets": ["theme-boot.js", "index-8usNy4Zt.js"],
+  "models_loaded_on_navigation": "models-BCbOm89p.js",
+  "current_qualification_label": "historical pass (older prompt)",
+  "current_qualification_note": "Does not count for the current prompt. Qualify this model again for this job.",
+  "chat_draft_retained_across_navigation": true,
+  "normal_page_errors": [],
+  "forced_portfolio_chunk_failure": {
+    "caught_by_page_boundary": true,
+    "other_pages_available": true,
+    "chat_draft_retained": true,
+    "expected_browser_console_errors": 2
+  },
+  "mobile": {
+    "width": 390,
+    "historical_label_visible": true,
+    "horizontal_overflow": false
+  },
+  "fixture_server_closed_and_database_dropped": true
+}

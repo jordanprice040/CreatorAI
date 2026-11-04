@@ -235,6 +235,7 @@ const toQualification = (r: Row): PlanQualification => ({
   created_by: String(r.created_by),
   created_at: iso(r.created_at),
   decided_at: r.decided_at ? iso(r.decided_at) : null,
+  prompt_current: currentForBuildRole(r) && currentForDiscoveryRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),
@@ -279,6 +280,54 @@ function currentForBuildRole(r: Row): boolean {
       );
     })
   );
+}
+
+/** Same discovery prompt binding used for both admission and historical-result labels. */
+function currentForDiscoveryRole(r: Row): boolean {
+  if (
+    !['research_synthesis', 'candidate_generation', 'scoring'].includes(
+      String(r.task_class),
+    )
+  )
+    return true;
+  const manifest = r.manifest as {
+    cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
+  };
+  const required =
+    r.task_class === 'candidate_generation'
+      ? ['propose', 'revise']
+      : r.task_class === 'research_synthesis'
+        ? ['locate']
+        : ['skeptic'];
+  const kinds = new Set<string>();
+  if (!manifest.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
+    return false;
+  for (const item of manifest.cases) {
+    const parsed = BenchmarkCheckSchema.safeParse(item.check);
+    if (!parsed.success || parsed.data.kind !== 'discovery_contract')
+      return false;
+    const check = parsed.data;
+    if (
+      check.context.role_version !== DISCOVERY_ROLE_VERSION ||
+      check.context.packet_hash !== canonicalHash(check.packet)
+    )
+      return false;
+    const expected = discoveryRoleInput(
+      check.task_kind,
+      check.context,
+      check.packet,
+      [],
+    )[0]!.text;
+    if (
+      item.input
+        ?.filter((m) => m.role === 'system')
+        .map((m) => m.text)
+        .join('\n\n') !== expected
+    )
+      return false;
+    kinds.add(check.task_kind);
+  }
+  return required.every((k) => kinds.has(k));
 }
 
 /**
@@ -1385,6 +1434,7 @@ export class ConnectionStore extends PortfolioStore {
       scopes: string[];
       access_expires_at: string;
       credential_ref: string;
+      expected_auth_generation: string;
     },
   ) {
     const ctx = normalize(ctxIn);
@@ -1396,6 +1446,17 @@ export class ConnectionStore extends PortfolioStore {
           'INVALID_TRANSITION',
           'Only ChatGPT plan connections sign in through the studio.',
         );
+      const previous = (
+        await c.query(
+          'select auth_generation, credential_ref from plan_connections where id = $1',
+          [conn.id],
+        )
+      ).rows[0];
+      if (String(previous.auth_generation) !== s.expected_auth_generation)
+        throw fail(
+          'VERSION_CONFLICT',
+          'The login changed during sign-in. Start a new sign-in.',
+        );
       if (
         conn.sign_in.issued_client_id &&
         conn.sign_in.issued_client_id !== s.issued_client_id
@@ -1406,7 +1467,7 @@ export class ConnectionStore extends PortfolioStore {
         );
       const granted = s.scopes.includes('chatgpt.tokens.use.direct');
       await c.query(
-        `update plan_connections set version = version + 1, updated_at = clock_timestamp(),
+        `update plan_connections set version = version + 1, auth_generation = auth_generation + 1, updated_at = clock_timestamp(),
            credential_ref = $2, sign_in = $3, status_reason = null where id = $1`,
         [
           conn.id,
@@ -1438,7 +1499,10 @@ export class ConnectionStore extends PortfolioStore {
         contentHash: null,
         payload: { plan_usage_granted: granted },
       });
-      return this.#connection(c, ws, conn.id);
+      return {
+        connection: await this.#connection(c, ws, conn.id),
+        replaced_credential_ref: nullable(previous.credential_ref),
+      };
     });
   }
 
@@ -1478,7 +1542,7 @@ export class ConnectionStore extends PortfolioStore {
             ? null
             : `Claude Code is signed in with ${s.auth_method}${s.api_provider && s.api_provider !== 'firstParty' ? ` (${s.api_provider})` : ''}, not a Claude subscription login.`;
       await c.query(
-        `update plan_connections set version = version + 1, updated_at = clock_timestamp(),
+        `update plan_connections set version = version + 1, auth_generation = auth_generation + 1, updated_at = clock_timestamp(),
            sign_in = $2, status_reason = $3 where id = $1`,
         [
           conn.id,
@@ -1523,6 +1587,7 @@ export class ConnectionStore extends PortfolioStore {
   ): Promise<{
     connection: PlanConnection;
     credential_ref: string | null;
+    auth_generation: string;
   }> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
@@ -1535,24 +1600,37 @@ export class ConnectionStore extends PortfolioStore {
       return {
         connection: toConnection(rows[0] as Row),
         credential_ref: nullable(rows[0].credential_ref),
+        auth_generation: String(rows[0].auth_generation),
       };
     });
   }
 
-  async recordPlanAccessRefresh(connectionId: string, accessExpiresAt: string) {
-    await this.pool.query(
-      `update plan_connections set sign_in = jsonb_set(sign_in, '{access_expires_at}', to_jsonb($2::text)),
-         updated_at = clock_timestamp() where id = $1`,
-      [uuid(connectionId), accessExpiresAt],
+  async recordPlanAccessRefresh(
+    connectionId: string,
+    oldRef: string,
+    newRef: string,
+    accessExpiresAt: string,
+  ) {
+    const result = await this.pool.query(
+      `update plan_connections set credential_ref = $3,
+         sign_in = jsonb_set(sign_in, '{access_expires_at}', to_jsonb($4::text)),
+         version = version + 1, updated_at = clock_timestamp()
+       where id = $1 and credential_ref = $2 and sign_in->>'state' = 'signed_in'`,
+      [uuid(connectionId), oldRef, newRef, accessExpiresAt],
     );
+    return result.rowCount === 1;
   }
 
-  async markPlanReauthorizationRequired(connectionId: string, reason: string) {
+  async markPlanReauthorizationRequired(
+    connectionId: string,
+    reason: string,
+    credentialRef: string,
+  ) {
     await this.pool.query(
       `update plan_connections set version = version + 1, updated_at = clock_timestamp(),
          sign_in = jsonb_set(sign_in, '{state}', '"reauthorization_required"'), status_reason = $2
-       where id = $1 and sign_in->>'state' = 'signed_in'`,
-      [uuid(connectionId), reason.slice(0, 1200)],
+       where id = $1 and credential_ref = $3 and sign_in->>'state' = 'signed_in'`,
+      [uuid(connectionId), reason.slice(0, 1200), credentialRef],
     );
   }
 
@@ -1567,8 +1645,12 @@ export class ConnectionStore extends PortfolioStore {
       await this.requireOwner(c, uuid(ws), ctx.actorId);
       const conn = await this.#lock(c, ws, uuid(id));
       // Keeps the issued client id and host id for a later sign-in to the same registration.
+      const old = await c.query(
+        'select credential_ref from plan_connections where id = $1',
+        [conn.id],
+      );
       await c.query(
-        `update plan_connections set version = version + 1, updated_at = clock_timestamp(),
+        `update plan_connections set version = version + 1, auth_generation = auth_generation + 1, updated_at = clock_timestamp(),
            credential_ref = null,
            sign_in = jsonb_build_object('state','signed_out','issued_client_id', sign_in->'issued_client_id',
              'account_label', sign_in->'account_label','scopes','[]'::jsonb,'plan_usage_granted',false,
@@ -1599,6 +1681,45 @@ export class ConnectionStore extends PortfolioStore {
         contentHash: null,
         payload: { remote_revocation_confirmed: remoteRevocationConfirmed },
       });
+      return {
+        connection: await this.#connection(c, ws, conn.id),
+        credential_ref: nullable(old.rows[0].credential_ref),
+      };
+    });
+  }
+
+  /** Late remote revocation cannot overwrite a newer sign-in or owner change. */
+  async recordPlanRevocation(
+    ctx: CommandContext,
+    ws: string,
+    id: string,
+    version: number,
+    confirmed: boolean,
+  ) {
+    ctx = normalize(ctx);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      const conn = await this.#lock(c, ws, uuid(id));
+      if (
+        conn.version === version &&
+        conn.sign_in.state === 'signed_out' &&
+        confirmed
+      ) {
+        await c.query(
+          'update plan_connections set status_reason = null, version = version + 1, updated_at = clock_timestamp() where id = $1',
+          [conn.id],
+        );
+        await this.#event(c, conn.id, 'sign_out_revocation_confirmed', {}, ctx);
+        await this.append(c, ctx, {
+          workspaceId: ws,
+          action: 'connection.revocation_confirmed',
+          subjectKind: 'plan_connection',
+          subjectId: conn.id,
+          subjectVersion: conn.version + 1,
+          contentHash: null,
+          payload: { remote_revocation_confirmed: true },
+        });
+      }
       return this.#connection(c, ws, conn.id);
     });
   }
@@ -1618,52 +1739,7 @@ export class ConnectionStore extends PortfolioStore {
       [id],
     );
     return rows.rows
-      .filter((r) => {
-        const manifest = r.manifest as {
-          cases?: {
-            input?: { role: string; text: string }[];
-            check?: unknown;
-          }[];
-        };
-        const required =
-          r.task_class === 'candidate_generation'
-            ? ['propose', 'revise']
-            : r.task_class === 'research_synthesis'
-              ? ['locate']
-              : ['skeptic'];
-        const kinds = new Set<string>();
-        if (
-          !manifest.cases?.length ||
-          canonicalHash(manifest) !== r.manifest_hash
-        )
-          return false;
-        for (const item of manifest.cases) {
-          const parsed = BenchmarkCheckSchema.safeParse(item.check);
-          if (!parsed.success || parsed.data.kind !== 'discovery_contract')
-            return false;
-          const check = parsed.data;
-          if (
-            check.context.role_version !== DISCOVERY_ROLE_VERSION ||
-            check.context.packet_hash !== canonicalHash(check.packet)
-          )
-            return false;
-          const expected = discoveryRoleInput(
-            check.task_kind,
-            check.context,
-            check.packet,
-            [],
-          )[0]!.text;
-          if (
-            item.input
-              ?.filter((m) => m.role === 'system')
-              .map((m) => m.text)
-              .join('\n\n') !== expected
-          )
-            return false;
-          kinds.add(check.task_kind);
-        }
-        return required.every((k) => kinds.has(k));
-      })
+      .filter((r) => currentForDiscoveryRole(r as Row))
       .map((r) => toQualification(r as Row));
   }
 
@@ -2294,11 +2370,17 @@ export class ConnectionStore extends PortfolioStore {
           [grant.id],
         );
       const rid = randomUUID();
+      const auth = (
+        await c.query(
+          'select auth_generation, credential_ref from plan_connections where id = $1',
+          [conn.id],
+        )
+      ).rows[0];
       await c.query(
         `insert into plan_requests (id, connection_id, logical_operation_id, path, purpose, model_id,
            task_class, data_class, run_id, build_id, grant_id, qualification_id, case_id, case_split,
-           state, created_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'in_flight',$15)`,
+           state, created_by, auth_generation, credential_ref)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'in_flight',$15,$16,$17)`,
         [
           rid,
           conn.id,
@@ -2315,6 +2397,8 @@ export class ConnectionStore extends PortfolioStore {
           qualificationCase?.case_id ?? null,
           qualificationCase?.split ?? null,
           ctx.actorId,
+          auth.auth_generation,
+          auth.credential_ref,
         ],
       );
       if (workflow)
@@ -2323,6 +2407,43 @@ export class ConnectionStore extends PortfolioStore {
           [rid, workflow.task_id, workflow.input_hash],
         );
       return { request_id: rid, connection: conn };
+    });
+  }
+
+  /** Bind the actual credential after any refresh, just before dispatch. Never cross logins. */
+  async bindPlanRequestCredential(
+    requestId: string,
+    credentialRef: string | null,
+  ): Promise<void> {
+    return this.tx(async (c) => {
+      // Same lock order as settlement: request first, then connection.
+      const request = (
+        await c.query('select * from plan_requests where id = $1 for update', [
+          uuid(requestId),
+        ])
+      ).rows[0];
+      if (!request || request.state !== 'in_flight')
+        throw fail('INVALID_TRANSITION', 'The plan request is not in flight.');
+      const conn = (
+        await c.query(
+          'select auth_generation, credential_ref, sign_in from plan_connections where id = $1 for update',
+          [request.connection_id],
+        )
+      ).rows[0];
+      if (
+        request.auth_generation == null ||
+        String(request.auth_generation) !== String(conn.auth_generation) ||
+        conn.sign_in.state !== 'signed_in' ||
+        credentialRef !== conn.credential_ref
+      )
+        throw fail(
+          'UNAUTHENTICATED',
+          'The login changed before dispatch. This request was not sent.',
+        );
+      await c.query(
+        'update plan_requests set credential_ref = $2 where id = $1',
+        [request.id, credentialRef],
+      );
     });
   }
 
@@ -2392,9 +2513,16 @@ export class ConnectionStore extends PortfolioStore {
         values.push(value);
         updates.push(`${col} = $${values.length}`);
       };
-      const eligibility =
-        observed.eligibility ??
-        (s.state === 'completed' ? 'eligible' : undefined);
+      // Account observations (eligibility, quota, model access) describe the login that sent the
+      // request. One that ended after Disconnect or a replacement login is recorded on the request
+      // but never rewrites the newer login. A same-login refresh keeps the generation, so it counts.
+      const sameLogin =
+        r.auth_generation != null &&
+        String(r.auth_generation) === String(conn.rows[0].auth_generation);
+      const eligibility = !sameLogin
+        ? undefined
+        : (observed.eligibility ??
+          (s.state === 'completed' ? 'eligible' : undefined));
       if (eligibility)
         set('eligibility', {
           state: eligibility,
@@ -2403,19 +2531,27 @@ export class ConnectionStore extends PortfolioStore {
             observed.upstream_request_id ?? s.upstream_request_id,
           observed_at: now,
         });
-      const quota =
-        observed.quota ?? (s.state === 'completed' ? 'available' : undefined);
+      const quota = !sameLogin
+        ? undefined
+        : (observed.quota ??
+          (s.state === 'completed' ? 'available' : undefined));
       if (quota)
         set('quota', {
           state: quota,
           reason_code: observed.reason_code ?? null,
           observed_at: now,
         });
-      if (observed.sign_in_invalid)
+      const currentCredential =
+        sameLogin &&
+        r.credential_ref === conn.rows[0].credential_ref &&
+        (conn.rows[0].sign_in as { state: string }).state === 'signed_in';
+      if (observed.sign_in_invalid && currentCredential) {
         set('sign_in', {
           ...(conn.rows[0].sign_in as object),
           state: 'reauthorization_required',
         });
+        updates.push('version = version + 1');
+      }
       if (updates.length)
         await c.query(
           `update plan_connections set ${updates.join(', ')}, updated_at = clock_timestamp() where id = $1`,
@@ -2423,7 +2559,7 @@ export class ConnectionStore extends PortfolioStore {
         );
       if (r.purpose === 'verification') {
         const verified = s.state === 'completed';
-        if (verified || observed.model_refused)
+        if (sameLogin && (verified || observed.model_refused))
           await c.query(
             `insert into plan_model_access (connection_id, model_id, path, access, reason_code, request_id)
              values ($1,$2,$3,$4,$5,$6)

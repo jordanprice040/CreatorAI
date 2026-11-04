@@ -1,0 +1,4 @@
+auth_generation|bigint|NO|0
+credential_ref|text|YES|
+auth_generation|bigint|YES|
+credential_ref|text|YES|

@@ -1,0 +1,36 @@
+{
+  "archived_on": "2026-11-04",
+  "reason": "Owner-authorized audit repairs; exact pre-repair bytes preserved",
+  "files": [
+    {
+      "original": "docs/CURRENT_STATUS.md",
+      "archive": "docs/CURRENT_STATUS_HISTORY_2026-11-04.md",
+      "bytes": 39023,
+      "sha256": "3891d89ecef117ee2a4762bf503aeec3323ab3a900c3698e8cc804018ca0c63b"
+    },
+    {
+      "original": "docs/COMPLETION_RUNBOOK.md",
+      "archive": "docs/COMPLETION_RUNBOOK_HISTORY_2026-11-04.md",
+      "bytes": 15168,
+      "sha256": "480380178d6b99a2ff33237e8242cfbf1988fb6b71a2e38388bd3797219803b7"
+    },
+    {
+      "original": "docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md",
+      "archive": "docs/CODE_AUDIT_AND_PRODUCT_GUIDE_HISTORY_2026-11-04.md",
+      "bytes": 17532,
+      "sha256": "f30efb6e21de2a55b216d22d96102a6e2cf293519df9a42666182928d779a75f"
+    },
+    {
+      "original": "tracking/BUILD_STATUS.md",
+      "archive": "tracking/BUILD_STATUS_HISTORY_2026-11-04.md",
+      "bytes": 599560,
+      "sha256": "5f409d5023555dde8fffa2202bce65104e90af28ed9b7b7c6064b3407a421b42"
+    },
+    {
+      "original": "tracking/SESSION_HANDOFF.md",
+      "archive": "tracking/SESSION_HANDOFF_HISTORY_2026-11-04.md",
+      "bytes": 547196,
+      "sha256": "8c895a37273b1e70b674da66962cff104ee0d823bd992603254dd7527bda1961"
+    }
+  ]
+}

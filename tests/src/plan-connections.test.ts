@@ -13,6 +13,7 @@ import {
   ConnectionStore,
   heldOutKeys,
   promptHash,
+  migrate,
   type CommandContext,
   type ManifestCase,
 } from '@creator/db';
@@ -1130,12 +1131,600 @@ test('refresh rotates the token, and sign-out revokes it and deletes the saved s
   });
   const t1 = await s.service.accessToken(owner, s.ws.id, s.conn.id);
   assert.notEqual(t1.token, cred.access_token);
-  const rotated = (await s.vault.get(ref))!;
+  const rotatedRef = (
+    await s.store.planCredentialRef(owner, s.ws.id, s.conn.id)
+  ).credential_ref!;
+  assert.notEqual(rotatedRef, ref);
+  assert.equal(await s.vault.get(ref), null);
+  const rotated = (await s.vault.get(rotatedRef))!;
   assert.notEqual(rotated.refresh_token, cred.refresh_token);
   await s.service.signOut(owner, s.ws.id, s.conn.id);
   assert.deepEqual(s.fake.revoked, [rotated.refresh_token]);
   assert.equal(await s.vault.get(ref), null);
+  assert.equal(await s.vault.get(rotatedRef), null);
   assert.equal((await s.current()).sign_in.state, 'signed_out');
+});
+
+test('Disconnect invalidates an older browser flow, including completion in another service', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  let release!: () => void;
+  let entered!: () => void;
+  const waiting = new Promise<void>((r) => {
+    entered = r;
+  });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const written: string[] = [];
+  const put = s.vault.put.bind(s.vault);
+  s.vault.put = async (ref, value) => {
+    written.push(ref);
+    await put(ref, value);
+  };
+  const other = new PlanConnectionService({
+    ...s.service.deps,
+    fetchImpl: async (url, init) => {
+      if (String(url).endsWith('/oauth/token')) {
+        entered();
+        await gate;
+      }
+      return fetch(url, init);
+    },
+  });
+  const started = await other.beginSignIn(owner, s.ws.id, s.conn.id, {
+    open_browser: false,
+  });
+  await s.fake.approve(started.authorization_url);
+  await waiting;
+  try {
+    await s.service.signOut(owner, s.ws.id, s.conn.id);
+    assert.equal((await s.current()).sign_in.state, 'signed_out');
+  } finally {
+    release();
+  }
+  await until(() => other.signInStatus(s.conn.id)?.state !== 'pending');
+  assert.equal(other.signInStatus(s.conn.id)?.state, 'failed');
+  assert.equal((await s.current()).sign_in.state, 'signed_out');
+  for (const ref of written)
+    assert.equal(
+      await s.vault.get(ref),
+      null,
+      'stale candidate credentials removed',
+    );
+});
+
+test('a late refresh cannot recreate credentials or return a token after Disconnect', async (t) => {
+  const s = await setup(t, { refresh: 'rotate' });
+  if (!s) return;
+  await s.signIn();
+  const ref = (await s.store.planCredentialRef(owner, s.ws.id, s.conn.id))
+    .credential_ref!;
+  const cred = (await s.vault.get(ref))!;
+  await s.vault.put(ref, { ...cred, expires_at: new Date(0).toISOString() });
+  let entered!: () => void;
+  let release!: () => void;
+  const waiting = new Promise<void>((r) => {
+    entered = r;
+  });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const written: string[] = [];
+  const put = s.vault.put.bind(s.vault);
+  s.vault.put = async (key, value) => {
+    written.push(key);
+    await put(key, value);
+  };
+  const other = new PlanConnectionService({
+    ...s.service.deps,
+    fetchImpl: async (url, init) => {
+      if (String(url).endsWith('/oauth/token')) {
+        entered();
+        await gate;
+      }
+      return fetch(url, init);
+    },
+  });
+  const refused = assert.rejects(other.accessToken(owner, s.ws.id, s.conn.id));
+  await waiting;
+  try {
+    await s.service.signOut(owner, s.ws.id, s.conn.id);
+  } finally {
+    release();
+  }
+  await refused;
+  assert.equal((await s.current()).sign_in.state, 'signed_out');
+  assert.equal(await s.vault.get(ref), null);
+  for (const key of written) assert.equal(await s.vault.get(key), null);
+});
+
+test('late authentication failures affect only the credential used by that request', async (t) => {
+  for (const scenario of [
+    'disconnect',
+    'new_login',
+    'new_refresh',
+    'current_after_refresh',
+    'legacy_unbound',
+  ] as const) {
+    await t.test(scenario, async (t) => {
+      const s = await setup(t, {
+        refresh: 'rotate',
+        responses: [{ kind: 'error', status: 401, code: 'invalid_token' }],
+      });
+      if (!s) return;
+      await s.signIn();
+      const c = await s.ready();
+      const grant = await s.store.createPlanVerificationGrant(
+        owner,
+        s.ws.id,
+        c.id,
+        {
+          expected_version: c.version,
+          model_id: 'm',
+          path: 'responses',
+          expires_in_minutes: 5,
+        },
+      );
+      if (scenario === 'current_after_refresh') {
+        const ref = (await s.store.planCredentialRef(owner, s.ws.id, c.id))
+          .credential_ref!;
+        await s.vault.put(ref, {
+          ...(await s.vault.get(ref))!,
+          expires_at: new Date(0).toISOString(),
+        });
+      }
+      let entered!: () => void, release!: () => void;
+      const waiting = new Promise<void>((r) => {
+        entered = r;
+      });
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      const other = new PlanConnectionService({
+        ...s.service.deps,
+        fetchImpl: async (url, init) => {
+          if (String(url).endsWith('/responses')) {
+            entered();
+            await gate;
+          }
+          return fetch(url, init);
+        },
+      });
+      const pending = other.invoke(owner, s.ws.id, {
+        connection_id: c.id,
+        logical_operation_id: randomUUID(),
+        purpose: 'verification',
+        model_id: 'm',
+        task_class: null,
+        data_class: 'synthetic',
+        run_id: null,
+        grant_id: grant.id,
+        instructions: 'fixture',
+        input: 'fixture',
+      });
+      await waiting;
+      let before!: typeof c;
+      try {
+        if (scenario === 'disconnect' || scenario === 'new_login')
+          await s.service.signOut(owner, s.ws.id, c.id);
+        if (scenario === 'new_login') await s.signIn();
+        if (scenario === 'new_refresh') {
+          const ref = (await s.store.planCredentialRef(owner, s.ws.id, c.id))
+            .credential_ref!;
+          await s.vault.put(ref, {
+            ...(await s.vault.get(ref))!,
+            expires_at: new Date(0).toISOString(),
+          });
+          await s.service.accessToken(owner, s.ws.id, c.id);
+        }
+        if (scenario === 'legacy_unbound')
+          await s.db.pool.query(
+            'update plan_requests set auth_generation = null where connection_id = $1',
+            [c.id],
+          );
+        before = await s.current();
+      } finally {
+        release();
+      }
+      const result = await pending;
+      assert.equal(result.outcome.kind, 'rejected');
+      const after = await s.current();
+      assert.equal(
+        after.sign_in.state,
+        scenario === 'current_after_refresh'
+          ? 'reauthorization_required'
+          : before.sign_in.state,
+      );
+      assert.equal(
+        after.version,
+        before.version + (scenario === 'current_after_refresh' ? 1 : 0),
+      );
+      const [request] = await s.store.planRequests(owner, s.ws.id, c.id);
+      assert.equal(
+        request!.state,
+        'rejected',
+        'the old result is retained rather than discarded',
+      );
+      assert.equal(
+        (await s.store.planConnectionDetail(owner, s.ws.id, c.id)).usage
+          .last_24h_requests,
+        1,
+        'the request still counts',
+      );
+    });
+  }
+});
+
+test('admission cannot dispatch under a replacement login', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await s.store.createPlanVerificationGrant(
+    owner,
+    s.ws.id,
+    c.id,
+    {
+      expected_version: c.version,
+      model_id: 'm',
+      path: 'responses',
+      expires_in_minutes: 5,
+    },
+  );
+  let entered!: () => void, release!: () => void;
+  const waiting = new Promise<void>((r) => {
+    entered = r;
+  });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const other = new PlanConnectionService(s.service.deps);
+  other.accessToken = async (...args) => {
+    entered();
+    await gate;
+    return s.service.accessToken(...args);
+  };
+  const pending = other.invoke(owner, s.ws.id, {
+    connection_id: c.id,
+    logical_operation_id: randomUUID(),
+    purpose: 'verification',
+    model_id: 'm',
+    task_class: null,
+    data_class: 'synthetic',
+    run_id: null,
+    grant_id: grant.id,
+    instructions: 'fixture',
+    input: 'fixture',
+  });
+  await waiting;
+  try {
+    await s.service.signOut(owner, s.ws.id, c.id);
+    await s.signIn();
+  } finally {
+    release();
+  }
+  assert.equal((await pending).outcome.kind, 'rejected');
+  assert.equal(s.fake.responseRequests.length, 0);
+  assert.equal((await s.current()).sign_in.state, 'signed_in');
+});
+
+test('migration 41 preserves v40 connections and pending requests without inventing auth bindings', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.signIn();
+  const c = await s.ready();
+  const grant = await s.store.createPlanVerificationGrant(
+    owner,
+    s.ws.id,
+    c.id,
+    {
+      expected_version: c.version,
+      model_id: 'm',
+      path: 'responses',
+      expires_in_minutes: 5,
+    },
+  );
+  const admitted = await s.store.admitPlanRequest(owner, s.ws.id, {
+    connection_id: c.id,
+    logical_operation_id: randomUUID(),
+    path: 'responses',
+    purpose: 'verification',
+    model_id: 'm',
+    task_class: null,
+    data_class: 'synthetic',
+    run_id: null,
+    build_id: null,
+    grant_id: grant.id,
+    qualification_id: null,
+    input_chars: 10,
+  });
+  const before = await s.current();
+  // Test-only v40 layout: retain the business rows, remove only the newly added columns/ledger row.
+  await s.db.pool.query(
+    'alter table plan_requests drop column auth_generation, drop column credential_ref; alter table plan_connections drop column auth_generation; delete from schema_migrations where version = 41',
+  );
+  assert.deepEqual(await migrate(s.db.pool), [41]);
+  assert.deepEqual(await s.current(), before);
+  const migrated = (
+    await s.db.pool.query(
+      'select state, auth_generation, credential_ref from plan_requests where id = $1',
+      [admitted.request_id],
+    )
+  ).rows[0];
+  assert.deepEqual(migrated, {
+    state: 'in_flight',
+    auth_generation: null,
+    credential_ref: null,
+  });
+  await s.store.settlePlanRequest(
+    admitted.request_id,
+    {
+      state: 'rejected',
+      reason_code: 'invalid_token',
+      upstream_request_id: null,
+      output_chars: null,
+    },
+    { sign_in_invalid: true },
+  );
+  assert.deepEqual(
+    await s.current(),
+    before,
+    'an unbound legacy failure cannot rewrite the existing login',
+  );
+  assert.equal(
+    (await s.store.planConnectionDetail(owner, s.ws.id, c.id)).usage
+      .last_24h_requests,
+    1,
+  );
+});
+
+test('a late result cannot rewrite a newer login’s quota, eligibility or model access', async (t) => {
+  for (const scenario of [
+    'stale_limit',
+    'stale_success',
+    'current_limit',
+  ] as const) {
+    await t.test(scenario, async (t) => {
+      const s = await setup(t, {
+        responses:
+          scenario === 'stale_success'
+            ? [{ kind: 'text', text: 'ok' }]
+            : [
+                {
+                  kind: 'error',
+                  status: 429,
+                  code: 'subscription_sharing_usage_limit_exceeded',
+                },
+              ],
+      });
+      if (!s) return;
+      await s.signIn();
+      const c = await s.ready();
+      const grant = await s.store.createPlanVerificationGrant(
+        owner,
+        s.ws.id,
+        c.id,
+        {
+          expected_version: c.version,
+          model_id: 'm',
+          path: 'responses',
+          expires_in_minutes: 5,
+        },
+      );
+      let entered!: () => void, release!: () => void;
+      const waiting = new Promise<void>((r) => {
+        entered = r;
+      });
+      const gate = new Promise<void>((r) => {
+        release = r;
+      });
+      const other = new PlanConnectionService({
+        ...s.service.deps,
+        fetchImpl: async (url, init) => {
+          if (String(url).endsWith('/responses')) {
+            entered();
+            await gate;
+          }
+          return fetch(url, init);
+        },
+      });
+      const pending = other.invoke(owner, s.ws.id, {
+        connection_id: c.id,
+        logical_operation_id: randomUUID(),
+        purpose: 'verification',
+        model_id: 'm',
+        task_class: null,
+        data_class: 'synthetic',
+        run_id: null,
+        grant_id: grant.id,
+        instructions: 'fixture',
+        input: 'fixture',
+      });
+      await waiting;
+      try {
+        if (scenario !== 'current_limit') {
+          await s.service.signOut(owner, s.ws.id, c.id);
+          await s.signIn();
+        }
+      } finally {
+        release();
+      }
+      const result = await pending;
+      const detail = await s.store.planConnectionDetail(owner, s.ws.id, c.id);
+      if (scenario === 'current_limit') {
+        assert.equal(result.outcome.kind, 'rejected');
+        assert.equal(detail.connection.quota.state, 'exhausted');
+        return;
+      }
+      // The newer login keeps its own (still unobserved) account state.
+      assert.equal(detail.connection.sign_in.state, 'signed_in');
+      assert.equal(detail.connection.quota.state, 'unknown');
+      assert.equal(detail.connection.eligibility.state, 'unknown');
+      assert.deepEqual(detail.model_access, []);
+      assert.ok(
+        !detail.blockers.some((b) => /usage limit/i.test(b)),
+        'the newer login is not blocked by the old login’s limit',
+      );
+      const [request] = await s.store.planRequests(owner, s.ws.id, c.id);
+      assert.equal(
+        request!.state,
+        scenario === 'stale_success' ? 'completed' : 'rejected',
+        'the old outcome is still recorded',
+      );
+      assert.equal(detail.usage.last_24h_requests, 1, 'and still counts');
+    });
+  }
+});
+
+test('the Codex relay binds its admission to the login: late 401s affect only the current one', async (t) => {
+  for (const scenario of ['disconnect', 'new_login', 'current'] as const) {
+    await t.test(scenario, async (t) => {
+      const s = await setup(t);
+      if (!s) return;
+      await s.signIn();
+      let c = await s.ready();
+      // Test-only plumbing: allow code_build, mark the model verified on the Codex path and
+      // qualified for code_build. Not evidence of real entitlement or model quality.
+      c = await s.store.updatePlanSettings(owner, s.ws.id, c.id, {
+        expected_version: c.version,
+        settings: {
+          ...c.settings,
+          allowed_task_classes: [
+            ...c.settings.allowed_task_classes,
+            'code_build',
+          ],
+        },
+      });
+      c = await s.store.acceptPlanCaps(owner, s.ws.id, c.id, {
+        expected_version: c.version,
+        settings_hash: c.settings_hash,
+      });
+      await s.db.pool.query(
+        `insert into plan_model_access (connection_id, model_id, path, access, request_id)
+         values ($1, 'm', 'codex', 'verified', $2)`,
+        [c.id, randomUUID()],
+      );
+      const manifest = { fixture: 'codex-relay-binding' };
+      await s.db.pool.query(
+        `insert into plan_qualifications (id,connection_id,model_id,task_class,manifest,manifest_hash,min_held_out_cases,floor,state,development,held_out,created_by,decided_at)
+         values ($1,$2,'m','code_build',$3,$4,3,$5,'qualified',$6,$6,$7,clock_timestamp())`,
+        [
+          randomUUID(),
+          c.id,
+          JSON.stringify(manifest),
+          canonicalHash(manifest),
+          JSON.stringify({ numerator: 1, denominator: 1 }),
+          JSON.stringify({ total: 3, passed: 3 }),
+          owner.actorId,
+        ],
+      );
+      const relay = await s.service.codexAdmission(owner, s.ws.id, {
+        connection_id: c.id,
+        model_id: 'm',
+        run_id: null,
+        build_id: randomUUID(),
+        data_class: 'synthetic',
+      })();
+      const [admitted] = await s.store.planRequests(owner, s.ws.id, c.id);
+      assert.equal(admitted!.path, 'codex');
+      if (scenario !== 'current') await s.service.signOut(owner, s.ws.id, c.id);
+      if (scenario === 'new_login') await s.signIn();
+      const before = await s.current();
+      await relay.settle({
+        kind: 'failed',
+        reason_code: 'http_401',
+        http_status: 401,
+        error_code: null,
+        error_param: null,
+        output_tokens: null,
+        output_chars: 0,
+        output_hash: '0'.repeat(64),
+        response_id: null,
+      });
+      const after = await s.current();
+      assert.equal(
+        after.sign_in.state,
+        scenario === 'current'
+          ? 'reauthorization_required'
+          : before.sign_in.state,
+      );
+      assert.equal(
+        after.version,
+        before.version + (scenario === 'current' ? 1 : 0),
+      );
+      const [settled] = await s.store.planRequests(owner, s.ws.id, c.id);
+      assert.equal(settled!.state, 'failed');
+    });
+  }
+});
+
+test('browser sign-in survives credits, settings and cap acceptance changes', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const started = await s.service.beginSignIn(owner, s.ws.id, s.conn.id, {
+    open_browser: false,
+  });
+  let c = await s.current();
+  c = await s.store.attestPlanCredits(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    statement: CREDITS_OFF_STATEMENT,
+    checked_on: '2026-11-04',
+  });
+  c = await s.store.updatePlanSettings(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    settings: {
+      ...c.settings,
+      caps: {
+        ...c.settings.caps,
+        responses: {
+          ...c.settings.caps.responses,
+          max_input_chars: c.settings.caps.responses.max_input_chars - 1,
+        },
+      },
+    },
+  });
+  c = await s.store.acceptPlanCaps(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    settings_hash: c.settings_hash,
+  });
+  await s.fake.approve(started.authorization_url);
+  await until(() => s.service.signInStatus(c.id)?.state !== 'pending');
+  assert.equal(s.service.signInStatus(c.id)?.state, 'completed');
+  const after = await s.current();
+  assert.equal(after.sign_in.state, 'signed_in');
+  assert.equal(after.settings_hash, c.settings_hash);
+  assert.equal(after.caps_accepted_at, c.caps_accepted_at);
+  assert.equal(after.credits.state, 'confirmed_off');
+});
+
+test('browser sign-in survives a refresh and removes the credential it actually replaces', async (t) => {
+  const s = await setup(t, { refresh: 'rotate' });
+  if (!s) return;
+  await s.signIn();
+  const started = await s.service.beginSignIn(owner, s.ws.id, s.conn.id, {
+    open_browser: false,
+  });
+  const old = (await s.store.planCredentialRef(owner, s.ws.id, s.conn.id))
+    .credential_ref!;
+  await s.vault.put(old, {
+    ...(await s.vault.get(old))!,
+    expires_at: new Date(0).toISOString(),
+  });
+  await s.service.accessToken(owner, s.ws.id, s.conn.id);
+  const refreshed = (await s.store.planCredentialRef(owner, s.ws.id, s.conn.id))
+    .credential_ref!;
+  assert.notEqual(refreshed, old);
+  await s.fake.approve(started.authorization_url);
+  await until(() => s.service.signInStatus(s.conn.id)?.state !== 'pending');
+  assert.equal(s.service.signInStatus(s.conn.id)?.state, 'completed');
+  const current = (await s.store.planCredentialRef(owner, s.ws.id, s.conn.id))
+    .credential_ref!;
+  assert.notEqual(current, refreshed);
+  assert.ok(await s.vault.get(current));
+  assert.equal(await s.vault.get(old), null);
+  assert.equal(await s.vault.get(refreshed), null);
 });
 
 test('a sign-in that grants no plan usage scope is recorded but admits nothing', async (t) => {
@@ -1712,6 +2301,19 @@ test('build-role plan requests need the exact role prompt, a qualification and a
     [rows[0].id, older, canonicalHash(older)],
   );
   const sentBefore = s.fake.responseRequests.length;
+  const historical = (
+    await store.planConnectionDetail(owner, ws.id, conn.id)
+  ).qualifications.find((x) => x.id === rows[0].id)!;
+  assert.equal(
+    historical.state,
+    'qualified',
+    'the recorded grade is preserved',
+  );
+  assert.equal(
+    historical.prompt_current,
+    false,
+    'the UI receives the same prompt eligibility that admission enforces',
+  );
   await rejects('ACCESS_DENIED', call('reviewer', live));
   assert.equal(s.fake.responseRequests.length, sentBefore, 'nothing was sent');
   assert.ok(

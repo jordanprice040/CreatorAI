@@ -5,6 +5,35 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import ts from 'typescript';
 
+test('a historical qualification keeps its score but cannot appear currently qualified', async () => {
+  const { QualificationSummary } = await load<{
+    QualificationSummary: (p: { q: unknown }) => unknown;
+  }>('qualification-results.tsx', { './oversight.js': {} });
+  const require = createRequire(
+    new URL('../../apps/web/package.json', import.meta.url),
+  );
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const q = {
+    model_id: 'fixture-model',
+    task_class: 'independent_review',
+    state: 'qualified',
+    development: { passed: 3, total: 3 },
+    held_out: { passed: 3, total: 3 },
+    decided_at: null,
+  };
+  const old = renderToStaticMarkup(
+    QualificationSummary({ q: { ...q, prompt_current: false } }),
+  );
+  assert.match(old, /historical pass \(older prompt\)/);
+  assert.match(old, /Does not count for the current prompt/);
+  assert.match(old, /3\/3/);
+  const current = renderToStaticMarkup(
+    QualificationSummary({ q: { ...q, prompt_current: true } }),
+  );
+  assert.match(current, /qualified/);
+  assert.ok(!current.includes('historical pass'));
+});
+
 /** The page map module, which has no imports: modules that import it get the real one. */
 function pagesModule(): unknown {
   const code = ts.transpileModule(

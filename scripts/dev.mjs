@@ -1,5 +1,9 @@
 import { createServer } from 'vite';
 import { createApi } from '../apps/api/dist/index.js';
+import { requireSupportedNode } from './runtime.mjs';
+import { inferenceNotice } from './dev-status.mjs';
+
+requireSupportedNode();
 
 const {
   server: api,
@@ -9,6 +13,7 @@ const {
   close,
   authMode,
   loginCode,
+  inference,
 } = createApi(process.env);
 let web;
 try {
@@ -26,7 +31,7 @@ try {
   });
   await web.listen();
   console.log(
-    `Fixture API: http://${config.host}:${config.api_port}/api/health`,
+    `Creator Agent API: http://${config.host}:${config.api_port}/api/health`,
   );
   web.printUrls();
   console.log(
@@ -39,7 +44,7 @@ try {
       )
     : 'no persistence (CREATOR_DATABASE_URL unset)';
   console.log(
-    `Fixture provider only, no real AI; ${records}. Restart after backend edits. Ctrl+C stops both servers.`,
+    `${inferenceNotice(inference)} ${records}. Restart after backend edits. Ctrl+C stops both servers.`,
   );
   console.log(
     authMode === 'oidc'

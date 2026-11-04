@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, useEffect, useRef, useState, type FormEvent } from 'react';
+import { PageLoad } from './page-load.js';
 import { AsideButton, RightSidebar, useAside } from './aside.js';
 import { createRoot } from 'react-dom/client';
 import {
@@ -25,13 +26,7 @@ import { Gallery } from './gallery.js';
 import { BuildView } from './build.js';
 import { DesktopDevices } from './desktop.js';
 import { DesktopApp } from './desktop-app.js';
-import { Operations } from './operations.js';
 import { Settings } from './settings.js';
-import { GitHub } from './github.js';
-import { Payments } from './payments.js';
-import { Marketing } from './marketing.js';
-import { Models } from './models.js';
-import { Portfolio } from './portfolio.js';
 import {
   Icon,
   PAGES,
@@ -44,7 +39,6 @@ import {
 } from './ui.js';
 import { useTheme } from './theme.js';
 import './style.css';
-import { Studies } from './study.js';
 import { PageDrafts } from './page-drafts.js';
 import { UsageIndicator } from './usage.js';
 import { NextStep, useStudioFacts } from './next-step.js';
@@ -55,6 +49,29 @@ import { nextStep } from './next-rules.js';
 import { routeHash } from './pages.js';
 import { Chat } from './chat.js';
 import type { Prefill } from './prefill.js';
+
+// Declared once: visited pages keep their component identity and session-memory drafts.
+const Operations = lazy(() =>
+  import('./operations.js').then((m) => ({ default: m.Operations })),
+);
+const GitHub = lazy(() =>
+  import('./github.js').then((m) => ({ default: m.GitHub })),
+);
+const Payments = lazy(() =>
+  import('./payments.js').then((m) => ({ default: m.Payments })),
+);
+const Marketing = lazy(() =>
+  import('./marketing.js').then((m) => ({ default: m.Marketing })),
+);
+const Models = lazy(() =>
+  import('./models.js').then((m) => ({ default: m.Models })),
+);
+const Portfolio = lazy(() =>
+  import('./portfolio.js').then((m) => ({ default: m.Portfolio })),
+);
+const Studies = lazy(() =>
+  import('./study.js').then((m) => ({ default: m.Studies })),
+);
 
 const choices = [
   ['use_existing', 'Use an existing tool'],
@@ -1067,10 +1084,10 @@ function App() {
               <PageDrafts
                 key={`${auth.session.csrf_token}:${workspace?.id}`}
                 route={route}
-                render={body}
+                render={(page) => <PageLoad>{body(page)}</PageLoad>}
               />
             ) : (
-              body()
+              <PageLoad>{body()}</PageLoad>
             )}
           </DesktopApp.Provider>
         </main>

@@ -1,5 +1,25 @@
 # Decision log
 
+## ADR-0068 — Account observations also bind to the login generation (November 4, 2026)
+
+Jordan authorized repairs of F1/F2 from [the follow-up review](../docs/CODEBASE_AUTH_FOLLOWUP_INDEPENDENT_REVIEW_2026-11-04.md). Settlement now applies a request's eligibility, quota and model-access observations only when the request's admitted login generation is still the connection's generation. A result that ends after Disconnect or a replacement login stays recorded and counted on the request, but no longer marks the newer login's usage as exhausted, its account as eligible or ineligible, or a model as verified or refused. A same-login token refresh keeps the generation, so its observations still apply. Legacy requests with no generation (migrated from schema 40) record their outcome only. This narrows ADR-0067's statement that eligibility and quota keep their earlier behavior. The audit events of verification and availability requests are unchanged. No migration; schema stays 41. New regressions cover the Codex relay and Claude Code paths of the ADR-0067 binding.
+
+## ADR-0067 — Bind plan outcomes to login generation and dispatched credential (November 4, 2026)
+
+Owner authorized follow-up repairs to Claude's independent review (M1/L1). Migration 41 adds private login generations to connections and request snapshots, and credential references to requests. Sign-in, sign-out and recorded Claude status checks advance the generation; settings edits and token refresh do not. This supersedes ADR-0066's whole-connection-version rule for browser sign-in completion. The existing optimistic connection version still guards settings and refresh swaps.
+
+Before dispatch, a request must retain its admitted login generation and bind the actual credential reference after refresh. A replacement login cannot inherit an older admission. A late authentication failure invalidates only the still-signed-in matching generation/reference and increments the connection version; older outcomes remain recorded and counted. Legacy requests migrated without a binding cannot invalidate a login. A successful browser callback removes the credential it actually replaced, including an intervening refresh's reference. No automatic retry, new grant, quota reset or provider route is introduced.
+
+Verification uses disposable PostgreSQL and loopback/fake providers; the installed application and operational database are untouched. Original review/repair receipts remain historical. See [the follow-up report](../docs/CODEBASE_AUTH_FOLLOWUP_2026-11-04.md); independent review of these changed bytes is still the next gate.
+
+## ADR-0066 — Disconnect fences older credentials; current repair/evidence gates (November 4, 2026)
+
+Owner authorized repairs to the November 4 audit. Sign-in completion now compares the connection version captured at start under its existing row lock. Candidate credentials have unique references; a losing callback or refresh removes only its own candidate. Disconnect first records signed-out state and clears the credential reference, then attempts remote revocation. Refresh swaps references only while the original remains signed in; an old failure cannot mark a newer login as requiring reauthorization. Remote revocation observations cannot overwrite a newer connection version. Existing versions suffice; schema remains 40.
+
+Qualification views expose derived current-prompt eligibility, using the admission predicate, while historical states/grades and frozen prompts/manifests stay unchanged. Current development safety tests are in the standard test route; frozen helper/package replay is an explicitly separate historical gate. Patched Node floors and a pre-copy bundle guard prevent creating a new bundle on the old runtime. No new provider route, policy grant, live activation, installer execution or study freeze.
+
+Current status/handoff/runbook/guide now have short authoritative summaries and byte-preserved pre-repair histories with hashes and section indexes. The exact old bytes are protected from formatting and newline normalization. Details and verification: [repair report](../docs/CODEBASE_REPAIRS_2026-11-04.md). Next gate is U02 independent review; this entry records implementation, not independent acceptance.
+
 ## ADR-0065 — Explore for me: discovery without a theme (accepted November 3, 2026)
 
 Context: C53 (runbook §2.18 at d5337e3, owner Oct 20) asked for problem discovery that starts without a theme: evidenced briefs or an honest empty result, with exclusions and website rules, duplicate detection, insufficient-evidence handling, cancellation and retry dedup. Every discovery path so far needed a search brief or a theme intent first. Jordan asked for it on November 3 as part of finishing the app before the final UX pass, usable in the app and $0 by default.

@@ -218,7 +218,12 @@ test('a session runs a fresh package copy in the worker with only the confirmed 
   ]);
   assert.ok(w.args.includes('--interactive'));
   assert.ok(!w.args.includes('--reap'));
-  assert.ok(!w.args.some((a) => /CREATOR_|TOKEN|SECRET/i.test(a)));
+  // A checkout named creator_agent is a path, not an environment assignment.
+  assert.ok(
+    !w.args.some((a) =>
+      /^(?:CREATOR_[A-Z0-9_]*|[A-Z0-9_]*(?:TOKEN|SECRET)[A-Z0-9_]*)=/i.test(a),
+    ),
+  );
   // Only the confirmed argument list crosses into the sandbox, beside the package copy.
   assert.deepEqual(
     JSON.parse(await readFile(join(w.job, 'launch.json'), 'utf8')),

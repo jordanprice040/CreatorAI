@@ -1,5 +1,13 @@
 # Integration readiness
 
+## Authentication review follow-up — November 4, 2026
+
+Schema 41 privately binds plan requests to the admitted login and actual dispatched credential. Late authentication failures cannot expire a disconnected or newer login; browser completion tolerates unrelated settings changes and refresh. Synthetic checks only; no live activation, installed-app migration or new credential scope. The earlier schema-40 bundle and evidence remain historical. See [follow-up report](../docs/CODEBASE_AUTH_FOLLOWUP_2026-11-04.md) and ADR-0067.
+
+## Audit repairs — November 4, 2026
+
+Plan sign-in/refresh completion is version/reference-bound so an older callback cannot reverse Disconnect. Current runtime floor is Node 22.23.4 (or 24.22.2 in 24.x); a locally staged bundle includes the verified patched binary. Qualification labels distinguish historical grades from current prompts. These are source repairs and fixture/contract/build evidence, not an installed-app update or new live connection activation. See [the repair report](../docs/CODEBASE_REPAIRS_2026-11-04.md) and [current status](../docs/CURRENT_STATUS.md); dated earlier live/native receipts retain their original candidate scope.
+
 ## Chat answers through plan connections (ADR-0057) — November 1, 2026
 
 Implemented and fixture-verified (fake `claude`), not activated. Uses the existing ChatGPT plan and Claude Code connections; no new credential, endpoint or sign-in. Activation on a studio: allow private text on the chosen connection, accept its caps again, turn chat answers on in Models and connections. Each live question uses the owner's plan allowance ($0 to the studio, outside the $20 runtime ceiling); refusals never fall back to a paid route.

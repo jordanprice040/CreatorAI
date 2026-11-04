@@ -48,7 +48,10 @@ export function QualificationSummary({ q }: { q: PlanQualification }) {
   return (
     <>
       <strong>
-        {q.model_id} · {job} job · {q.state}
+        {q.model_id} · {job} job ·{' '}
+        {q.state === 'qualified' && q.prompt_current === false
+          ? 'historical pass (older prompt)'
+          : q.state}
       </strong>
       {decided && (
         <>
@@ -58,6 +61,12 @@ export function QualificationSummary({ q }: { q: PlanQualification }) {
         </>
       )}
       {q.decided_at && <> · {new Date(q.decided_at).toLocaleString()}</>}
+      {q.state === 'qualified' && q.prompt_current === false && (
+        <p className="small">
+          Does not count for the current prompt. Qualify this model again for
+          this job.
+        </p>
+      )}
     </>
   );
 }

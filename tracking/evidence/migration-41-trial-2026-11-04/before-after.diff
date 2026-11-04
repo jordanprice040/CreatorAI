@@ -1,0 +1,8 @@
+1c1
+< schema|40
+---
+> schema|41
+107c107
+< rows|schema_migrations|40
+---
+> rows|schema_migrations|41

@@ -185,7 +185,11 @@ export interface InvokeRequest {
 
 export class PlanConnectionService {
   readonly #signIns = new Map<string, SignInStatus>();
-  readonly #refreshing = new Map<string, Promise<PlanCredential>>();
+  readonly #signInTokens = new Map<string, string>();
+  readonly #refreshing = new Map<
+    string,
+    Promise<{ credential: PlanCredential; ref: string }>
+  >();
   constructor(readonly deps: PlanServiceDeps) {}
 
   endpointsFor(conn: PlanConnection): PlanEndpoints {
@@ -276,8 +280,11 @@ export class PlanConnectionService {
     id: string,
     opts: { open_browser: boolean },
   ) {
-    const { connection: conn, credential_ref } =
-      await this.deps.store.planCredentialRef(ctx, ws, id);
+    const {
+      connection: conn,
+      credential_ref,
+      auth_generation,
+    } = await this.deps.store.planCredentialRef(ctx, ws, id);
     if (conn.kind !== 'chatgpt_plan')
       throw new ContractError(
         'INVALID_TRANSITION',
@@ -311,6 +318,8 @@ export class PlanConnectionService {
       started_at: new Date().toISOString(),
     });
     const a = attempt;
+    const attemptToken = randomUUID();
+    this.#signInTokens.set(conn.id, attemptToken);
     void cb.result
       .then((r) =>
         this.#finishSignIn(
@@ -321,10 +330,12 @@ export class PlanConnectionService {
           r.code,
           r.client_id,
           previous,
-          credential_ref,
+          auth_generation,
+          attemptToken,
         ),
       )
       .catch((e) => {
+        if (this.#signInTokens.get(conn.id) !== attemptToken) return;
         this.#signIns.set(conn.id, {
           state: 'failed',
           code: e instanceof PlanAuthError ? e.code : 'sign_in_failed',
@@ -349,8 +360,14 @@ export class PlanConnectionService {
     code: string,
     clientId: string,
     previous: PlanCredential | null,
-    previousRef: string | null,
+    authGeneration: string,
+    attemptToken: string,
   ) {
+    if (this.#signInTokens.get(conn.id) !== attemptToken)
+      throw new PlanAuthError(
+        'sign_in_cancelled',
+        'This sign-in was cancelled. Start a new sign-in.',
+      );
     const endpoints = this.endpointsFor(conn);
     const f = this.deps.fetchImpl ?? fetch;
     const tokens = await exchangeCode({
@@ -379,7 +396,8 @@ export class PlanConnectionService {
         'account_mismatch',
         'A different ChatGPT account signed in; the saved registration was kept.',
       );
-    const ref = previousRef ?? newCredentialRef();
+    // Never overwrite credentials another callback, refresh or disconnect may be using.
+    const ref = newCredentialRef();
     const cred = this.#credential(
       conn,
       clientId,
@@ -390,18 +408,33 @@ export class PlanConnectionService {
       previous,
     );
     await this.#vault().put(ref, cred);
-    await this.deps.store.recordPlanSignIn(ctx, ws, conn.id, {
-      issued_client_id: clientId,
-      account_label: cred.account_label,
-      scopes: tokens.scope,
-      access_expires_at: cred.expires_at,
-      credential_ref: ref,
-    });
-    this.#signIns.set(conn.id, {
-      state: 'completed',
-      plan_usage_granted: tokens.scope.includes(PLAN_USAGE_SCOPE),
-      finished_at: new Date().toISOString(),
-    });
+    let replacedRef: string | null = null;
+    try {
+      const recorded = await this.deps.store.recordPlanSignIn(
+        ctx,
+        ws,
+        conn.id,
+        {
+          issued_client_id: clientId,
+          account_label: cred.account_label,
+          scopes: tokens.scope,
+          access_expires_at: cred.expires_at,
+          credential_ref: ref,
+          expected_auth_generation: authGeneration,
+        },
+      );
+      replacedRef = recorded.replaced_credential_ref;
+    } catch (e) {
+      await this.#vault().delete(ref);
+      throw e;
+    }
+    if (replacedRef) await this.#vault().delete(replacedRef);
+    if (this.#signInTokens.get(conn.id) === attemptToken)
+      this.#signIns.set(conn.id, {
+        state: 'completed',
+        plan_usage_granted: tokens.scope.includes(PLAN_USAGE_SCOPE),
+        finished_at: new Date().toISOString(),
+      });
   }
 
   #credential(
@@ -433,7 +466,11 @@ export class PlanConnectionService {
     ctx: CommandContext,
     ws: string,
     id: string,
-  ): Promise<{ token: string; connection: PlanConnection }> {
+  ): Promise<{
+    token: string;
+    connection: PlanConnection;
+    credential_ref: string;
+  }> {
     const { connection, credential_ref } =
       await this.deps.store.planCredentialRef(ctx, ws, id);
     if (connection.kind !== 'chatgpt_plan')
@@ -445,6 +482,7 @@ export class PlanConnectionService {
       throw new ContractError('UNAUTHENTICATED', 'Sign in with ChatGPT first.');
     const vault = this.#vault();
     let cred = await vault.get(credential_ref);
+    let ref = credential_ref;
     if (!cred)
       throw new ContractError(
         'UNAUTHENTICATED',
@@ -458,20 +496,36 @@ export class PlanConnectionService {
         );
         this.#refreshing.set(connection.id, pending);
       }
-      cred = await pending;
+      const refreshed = await pending;
+      cred = refreshed.credential;
+      ref = refreshed.ref;
     }
-    return { token: cred.access_token, connection };
+    const latest = await this.deps.store.planCredentialRef(ctx, ws, id);
+    if (
+      latest.connection.sign_in.state !== 'signed_in' ||
+      latest.credential_ref !== ref
+    )
+      throw new ContractError(
+        'UNAUTHENTICATED',
+        'The connection changed while obtaining its token. Sign in again.',
+      );
+    return {
+      token: cred.access_token,
+      connection: latest.connection,
+      credential_ref: ref,
+    };
   }
 
   async #refresh(
     conn: PlanConnection,
     ref: string,
     cred: PlanCredential,
-  ): Promise<PlanCredential> {
+  ): Promise<{ credential: PlanCredential; ref: string }> {
     if (!cred.refresh_token) {
       await this.deps.store.markPlanReauthorizationRequired(
         conn.id,
         'No refresh token was granted; sign in again.',
+        ref,
       );
       throw new ContractError('UNAUTHENTICATED', 'Sign in with ChatGPT again.');
     }
@@ -491,20 +545,34 @@ export class PlanConnectionService {
         expires_at: new Date(Date.now() + t.expires_in * 1000).toISOString(),
         saved_at: new Date().toISOString(),
       };
-      await this.#vault().put(ref, next);
-      await this.deps.store.recordPlanAccessRefresh(conn.id, next.expires_at);
-      return next;
+      const nextRef = newCredentialRef();
+      await this.#vault().put(nextRef, next);
+      try {
+        if (
+          !(await this.deps.store.recordPlanAccessRefresh(
+            conn.id,
+            ref,
+            nextRef,
+            next.expires_at,
+          ))
+        )
+          throw new ContractError(
+            'UNAUTHENTICATED',
+            'The connection was disconnected or replaced during refresh.',
+          );
+      } catch (e) {
+        await this.#vault().delete(nextRef);
+        throw e;
+      }
+      await this.#vault().delete(ref);
+      return { credential: next, ref: nextRef };
     } catch (e) {
       if (e instanceof PlanAuthError && TERMINAL_REFRESH_ERRORS.has(e.code)) {
-        await this.#vault().put(ref, {
-          ...cred,
-          access_token: 'revoked-'.padEnd(20, '0'),
-          refresh_token: null,
-          expires_at: new Date(0).toISOString(),
-        });
+        await this.#vault().delete(ref);
         await this.deps.store.markPlanReauthorizationRequired(
           conn.id,
           `Token refresh refused (${e.code}); sign in again.`,
+          ref,
         );
         throw new ContractError(
           'UNAUTHENTICATED',
@@ -520,8 +588,11 @@ export class PlanConnectionService {
   }
 
   async signOut(ctx: CommandContext, ws: string, id: string) {
+    // Invalidate first, before any slow provider/vault work. Completion is login-generation-bound.
     const { connection, credential_ref } =
-      await this.deps.store.planCredentialRef(ctx, ws, id);
+      await this.deps.store.recordPlanSignOut(ctx, ws, id, false);
+    this.#signIns.delete(connection.id);
+    this.#signInTokens.delete(connection.id);
     let confirmed = false;
     if (credential_ref && this.deps.vault) {
       const cred = await this.deps.vault.get(credential_ref);
@@ -543,7 +614,13 @@ export class PlanConnectionService {
       }
       await this.deps.vault.delete(credential_ref);
     }
-    return this.deps.store.recordPlanSignOut(ctx, ws, connection.id, confirmed);
+    return this.deps.store.recordPlanRevocation(
+      ctx,
+      ws,
+      connection.id,
+      connection.version,
+      confirmed,
+    );
   }
 
   /** One admitted direct Responses request; the caller never sees the token. */
@@ -647,8 +724,8 @@ export class PlanConnectionService {
         r.connection_id,
       );
       if (connection.kind === 'claude_code')
-        outcome = await this.#claudeCall(connection, r);
-      else outcome = await this.#chatgptCall(ctx, ws, r);
+        outcome = await this.#claudeCall(connection, r, admitted.request_id);
+      else outcome = await this.#chatgptCall(ctx, ws, r, admitted.request_id);
     } catch (e) {
       // Nothing was sent: the token or the Claude Code sign-in could not be confirmed.
       outcome = {
@@ -670,12 +747,14 @@ export class PlanConnectionService {
     ctx: CommandContext,
     ws: string,
     r: InvokeRequest,
+    requestId: string,
   ): Promise<PlanObservedOutcome> {
-    const { token, connection } = await this.accessToken(
+    const { token, connection, credential_ref } = await this.accessToken(
       ctx,
       ws,
       r.connection_id,
     );
+    await this.deps.store.bindPlanRequestCredential(requestId, credential_ref);
     const caps = connection.settings.caps.responses;
     return callPlanResponses({
       api_base: this.endpointsFor(connection).api_base,
@@ -703,6 +782,7 @@ export class PlanConnectionService {
   async #claudeCall(
     connection: PlanConnection,
     r: InvokeRequest,
+    requestId: string,
   ): Promise<PlanObservedOutcome> {
     const host = this.#claudeHost();
     const fixtureEnv = this.#claudeFixtureEnv(connection);
@@ -747,6 +827,7 @@ export class PlanConnectionService {
         retry_allowed: false,
         sign_in_invalid: true,
       };
+    await this.deps.store.bindPlanRequestCredential(requestId, null);
     const caps = connection.settings.caps.responses;
     return callClaudeCode({
       host,
@@ -860,12 +941,17 @@ export class PlanConnectionService {
       });
       let token: string;
       let connection: PlanConnection;
+      let credentialRef: string;
       try {
-        ({ token, connection } = await this.accessToken(
-          ctx,
-          ws,
-          b.connection_id,
-        ));
+        ({
+          token,
+          connection,
+          credential_ref: credentialRef,
+        } = await this.accessToken(ctx, ws, b.connection_id));
+        await this.deps.store.bindPlanRequestCredential(
+          admitted.request_id,
+          credentialRef,
+        );
       } catch (e) {
         await this.deps.store.settlePlanRequest(
           admitted.request_id,

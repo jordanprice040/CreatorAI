@@ -444,6 +444,8 @@ export const PlanQualificationSchema = z.strictObject({
   created_by: id,
   created_at: timestamp,
   decided_at: timestamp.nullable(),
+  /** Derived by the server from the exact current role prompt; historical grades stay intact. */
+  prompt_current: z.boolean().optional(),
 });
 export type PlanQualification = z.infer<typeof PlanQualificationSchema>;
 /**
@@ -459,6 +461,7 @@ export function latestDecided(
 ): PlanQualification | null {
   let out: PlanQualification | null = null;
   for (const q of qualifications) {
+    if (q.prompt_current === false) continue;
     if (q.model_id !== model_id || q.task_class !== task_class) continue;
     if (q.state !== 'qualified' && q.state !== 'failed') continue;
     const t = Date.parse(q.decided_at ?? q.created_at);
