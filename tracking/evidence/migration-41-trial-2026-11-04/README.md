@@ -39,3 +39,17 @@ covered only by the synthetic test. The trial checked the database only. It did 
 build against it, run the installer, or test the app's own "Back up and upgrade". Afterwards the
 scratch cluster was stopped and deleted. The cold copy and dump are kept in
 `C:\CreatorAgentBackups`.
+
+## Installed upgrade (same day)
+
+Jordan typed "OK upgrade". Before installing, I made a full cold backup at
+`C:\CreatorAgentBackups\installed-pre-f6e2ba0-20261104-084004`: home 2,843 files and program 99
+files, with hashes matching the originals, plus the trial's `database.dump`. The installer was built
+from `f6e2ba0` with Node 22.23.4 (sha256 `529216c3…daae89e7`). Its manifest is marked dirty only
+because of the owner's local `.codex/config.toml`, which is not part of the build. Jordan ran the
+installer and clicked "Back up and upgrade". The app saved its own backup,
+`pre-migrate-v40-2026-11-04T13-43-45-266Z` (`schema_from` 40, `schema_to` 41). The supervisor log
+shows migrate finished, and the app went to running and signed in. `/api/health` returned `ok`,
+and the installed bundle manifest's `source_commit` is `f6e2ba0`. The running database's password
+is DPAPI-protected and was not decrypted, so I did not count tables or rows on the live database
+again. The trial above is the table and row evidence.
