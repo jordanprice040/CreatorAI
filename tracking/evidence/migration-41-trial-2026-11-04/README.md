@@ -47,7 +47,7 @@ Jordan typed "OK upgrade". Before installing, I made a full cold backup at
 files, with hashes matching the originals, plus the trial's `database.dump`. The installer was built
 from `f6e2ba0` with Node 22.23.4 (sha256 `529216c3…daae89e7`). Its manifest is marked dirty only
 because of the owner's local `.codex/config.toml`, which is not part of the build. Jordan ran the
-installer himself and clicked "Back up and upgrade". The app saved its own backup,
+installer and clicked "Back up and upgrade". The app saved its own backup,
 `pre-migrate-v40-2026-11-04T13-43-45-266Z` (`schema_from` 40, `schema_to` 41). The supervisor log
 shows migrate finished, and the app went to running and signed in. `/api/health` returned `ok`,
 and the installed bundle manifest's `source_commit` is `f6e2ba0`. The running database's password
