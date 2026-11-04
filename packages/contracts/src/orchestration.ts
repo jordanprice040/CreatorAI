@@ -18,6 +18,11 @@ import {
   EvidenceRoleSchema,
   ResponseTypeSchema,
 } from './discovery.js';
+import {
+  ExplorationResultSchema,
+  ExplorationTaskContextSchema,
+  ExploreScopeSchema,
+} from './exploration.js';
 
 // T05 durable orchestration. A workflow is one finite coordinator run of one bounded role
 // for a registered run; its state lives in PostgreSQL, not in a browser or a worker's memory.
@@ -29,7 +34,12 @@ export const ORCHESTRATION_POLICY_VERSION = 'orchestration/1.0' as const;
  * Bounded roles connected end to end: the T05 skeptic review (R05) and the T07 discovery run
  * (R02 locator, R04 designers, R05 skeptic and bounded revision).
  */
-export const WorkflowRoleSchema = z.enum(['r05_skeptic', 'r02_discovery']);
+export const WorkflowRoleSchema = z.enum([
+  'r05_skeptic',
+  'r02_discovery',
+  /** C53 "Explore for me": one explorer task over the workspace's claims (ADR-0065). */
+  'r01_exploration',
+]);
 export type WorkflowRole = z.infer<typeof WorkflowRoleSchema>;
 export const WorkflowStateSchema = ExecutionStateSchema.exclude([
   'admitted',
@@ -59,6 +69,7 @@ export const TaskKindSchema = z.enum([
   'critique',
   'synthesis',
   ...DiscoveryTaskKindSchema.options,
+  'explore',
 ]);
 export type TaskKind = z.infer<typeof TaskKindSchema>;
 
@@ -168,6 +179,7 @@ export type SkepticTaskContext = z.infer<typeof SkepticTaskContextSchema>;
 export const TaskContextSchema = z.discriminatedUnion('context_version', [
   SkepticTaskContextSchema,
   DiscoveryTaskContextSchema,
+  ExplorationTaskContextSchema,
 ]);
 export type TaskContext = z.infer<typeof TaskContextSchema>;
 
@@ -198,6 +210,16 @@ export const DISCOVERY_TASK_CLASSES = {
   revise: 'candidate_generation',
   skeptic: 'scoring',
 } as const;
+/**
+ * ADR-0065: the explorer narrows recorded evidence into problems, the locator's kind of work,
+ * so it runs as research_synthesis and is admitted under the locator's qualification.
+ */
+export const EXPLORATION_TASK_CLASS = 'research_synthesis' as const;
+/** The plan task class of a workflow task kind, or undefined for a metered-only kind. */
+export const workflowTaskClass = (kind: string) =>
+  kind === 'explore'
+    ? EXPLORATION_TASK_CLASS
+    : DISCOVERY_TASK_CLASSES[kind as keyof typeof DISCOVERY_TASK_CLASSES];
 
 export const StartDiscoveryRequestSchema = z
   .strictObject({
@@ -290,6 +312,40 @@ export const StartDiscoveryRequestSchema = z
   });
 export type StartDiscoveryRequest = z.infer<typeof StartDiscoveryRequestSchema>;
 
+/**
+ * C53: start an exploration with no theme. The scope is optional narrowing; the run, resource
+ * setup, data class and limits are the same kinds discovery uses.
+ */
+export const StartExplorationRequestSchema = z
+  .strictObject({
+    scope: ExploreScopeSchema.default(ExploreScopeSchema.parse({})),
+    resource_setup: WorkflowResourceSetupSchema,
+    data_class: DataClassSchema,
+    limits: WorkflowLimitsSchema,
+    /**
+     * The `preview_hash` of the preview the owner saw; the start is refused if what it would
+     * send differs (PR #131 re-review R-N4). Optional for the CLI.
+     */
+    preview_hash: hash.optional(),
+  })
+  .superRefine((r, ctx) => {
+    if (r.resource_setup.kind !== 'subscription') {
+      if (r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS)
+        ctx.addIssue({
+          code: 'custom',
+          message: 'API and local workflow calls time out within 600 seconds.',
+        });
+      if (r.limits.max_wall_seconds > METERED_WALL_MAX_SECONDS)
+        ctx.addIssue({
+          code: 'custom',
+          message: 'API and local workflows end within one day.',
+        });
+    }
+  });
+export type StartExplorationRequest = z.infer<
+  typeof StartExplorationRequestSchema
+>;
+
 // Role outputs. The runtime validates them; a malformed answer is a known failure, charged.
 const severity = z.enum(['low', 'medium', 'high']);
 export const CritiqueOutputSchema = z.strictObject({
@@ -372,6 +428,8 @@ export const WorkflowResultSchema = z.strictObject({
   fixture: z.boolean(),
   /** Discovery runs only. */
   discovery: DiscoveryResultSchema.optional(),
+  /** Explorations only (ADR-0065). */
+  exploration: ExplorationResultSchema.optional(),
 });
 export type WorkflowResult = z.infer<typeof WorkflowResultSchema>;
 export const WorkflowUsageSchema = z.strictObject({

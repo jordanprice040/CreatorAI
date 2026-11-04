@@ -32,9 +32,23 @@ import { envelopesFor } from './build-defaults.js';
 import { useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
+import { Explore, type ExploredPick } from './explore.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
 
+/** Key-order-free JSON, so a stored brief (jsonb reorders keys) compares with the form. */
+const stable = (v: unknown): string =>
+  Array.isArray(v)
+    ? `[${v.map(stable).join(',')}]`
+    : v && typeof v === 'object'
+      ? `{${Object.keys(v)
+          .sort()
+          .map(
+            (k) =>
+              `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`,
+          )
+          .join(',')}}`
+      : JSON.stringify(v);
 const lines = (s: string) =>
   s
     .split(/\n|,/)
@@ -227,6 +241,53 @@ export function Submit({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [tried, setTried] = useState(false);
+  /** A brief made from an exploration pick; reused on submit while the form still matches it. */
+  const [explored, setExplored] = useState<ExploredPick['brief'] | null>(null);
+  /** Claims a pick cited against its problem, labelled in the list below. */
+  const [against, setAgainst] = useState<ReadonlySet<string>>(new Set());
+  function takePick(pick: ExploredPick) {
+    const b = pick.brief.body;
+    setTheme(b.theme);
+    setFieldA(b.fields[0]);
+    setFieldB(b.fields[1]);
+    setUsers(b.target_users);
+    setContext(b.context ?? '');
+    setProblem(b.measurable_problem);
+    setMeasure(b.outcome_measure);
+    setData(b.data_and_tools.join('\n'));
+    setTimeLimit(b.time_limit);
+    setBudgetLimit(b.budget_limit);
+    setSeed(b.nae_seed ?? '');
+    setConstraints(b.constraints.join('\n'));
+    const known = new Set(ctx.data?.claims.map((x) => x.id) ?? []);
+    const picked = pick.claims.filter((x) => known.has(x.claim_id));
+    // Supporting claims start as bearing on the problem only; claims cited against it are
+    // attached with no role, labelled, for the owner to decide (PR #131 review L-6).
+    setRoles(
+      Object.fromEntries(
+        picked
+          .filter((x) => !x.contrary)
+          .map((x) => [x.claim_id, ['problem'] as EvidenceRole[]]),
+      ),
+    );
+    setAgainst(
+      new Set(
+        picked
+          .filter(
+            (x) =>
+              x.contrary &&
+              !picked.some((y) => !y.contrary && y.claim_id === x.claim_id),
+          )
+          .map((x) => x.claim_id),
+      ),
+    );
+    setOpenClaims(new Set(picked.map((x) => x.claim_id)));
+    setExplored(pick.brief);
+    setTried(false);
+    document
+      .querySelector('#discover')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   const brief = {
     theme: theme.trim(),
@@ -402,10 +463,16 @@ export function Submit({
     setBusy(true);
     setError('');
     try {
-      const created = await api(StoredEntitySchema, `${base}/entities`, {
-        csrf: session.csrf_token,
-        body: { kind: 'search_brief', title: brief.theme, body: brief },
-      });
+      // An unedited exploration pick keeps its own brief (and its audited link to the
+      // exploration); any edit saves a new brief as before.
+      const replaced = explored && stable(explored.body) !== stable(brief);
+      const created =
+        explored && !replaced
+          ? explored
+          : await api(StoredEntitySchema, `${base}/entities`, {
+              csrf: session.csrf_token,
+              body: { kind: 'search_brief', title: brief.theme, body: brief },
+            });
       let runId = runChoice;
       if (runChoice === 'new') {
         const run = await api(StoredEntitySchema, `${base}/entities`, {
@@ -465,6 +532,18 @@ export function Submit({
           timeoutMs: 15000,
         },
       );
+      // The pick's own brief was replaced by the edited one: archive it so it does not linger
+      // as an unused brief (PR #131 review L-5). Best effort; the discovery has started.
+      if (replaced && explored)
+        await api(z.unknown(), `${base}/entities/${explored.id}/archive`, {
+          csrf: session.csrf_token,
+          body: {
+            expected_version: explored.version,
+            reason: 'Replaced by an edited brief before discovery started.',
+          },
+        }).catch(() => undefined);
+      setExplored(null);
+      setAgainst(new Set());
       open('runs', started.workflow.id);
     } catch (err) {
       setError(message(err));
@@ -477,8 +556,9 @@ export function Submit({
     <section className="panel" aria-labelledby="sub-title">
       <h2 id="sub-title">Discover</h2>
       <p>
-        Two ways in: save a rough theme as a draft and plan it later, or fill in
-        the full brief under{' '}
+        Three ways in: let the studio explore your recorded evidence for
+        problems with no theme at all, save a rough theme as a draft and plan it
+        later, or fill in the full brief under{' '}
         <button
           type="button"
           className="text"
@@ -495,6 +575,13 @@ export function Submit({
         </button>{' '}
         to start a discovery run now.
       </p>
+      <Explore
+        key={`explore-${workspace.id}`}
+        session={session}
+        workspace={workspace}
+        onUse={takePick}
+        open={open}
+      />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
       <p>
@@ -504,6 +591,15 @@ export function Submit({
         claims you attach, with their recorded sources; the locator does not
         search the web.
       </p>
+      {explored && (
+        <p className="notice">
+          Filled from an Explore for me pick, with its cited claims attached:
+          supporting ones marked as bearing on the problem, ones cited against
+          it labelled and left for you to mark. Check every field and claim
+          before starting; if you change the brief, it is saved as a new brief
+          and the pick's brief is archived.
+        </p>
+      )}
       {workspace.record_mode === 'fixture' && (
         <p className="notice">
           Fixture workspace: the deterministic adapter answers from rules over
@@ -683,6 +779,12 @@ export function Submit({
                             {ev ? words(ev.status) : 'unknown'}
                           </span>{' '}
                           {String(cl.body?.statement ?? cl.title)}
+                          {against.has(cl.id) && (
+                            <strong className="against">
+                              {' '}
+                              · cited against the pick
+                            </strong>
+                          )}
                         </label>
                         {attached && (
                           <div

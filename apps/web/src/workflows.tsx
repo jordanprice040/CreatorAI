@@ -288,10 +288,14 @@ export function Workflows({
                     </span>{' '}
                     {w.role === 'r02_discovery'
                       ? 'Discovery'
-                      : 'Skeptic review'}{' '}
+                      : w.role === 'r01_exploration'
+                        ? 'Explore for me'
+                        : 'Skeptic review'}{' '}
                     {runName(w.run_id, names) &&
                       `· ${clipText(runName(w.run_id, names), 48)} `}
-                    · {w.perspectives.length} perspectives ·{' '}
+                    {w.role === 'r01_exploration'
+                      ? '·'
+                      : `· ${w.perspectives.length} perspectives ·`}{' '}
                     {when(w.created_at)}
                   </button>
                 </li>
@@ -423,7 +427,9 @@ export function Workflows({
                       {words(t.state)}
                     </span>{' '}
                     {t.kind}
-                    {t.context.perspective ? ` · ${t.context.perspective}` : ''}
+                    {'perspective' in t.context && t.context.perspective
+                      ? ` · ${t.context.perspective}`
+                      : ''}
                     {'proposal' in t.context && t.context.proposal
                       ? ` · ${t.context.proposal}`
                       : ''}
@@ -460,6 +466,22 @@ export function Workflows({
                   <p>{wf.result.explanation}</p>
                   {wf.result.discovery && (
                     <Discovery result={wf.result.discovery} />
+                  )}
+                  {wf.result.exploration && (
+                    <p className="small">
+                      {wf.result.exploration.candidates.length} problem
+                      {wf.result.exploration.candidates.length === 1
+                        ? ''
+                        : 's'}{' '}
+                      proposed,{' '}
+                      {
+                        wf.result.exploration.candidates.filter(
+                          (x) => x.disposition === 'candidate',
+                        ).length
+                      }{' '}
+                      candidate(s). Open Discover › Explore for me to read the
+                      shortlist and use one as a brief.
+                    </p>
                   )}
                   {wf.result.synthesis && (
                     <p>

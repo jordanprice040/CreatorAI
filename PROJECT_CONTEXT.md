@@ -102,7 +102,7 @@ native and live evidence. October 20 plan access and a narrow synthetic structur
 summary qualification succeeded; this does not verify live discovery, search or
 code-building roles. See [current reconciled status](docs/CURRENT_STATUS.md) for
 candidate identity, evidence scope, remaining blockers and next eligible prompt.
-Accepted chat/theme-free/billing-aware workflow additions C52–C54 are planned.
+Central chat (C52) and Explore for me (C53, ADR-0065) are built; billing-aware workflow C54 is partial.
 Historical tracking entries describe their original candidate and time; later
 verified entries supersede conflicting status claims without rewriting history.
 

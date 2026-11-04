@@ -2676,6 +2676,20 @@ begin
 end $$;
 `,
   },
+  {
+    // ADR-0065 (C53): "Explore for me". Explorations reuse the T05 workflow tables with a third
+    // role and one task kind; their subject is the run record they belong to.
+    version: 40,
+    name: 'exploration_workflows',
+    sql: `
+alter table workflows drop constraint workflows_role_check;
+alter table workflows add constraint workflows_role_check
+  check (role in ('r05_skeptic', 'r02_discovery', 'r01_exploration'));
+alter table workflow_tasks drop constraint workflow_tasks_kind_check;
+alter table workflow_tasks add constraint workflow_tasks_kind_check
+  check (kind in ('critique', 'synthesis', 'locate', 'propose', 'skeptic', 'revise', 'explore'));
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

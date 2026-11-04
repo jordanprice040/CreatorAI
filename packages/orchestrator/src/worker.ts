@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import {
   ContractError,
-  DISCOVERY_TASK_CLASSES,
+  workflowTaskClass,
   type BrokerCallResult,
   type TaskKind,
 } from '@creator/contracts';
-import { canonicalHash, discoveryRoleInput, roleInput } from '@creator/domain';
+import {
+  canonicalHash,
+  discoveryRoleInput,
+  explorationRoleInput,
+  roleInput,
+} from '@creator/domain';
 import {
   ORCHESTRATOR_ACTOR_ID,
   isDiscoveryKind,
@@ -154,17 +159,30 @@ export class Worker {
               ...lease.discovery,
             }
           : null;
-      const input = discovery
-        ? discoveryRoleInput(
-            discovery.kind,
-            discovery.context,
-            discovery.packet,
-            discovery.inputs,
-          )
-        : task.context.context_version === 'skeptic-context/1' &&
-            (task.kind === 'critique' || task.kind === 'synthesis')
-          ? roleInput(task.kind, task.context, lease.critiques)
+      const exploration =
+        task.context.context_version === 'exploration-context/1' &&
+        task.kind === 'explore' &&
+        lease.exploration
+          ? lease.exploration
           : null;
+      const check = exploration
+        ? { exploration: exploration.packet }
+        : discovery
+          ? { packet: discovery.packet, context: discovery.context }
+          : undefined;
+      const input = exploration
+        ? explorationRoleInput(exploration.packet)
+        : discovery
+          ? discoveryRoleInput(
+              discovery.kind,
+              discovery.context,
+              discovery.packet,
+              discovery.inputs,
+            )
+          : task.context.context_version === 'skeptic-context/1' &&
+              (task.kind === 'critique' || task.kind === 'synthesis')
+            ? roleInput(task.kind, task.context, lease.critiques)
+            : null;
       if (!input)
         throw new Error(
           `task ${task.id} has a context this worker cannot render`,
@@ -195,10 +213,7 @@ export class Worker {
               connection_id: setup.connection_id,
               model_id: setup.model_id,
               purpose: 'task',
-              task_class:
-                DISCOVERY_TASK_CLASSES[
-                  task.kind as keyof typeof DISCOVERY_TASK_CLASSES
-                ],
+              task_class: workflowTaskClass(task.kind),
               data_class: lease.dataClass,
               run_id: lease.runId,
               logical_operation_id: task.logical_operation_id,
@@ -236,13 +251,7 @@ export class Worker {
             } catch {
               json = null;
             }
-            const output = validateOutput(
-              task.kind,
-              json,
-              discovery
-                ? { packet: discovery.packet, context: discovery.context }
-                : undefined,
-            );
+            const output = validateOutput(task.kind, json, check);
             outcome = output
               ? { state: 'succeeded', reason: 'succeeded', output }
               : { state: 'failed', reason: 'invalid_output' };
@@ -305,13 +314,7 @@ export class Worker {
         this.#ctx,
         task.id,
         lease.token,
-        outcomeOf(
-          task.kind,
-          result,
-          discovery
-            ? { packet: discovery.packet, context: discovery.context }
-            : undefined,
-        ),
+        outcomeOf(task.kind, result, check),
       );
     } catch (e) {
       if (e instanceof ContractError && e.code === 'LEASE_LOST') {
@@ -335,6 +338,7 @@ const ROLE_NAMES: Record<TaskKind, string> = {
   propose: 'R04 designer',
   revise: 'R04 designer revision',
   skeptic: 'R05 skeptic',
+  explore: 'R01 explorer',
 };
 
 /** Maps a broker result to a task outcome. Unknown never becomes a retry. */

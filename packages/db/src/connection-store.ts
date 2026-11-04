@@ -18,6 +18,8 @@ import {
   parse,
   z,
   DISCOVERY_TASK_CLASSES,
+  EXPLORATION_TASK_CLASS,
+  workflowTaskClass,
   type WorkflowResourceSetup,
   type WorkflowLimits,
   type Workflow,
@@ -1673,6 +1675,7 @@ export class ConnectionStore extends PortfolioStore {
     setup: Extract<WorkflowResourceSetup, { kind: 'subscription' }>,
     limits: WorkflowLimits,
     dataClass: Workflow['data_class'],
+    role: Workflow['role'] = 'r02_discovery',
   ): Promise<void> {
     const assigned = await c.query(
       'select 1 from study_attempts where workspace_id=$1 and run_id=$2',
@@ -1707,9 +1710,14 @@ export class ConnectionStore extends PortfolioStore {
     const access = await this.#access(c, conn.id);
     const qualifications = await this.#discoveryQualifications(c, conn.id);
     const usage = await this.#usage(c, conn.id, runId, null);
-    const blockers = [
-      ...new Set(Object.values(DISCOVERY_TASK_CLASSES)),
-    ].flatMap((task_class) =>
+    const classes: (
+      | typeof EXPLORATION_TASK_CLASS
+      | (typeof DISCOVERY_TASK_CLASSES)[keyof typeof DISCOVERY_TASK_CLASSES]
+    )[] =
+      role === 'r01_exploration'
+        ? [EXPLORATION_TASK_CLASS]
+        : [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
+    const blockers = classes.flatMap((task_class) =>
       admissionBlockers({
         connection: conn,
         access,
@@ -1736,7 +1744,9 @@ export class ConnectionStore extends PortfolioStore {
     if (blockers.length)
       throw new ContractError(
         'ACCESS_DENIED',
-        'Discovery route is not ready.',
+        role === 'r01_exploration'
+          ? 'Exploration route is not ready.'
+          : 'Discovery route is not ready.',
         [...new Set(blockers)],
       );
   }
@@ -2105,9 +2115,7 @@ export class ConnectionStore extends PortfolioStore {
           req.run_id !== wf.run_id ||
           req.data_class !== wf.data_class ||
           req.logical_operation_id !== task.logical_operation_id ||
-          DISCOVERY_TASK_CLASSES[
-            task.kind as keyof typeof DISCOVERY_TASK_CLASSES
-          ] !== req.task_class
+          workflowTaskClass(String(task.kind)) !== req.task_class
         )
           throw fail(
             'SCOPE_EXCEEDED',

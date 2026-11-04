@@ -5,6 +5,7 @@ import {
   CritiqueOutputSchema,
   DiscoveryTaskContextSchema,
   EvidencePacketSchema,
+  ExplorationPacketSchema,
   ORCHESTRATION_POLICY_VERSION,
   RESPONSE_OUTCOME,
   StartWorkflowRequestSchema,
@@ -17,6 +18,9 @@ import {
   type DiscoveryTaskContext,
   type DiscoveryTaskKind,
   type EvidencePacket,
+  type ExplorationCatalogEntry,
+  type ExplorationPacket,
+  type ExplorerOutput,
   type LocatorOutput,
   type ProposalOutput,
   type Reservation,
@@ -40,9 +44,13 @@ import {
   canonicalHash,
   catalogMatches,
   checkDiscoveryOutput,
+  checkExplorationOutput,
   coordinate,
   coordinateDiscovery,
+  coordinateExploration,
   disposeDiscovery,
+  disposeExploration,
+  explorationContext,
   isTerminalTask,
   proposalLabel,
   type CoordinatorAction,
@@ -83,8 +91,9 @@ function toWorkflow(r: Row): Workflow {
     policy_version: String(r.policy_version),
     subject: { id: String(r.subject_id), version: Number(r.subject_version) },
     context_hash: String(r.context_hash),
-    constraints: context.constraints as string[],
-    perspectives: context.perspectives as string[],
+    // Explorations (ADR-0065) have neither: no theme, no response types.
+    constraints: (context.constraints as string[] | undefined) ?? [],
+    perspectives: (context.perspectives as string[] | undefined) ?? [],
     limits: r.limits as WorkflowLimits,
     envelope_id: r.envelope_id == null ? null : String(r.envelope_id),
     pricing_snapshot_id:
@@ -150,6 +159,8 @@ export interface TaskLease {
   critiques: { perspective: string; output: unknown }[];
   /** Discovery tasks: the packet (verified by hash) and the inputs the context names. */
   discovery: { packet: EvidencePacket; inputs: DiscoveryInput[] } | null;
+  /** Exploration tasks (ADR-0065): the packet, verified by hash. */
+  exploration: { packet: ExplorationPacket } | null;
 }
 export type TaskOutcome =
   | { state: 'succeeded'; reason: string; output: unknown }
@@ -177,15 +188,39 @@ export interface DiscoveryWorkflowContext {
   constraints: string[];
 }
 
+/** Exploration workflow context (ADR-0065): the packet and its bound hash. */
+export interface ExplorationWorkflowContext {
+  packet: ExplorationPacket;
+  packet_hash: string;
+  /**
+   * Existing records the app checks picks against for duplicates: the packet's catalog plus
+   * those it had no room for (PR #131 review N-6). Never sent to the model.
+   */
+  duplicates_against?: Omit<ExplorationCatalogEntry, 'ref'>[];
+  /** Claims the owner left out in the preview; never sent to the model (re-review R-L1). */
+  left_out?: string[];
+}
+/** What an answer is checked against: a discovery packet and task context, or an exploration packet. */
+export type OutputCheck =
+  | { packet: EvidencePacket; context: TaskContext }
+  | { exploration: ExplorationPacket };
+
 /**
  * Validates a role answer; anything else is a known, charged failure. Discovery answers are
- * also checked against the packet and the task's own context.
+ * also checked against the packet and the task's own context; exploration answers against
+ * their packet.
  */
 export function validateOutput(
   kind: TaskKind,
   json: unknown,
-  discovery?: { packet: EvidencePacket; context: TaskContext },
+  check?: OutputCheck,
 ) {
+  if (kind === 'explore') {
+    if (!check || !('exploration' in check)) return null;
+    const checked = checkExplorationOutput(json, check.exploration);
+    return checked.ok ? checked.output : null;
+  }
+  const discovery = check && 'packet' in check ? check : undefined;
   if (isDiscoveryKind(kind)) {
     if (
       !discovery ||
@@ -391,6 +426,7 @@ export class WorkflowStore extends BudgetStore {
     _setup: Extract<WorkflowResourceSetup, { kind: 'subscription' }>,
     _limits: WorkflowLimits,
     _dataClass: Workflow['data_class'],
+    _role: Workflow['role'],
   ): Promise<void> {
     throw fail(
       'LIVE_DISABLED',
@@ -495,6 +531,7 @@ export class WorkflowStore extends BudgetStore {
         w.resourceSetup,
         w.limits,
         w.dataClass,
+        w.role,
       );
     } else {
       const env = await c.query(
@@ -768,6 +805,10 @@ export class WorkflowStore extends BudgetStore {
       wf.role === 'r02_discovery'
         ? (ctxRow as unknown as DiscoveryWorkflowContext)
         : null;
+    const exploration =
+      wf.role === 'r01_exploration'
+        ? (ctxRow as unknown as ExplorationWorkflowContext)
+        : null;
     const view = {
       state: wf.state,
       control: wf.control,
@@ -778,14 +819,16 @@ export class WorkflowStore extends BudgetStore {
       tasks,
       now,
     };
-    const plan: CoordinatorPlan = discovery
-      ? coordinateDiscovery({
-          ...view,
-          perspectives: discovery.perspectives,
-          max_revisions: discovery.max_revisions,
-          sufficient: discovery.packet.sufficiency.verdict === 'sufficient',
-        })
-      : coordinate(view);
+    const plan: CoordinatorPlan = exploration
+      ? coordinateExploration(view)
+      : discovery
+        ? coordinateDiscovery({
+            ...view,
+            perspectives: discovery.perspectives,
+            max_revisions: discovery.max_revisions,
+            sufficient: discovery.packet.sufficiency.verdict === 'sufficient',
+          })
+        : coordinate(view);
     const skepticRow = ctxRow as unknown as {
       subject: SkepticTaskContext['subject'];
       constraints: string[];
@@ -805,13 +848,15 @@ export class WorkflowStore extends BudgetStore {
           state: 'queued',
           context:
             prior?.context ??
-            (discovery
-              ? discoveryTaskContext(discovery, a, tasks)
-              : this.taskContext(
-                  skepticRow,
-                  skepticRow.perspectives[a.ordinal] ?? null,
-                  [],
-                )),
+            (exploration
+              ? explorationContext(exploration.packet_hash)
+              : discovery
+                ? discoveryTaskContext(discovery, a, tasks)
+                : this.taskContext(
+                    skepticRow,
+                    skepticRow.perspectives[a.ordinal] ?? null,
+                    [],
+                  )),
         });
       } else if (a.type === 'release_synthesis') {
         const inputs = skepticRow.perspectives.flatMap((p, i) => {
@@ -879,7 +924,45 @@ export class WorkflowStore extends BudgetStore {
           workflowId,
         ])
       ).rows.map((r: Row) => toTask(r));
-      if (discovery) {
+      if (exploration) {
+        const done = final
+          .filter((t) => t.kind === 'explore' && t.state === 'succeeded')
+          .sort((x, y) => y.repair - x.repair)[0];
+        const disposed = disposeExploration({
+          packet: exploration.packet,
+          packet_hash: exploration.packet_hash,
+          catalog: exploration.duplicates_against,
+          task:
+            done?.output_hash && plan.terminal.state === 'succeeded'
+              ? {
+                  id: done.id,
+                  output_hash: done.output_hash,
+                  output: done.output as ExplorerOutput,
+                }
+              : null,
+        });
+        const usable = disposed.candidates.filter(
+          (x) => x.disposition === 'candidate',
+        ).length;
+        result = {
+          outcome:
+            plan.terminal.state !== 'succeeded'
+              ? plan.terminal.outcome
+              : usable
+                ? 'succeeded'
+                : 'insufficient_evidence',
+          explanation:
+            plan.terminal.state !== 'succeeded'
+              ? plan.terminal.explanation
+              : usable
+                ? `The explorer proposed ${disposed.candidates.length} problem${disposed.candidates.length === 1 ? '' : 's'}; ${usable} ${usable === 1 ? 'is a candidate' : 'are candidates'} with current evidence.`
+                : `No sufficiently supported problem was found in the ${exploration.packet.claims.length} claim${exploration.packet.claims.length === 1 ? '' : 's'} read.${disposed.directions.length ? ' Directions to research are listed.' : ''}`,
+          synthesis: null,
+          critiques: [],
+          fixture: wf.fixture,
+          exploration: disposed,
+        };
+      } else if (discovery) {
         const disposition = disposeDiscovery({
           packet: discovery.packet,
           packet_hash: discovery.packet_hash,
@@ -1054,6 +1137,41 @@ export class WorkflowStore extends BudgetStore {
       payload: { state, reason },
       relatedIds: [String(rows[0]?.workflow_id)],
     });
+  }
+
+  /** An exploration workflow's packet, checked against the bound hash (ADR-0065). */
+  protected async explorationContextOf(
+    c: PoolClient,
+    workflowId: string,
+  ): Promise<ExplorationWorkflowContext> {
+    const { rows } = await c.query(
+      `select context from workflows where id = $1 and role = 'r01_exploration'`,
+      [workflowId],
+    );
+    const d = rows[0]?.context as ExplorationWorkflowContext | undefined;
+    if (!d) throw fail('NOT_FOUND', 'Exploration workflow not found.');
+    const packet = parse(ExplorationPacketSchema, d.packet);
+    if (canonicalHash(packet) !== d.packet_hash)
+      throw fail('EVIDENCE_MISMATCH', 'The exploration packet changed.');
+    return { packet, packet_hash: d.packet_hash };
+  }
+
+  /** What a task's answer is checked against, read from its workflow. */
+  protected async outputCheck(
+    c: PoolClient,
+    workflowId: string,
+    task: Pick<WorkflowTask, 'kind' | 'context'>,
+  ): Promise<OutputCheck | undefined> {
+    if (task.kind === 'explore')
+      return {
+        exploration: (await this.explorationContextOf(c, workflowId)).packet,
+      };
+    if (isDiscoveryKind(task.kind))
+      return {
+        packet: (await this.discoveryContextOf(c, workflowId)).packet,
+        context: task.context,
+      };
+    return undefined;
   }
 
   /** A discovery workflow's fixed context, with its packet checked against the bound hash. */
@@ -1393,6 +1511,7 @@ export class WorkflowStore extends BudgetStore {
           });
           const critiques = [];
           let discovery: TaskLease['discovery'] = null;
+          let exploration: TaskLease['exploration'] = null;
           const output = async (taskId: string, hash: string) => {
             const { rows: src } = await c.query(
               'select output, output_hash from workflow_tasks where id = $1 and workflow_id = $2',
@@ -1402,7 +1521,15 @@ export class WorkflowStore extends BudgetStore {
               throw fail('EVIDENCE_MISMATCH', 'A task input changed.');
             return src[0]?.output as unknown;
           };
-          if (task.context.context_version === 'discovery-context/1') {
+          if (task.context.context_version === 'exploration-context/1') {
+            const d = await this.explorationContextOf(c, wf.id);
+            if (d.packet_hash !== task.context.packet_hash)
+              throw fail(
+                'EVIDENCE_MISMATCH',
+                'The exploration packet changed.',
+              );
+            exploration = { packet: d.packet };
+          } else if (task.context.context_version === 'discovery-context/1') {
             const d = await this.discoveryContextOf(c, wf.id);
             if (d.packet_hash !== task.context.packet_hash)
               throw fail('EVIDENCE_MISMATCH', 'The evidence packet changed.');
@@ -1434,6 +1561,7 @@ export class WorkflowStore extends BudgetStore {
             limits: wf.limits,
             critiques,
             discovery,
+            exploration,
           });
         }
       }
@@ -1692,10 +1820,7 @@ export class WorkflowStore extends BudgetStore {
               output = validateOutput(
                 task.kind,
                 JSON.parse(prior.output_text),
-                {
-                  packet: (await this.discoveryContextOf(c, wf.id)).packet,
-                  context: task.context,
-                },
+                await this.outputCheck(c, wf.id, task),
               );
             } catch {
               output = null;
@@ -1734,12 +1859,7 @@ export class WorkflowStore extends BudgetStore {
           const output = validateOutput(
             task.kind,
             stored.output?.json,
-            isDiscoveryKind(task.kind)
-              ? {
-                  packet: (await this.discoveryContextOf(c, wf.id)).packet,
-                  context: task.context,
-                }
-              : undefined,
+            await this.outputCheck(c, wf.id, task),
           );
           outcome = output
             ? { state: 'succeeded', reason: 'late_result', output }

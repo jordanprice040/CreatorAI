@@ -1,3 +1,42 @@
+## Explore for me: discovery without a theme (ADR-0065, migration 40) — November 3, 2026
+
+C53, runbook §2.18. Jordan asked for it before the final UX pass; he chose to reuse the discovery locator's qualification (decision card, Nov 3).
+
+What now works:
+
+- Discover › "Explore for me" starts discovery with no theme. Optional narrowing (interests, who it is for, topics to exclude, only/never these websites, 1–5 picks) and model access (a plan connection by default, $0; API in fixture mode) sit in collapsed sections. Blockers are shown before the button, including a missing `research_synthesis` qualification on the chosen plan connection.
+- It creates a run "Explore for me · <date>", a model.generate grant on it, and one exploration workflow (role `r01_exploration`, task `explore`) through the normal worker, caps, pause, Stop and reconcile paths. Progress updates every 2 seconds.
+- The explorer reads only recorded claims and the workspace catalog (no web search). Application code marks each pick candidate, duplicate, insufficient evidence or excluded, with reasons and the cited claims. No candidates gives an honest empty result. The page also shows directions the model saw but could not support, and what it was not given.
+- "Use as a brief" turns a candidate into a search brief once (repeat clicks reuse it), fills the Discover form with the pick and its claims, and submitting the unchanged form reuses that brief.
+- Chat: "explore for me", "surprise me", "what should I build" and similar point to it with an "Open Explore for me" button.
+
+Checks run: new `tests/src/exploration.test.ts` (5 tests: packet rules for websites, exclusions and limits; dispositions; one repair; cancel; brief idempotency and refusals; schema parse of the workflow views) and a plan-route test in `subscription-workflow.test.ts` (needs only `research_synthesis`, one plan request, no reservation). Browser walk `tracking/evidence/explore-for-me/walk.mjs` on a throwaway database, review ports, fixture only, $0: 13 checks pass, including the all-duplicates empty result, the shortlist, brief reuse, chat and 390 px width (`walk.txt`, screenshots 01–07). Full `pnpm test:db` on PostgreSQL 16: 730 tests, 697 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests, no pwsh); typecheck and Prettier pass. No CI (Actions minutes exhausted).
+
+Limits: not run live on a plan connection or on the installed app. The explorer has no benchmark of its own. No web search, scheduling or autonomous selection.
+
+Review fixes (fresh review `/mnt/project-files/reviews/PR131_THEME_FREE_DISCOVERY_REVIEW_2026-11-03.md`, no High; Jordan's standing ask: the Medium, the Lows and cheap nits):
+
+- M-1: the packet now fills newest first within the 19,000-character limit (two passages per claim, catalog capped at 4,000 characters) and counts the rest as not read, so a workspace of any size starts. Claims are scanned in batches and reading stops when full (N-3).
+- L-1: a refused start revokes the 24-hour permission and cancels the run it made. The start button also waits for a successful preview.
+- L-2: "Sends N claims and M existing records to <model> (X of 19,000 characters)" before the start, listing every claim with status and websites, each of which can be left out; "Show what was sent to the model" after a run.
+- L-3: each card lists its cited claims' text, linked to Sources, with "weighs against" marked.
+- L-4: chat phrases must be the whole message; "explore for me <topic>" keeps the topic.
+- L-5: a pick's brief no workflow used is not in later catalogs; an edited form archives the pick's brief.
+- L-6: picked claims start as bearing on the problem only; claims cited against are labelled and left for the owner.
+- Nits: N-1 no "0 perspectives" on explorations; N-2 a non-candidate pick is `INVALID_TRANSITION`; N-4 ADR wording on `max_age_days`; N-5 index keys; N-6 duplicates are checked against up to 200 recent records, including those not shown to the explorer, and the notes say what was not shown.
+
+Checks: `exploration.test.ts` gains a 40-claim, 60-record packet test (fits, newest first, counts), preview/leave-out/catalog checks and a hidden-record duplicate check; `chat-api.test.ts` gains the anchored phrases. The walk adds the preview (leave a claim out and back), the cited-claim text and "Show what was sent"; 16 checks pass. Full `pnpm test:db` on PostgreSQL 16: 731 tests, 698 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
+
+Re-review fixes (`/mnt/project-files/reviews/PR131_THEME_FREE_DISCOVERY_REREVIEW_2026-11-03.md`; earlier findings all confirmed fixed):
+
+- R-L1: left-out claim ids no longer go to the model; the packet's scope has `leave_out` empty, the ids are kept in the workflow context and the audit keeps their count.
+- R-N1: when a start fails on the page (for example a timeout), the page first checks whether the run has an exploration; if it does, it opens it instead of undoing it. The start timeout is now 30 s.
+- R-N2: the "cited against the pick" labels clear once discovery starts.
+- R-N4: the start carries the preview's `preview_hash` and is refused (`VERSION_CONFLICT`) if what it would send changed; the page reads the preview again.
+- R-N3 (one long newest claim ends the list) is kept as the deliberate newest-first, contiguous rule.
+
+Checks: `exploration.test.ts` asserts the left-out id is nowhere in the packet, a start with an old preview hash is refused and a matching one starts. The walk now archives records after the preview and checks the start is refused and undone, then starts from the refreshed preview; 17 checks pass. Full `pnpm test:db` on PostgreSQL 16: 731 tests, 698 pass, 28 skipped, 5 fail (the known PowerShell-wrapper tests); typecheck and Prettier pass.
+
 ## Older open review Lows (no migration, ADR-0052 and ADR-0056 amended) — November 3, 2026
 
 Coordinator's list of leftover Lows still on main, each checked against the code first. #96 L-1 (Codex packet bound) and #126 N-1 (sweep comment) were already fixed (#122, #128); #102's chat rough edges were fixed in #127.

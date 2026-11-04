@@ -144,7 +144,7 @@ export function chatReply(
       return {
         text: target.text
           ? 'A discovery starts from Discover, under its own run, budget and approval checks. I can fill in the theme for you; you start it there.'
-          : 'What should the discovery be about? Try "Start a discovery about …", or open Discover.',
+          : 'No theme needed: Explore for me, at the top of Discover, reads the claims already recorded here and proposes a few specific problems that cite them, or says honestly that none is supported. You start it there, and nothing is built or fetched. If you have a theme, say "Start a discovery about …".',
         actions: [
           target.text
             ? {
@@ -153,7 +153,7 @@ export function chatReply(
                 value: target.text,
                 label: 'Fill in the theme',
               }
-            : { kind: 'open', view: 'submit', label: 'Open Discover' },
+            : { kind: 'open', view: 'submit', label: 'Open Explore for me' },
         ],
       };
     case 'note':

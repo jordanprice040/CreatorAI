@@ -250,6 +250,7 @@ test('a workflow runs to a structured result and continues after a restart', asy
   assert.equal(done.usage.unknown, '0');
   // Synthesis context names its inputs by hash; every task kept its own logical operation.
   const synth = done.tasks.find((x) => x.kind === 'synthesis')!;
+  assert.ok('inputs' in synth.context);
   assert.equal(synth.context.inputs.length, 2);
   assert.equal(new Set(done.tasks.map((x) => x.logical_operation_id)).size, 3);
   await s.store.drainOutbox();
