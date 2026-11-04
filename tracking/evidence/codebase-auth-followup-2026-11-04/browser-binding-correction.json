@@ -1,0 +1,29 @@
+{
+  "finding": "L2",
+  "original_browser_receipt_preserved": true,
+  "correction": "Original repair browser walk used earlier asset IDs. Use the independent reviewer browser walk for the final reviewed UI; fresh follow-up build matches those IDs.",
+  "independent_browser_receipt": {
+    "path": "tracking/evidence/codebase-repairs-independent-review-2026-11-04/browser.json",
+    "bytes": 1177,
+    "sha256": "6d999e088d3ca50c1eab9923712105a6e5568b4310955567d7e8be4e84de9b5f"
+  },
+  "assets": {
+    "index-CnE4waY8.js": {
+      "bytes": 843894,
+      "sha256": "e1d4101af93c801f269321ce5360ee3f1b928ae26b0e32d54d5075810bffdfa1"
+    },
+    "models-7yCgyMjJ.js": {
+      "bytes": 94031,
+      "sha256": "5a4a51a1d9662773e5b2873fb956ea47716ae2b9473e9f0bc59a8775beb16a00"
+    }
+  },
+  "fresh_build_log": {
+    "path": ".verification/auth-followup-2026-11-04/web-build.log",
+    "bytes": 1208,
+    "sha256": "172e3883f656d8853893d5afeef2e4b03c61a1f509afdb88fb96f884f1c688de"
+  },
+  "new_browser_walk_executed": false,
+  "ui_changed_in_followup": false,
+  "reviewed_bundle_asset_hashes_match": true,
+  "scope": "Independent UI evidence only. Follow-up server changes have separate synthetic contract checks and await independent review."
+}

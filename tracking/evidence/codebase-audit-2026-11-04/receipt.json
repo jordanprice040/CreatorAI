@@ -1,0 +1,265 @@
+{
+  "schema": "creator-codebase-audit/1",
+  "date": "2026-11-04",
+  "completed_at": "2026-11-04T07:29:28.900Z",
+  "candidate_commit": "171430b639b4dbd4170292894444cf2c01f3f27b",
+  "scope": "Risk-based repository audit; no product source changes or runtime activation",
+  "environment": {
+    "platform": "win32",
+    "node": "v22.21.0",
+    "database": "disposable PostgreSQL 18.6 on loopback port 55439",
+    "database_url_recorded": false
+  },
+  "checks": {
+    "pnpm_check": {
+      "status": "blocked_before_execution",
+      "reason": "launcher failed DNS resolving pnpm@11.25.0; installed tools used directly"
+    },
+    "typescript_project_build": "passed",
+    "web_typecheck": "passed",
+    "production_web_build": "passed",
+    "prettier_before_audit_docs": "passed",
+    "rust": "cargo check --locked --offline passed; no native launch/installer acceptance",
+    "initial_sandbox_suite": {
+      "tests": 740,
+      "pass": 457,
+      "fail": 32,
+      "cancelled": 0,
+      "skipped": 251,
+      "todo": 0,
+      "acceptance": false,
+      "reason": "loopback/file sandbox restrictions and Windows fixture incompatibility"
+    },
+    "full_database_suite_outside_sandbox": {
+      "tests": 744,
+      "pass": 700,
+      "fail": 17,
+      "cancelled": 0,
+      "skipped": 27,
+      "todo": 0,
+      "status": "failed",
+      "failure_causes": {
+        "windows_claude_script_fixture": 16,
+        "terminal_secret_regex_matches_creator_agent_path": 1
+      },
+      "failures": [
+        "chat answers: owner switch, private data, saved answer, retries, daily limit, immutability",
+        "chat answers: only the owner asks or changes the switch; a stopped studio frees the message",
+        "a provider refusal after the text was sent is a failure that shows what was sent (review M-1)",
+        "deleting a conversation (ADR-0063): who may, not while an answer is coming, and what stays",
+        "a pending answer blocks delete until its stale point, or while this studio still waits on it (PR \\#124/\\#126 reviews)",
+        "status reads auth status in the dedicated folder and never passes a key through",
+        "a successful run returns the text, with the prompt on stdin and no tools",
+        "instruction files left by a crash are swept; recent ones are left alone",
+        "refusals end at the first retry notice and say what they mean",
+        "a different answering model, an oversized answer, tools or an API key are never accepted",
+        "timeouts and runs without a result are unknown; a crash before the session is rejected",
+        "only a claude.ai subscription login counts as signed in",
+        "verification runs through the gates, and a sign-in that changed since the check is refused before sending",
+        "a fixture connection with no stand-in is refused and starts nothing (never a live call)",
+        "an outdated Claude Code is not counted as signed in and is refused per request",
+        "a usage limit pauses the connection instead of falling back to anything paid",
+        "a session runs a fresh package copy in the worker with only the confirmed arguments, and records its end"
+      ]
+    },
+    "standalone_retention_and_v4_guards_outside_sandbox": {
+      "tests": 19,
+      "pass": 18,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "status": "failed",
+      "reason": "one frozen-candidate guard assertion sees historical source hash mismatch before intended switch check"
+    },
+    "signout_race": {
+      "reproduced": true,
+      "initial_account_signed_in": true,
+      "after_disconnect": "signed_out",
+      "after_older_callback": "signed_in",
+      "real_store": true,
+      "provider": "loopback fixture only"
+    }
+  },
+  "findings": [
+    {
+      "id": 1,
+      "priority": "P1",
+      "title": "Outdated Node security baseline"
+    },
+    {
+      "id": 2,
+      "priority": "P2",
+      "title": "Pending sign-in reverses Disconnect",
+      "reproduced": true
+    },
+    {
+      "id": 3,
+      "priority": "P2",
+      "title": "Misleading fixture-only development banner"
+    },
+    {
+      "id": 4,
+      "priority": "P2",
+      "title": "Windows-incompatible Claude test fixture and missing Windows CI"
+    },
+    {
+      "id": 5,
+      "priority": "P2",
+      "title": "Standalone safety tests omitted from normal gate"
+    },
+    {
+      "id": 6,
+      "priority": "P2",
+      "title": "Stale current documentation"
+    },
+    {
+      "id": 7,
+      "priority": "P2",
+      "title": "Stale-prompt qualifications shown as qualified",
+      "previously_known": true
+    },
+    {
+      "id": 8,
+      "priority": "P3",
+      "title": "Eager page imports produce large startup bundle"
+    },
+    {
+      "id": 9,
+      "priority": "P3",
+      "title": "Oversized duplicated handoff history"
+    }
+  ],
+  "external_sources": [
+    "https://nodejs.org/en/blog/release/v22.23.4",
+    "https://nodejs.org/en/blog/vulnerability/october-2026-security-releases",
+    "https://github.com/vitejs/vite/security/advisories/GHSA-rq7h-c2jc-7f22",
+    "https://github.com/vitejs/vite/security/advisories/GHSA-vfpm-58rq-9qcg",
+    "https://github.com/vitejs/vite/security/advisories/GHSA-9jrq-w75r-8gcw"
+  ],
+  "preserved_user_changes": [".codex/config.toml"],
+  "source_and_log_hashes": {
+    "package.json": {
+      "sha256": "7649ee460b4d59445945afbc1fe41ea34b1063213dc21a5a7bbdb1ddffd64db9",
+      "bytes": 2090
+    },
+    ".node-version": {
+      "sha256": "7310916063f7c33446d52f6460612f12397d4b4f08f05c3f87dec99846a8b96e",
+      "bytes": 8
+    },
+    ".github/workflows/ci.yml": {
+      "sha256": "edf3d747ccbe59b9ea0919b8dca7057ad7712c28e213660ab2caaf38ec2a5d22",
+      "bytes": 1743
+    },
+    "deploy/hosted/Dockerfile": {
+      "sha256": "8fae812e9b53798730e02351360e08cd9a2a4088c67d9995246c654c8f0f7b67",
+      "bytes": 1568
+    },
+    "scripts/dev.mjs": {
+      "sha256": "9dc73f2deb312e9aa31f75dac893a5be83a385ba7e18ec71f99dc8f38a0bf33d",
+      "bytes": 1801
+    },
+    "apps/desktop/build-studio.mjs": {
+      "sha256": "f453fc58d7fe91fc152bce3cf29268b89aac8f4bad31027db83b5391263558e3",
+      "bytes": 4124
+    },
+    "packages/broker/src/plan-service.ts": {
+      "sha256": "101e459e46eebd802c3e93845fb89e6d4353edcb095502f858226687951521df",
+      "bytes": 41038
+    },
+    "packages/db/src/connection-store.ts": {
+      "sha256": "6dc9bfb39d21ef450375895818e153c8e6673428bf5ef3758dc6da6c7860141a",
+      "bytes": 109136
+    },
+    "tests/src/claude-fake.ts": {
+      "sha256": "0e484bd05f30df3dc43f17d12d6f3e8a93952df2291b1f587c313cc24ac9cef3",
+      "bytes": 4444
+    },
+    "tests/tsconfig.json": {
+      "sha256": "2f591e6e0d3cf62e85170ab0cadbeddb30f5aa5709a80d0515f8471167dcaca3",
+      "bytes": 550
+    },
+    "apps/web/src/models.tsx": {
+      "sha256": "ca859431e0ae5e9baa474b8c0936564c596edb006ac648e7f4b5c63cfd9dc101",
+      "bytes": 38757
+    },
+    "apps/web/src/qualification-results.tsx": {
+      "sha256": "000dc9a1d1a28b57d9ba2b3cb77af78eb03c2fae6e9a0dfdcf9e01d23c856a83",
+      "bytes": 5508
+    },
+    "README.md": {
+      "sha256": "d2be84ea42df976549a8481a7875165ca23138a09d5f11d67ab8153c62e71956",
+      "bytes": 2369
+    },
+    "docs/CURRENT_STATUS.md": {
+      "sha256": "3891d89ecef117ee2a4762bf503aeec3323ab3a900c3698e8cc804018ca0c63b",
+      "bytes": 39023
+    },
+    ".verification/audit-2026-11-04/check.log": {
+      "sha256": "e98ac243b493628cbe6469ba9a34680796fb8f6272ae5101041bc40790161a5f",
+      "bytes": 224
+    },
+    ".verification/audit-2026-11-04/tsc.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    ".verification/audit-2026-11-04/web-typecheck.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    ".verification/audit-2026-11-04/web-build.log": {
+      "sha256": "8b74340fc3de0315689193ae831d19c6432cab9a7bcc7092a8cdb1bf059c0fa7",
+      "bytes": 733
+    },
+    ".verification/audit-2026-11-04/format.log": {
+      "sha256": "f20510a9da4717c51c4cffee6d0dd88d6c9a723d0a83711d01216f5b48961283",
+      "bytes": 68
+    },
+    ".verification/audit-2026-11-04/tests.log": {
+      "sha256": "c7e1cb233144d0c8fba643b072b7935f79fc209302fa502592b188a68ac48bea",
+      "bytes": 217245
+    },
+    ".verification/audit-2026-11-04/database-tests.log": {
+      "sha256": "b8714e4cd79230ebebe469bf6c5dcd75db57532244ada7330a4c5ec93c0f7f3e",
+      "bytes": 194699
+    },
+    ".verification/audit-2026-11-04/unsandboxed-probes.log": {
+      "sha256": "efe2b1ff5cab9794a38ab92e06d25aec8bf26ada02b4068d8cf9c008b47167d1",
+      "bytes": 12954
+    },
+    ".verification/audit-2026-11-04/standalone-tests.log": {
+      "sha256": "b749d7abaf955b9908eef9845970a5d5c64100f479222efca1069b135cb5e96c",
+      "bytes": 7898
+    },
+    ".verification/audit-2026-11-04/cargo-check.log": {
+      "sha256": "9de8881086e18b881e4ead64a1b92d0b60660c2ce37a344f2e7338293cb39273",
+      "bytes": 6303
+    },
+    ".verification/audit-2026-11-04/signout-race.log": {
+      "sha256": "2978eea44b24be96cc3efe3fa5aa220cedc57e42e2712a1b201d1cc2d30a2f37",
+      "bytes": 107
+    }
+  },
+  "next_eligible_prompt": "U03 — Repair a failed gate; then U02 independent review of changed candidate",
+  "resource_cleanup": {
+    "audit_server_stopped": true,
+    "temporary_clusters_removed": true,
+    "studio_database_touched": false,
+    "logs_preserved": true
+  },
+  "saved_reproduction_reexecuted_after_formatting": true,
+  "artifacts": {
+    "docs/CODEBASE_AUDIT_2026-11-04.md": {
+      "sha256": "36944ed020fce3112f2ead06140fab8403fd49da0af0a1f1fbe95294f98f1d76",
+      "bytes": 15560
+    },
+    "tracking/evidence/codebase-audit-2026-11-04/signout-race.mjs": {
+      "sha256": "70951bb7813ca7ce87d93f71b00af3f550b7220510d04ba41d9b5401b21f4d8c",
+      "bytes": 2807
+    },
+    "tracking/evidence/codebase-audit-2026-11-04/signout-race.log": {
+      "sha256": "2978eea44b24be96cc3efe3fa5aa220cedc57e42e2712a1b201d1cc2d30a2f37",
+      "bytes": 107
+    }
+  }
+}

@@ -6,14 +6,14 @@ alternative comparison, human decisions, bounded workflows and budgets, searchab
 provenance, and a reviewed Python CLI prototype build/package/preview path.
 
 Start with [local development](docs/LOCAL_DEVELOPMENT.md) for setup and operation.
-The [product guide and audit](docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md) covers features,
+The [current product guide](docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md) covers features,
 usage and remaining work. [Build status](tracking/BUILD_STATUS.md) and
 [integration readiness](tracking/INTEGRATIONS.md) distinguish implementation,
 recorded verification, configuration and activation.
 
 ## Quick start
 
-Use Node 22.21+ within Node 22 or 24.19+ within Node 24 and pnpm 11.25.0.
+Use Node 22.23.4+ within Node 22 or 24.22.2+ within Node 24 and pnpm 11.25.0.
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -36,8 +36,9 @@ worker and supports a bounded Python standard-library CLI recipe.
 
 Study/evaluation/analysis machinery is implemented and rehearsed; final participant
 evaluation, independent ratings, empirical analysis and committee acceptance remain
-incomplete. Hosted control, Tauri desktop, remote GitHub automation, commerce and
-marketing remain broader-product work.
+incomplete. Windows desktop, scoped GitHub, hosted, commerce and marketing adapters are implemented
+with differing contract/native/live evidence. Hosted operation, live commerce and campaigns
+remain separately gated; see [current status](docs/CURRENT_STATUS.md).
 
 Run `pnpm check` for typecheck, tests and formatting. Database and real-isolation
 tests explicitly skip unless configured; use the documented disposable database

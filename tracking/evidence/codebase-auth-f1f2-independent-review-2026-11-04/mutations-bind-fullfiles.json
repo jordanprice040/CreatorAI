@@ -1,0 +1,17 @@
+{
+  "bind_noop": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "current_after_refresh",
+      "late authentication failures affect only the credential used by that request",
+      "admission cannot dispatch under a replacement login"
+    ]
+  },
+  "restored": {
+    "sha256": "ac03e656ca63866724e925e03826a2d07ec829689a2bec5f63e3549dae9c838f",
+    "equals_original": true
+  }
+}

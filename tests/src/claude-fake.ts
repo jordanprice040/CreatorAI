@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // A stand-in for the Claude Code CLI (ADR-0050 tests). It reads its behaviour from
@@ -77,9 +86,80 @@ switch (cfg.run) {
 }
 `;
 
-/** Writes an executable fake `claude` (no shell; node runs it through its shebang). */
+let windowsLauncher: string | null = null;
+/** Native fixture launcher: production still accepts only a real executable, never a shim. */
+function launcher(): string {
+  if (windowsLauncher) return windowsLauncher;
+  const build = mkdtempSync(join(tmpdir(), 'creator-fake-launcher-'));
+  const source = join(build, 'Launcher.cs');
+  const executable = join(build, 'claude.exe');
+  writeFileSync(
+    source,
+    `using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+class Launcher {
+  [DllImport("kernel32.dll")] static extern IntPtr CreateJobObject(IntPtr a, string n);
+  [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr j, int c, IntPtr p, uint s);
+  [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr j, IntPtr p);
+  [StructLayout(LayoutKind.Sequential)] struct Basic { public long processTime, jobTime; public uint flags; public UIntPtr min, max; public uint active; public UIntPtr affinity; public uint priority, scheduling; }
+  [StructLayout(LayoutKind.Sequential)] struct IO { public ulong a,b,c,d,e,f; }
+  [StructLayout(LayoutKind.Sequential)] struct Extended { public Basic basic; public IO io; public UIntPtr processMemory, jobMemory, peakProcess, peakJob; }
+  static string Quote(string s) {
+    var b = new StringBuilder("\\\""); int slashes = 0;
+    foreach (char c in s) {
+      if (c == '\\\\') { slashes++; continue; }
+      if (c == '"') { b.Append('\\\\', slashes * 2 + 1); b.Append(c); }
+      else { b.Append('\\\\', slashes); b.Append(c); }
+      slashes = 0;
+    }
+    b.Append('\\\\', slashes * 2); b.Append('"'); return b.ToString();
+  }
+  static int Main(string[] args) {
+    // Closing this native fixture (including forced termination) also ends its Node child.
+    IntPtr job = CreateJobObject(IntPtr.Zero, null);
+    var limits = new Extended(); limits.basic.flags = 0x2000;
+    int size = Marshal.SizeOf(limits); IntPtr buffer = Marshal.AllocHGlobal(size);
+    Marshal.StructureToPtr(limits, buffer, false);
+    if (job == IntPtr.Zero || !SetInformationJobObject(job, 9, buffer, (uint)size)) throw new Exception("Fixture job unavailable");
+    Marshal.FreeHGlobal(buffer);
+    string command = Quote(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "claude.mjs"));
+    foreach (string arg in args) command += " " + Quote(arg);
+    var info = new ProcessStartInfo(${JSON.stringify(process.execPath)}, command);
+    info.UseShellExecute = false;
+    using (var p = Process.Start(info)) {
+      if (!AssignProcessToJobObject(job, p.Handle)) { p.Kill(); throw new Exception("Fixture child was not assigned"); }
+      p.WaitForExit(); return p.ExitCode;
+    }
+  }
+}`,
+  );
+  const csc = join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'Microsoft.NET',
+    'Framework64',
+    'v4.0.30319',
+    'csc.exe',
+  );
+  execFileSync(csc, ['/nologo', '/target:exe', `/out:${executable}`, source], {
+    windowsHide: true,
+    timeout: 30000,
+  });
+  windowsLauncher = executable;
+  return executable;
+}
+
+/** Writes an executable fake `claude`, with a native Windows launcher or Unix shebang. */
 export function writeFakeClaude(dir: string): string {
   mkdirSync(dir, { recursive: true });
+  if (process.platform === 'win32') {
+    const bin = join(dir, 'claude.exe');
+    writeFileSync(join(dir, 'claude.mjs'), SCRIPT);
+    copyFileSync(launcher(), bin);
+    return bin;
+  }
   const bin = join(dir, 'claude');
   writeFileSync(bin, `#!${process.execPath}\n${SCRIPT}`);
   chmodSync(bin, 0o755);

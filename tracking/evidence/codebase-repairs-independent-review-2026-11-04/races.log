@@ -1,0 +1,6 @@
+{"fixture_only":true,"scenario":"audit_old_callback_after_disconnect","callback_http":200,"state":"signed_out","attempt":null}
+{"fixture_only":true,"scenario":"late_401_after_disconnect","after_disconnect":"signed_out","before_late_result":"signed_out","before_version":7,"invoke":{"outcome":"rejected"},"after_late_result":"reauthorization_required","after_version":7,"status_reason":null}
+{"fixture_only":true,"scenario":"late_401_after_newer_sign_in","after_disconnect":"signed_out","before_late_result":"signed_in","before_version":8,"invoke":{"outcome":"rejected"},"after_late_result":"reauthorization_required","after_version":8,"status_reason":null}
+{"fixture_only":true,"scenario":"credits_confirmed_during_first_sign_in","attempt":{"state":"failed","code":"sign_in_failed","message":"The connection changed during sign-in. Start a new sign-in.","finished_at":"2026-11-04T09:04:49.111Z"},"state":"not_signed_in"}
+{"fixture_only":true,"scenario":"refresh_during_sign_in_again","attempt":{"state":"failed","code":"sign_in_failed","message":"The connection changed during sign-in. Start a new sign-in.","finished_at":"2026-11-04T09:04:51.601Z"},"state":"signed_in"}
+{"fixture_only":true,"scenario":"two_instance_concurrent_refresh","results":["token","token"],"state":"signed_in","refresh_requests":1}

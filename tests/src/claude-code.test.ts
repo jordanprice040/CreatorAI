@@ -427,6 +427,7 @@ test('a Claude Code connection refuses ChatGPT-only settings, statements and sig
       scopes: [],
       access_expires_at: new Date().toISOString(),
       credential_ref: `chatgpt-plan/${randomUUID()}`,
+      expected_auth_generation: '0',
     }),
   );
   // The kind is fixed in the database, not only in code.
@@ -594,6 +595,69 @@ test('verification runs through the gates, and a sign-in that changed since the 
   assert.ok(
     connectionBlockers(blocked).some((b) => /claude auth login/.test(b)),
   );
+});
+
+test('a late Claude Code sign-in failure affects only the login that sent it', async (t) => {
+  for (const scenario of ['disconnect', 'checked_again', 'current'] as const) {
+    await t.test(scenario, async (t) => {
+      const s = await setup(t, { status: SUBSCRIBED, run: 'auth_retry' });
+      if (!s) return;
+      const c = await s.ready();
+      const g = await s.store.createPlanVerificationGrant(
+        owner,
+        s.ws.id,
+        c.id,
+        {
+          expected_version: c.version,
+          model_id: 'claude-test-model',
+          path: 'responses',
+          expires_in_minutes: 30,
+        },
+      );
+      // After the request is bound and before it is sent, the owner disconnects (and checks
+      // Claude Code again), so the authentication failure arrives for an older login.
+      let before = c;
+      const store = new Proxy(s.store, {
+        get(target, prop) {
+          if (prop === 'bindPlanRequestCredential')
+            return async (
+              ...a: Parameters<ConnectionStore['bindPlanRequestCredential']>
+            ) => {
+              await target.bindPlanRequestCredential(...a);
+              if (scenario !== 'current')
+                await s.service.signOut(owner, s.ws.id, c.id);
+              if (scenario === 'checked_again')
+                await s.service.checkClaudeCode(owner, s.ws.id, c.id);
+              before = await s.current();
+            };
+          const v = Reflect.get(target, prop, target);
+          return typeof v === 'function' ? v.bind(target) : v;
+        },
+      });
+      const svc = new PlanConnectionService({
+        store,
+        vault: null,
+        claudeCode: s.host,
+        claudeCodeFixtureEnv: STAND_IN,
+      });
+      const v = await svc.verifyModel(owner, s.ws.id, c.id, {
+        id: g.id,
+        model_id: 'claude-test-model',
+      });
+      assert.equal(v.verified, false);
+      const after = await s.current();
+      assert.equal(
+        after.sign_in.state,
+        scenario === 'current'
+          ? 'reauthorization_required'
+          : before.sign_in.state,
+      );
+      assert.equal(
+        after.version,
+        before.version + (scenario === 'current' ? 1 : 0),
+      );
+    });
+  }
 });
 
 test('a fixture connection with no stand-in is refused and starts nothing (never a live call)', async (t) => {

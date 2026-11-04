@@ -1,165 +1,48 @@
-# Creator Agent completion runbook
+# Creator Agent completion runbook — November 4, 2026
 
-Updated October 26, 2026, against `main` at `54639a1` (PRs #1–#54 merged, none open).
-Owner: Jordan Price. Work only in `C:\dev\creator_agent`; the OneDrive checkout is retired.
+Current source state and evidence are in [CURRENT_STATUS](CURRENT_STATUS.md). The October
+plan, its completed steps and original owner requests are preserved in
+[the pre-repair runbook](COMPLETION_RUNBOOK_HISTORY_2026-11-04.md).
+Work in `C:\dev\creator_agent`; the OneDrive checkout is retired.
 
-This page says what is done, what is left and what to do next. It is a plan, not
-evidence: the evidence lives in `tracking/BUILD_STATUS.md`, `tracking/SESSION_HANDOFF.md`,
-`tracking/evidence/` and the linked docs. Accepted owner choices (#1–#52, RD1–RD10) are
-in [the decision register](../tracking/OWNER_DECISIONS_2026-10-20.md) and
-`tracking/DECISIONS.md`; don't reopen them.
+Jordan's accepted direction remains: a usable, polished local Windows studio before the
+thesis study. The [owner register](../tracking/OWNER_DECISIONS_2026-10-20.md) and accepted
+ADRs govern scope; this runbook grants no live spending, installation or release authority.
 
-**Priority (Jordan):** a complete, usable, decently polished app comes before the thesis
-study.
+## Current sequence
 
-## Where things stand
+1. Complete and verify the [November 4 audit repairs](CODEBASE_REPAIRS_2026-11-04.md).
+2. U02: independently review the changed source, acceptance checks and exact candidate.
+3. Complete the remaining final UX and native acceptance on the candidate selected for
+   installation. Preserve the existing backup, migration, isolated-worker and owner-decision gates.
+4. Reconcile the owner pilot against its actual log and dates; do not infer completion from
+   its scheduled November 6 endpoint. C54 and X10 remain partial until their evidence exists.
+5. Prepare signed Windows distribution only after the applicable release gates and exact
+   owner approval of artifact and destination. Hosted operation, live commerce and campaigns
+   stay separately gated.
 
-| Area                                           | State                                                                                                                                                                                                                                                                        | Where to look                                                               |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Core studio engine                             | Done and checked with fixtures on real PostgreSQL: runs, budgets and reservations, workflows, specs and task DAGs, isolated builds, independent review and QA, packaging, downloads, feedback revision, audit, search, backup/restore.                                       | `config/readiness.json` (dated Oct 20), T01–T19 rows in `BUILD_STATUS`      |
-| Web app                                        | Pages for overview, submit, theme drafts, selection, compare, evidence, search, gallery, catalog, workflows, operations, oversight, budgets, models, settings, GitHub, payments, marketing, portfolio, study. Usability pass #48–#54 closed with no Medium or higher.        | `apps/web/src/`, `docs/UX_UI.md`                                            |
-| Spending control                               | One owner-set runtime ceiling per workspace, editable in Settings (ADR-0043, migration 30). No per-model or per-run limits.                                                                                                                                                  | `tracking/DECISIONS.md` ADR-0043                                            |
-| Model connections                              | ChatGPT-plan connection and isolated Codex builder (PR #44, ADR-0042). Discovery role 1.4 passed live operational suites for design, scoring and research on the plan route (Oct 22–23); reviewed by a model, not by a person. Ollama shows as "not available yet".          | `DISCOVERY_RESEARCH14_LIVE_RESULT_2026-10-23.md`, `apps/web/src/models.tsx` |
-| Evidence search                                | Bounded public search exists (PR #43). No live end-to-end discovery run yet.                                                                                                                                                                                                 | `docs/SEARCH_AND_AUDIT.md`                                                  |
-| Theme intake (C54)                             | Theme drafts and Submit page built. Installed app upgraded to main ac0f3e4, schema 32 (Oct 29); theme-intent native checks need redoing. Full C54 is partial.                                                                                                                | `C54_READINESS_AUDIT_2026-10-23.md`                                         |
-| GitHub (X04)                                   | Adapter plus GitHub page; walked in fixture mode. Never run against real GitHub.                                                                                                                                                                                             | `docs/GITHUB.md`                                                            |
-| Payments (X07)                                 | Adapter plus Payments page (connections, offers, ledger, buyer access, reinvestment capacity), simulated or Stripe test mode only. Owner funding, funding sources, commitments, reinvestment policy and allocation added Oct 27 (step 2). Test-mode checkout screen with a simulated test buyer added Oct 27 (step 3).          | `docs/PAYMENTS.md`                                                          |
-| Desktop app (X05)                              | Tauri app; interactive Windows acceptance passed Oct 19. The installed copy is Jordan's operational studio and is off-limits for testing. The usability-pass build has not been packaged or exercised in the desktop shell.                                                  | `apps/desktop/INTERACTIVE_ACCEPTANCE.md`, `docs/DESKTOP_STUDIO.md`          |
-| Hosted (X06), campaigns (X08)                  | Code and fixture checks only. Not activated, by owner decision.                                                                                                                                                                                                              | `docs/HOSTED_OPERATION.md`, `docs/X06_X07_AUDIT.md`                         |
-| Central chat (C52), theme-free discovery (C53) | Chat built (PRs #98, #102, #124, #127). Explore for me built (ADR-0065): fixture and browser walk verified; no live plan run yet. | `config/readiness.json` |
-| Theme-intent native acceptance                 | NOT READY. Reviewed designs and fixture slices exist (upgrade helper v3, observation classifier v4, CW-01 fixture core v4, CW-01 adapter design v1.3). Missing: the `cw01-native` adapters and core v5, the collector, the PR-01/SH-01 inspector, and Jordan's attestations. | `BUILD_STATUS` Oct 24–26 entries                                            |
-| Thesis study                                   | Deprioritized. Blocked on RD1–RD10 answers (RD5 needs committee/IRB), T15 partial, T16 blocked, and 36 of 66 X10 rows needing owner inputs.                                                                                                                                  | `docs/X10_ACCEPTANCE.md`, `docs/PILOT_AND_PROTOCOL.md`                      |
+## Already implemented; do not schedule again as new features
 
-## Known issues
+Central chat and plan answers, Explore for me, scorecard/spec/humility forms, qualifications,
+pricing and charge forms, request reconciliation, per-run/model spending settings, usage
+indicators, comparison carry-forward, archive/retract and evidence-packet inspection are
+implemented in source. Their installation/live/role evidence is distinct from implementation.
 
-Checked against the code on October 26 unless noted.
+## Remaining additions, each its own bounded task
 
-- **Study export audit scope (rechecked Oct 27).** `exportStudy` reads the audit events of
-  each attempt's own workspace, which is created with the attempt, so it does not leak the
-  home workspace or other attempts (now pinned by `study.test`). Anything done by hand
-  inside an attempt workspace would still be exported with that attempt.
-- **Health is configuration, not verification.** `/api/health` reports `live_configured`
-  when a live adapter is configured and `fixture` otherwise. It never says whether a
-  connection actually works.
-- **Preview origin shares the studio host.** The preview server runs on its own port, so
-  its cookie isn't isolated from the studio. This is a recorded design limit: the
-  preview serves only studio-written pages, never generated HTML or JS
-  (`tracking/DECISIONS.md`, preview entry). Generated web previews would need a separate
-  host.
-- **Overrun guard.** T17 fixed child overruns so they count against every ancestor. It
-  also recorded that the guard isn't serialized against a concurrent settle. Not
-  rechecked here.
-- **Fixed Oct 27:** the Codex-builder test failure on Windows (its assertion ignored that
-  Windows runs real QA) and the missing replaced-release offer test; `config/readiness.json`
-  refreshed to Oct 27. `docs/CURRENT_STATUS.md` still stops at Oct 23; use `BUILD_STATUS`.
+- Owner file/evidence imports and a file library, with source hashes and locators.
+- Evidence-gap searches and proposed claims reviewed before they become accepted evidence;
+  the provider, current price/terms and bounded search/fetch authority remain required.
+- Previewable local redacted diagnostics; automatic telemetry remains off.
+- Local model qualification, live scoped GitHub verification, signed distribution/updates
+  and hosted staging only under their existing accepted decisions.
+- Thesis participant/governance decisions, final evaluation and independent ratings when
+  Jordan resumes that track. Synthetic rehearsals are not empirical results.
 
-Two items from older audit lists look done in code: batch input files are deleted at the
-provider once no item is in flight or unknown (`packages/broker/src/context.ts`), and
-child overruns reach the parent (T17).
+## Boundaries carried forward
 
-## Next steps, in order
-
-Each step is a separate, bounded task. None of them needs live provider, GitHub or
-payment calls unless it says so, and those need Jordan's go-ahead first.
-
-1. **Clean up `main`.** Done Oct 27 (see `BUILD_STATUS`).
-2. **Funding and reinvestment in the app.** Done October 27 in the Payments page
-   ("Funding and reinvesting"), fixture-checked; reinvestment stays off until Jordan sets
-   a policy (#47–#49).
-3. **Checkout in the app (test mode only).** Built October 27 in the Payments page
-   ("Checkout (test mode)", ADR-0045), fixture-checked with a simulated test buyer: signature
-   checks, entitlements, refunds, disputes and duplicate or out-of-order events. Stripe test
-   mode shows Stripe's hosted page link; no Stripe call made yet. Live mode stays a separate,
-   disabled stage.
-4. **Narrower spending limits.** Per-model and per-run limits under the workspace ceiling
-   (ADR-0043 follow-up), shown in Settings and enforced in the budget code, not the UI.
-5. **Exercise the current build in the desktop shell.** Package `main` with its own data
-   home (never the installed app's database or data home) and walk sign-in, a run,
-   download, quit and relaunch.
-   **Done October 27, 2026** (PRs #63–#69: walkthrough fixes, in-app first-run setup,
-   in-app build and package, Recover).
-6. **One real end-to-end run (Group 3).** The accepted example is a CSV quality checker
-   for a research team (#22–#24): real sources, compare existing tools first, then spec,
-   build, review, QA, package, download, one round of Jordan's feedback and one revision.
-   Needs Jordan's approval of the exact scope and model route. Plan route, $0 metered.
-   **Done October 28, 2026** on the dev studio: artifacts c955b648… (v1) and 93473b32…
-   (revision for Jordan's NA-as-missing feedback), both verified, 4 plan requests, $0.
-7. **Upgrade the installed app.** Decide with Jordan when to move the installed studio
-   from the schema 29 candidate to current `main`, given that it also protects the
-   theme-intent acceptance chain. Back up first; this needs an exact owner decision.
-   **Done October 29, 2026** with Jordan's typed OK: verified backup at
-   `C:\CreatorAgentBackups\installed-pre-v32-20261029-013747`, rehearsal on a copy, then
-   installed main ac0f3e4 and migrated 29 → 32 with all row counts unchanged.
-8. **Owner pilot (Group 4).** Seven days from the installed app under the accepted terms
-   (#25–#32): $0 new metered spend, stop after three consecutive failures or 120 minutes
-   of intervention, manual runs only. Jordan still needs to give dates; RAM/VRAM limits drafted Oct 29.
-   Running Oct 30 03:15 EDT to Nov 6 03:15 EST; log in `docs/OWNER_PILOT_LOG.md`.
-9. **Final UX pass and exact-candidate acceptance.** Walk the installed app as a user
-   (first launch, running work, errors, recovery, export), fix what blocks release,
-   then repeat X10 on the exact candidate.
-
-**Later, each its own task:** Ollama as a local model route; live GitHub verification on one new private
-`creator-agent-` repo (#33–#35); signed Windows distribution and updates, then the
-public-release package (#36–#43); hosted staging after a costed plan (#44–#46); live
-payments; campaigns (#50–#52); owner file uploads as evidence, a file library and
-downloads/exports (owner request Oct 20, planned as old runbook §2.6–§2.11 at d5337e3, not
-built; reconfirmed in the pilot Oct 30); pilot UX fixes F2 and Retry/reuse a saved brief
-from Submit and Catalog, re-running one failed step, Activity/Runs refresh (F6), telling
-reruns apart on Scores and specs (F7), and entering scorecards, ethics/access and humility
-reviews in the app instead of only the CLI (F8) (`docs/OWNER_PILOT_LOG.md`).
-
-**Planned: evidence gaps become searches (Jordan, pilot Oct 30).** When discovery reports a
-gap (no claim on urgency or frequency, current workarounds, a gap in existing tools, or a
-transferable mechanism), the app turns each gap into search queries, fetches matching pages
-only from the owner-approved websites, has the model draft each claim with an exact quote
-from a fetched passage, and lists the drafts for the owner to accept or reject. Only accepted
-claims count as evidence, and discovery can then rerun with them. Prerequisites: an owner
-decision on a live search provider (the Brave Web Search adapter is built and contract-tested
-but off; it needs an account, terms and per-request price check) and a bounded grant for
-search and fetch. Drafts never count as supported until accepted.
-
-**Planned: friction and flow pass after the pilot (Jordan, Oct 30).** Use the pilot log's
-findings and feedback as the backlog:
-- Fewer, task-shaped pages: a central chat, projects, sources, models and connections, and
-  monitor.
-- Every page says what's next, and every blocked action says why and how to unblock it.
-- Pages refresh themselves instead of needing "Reset fields".
-- Decisions survive score changes, with only changed options flagged for review (built
-  Oct 31: Compare and decide carries the latest selection forward).
-- Choose which options to decide; scorecards and humility reviews editable in the app,
-  with suggested fills and export/import.
-- Owner-initiated actions don't ask the owner for approval.
-- Dated, nameable runs.
-- A plan-usage and cost indicator.
-- An owner decision on warn-and-record overrides instead of hard blocks.
-
-**Separate track: theme-intent native acceptance.** Next is the v5 implementation design
-for the `cw01-native` helper and core (carrying CW-01 Lows K1–K3), then the collector,
-the PR-01/SH-01 inspector, and Jordan's attestations from the blank template. M3 is
-settled and stays closed.
-
-**Thesis (when Jordan picks it up):** answer RD1–RD10, get the committee/IRB decision for
-RD5, finish T15 and unblock T16, and fill the 36 X10 rows that need owner inputs. Never
-fill in participant, reviewer, IRB, task or model details that Jordan hasn't given.
-
-## What needs Jordan
-
-- Approval for any live call, spend, install or upgrade of the installed app, GitHub
-  account use, payment account, publication or outbound message.
-- Dates for the pilot.
-- A reinvestment policy before reinvestment is turned on.
-- Attestations for the theme-intent track.
-
-## Rules for every session
-
-```text
-Work in C:\dev\creator_agent. Follow AGENTS.md. Read PROJECT_CONTEXT.md, BUILD_STATUS,
-SESSION_HANDOFF and the code you will change. Preserve existing changes. Don't use the
-installed desktop app's database or data home. No live provider, GitHub or payment calls
-and no spend without Jordan's go-ahead for that exact action. Label fixture results as
-fixture. Never invent participant, reviewer, IRB, task or model details. Don't reformat
-hash-bound files (.prettierignore, .gitattributes -text). Update BUILD_STATUS and
-SESSION_HANDOFF, and don't start the next step automatically.
-```
-
-Local setup for running the dev studio is in `docs/LOCAL_DEVELOPMENT.md`.
+Health reports configuration, not live qualification. Generated execution still requires
+the reviewed WSL2 boundary and supports the bounded Python CLI recipe. Current previews
+serve studio-written pages on a separate port; arbitrary generated web apps would require
+a separate host. Keep research freezes, held-out records, failures, historical packages and
+owner decisions unchanged. No automatic next milestone follows this repair.

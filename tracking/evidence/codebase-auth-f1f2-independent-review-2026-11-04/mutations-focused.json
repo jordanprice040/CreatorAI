@@ -1,0 +1,91 @@
+{
+  "f1_all": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "stale_limit",
+      "stale_success",
+      "a late result cannot rewrite a newer login’s quota, eligibility or model access"
+    ]
+  },
+  "f1_quota_only": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "stale_limit",
+      "stale_success",
+      "a late result cannot rewrite a newer login’s quota, eligibility or model access"
+    ]
+  },
+  "f1_eligibility_only": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "stale_success",
+      "a late result cannot rewrite a newer login’s quota, eligibility or model access"
+    ]
+  },
+  "f1_model_access_only": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "stale_success",
+      "a late result cannot rewrite a newer login’s quota, eligibility or model access"
+    ]
+  },
+  "m1_state_only": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "checked_again",
+      "a late Claude Code sign-in failure affects only the login that sent it",
+      "new_login",
+      "the Codex relay binds its admission to the login: late 401s affect only the current one"
+    ]
+  },
+  "m1_no_generation": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "checked_again",
+      "a late Claude Code sign-in failure affects only the login that sent it"
+    ]
+  },
+  "m1_unconditional": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "disconnect",
+      "checked_again",
+      "a late Claude Code sign-in failure affects only the login that sent it",
+      "disconnect",
+      "new_login",
+      "the Codex relay binds its admission to the login: late 401s affect only the current one"
+    ]
+  },
+  "bind_noop": {
+    "exit": 0,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": []
+  },
+  "restored": {
+    "sha256": "ac03e656ca63866724e925e03826a2d07ec829689a2bec5f63e3549dae9c838f",
+    "equals_original": true
+  }
+}

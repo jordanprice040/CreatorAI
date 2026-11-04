@@ -16,6 +16,9 @@ import {
 } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireSupportedNode } from '../../scripts/runtime.mjs';
+
+requireSupportedNode();
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const out = join(root, 'apps/desktop/.bundle/studio');

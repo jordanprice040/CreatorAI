@@ -1,0 +1,42 @@
+{
+  "f1_never": {
+    "exit": 1,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": [
+      "verification runs through the gates, and a sign-in that changed since the check is refused before sending",
+      "current",
+      "a late Claude Code sign-in failure affects only the login that sent it",
+      "a usage limit pauses the connection instead of falling back to anything paid",
+      "sign-in, credits, caps, verification and qualification are separate recorded states",
+      "provider refusals are recorded as eligibility and quota states and stop admission",
+      "current_after_refresh",
+      "late authentication failures affect only the credential used by that request",
+      "current_limit",
+      "a late result cannot rewrite a newer login’s quota, eligibility or model access",
+      "current",
+      "the Codex relay binds its admission to the login: late 401s affect only the current one",
+      "production discovery-contract qualification grades role outputs through the plan service using loopback only",
+      "build-role plan requests need the exact role prompt, a qualification and a live AI run",
+      "a patch-build qualification is graded by the studio scorer, and a scorer crash never wedges the connection"
+    ]
+  },
+  "restored": {
+    "sha256": "ac03e656ca63866724e925e03826a2d07ec829689a2bec5f63e3549dae9c838f",
+    "equals_original": true
+  }
+}
+{
+  "f1_requires_same_ref": {
+    "exit": 0,
+    "tests": null,
+    "pass": null,
+    "fail": null,
+    "failed": []
+  },
+  "restored": {
+    "sha256": "ac03e656ca63866724e925e03826a2d07ec829689a2bec5f63e3549dae9c838f",
+    "equals_original": true
+  }
+}

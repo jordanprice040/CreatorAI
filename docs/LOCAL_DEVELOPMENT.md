@@ -1,13 +1,13 @@
 # Local development
 
-Current setup, October 18, 2026. Creator Agent has a local API/CLI, React studio,
+Current source setup, November 4, 2026. Creator Agent has a local API/CLI, React studio,
 PostgreSQL catalog and durable workflows. See the
 [product guide](CODE_AUDIT_AND_PRODUCT_GUIDE.md) and
 [build status](../tracking/BUILD_STATUS.md) for features, evidence and limitations.
 
 ## Install and start
 
-Use pnpm 11.25.0 and Node 22.21+ within Node 22 or 24.19+ within Node 24,
+Use pnpm 11.25.0 and Node 22.23.4+ within Node 22 or 24.22.2+ within Node 24,
 as enforced in package.json.
 
 ```powershell
@@ -128,3 +128,18 @@ funding. Installing development tools does not activate them.
 ## Additional implemented milestones
 
 See [X08 campaigns](X08_MARKETING.md), [X09 portfolio](X09_PORTFOLIO.md), and [current UI](UX_UI.md). The portfolio scheduler defaults off; campaign delivery uses a fixture sink. Current build status takes precedence over historical acceptance notes.
+
+## Development safety and historical replay
+
+On Windows, the synthetic Claude CLI fixture uses the built-in .NET Framework 4 C#
+compiler to create a native test launcher; this is a development-test requirement,
+not a dependency of the installed studio or the production Claude adapter.
+
+The normal `pnpm test` route includes `pnpm test:dev-safety`: retention, current portable/native
+upgrade guards, runtime floors and startup configuration messages. Windows CI also runs the
+PostgreSQL contracts; real WSL/native acceptance remains an explicit gate.
+
+Frozen v4 helper tests retain their original bytes. `pnpm test:historical-upgrade` is an
+explicit replay gate for its original checkout/package, not a current-branch acceptance gate.
+Current guard tests exercise the actual guard code separately from the earlier candidate's
+package preflight, so an unrelated hash refusal cannot stand in for the approval-switch check.

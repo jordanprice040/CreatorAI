@@ -8,6 +8,11 @@ docs/development-tools/licenses/
 
 apps/desktop/.bundle/
 
+# Exact pre-repair document snapshots; their hashes are recorded in the repair receipt.
+docs/CURRENT_STATUS_HISTORY_2026-11-04.md
+docs/COMPLETION_RUNBOOK_HISTORY_2026-11-04.md
+docs/CODE_AUDIT_AND_PRODUCT_GUIDE_HISTORY_2026-11-04.md
+
 # Hash-bound review/evidence inputs (2026-10-20..26). Their SHA-256 values are
 # recorded in tracking/evidence and review receipts, so reformatting would
 # invalidate that evidence. Keep their bytes unchanged.
@@ -46,8 +51,6 @@ config/connections/benchmarks/discovery-synthetic-v5/candidate_generation.json
 config/connections/benchmarks/discovery-synthetic-v5/research_synthesis.json
 config/connections/benchmarks/discovery-synthetic-v5/scoring.json
 docs/C54_READINESS_AUDIT_2026-10-23.md
-docs/COMPLETION_RUNBOOK.md
-docs/CURRENT_STATUS.md
 docs/DISCOVERY_ASSERTION_SEMANTICS_AUDIT.md
 docs/DISCOVERY_FINDING_SEMANTICS_PROPOSAL_2026-10-22.md
 docs/DISCOVERY_FINDING_SEMANTICS_REVIEW_2026-10-22.md
