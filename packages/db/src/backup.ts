@@ -84,6 +84,10 @@ const COUNTED = [
   'runtime_ceiling_changes',
   'runtime_limit_changes',
   'evidence_site_changes',
+  // ADR-0072: uploaded files and the exact bytes of every version.
+  'workspace_files',
+  'workspace_file_versions',
+  'workspace_file_links',
 ] as const;
 
 /** Splits the password out so it reaches pg tools by environment, never by argv or logs. */

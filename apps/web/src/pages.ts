@@ -10,6 +10,7 @@ export type View =
   | 'overview'
   | 'submit'
   | 'catalog'
+  | 'files'
   | 'compare'
   | 'evidence'
   | 'decisions'
@@ -86,6 +87,7 @@ export const PAGES: readonly Page[] = [
     sections: [
       { view: 'evidence', slug: 'claims', label: 'Sources and claims' },
       { view: 'catalog', slug: 'library', label: 'Library' },
+      { view: 'files', slug: 'files', label: 'Files' },
       { view: 'search', slug: 'search', label: 'Search' },
     ],
   },

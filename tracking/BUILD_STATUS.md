@@ -103,3 +103,22 @@ studio browser walk, the installed app, real WSL runs. Awaiting independent revi
 Activity destinations, Search reset and server-side sort/paging for Search and the Library;
 details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
 installed-app change or live call. Not yet independently reviewed.
+
+## P05 workspace files (November 5, branch `claude/project-thread-h4hwto-p05`)
+
+Sources › Files (ADR-0072, migration 45, schema 45): upload by dropping files anywhere or with
+Add files; exact originals and SHA-256 in PostgreSQL with numbered immutable versions; newest-
+first list with search inside names and text; inert viewers for text, Markdown, JSON, CSV, code
+and images; download of any version's original bytes; rename, link to records, delete/restore
+and owner-only permanent deletion; per-file and per-workspace bounds from the environment.
+
+Checked: `tests/src/files-api.test.ts` (real API and PostgreSQL: traversal names, retries,
+duplicates, spoofed types, inline image headers, exact download, versions, search with line
+numbers, size limits, links, stranger/viewer/other-workspace access, delete/restore/purge,
+immutable versions), `files-inspect.test.ts`, and the restore test now round-trips a binary
+file through backup and restore. Walked in headless Chromium at 1280 and 390 px: drag over the
+Discover page shows the overlay, the drop uploads without leaving the page (an unsaved theme
+stayed), the same file again is reported as a duplicate, the picker adds a CSV, Markdown
+renders without running a `<script>` line, and the download's SHA-256 matches the source.
+Not done (B01): Trash expiry, OCR, editors, conversions, PDF preview, related files, global
+Search indexing, record-targeted drops. Awaiting review.

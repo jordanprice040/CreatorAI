@@ -41,6 +41,8 @@ import {
   OPERATIONS_ACTOR_ID,
   OpsStore,
   ConnectionStore,
+  DEFAULT_FILE_LIMITS,
+  FileStore,
   assertSchemaCurrent,
   databaseUrl,
   ORCHESTRATOR_ACTOR_ID,
@@ -120,6 +122,7 @@ import {
 } from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
+import { FILES_ROUTE, fileLimitsFromEnv, fileRoutes } from './files.js';
 import { createOps } from './ops.js';
 
 const MAX_BODY = 65536;
@@ -282,6 +285,10 @@ export function createApi(
   const sourceConfig = sourceConfigFromEnv(env);
   const publicSearch = publicSearchFromEnv(env, sourceConfig.policy);
   const store = pool ? new ConnectionStore(pool) : null;
+  // ADR-0072: workspace files, with storage bounds set by the deployment.
+  const fileStore = pool
+    ? new FileStore(pool, fileLimitsFromEnv(env, DEFAULT_FILE_LIMITS))
+    : null;
   const codexLauncher = codexLauncherFromEnv(env);
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
@@ -638,6 +645,7 @@ export function createApi(
       CHAT_ANSWER_ROUTE.exec(url.pathname) ??
       CHAT_SETTINGS_ROUTE.exec(url.pathname) ??
       NOTES_ROUTE.exec(url.pathname) ??
+      FILES_ROUTE.exec(url.pathname) ??
       ACTIVITY_NOW_ROUTE.exec(url.pathname);
     if (!match) return false;
     if (!store)
@@ -723,6 +731,26 @@ export function createApi(
           true,
         );
       throw new ContractError('NOT_FOUND', 'Unknown notes route.');
+    }
+    // ADR-0072: workspace files (upload, list, view, download, delete).
+    if (ws && fileStore && FILES_ROUTE.test(url.pathname)) {
+      if (
+        await fileRoutes({
+          store: fileStore,
+          ctx,
+          ws,
+          item,
+          action,
+          method,
+          url,
+          req,
+          res,
+          json: () => readJson(req),
+          send,
+        })
+      )
+        return true;
+      throw new ContractError('NOT_FOUND', 'Unknown files route.');
     }
     if (ws && ACTIVITY_NOW_ROUTE.test(url.pathname)) {
       if (method === 'GET')

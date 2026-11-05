@@ -13,7 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
 import {
@@ -39,6 +39,7 @@ import {
   createBackup,
   restoreBackup,
   verifyRestore,
+  FileStore,
 } from '@creator/db';
 import { freshDatabase, LOGIN_CODE, login, TEST_DB_ENV } from './pg-harness.js';
 import { TestDoubleExecutor } from './artifact-double.js';
@@ -287,6 +288,16 @@ test('a backup restores the catalog and artifact references into a new database 
 
   // ---- Back up while the API is running.
   const backupDir = join(dir, 'backup');
+  // ADR-0072: an uploaded file's exact bytes travel with the database dump.
+  const fileBytes = Buffer.from([0, 1, 2, 250, 251, 252, 0x0a, 0x41]);
+  const uploaded = await new FileStore(db.pool).uploadFile(ctx, ws, {
+    bytes: fileBytes,
+    name: 'raw.bin',
+    declaredType: null,
+    uploadKey: randomUUID(),
+    linkEntityId: null,
+    keepDuplicate: false,
+  });
   const manifest = await createBackup({
     databaseUrl: db.url,
     productsRoot: join(dir, 'products'),
@@ -324,6 +335,22 @@ test('a backup restores the catalog and artifact references into a new database 
   assert.equal(check.audit_chain.ok, true);
   assert.deepEqual(check.counts, manifest.counts);
   assert.deepEqual(check.totals, manifest.totals);
+  assert.equal(manifest.counts.workspace_file_versions, 1);
+  {
+    const restoredPool = new pg.Pool({ connectionString: restoredUrl, max: 1 });
+    try {
+      const back = await new FileStore(restoredPool).fileContent(
+        ctx,
+        ws,
+        uploaded.file.id,
+        null,
+      );
+      assert.deepEqual(back.bytes, fileBytes);
+      assert.equal(back.sha256, uploaded.file.current.sha256);
+    } finally {
+      await restoredPool.end();
+    }
+  }
   assert.deepEqual(
     check.artifacts.map((a) => [a.id, a.ok]),
     [[artifact.id, true]],

@@ -2744,6 +2744,69 @@ alter table artifact_previews add constraint artifact_previews_lifetime_shape ch
       and last_seen_at is not null));
 `,
   },
+  {
+    // ADR-0072 (P05): workspace files. Each version keeps its exact original bytes and their
+    // SHA-256; versions never change (a trigger refuses updates other than purging). An upload
+    // key makes a retried upload store once. Links tie a file to records of the same workspace.
+    // Deleting hides a file; purging removes every version's bytes and the file row.
+    version: 45,
+    name: 'workspace_files',
+    sql: `
+create table workspace_files (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id) on delete cascade,
+ name text not null check (length(name) between 1 and 200),
+ status text not null default 'active' check (status in ('active', 'deleted')),
+ current_version integer not null check (current_version >= 1),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp(),
+ deleted_at timestamptz,
+ check ((status = 'deleted') = (deleted_at is not null)),
+ unique (workspace_id, id)
+);
+create index workspace_files_newest on workspace_files (workspace_id, status, created_at desc, id desc);
+create table workspace_file_versions (
+ workspace_id uuid not null,
+ file_id uuid not null,
+ version integer not null check (version >= 1),
+ sha256 char(64) not null check (sha256 ~ '^[0-9a-f]{64}$'),
+ size_bytes bigint not null check (size_bytes >= 0),
+ kind text not null check (kind in ('text','markdown','json','csv','code','image','pdf','other')),
+ media_type text not null check (length(media_type) <= 100),
+ declared_type text check (length(declared_type) <= 200),
+ original_name text not null check (length(original_name) <= 500),
+ type_mismatch boolean not null,
+ content bytea not null,
+ text_content text,
+ text_truncated boolean not null default false,
+ upload_key uuid not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (file_id, version),
+ foreign key (workspace_id, file_id) references workspace_files (workspace_id, id) on delete cascade,
+ unique (workspace_id, upload_key),
+ check (octet_length(content) = size_bytes)
+);
+create index workspace_file_versions_hash on workspace_file_versions (workspace_id, sha256);
+create function workspace_file_versions_immutable() returns trigger language plpgsql as $$
+begin
+  raise exception 'workspace file versions never change';
+end $$;
+create trigger workspace_file_versions_immutable before update on workspace_file_versions
+ for each row execute function workspace_file_versions_immutable();
+create table workspace_file_links (
+ workspace_id uuid not null,
+ file_id uuid not null,
+ entity_id uuid not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (file_id, entity_id),
+ foreign key (workspace_id, file_id) references workspace_files (workspace_id, id) on delete cascade,
+ foreign key (entity_id) references entities (id) on delete cascade
+);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {
