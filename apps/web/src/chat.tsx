@@ -118,7 +118,10 @@ export function Chat({
   const createdFor = useRef('');
   const pickedFor = useRef(focus);
   useEffect(() => {
-    if (pickedFor.current !== focus && focus !== createdFor.current)
+    if (
+      pickedFor.current !== focus &&
+      !(createdFor.current && focus === createdFor.current)
+    )
       setPicked([]);
     createdFor.current = '';
     pickedFor.current = focus;

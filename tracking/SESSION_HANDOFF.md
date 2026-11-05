@@ -118,3 +118,8 @@ Third review (same day): L-1 blocked/stuck keeps the general-request guard ("How
 stuck build in Jenkins?" is a question; "Are any runs blocked?" is a whole-message studio form);
 L-2 "Remember that idea…"/"Remember my thought…" save again; N-1 picks made before a new
 conversation's first send are cleared when another conversation is opened.
+Fourth review (same day): L-A picks clear on every conversation change, including to New
+conversation and after delete, except the one the first send creates; L-B only singular
+"that/my idea|thought|note" saves; L-C anchored "Which runs are blocked?", "Show me what's
+blocked" forms; "Note to self:" saves, a "?"-only target is dropped. All reviewed phrasings now
+live in one table test, tests/src/chat-classifier-table.test.ts.

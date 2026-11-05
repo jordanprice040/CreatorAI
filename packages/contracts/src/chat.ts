@@ -79,7 +79,7 @@ const STRONG_APPROVALS =
   /\b(?:waiting (?:on|for) me|needs? me|needs? my (?:approval|answer|decision)|my answer|my approvals?|pending (?:approvals?|decisions?)|decisions? for me)\b/;
 /** PR #136 review M1: whole-message studio questions about blocked work. */
 const STUDIO_BLOCKED_QUESTION =
-  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why\s+(?:is|are|'s)\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|it|things)\s+(?:is|are|'s|seems?|looks?)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:any|my|our|the)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$/i;
+  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why\s+(?:is|are|'s)\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|it|things)\s+(?:is|are|'s|seems?|looks?)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:any|my|our|the)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:which|what)\s+(?:of\s+(?:my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:are|is)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^is\s+there\s+(?:a|any)\s+(?:run|build|discovery|spec|preview|worker)\s+(?:that'?s|that\s+is)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^how\s+come\s+(?:the|my|our)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:is|are)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:show|tell)\s+me\s+(?:what'?s|what\s+is|everything|anything)\s+(?:that'?s\s+)?(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:what'?s|what\s+is|is\s+anything|anything)\s+(?:still\s+)?(?:blocked|stuck)\s+in\s+(?:this|my|our)\s+(?:project|studio|workspace)[\s?.!]*$/i;
 /** PR #136 review M1: whole-message studio questions about approvals and waiting decisions. */
 const STUDIO_APPROVAL_QUESTION =
   /^(?:(?:what|anything|is anything|is there anything|does anything|do i have anything)\s+)?(?:that\s+)?(?:needs?|waiting(?:\s+(?:for|on))?|to)(?:\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision|me))?[\s?.!]*$|^(?:what'?s|whats|what is|anything|is anything|is there anything)\s+(?:still\s+)?(?:waiting|pending)[\s?.!]*$|^do i (?:need|have) to (?:approve|answer|decide) anything[\s?.!]*$|^(?:any\s+)?(?:pending\s+)?approvals?[\s?.!]*$/i;
@@ -206,12 +206,16 @@ export function classifyChat(
   // "Remember my thought…" still save (third review L-2). A bare "remember that" is a remark.
   if (
     save &&
-    !/^(?:please\s+)?(?:remember|note)\s+(?:to|that(?!\s+(?:ideas?|thoughts?|notes?)\b)|i|i'?m|i'?d|when|how|why|what|who|where|me|us|my\s+(?!(?:ideas?|thoughts?|notes?)\b))\b/i.test(
+    !/^(?:please\s+)?(?:remember|note)\s+(?:(?:that|this|my|an?)\s+thought\s+experiments?|to(?!\s+self\b)|that(?!\s+(?:idea|thought|note)\b)|i|i'?m|i'?d|when|how|why|what|who|where|me|us|my\s+(?!(?:idea|thought|note)\b))\b/i.test(
       text,
     ) &&
     !/^(?:please\s+)?save\s+(?:me|us|time|money)\b/i.test(text)
   ) {
-    const idea = strip(save[1] ?? '');
+    // Fourth review N-A/N-B: "Note to self: …" saves; a target of only punctuation, or a
+    // leading "about"/"to self", is not part of the idea.
+    const idea = strip(
+      strip(save[1] ?? '').replace(/^(?:to\s+self|about)\b/i, ''),
+    ).replace(/^[\s?!.]+$/, '');
     return { intent: 'save_idea', target: idea ? { text: idea } : {} };
   }
   // ADR-0065: asking the studio to look for problems itself, with no theme. The phrases are

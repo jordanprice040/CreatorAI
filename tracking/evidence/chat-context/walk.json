@@ -36,7 +36,7 @@
         "you": "Brainstorm three names for a neighbourhood bakery.",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:15 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:33 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -46,7 +46,7 @@
         "you": "Which of my ideas is the easiest first build?",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:15 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:33 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -56,7 +56,7 @@
         "you": "What's next?",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:15 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:33 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -66,7 +66,7 @@
         "you": "What is the riskiest assumption here?",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:15 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 8:33 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -119,11 +119,18 @@
     "result": 4
   },
   {
+    "check": "existing -> new conversation: chips",
+    "result": []
+  },
+  {
     "check": "new conversation: chips after first send",
     "result": [
-      "Problem: Rural clinic no-shows ×",
-      "Idea: Frame-perfect practice timer ×"
+      "Problem: Rural clinic no-shows ×"
     ]
+  },
+  {
+    "check": "after first send -> new conversation: chips",
+    "result": []
   },
   {
     "check": "dark: page errors",
