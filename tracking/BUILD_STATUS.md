@@ -103,3 +103,22 @@ studio browser walk, the installed app, real WSL runs. Awaiting independent revi
 Activity destinations, Search reset and server-side sort/paging for Search and the Library;
 details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
 installed-app change or live call. Not yet independently reviewed.
+
+## P04 guided start and readable Discover (November 5, branch `claude/project-thread-h4hwto`)
+
+Discover now opens with three start choices and a Guided/Advanced switch over the same form
+(ADR-0071). Guided folds routine settings under one-line summaries; a "What will happen" panel
+shows run, permission, model access, effective limits, data class and output, each with its
+source; a per-person, per-workspace preset (this browser) can replace the studio defaults; the
+default plan connection is now one that is ready and qualified. Discover and Build share one
+blocked-reasons list with buttons to the fixing tab; the empty-claims state points to Sources
+instead of the CLI. No migration or API change.
+
+Walked in headless Chromium on a disposable database (fixture workspace from `seed-research`,
+budget and pricing added in the app): with only the six brief fields typed and one claim ticked,
+Guided started a real discovery run and opened it under Monitor › Runs; phone width (390 px)
+reads in one column. Already implemented and only inspected: Try completes when feedback is
+recorded on the newest package (next-rules), meaningful run labels and newest-first defaults
+(PRs #100, #101, #138). For P17: the first-run "No workspace yet" card still mentions
+`pnpm cli seed-selection`; the Start-with-a-theme draft form is long; Guided does not yet
+apply to Explore's own options or to Build; presets are browser-local. Awaiting review.

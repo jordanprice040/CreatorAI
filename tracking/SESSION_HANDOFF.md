@@ -150,3 +150,22 @@ Fourth-review nit: cursor-time error mapping now applies only when a cursor was 
 Search date filter is no longer reported as a bad page cursor. Merged main (API route list keeps
 main's `link` action). Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known
 PowerShell only).
+
+## P04 guided start and readable Discover (November 5, branch `claude/project-thread-h4hwto`)
+
+Discover now opens with three start choices and a Guided/Advanced switch over the same form
+(ADR-0071). Guided folds routine settings under one-line summaries; a "What will happen" panel
+shows run, permission, model access, effective limits, data class and output, each with its
+source; a per-person, per-workspace preset (this browser) can replace the studio defaults; the
+default plan connection is now one that is ready and qualified. Discover and Build share one
+blocked-reasons list with buttons to the fixing tab; the empty-claims state points to Sources
+instead of the CLI. No migration or API change.
+
+Walked in headless Chromium on a disposable database (fixture workspace from `seed-research`,
+budget and pricing added in the app): with only the six brief fields typed and one claim ticked,
+Guided started a real discovery run and opened it under Monitor › Runs; phone width (390 px)
+reads in one column. Already implemented and only inspected: Try completes when feedback is
+recorded on the newest package (next-rules), meaningful run labels and newest-first defaults
+(PRs #100, #101, #138). For P17: the first-run "No workspace yet" card still mentions
+`pnpm cli seed-selection`; the Start-with-a-theme draft form is long; Guided does not yet
+apply to Explore's own options or to Build; presets are browser-local. Awaiting review.
