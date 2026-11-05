@@ -4,8 +4,14 @@ import {
   SearchQuerySchema,
   StoredKindSchema,
   parse,
+  LibrarySortSchema,
+  StoredStatusSchema,
   type ActivityPage,
   type ActorSummary,
+  type Destination,
+  type LibraryPage,
+  type LibrarySort,
+  type SearchSort,
   type ClaimEvidence,
   type Overview,
   type ProblemComparison,
@@ -49,6 +55,99 @@ export const ENTITY_TEXT = `(e.title || ' · ' || coalesce((select string_agg(v 
 export const PASSAGE_DOC = `to_tsvector('english'::regconfig, coalesce(p.excerpt, ''))`;
 export const DECISION_DOC = `jsonb_to_tsvector('english'::regconfig, d.request, '["string"]')`;
 const HISTORY_DOC = `to_tsvector('english'::regconfig, h.summary)`;
+
+/**
+ * P02 page cursors. A cursor names the sort, the type and a hash of the filters it was made
+ * under, so a page can never be continued under a different order or query. Time orders seek
+ * past the last row's exact (microsecond) time and id; relevance continues by position.
+ */
+type Cursor = {
+  s: string;
+  ty: string;
+  f: string;
+  t?: string;
+  i?: string;
+  o?: number;
+};
+const encodeCursor = (c: Cursor) =>
+  Buffer.from(JSON.stringify(c), 'utf8').toString('base64url');
+const STALE_CURSOR =
+  'That page cursor belongs to another order or filter; start again.';
+function decodeCursor(raw: string, s: string, ty: string, f: string): Cursor {
+  let c: Cursor;
+  try {
+    c = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Cursor;
+  } catch {
+    throw fail(
+      'INVALID_CONTRACT',
+      'That page cursor is not valid; start again.',
+    );
+  }
+  const ok =
+    c !== null &&
+    typeof c === 'object' &&
+    c.s === s &&
+    c.ty === ty &&
+    c.f === f &&
+    (c.o === undefined
+      ? typeof c.t === 'string' &&
+        c.t.length <= 64 &&
+        typeof c.i === 'string' &&
+        c.i.length <= 300
+      : Number.isInteger(c.o) && c.o >= 0 && c.o <= 100_000);
+  if (!ok) throw fail('INVALID_CONTRACT', STALE_CURSOR);
+  return c;
+}
+/** PostgreSQL's text form of a timestamptz, as a time cursor carries it. */
+const CURSOR_TIME_RE =
+  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2}){0,2}$/;
+/** A time cursor's key, checked before PostgreSQL parses it (re-review nit). */
+function cursorTime(c: Cursor): string {
+  if (typeof c.t !== 'string' || !CURSOR_TIME_RE.test(c.t))
+    throw fail(
+      'INVALID_CONTRACT',
+      'That page cursor is not valid; start again.',
+    );
+  return c.t;
+}
+/**
+ * Runs a query that seeks past a cursor's time. The time already matches PostgreSQL's text
+ * form, but a hand-edited one can still name an impossible date or offset; that is a bad
+ * cursor, not a server failure (third review N1).
+ */
+async function seekQuery(
+  c: PoolClient,
+  sql: string,
+  args: unknown[],
+  cursor: boolean,
+) {
+  try {
+    return await c.query(sql, args);
+  } catch (e) {
+    // Only a read that used a cursor blames the cursor; other date errors (a filter) pass on.
+    const code = (e as { code?: unknown }).code;
+    if (cursor && (code === '22007' || code === '22008' || code === '22009'))
+      throw fail(
+        'INVALID_CONTRACT',
+        'That page cursor is not valid; start again.',
+      );
+    throw e;
+  }
+}
+/** A short hash of a Name key, so a cursor notices the last row was renamed. */
+const titleHash = (key: string) =>
+  createHash('sha256').update(key).digest('hex').slice(0, 16);
+const filterHash = (v: unknown) =>
+  createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 16);
+/** Subjects whose existence the destination check reads from the entities table. */
+const ENTITY_KINDS = new Set<string>(StoredKindSchema.options);
+const SUBJECT_KIND_RE = /^[a-z_]{1,40}$/;
+const entityState = (status: unknown): 'available' | 'archived' | 'redacted' =>
+  status === 'redacted'
+    ? 'redacted'
+    : status === 'archived'
+      ? 'archived'
+      : 'available';
 
 /** Splits a ts_headline result into plain and matched segments. */
 export function segments(headline: string | null | undefined): Snippet {
@@ -122,12 +221,19 @@ export class CatalogStore extends SelectionStore {
       const hits: SearchHit[] = [];
       const counts: SearchResult['counts'] = {};
       const coverage: SearchResult['coverage'] = {};
+      const next: SearchResult['next'] = {};
+      // Relevance needs words; an id search or browse is read newest first and says so.
+      const order: SearchSort =
+        query.sort === 'relevance' && mode !== 'text' ? 'newest' : query.sort;
       let truncated = false;
       for (const type of query.types) {
-        const { rows, total } = await this.searchType(c, ws, type, mode, query);
-        counts[type] = total;
-        if (total > rows.length) truncated = true;
-        hits.push(...rows);
+        const page = await this.searchType(c, ws, type, mode, query, order);
+        counts[type] = page.total;
+        if (page.next) {
+          truncated = true;
+          next[type] = page.next;
+        }
+        hits.push(...page.rows);
         coverage[type] = await this.searchCoverage(c, ws, type);
       }
       return {
@@ -137,6 +243,8 @@ export class CatalogStore extends SelectionStore {
         hits,
         counts,
         truncated,
+        order,
+        next,
         coverage,
         freshness: {
           as_of: iso(head.as_of),
@@ -231,7 +339,8 @@ export class CatalogStore extends SelectionStore {
     type: SearchType,
     mode: 'browse' | 'id' | 'text',
     query: SearchQuery,
-  ): Promise<{ rows: SearchHit[]; total: number }> {
+    order: SearchSort,
+  ): Promise<{ rows: SearchHit[]; total: number; next: string | null }> {
     // Every value is a bound parameter; the SQL below is fixed text chosen by type and mode.
     const args: unknown[] = [ws];
     const p = (v: unknown) => {
@@ -252,7 +361,70 @@ export class CatalogStore extends SelectionStore {
         : `${col}::text like ${idRef()} || '%'`;
     const match: SearchHit['match'] =
       mode === 'id' ? (full ? 'id' : 'id_prefix') : 'text';
-    const total = (rows: Row[]) => Number(rows[0]?.total ?? 0);
+    // The filters a cursor is bound to: the same words, filters and dates, nothing else.
+    const bound = filterHash([
+      query.q,
+      query.kind,
+      query.status,
+      query.from,
+      query.to,
+      query.tz,
+    ]);
+    const cursor =
+      query.after === null
+        ? null
+        : decodeCursor(query.after, query.sort, type, bound);
+    /**
+     * P02: reads one type in the chosen order, on the server, before the limit. `inner` must
+     * select `sort_at` (a timestamptz), `sort_id` (text) and, when it can rank, `sort_rank`;
+     * `total` counts every match before paging. One row past the limit tells whether a next
+     * page exists.
+     */
+    const paged = async (
+      inner: string,
+      ranked: boolean,
+      prefix = '',
+    ): Promise<{ rows: Row[]; total: number; next: string | null }> => {
+      const byRank = order === 'relevance' && ranked;
+      const dir = order === 'oldest' ? 'asc' : 'desc';
+      let seek = 'true';
+      let offset = 0;
+      if (cursor && byRank) {
+        if (cursor.o === undefined)
+          throw fail('INVALID_CONTRACT', STALE_CURSOR);
+        offset = cursor.o;
+      } else if (cursor) {
+        if (cursor.t === undefined || cursor.i === undefined)
+          throw fail('INVALID_CONTRACT', STALE_CURSOR);
+        seek = `(x.sort_at, x.sort_id) ${dir === 'asc' ? '>' : '<'} (${p(cursorTime(cursor))}::timestamptz, ${p(cursor.i)}::text)`;
+      }
+      const sql = `${prefix} select x.*, x.sort_at::text as cursor_at from (${inner}) x
+         where ${seek}
+         order by ${byRank ? 'x.sort_rank desc, ' : ''}x.sort_at ${dir}, x.sort_id ${dir}
+         limit ${p(query.limit + 1)}${offset ? ` offset ${p(offset)}` : ''}`;
+      const { rows } = await seekQuery(c, sql, args, cursor !== null);
+      const page = (rows as Row[]).slice(0, query.limit);
+      const last = page[page.length - 1];
+      const more = rows.length > query.limit && last !== undefined;
+      return {
+        rows: page,
+        // `total` is computed before the seek, so it is the same on every page.
+        total: Number(rows[0]?.total ?? 0),
+        next: !more
+          ? null
+          : encodeCursor(
+              byRank
+                ? { s: query.sort, ty: type, f: bound, o: offset + page.length }
+                : {
+                    s: query.sort,
+                    ty: type,
+                    f: bound,
+                    t: String(last.cursor_at),
+                    i: String(last.sort_id),
+                  },
+            ),
+      };
+    };
     const tqRef = once(() => query.q);
     const tq = () => `websearch_to_tsquery('english', ${tqRef()})`;
     const likeRef = once(() => like(query.q));
@@ -269,7 +441,6 @@ export class CatalogStore extends SelectionStore {
       ]
         .filter(Boolean)
         .join(' and ') || 'true';
-    const lim = () => p(query.limit);
     const local = (v: unknown) => localTimestamp(iso(v), query.tz);
     const base = {
       type,
@@ -289,21 +460,19 @@ export class CatalogStore extends SelectionStore {
         mode === 'text'
           ? `ts_headline('english', ${ENTITY_TEXT}, ${tq()}, ${optsRef()})`
           : `left(${ENTITY_TEXT}, 240)`;
-      const order =
-        mode === 'text'
-          ? `ts_rank(${ENTITY_DOC}, ${tq()}) desc, e.updated_at desc`
-          : 'e.updated_at desc';
-      const { rows } = await c.query(
-        `select e.*, ${headline} as headline, count(*) over () as total
+      const rank = mode === 'text' ? `ts_rank(${ENTITY_DOC}, ${tq()})` : '0';
+      const { rows, total, next } = await paged(
+        `select e.*, ${headline} as headline, count(*) over () as total,
+                e.created_at as sort_at, e.id::text as sort_id, ${rank} as sort_rank
            from entities e
           where e.workspace_id = $1 and (${kind}::text is null or e.kind = ${kind})
             and (${status}::text is null or e.status = ${status}) and ${where}
-            and ${within('e.updated_at')}
-          order by ${order} limit ${lim()}`,
-        args,
+            and ${within('e.created_at')}`,
+        mode === 'text',
       );
       return {
-        total: total(rows),
+        total,
+        next,
         rows: rows.map((r: Row) => ({
           ...base,
           id: String(r.id),
@@ -312,34 +481,37 @@ export class CatalogStore extends SelectionStore {
           status: String(r.status),
           version: Number(r.version),
           snippet: segments(r.headline as string | null),
-          occurred_at: iso(r.updated_at),
-          occurred_local: local(r.updated_at),
+          // P02: Newest means created, so a record shows the time it is ordered by.
+          occurred_at: iso(r.created_at),
+          occurred_local: local(r.created_at),
           subject: { id: String(r.id), kind: String(r.kind) },
         })),
       };
     }
     if (type === 'passage') {
       // Passages need a query; a browse lists none. Redacted sources have no excerpt left.
-      if (mode === 'browse') return { rows: [], total: 0 };
+      if (mode === 'browse') return { rows: [], total: 0, next: null };
       const where =
         mode === 'id' ? idMatch('p.id') : `${PASSAGE_DOC} @@ ${tq()}`;
       const headline =
         mode === 'text'
           ? `ts_headline('english', p.excerpt, ${tq()}, ${optsRef()})`
           : 'left(p.excerpt, 240)';
-      const { rows } = await c.query(
+      const rank = mode === 'text' ? `ts_rank(${PASSAGE_DOC}, ${tq()})` : '0';
+      const { rows, total, next } = await paged(
         `select p.id, p.source_id, p.source_version, p.ordinal, p.created_at, e.title,
                 e.status, e.version as current_version, ${headline} as headline,
-                count(*) over () as total
+                count(*) over () as total, p.created_at as sort_at,
+                p.id::text as sort_id, ${rank} as sort_rank
            from source_passages p
            join entities e on e.workspace_id = p.workspace_id and e.id = p.source_id
           where p.workspace_id = $1 and p.excerpt is not null and e.status <> 'redacted'
-            and ${where} and ${within('p.created_at')}
-          order by p.created_at desc, p.ordinal limit ${lim()}`,
-        args,
+            and ${where} and ${within('p.created_at')}`,
+        mode === 'text',
       );
       return {
-        total: total(rows),
+        total,
+        next,
         rows: rows.map((r: Row) => ({
           ...base,
           id: String(r.id),
@@ -369,17 +541,19 @@ export class CatalogStore extends SelectionStore {
         mode === 'text'
           ? `ts_headline('english', ${text}, ${tq()}, ${optsRef()})`
           : `left(${text}, 240)`;
-      const { rows } = await c.query(
+      const rank = mode === 'text' ? `ts_rank(${DECISION_DOC}, ${tq()})` : '0';
+      const { rows, total, next } = await paged(
         `select d.id, d.kind, d.status, d.version, d.run_id, d.created_at,
                 d.request->>'question' as question, ${headline} as headline,
-                count(*) over () as total
+                count(*) over () as total, d.created_at as sort_at,
+                d.id::text as sort_id, ${rank} as sort_rank
            from decision_requests d
-          where d.workspace_id = $1 and ${where} and ${within('d.created_at')}
-          order by d.created_at desc limit ${lim()}`,
-        args,
+          where d.workspace_id = $1 and ${where} and ${within('d.created_at')}`,
+        mode === 'text',
       );
       return {
-        total: total(rows),
+        total,
+        next,
         rows: rows.map((r: Row) => ({
           ...base,
           id: String(r.id),
@@ -410,17 +584,18 @@ export class CatalogStore extends SelectionStore {
         mode === 'text'
           ? `ts_headline('english', ${text}, ${tq()}, ${optsRef()})`
           : text;
-      const { rows } = await c.query(
+      const { rows, total, next } = await paged(
         `select am.id, am.entity_id, am.commit, am.state, am.spec_version, am.created_at,
-                e.title, ${headline} as headline, count(*) over () as total
+                e.title, ${headline} as headline, count(*) over () as total,
+                am.created_at as sort_at, am.id::text as sort_id
            from artifact_manifests am
            join entities e on e.workspace_id = am.workspace_id and e.id = am.entity_id
-          where am.workspace_id = $1 and ${where} and ${within('am.created_at')}
-          order by am.created_at desc limit ${lim()}`,
-        args,
+          where am.workspace_id = $1 and ${where} and ${within('am.created_at')}`,
+        false,
       );
       return {
-        total: total(rows),
+        total,
+        next,
         rows: rows.map((r: Row) => ({
           ...base,
           id: String(r.id),
@@ -440,12 +615,16 @@ export class CatalogStore extends SelectionStore {
     }
     if (type === 'model') {
       // Models this workspace actually called (or was denied), with exact totals per model.
-      if (mode === 'id') return { rows: [], total: 0 };
+      if (mode === 'id') return { rows: [], total: 0, next: null };
       const where =
         mode === 'browse'
           ? 'true'
           : `(m.model_id ilike ${likeRef()} or m.provider ilike ${likeRef()})`;
-      const { rows } = await c.query(
+      const { rows, total, next } = await paged(
+        `select m.*, count(*) over () as total, m.last_at as sort_at,
+                (m.provider || '/' || m.model_id) as sort_id
+           from m where ${where}`,
+        false,
         `with m as (
            select provider, model_id, count(*) filter (where status <> 'denied') as calls,
                   count(*) filter (where status = 'denied') as denied,
@@ -455,13 +634,11 @@ export class CatalogStore extends SelectionStore {
                   bool_and(fixture) as fixture, max(created_at) as last_at
              from budget_reservations
             where workspace_id = $1 and ${within('created_at')}
-            group by provider, model_id)
-         select m.*, count(*) over () as total from m where ${where}
-          order by m.last_at desc limit ${lim()}`,
-        args,
+            group by provider, model_id)`,
       );
       return {
-        total: total(rows),
+        total,
+        next,
         rows: rows.map((r: Row) => ({
           ...base,
           id: nameId(`model:${String(r.provider)}/${String(r.model_id)}`),
@@ -499,17 +676,18 @@ export class CatalogStore extends SelectionStore {
         mode === 'text'
           ? `ts_headline('english', r.explanation, ${tq()}, ${optsRef()})`
           : 'left(r.explanation, 240)';
-      const { rows } = await c.query(
+      const { rows, total, next } = await paged(
         `select r.id, r.run_id, r.action_type, r.provider, r.model_id, r.attempt, r.status,
                 r.reserved_nano, r.incurred_nano, r.fixture, r.created_at,
-                ${headline} as headline, count(*) over () as total
+                ${headline} as headline, count(*) over () as total,
+                r.created_at as sort_at, r.id::text as sort_id
            from budget_reservations r
-          where r.workspace_id = $1 and ${where} and ${within('r.created_at')}
-          order by r.created_at desc, r.id limit ${lim()}`,
-        args,
+          where r.workspace_id = $1 and ${where} and ${within('r.created_at')}`,
+        false,
       );
       return {
-        total: total(rows),
+        total,
+        next,
         rows: rows.map((r: Row) => ({
           ...base,
           id: String(r.id),
@@ -545,15 +723,19 @@ export class CatalogStore extends SelectionStore {
       mode === 'text'
         ? `ts_headline('english', h.summary, ${tq()}, ${optsRef()})`
         : 'h.summary';
-    const { rows } = await c.query(
-      `select h.*, ${headline} as headline, count(*) over () as total
+    const rank = mode === 'text' ? `ts_rank(${HISTORY_DOC}, ${tq()})` : '0';
+    // Ties in time fall back to the audit sequence, zero-padded so text order is numeric.
+    const { rows, total, next } = await paged(
+      `select h.*, ${headline} as headline, count(*) over () as total,
+              h.occurred_at as sort_at, lpad(h.sequence::text, 20, '0') as sort_id,
+              ${rank} as sort_rank
          from history_projection h
-        where h.workspace_id = $1 and ${where} and ${within('h.occurred_at')}
-        order by h.sequence desc limit ${lim()}`,
-      args,
+        where h.workspace_id = $1 and ${where} and ${within('h.occurred_at')}`,
+      mode === 'text',
     );
     return {
-      total: total(rows),
+      total,
+      next,
       rows: rows.map((r: Row) => ({
         ...base,
         id: String(r.event_id),
@@ -627,6 +809,207 @@ export class CatalogStore extends SelectionStore {
         next_before:
           rows.length > limit ? String(page[page.length - 1]?.sequence) : null,
       };
+    });
+  }
+
+  /**
+   * P02: the Library's records in a chosen order, sorted on the server before the limit and
+   * continued with a cursor bound to that order and these filters. Newest and Oldest are by
+   * creation; Updated is the latest version; Name is case-folded title. The id breaks ties.
+   */
+  async library(
+    ctx: CommandContext,
+    ws: string,
+    filter: {
+      kind?: string;
+      status?: string;
+      sort?: string;
+      after?: string;
+      limit?: number;
+    } = {},
+  ): Promise<LibraryPage> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const kind =
+      filter.kind === undefined ? null : parse(StoredKindSchema, filter.kind);
+    const status =
+      filter.status === undefined
+        ? null
+        : parse(StoredStatusSchema, filter.status);
+    const sort: LibrarySort = parse(LibrarySortSchema, filter.sort ?? 'newest');
+    const limit = filter.limit ?? 100;
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500)
+      throw fail('INVALID_CONTRACT', 'limit must be 1–500.');
+    const bound = filterHash([kind, status]);
+    const cursor =
+      filter.after === undefined
+        ? null
+        : decodeCursor(filter.after, sort, 'library', bound);
+    if (cursor && (cursor.t === undefined || cursor.i === undefined))
+      throw fail('INVALID_CONTRACT', STALE_CURSOR);
+    // Each order is one key and the id; Name keys on text, the others on time.
+    const key = {
+      newest: 'e.created_at',
+      oldest: 'e.created_at',
+      updated: 'e.updated_at',
+      name: 'lower(e.title)',
+    }[sort];
+    const dir = sort === 'oldest' || sort === 'name' ? 'asc' : 'desc';
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      await c.query('set transaction read only');
+      const args: unknown[] = [ws, kind, status, limit + 1];
+      let seek = 'true';
+      if (cursor && sort === 'name') {
+        const anchorId = uuid(cursor.i!, 'INVALID_CONTRACT');
+        // Review M1: titles can be thousands of characters, too long to carry in a cursor,
+        // so Name continues after the last row shown, read again by its id.
+        // Re-review Low: the cursor carries a hash of the title it was made after, so a
+        // rename between pages is refused rather than skipping or repeating rows.
+        const anchor = await c.query(
+          'select lower(title) as key from entities where workspace_id = $1 and id = $2::uuid',
+          [ws, anchorId],
+        );
+        if (anchor.rowCount === 0)
+          throw fail(
+            'INVALID_CONTRACT',
+            'The last record shown is no longer in this workspace; start again.',
+          );
+        if (titleHash(String(anchor.rows[0].key)) !== cursor.t)
+          throw fail(
+            'INVALID_CONTRACT',
+            'The last record shown was renamed since this page was read; start again.',
+          );
+        // Third review L1: seek from the title just checked, not a second read of it, so a
+        // rename committed in between cannot move the page edge.
+        args.push(String(anchor.rows[0].key), anchorId);
+        seek = `(x.sort_key, x.sort_id) > ($5::text, $6::text)`;
+      } else if (cursor) {
+        args.push(cursorTime(cursor), cursor.i);
+        seek = `(x.sort_key, x.sort_id) ${dir === 'asc' ? '>' : '<'} ($5::timestamptz, $6::text)`;
+      }
+      const { rows } = await seekQuery(
+        c,
+        `select x.*, x.sort_key::text as cursor_key from (
+           select e.*, ${key} as sort_key, e.id::text as sort_id, count(*) over () as total
+             from entities e
+            where e.workspace_id = $1 and ($2::text is null or e.kind = $2)
+              and ($3::text is null or e.status = $3)) x
+          where ${seek}
+          order by x.sort_key ${dir}, x.sort_id ${dir} limit $4`,
+        args,
+        cursor !== null,
+      );
+      const page = (rows as Row[]).slice(0, limit);
+      const last = page[page.length - 1];
+      return {
+        entities: page.map((r) => toEntity(r)),
+        total: Number(rows[0]?.total ?? 0),
+        sort,
+        next:
+          rows.length > limit && last
+            ? encodeCursor({
+                s: sort,
+                ty: 'library',
+                f: bound,
+                t:
+                  sort === 'name'
+                    ? titleHash(String(last.sort_key))
+                    : String(last.cursor_key),
+                i: String(last.sort_id),
+              })
+            : null,
+      };
+    });
+  }
+
+  /**
+   * P01: where an activity subject or search hit opens. Checks the subject is in this
+   * workspace and follows it to what a page focuses. Anything not found here (deleted, in
+   * another workspace, or never existed) is `missing`, without saying which.
+   */
+  async destination(
+    ctx: CommandContext,
+    ws: string,
+    kind: string,
+    rawId: string,
+  ): Promise<Destination> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    if (!SUBJECT_KIND_RE.test(kind))
+      throw fail('INVALID_CONTRACT', 'kind must be a subject kind.');
+    const id = uuid(rawId);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      await c.query('set transaction read only');
+      const one = async (sql: string) =>
+        (await c.query(sql, [ws, id])).rows[0] as Row | undefined;
+      const missing: Destination = { state: 'missing', focus: null };
+      const at = (focusKind: string, focusId: unknown): Destination => ({
+        state: 'available',
+        focus: { kind: focusKind, id: String(focusId) },
+      });
+      if (kind === 'decision') {
+        // Decision requests have their own table; a stored decision record is an entity.
+        const d = await one(
+          'select id from decision_requests where workspace_id = $1 and id = $2',
+        );
+        if (d) return at('decision', d.id);
+      }
+      if (ENTITY_KINDS.has(kind)) {
+        const e = await one(
+          'select kind, status from entities where workspace_id = $1 and id = $2',
+        );
+        if (!e) return missing;
+        const state = entityState(e.status);
+        if (e.kind === 'artifact') {
+          // An artifact opens at its newest code version on Try; without one, in the Library.
+          if (state === 'redacted') return { state, focus: null };
+          const m = await one(
+            `select id from artifact_manifests where workspace_id = $1 and entity_id = $2
+              order by created_at desc, id desc limit 1`,
+          );
+          return {
+            state,
+            focus: m
+              ? { kind: 'code_version', id: String(m.id) }
+              : { kind: 'artifact', id },
+          };
+        }
+        // A redacted record keeps its id and versions; the Library shows what is left.
+        return { state, focus: { kind: String(e.kind), id } };
+      }
+      const lookup: Record<string, [string, string]> = {
+        workflow: [
+          'select id as f from workflows where workspace_id = $1 and id = $2',
+          'workflow',
+        ],
+        workflow_task: [
+          'select workflow_id as f from workflow_tasks where workspace_id = $1 and id = $2',
+          'workflow',
+        ],
+        code_version: [
+          'select id as f from artifact_manifests where workspace_id = $1 and id = $2',
+          'code_version',
+        ],
+        preview: [
+          'select artifact_id as f from artifact_previews where workspace_id = $1 and id = $2',
+          'code_version',
+        ],
+        chat_conversation: [
+          'select id as f from chat_conversations where workspace_id = $1 and id = $2',
+          'chat_conversation',
+        ],
+        selection: [
+          'select problem_id as f from selections where workspace_id = $1 and id = $2',
+          'problem_scores',
+        ],
+      };
+      const known = Object.hasOwn(lookup, kind) ? lookup[kind] : undefined;
+      // Settings, connections, money and similar subjects open their page, not an item.
+      if (!known) return { state: 'unchecked', focus: null };
+      const r = await one(known[0]);
+      return r ? at(known[1], r.f) : missing;
     });
   }
 

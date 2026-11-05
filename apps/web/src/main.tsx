@@ -40,6 +40,7 @@ import {
 import { useTheme } from './theme.js';
 import './style.css';
 import { PageDrafts } from './page-drafts.js';
+import { forgetSort } from './list-sort.js';
 import { UsageIndicator } from './usage.js';
 import { NextStep, useStudioFacts } from './next-step.js';
 import { useActivityDots } from './activity-dots.js';
@@ -1085,6 +1086,20 @@ function App() {
                 key={`${auth.session.csrf_token}:${workspace?.id}`}
                 route={route}
                 render={(page) => <PageLoad>{body(page)}</PageLoad>}
+                onReset={(page) => {
+                  // P01 (R06): filters kept in the address and remembered sorts reset with
+                  // the fields, so Reset stays reset after navigation and reload.
+                  if (page.view === 'search') {
+                    forgetSort('search', page.ws);
+                    go({ q: '' }, true, 'search');
+                  } else if (page.view === 'activity')
+                    go({ q: '', id: '' }, true, 'activity');
+                  else if (page.view === 'catalog') {
+                    forgetSort('library', page.ws);
+                    if (page.id.startsWith('kind:'))
+                      go({ id: '' }, true, 'catalog');
+                  }
+                }}
               />
             ) : (
               <PageLoad>{body()}</PageLoad>

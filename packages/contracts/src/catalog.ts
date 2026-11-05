@@ -40,6 +40,19 @@ export const TimeZoneSchema = z
   }, 'Unknown time zone.');
 /** A calendar date, read in the query's time zone. */
 export const LocalDateSchema = z.iso.date();
+/**
+ * P02: the order a list is read in, applied on the server before any limit. Newest and
+ * Oldest use when each item was created (a record's first version, an event's time), with
+ * the id as a stable tie-break. Relevance ranks word matches and is never applied silently:
+ * the result says which order it actually used.
+ */
+export const SearchSortSchema = z.enum(['newest', 'oldest', 'relevance']);
+export type SearchSort = z.infer<typeof SearchSortSchema>;
+/** An opaque page cursor; it is bound to the sort, type and filters that produced it. */
+export const PageCursorSchema = z
+  .string()
+  .max(600)
+  .regex(/^[A-Za-z0-9_-]+$/);
 export const SearchQuerySchema = z
   .strictObject({
     q: z.string().trim().max(200),
@@ -51,10 +64,18 @@ export const SearchQuerySchema = z
     from: LocalDateSchema.nullable().default(null),
     to: LocalDateSchema.nullable().default(null),
     tz: TimeZoneSchema.default('UTC'),
+    /** P02: newest first unless the person picks another order. */
+    sort: SearchSortSchema.default('newest'),
+    /** P02: the next page of one type; `types` must then name exactly that type. */
+    after: PageCursorSchema.nullable().default(null),
   })
   .refine((q) => !q.from || !q.to || q.from <= q.to, {
     message: 'from must not be after to.',
     path: ['to'],
+  })
+  .refine((q) => q.after === null || q.types.length === 1, {
+    message: 'A page cursor continues one type; name only that type.',
+    path: ['after'],
   });
 export type SearchQuery = z.infer<typeof SearchQuerySchema>;
 /** Highlighted text as segments, so a page never renders stored text as markup. */
@@ -112,6 +133,13 @@ export const SearchResultSchema = z.strictObject({
   /** Matches per type before the limit; computed only over what the caller may read. */
   counts: z.partialRecord(SearchTypeSchema, counter),
   truncated: z.boolean(),
+  /**
+   * P02: the order actually applied. Relevance needs words, so an id search or a browse is
+   * read newest first and says so here; types without a word rank are always by time.
+   */
+  order: SearchSortSchema,
+  /** P02: per type, the cursor for its next page; absent when that type has no more. */
+  next: z.partialRecord(SearchTypeSchema, PageCursorSchema).default({}),
   coverage: z.partialRecord(SearchTypeSchema, SearchCoverageSchema),
   freshness: z.strictObject({
     /** The database time the search read at. */
@@ -141,6 +169,37 @@ export const ActivityPageSchema = z.strictObject({
     .nullable(),
 });
 export type ActivityPage = z.infer<typeof ActivityPageSchema>;
+
+/** P02: Library orders. Updated is offered separately from Newest, which is creation time. */
+export const LibrarySortSchema = z.enum([
+  'newest',
+  'oldest',
+  'updated',
+  'name',
+]);
+export type LibrarySort = z.infer<typeof LibrarySortSchema>;
+export const LibraryPageSchema = z.strictObject({
+  entities: z.array(StoredEntitySchema).max(500),
+  /** Records matching the filters (counted only for a member, before paging). */
+  total: counter,
+  sort: LibrarySortSchema,
+  /** Pass as `after` with the same sort and filters; null when this is the last page. */
+  next: PageCursorSchema.nullable(),
+});
+export type LibraryPage = z.infer<typeof LibraryPageSchema>;
+
+/**
+ * P01: where an activity subject or search hit opens. The server checks the subject is in
+ * this workspace and follows it to what a page shows (a task to its workflow, an artifact to
+ * its newest code version, a selection to its problem). A subject that is missing, in
+ * another workspace or unknown reads the same, `missing`, so nothing private leaks.
+ */
+export const DestinationSchema = z.strictObject({
+  state: z.enum(['available', 'archived', 'redacted', 'missing', 'unchecked']),
+  /** What to focus: a page-specific kind (`workflow`, `code_version`, `problem_scores` …). */
+  focus: z.strictObject({ kind: z.string().max(40), id }).nullable(),
+});
+export type Destination = z.infer<typeof DestinationSchema>;
 
 const WorkflowAttentionSchema = z.strictObject({
   workflow_id: id,

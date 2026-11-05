@@ -97,3 +97,9 @@ owner; Stop/Revoke cancels in-flight runs and records cleanup. Limits unchanged.
 locally on disposable PostgreSQL 16 in the cloud container (see the PR for counts); the preview
 page script was walked in headless Chromium against a stand-in store. Not verified: a full
 studio browser walk, the installed app, real WSL runs. Awaiting independent review.
+
+## P01 + P02 (November 5, branch `claude/project-thread-pb1ge7`)
+
+Activity destinations, Search reset and server-side sort/paging for Search and the Library;
+details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
+installed-app change or live call. Not yet independently reviewed.

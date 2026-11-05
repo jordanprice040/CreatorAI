@@ -10,7 +10,8 @@ import {
   type WorkspaceNote,
 } from '@creator/contracts';
 import { api, ApiError, message, when } from './oversight.js';
-import { Icon, eventText, subjectTarget, type View } from './ui.js';
+import { Icon, eventText, type View } from './ui.js';
+import { canOpen, useOpenSubject } from './destinations.js';
 import './aside.css';
 import {
   readNoteDraft,
@@ -254,6 +255,8 @@ export function RightSidebar({
     if (aside.mode !== 'docked') aside.setOpen(false);
     open(view, id);
   };
+  // P01: completed work opens its result through the same check as the Activity tab.
+  const opener = useOpenSubject(workspace.id, go);
 
   const rail = (
     <nav className="aside-rail" aria-label="Sidebar">
@@ -337,7 +340,7 @@ export function RightSidebar({
         hidden={aside.tab !== 'activity'}
         className="aside-body"
       >
-        <ActivityTab feed={feed} isNew={isNew} go={go} />
+        <ActivityTab feed={feed} isNew={isNew} go={go} opener={opener} />
       </div>
       <div
         id="aside-notes"
@@ -403,10 +406,12 @@ function ActivityTab({
   feed,
   isNew,
   go,
+  opener,
 }: {
   feed: ReturnType<typeof useActivityFeed>;
   isNew: (e: ActivityEntry) => boolean;
   go: (view: View, id?: string) => void;
+  opener: ReturnType<typeof useOpenSubject>;
 }) {
   const [at, setAt] = useState(() => Date.now());
   useEffect(() => {
@@ -460,7 +465,7 @@ function ActivityTab({
       ) : (
         <ol className="aside-list">
           {feed.recent.map((e) => {
-            const target = subjectTarget(e.subject_kind, e.subject_id);
+            const linked = canOpen(e.subject_kind);
             const body = (
               <>
                 <span className="aside-row-top">
@@ -482,15 +487,27 @@ function ActivityTab({
             );
             return (
               <li key={e.event_id}>
-                {target ? (
+                {linked ? (
                   <button
                     className="aside-row"
-                    onClick={() => go(target[0], target[1])}
+                    aria-busy={opener.busy === e.event_id}
+                    onClick={() =>
+                      void opener.openSubject(
+                        e.subject_kind,
+                        e.subject_id,
+                        e.event_id,
+                      )
+                    }
                   >
                     {body}
                   </button>
                 ) : (
                   <div className="aside-row">{body}</div>
+                )}
+                {opener.notice?.key === e.event_id && (
+                  <p className="small aside-row-sub" role="status">
+                    {opener.notice.text}
+                  </p>
                 )}
               </li>
             );
