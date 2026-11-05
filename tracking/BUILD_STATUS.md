@@ -176,3 +176,12 @@ cancellation, editor purge, workspace binding and retry keys in the tray (new
 `web-transfers.test.ts`); L6 search returns a window from the first match's line, kept text
 stays outside the quota (recorded in ADR-0072); L7 tray cleared when another person's session
 starts; nits N1–N8 (N5 adds an index to migration 45, which has not merged anywhere yet).
+
+## P05 re-review fix R-M1 (November 5)
+
+The longer upload deadline is granted only inside the upload route, after authentication, the
+role check and a declared size within the file limit; every other request on the API and web
+ports keeps the 10-second body deadline, and a refusal sent while a body is still arriving
+closes the connection. New `files-deadline.test.ts`: unauthenticated, over-limit and web-port
+slow bodies close within 11.5 s, and a member's upload still arriving at 14 s is stored (the
+test fails on the previous head).

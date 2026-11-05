@@ -1801,7 +1801,7 @@ export function createApi(
     requireSession: (req, mutating) => authn.require(req, mutating),
   });
   const server = createServer((req, res) => {
-    bodyDeadline(req);
+    bodyDeadline(req, res);
     void (async () => {
       // Restrict Host and browser origins. Hosted deployments also answer to their public
       // API host (behind the TLS proxy); loopback stays allowed for local probes.

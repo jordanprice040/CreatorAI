@@ -38,10 +38,9 @@ async function readRaw(req: IncomingMessage, max: number): Promise<Buffer> {
       'BODY_TOO_LARGE',
       `Files are limited to ${bytesText(max)} each.`,
     );
-  if (Number(req.headers['content-length'] ?? 0) > max) {
-    req.resume();
-    throw tooLarge();
-  }
+  // Review R-M1: a refused body is not drained; bodyDeadline closes the connection once the
+  // refusal has been sent.
+  if (Number(req.headers['content-length'] ?? 0) > max) throw tooLarge();
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
@@ -105,14 +104,17 @@ export async function fileRoutes(r: {
     const key = one(req, 'x-upload-key');
     if (!key)
       throw new ContractError('INVALID_CONTRACT', 'The upload key is missing.');
-    // Review L2: a non-member or viewer is refused before any of the body is buffered; the
-    // rest of it is drained and discarded.
-    try {
-      await store.assertCanUpload(ctx, ws);
-    } catch (e) {
-      req.resume();
-      throw e;
-    }
+    // Review L2: a non-member or viewer is refused before any of the body is buffered.
+    await store.assertCanUpload(ctx, ws);
+    // Review R-M1: only an upload the caller may make, declared within the size limit, gets
+    // longer than the ordinary 10 seconds to arrive.
+    const declared = Number(req.headers['content-length']);
+    if (
+      Number.isSafeInteger(declared) &&
+      declared >= 0 &&
+      declared <= store.limits.fileMaxBytes
+    )
+      extendBodyDeadline(req, uploadDeadlineMs(declared));
     const bytes = await readRaw(req, store.limits.fileMaxBytes);
     const link = one(req, 'x-link-entity');
     const result = await store.uploadFile(
@@ -227,33 +229,59 @@ export const REQUEST_BODY_MS = 10_000;
 export const SERVER_REQUEST_MS = 30 * 60_000;
 /** An upload may take this long at least, plus one second for every 256 KiB declared. */
 const UPLOAD_BASE_MS = 60_000;
+/** After a refusal is sent while the body is still arriving, the socket is closed this soon. */
+const REFUSED_CLOSE_MS = 1_000;
 
-const UPLOAD_PATH = /^\/api\/workspaces\/[^/]+\/files(?:\/[^/]+\/versions)?$/;
+/** The deadline an authorised upload of `declared` bytes gets, capped by the server limit. */
+export function uploadDeadlineMs(declared: number): number {
+  return Math.min(
+    SERVER_REQUEST_MS,
+    UPLOAD_BASE_MS + Math.ceil(declared / 262_144) * 1000,
+  );
+}
+
+const deadlines = new WeakMap<IncomingMessage, (ms: number) => void>();
 
 /**
- * PR #141 review L4: Node has one request timeout per server, so the servers' limit is raised
- * and each request gets its own deadline here: 10 seconds for the body of any ordinary request
- * (unchanged), longer only for a file upload, scaled to its declared size and capped by the
- * server limit. A request still arriving at its deadline loses its connection.
+ * PR #141 review L4 and R-M1: Node has one request timeout per server, so the servers' limit is
+ * raised and every request gets its own deadline here: 10 seconds for its body, whatever its
+ * path or declared size. Only the upload route lengthens it (extendBodyDeadline), after the
+ * caller is authenticated, may upload, and declared a size within the limit. A request still
+ * arriving at its deadline loses its connection, and a response sent before the body has
+ * arrived (any refusal) closes the connection instead of draining the rest. Calling it again
+ * for the same request (web server, then API handler) does nothing.
  */
-export function bodyDeadline(req: IncomingMessage): void {
-  if (req.complete) return;
-  const path = (req.url ?? '').split('?')[0] ?? '';
-  const upload = req.method === 'POST' && UPLOAD_PATH.test(path);
-  const declared = Number(req.headers['content-length'] ?? 0);
-  const ms = upload
-    ? Math.min(
-        SERVER_REQUEST_MS,
-        UPLOAD_BASE_MS +
-          Math.ceil((Number.isFinite(declared) ? declared : 0) / 262_144) *
-            1000,
-      )
-    : REQUEST_BODY_MS;
-  const timer = setTimeout(() => {
-    if (!req.complete) req.socket.destroy();
-  }, ms);
-  timer.unref();
-  const done = () => clearTimeout(timer);
+export function bodyDeadline(req: IncomingMessage, res: ServerResponse): void {
+  if (deadlines.has(req)) return;
+  // Kept here: Node detaches req.socket from a finished request.
+  const socket = req.socket;
+  let timer: NodeJS.Timeout | undefined;
+  const arm = (ms: number) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!req.complete) socket.destroy();
+    }, ms);
+    timer.unref();
+  };
+  deadlines.set(req, arm);
+  const done = () => {
+    if (timer) clearTimeout(timer);
+  };
   req.once('end', done);
   req.once('close', done);
+  res.once('finish', () => {
+    if (req.complete) return;
+    // The response is out; stop reading and close, rather than wait out a deadline.
+    req.pause();
+    socket.end();
+    arm(REFUSED_CLOSE_MS);
+  });
+  if (req.complete) return;
+  arm(REQUEST_BODY_MS);
+}
+
+/** Replaces a request's body deadline; used only by the upload route after its checks pass. */
+export function extendBodyDeadline(req: IncomingMessage, ms: number): void {
+  if (req.complete) return;
+  deadlines.get(req)?.(ms);
 }

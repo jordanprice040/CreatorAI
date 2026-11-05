@@ -20,7 +20,7 @@ import {
   restoreBackup,
 } from '@creator/db';
 import { createApi } from './index.js';
-import { SERVER_REQUEST_MS } from './files.js';
+import { SERVER_REQUEST_MS, bodyDeadline } from './files.js';
 
 /**
  * §2.1 installed studio service (ADR-0041). The desktop supervisor starts this as its only
@@ -156,6 +156,8 @@ const TYPES: Record<string, string> = {
 export function webHandler(root: string, api: RequestListener, port: number) {
   const base = resolve(root);
   return (req: IncomingMessage, res: ServerResponse) => {
+    // Review R-M1: every request on the web port, API or not, gets the 10 s body deadline.
+    bodyDeadline(req, res);
     void (async () => {
       const raw = req.url ?? '/';
       if (raw === '/api' || raw.startsWith('/api/') || raw.startsWith('/api?'))
@@ -596,8 +598,8 @@ export async function serveStudio(
   const api = createApi(env);
   const apiHandler = api.server.listeners('request')[0] as RequestListener;
   const web = createServer(webHandler(input.web_root, apiHandler, PORTS.web));
-  // Review L4: API requests get their own body deadline in the API handler; static files are
-  // GETs with no body, complete once their headers arrive (headersTimeout).
+  // Review L4/R-M1: webHandler gives each request a 10 s body deadline; only an authorised
+  // upload lengthens it, up to this server-wide limit.
   web.requestTimeout = SERVER_REQUEST_MS;
   web.headersTimeout = 10000;
   guardOwnership(api.server, PORTS.api, input.owner_secret);
