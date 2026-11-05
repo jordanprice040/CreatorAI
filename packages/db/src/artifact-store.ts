@@ -51,17 +51,26 @@ const same = (a: string, b: string) =>
  * viewer heartbeat plus the row's grace (browser unload is never trusted to end it).
  */
 function previewUntil(r: Row): number | null {
-  if (r.lifetime === 'until_stopped')
-    return (
-      Date.parse(iso(r.last_seen_at)) + Number(r.idle_grace_seconds) * 1000
-    );
+  if (r.lifetime === 'until_stopped') {
+    // Still starting: readiness is bounded by the worker; the idle clock starts once ready.
+    if (r.state === 'starting') return null;
+    const idle =
+      Date.parse(iso(r.last_seen_at)) + Number(r.idle_grace_seconds) * 1000;
+    // An unused, unexpired link keeps it live until the link expires (PR #137 review M-1).
+    const link =
+      !r.ticket_used && r.ticket_expires_at
+        ? Date.parse(iso(r.ticket_expires_at))
+        : 0;
+    return Math.max(idle, link);
+  }
   return r.expires_at ? Date.parse(iso(r.expires_at)) : null;
 }
 /** SQL twin of previewUntil for counting live leases. */
 const LIVE_PREVIEW_SQL = `state in ('starting','ready') and (
   (lifetime = 'timed' and expires_at > clock_timestamp())
-  or (lifetime = 'until_stopped'
-      and last_seen_at + make_interval(secs => idle_grace_seconds) > clock_timestamp()))`;
+  or (lifetime = 'until_stopped' and (state = 'starting'
+      or last_seen_at + make_interval(secs => idle_grace_seconds) > clock_timestamp()
+      or (not ticket_used and ticket_expires_at > clock_timestamp()))))`;
 
 /** Visible examples shown on a preview page; held-out cases are never included. */
 export const MAX_PREVIEW_EXAMPLES = 3;

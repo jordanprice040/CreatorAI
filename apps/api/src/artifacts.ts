@@ -273,6 +273,8 @@ export async function artifactRoutes(o: {
       );
       let state: 'ready' | 'failed' | 'blocked' = 'blocked';
       let readiness: Record<string, unknown>;
+      // The readiness run is tracked too, so Stop while starting reaps it (review L-1).
+      const tracked = o.previewRuns.begin(preview.id);
       try {
         // Rechecks the bytes and starts the exact exported package in the isolated worker.
         const r = await artifacts.readiness(
@@ -280,6 +282,14 @@ export async function artifactRoutes(o: {
           record.summary.id,
           record.summary.manifest_sha256,
           ctx.actorId,
+          (executionId) =>
+            tracked.started(() =>
+              artifacts.executor.cancel(
+                record.manifest.product_id,
+                executionId,
+                ctx.actorId,
+              ),
+            ),
         );
         state = r.ready
           ? 'ready'
@@ -302,6 +312,8 @@ export async function artifactRoutes(o: {
         };
         if (e instanceof ContractError && e.code === 'EVIDENCE_MISMATCH')
           state = 'failed';
+      } finally {
+        tracked.end();
       }
       const settled = await store.settlePreview(
         ctx,
@@ -540,7 +552,7 @@ if(r.ok){life.className='muted';life.textContent=v.lifetime==='until_stopped'?'O
 else if(r.status===403||r.status===410||r.status===404){ended=true;life.className='error';life.textContent=v.error?v.error.message:'This preview has ended ('+r.status+').';const b=document.querySelector('#run button[type=submit]');if(b)b.disabled=true;}
 else{life.className='error';life.textContent='Studio not answering ('+r.status+'); retrying.';}}
 catch(err){life.className='error';life.textContent='Lost contact with the studio; retrying. '+(life.dataset.grace?'The preview ends if no page reconnects within '+Math.round(Number(life.dataset.grace)/60)+' minutes.':'');}}
-setInterval(beat,every);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')beat();});
+beat();setInterval(beat,every);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')beat();});
 const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
 // Any edit of a box drops that box's exact value, even one that leaves the same text (PR #130 N-1).
 document.getElementById('args').addEventListener('input',()=>{if(exact)exact.args=null;note.textContent='';});

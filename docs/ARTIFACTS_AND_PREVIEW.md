@@ -104,12 +104,14 @@ The preview is a separate HTTP origin (`CREATOR_PREVIEW_PORT`, default
   reports a viewer: the page sends a heartbeat every 30 s and whenever it becomes
   visible again; every page load and run also counts. With no viewer for 3 minutes
   (closed tab, browser crash, long sleep, network loss or studio restart longer than
-  that) it ends as `expired`, frees its slot, and the page says so. Browser unload is
+  that) it ends as `expired`, frees its slot, and the page says so. An unopened link keeps it
+  live until that link expires, so the owner has the full 10 minutes to open it. Browser unload is
   never relied on. Several tabs of the same browser share one session, so any open
   tab keeps it alive. A gap shorter than 3 minutes reconnects without action;
   the session is stored in PostgreSQL, so a restarted studio keeps it.
 - Stop / Revoke closes admission at once (page loads, runs, heartbeats and new links
-  are refused) and then cancels runs that were already in flight, waiting up to 15 s.
+  are refused) and then cancels runs that were already in flight, including a readiness
+  run of a preview still starting, waiting up to 15 s.
   The preview records cleanup `none`, `cancelled` or `unknown` (a cancel failed or a
   run had not ended; its own worker time limit still applies). After a studio
   restart, in-flight runs are the executor's normal recovery.

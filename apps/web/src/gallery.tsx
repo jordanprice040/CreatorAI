@@ -333,6 +333,8 @@ function ArtifactPanel({
                           : 'Owner stopped preview',
                       },
                       csrf,
+                      // Stop waits up to 15 s for in-flight runs (PR #137 review M-2).
+                      timeoutMs: 30000,
                     },
                   );
                   return `Preview ${p.state}.${cleanupNote(p.cleanup)}`;

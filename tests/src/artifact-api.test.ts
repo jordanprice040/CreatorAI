@@ -1100,6 +1100,79 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     ['revoked', 'none'],
   ]);
 
+  // PR #137 review M-1: an unused link keeps an Until-stopped preview live for the link's 10
+  // minutes, after Start and after New link; once opened, the viewer grace applies again.
+  const u5 = await startUntil();
+  const u5Id = u5.body.preview.id;
+  const fiveMinutes = `update artifact_previews set last_seen_at = now() - interval '5 minutes'
+    where id = $1`;
+  await db.pool.query(fiveMinutes, [u5Id]);
+  const u5Open = await fetch(u5.body.url, { redirect: 'manual' });
+  assert.equal(u5Open.status, 303);
+  const cookieU5 = u5Open.headers.get('set-cookie')!.split(';')[0]!;
+  const u5Link = await http(`workspaces/${ws}/previews/${u5Id}/link`, {});
+  await db.pool.query(fiveMinutes, [u5Id]);
+  // The unused link also holds a lease slot meanwhile.
+  assert.equal(
+    (await http(`workspaces/${ws}/artifacts/${a1.id}`)).body.previews.find(
+      (p: any) => p.id === u5Id,
+    ).state,
+    'ready',
+  );
+  const u5Moved = await fetch(u5Link.body.url, { redirect: 'manual' });
+  assert.equal(u5Moved.status, 303);
+  const cookieU5b = u5Moved.headers.get('set-cookie')!.split(';')[0]!;
+  assert.equal((await beat(u5Id, cookieU5)).status, 403);
+  await db.pool.query(
+    `update artifact_previews set last_seen_at = now() - interval '181 seconds' where id = $1`,
+    [u5Id],
+  );
+  assert.equal((await beat(u5Id, cookieU5b)).status, 410);
+
+  // Review L-1: Stop while the readiness run is still going reaps it.
+  double.hold();
+  const readyBefore = double.runs.length;
+  const starting = startUntil();
+  for (let i = 0; i < 400 && double.runs.length === readyBefore; i++)
+    await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 50));
+  const u6 = (
+    await http(`workspaces/${ws}/artifacts/${a1.id}`)
+  ).body.previews.find((p: any) => p.state === 'starting');
+  assert.ok(u6, 'a preview is still starting');
+  const u6Stop = await stop(u6, false);
+  assert.equal(u6Stop.body.state, 'stopped');
+  assert.equal(u6Stop.body.cleanup, 'cancelled');
+  const u6Start = await starting;
+  assert.equal(u6Start.body.preview.state, 'stopped');
+  assert.equal(u6Start.body.url, null);
+  double.gate = null;
+
+  // Review M-2: a run that does not end after cancel is reported as unknown after the wait,
+  // and the stop itself still lands.
+  const u7 = await startUntil();
+  const cookieU7 = (await fetch(u7.body.url, { redirect: 'manual' })).headers
+    .get('set-cookie')!
+    .split(';')[0]!;
+  double.hold();
+  double.ignoreCancel = true;
+  const stuckBefore = double.runs.length;
+  const stuck = run(u7.body.preview.id, cookieU7);
+  for (let i = 0; i < 400 && double.runs.length === stuckBefore; i++)
+    await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 50));
+  const u7Now = (
+    await http(`workspaces/${ws}/artifacts/${a1.id}`)
+  ).body.previews.find((p: any) => p.id === u7.body.preview.id);
+  const u7Stop = await stop(u7Now, false);
+  assert.equal(u7Stop.status, 200);
+  assert.equal(u7Stop.body.state, 'stopped');
+  assert.equal(u7Stop.body.cleanup, 'unknown');
+  double.ignoreCancel = false;
+  double.gate!.release();
+  await stuck;
+  double.gate = null;
+
   // Hash mismatch: changed bytes on disk are detected on read, download and start.
   const archivePath = join(artifacts.dir(first.id, a1.id), 'source.tar');
   const original = await readFile(archivePath);

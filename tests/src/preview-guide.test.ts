@@ -190,7 +190,14 @@ function runScript(html: string, script: string) {
     querySelectorAll: () => buttons,
     addEventListener: () => {},
   };
-  const fetch = async (_url: string, init: { body: string }) => {
+  const fetch = async (url: string, init: { body: string }) => {
+    // The page's viewer heartbeat (ADR-0069) is not a run.
+    if (url.endsWith('/heartbeat'))
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ lifetime: 'timed' }),
+      };
     sent.push(JSON.parse(init.body));
     return {
       ok: true,

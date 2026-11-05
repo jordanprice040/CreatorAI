@@ -918,6 +918,8 @@ export async function runCli(
             revoke: rest.includes('--revoke'),
             reason: rest[3],
           },
+          // Stop waits up to 15 s for in-flight runs to end.
+          30000,
         );
         break;
       case 'feedback-submit':

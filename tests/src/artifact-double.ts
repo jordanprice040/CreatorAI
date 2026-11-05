@@ -27,6 +27,8 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
   gate: { release: () => void; promise: Promise<void> } | null = null;
   /** Execution ids whose cancel was requested. */
   cancelled: string[] = [];
+  /** A held run that does not end when cancelled (cleanup "unknown"). */
+  ignoreCancel = false;
   hold(): void {
     let release = () => {};
     const promise = new Promise<void>((r) => (release = r));
@@ -38,7 +40,7 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
     _owner: string,
   ): Promise<void> {
     this.cancelled.push(executionId);
-    this.gate?.release();
+    if (!this.ignoreCancel) this.gate?.release();
   }
   private record(
     productId: string,
