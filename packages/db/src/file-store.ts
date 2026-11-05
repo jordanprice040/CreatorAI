@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import {
   FILE_TEXT_MAX,
+  cutText,
   bytesText,
   FileLinkRequestSchema,
   FileRenameRequestSchema,
@@ -100,6 +101,29 @@ function decodeCursor(raw: string): [string, string] {
   throw fail('INVALID_CONTRACT', 'Unknown page cursor.');
 }
 
+/** Characters of kept text returned for one search hit, from the line of its first match. */
+const SNIPPET_WINDOW = 20_000;
+
+/**
+ * Review L6: a search returns only a window of kept text that starts at the line of the first
+ * match, with that line's number, never a file's whole kept text.
+ */
+function snippetJoin(qParam: number): string {
+  const hit = `strpos(lower(v.text_content), $${qParam})`;
+  return `left join lateral (
+    select substr(v.text_content, w.line_start, ${SNIPPET_WINDOW}) as body, w.first_line
+    from (
+      select case when k.nl > 0 then length(k.prefix) - k.nl + 2 else 1 end as line_start,
+        1 + length(k.prefix) - length(replace(k.prefix, chr(10), '')) as first_line
+      from (
+        select pre.prefix, strpos(reverse(pre.prefix), chr(10)) as nl
+        from (select substr(v.text_content, 1, greatest(${hit} - 1, 0)) as prefix) pre
+      ) k
+    ) w
+    where v.text_content is not null and ${hit} > 0
+  ) m on true`;
+}
+
 export class FileStore extends Store {
   constructor(
     pool: ConstructorParameters<typeof Store>[0],
@@ -193,6 +217,16 @@ export class FileStore extends Store {
   }
 
   /**
+   * Review L2: refuses a non-member or a viewer before the route buffers an upload body. The
+   * same check runs again inside `uploadFile`'s transaction.
+   */
+  async assertCanUpload(ctxIn: CommandContext, wsIn: string): Promise<void> {
+    const ctx = normalize(ctxIn);
+    const ws = uuid(wsIn);
+    await this.tx((c) => this.role(c, ws, ctx.actorId, true));
+  }
+
+  /**
    * Stores an upload as a new file, or (with `fileId`) as the next version of one. The whole
    * body has been read before this is called, so a cancelled transfer stores nothing. A repeated
    * upload key returns the earlier result instead of storing twice.
@@ -231,10 +265,28 @@ export class FileStore extends Store {
             'IDEMPOTENCY_CONFLICT',
             'This upload key was used for different bytes.',
           );
+        // A reused key must also name the same target (review L3): the same file for a new
+        // version, and a link the first upload made.
+        const target = uuid(String(p.file_id));
+        const linked = up.linkEntityId
+          ? (
+              await c.query(
+                'select 1 from workspace_file_links where file_id = $1 and entity_id = $2',
+                [target, uuid(up.linkEntityId)],
+              )
+            ).rows.length > 0
+          : true;
+        if ((fileId && uuid(fileId) !== target) || !linked)
+          throw fail(
+            'IDEMPOTENCY_CONFLICT',
+            'This upload key was used for a different file or record.',
+          );
+        const earlier = await this.file(c, ws, target);
+        // The file may have been deleted since; say so rather than "added" (review N3).
         return {
-          stored: true,
+          stored: earlier.status === 'active',
           replayed: true,
-          file: await this.file(c, ws, String(p.file_id)),
+          file: earlier,
           duplicate_of: null,
         };
       }
@@ -249,13 +301,44 @@ export class FileStore extends Store {
       const duplicate = dup.rows[0]
         ? await this.file(c, ws, String((dup.rows[0] as Row).id))
         : null;
-      if (duplicate && !up.keepDuplicate && !fileId)
+      if (duplicate && !up.keepDuplicate && !fileId) {
+        // The bytes are stored once, but a targeted drop still links them to its record
+        // (review L3).
+        if (up.linkEntityId) {
+          const entity = uuid(up.linkEntityId);
+          await this.checkLinkTarget(c, ws, entity);
+          const added = await c.query(
+            `insert into workspace_file_links (workspace_id, file_id, entity_id, created_by)
+             values ($1, $2, $3, $4) on conflict do nothing`,
+            [ws, duplicate.id, entity, ctx.actorId],
+          );
+          if (added.rowCount === 1) {
+            await this.append(c, ctx, {
+              workspaceId: ws,
+              action: 'file.linked',
+              subjectKind: 'file',
+              subjectId: duplicate.id,
+              subjectVersion: duplicate.current_version,
+              contentHash: null,
+              payload: {},
+              relatedIds: [entity],
+            });
+            const linked = await this.file(c, ws, duplicate.id);
+            return {
+              stored: false,
+              replayed: false,
+              file: linked,
+              duplicate_of: linked,
+            };
+          }
+        }
         return {
           stored: false,
           replayed: false,
           file: duplicate,
           duplicate_of: duplicate,
         };
+      }
       if (
         (await this.usedBytes(c, ws)) + up.bytes.length >
         this.limits.workspaceMaxBytes
@@ -294,11 +377,7 @@ export class FileStore extends Store {
         );
       }
       const text =
-        look.text === null
-          ? null
-          : look.text.length > FILE_TEXT_MAX
-            ? look.text.slice(0, FILE_TEXT_MAX)
-            : look.text;
+        look.text === null ? null : cutText(look.text, FILE_TEXT_MAX);
       await c.query(
         `insert into workspace_file_versions (workspace_id, file_id, version, sha256, size_bytes,
            kind, media_type, declared_type, original_name, type_mismatch, content, text_content,
@@ -366,11 +445,14 @@ export class FileStore extends Store {
       await this.role(c, ws, ctx.actorId, false);
       const params: unknown[] = [ws, opts.deleted ? 'deleted' : 'active'];
       const where = ['f.workspace_id = $1', 'f.status = $2'];
+      let qParam = 0;
       if (q) {
         params.push(`%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`);
         where.push(
           `(f.name ilike $${params.length} or v.text_content ilike $${params.length})`,
         );
+        params.push(q.toLowerCase());
+        qParam = params.length;
       }
       const key =
         sort === 'name'
@@ -388,9 +470,10 @@ export class FileStore extends Store {
       params.push(PAGE + 1);
       const { rows } = await c.query(
         `select f.*, ${VERSION_COLUMNS}, ${key} as sort_key,
-           ${q ? 'v.text_content' : 'null::text'} as body
+           ${q ? 'm.body, m.first_line' : 'null::text as body, 1 as first_line'}
          from workspace_files f
          join workspace_file_versions v on v.file_id = f.id and v.version = f.current_version
+         ${q ? snippetJoin(qParam) : ''}
          where ${where.join(' and ')}
          order by ${key} ${order}, f.id ${order} limit $${params.length}`,
         params,
@@ -402,10 +485,11 @@ export class FileStore extends Store {
         if (q && typeof r.body === 'string') {
           const needle = q.toLowerCase();
           const lines = r.body.split(/\r?\n/);
+          const first = Number(r.first_line ?? 1);
           for (let i = 0; i < lines.length && matches.length < 3; i++)
             if (lines[i]!.toLowerCase().includes(needle))
               matches.push({
-                line: i + 1,
+                line: first + i,
                 text: lines[i]!.trim().slice(0, 300),
               });
         }

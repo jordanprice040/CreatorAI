@@ -73,7 +73,7 @@ function decodeName(raw: string | undefined) {
 /** RFC 6266/5987 attachment header: an ASCII fallback plus the exact UTF-8 name. */
 function disposition(kind: 'attachment' | 'inline', name: string) {
   const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
 }
 
 function versionParam(url: URL): number | null {
@@ -105,6 +105,14 @@ export async function fileRoutes(r: {
     const key = one(req, 'x-upload-key');
     if (!key)
       throw new ContractError('INVALID_CONTRACT', 'The upload key is missing.');
+    // Review L2: a non-member or viewer is refused before any of the body is buffered; the
+    // rest of it is drained and discarded.
+    try {
+      await store.assertCanUpload(ctx, ws);
+    } catch (e) {
+      req.resume();
+      throw e;
+    }
     const bytes = await readRaw(req, store.limits.fileMaxBytes);
     const link = one(req, 'x-link-entity');
     const result = await store.uploadFile(
@@ -211,4 +219,41 @@ export function fileLimitsFromEnv(
       defaults.workspaceMaxBytes,
     ),
   };
+}
+
+/** The whole of an ordinary request must arrive within this time, as before ADR-0072. */
+export const REQUEST_BODY_MS = 10_000;
+/** The server-wide limit, raised so a large upload on a slow link is not cut off (review L4). */
+export const SERVER_REQUEST_MS = 30 * 60_000;
+/** An upload may take this long at least, plus one second for every 256 KiB declared. */
+const UPLOAD_BASE_MS = 60_000;
+
+const UPLOAD_PATH = /^\/api\/workspaces\/[^/]+\/files(?:\/[^/]+\/versions)?$/;
+
+/**
+ * PR #141 review L4: Node has one request timeout per server, so the servers' limit is raised
+ * and each request gets its own deadline here: 10 seconds for the body of any ordinary request
+ * (unchanged), longer only for a file upload, scaled to its declared size and capped by the
+ * server limit. A request still arriving at its deadline loses its connection.
+ */
+export function bodyDeadline(req: IncomingMessage): void {
+  if (req.complete) return;
+  const path = (req.url ?? '').split('?')[0] ?? '';
+  const upload = req.method === 'POST' && UPLOAD_PATH.test(path);
+  const declared = Number(req.headers['content-length'] ?? 0);
+  const ms = upload
+    ? Math.min(
+        SERVER_REQUEST_MS,
+        UPLOAD_BASE_MS +
+          Math.ceil((Number.isFinite(declared) ? declared : 0) / 262_144) *
+            1000,
+      )
+    : REQUEST_BODY_MS;
+  const timer = setTimeout(() => {
+    if (!req.complete) req.socket.destroy();
+  }, ms);
+  timer.unref();
+  const done = () => clearTimeout(timer);
+  req.once('end', done);
+  req.once('close', done);
 }

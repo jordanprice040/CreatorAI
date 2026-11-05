@@ -122,7 +122,13 @@ import {
 } from './connections.js';
 import { contextRoutes } from './context.js';
 import { searchRoutes } from './search.js';
-import { FILES_ROUTE, fileLimitsFromEnv, fileRoutes } from './files.js';
+import {
+  FILES_ROUTE,
+  SERVER_REQUEST_MS,
+  bodyDeadline,
+  fileLimitsFromEnv,
+  fileRoutes,
+} from './files.js';
 import { createOps } from './ops.js';
 
 const MAX_BODY = 65536;
@@ -1795,6 +1801,7 @@ export function createApi(
     requireSession: (req, mutating) => authn.require(req, mutating),
   });
   const server = createServer((req, res) => {
+    bodyDeadline(req);
     void (async () => {
       // Restrict Host and browser origins. Hosted deployments also answer to their public
       // API host (behind the TLS proxy); loopback stays allowed for local probes.
@@ -2020,7 +2027,8 @@ export function createApi(
         });
     });
   });
-  server.requestTimeout = 10000;
+  // Review L4: each request's body has its own deadline (bodyDeadline); this only caps uploads.
+  server.requestTimeout = SERVER_REQUEST_MS;
   server.headersTimeout = 10000;
   async function close() {
     if (relay) clearInterval(relay);

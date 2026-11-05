@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   bytesText,
+  cutText,
   inspectFile,
   numberedName,
   safeFileName,
@@ -13,7 +14,15 @@ test('file names: last path part, no control/reserved characters, never empty', 
   assert.equal(safeFileName('../../etc/passwd'), 'passwd');
   assert.equal(safeFileName('C:\\Users\\me\\report.pdf'), 'report.pdf');
   assert.equal(safeFileName('a\u0000b\nc<>:"|?*.txt'), 'abc.txt');
-  assert.equal(safeFileName('  ..hidden.  '), 'hidden');
+  // One leading dot stays so a dotfile keeps what it is (review N2).
+  assert.equal(safeFileName('  ..hidden.  '), '.hidden');
+  assert.equal(safeFileName('.env'), '.env');
+  // Bidi overrides, C1 controls and zero-width marks cannot disguise the extension (L1).
+  assert.equal(safeFileName('invoice\u202etxt.exe'), 'invoicetxt.exe');
+  assert.equal(
+    safeFileName('a\u0085b\u200e\u200f\u200b\u2066c\ufeff.pdf'),
+    'abc.pdf',
+  );
   assert.equal(safeFileName('CON'), '_CON');
   assert.equal(safeFileName('lpt1.txt'), '_lpt1.txt');
   assert.equal(safeFileName('...'), 'file');
@@ -23,6 +32,10 @@ test('file names: last path part, no control/reserved characters, never empty', 
   assert.ok(long.endsWith('.markdown'));
   assert.equal(numberedName('notes.md', 2), 'notes (2).md');
   assert.equal(numberedName('README', 3), 'README (3)');
+  // Cutting kept text never splits a surrogate pair (review N1).
+  assert.equal(cutText('ab😀', 3), 'ab');
+  assert.equal(cutText('ab😀', 4), 'ab😀');
+  assert.equal(cutText('abc', 2), 'ab');
 });
 
 test('kinds come from bytes; extensions only choose among text kinds', () => {

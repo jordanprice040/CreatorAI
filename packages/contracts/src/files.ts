@@ -150,9 +150,15 @@ export function safeFileName(raw: string): string {
   const last = raw.split(/[\\/]/).pop() ?? '';
   let name = last
     .normalize('NFC')
-    .replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '')
+    // C0/C1 controls, DEL, reserved characters, and invisible format characters (bidi
+    // overrides and isolates, zero-width marks, BOM) that could disguise the real extension
+    // (PR #141 review L1).
+    .replace(/[\u0000-\u001f\u007f-\u009f<>:"|?*]|\p{Cf}/gu, '')
     .replace(/\s+/g, ' ')
-    .replace(/^[\s.]+|[\s.]+$/g, '');
+    .replace(/[\s.]+$/, '')
+    // One leading dot is kept when a name follows it, so `.env` stays a dotfile (review N2).
+    .replace(/^\s+/, '')
+    .replace(/^\.+(?=\.)|^\.+$/, '');
   if (WINDOWS_RESERVED.test(name)) name = `_${name}`;
   if (name.length > FILE_NAME_MAX) {
     const dot = name.lastIndexOf('.');
@@ -160,6 +166,16 @@ export function safeFileName(raw: string): string {
     name = name.slice(0, FILE_NAME_MAX - ext.length).trimEnd() + ext;
   }
   return name || 'file';
+}
+
+/**
+ * Cuts text to at most `max` UTF-16 units without splitting a surrogate pair, which would
+ * otherwise reach PostgreSQL as a lone half (review N1).
+ */
+export function cutText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const c = text.charCodeAt(max - 1);
+  return text.slice(0, c >= 0xd800 && c <= 0xdbff ? max - 1 : max);
 }
 
 /** `name (2).ext`, `name (3).ext`… for a display name already in use. */

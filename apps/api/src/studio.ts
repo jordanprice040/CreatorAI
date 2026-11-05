@@ -20,6 +20,7 @@ import {
   restoreBackup,
 } from '@creator/db';
 import { createApi } from './index.js';
+import { SERVER_REQUEST_MS } from './files.js';
 
 /**
  * §2.1 installed studio service (ADR-0041). The desktop supervisor starts this as its only
@@ -595,7 +596,9 @@ export async function serveStudio(
   const api = createApi(env);
   const apiHandler = api.server.listeners('request')[0] as RequestListener;
   const web = createServer(webHandler(input.web_root, apiHandler, PORTS.web));
-  web.requestTimeout = 10000;
+  // Review L4: API requests get their own body deadline in the API handler; static files are
+  // GETs with no body, complete once their headers arrive (headersTimeout).
+  web.requestTimeout = SERVER_REQUEST_MS;
   web.headersTimeout = 10000;
   guardOwnership(api.server, PORTS.api, input.owner_secret);
   guardOwnership(api.preview, PORTS.preview, input.owner_secret);

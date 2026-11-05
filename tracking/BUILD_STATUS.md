@@ -165,3 +165,14 @@ stayed), the same file again is reported as a duplicate, the picker adds a CSV, 
 renders without running a `<script>` line, and the download's SHA-256 matches the source.
 Not done (B01): Trash expiry, OCR, editors, conversions, PDF preview, related files, global
 Search indexing, record-targeted drops. Awaiting review.
+
+## P05 review fixes (November 5, PR #141 review, migration 45 amended before merge)
+
+Fixes the PR #141 review (project file reviews/PR141_WORKSPACE_FILES_REVIEW_2026-11-05.md): L1
+invisible and C1 characters stripped from names; L2 role checked before the body is read; L3
+targeted duplicates link to their record and reused keys must name the same target; L4 upload
+bodies get a size-scaled deadline while other requests keep 10 seconds; L5 tests for mid-body
+cancellation, editor purge, workspace binding and retry keys in the tray (new
+`web-transfers.test.ts`); L6 search returns a window from the first match's line, kept text
+stays outside the quota (recorded in ADR-0072); L7 tray cleared when another person's session
+starts; nits N1–N8 (N5 adds an index to migration 45, which has not merged anywhere yet).

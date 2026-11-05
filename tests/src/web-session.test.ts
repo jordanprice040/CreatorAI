@@ -19,6 +19,8 @@ test('browser session retains sign-in on failed logout and clears it after confi
   let cleared = 0;
   // ADR-0072: the transfer tray is emptied by the same confirmed sign-out.
   let transfersReset = 0;
+  // PR #141 review L7: a session starting here drops other people's transfers too.
+  const transfersKeptFor: string[] = [];
   // Review L-D/L-E: other people's copies go when a session starts; unsaved text asks first.
   let drafts = false;
   // PR #110 L-F: a notes save in flight lands (and clears the copy) before sign-out asks.
@@ -51,7 +53,11 @@ test('browser session retains sign-in on failed logout and clears it after confi
         : name === './labels.js'
           ? {}
           : name === './transfers.js'
-            ? { resetTransfers: () => void transfersReset++ }
+            ? {
+                resetTransfers: () => void transfersReset++,
+                clearOtherTransfers: (actor: string) =>
+                  void transfersKeptFor.push(actor),
+              }
             : name === './note-drafts.js'
               ? {
                   clearNoteDrafts: () => void cleared++,
@@ -129,6 +135,7 @@ test('browser session retains sign-in on failed logout and clears it after confi
   await render().signIn('x'.repeat(32));
   assert.deepEqual(render().session, signedIn);
   assert.deepEqual(keptFor, [signedIn.actor_id]);
+  assert.deepEqual(transfersKeptFor, [signedIn.actor_id]);
   const session = { actor_id: signedIn.actor_id, csrf_token: 'session-csrf' };
   slots[0] = session;
   // A save already on its way when Sign out is clicked is waited for; once it lands nothing is

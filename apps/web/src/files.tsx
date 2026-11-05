@@ -14,7 +14,7 @@ import { STUDIO_CHANGED, api, message, when, words } from './oversight.js';
 import { Empty, Status, useLoad } from './ui.js';
 import { Markdown } from './markdown-view.js';
 import { MARKDOWN_MAX_CHARS } from './markdown.js';
-import { startUploads } from './transfers.js';
+import { noteUploadLimit, startUploads } from './transfers.js';
 import type { Workspace } from '@creator/contracts';
 
 const SORT_TEXT: Record<FileSort, string> = {
@@ -92,6 +92,9 @@ export function Files({
   }
   const items = [...(page.data?.items ?? []), ...more];
   const d = page.data;
+  useEffect(() => {
+    if (d) noteUploadLimit(d.file_limit_bytes);
+  }, [d?.file_limit_bytes]);
   return (
     <section className="panel files" aria-labelledby="files-title">
       <h2 id="files-title">Files</h2>

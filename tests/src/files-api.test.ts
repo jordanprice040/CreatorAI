@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { request } from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
 import pg from 'pg';
 import { createApi } from '@creator/api';
@@ -291,4 +292,216 @@ test('files: upload, list, view, download, version, duplicate, retry, link, acce
     ),
     /never change/,
   );
+});
+
+test('files review fixes: early refusal, targeted duplicates, key targets, cancellation, editor purge, search windows', async (t) => {
+  let closeApi = async () => undefined as unknown;
+  t.after(() => closeApi());
+  const db = await freshDatabase(t);
+  if (!db) return;
+  const api = createApi({
+    CREATOR_DATABASE_URL: db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+    CREATOR_WORKER: 'off',
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  closeApi = api.close;
+  await api.ready();
+  const port = (api.server.address() as { port: number }).port;
+  const base = `http://127.0.0.1:${port}/api`;
+  const auth = await login(base);
+  const json = async (path: string, body?: unknown) => {
+    const r = await fetch(`${base}/${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers:
+        body === undefined
+          ? auth.read
+          : { 'Content-Type': 'application/json', ...auth.write },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: r.status, body: (await r.json()) as any };
+  };
+  const ws = (
+    await json('workspaces', { name: 'Fixes', record_mode: 'fixture' })
+  ).body.id as string;
+  const up = async (
+    name: string,
+    bytes: Uint8Array,
+    opts: { key?: string; link?: string; file?: string; in?: string } = {},
+  ) => {
+    const r = await fetch(
+      `${base}/workspaces/${opts.in ?? ws}/files${opts.file ? `/${opts.file}/versions` : ''}`,
+      {
+        method: 'POST',
+        headers: {
+          ...auth.write,
+          'Content-Type': 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(name),
+          'X-Upload-Key': opts.key ?? randomUUID(),
+          ...(opts.link ? { 'X-Link-Entity': opts.link } : {}),
+        },
+        body: new Blob([bytes as Uint8Array<ArrayBuffer>]),
+      },
+    );
+    return { status: r.status, body: (await r.json()) as any };
+  };
+  const idea = async (title: string) =>
+    (
+      await json(`workspaces/${ws}/entities`, {
+        kind: 'idea',
+        title,
+        body: { summary: title, uncertainty: 'Synthetic' },
+      })
+    ).body.id as string;
+  const pool = new pg.Pool({ connectionString: db.url });
+  const files = new FileStore(pool);
+
+  // L2: a stranger or viewer is refused before any body is read; an unknown workspace
+  // answers at once even for a large body.
+  const stranger = randomUUID();
+  const viewer = randomUUID();
+  const editor = randomUUID();
+  await pool.query(
+    `insert into actors (id, kind, display_name) values ($1, 'human', 'S'), ($2, 'human', 'V'), ($3, 'human', 'E')`,
+    [stranger, viewer, editor],
+  );
+  await pool.query(
+    `insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, 'viewer'), ($1, $3, 'editor')`,
+    [ws, viewer, editor],
+  );
+  await assert.rejects(files.assertCanUpload({ actorId: stranger }, ws), {
+    code: 'NOT_FOUND',
+  });
+  await assert.rejects(files.assertCanUpload({ actorId: viewer }, ws), {
+    code: 'ACCESS_DENIED',
+  });
+  await files.assertCanUpload({ actorId: editor }, ws);
+  const nowhere = await up('big.bin', new Uint8Array(1_000_000), {
+    in: randomUUID(),
+  });
+  assert.equal(nowhere.status, 404);
+
+  // L3: the same bytes dropped onto a record are stored once and still linked to it.
+  const one = await idea('First');
+  const two = await idea('Second');
+  const bytes = Buffer.from('shared bytes\n');
+  const key = randomUUID();
+  const first = await up('a.txt', bytes, { key, link: one });
+  assert.equal(first.status, 201);
+  const dup = await up('b.txt', bytes, { link: two });
+  assert.equal(dup.body.stored, false);
+  assert.deepEqual(
+    dup.body.file.links.map((l: any) => l.entity_id).sort(),
+    [one, two].sort(),
+  );
+  const linkedEvents = await pool.query(
+    `select count(*)::int as n from audit_events where workspace_id = $1 and action = 'file.linked'`,
+    [ws],
+  );
+  assert.equal(linkedEvents.rows[0].n, 1);
+  // A reused key with the same bytes but another record or file is refused, not replayed.
+  assert.equal((await up('a.txt', bytes, { key, link: one })).status, 200);
+  assert.equal(
+    (await up('a.txt', bytes, { key, link: randomUUID() })).body.error.code,
+    'IDEMPOTENCY_CONFLICT',
+  );
+  const otherFile = (await up('c.txt', Buffer.from('other\n'))).body.file.id;
+  assert.equal(
+    (await up('a.txt', bytes, { key, file: otherFile })).body.error.code,
+    'IDEMPOTENCY_CONFLICT',
+  );
+  // N3: a replay after the file was deleted does not claim it was added.
+  await json(`workspaces/${ws}/files/${first.body.file.id}/delete`, {
+    reason: '',
+  });
+  const late = await up('a.txt', bytes, { key });
+  assert.deepEqual([late.body.replayed, late.body.stored], [true, false]);
+
+  // L5: an editor cannot purge (owner only).
+  await assert.rejects(
+    files.purgeFile({ actorId: editor }, ws, first.body.file.id),
+    { code: 'ACCESS_DENIED' },
+  );
+
+  // L5: a transfer cut off mid-body stores nothing and logs nothing.
+  const versionsBefore = (
+    await pool.query(
+      'select count(*)::int as n from workspace_file_versions where workspace_id = $1',
+      [ws],
+    )
+  ).rows[0].n;
+  const eventsBefore = (
+    await pool.query(
+      'select count(*)::int as n from audit_events where workspace_id = $1',
+      [ws],
+    )
+  ).rows[0].n;
+  const cutKey = randomUUID();
+  await new Promise<void>((resolve) => {
+    const req = request({
+      host: '127.0.0.1',
+      port,
+      method: 'POST',
+      path: `/api/workspaces/${ws}/files`,
+      headers: {
+        ...auth.write,
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': '30000',
+        'X-File-Name': 'cut.bin',
+        'X-Upload-Key': cutKey,
+      },
+    });
+    req.on('error', () => resolve());
+    req.on('close', () => resolve());
+    req.write(Buffer.alloc(10_000, 7), () => {
+      setTimeout(() => req.destroy(), 200);
+    });
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(
+    (
+      await pool.query(
+        'select count(*)::int as n from workspace_file_versions where workspace_id = $1',
+        [ws],
+      )
+    ).rows[0].n,
+    versionsBefore,
+  );
+  assert.equal(
+    (
+      await pool.query(
+        'select count(*)::int as n from audit_events where workspace_id = $1',
+        [ws],
+      )
+    ).rows[0].n,
+    eventsBefore,
+  );
+  // The same key then works, so a retry after a cut stores exactly once.
+  const retried = await up('cut.bin', Buffer.alloc(30_000, 7), {
+    key: cutKey,
+  });
+  assert.equal(retried.status, 201);
+
+  // L6: a match deep in a long file reports its real line number.
+  const long =
+    Array.from({ length: 5000 }, (_, i) => `row ${i + 1}`).join('\n') +
+    '\nthe needle is here\nrow after\nanother needle\n';
+  await up('long.txt', Buffer.from(long));
+  const found = await json(`workspaces/${ws}/files?q=NEEDLE`);
+  assert.deepEqual(
+    found.body.items[0].matches.map((m: any) => [m.line, m.text]),
+    [
+      [5001, 'the needle is here'],
+      [5003, 'another needle'],
+    ],
+  );
+  // A name-only match still lists the file, with no text lines.
+  const byName = await json(`workspaces/${ws}/files?q=long.t`);
+  assert.deepEqual(
+    byName.body.items.map((i: any) => [i.name, i.matches.length]),
+    [['long.txt', 0]],
+  );
+  // Close this pool before the database is dropped.
+  await pool.end();
 });

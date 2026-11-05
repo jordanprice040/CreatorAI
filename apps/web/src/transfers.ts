@@ -28,6 +28,8 @@ export type Transfer = {
 };
 
 type Internal = Transfer & {
+  /** Whose session started it (review L7). */
+  actor: string | null;
   file: File;
   key: string;
   csrf: string;
@@ -35,12 +37,23 @@ type Internal = Transfer & {
 };
 
 const MAX_PARALLEL = 2;
+/** The person whose session is open in this tab, stamped on each new transfer. */
+let sessionActor: string | null = null;
+/** The studio's per-file limit as last reported by the Files page (review N6). */
+let knownLimit: number | undefined;
+
+/** Remembers the per-file limit so a drop anywhere is refused before it is sent. */
+export function noteUploadLimit(bytes: number) {
+  knownLimit = bytes;
+}
 let items: Internal[] = [];
 let snapshot: readonly Transfer[] = [];
 const listeners = new Set<() => void>();
 
 function emit() {
-  snapshot = items.map(({ file: _f, key: _k, csrf: _c, xhr: _x, ...t }) => t);
+  snapshot = items.map(
+    ({ file: _f, key: _k, csrf: _c, xhr: _x, actor: _a, ...t }) => t,
+  );
   for (const l of listeners) l();
 }
 function patch(id: string, p: Partial<Internal>) {
@@ -84,7 +97,8 @@ function send(t: Internal) {
   xhr.onload = () => {
     let body: {
       stored?: boolean;
-      file?: { id: string; name: string };
+      replayed?: boolean;
+      file?: { id: string; name: string; status?: string };
       error?: { message?: string };
     } = {};
     try {
@@ -92,7 +106,15 @@ function send(t: Internal) {
     } catch {
       // handled below
     }
-    if (xhr.status >= 200 && xhr.status < 300 && body.file) {
+    if (body.replayed && body.file?.status === 'deleted') {
+      // Review N3: it landed earlier, but the file has been deleted since.
+      patch(t.id, {
+        state: 'failed',
+        fileId: body.file.id,
+        fileName: body.file.name,
+        error: `This upload was stored earlier as “${body.file.name}”, which has since been deleted. Restore it under Sources › Files.`,
+      });
+    } else if (xhr.status >= 200 && xhr.status < 300 && body.file) {
       patch(t.id, {
         state: body.stored ? 'done' : 'duplicate',
         loaded: t.size,
@@ -142,7 +164,8 @@ export function startUploads(
 ) {
   for (const file of files) {
     const id = crypto.randomUUID();
-    const tooBig = to.limit !== undefined && file.size > to.limit;
+    const limit = to.limit ?? knownLimit;
+    const tooBig = limit !== undefined && file.size > limit;
     items = [
       ...items,
       {
@@ -159,6 +182,7 @@ export function startUploads(
         versionOf: to.versionOf ?? null,
         link: to.link ?? null,
         keep: false,
+        actor: sessionActor,
         file,
         key: crypto.randomUUID(),
         csrf: to.csrf,
@@ -191,8 +215,22 @@ export function dismissTransfers(ids?: readonly string[]) {
   emit();
 }
 
+/**
+ * Review L7: when a session starts in this tab, transfers left by anyone else (a session that
+ * expired, or a sign-out from another tab) are cancelled and removed, as notes drafts are.
+ */
+export function clearOtherTransfers(actor: string) {
+  sessionActor = actor;
+  const others = items.filter((t) => t.actor !== actor);
+  if (!others.length) return;
+  for (const t of others) if (t.state === 'uploading') t.xhr?.abort();
+  items = items.filter((t) => t.actor === actor);
+  emit();
+}
+
 /** Clears everything on sign-out so the next person on this tab sees nothing. */
 export function resetTransfers() {
+  sessionActor = null;
   for (const t of items) if (t.state === 'uploading') t.xhr?.abort();
   items = [];
   emit();

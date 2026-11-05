@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
 import { runLabel } from './labels.js';
-import { resetTransfers } from './transfers.js';
+import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
   clearNoteDrafts,
   clearOtherNoteDrafts,
@@ -109,6 +109,7 @@ export function useSession(persistent: boolean) {
   // Review L-D: a session starting in this tab removes notes copies left by anyone else.
   function start(next: SessionInfo) {
     clearOtherNoteDrafts(next.actor_id);
+    clearOtherTransfers(next.actor_id);
     setSession(next);
   }
   async function load() {

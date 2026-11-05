@@ -2805,7 +2805,11 @@ create table workspace_file_links (
  foreign key (workspace_id, file_id) references workspace_files (workspace_id, id) on delete cascade,
  foreign key (entity_id) references entities (id) on delete cascade
 );
+create index workspace_file_links_entity on workspace_file_links (entity_id);
 `,
+    // That a linked record belongs to the file's workspace is checked by FileStore
+    // (checkLinkTarget), not by a constraint: entities has no (workspace_id, id) key to refer
+    // to (PR #141 review N8).
   },
 ];
 

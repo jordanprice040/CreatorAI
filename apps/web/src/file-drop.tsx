@@ -160,7 +160,9 @@ function TransferTray({
             {t.error && <p className="error small">{t.error}</p>}
             {t.state === 'duplicate' && (
               <p className="small">
-                The same bytes are already stored as “{t.fileName}”.
+                {t.versionOf
+                  ? `These bytes are already the current version of “${t.fileName}”; nothing was added.`
+                  : `The same bytes are already stored as “${t.fileName}”.`}
               </p>
             )}
             <div className="transfer-actions">
@@ -182,7 +184,7 @@ function TransferTray({
                   Retry
                 </button>
               )}
-              {t.state === 'duplicate' && (
+              {t.state === 'duplicate' && !t.versionOf && (
                 <button
                   type="button"
                   className="text"
