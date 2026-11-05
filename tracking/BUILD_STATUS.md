@@ -43,3 +43,15 @@ pilot/thesis. Accepted owner decisions and the existing scoped grants remain aut
 All prior content is preserved byte-for-byte in [the historical record](BUILD_STATUS_HISTORY_2026-11-04.md); hashes
 are in [the archive receipt](evidence/codebase-repairs-2026-11-04/document-archives.json).
 The [previous section index](BUILD_STATUS_HISTORY_INDEX_2026-11-04.md) retains section names and archived targets without loading the historical narrative at startup.
+
+## November 5 revision planning (documentation only)
+
+Added docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md and
+CREATOR_AGENT_PROMPT_RUNBOOK_2026-11-05.md: all 19 owner revisions mapped to 18
+implementation packages, plus eight retained backlog tracks and task prompts.
+Coverage and prompt-fence checks passed. No application code, operational data,
+configuration, grants, provider calls, installation or activation changed; prior test
+results were not rerun. The actual project is C:\dev\creator_agent; the supplied
+OneDrive workspace path no longer exists. A read-only Git status attempt reported
+“must be run in a work tree”; exact candidate/dirty-state reconciliation is included
+in P00. Next eligible remains the focused independent F1/F2 recheck, before additions.
