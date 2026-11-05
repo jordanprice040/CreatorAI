@@ -31,9 +31,9 @@ evidence stays separate.
 
 ## Open items retained from earlier reviews
 
-- **#77 L-1:** packaging/plan-route low remains open; original finding detail is not recovered here. Consult its original review before defining the repair.
+- **#77 L-1:** no test asserts the artifact comparison's `base_calls`/`candidate_calls` (reverting `calls()` in `artifact-store.ts` stays green). Detail recovered in [the P00 reconciliation](../docs/P00_RECONCILIATION_2026-11-05.md); still open.
 - **#90 N-4:** Decisions page Revoke/Stop error handling remains open.
-- **#128 N-6:** stuck-request reconciliation re-review nit remains open; original finding detail is not recovered here. Consult its original review before defining the repair.
+- **#128 N-6:** the Codex relay notices a disconnect only at its next write, not while waiting in `reader.read()`. Detail recovered in [the P00 reconciliation](../docs/P00_RECONCILIATION_2026-11-05.md); still open.
 - **#129 N-4:** component-level role coverage remains absent; owner-only browser evidence and pure role rules do not establish a second-member UI check.
 
 Source: [historical handoff](SESSION_HANDOFF_HISTORY_2026-11-04.md), “Older open review Lows”.
@@ -64,6 +64,24 @@ results were not rerun. The actual project is C:\dev\creator_agent; the supplied
 OneDrive workspace path no longer exists. A read-only Git status attempt reported
 “must be run in a work tree”; exact candidate/dirty-state reconciliation is included
 in P00. Next eligible remains the focused independent F1/F2 recheck, before additions.
+
+## November 5: P00 remainder, P11 staging design, P14 capability matrix (documentation only)
+
+- [P00 reconciliation](../docs/P00_RECONCILIATION_2026-11-05.md): the candidate is main `9fe673b`, schema 41;
+  the next free migration is 42 and ADR 0069 (recheck, because parallel threads allocate them). The F1/F2
+  independent recheck already **passed** and the migration-41 trial and upgrade are done, so the
+  "Next eligible remains the focused independent F1/F2 recheck" lines above are superseded. #77 L-1
+  and #128 N-6 details were recovered from their original reviews. The Nov 1 audit and pilot F2–F21
+  findings have a status table.
+- [Committee staging design](../docs/COMMITTEE_STAGING_DESIGN_2026-11-05.md) (P11): costed hosting
+  and sign-in options, code gaps G1–G6 (only one OIDC subject can sign in; builds need Windows+WSL2),
+  and decisions D1–D9 for Jordan. Nothing was chosen, created or bought.
+- [Capability matrix](../docs/CAPABILITY_MATRIX_2026-11-05.md) (P14 inventory): only `python-build/1`
+  and `python-terminal/1` are supported. Every other kind is unsupported or unverified. Also lists
+  representative tasks and a proposed P15 order.
+
+No code, data, configuration, provider call or installation changed, and no tests were run (docs only).
+Next eligible: P01. P11 continues with tester accounts (G1) once started, and its deploy waits on D1–D9.
 
 ## P03 chat context (November 5, 2026, ADR-0070, migration 43)
 
