@@ -1,0 +1,123 @@
+[
+  {
+    "check": "intro",
+    "result": "Ask anything: writing, ideas, explanations or advice are answered by claude-sonnet-5-5 through your plan, at no extra cost. Those answers are labelled and never change anything. The studio itself answers what's next, why something is blocked, web addresses and saved ideas from your records by fixed rules, and nothing here starts work: buttons open the tab where you do it."
+  },
+  {
+    "check": "context options",
+    "result": ["Automatic", "General", "My projects", "Selected records"]
+  },
+  {
+    "check": "general hint",
+    "result": "Answered as a general question. No studio records are sent and the message is never treated as a studio command."
+  },
+  {
+    "check": "chips after two picks",
+    "result": [
+      "Problem: Rural clinic no-shows ×",
+      "Idea: Frame-perfect practice timer ×"
+    ]
+  },
+  {
+    "check": "chips after remove",
+    "result": ["Problem: Rural clinic no-shows ×"]
+  },
+  {
+    "check": "turns",
+    "result": [
+      {
+        "you": "Brainstorm three names for a neighbourhood bakery.",
+        "model": [
+          {
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:30 PM",
+            "text": "Here are a few directions:"
+          }
+        ],
+        "ask": []
+      },
+      {
+        "you": "Which of my ideas is the easiest first build?",
+        "model": [
+          {
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:30 PM",
+            "text": "Here are a few directions:"
+          }
+        ],
+        "ask": []
+      },
+      {
+        "you": "What's next?",
+        "model": [
+          {
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:31 PM",
+            "text": "Here are a few directions:"
+          }
+        ],
+        "ask": []
+      },
+      {
+        "you": "What is the riskiest assumption here?",
+        "model": [
+          {
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:31 PM",
+            "text": "Here are a few directions:"
+          }
+        ],
+        "ask": []
+      }
+    ]
+  },
+  {
+    "check": "what was sent",
+    "result": [
+      {
+        "summary": "60 characters to Claude, with the fixed instructions chat-assistant-v2. Context: General: no studio records. Automatic: the message does not mention your studio records, so none were sent. No earlier messages.",
+        "records": [],
+        "snapshot": false,
+        "selected": false
+      },
+      {
+        "summary": "614 characters to Claude, with the fixed instructions chat-assistant-v2. Context: My projects: a short studio snapshot. Automatic: the message mentions “my ideas”, so a short studio snapshot was sent. 2 earlier messages and answers.",
+        "records": [],
+        "snapshot": true,
+        "selected": false
+      },
+      {
+        "summary": "366 characters to Claude, with the fixed instructions chat-assistant-v2. Context: General: no studio records. You chose General, so no studio records were sent. 4 earlier messages and answers.",
+        "records": [],
+        "snapshot": false,
+        "selected": false
+      },
+      {
+        "summary": "744 characters to Claude, with the fixed instructions chat-assistant-v2. Context: Selected records. You picked the records that were sent. 6 earlier messages and answers.",
+        "records": ["problem: Rural clinic no-shows"],
+        "snapshot": false,
+        "selected": true
+      }
+    ]
+  },
+  {
+    "check": "context tags on your messages",
+    "result": ["", "", "General", "Selected records (1)"]
+  },
+  {
+    "check": "answer requests sent",
+    "result": 4
+  },
+  {
+    "check": "dark: page errors",
+    "result": []
+  },
+  {
+    "check": "light: page errors",
+    "result": []
+  },
+  {
+    "check": "phone: horizontal overflow",
+    "result": false
+  },
+  {
+    "check": "phone: page errors",
+    "result": []
+  }
+]
