@@ -532,5 +532,7 @@ test('inspectDatabase compares the set of applied migrations, not only the highe
   await fresh.pool.query(
     `insert into schema_migrations (version, name, checksum) values (9999, 'future', repeat('0', 64))`,
   );
-  assert.equal((await inspectDatabase(fresh.url)).unknown_newer, true);
+  const newer = await inspectDatabase(fresh.url);
+  assert.equal(newer.unknown_newer, true);
+  assert.deepEqual(newer.unknown_versions, [9999]);
 });

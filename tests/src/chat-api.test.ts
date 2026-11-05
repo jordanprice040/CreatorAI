@@ -96,6 +96,11 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     'Remember to be concise',
     "I'm stuck on my essay intro",
     'My drain is blocked',
+    // PR #139 re-review L-C: standing instructions and remarks are not ideas to save.
+    'Remember that I prefer short answers',
+    'Remember I like bullet points',
+    'Note that the deadline is Friday',
+    'Save me a seat',
   ];
   for (const text of notes)
     assert.deepEqual(classifyChat(text), { intent: 'note', target: {} }, text);
@@ -120,6 +125,13 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     ["What's waiting?", 'approvals'],
     ['research input timing drills', 'start_discovery'],
     ['remember', 'save_idea'],
+    // PR #139 re-review L-C: close variants.
+    ['Is there anything blocked?', 'why_blocked'],
+    ['Are any runs blocked?', 'why_blocked'],
+    ['Everything is blocked', 'why_blocked'],
+    ['Anything pending?', 'approvals'],
+    ['Do I need to approve anything?', 'approvals'],
+    ['remember this idea: a timer', 'save_idea'],
   ];
   for (const [text, intent] of studio)
     assert.equal(classifyChat(text).intent, intent, text);
@@ -161,6 +173,9 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     "What's the best way to structure the workspace in my garage?",
     'Make a list of pros and cons of the studio apartment',
     'Suggest a name for this project',
+    // PR #139 re-review L-D.
+    'How should I decorate my studio apartment?',
+    "What's the best desk for my workspace setup?",
   ])
     assert.ok(!chatMentionsStudio(t), t);
   const r = (

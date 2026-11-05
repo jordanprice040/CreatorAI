@@ -113,8 +113,14 @@ export function Chat({
   // ADR-0070: the context for the next message; it stays chosen until changed.
   const [scope, setScope] = useState<ChatScope>('auto');
   const [picked, setPicked] = useState<PickedRecord[]>([]);
-  // PR #136 review N2: picked records belong to one conversation.
-  useEffect(() => setPicked([]), [focus]);
+  // PR #136 review N2: picked records belong to one conversation. They are cleared only when
+  // the person moves away from a conversation, not when the first message creates one
+  // (PR #139 re-review L-A).
+  const pickedFor = useRef(focus);
+  useEffect(() => {
+    if (pickedFor.current && pickedFor.current !== focus) setPicked([]);
+    pickedFor.current = focus;
+  }, [focus]);
   // One id per message being written, reused on retry so a resend never adds it twice.
   const clientId = useRef<string>(crypto.randomUUID());
   const listSeq = useRef(0);

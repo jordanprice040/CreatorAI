@@ -100,3 +100,8 @@ reloads; `inspectDatabase` compares the set of applied migrations (migration 43 
 take 44). Checks: typecheck, formatting; suite 772 tests, 739 pass, 28 skip, 5 known
 PowerShell fails (no `pwsh`); dev-safety 19/20 (Windows `pg_ctl` path); chat-context walk rerun.
 Next: a fresh independent review.
+Re-review Lows (PR #139 re-review, same day): L-A picks survive a new conversation's first
+message; L-B Selected answers also leave out snapshot-made earlier answers; L-C/L-D more
+blocked/approval variants, "remember that…"/"note that…"/"save me…" stay questions, "my studio
+apartment" is not a mention; N-A unknown migrations are named; N-B ADR wording. Same check
+counts (772/739/28 skip/5 known pwsh); walk rerun on a fresh DB.

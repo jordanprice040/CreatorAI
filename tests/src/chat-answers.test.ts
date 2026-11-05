@@ -1119,6 +1119,12 @@ test('chat context: general in an empty workspace, automatic, explicit choices, 
   const picked = await answer(pickedMsg);
   assert.equal(picked.state, 'completed', picked.reason ?? '');
   assert.equal(picked.sent?.context, 'selected');
+  // PR #139 re-review L-B: earlier answers made from the snapshot are left out here too.
+  assert.match(
+    picked.sent?.context_reason ?? '',
+    /earlier answers? that used studio records (?:was|were) left out/,
+  );
+  assert.ok(!picked.sent?.input.includes('<studio_snapshot>'));
   assert.deepEqual(
     picked.sent?.records.map((r) => r.id),
     [idea.id, problem.id],

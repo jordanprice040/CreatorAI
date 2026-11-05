@@ -23,7 +23,7 @@ export const CONTEXT_LABEL: Record<ChatContext, string> = {
   selected: 'Selected records',
 };
 const SCOPE_HINT: Record<ChatScope, string> = {
-  auto: 'Studio records are sent only when your message mentions them ("my ideas", "this project").',
+  auto: 'Studio records are sent only when your message mentions them ("my ideas", "our runs").',
   general:
     'Answered as a general question. No studio records are sent and the message is never treated as a studio command.',
   project:

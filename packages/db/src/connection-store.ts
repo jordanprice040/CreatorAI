@@ -1024,8 +1024,9 @@ export class ConnectionStore extends PortfolioStore {
       });
       if (!resolved.ok) throw fail('ACCESS_DENIED', resolved.reason);
       let reason = resolved.reason;
-      // PR #136 review L1: a General answer gets earlier answers only when they were made
-      // without studio records, so "no studio records were sent" stays true. The person's own
+      // PR #136 review L1 / PR #139 re-review L-B: a General or Selected records answer gets
+      // earlier answers only when they were made without studio records, so its context is
+      // exactly what it says. Only My projects (the snapshot) keeps them. The person's own
       // earlier messages always go.
       const turns = await c.query(
         `select m.seq, m.text, a.text as answer,
@@ -1043,7 +1044,7 @@ export class ConnectionStore extends PortfolioStore {
       for (const t of turns.rows.reverse() as Row[]) {
         history.push({ who: 'person', text: String(t.text) });
         if (!t.answer) continue;
-        if (resolved.context === 'general' && t.studio) withheld += 1;
+        if (resolved.context !== 'project' && t.studio) withheld += 1;
         else history.push({ who: 'assistant', text: String(t.answer) });
       }
       if (withheld > 0)
