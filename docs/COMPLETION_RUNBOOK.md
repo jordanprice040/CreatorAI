@@ -46,3 +46,13 @@ the reviewed WSL2 boundary and supports the bounded Python CLI recipe. Current p
 serve studio-written pages on a separate port; arbitrary generated web apps would require
 a separate host. Keep research freezes, held-out records, failures, historical packages and
 owner decisions unchanged. No automatic next milestone follows this repair.
+
+## November 5 consolidated revision plan (planning only)
+
+Jordan's 19 revisions and the retained project backlog are mapped in
+[the consolidated plan](CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md), with
+[copy-and-paste task prompts](CREATOR_AGENT_PROMPT_RUNBOOK_2026-11-05.md).
+This adds a proposed delivery sequence, including committee staging, broader online
+exploration, bounded unattended workflows, file library and expanded build qualification.
+It changes no implementation, grants, study conditions, installation or activation.
+The current focused independent authentication recheck remains the first gate.
