@@ -79,10 +79,10 @@ const STRONG_APPROVALS =
   /\b(?:waiting (?:on|for) me|needs? me|needs? my (?:approval|answer|decision)|my answer|my approvals?|pending (?:approvals?|decisions?)|decisions? for me)\b/;
 /** PR #136 review M1: whole-message studio questions about blocked work. */
 const STUDIO_BLOCKED_QUESTION =
-  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why(?:'s|\s+(?:is|are))\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|anything|it|this|that|things)(?:'s|\s+(?:is|are|seems?|looks?))\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:(?:any|my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:which|what)\s+(?:of\s+(?:my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:are|is)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^is\s+there\s+(?:a|any)\s+(?:run|build|discovery|spec|preview|worker)\s+(?:that'?s|that\s+is)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^how\s+come\s+(?:the|my|our)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:is|are)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:show|tell)\s+me\s+(?:what'?s|what\s+is|everything|anything)\s+(?:that'?s\s+)?(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:what'?s|what\s+is|is\s+anything|anything)\s+(?:still\s+)?(?:blocked|stuck)\s+in\s+(?:this|my|our)\s+(?:project|studio|workspace)[\s?.!]*$/i;
+  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything|it|this|that)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why(?:'s|\s+(?:is|are))\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|anything|it|this|that|things)(?:'s|\s+(?:is|are|seems?|looks?))\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:(?:any|my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:which|what)\s+(?:of\s+(?:my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:are|is)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^is\s+there\s+(?:a|any)\s+(?:run|build|discovery|spec|preview|worker)\s+(?:that'?s|that\s+is)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^how\s+come\s+(?:the|my|our)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:is|are)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:show|tell)\s+me\s+(?:what'?s|what\s+is|everything|anything)\s+(?:that'?s\s+)?(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:what'?s|what\s+is|is\s+anything|anything)\s+(?:still\s+)?(?:blocked|stuck)\s+in\s+(?:this|my|our)\s+(?:project|studio|workspace)[\s?.!]*$/i;
 /** PR #136 review M1: whole-message studio questions about approvals and waiting decisions. */
 const STUDIO_APPROVAL_QUESTION =
-  /^(?:(?:what|anything|is anything|is there anything|does anything|do i have anything)\s+)?(?:that\s+)?(?:needs?|waiting(?:\s+(?:for|on))?|to)(?:\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision|me))?[\s?.!]*$|^(?:what'?s|whats|what is|anything|is anything|is there anything)\s+(?:still\s+)?(?:waiting|pending)[\s?.!]*$|^do i (?:need|have) to (?:approve|answer|decide) anything[\s?.!]*$|^(?:any\s+)?(?:pending\s+)?approvals?[\s?.!]*$/i;
+  /^(?:what|anything|is anything|is there anything|does anything|do i have anything)\s+(?:that\s+)?(?:needs?|waiting(?:\s+(?:for|on))?|to)(?:\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision|me))?[\s?.!]*$|^(?:needs?|waiting(?:\s+(?:for|on))?|to)\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision)[\s?.!]*$|^(?:what'?s|whats|what is|anything|is anything|is there anything)\s+(?:still\s+)?(?:waiting|pending)[\s?.!]*$|^do i (?:need|have) to (?:approve|answer|decide) anything[\s?.!]*$|^(?:any\s+)?(?:pending\s+)?approvals?[\s?.!]*$/i;
 /** "What's next?" and its few forms, as the whole message, or the studio's next step. */
 const NEXT = [
   /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:what'?s|whats|what is|what do i do|what should i do)\s+next[\s?.!]*$/i,
@@ -209,7 +209,12 @@ export function classifyChat(
   // "Remember my thought…" still save (third review L-2). A bare "remember that" is a remark.
   if (
     save &&
-    !/^(?:please\s+)?(?:remember|note)[:,]?\s+(?:to(?!\s+self\b)|that(?!\s+(?:idea|thought|note)\b)|i|i'?m|i'?d|we|you|he|she|they|when|how|why|what|who|where|me|us|my\s+(?!(?:idea|thought|note)\b))\b/i.test(
+    !/^(?:please\s+)?(?:remember|note)\s+(?:to(?!\s+self\b)|that(?!\s+(?:idea|thought|note)\b)|i|i'?m|i'?d|we|you|he|she|they|when|how|why|what|who|where|me|us|my\s+(?!(?:idea|thought|note)\b))\b/i.test(
+      text,
+    ) &&
+    // Sixth review L-1: after "Remember:" only a standing preference or a recalled remark is
+    // an instruction; "Note: we should build…" and "Remember: we could build…" still save.
+    !/^(?:please\s+)?remember[:,]\s+(?:i|i'?m|i'?d|you|we|he|she|they)\s+(?:prefer|like|love|hate|want(?!\s+an?\b)|said|agreed|am|are|need|always|never|use)\b/i.test(
       text,
     ) &&
     !/^(?:please\s+)?(?:save|remember|note)\s+(?:(?:that|this|my|an?|the)\s+)?thought\s+experiments?\b/i.test(
@@ -222,11 +227,13 @@ export function classifyChat(
     // a colon or dash or inside a word (fifth review L-1). A target with no letter or digit
     // is no idea (fifth review N-4).
     const idea = strip(
-      (save[1] ?? '').replace(/^\s+(?:to\s+self:?|about)\s+/i, ' '),
+      (save[1] ?? '').replace(/^\s+(?:to\s+self|about)(?:\s*:\s*|\s+|$)/i, ' '),
     );
     return {
       intent: 'save_idea',
-      target: /[\p{L}\p{N}]/u.test(idea) ? { text: idea } : {},
+      target: /[\p{L}\p{N}\p{Extended_Pictographic}]/u.test(idea)
+        ? { text: idea }
+        : {},
     };
   }
   // ADR-0065: asking the studio to look for problems itself, with no theme. The phrases are
@@ -280,9 +287,15 @@ export function classifyChat(
   // PR #139 fifth review L-3: the whole-message studio questions also match inside one polite
   // wrapper ("Can you show me what's blocked?", "What's blocked and why?"). They stay anchored,
   // so longer general requests are unaffected.
+  // Sixth review L-2: up to two greetings or fillers ("Hey,", "Please, can you"), then one
+  // "tell/show me" before a question word.
+  const wrapper =
+    /^(?:hi|hey|hello|thanks|sorry|also|ok(?:ay)?|so|please|(?:can|could|would)\s+you)[,\s]+/i;
   const core = text
+    .replace(wrapper, '')
+    .replace(wrapper, '')
     .replace(
-      /^(?:ok(?:ay)?|so|please|(?:can|could|would)\s+you(?:\s+please)?)[,\s]+/i,
+      /^(?:tell|show)\s+me\s+(?=(?:which|is|are|anything|everything)\b|what(?:'s|\s+is)\s+(?:next|blocked|stuck|waiting|pending)\b|what\s+(?:needs?|runs?|builds?)\b)/i,
       '',
     )
     .replace(/[,\s]+(?:please|and why)([\s?.!]*)$/i, '$1');

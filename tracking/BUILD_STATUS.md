@@ -120,3 +120,8 @@ Fifth review (same day): L-1 "about"/"to self" are dropped only straight after t
 "…please", "…and why?") is removed before the whole-message studio tests; nits: thought
 experiments and "Remember: I/you/we…" are not saves, a target with no letter or digit saves no
 text. All new cases are in the table test.
+Sixth review (same day): L-1 "Note: we should build…" and "Remember: we could…" save again
+(only "Remember: I prefer/said…" stays a remark); L-2 up to two greetings or fillers ("Hey,",
+"Please, can you") and "tell/show me" before a question are removed before the whole-message
+tests, and "Is it stuck?" counts; nits: "Note to self:buy milk" and emoji ideas save, bare
+"to"/"waiting" no longer open approvals. Cases added to the table test.
