@@ -95,7 +95,11 @@ import {
   githubRoutes,
   readRaw,
 } from './github.js';
-import { artifactRoutes, createPreviewServer } from './artifacts.js';
+import {
+  PreviewRuns,
+  artifactRoutes,
+  createPreviewServer,
+} from './artifacts.js';
 import { PRODUCTS_ROUTE, StudioBuilds, productRoutes } from './products.js';
 import {
   PAYMENTS_RETURN_ROUTE,
@@ -221,7 +225,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -580,10 +584,12 @@ export function createApi(
     : null;
   relay?.unref();
 
+  const previewRuns = new PreviewRuns();
   const preview = createPreviewServer(
     store,
     artifacts,
     deployment.mode === 'hosted' ? deployment.preview_origin : null,
+    previewRuns,
   );
   const previewOrigin = () => {
     if (deployment.mode === 'hosted') return deployment.preview_origin;
@@ -859,6 +865,7 @@ export function createApi(
         terminals,
         localStudio: deployment.mode === 'local',
         previewOrigin,
+        previewRuns,
         ctx,
         ws,
         collection,
@@ -1687,7 +1694,29 @@ export function createApi(
           from: p.get('from') || null,
           to: p.get('to') || null,
           ...(p.get('tz') ? { tz: p.get('tz') } : {}),
+          ...(p.get('sort') ? { sort: p.get('sort') } : {}),
+          ...(p.get('after') ? { after: p.get('after') } : {}),
         }),
+        false,
+      );
+    } else if (collection === 'library' && !item && method === 'GET') {
+      const p = url.searchParams;
+      const filter: Parameters<typeof store.library>[2] = {};
+      for (const k of ['kind', 'status', 'sort', 'after'] as const) {
+        const v = p.get(k);
+        if (v) filter[k] = v;
+      }
+      if (p.get('limit')) filter.limit = Number(p.get('limit'));
+      return send(200, await store.library(ctx, ws, filter), false);
+    } else if (collection === 'destination' && !item && method === 'GET') {
+      return send(
+        200,
+        await store.destination(
+          ctx,
+          ws,
+          url.searchParams.get('kind') ?? '',
+          url.searchParams.get('id') ?? '',
+        ),
         false,
       );
     } else if (collection === 'activity' && !item && method === 'GET') {

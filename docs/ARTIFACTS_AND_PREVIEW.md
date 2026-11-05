@@ -53,7 +53,8 @@ pnpm cli artifact-package <product> <build>   # package, re-run, register
 pnpm cli artifacts <ws>                       # list; current vs superseded
 pnpm cli artifact <ws> <artifact>             # manifest + integrity re-hash
 pnpm cli artifact-download <ws> <artifact> <manifest-sha256> out.tar
-pnpm cli preview-start <ws> <artifact> <manifest-sha256> [ttl] [runs]
+pnpm cli preview-start <ws> <artifact> <manifest-sha256> [ttl|until-stopped] [runs]
+pnpm cli preview-link <ws> <preview>          # new one-time link (ADR-0069)
 pnpm cli preview-stop <ws> <preview> <version> <reason> [--revoke]
 pnpm cli feedback-submit <ws> <artifact> <manifest-sha256> change_request "..."
 pnpm cli feedback-decide <ws> <feedback> <version> accept "why"
@@ -82,12 +83,16 @@ The preview is a separate HTTP origin (`CREATOR_PREVIEW_PORT`, default
 `127.0.0.1:4320`) served by the studio, not by the generated program:
 
 - Starting a preview checks the expected manifest hash, that the runnable demo is
-  available, and the lease limit (2 live previews per workspace; TTL 1–60 minutes;
-  1–20 runs). The API then runs the readiness case through the worker and only
+  available, and the lease limit (2 live previews per workspace; 1–20 runs). Its
+  lifetime is **Timed** (TTL 1–60 minutes, the default) or **Until stopped**
+  (ADR-0069, see below). The API then runs the readiness case through the worker and only
   returns a URL when the preview is `ready`.
 - The URL carries a one-time ticket. The preview origin exchanges it for an
   HttpOnly, `SameSite=Strict` cookie scoped to `/preview/<id>` and redirects to a
-  ticket-free address. A reused ticket is refused (403).
+  ticket-free address. A reused ticket is refused (403); a ticket older than 10
+  minutes is refused (410). **New link** in the gallery (owner only, authority
+  rechecked) issues a fresh ticket without changing the preview's lifetime or run
+  count; opening it moves the preview to that browser and older tabs lose access.
 - The page is studio-authored HTML with `default-src 'none'` CSP, no framing, no
   referrer. Program output is rendered as text. Runs are `POST` with the preview
   origin as `Origin` and JSON `{args, stdin}`; each run rechecks state, expiry,
@@ -95,6 +100,24 @@ The preview is a separate HTTP origin (`CREATOR_PREVIEW_PORT`, default
   exact archive again.
 - Refusals: revoked or stopped → 403, expired → 410, run cap or lease limit → 429,
   hash mismatch → 409. A revoked preview refuses an already open tab.
+- **Until stopped** has no expiry date. It stays live while an open preview page
+  reports a viewer: the page sends a heartbeat every 30 s and whenever it becomes
+  visible again; every page load and run also counts. With no viewer for 3 minutes
+  (closed tab, browser crash, long sleep, network loss or studio restart longer than
+  that) it ends as `expired`, frees its slot, and the page says so. An unopened link keeps it
+  live until that link expires, so the owner has the full 10 minutes to open it. Browser unload is
+  never relied on. Several tabs of the same browser share one session, so any open
+  tab keeps it alive. A gap shorter than 3 minutes reconnects without action;
+  the session is stored in PostgreSQL, so a restarted studio keeps it.
+- Stop / Revoke closes admission at once (page loads, runs, heartbeats and new links
+  are refused) and then cancels runs that were already in flight, including a readiness
+  run of a preview still starting, waiting up to 15 s.
+  The preview records cleanup `none`, `cancelled` or `unknown` (a cancel failed or a
+  run had not ended; its own worker time limit still applies). After a studio
+  restart, in-flight runs are the executor's normal recovery.
+- Neither lifetime changes per-run limits (worker CPU, memory, offline network,
+  deadline), the run cap, the 2-preview limit or any spending cap. Previews are still
+  text-only CLI runs; generated web apps need P15's separate host and worker.
 - The preview server never reads the management session. Generated code does not
   run in the browser at all; it runs only in the WSL2 worker, offline, with the T11
   limits.

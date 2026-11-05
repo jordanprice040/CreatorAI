@@ -130,3 +130,19 @@ L-2 acknowledgement and punctuation lead-ins ("Thanks! What's next?", "Got it, �
 …", "So... …") are removed before the whole-message tests; nits: "Remember: I'm vegan" / "my
 name is…" are remarks, "Waiting for an answer" is not an approvals question, "Note to self,
 buy milk" saves "buy milk". Rows added to the table test.
+
+## P07 preview lifetime (November 5, branch `claude/project-thread-7c9lp1`)
+
+Previews can be **Timed** (default, 1–60 min) or **Until stopped** (ADR-0069, migration 44,
+schema 44): no expiry; live while a preview page heartbeats within 3 minutes; abandoned
+previews end and free their slot; links expire after 10 minutes and can be renewed by the
+owner; Stop/Revoke cancels in-flight runs and records cleanup. Limits unchanged. Verified
+locally on disposable PostgreSQL 16 in the cloud container (see the PR for counts); the preview
+page script was walked in headless Chromium against a stand-in store. Not verified: a full
+studio browser walk, the installed app, real WSL runs. Awaiting independent review.
+
+## P01 + P02 (November 5, branch `claude/project-thread-pb1ge7`)
+
+Activity destinations, Search reset and server-side sort/paging for Search and the Library;
+details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
+installed-app change or live call. Not yet independently reviewed.

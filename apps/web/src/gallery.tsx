@@ -6,6 +6,8 @@ import {
   ArtifactSummarySchema,
   EntityDetailSchema,
   FeedbackSchema,
+  PREVIEW_IDLE_GRACE_SECONDS,
+  PREVIEW_LINK_MINUTES,
   PreviewSchema,
   PreviewStartSchema,
   SpecStatusSchema,
@@ -17,6 +19,7 @@ import {
   type ArtifactGuide,
   type ArtifactSummary,
   type Feedback,
+  type Preview,
   type SessionInfo,
   type TerminalSession,
   type Workspace,
@@ -85,6 +88,15 @@ export function Gallery({
             </button>
           </Empty>
         )}
+        {focus && list.data && !list.data.some((a) => a.id === focus) && (
+          // P01: a link to a code version that is no longer listed says so instead of
+          // quietly showing another one.
+          <p className="notice small" role="status">
+            The code version this link names isn't in this workspace's packages
+            any more.
+            {list.data.length > 0 ? ' Showing the newest package instead.' : ''}
+          </p>
+        )}
         {list.data && list.data.length > 0 && (
           <div className="gallery">
             <ul className="rows artifact-list" aria-label="Artifacts">
@@ -149,6 +161,7 @@ function ArtifactPanel({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // ADR-0069: '5' | '15' | '60' minutes, or 'until_stopped'. Timed stays the default.
   const [ttl, setTtl] = useState('15');
   const csrf = session?.csrf_token ?? '';
   async function act(work: () => Promise<string>) {
@@ -230,7 +243,12 @@ function ArtifactPanel({
                         {
                           body: {
                             expected_manifest_sha256: summary.manifest_sha256,
-                            ttl_minutes: Number(ttl),
+                            ...(ttl === 'until_stopped'
+                              ? { lifetime: 'until_stopped' }
+                              : {
+                                  lifetime: 'timed',
+                                  ttl_minutes: Number(ttl),
+                                }),
                             max_runs: 10,
                           },
                           csrf,
@@ -245,7 +263,7 @@ function ArtifactPanel({
                   }}
                 >
                   <label>
-                    Expires after{' '}
+                    Lasts{' '}
                     <select
                       value={ttl}
                       onChange={(e) => setTtl(e.target.value)}
@@ -253,6 +271,7 @@ function ArtifactPanel({
                       <option value="5">5 min</option>
                       <option value="15">15 min</option>
                       <option value="60">60 min</option>
+                      <option value="until_stopped">Until I stop it</option>
                     </select>
                   </label>
                   <button className="primary" disabled={busy || !csrf}>
@@ -266,7 +285,17 @@ function ArtifactPanel({
                 <a href={previewUrl} target="_blank" rel="noopener noreferrer">
                   Open the private preview
                 </a>{' '}
-                (one-time link; it opens on a separate origin).
+                (one-time link; open it within {PREVIEW_LINK_MINUTES} minutes;
+                it opens on a separate origin).
+              </p>
+            )}
+            {ttl === 'until_stopped' && (
+              <p className="small">
+                An “Until I stop it” preview has no end time. It stays open
+                while a preview page is open, and ends after{' '}
+                {PREVIEW_IDLE_GRACE_SECONDS / 60} minutes with no open page (for
+                example after closing the tab, a crash or sleep). Run limits and
+                worker isolation still apply.
               </p>
             )}
             {notice && (
@@ -288,6 +317,17 @@ function ArtifactPanel({
             <Previews
               d={d}
               busy={busy}
+              link={(id) =>
+                act(async () => {
+                  const r = await api(
+                    PreviewStartSchema,
+                    `${base}/previews/${id}/link`,
+                    { body: {}, csrf },
+                  );
+                  setPreviewUrl(r.url);
+                  return 'New one-time link ready. Opening it moves the preview to that browser.';
+                })
+              }
               stop={(id, version, revoke) =>
                 act(async () => {
                   const p = await api(
@@ -302,9 +342,11 @@ function ArtifactPanel({
                           : 'Owner stopped preview',
                       },
                       csrf,
+                      // Stop waits up to 15 s for in-flight runs (PR #137 review M-2).
+                      timeoutMs: 30000,
                     },
                   );
-                  return `Preview ${p.state}.`;
+                  return `Preview ${p.state}.${cleanupNote(p.cleanup)}`;
                 })
               }
             />
@@ -906,14 +948,34 @@ function TerminalPanel({
   );
 }
 
+/** ADR-0069: what happened to runs that were still going when the preview was stopped. */
+function cleanupNote(c: Preview['cleanup']): string {
+  if (c === 'cancelled') return ' Runs in progress were stopped.';
+  if (c === 'unknown')
+    return ' A run in progress may still be finishing in the worker (its own time limit still applies).';
+  return '';
+}
+
+/** How long a preview lasts, in words. */
+function lifetimeText(p: Preview): string {
+  const live = p.state === 'ready' || p.state === 'starting';
+  if (p.lifetime === 'until_stopped')
+    return live && p.idle_until
+      ? `until you stop it · viewer seen ${when(p.last_seen_at ?? p.created_at)}`
+      : 'until stopped';
+  return `${live ? 'expires' : 'expired'} ${p.expires_at ? when(p.expires_at) : ''}`;
+}
+
 function Previews({
   d,
   busy,
   stop,
+  link,
 }: {
   d: ArtifactDetail;
   busy: boolean;
   stop: (id: string, version: number, revoke: boolean) => void;
+  link: (id: string) => void;
 }) {
   if (!d.previews.length) return null;
   return (
@@ -923,11 +985,26 @@ function Previews({
         {d.previews.map((p) => (
           <li key={p.id}>
             <span className={`badge preview-${p.state}`}>{p.state}</span>{' '}
-            {p.runs_used}/{p.max_runs} runs · expires {when(p.expires_at)}
+            {p.runs_used}/{p.max_runs} runs · {lifetimeText(p)}
+            {p.state === 'expired' && p.lifetime === 'until_stopped'
+              ? ' · ended: no preview page was open'
+              : ''}
             {p.end_reason ? ` · ${p.end_reason}` : ''}
+            {cleanupNote(p.cleanup)}
             {(p.state === 'ready' || p.state === 'starting') && (
               <>
                 {' '}
+                {p.state === 'ready' && (
+                  <>
+                    <button
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => link(p.id)}
+                    >
+                      New link
+                    </button>{' '}
+                  </>
+                )}
                 <button
                   className="secondary"
                   disabled={busy}

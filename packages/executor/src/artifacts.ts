@@ -444,6 +444,7 @@ export class ArtifactSupervisor {
     artifactId: string,
     expectedManifest: string,
     owner: string,
+    onStarted: (executionId: string) => void | Promise<void> = () => {},
   ): Promise<{ ready: boolean; execution: Execution }> {
     const { manifest } = await this.manifest(
       productId,
@@ -459,6 +460,7 @@ export class ArtifactSupervisor {
       expectedManifest,
       owner,
       c,
+      onStarted,
     );
     return {
       ready:

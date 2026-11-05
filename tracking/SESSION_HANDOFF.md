@@ -139,3 +139,57 @@ L-2 acknowledgement and punctuation lead-ins ("Thanks! What's next?", "Got it, �
 …", "So... …") are removed before the whole-message tests; nits: "Remember: I'm vegan" / "my
 name is…" are remarks, "Waiting for an answer" is not an approvals question, "Note to self,
 buy milk" saves "buy milk". Rows added to the table test.
+
+## P07 preview lifetime (November 5, branch `claude/project-thread-7c9lp1`)
+
+Previews can be **Timed** (default, 1–60 min) or **Until stopped** (ADR-0069, migration 44,
+schema 44): no expiry; live while a preview page heartbeats within 3 minutes; abandoned
+previews end and free their slot; links expire after 10 minutes and can be renewed by the
+owner; Stop/Revoke cancels in-flight runs and records cleanup. Limits unchanged. Verified
+locally on disposable PostgreSQL 16 in the cloud container (see the PR for counts); the preview
+page script was walked in headless Chromium against a stand-in store. Not verified: a full
+studio browser walk, the installed app, real WSL runs. Awaiting independent review.
+
+## P01 + P02 — activity links, Search reset, newest-first sorting (November 5)
+
+Branch `claude/project-thread-pb1ge7`; no migration or ADR. Activity (tab and sidebar) and
+Search open a subject through one server check (`GET …/destination`): a task opens its
+workflow, an artifact its newest code version on Try, a selection its problem's scores;
+missing/other-workspace subjects read the same and show a reason without a title. Reset
+fields on Search/Activity/Library also clears the address words, kind filter and remembered
+sort. Search and the Library have Sort by (Newest by creation by default; Search also Oldest
+and Best match; Library also Recently updated and Name), applied on the server before the
+limit with id tie-breaks and cursors bound to sort and filters. Pickers still use the
+unchanged newest-first `entities` list (cap 500). Next eligible prompt: separate review of
+this PR, then P03.
+
+Checks (cloud container, PostgreSQL 16, Node 22.23.4): full `pnpm test:db` 772 tests,
+737 pass, 28 skip, 7 fail: the 5 known PowerShell-wrapper tests (no pwsh here) plus 2
+studio-service tests that collided with a dev server on 5173/4310; those 2 pass when rerun
+alone with the new test file, catalog and search suites (18 pass, 2 pg_dump skips). New
+`tests/src/list-sort-destinations.test.ts` covers cap+1, tied microsecond times, inserts
+between pages, cursor/sort/filter binding, membership and the HTTP routes. TypeScript, web
+typecheck, Prettier and whitespace pass. A Playwright walk on a throwaway studio checked
+Search sort/More/Reset (address cleared, sort back to Newest after reload), Activity opening a
+record, a deleted chat's explanation, and Library name sort with More records.
+
+Review fixes (independent review of PR #138): M1, where the Name sort cursor could not carry long titles, now
+continues after the last row read again by id, and a long-title page-edge test was added; L1 stale
+"More" errors are tied to the result they belong to; L2 merged main; nits N2/N3 fixed (fallback
+wording, malformed ids show the "can't be opened" sentence). N1: Search's date filter for records
+now uses creation time, matching the time shown. Full `pnpm test:db`: 776 tests, 743 pass,
+28 skip, 5 fail (the known PowerShell-wrapper tests only).
+
+Re-review fixes: Name cursors carry a short hash of the last row's lowercased title, so a
+rename between pages is refused with "start again"; hand-edited time cursors are refused as
+INVALID_CONTRACT before PostgreSQL parses them. Full `pnpm test:db`: 777 tests, 744 pass,
+28 skip, 5 fail (known PowerShell-wrapper tests only).
+
+Third-review fixes: Name sort seeks from the title value it just checked (no second read), and
+cursor times that are well-formed but impossible (PostgreSQL 22007/22008/22009) are refused as
+INVALID_CONTRACT. Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known PowerShell only).
+
+Fourth-review nit: cursor-time error mapping now applies only when a cursor was used, so a bad
+Search date filter is no longer reported as a bad page cursor. Merged main (API route list keeps
+main's `link` action). Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known
+PowerShell only).

@@ -7,6 +7,7 @@ import {
 import {
   ArtifactGuideSchema,
   ContractError,
+  PREVIEW_HEARTBEAT_SECONDS,
   RegisterArtifactRequestSchema,
   RunInputSchema,
   TerminalStartRequestSchema,
@@ -34,6 +35,87 @@ type Send = (
 ) => Promise<boolean>;
 
 /**
+ * ADR-0069: preview runs still in flight, so Stop/Revoke can cut them off and report whether
+ * they ended. Kept in memory: after a studio restart the executor's own recovery owns them.
+ */
+export class PreviewRuns {
+  private readonly live = new Map<
+    string,
+    Set<{
+      cancel: (() => Promise<void>) | null;
+      done: Promise<void>;
+      stopping: boolean;
+    }>
+  >();
+  /** Call before starting a run; `started` once its execution exists, `end` when it settles. */
+  begin(previewId: string) {
+    let finish = () => {};
+    const entry = {
+      cancel: null as (() => Promise<void>) | null,
+      done: new Promise<void>((r) => (finish = r)),
+      stopping: false,
+    };
+    const set = this.live.get(previewId) ?? new Set();
+    set.add(entry);
+    this.live.set(previewId, set);
+    return {
+      started: (cancel: () => Promise<void>) => {
+        entry.cancel = cancel;
+        // Stop arrived before the execution existed: cut it off now.
+        if (entry.stopping) void cancel().catch(() => undefined);
+      },
+      end: () => {
+        set.delete(entry);
+        if (!set.size) this.live.delete(previewId);
+        finish();
+      },
+    };
+  }
+  /**
+   * Cancels every in-flight run of a preview and waits up to `waitMs` for them to settle.
+   * `none`: nothing was running; `cancelled`: all ended; `unknown`: a cancel failed or a run
+   * had not ended in time.
+   */
+  async reap(
+    previewId: string,
+    waitMs: number,
+  ): Promise<{
+    cleanup: 'none' | 'cancelled' | 'unknown';
+    runs: number;
+    failures: string[];
+  }> {
+    const entries = [...(this.live.get(previewId) ?? [])];
+    if (!entries.length) return { cleanup: 'none', runs: 0, failures: [] };
+    const failures: string[] = [];
+    await Promise.all(
+      entries.map(async (x) => {
+        x.stopping = true;
+        try {
+          await x.cancel?.();
+        } catch (e) {
+          failures.push(
+            (e instanceof Error ? e.message : String(e)).slice(0, 300),
+          );
+        }
+      }),
+    );
+    let timer: NodeJS.Timeout | undefined;
+    const settled = await Promise.race([
+      Promise.all(entries.map((x) => x.done)).then(() => true),
+      new Promise<boolean>((r) => (timer = setTimeout(() => r(false), waitMs))),
+    ]);
+    clearTimeout(timer);
+    return {
+      cleanup: settled && !failures.length ? 'cancelled' : 'unknown',
+      runs: entries.length,
+      failures,
+    };
+  }
+}
+/** How long Stop waits for in-flight preview runs to end before reporting cleanup unknown. */
+export const PREVIEW_REAP_WAIT_MS = 15000;
+
+/**
  * Owner artifact routes on the management API. Every byte read re-hashes the stored package
  * against the indexed manifest; downloads and starts recheck owner access at that moment.
  */
@@ -44,6 +126,7 @@ export async function artifactRoutes(o: {
   /** Terminal sessions open a window on the studio's own computer: local studios only. */
   localStudio: boolean;
   previewOrigin: () => string | null;
+  previewRuns: PreviewRuns;
   ctx: CommandContext;
   ws: string;
   collection: string;
@@ -190,6 +273,8 @@ export async function artifactRoutes(o: {
       );
       let state: 'ready' | 'failed' | 'blocked' = 'blocked';
       let readiness: Record<string, unknown>;
+      // The readiness run is tracked too, so Stop while starting reaps it (review L-1).
+      const tracked = o.previewRuns.begin(preview.id);
       try {
         // Rechecks the bytes and starts the exact exported package in the isolated worker.
         const r = await artifacts.readiness(
@@ -197,6 +282,14 @@ export async function artifactRoutes(o: {
           record.summary.id,
           record.summary.manifest_sha256,
           ctx.actorId,
+          (executionId) =>
+            tracked.started(() =>
+              artifacts.executor.cancel(
+                record.manifest.product_id,
+                executionId,
+                ctx.actorId,
+              ),
+            ),
         );
         state = r.ready
           ? 'ready'
@@ -219,6 +312,8 @@ export async function artifactRoutes(o: {
         };
         if (e instanceof ContractError && e.code === 'EVIDENCE_MISMATCH')
           state = 'failed';
+      } finally {
+        tracked.end();
       }
       const settled = await store.settlePreview(
         ctx,
@@ -364,12 +459,40 @@ export async function artifactRoutes(o: {
     item &&
     action === 'stop' &&
     method === 'POST'
-  )
+  ) {
+    const stopped = await store.stopPreview(ctx, ws, item, await o.body());
+    // Admission is already closed; now cut off runs that were admitted before the stop.
+    const reaped = await o.previewRuns.reap(item, PREVIEW_REAP_WAIT_MS);
     return send(
       200,
-      await store.stopPreview(ctx, ws, item, await o.body()),
+      await store
+        .recordPreviewCleanup(ctx, ws, item, reaped.cleanup, {
+          runs: reaped.runs,
+          failures: reaped.failures,
+        })
+        // If recording fails the stop still stands; the preview shows cleanup as unrecorded.
+        .catch(() => ({ ...stopped, cleanup: null })),
       true,
     );
+  }
+  if (
+    o.collection === 'previews' &&
+    item &&
+    action === 'link' &&
+    method === 'POST'
+  ) {
+    // ADR-0069: a new one-time link; authority is rechecked, the lifetime is unchanged.
+    const { preview, ticket } = await store.renewPreviewLink(ctx, ws, item);
+    const origin = o.previewOrigin();
+    return send(
+      200,
+      {
+        preview,
+        url: origin ? `${origin}/preview/${preview.id}?ticket=${ticket}` : null,
+      },
+      true,
+    );
+  }
   if (o.collection === 'feedback' && item && method === 'POST') {
     if (action === 'decide')
       return send(
@@ -419,7 +542,18 @@ textarea::placeholder,input::placeholder{color:#6b6b66;opacity:1}
 // One argument per line cannot hold an empty or multi-line argument, so "Use this example" keeps
 // the spec's exact list (and standard input) and sends it while the boxes still show that example
 // (PR #94 review Low).
-const SCRIPT = `const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
+// ADR-0069: the page reports a viewer every few seconds, right away when it becomes visible
+// again (wake from sleep, tab switch), and says plainly when the preview has ended. Network
+// errors keep retrying until the studio answers; an Until-stopped preview survives a gap
+// shorter than its grace.
+const SCRIPT = `const life=document.getElementById('life');const every=Number(life.dataset.heartbeat)*1000;let ended=false;
+async function beat(){if(ended)return;try{const r=await fetch(location.pathname+'/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const v=await r.json();
+if(r.ok){life.className='muted';life.textContent=v.lifetime==='until_stopped'?'Open until you stop it in the studio. Viewer last seen '+new Date(v.last_seen_at).toLocaleTimeString()+'.':'Expires '+new Date(v.expires_at).toLocaleString()+'.';}
+else if(r.status===403||r.status===410||r.status===404){ended=true;life.className='error';life.textContent=v.error?v.error.message:'This preview has ended ('+r.status+').';const b=document.querySelector('#run button[type=submit]');if(b)b.disabled=true;}
+else{life.className='error';life.textContent='Studio not answering ('+r.status+'); retrying.';}}
+catch(err){life.className='error';life.textContent='Lost contact with the studio; retrying. '+(life.dataset.grace?'The preview ends if no page reconnects within '+Math.round(Number(life.dataset.grace)/60)+' minutes.':'');}}
+beat();setInterval(beat,every);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')beat();});
+const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
 // Any edit of a box drops that box's exact value, even one that leaves the same text (PR #130 N-1).
 document.getElementById('args').addEventListener('input',()=>{if(exact)exact.args=null;note.textContent='';});
 document.getElementById('stdin').addEventListener('input',()=>{if(exact)exact.stdin=null;});
@@ -515,6 +649,8 @@ export function createPreviewServer(
   artifacts: ArtifactSupervisor,
   /** X06: a hosted deployment's public preview origin (its own host behind the proxy). */
   publicOrigin: string | null = null,
+  /** In-flight runs, shared with the management routes so Stop can cut them off. */
+  runs: PreviewRuns = new PreviewRuns(),
 ): Server {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
@@ -554,7 +690,9 @@ export function createPreviewServer(
         });
         return res.end(STYLE);
       }
-      const m = /^\/preview\/([0-9a-f-]{36})(\/run)?$/.exec(url.pathname);
+      const m = /^\/preview\/([0-9a-f-]{36})(\/run|\/heartbeat)?$/.exec(
+        url.pathname,
+      );
       if (!m) throw new ContractError('NOT_FOUND', 'Not found.');
       const id = m[1]!;
       const cookie = `creator_preview_${id.replaceAll('-', '')}`;
@@ -593,8 +731,19 @@ export function createPreviewServer(
           }
 <dl><dt>Artifact</dt><dd>${html(mf.id)}</dd><dt>Commit</dt><dd>${html(mf.repository.commit)}</dd>
 <dt>Spec</dt><dd>v${html(mf.spec.version)}</dd><dt>Manifest sha256</dt><dd>${html(a.preview.manifest_sha256)}</dd>
-<dt>Expires</dt><dd>${html(a.preview.expires_at)}</dd><dt>Runs</dt><dd>${html(a.preview.runs_used)} of ${html(a.preview.max_runs)}</dd>
+<dt>Lasts</dt><dd>${
+            a.preview.lifetime === 'until_stopped'
+              ? 'Until you stop it in the studio (ends if no preview page is open for ' +
+                html(Math.round((a.preview.idle_grace_seconds ?? 0) / 60)) +
+                ' minutes)'
+              : `Until ${html(a.preview.expires_at)}`
+          }</dd><dt>Runs</dt><dd>${html(a.preview.runs_used)} of ${html(a.preview.max_runs)}</dd>
 <dt>Command</dt><dd>${html(mf.startup.command.join(' '))} [arguments]</dd></dl>
+<p id="life" class="muted" role="status" data-heartbeat="${PREVIEW_HEARTBEAT_SECONDS}"${
+            a.preview.idle_grace_seconds
+              ? ` data-grace="${html(a.preview.idle_grace_seconds)}"`
+              : ''
+          }></p>
 ${usage(mf.startup.command, a.guide)}
 <form id="run"><label for="args">Arguments, one per line</label><textarea id="args" rows="3"${placeholder(first?.args.join('\n'))}></textarea><p id="args-note" class="muted" aria-live="polite"></p>
 <label for="stdin">Standard input</label><textarea id="stdin" rows="3"${placeholder(first?.stdin)}></textarea>
@@ -603,7 +752,31 @@ ${usage(mf.startup.command, a.guide)}
 <script src="/preview-assets/preview.js"></script>`,
         );
       }
-      if (req.method === 'POST' && m[2]) {
+      if (req.method === 'POST' && m[2] === '/heartbeat') {
+        if (req.headers.origin !== self)
+          throw new ContractError(
+            'ORIGIN_DENIED',
+            'Preview heartbeats come only from this preview page.',
+          );
+        const p = await store.previewHeartbeat(id, session);
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff',
+        });
+        return res.end(
+          JSON.stringify({
+            state: p.state,
+            lifetime: p.lifetime,
+            expires_at: p.expires_at,
+            last_seen_at: p.last_seen_at,
+            idle_until: p.idle_until,
+            runs_used: p.runs_used,
+            max_runs: p.max_runs,
+          }),
+        );
+      }
+      if (req.method === 'POST' && m[2] === '/run') {
         if (req.headers.origin !== self)
           throw new ContractError(
             'ORIGIN_DENIED',
@@ -626,13 +799,28 @@ ${usage(mf.startup.command, a.guide)}
         const raw = Buffer.concat(chunks).toString('utf8');
         const input = parse(RunInputSchema, JSON.parse(raw || 'null'));
         const a = await store.previewAccess(id, session, true);
-        const e = await artifacts.start(
-          a.product_id,
-          a.record.summary.id,
-          a.preview.manifest_sha256,
-          a.actor_id,
-          input,
-        );
+        // Tracked so Stop/Revoke can cut off this run (ADR-0069).
+        const tracked = runs.begin(id);
+        let e: Awaited<ReturnType<ArtifactSupervisor['start']>>;
+        try {
+          e = await artifacts.start(
+            a.product_id,
+            a.record.summary.id,
+            a.preview.manifest_sha256,
+            a.actor_id,
+            input,
+            (executionId) =>
+              tracked.started(() =>
+                artifacts.executor.cancel(
+                  a.product_id,
+                  executionId,
+                  a.actor_id,
+                ),
+              ),
+          );
+        } finally {
+          tracked.end();
+        }
         await store.recordPreviewRun(a.actor_id, a.workspace_id, id, {
           execution_id: e.id,
           state: e.state,

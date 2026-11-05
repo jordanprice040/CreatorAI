@@ -5,15 +5,9 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { api, message, when } from './oversight.js';
-import {
-  Empty,
-  Status,
-  eventText,
-  shortId,
-  subjectTarget,
-  type View,
-} from './ui.js';
+import { Empty, Status, eventText, shortId, type View } from './ui.js';
 import { useOnShow } from './page-active.js';
+import { canOpen, useOpenSubject } from './destinations.js';
 
 const ACTIONS = [
   ['', 'Everything'],
@@ -53,6 +47,7 @@ export function Activity({
   const [error, setError] = useState('');
   const action = focus;
   useEffect(() => setDraft(q), [q]);
+  const opener = useOpenSubject(workspace.id, open);
   async function load(before?: string) {
     setLoading(true);
     setError('');
@@ -135,8 +130,18 @@ export function Activity({
                   {e.actor.kind === 'human' ? '' : ` (${e.actor.kind})`}
                 </strong>{' '}
                 {eventText(e.summary)}{' '}
-                <Subject kind={e.subject_kind} id={e.subject_id} open={open} />
-                <small> · #{e.sequence}</small>
+                <Subject
+                  kind={e.subject_kind}
+                  id={e.subject_id}
+                  opener={opener}
+                  eventKey={e.event_id}
+                />
+                <small> · event #{e.sequence}</small>
+                {opener.notice?.key === e.event_id && (
+                  <p className="small" role="status">
+                    {opener.notice.text}
+                  </p>
+                )}
               </li>
             ))}
           </ol>
@@ -155,19 +160,29 @@ export function Activity({
   );
 }
 
+/**
+ * The event's subject as a link to the result itself (the record, run, code version or
+ * conversation), not to this event. Kinds no page shows stay plain text.
+ */
 function Subject({
   kind,
   id,
-  open,
+  opener,
+  eventKey,
 }: {
   kind: string;
   id: string;
-  open: (view: View, id?: string) => void;
+  opener: ReturnType<typeof useOpenSubject>;
+  eventKey: string;
 }) {
-  const target = subjectTarget(kind, id);
-  const label = `${kind} ${shortId(id)}`;
-  return target ? (
-    <button className="text" onClick={() => open(target[0], target[1])}>
+  const label = `${kind.replace(/_/g, ' ')} ${shortId(id)}`;
+  return canOpen(kind) ? (
+    <button
+      className="text"
+      aria-busy={opener.busy === eventKey}
+      title={`Open this ${kind.replace(/_/g, ' ')}`}
+      onClick={() => void opener.openSubject(kind, id, eventKey)}
+    >
       {label}
     </button>
   ) : (
