@@ -126,3 +126,8 @@ continues after the last row read again by id, and a long-title page-edge test w
 wording, malformed ids show the "can't be opened" sentence). N1: Search's date filter for records
 now uses creation time, matching the time shown. Full `pnpm test:db`: 776 tests, 743 pass,
 28 skip, 5 fail (the known PowerShell-wrapper tests only).
+
+Re-review fixes: Name cursors carry a short hash of the last row's lowercased title, so a
+rename between pages is refused with "start again"; hand-edited time cursors are refused as
+INVALID_CONTRACT before PostgreSQL parses them. Full `pnpm test:db`: 777 tests, 744 pass,
+28 skip, 5 fail (known PowerShell-wrapper tests only).

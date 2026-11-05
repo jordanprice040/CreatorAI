@@ -98,6 +98,21 @@ function decodeCursor(raw: string, s: string, ty: string, f: string): Cursor {
   if (!ok) throw fail('INVALID_CONTRACT', STALE_CURSOR);
   return c;
 }
+/** PostgreSQL's text form of a timestamptz, as a time cursor carries it. */
+const CURSOR_TIME_RE =
+  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2}){0,2}$/;
+/** A time cursor's key, checked before PostgreSQL parses it (re-review nit). */
+function cursorTime(c: Cursor): string {
+  if (typeof c.t !== 'string' || !CURSOR_TIME_RE.test(c.t))
+    throw fail(
+      'INVALID_CONTRACT',
+      'That page cursor is not valid; start again.',
+    );
+  return c.t;
+}
+/** A short hash of a Name key, so a cursor notices the last row was renamed. */
+const titleHash = (key: string) =>
+  createHash('sha256').update(key).digest('hex').slice(0, 16);
 const filterHash = (v: unknown) =>
   createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 16);
 /** Subjects whose existence the destination check reads from the entities table. */
@@ -357,7 +372,7 @@ export class CatalogStore extends SelectionStore {
       } else if (cursor) {
         if (cursor.t === undefined || cursor.i === undefined)
           throw fail('INVALID_CONTRACT', STALE_CURSOR);
-        seek = `(x.sort_at, x.sort_id) ${dir === 'asc' ? '>' : '<'} (${p(cursor.t)}::timestamptz, ${p(cursor.i)}::text)`;
+        seek = `(x.sort_at, x.sort_id) ${dir === 'asc' ? '>' : '<'} (${p(cursorTime(cursor))}::timestamptz, ${p(cursor.i)}::text)`;
       }
       const sql = `${prefix} select x.*, x.sort_at::text as cursor_at from (${inner}) x
          where ${seek}
@@ -825,8 +840,10 @@ export class CatalogStore extends SelectionStore {
         const anchorId = uuid(cursor.i!, 'INVALID_CONTRACT');
         // Review M1: titles can be thousands of characters, too long to carry in a cursor,
         // so Name continues after the last row shown, read again by its id.
+        // Re-review Low: the cursor carries a hash of the title it was made after, so a
+        // rename between pages is refused rather than skipping or repeating rows.
         const anchor = await c.query(
-          'select 1 from entities where workspace_id = $1 and id = $2::uuid',
+          'select lower(title) as key from entities where workspace_id = $1 and id = $2::uuid',
           [ws, anchorId],
         );
         if (anchor.rowCount === 0)
@@ -834,11 +851,16 @@ export class CatalogStore extends SelectionStore {
             'INVALID_CONTRACT',
             'The last record shown is no longer in this workspace; start again.',
           );
+        if (titleHash(String(anchor.rows[0].key)) !== cursor.t)
+          throw fail(
+            'INVALID_CONTRACT',
+            'The last record shown was renamed since this page was read; start again.',
+          );
         args.push(anchorId);
         seek = `(x.sort_key, x.sort_id) > (select lower(a.title), a.id::text
                   from entities a where a.workspace_id = $1 and a.id = $5::uuid)`;
       } else if (cursor) {
-        args.push(cursor.t, cursor.i);
+        args.push(cursorTime(cursor), cursor.i);
         seek = `(x.sort_key, x.sort_id) ${dir === 'asc' ? '>' : '<'} ($5::timestamptz, $6::text)`;
       }
       const { rows } = await c.query(
@@ -863,7 +885,10 @@ export class CatalogStore extends SelectionStore {
                 s: sort,
                 ty: 'library',
                 f: bound,
-                t: sort === 'name' ? '' : String(last.cursor_key),
+                t:
+                  sort === 'name'
+                    ? titleHash(String(last.sort_key))
+                    : String(last.cursor_key),
                 i: String(last.sort_id),
               })
             : null,

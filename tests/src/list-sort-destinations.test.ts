@@ -476,3 +476,66 @@ test('P02 review M1: Name sort pages past long titles with a short cursor', asyn
     }),
   );
 });
+
+test('P02 re-review: a rename between Name pages and a hand-edited time cursor are refused', async (t) => {
+  const s = await discoverySetup(t, new FixtureAdapter());
+  if (!s) return;
+  for (const title of ['Apple', 'Banana', 'Cherry', 'Damson'])
+    await s.store.createEntity(owner, s.ws.id, {
+      kind: 'idea',
+      title,
+      body: { summary: title, uncertainty: 'Untested' },
+    });
+  const first = await s.store.library(owner, s.ws.id, {
+    kind: 'idea',
+    sort: 'name',
+    limit: 2,
+  });
+  assert.deepEqual(
+    first.entities.map((e) => e.title),
+    ['Apple', 'Banana'],
+  );
+  // Unchanged, the next page continues exactly.
+  const second = await s.store.library(owner, s.ws.id, {
+    kind: 'idea',
+    sort: 'name',
+    limit: 2,
+    after: first.next!,
+  });
+  assert.deepEqual(
+    second.entities.map((e) => e.title),
+    ['Cherry', 'Damson'],
+  );
+  // Renaming the last row shown would move the page edge; the old cursor is refused.
+  const banana = first.entities[1]!;
+  await s.store.reviseEntity(owner, s.ws.id, banana.id, {
+    expected_version: banana.version,
+    title: 'Zucchini',
+    body: banana.body,
+    reason: 'Renamed between pages',
+    corrects_version: null,
+  });
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.library(owner, s.ws.id, {
+      kind: 'idea',
+      sort: 'name',
+      limit: 2,
+      after: first.next!,
+    }),
+  );
+  // A time cursor whose time was edited by hand is a contract error, not a database one.
+  const newest = await s.store.library(owner, s.ws.id, {
+    kind: 'idea',
+    limit: 1,
+  });
+  const c = JSON.parse(Buffer.from(newest.next!, 'base64url').toString('utf8'));
+  const forged = Buffer.from(
+    JSON.stringify({ ...c, t: 'not a time' }),
+    'utf8',
+  ).toString('base64url');
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.library(owner, s.ws.id, { kind: 'idea', limit: 1, after: forged }),
+  );
+});
