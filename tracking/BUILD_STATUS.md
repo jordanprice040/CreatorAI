@@ -87,3 +87,13 @@ PowerShell-wrapper tests, no `pwsh` in the container); formatting passes; dev-sa
 Windows `pg_ctl` path test cannot run on Linux). Browser walk
 `tracking/evidence/chat-context/walk.mjs` passes in dark, light and phone width.
 Next: a separate independent review of the P03 PR.
+
+## P07 preview lifetime (November 5, branch `claude/project-thread-7c9lp1`)
+
+Previews can be **Timed** (default, 1–60 min) or **Until stopped** (ADR-0069, migration 44,
+schema 44): no expiry; live while a preview page heartbeats within 3 minutes; abandoned
+previews end and free their slot; links expire after 10 minutes and can be renewed by the
+owner; Stop/Revoke cancels in-flight runs and records cleanup. Limits unchanged. Verified
+locally on disposable PostgreSQL 16 in the cloud container (see the PR for counts); the preview
+page script was walked in headless Chromium against a stand-in store. Not verified: a full
+studio browser walk, the installed app, real WSL runs. Awaiting independent review.
