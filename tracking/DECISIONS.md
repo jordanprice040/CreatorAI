@@ -1,5 +1,18 @@
 # Decision log
 
+## ADR-0073 — Named private notes with Markdown preview and export (November 5, 2026)
+
+P06 (revision R04) from the [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md). Extends ADR-0060's single notepad.
+
+- **Notes.** Each person keeps up to 200 named notes per workspace (`personal_notes`, migration 46): a title (1–120 characters, no control characters), Markdown text (at most 100,000 characters), a text `version`, a status (active or archived) and times. Only the author can list, read, save, rename, archive or restore them; another person's note id, or an id from another workspace, is not found. A viewer may keep notes too. Removing a member removes their notes. Nothing about notes is audited, so names and text never enter the activity history; they are never sent to a model.
+- **Migration.** Every saved ADR-0060 notepad becomes an active note named "Notes" with the same text, version and time (`from_notepad`); `workspace_notes` is left unchanged as the original. An editor opened before the upgrade can still save on that version.
+- **Saving.** Autosave and conflict recovery work as before, per note: the version check is in the update itself, a stale save gets VERSION_CONFLICT and the person picks which text to keep. Renaming and archiving do not change the text version, so an open editor is not refused because the note was renamed. An archived note is read-only (INVALID_TRANSITION) until restored; archiving saves pending text first. Creates take a per-person lock so the limit holds under concurrency.
+- **Drafts.** The tab's safety copies are keyed by person, workspace and note, cleared on sign-out as before. A copy left by the old notepad moves to the note it became, or starts a "Notes" note when the old notepad was never saved.
+- **Viewing and export.** Write/Preview shows the note through the existing safe Markdown renderer (no raw HTML, scripts or images; `<script>` stays text). Export downloads the text as a `.md` file built in the browser; the file name keeps only safe characters. The chosen note is remembered per person and workspace on the device (its id only).
+- **Routes.** `GET/POST /api/workspaces/{ws}/notes` (list, create), `GET/POST /notes/{id}` (read, save), `POST /notes/{id}/rename`, `POST /notes/{id}/archive` (`{archived}`); writes need the CSRF header.
+
+Not done: deleting a note (archive keeps it), sharing notes with other members, search over notes, and turning a note into a claim or file.
+
 ## ADR-0070 — Chat answers general requests broadly; context is chosen and recorded (November 5, 2026)
 
 P03 (revision R02) from the [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md). This refines ADR-0055 (chat rules) and ADR-0057 (plan-backed answers); everything else in them stands: answers are advice only, owner-only, under the chat switch, the daily chat limit, the connection's caps and the open-study pause, and nothing a model writes starts, approves or spends anything.

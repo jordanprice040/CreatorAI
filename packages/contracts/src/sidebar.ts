@@ -7,24 +7,72 @@ import { z, id, timestamp } from './primitives.js';
 /** Longest note, in characters. */
 export const NOTE_MAX = 100_000;
 
+/** Longest note title, in characters. */
+export const NOTE_TITLE_MAX = 120;
+/** Most notes (active and archived) one person may keep in one workspace. */
+export const NOTES_PER_PERSON_MAX = 200;
+
+const noteText = z
+  .string()
+  .max(
+    NOTE_MAX,
+    `Notes are limited to ${NOTE_MAX.toLocaleString('en-US')} characters.`,
+  );
+const noteTitle = z
+  .string()
+  .trim()
+  .min(1, 'A note needs a name.')
+  .max(
+    NOTE_TITLE_MAX,
+    `Note names are limited to ${NOTE_TITLE_MAX} characters.`,
+  )
+  .refine(
+    (t) => !/[\u0000-\u001f\u007f]/.test(t),
+    'Note names cannot hold control characters.',
+  );
+
+/**
+ * ADR-0073 (P06): one of a person's named notes in a workspace. Private to its author. `version`
+ * counts text saves only; renaming or archiving does not change it, so an open editor's next
+ * save is not refused because the note was renamed elsewhere.
+ */
 export const WorkspaceNoteSchema = z.strictObject({
+  id,
   workspace_id: id,
+  title: z.string().min(1).max(NOTE_TITLE_MAX),
   text: z.string().max(NOTE_MAX),
-  /** 0 until the first save. */
-  version: z.number().int().min(0),
-  updated_at: timestamp.nullable(),
+  version: z.number().int().min(1),
+  status: z.enum(['active', 'archived']),
+  /** The note the single ADR-0060 notepad became (migration 46). */
+  from_notepad: z.boolean(),
+  created_at: timestamp,
+  updated_at: timestamp,
 });
 export type WorkspaceNote = z.infer<typeof WorkspaceNoteSchema>;
 
+export const WorkspaceNoteSummarySchema = WorkspaceNoteSchema.omit({
+  text: true,
+}).extend({ chars: z.number().int().min(0) });
+export type WorkspaceNoteSummary = z.infer<typeof WorkspaceNoteSummarySchema>;
+
+/** The person's notes in a workspace, most recently changed first. */
+export const WorkspaceNoteListSchema = z.strictObject({
+  notes: z.array(WorkspaceNoteSummarySchema).max(NOTES_PER_PERSON_MAX),
+});
+export type WorkspaceNoteList = z.infer<typeof WorkspaceNoteListSchema>;
+
 export const WorkspaceNoteRequestSchema = z.strictObject({
   /** The version the text was based on; a stale one is refused so another window's text is not lost. */
-  expected_version: z.number().int().min(0),
-  text: z
-    .string()
-    .max(
-      NOTE_MAX,
-      `Notes are limited to ${NOTE_MAX.toLocaleString('en-US')} characters.`,
-    ),
+  expected_version: z.number().int().min(1),
+  text: noteText,
+});
+export const NoteCreateRequestSchema = z.strictObject({
+  title: noteTitle,
+  text: noteText.default(''),
+});
+export const NoteRenameRequestSchema = z.strictObject({ title: noteTitle });
+export const NoteArchiveRequestSchema = z.strictObject({
+  archived: z.boolean(),
 });
 
 export const ActivityNowKindSchema = z.enum([

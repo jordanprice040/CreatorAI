@@ -2744,6 +2744,33 @@ alter table artifact_previews add constraint artifact_previews_lifetime_shape ch
       and last_seen_at is not null));
 `,
   },
+  {
+    // ADR-0073 (P06): named private notes. Each person keeps several notes per workspace; only
+    // the author reads or writes them, and `version` counts text saves so a stale window cannot
+    // overwrite newer text. Every existing notepad becomes a note named "Notes" with the same
+    // text, version and time; workspace_notes is kept unchanged as the original.
+    version: 46,
+    name: 'personal_notes',
+    sql: `
+create table personal_notes (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id) on delete cascade,
+ actor_id uuid not null references actors(id) on delete cascade,
+ title text not null check (length(title) between 1 and 120),
+ text text not null check (length(text) <= 100000),
+ version integer not null check (version >= 1),
+ status text not null default 'active' check (status in ('active', 'archived')),
+ from_notepad boolean not null default false,
+ created_at timestamptz not null default clock_timestamp(),
+ updated_at timestamptz not null default clock_timestamp()
+);
+create index personal_notes_owner on personal_notes (workspace_id, actor_id, updated_at desc);
+create unique index personal_notes_one_notepad on personal_notes (workspace_id, actor_id) where from_notepad;
+insert into personal_notes (id, workspace_id, actor_id, title, text, version, from_notepad, created_at, updated_at)
+ select gen_random_uuid(), workspace_id, actor_id, 'Notes', text, version, true, updated_at, updated_at
+ from workspace_notes;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

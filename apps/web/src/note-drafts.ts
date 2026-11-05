@@ -1,5 +1,6 @@
 // ADR-0060: safety copies of notes text not yet saved, so closing the notepad, a resize, a
-// workspace switch or a reload cannot drop it. Kept per person and per workspace (review N-1),
+// workspace switch or a reload cannot drop it. Kept per person, per workspace (review N-1) and,
+// since ADR-0073, per note: callers pass `noteSlot(ws, note)` as the workspace part,
 // in this tab's session storage and, when storage is blocked, in memory for the page's life
 // (review L-B). Cleared on sign-out so the next person on this tab never sees them.
 
@@ -20,6 +21,34 @@ const key = (actor: string, ws: string) => `${PREFIX}${actor}.${ws}`;
  * sign-out cleared it (review L-E walk).
  */
 let current: string | null | undefined;
+
+/** ADR-0073: the draft slot for one note; the bare workspace id is the old single notepad's. */
+export const noteSlot = (ws: string, note: string) => `${ws}.${note}`;
+
+/**
+ * ADR-0073: hands over (and removes) a copy left by the single notepad before notes had names,
+ * so it can move to the note that notepad became.
+ */
+export function takeLegacyNoteDraft(
+  actor: string,
+  ws: string,
+): NoteDraft | null {
+  const d = readNoteDraft(actor, ws);
+  if (d) writeNoteDraft(actor, ws, null);
+  return d;
+}
+
+/** ADR-0073: a download name for a note exported as Markdown. */
+export function noteFileName(title: string): string {
+  const base = title
+    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\.+|\.+$/g, '')
+    .slice(0, 100)
+    .trim();
+  return `${base || 'note'}.md`;
+}
 
 export function readNoteDraft(actor: string, ws: string): NoteDraft | null {
   const k = key(actor, ws);

@@ -640,6 +640,10 @@ export class Store {
         'delete from workspace_notes where workspace_id = $1 and actor_id = $2',
         [ws, actorId],
       );
+      await c.query(
+        'delete from personal_notes where workspace_id = $1 and actor_id = $2',
+        [ws, actorId],
+      );
       await this.append(c, ctx, {
         workspaceId: ws,
         action: 'member.removed',

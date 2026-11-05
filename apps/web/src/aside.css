@@ -225,6 +225,65 @@ button.aside-row:hover {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
+.notes-bar,
+.notes-name,
+.notes-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.notes-bar select {
+  flex: 1;
+  min-width: 0;
+}
+.notes-name input {
+  flex: 1;
+  min-width: 8em;
+}
+.notes-tools {
+  gap: 4px 10px;
+}
+.notes-mode {
+  display: inline-flex;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-right: auto;
+}
+.notes-mode button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  padding: 3px 10px;
+  font-size: 13px;
+}
+.notes-mode button.on {
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-weight: 600;
+}
+.notes-preview {
+  flex: 1;
+  min-height: 240px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+.notes-archived,
+.notes-empty p {
+  margin: 0;
+  color: var(--text-3);
+}
+.notes-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
 .notes-status {
   margin: 0;
   min-height: 1.4em;

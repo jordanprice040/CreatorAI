@@ -193,3 +193,20 @@ Fourth-review nit: cursor-time error mapping now applies only when a cursor was 
 Search date filter is no longer reported as a bad page cursor. Merged main (API route list keeps
 main's `link` action). Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known
 PowerShell only).
+
+## P06 named notes (November 5, branch `claude/project-thread-h4hwto-p06`)
+
+Sidebar Notes (ADR-0073, migration 46, schema 46): several private named notes per person and
+workspace with a switcher, New, Rename, Archive/Restore, Write/Preview (safe Markdown) and
+Export as `.md`. Existing notepads became a note named "Notes" with the same text and version;
+unsaved notepad drafts in the tab carry over. Autosave and conflict recovery work per note.
+
+Checked: `tests/src/sidebar.test.ts` (privacy across people and workspaces, versions, rename
+keeps the text version, archive read-only and restore, no audit rows, member removal, invalid
+names, concurrent saves, the 200-note limit under concurrent creates, migration 46 from a v45
+layout, every route with sign-in and CSRF) and `web-note-drafts.test.ts` (per-note drafts,
+legacy draft hand-over, export names). Walked in headless Chromium at 1600 and 390 px: an old
+notepad draft became "Notes", Preview formats Markdown and keeps `<script>` as text, Export
+downloads the exact text, rename and archive work, an archived note is read-only, switching
+notes right after typing saves the text, and the chosen note comes back after reload.
+Not done: deleting notes, sharing, search over notes. Awaiting review.

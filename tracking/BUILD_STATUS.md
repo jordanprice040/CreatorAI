@@ -146,3 +146,20 @@ studio browser walk, the installed app, real WSL runs. Awaiting independent revi
 Activity destinations, Search reset and server-side sort/paging for Search and the Library;
 details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
 installed-app change or live call. Not yet independently reviewed.
+
+## P06 named notes (November 5, branch `claude/project-thread-h4hwto-p06`)
+
+Sidebar Notes (ADR-0073, migration 46, schema 46): several private named notes per person and
+workspace with a switcher, New, Rename, Archive/Restore, Write/Preview (safe Markdown) and
+Export as `.md`. Existing notepads became a note named "Notes" with the same text and version;
+unsaved notepad drafts in the tab carry over. Autosave and conflict recovery work per note.
+
+Checked: `tests/src/sidebar.test.ts` (privacy across people and workspaces, versions, rename
+keeps the text version, archive read-only and restore, no audit rows, member removal, invalid
+names, concurrent saves, the 200-note limit under concurrent creates, migration 46 from a v45
+layout, every route with sign-in and CSRF) and `web-note-drafts.test.ts` (per-note drafts,
+legacy draft hand-over, export names). Walked in headless Chromium at 1600 and 390 px: an old
+notepad draft became "Notes", Preview formats Markdown and keeps `<script>` as text, Export
+downloads the exact text, rename and archive work, an archived note is read-only, switching
+notes right after typing saves the text, and the chosen note comes back after reload.
+Not done: deleting notes, sharing, search over notes. Awaiting review.
