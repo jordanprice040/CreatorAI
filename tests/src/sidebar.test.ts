@@ -290,7 +290,7 @@ test('migration 46 turns each saved notepad into a note named "Notes", unchanged
     record_mode: 'fixture',
   });
   await store.addMember(owner, ws.id, other.actorId, 'viewer');
-  // Test-only v45 layout: no named notes yet, two people with a saved notepad.
+  // Test-only layout before 46: no named notes yet, two people with a saved notepad.
   await db.pool.query(
     'drop table personal_notes; delete from schema_migrations where version = 46',
   );

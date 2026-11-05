@@ -567,6 +567,8 @@ function Notes({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
+  /** The note whose text the editor has loaded; Export waits for it (review N-3). */
+  const [readyId, setReadyId] = useState<string | null>(null);
   const controls = useRef<EditorControls | null>(null);
   const rememberKey = `${CURRENT_NOTE_KEY}${actor}.${ws}`;
 
@@ -595,6 +597,9 @@ function Notes({
               text: legacy.text,
               base_version: Math.max(1, legacy.base_version),
             });
+          // That note already has unsaved text here: keep the old copy too, for a later load
+          // to hand over once that text is saved (PR #142 review N-2).
+          else writeNoteDraft(actor, ws, legacy);
         } else if (legacy.text.trim()) {
           try {
             const made = await api(
@@ -834,7 +839,11 @@ function Notes({
             >
               Rename
             </button>
-            <button className="text" onClick={exportNote}>
+            <button
+              className="text"
+              onClick={exportNote}
+              disabled={readyId !== note.id}
+            >
               Export
             </button>
             <button
@@ -860,6 +869,7 @@ function Notes({
             preview={preview}
             controls={controls}
             onSaved={replace}
+            onReady={setReadyId}
           />
         </>
       )}
@@ -890,6 +900,7 @@ function NoteEditor({
   preview,
   controls,
   onSaved,
+  onReady,
 }: {
   ws: string;
   actor: string;
@@ -898,6 +909,7 @@ function NoteEditor({
   preview: boolean;
   controls: React.MutableRefObject<EditorControls | null>;
   onSaved: (note: WorkspaceNote) => void;
+  onReady: (id: string) => void;
 }) {
   const id = summaryIn.id;
   const readOnly = summaryIn.status === 'archived';
@@ -910,6 +922,8 @@ function NoteEditor({
   const base = useRef<WorkspaceNote | null>(null);
   const pending = useRef<string | null>(null);
   const saving = useRef(false);
+  /** The save now on its way, so Archive can wait for it (review L-1). */
+  const inFlight = useRef<Promise<void> | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -963,6 +977,7 @@ function NoteEditor({
         setState({ kind: 'saved', at: note.updated_at });
       }
       setLoaded(true);
+      onReady(id);
     } catch (e) {
       setLoadError(message(e));
     }
@@ -970,6 +985,24 @@ function NoteEditor({
   useEffect(() => {
     void load();
   }, []);
+  // Review L-1: text kept in this tab while the note was archived comes back when it is
+  // restored, and is saved as usual.
+  const wasReadOnly = useRef(readOnly);
+  useEffect(() => {
+    const restored = wasReadOnly.current && !readOnly;
+    wasReadOnly.current = readOnly;
+    if (!restored || !loaded || !base.current) return;
+    const draft = readNoteDraft(actor, slot);
+    if (!draft || draft.text === textRef.current) return;
+    setText(draft.text);
+    pending.current = draft.text;
+    if (draft.base_version === base.current.version) schedule();
+    else {
+      const theirs = base.current;
+      base.current = { ...theirs, version: draft.base_version };
+      setState({ kind: 'conflict', theirs });
+    }
+  }, [readOnly]);
 
   async function flush() {
     window.clearTimeout(timer.current);
@@ -983,6 +1016,10 @@ function NoteEditor({
     const value = pending.current;
     pending.current = null;
     saving.current = true;
+    let release = () => {};
+    inFlight.current = new Promise<void>((r) => {
+      release = r;
+    });
     sending.current = value;
     keepDraft(value);
     let ok = false;
@@ -1016,6 +1053,8 @@ function NoteEditor({
     } finally {
       saving.current = false;
       sending.current = null;
+      inFlight.current = null;
+      release();
     }
     // Typing that arrived during a successful save goes out next; after a failure nothing
     // retries on its own (review L-1).
@@ -1029,7 +1068,10 @@ function NoteEditor({
     }, SAVE_DELAY_MS);
   }
   controls.current = {
+    // Waits for a save already in flight, then saves whatever was typed during it, so Archive
+    // never leaves typed text behind (review L-1).
     flush: async () => {
+      while (inFlight.current) await inFlight.current;
       if (stateRef.current.kind !== 'conflict') await flush();
     },
     text: () => textRef.current,
