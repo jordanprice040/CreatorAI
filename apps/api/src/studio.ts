@@ -228,10 +228,15 @@ export type DatabaseState = {
   applied: number;
   expected: number;
   unknown_newer: boolean;
+  /** Applied migrations this code does not know (PR #139 re-review N-A). */
+  unknown_versions: number[];
   empty: boolean;
   workspaces: { name: string; record_mode: string }[];
   error: string | null;
 };
+/** Names the applied migrations this app does not know (PR #139 re-review N-A). */
+const unknownText = (v: number[]) =>
+  `The database has ${v.length === 1 ? 'migration' : 'migrations'} ${v.join(', ')}, which this app does not know`;
 /** Read-only look at a database: schema position and workspace names, no secrets. */
 export async function inspectDatabase(raw: string): Promise<DatabaseState> {
   const expected = latest();
@@ -252,12 +257,25 @@ export async function inspectDatabase(raw: string): Promise<DatabaseState> {
     );
     let applied = 0;
     let unknownNewer = false;
+    let unknownVersions: number[] = [];
     if (ledger.rows[0]?.ok) {
       const { rows } = await pool.query<{ version: number }>(
         'select version from schema_migrations order by version',
       );
-      applied = rows.at(-1)?.version ?? 0;
-      unknownNewer = rows.some((r) => r.version > expected);
+      // PR #136 review M3: the schema position is the highest known migration up to which
+      // every known migration is applied, not the highest applied one. A database that skipped
+      // a migration (applied 43 before 42 existed) then reads as needing migration, and
+      // `migrate` applies the missing one, instead of looking current and failing the startup
+      // gate. A version this code does not know still counts as newer.
+      const done = new Set(rows.map((r) => r.version));
+      for (const m of migrations) {
+        if (!done.has(m.version)) break;
+        applied = m.version;
+      }
+      unknownVersions = rows
+        .map((r) => r.version)
+        .filter((v) => !migrations.some((m) => m.version === v));
+      unknownNewer = unknownVersions.length > 0;
     }
     const ws = await pool.query<{ ok: boolean }>(
       `select to_regclass('public.workspaces') is not null as ok`,
@@ -274,6 +292,7 @@ export async function inspectDatabase(raw: string): Promise<DatabaseState> {
       applied,
       expected,
       unknown_newer: unknownNewer,
+      unknown_versions: unknownVersions,
       empty: tables.rows[0]!.n === 0,
       workspaces,
       error: null,
@@ -284,6 +303,7 @@ export async function inspectDatabase(raw: string): Promise<DatabaseState> {
       applied: 0,
       expected,
       unknown_newer: false,
+      unknown_versions: [],
       empty: false,
       workspaces: [],
       error: e instanceof Error ? e.message : 'Database unavailable.',
@@ -397,7 +417,7 @@ export async function migrateStudio(input: StudioInput) {
   if (before.unknown_newer)
     throw new ContractError(
       'INVALID_CONFIG',
-      `The database has migrations newer than this app (${before.applied} > ${before.expected}); install a matching app version.`,
+      `${unknownText(before.unknown_versions)}; install a matching app version.`,
     );
   const backup = before.empty
     ? null
@@ -533,7 +553,7 @@ export async function serveStudio(
     emit({
       event: 'error',
       code: 'DATABASE_NEWER',
-      message: `The database has migrations newer than this app (${state.applied}). Install a matching app version.`,
+      message: `${unknownText(state.unknown_versions)}. Install a matching app version.`,
     });
     return 6;
   }
