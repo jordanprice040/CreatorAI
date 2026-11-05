@@ -113,12 +113,14 @@ export function Chat({
   // ADR-0070: the context for the next message; it stays chosen until changed.
   const [scope, setScope] = useState<ChatScope>('auto');
   const [picked, setPicked] = useState<PickedRecord[]>([]);
-  // PR #136 review N2: picked records belong to one conversation. They are cleared only when
-  // the person moves away from a conversation, not when the first message creates one
-  // (PR #139 re-review L-A).
+  // PR #136 review N2: picked records belong to one conversation. They are cleared on every
+  // conversation change except the one the first message creates (PR #139 reviews L-A, N-1).
+  const createdFor = useRef('');
   const pickedFor = useRef(focus);
   useEffect(() => {
-    if (pickedFor.current && pickedFor.current !== focus) setPicked([]);
+    if (pickedFor.current !== focus && focus !== createdFor.current)
+      setPicked([]);
+    createdFor.current = '';
     pickedFor.current = focus;
   }, [focus]);
   // One id per message being written, reused on retry so a resend never adds it twice.
@@ -268,6 +270,7 @@ export function Chat({
         // PR #98 L-2: open the new conversation before posting, so a failed post is retried
         // into it instead of starting another empty one.
         focusRef.current = id;
+        createdFor.current = id;
         onFocus(id);
       }
       const posted = await api(ChatMessageSchema, `${base}/${id}/messages`, {

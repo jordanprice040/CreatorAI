@@ -79,7 +79,7 @@ const STRONG_APPROVALS =
   /\b(?:waiting (?:on|for) me|needs? me|needs? my (?:approval|answer|decision)|my answer|my approvals?|pending (?:approvals?|decisions?)|decisions? for me)\b/;
 /** PR #136 review M1: whole-message studio questions about blocked work. */
 const STUDIO_BLOCKED_QUESTION =
-  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why\s+(?:is|are|'s)\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|it|things)\s+(?:is|are|'s|seems?|looks?)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$/i;
+  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why\s+(?:is|are|'s)\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|it|things)\s+(?:is|are|'s|seems?|looks?)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:any|my|our|the)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$/i;
 /** PR #136 review M1: whole-message studio questions about approvals and waiting decisions. */
 const STUDIO_APPROVAL_QUESTION =
   /^(?:(?:what|anything|is anything|is there anything|does anything|do i have anything)\s+)?(?:that\s+)?(?:needs?|waiting(?:\s+(?:for|on))?|to)(?:\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision|me))?[\s?.!]*$|^(?:what'?s|whats|what is|anything|is anything|is there anything)\s+(?:still\s+)?(?:waiting|pending)[\s?.!]*$|^do i (?:need|have) to (?:approve|answer|decide) anything[\s?.!]*$|^(?:any\s+)?(?:pending\s+)?approvals?[\s?.!]*$/i;
@@ -202,10 +202,11 @@ export function classifyChat(
       text,
     );
   // "Remember that I prefer…", "Note that the deadline…", "Save me a seat" are instructions or
-  // remarks, not ideas to save (PR #136/#139 reviews L3/L-C).
+  // remarks, not ideas to save (PR #136/#139 reviews L3/L-C); "Remember that idea…" and
+  // "Remember my thought…" still save (third review L-2). A bare "remember that" is a remark.
   if (
     save &&
-    !/^(?:please\s+)?(?:remember|note)\s+(?:to|that|i|i'?m|i'?d|when|how|why|what|who|where|me|us|my\s+(?!idea))\b/i.test(
+    !/^(?:please\s+)?(?:remember|note)\s+(?:to|that(?!\s+(?:ideas?|thoughts?|notes?)\b)|i|i'?m|i'?d|when|how|why|what|who|where|me|us|my\s+(?!(?:ideas?|thoughts?|notes?)\b))\b/i.test(
       text,
     ) &&
     !/^(?:please\s+)?save\s+(?:me|us|time|money)\b/i.test(text)
@@ -273,10 +274,8 @@ export function classifyChat(
   // essay" is a broad request).
   if (
     STUDIO_BLOCKED_QUESTION.test(text) ||
-    (/\b(?:blocked|stuck)\b/.test(lower) &&
-      (studio || STUDIO_WORK.test(lower))) ||
     (!general &&
-      /\b(?:why|can'?t|cannot|won'?t)\b/.test(lower) &&
+      /\b(?:blocked|stuck|why|can'?t|cannot|won'?t)\b/.test(lower) &&
       (studio || STUDIO_WORK.test(lower)))
   )
     return { intent: 'why_blocked', target: {} };

@@ -101,6 +101,13 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     'Remember I like bullet points',
     'Note that the deadline is Friday',
     'Save me a seat',
+    'remember that',
+    // PR #139 third review L-1: general requests that mention a stuck or blocked build.
+    'How do I fix a stuck build in Jenkins?',
+    'Write an email to my team saying the build is blocked',
+    'Explain why npm install gets stuck on every run',
+    'What causes a Docker build to get stuck?',
+    'Help me write a spec for a stuck elevator alarm',
   ];
   for (const text of notes)
     assert.deepEqual(classifyChat(text), { intent: 'note', target: {} }, text);
@@ -132,6 +139,11 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     ['Anything pending?', 'approvals'],
     ['Do I need to approve anything?', 'approvals'],
     ['remember this idea: a timer', 'save_idea'],
+    // PR #139 third review L-2: real saves through "that"/"my".
+    ['Remember that idea about timers', 'save_idea'],
+    ['Note that idea: a timer', 'save_idea'],
+    ['Remember my thought: a timer app', 'save_idea'],
+    ['Note my note: buy milk', 'save_idea'],
   ];
   for (const [text, intent] of studio)
     assert.equal(classifyChat(text).intent, intent, text);

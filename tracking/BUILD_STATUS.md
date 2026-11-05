@@ -105,3 +105,7 @@ message; L-B Selected answers also leave out snapshot-made earlier answers; L-C/
 blocked/approval variants, "remember that…"/"note that…"/"save me…" stay questions, "my studio
 apartment" is not a mention; N-A unknown migrations are named; N-B ADR wording. Same check
 counts (772/739/28 skip/5 known pwsh); walk rerun on a fresh DB.
+Third review (same day): L-1 blocked/stuck keeps the general-request guard ("How do I fix a
+stuck build in Jenkins?" is a question; "Are any runs blocked?" is a whole-message studio form);
+L-2 "Remember that idea…"/"Remember my thought…" save again; N-1 picks made before a new
+conversation's first send are cleared when another conversation is opened.
