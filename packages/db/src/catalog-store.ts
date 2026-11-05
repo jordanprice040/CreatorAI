@@ -115,12 +115,18 @@ function cursorTime(c: Cursor): string {
  * form, but a hand-edited one can still name an impossible date or offset; that is a bad
  * cursor, not a server failure (third review N1).
  */
-async function seekQuery(c: PoolClient, sql: string, args: unknown[]) {
+async function seekQuery(
+  c: PoolClient,
+  sql: string,
+  args: unknown[],
+  cursor: boolean,
+) {
   try {
     return await c.query(sql, args);
   } catch (e) {
+    // Only a read that used a cursor blames the cursor; other date errors (a filter) pass on.
     const code = (e as { code?: unknown }).code;
-    if (code === '22007' || code === '22008' || code === '22009')
+    if (cursor && (code === '22007' || code === '22008' || code === '22009'))
       throw fail(
         'INVALID_CONTRACT',
         'That page cursor is not valid; start again.',
@@ -396,7 +402,7 @@ export class CatalogStore extends SelectionStore {
          where ${seek}
          order by ${byRank ? 'x.sort_rank desc, ' : ''}x.sort_at ${dir}, x.sort_id ${dir}
          limit ${p(query.limit + 1)}${offset ? ` offset ${p(offset)}` : ''}`;
-      const { rows } = await seekQuery(c, sql, args);
+      const { rows } = await seekQuery(c, sql, args, cursor !== null);
       const page = (rows as Row[]).slice(0, query.limit);
       const last = page[page.length - 1];
       const more = rows.length > query.limit && last !== undefined;
@@ -892,6 +898,7 @@ export class CatalogStore extends SelectionStore {
           where ${seek}
           order by x.sort_key ${dir}, x.sort_id ${dir} limit $4`,
         args,
+        cursor !== null,
       );
       const page = (rows as Row[]).slice(0, limit);
       const last = page[page.length - 1];

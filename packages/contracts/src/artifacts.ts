@@ -155,6 +155,15 @@ export const ArtifactSummarySchema = z.strictObject({
   created_at: z.iso.datetime(),
 });
 export type ArtifactSummary = z.infer<typeof ArtifactSummarySchema>;
+/** ADR-0069: how long a preview lasts. Timed is still the default. */
+export const PreviewLifetimeSchema = z.enum(['timed', 'until_stopped']);
+export type PreviewLifetime = z.infer<typeof PreviewLifetimeSchema>;
+/** An open preview page reports a viewer this often. */
+export const PREVIEW_HEARTBEAT_SECONDS = 30;
+/** Until stopped: a preview with no viewer for this long ends as abandoned. */
+export const PREVIEW_IDLE_GRACE_SECONDS = 180;
+/** A one-time preview link must be opened within this many minutes. */
+export const PREVIEW_LINK_MINUTES = 10;
 export const PreviewSchema = z.strictObject({
   id,
   artifact_id: id,
@@ -171,7 +180,16 @@ export const PreviewSchema = z.strictObject({
   readiness: z.unknown().nullable(),
   max_runs: z.number().int(),
   runs_used: z.number().int(),
-  expires_at: z.iso.datetime(),
+  /** ADR-0069: Timed previews end at `expires_at`; Until-stopped previews have no expiry. */
+  lifetime: PreviewLifetimeSchema,
+  expires_at: z.iso.datetime().nullable(),
+  /** Last time an open preview page (or the opening link) showed a viewer. */
+  last_seen_at: z.iso.datetime().nullable(),
+  /** Until stopped: ends as abandoned when no viewer is seen by this time; null for Timed. */
+  idle_until: z.iso.datetime().nullable(),
+  idle_grace_seconds: z.number().int().nullable(),
+  /** Runs still in flight when Stop/Revoke ended the preview: none, cancelled, or unknown. */
+  cleanup: z.enum(['none', 'cancelled', 'unknown']).nullable(),
   created_at: z.iso.datetime(),
   ended_at: z.iso.datetime().nullable(),
   end_reason: z.string().max(500).nullable(),
@@ -205,11 +223,26 @@ export const ArtifactDetailSchema = z.strictObject({
   }),
 });
 export type ArtifactDetail = z.infer<typeof ArtifactDetailSchema>;
-export const StartPreviewRequestSchema = z.strictObject({
-  expected_manifest_sha256: hash,
-  ttl_minutes: z.number().int().min(1).max(60),
-  max_runs: z.number().int().min(1).max(20),
-});
+export const StartPreviewRequestSchema = z
+  .strictObject({
+    expected_manifest_sha256: hash,
+    /** Omitted means Timed, as before ADR-0069. */
+    lifetime: PreviewLifetimeSchema.optional(),
+    /** Required for Timed; refused for Until stopped (it has no expiry to set). */
+    ttl_minutes: z.number().int().min(1).max(60).optional(),
+    max_runs: z.number().int().min(1).max(20),
+  })
+  .refine(
+    (r) =>
+      (r.lifetime ?? 'timed') === 'timed'
+        ? r.ttl_minutes !== undefined
+        : r.ttl_minutes === undefined,
+    {
+      message:
+        'A Timed preview needs ttl_minutes; an Until-stopped preview takes none.',
+      path: ['ttl_minutes'],
+    },
+  );
 export const PreviewStartSchema = z.strictObject({
   preview: PreviewSchema,
   /** One-time URL on the separate preview origin; the ticket is exchanged for a preview-only cookie. */

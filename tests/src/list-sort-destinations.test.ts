@@ -222,6 +222,11 @@ test('P02 Search reads newest first by creation, pages each type and says which 
   });
   assert.equal(byId.mode, 'id');
   assert.equal(byId.order, 'newest', 'the result says relevance was not used');
+  // Fourth review nit: an impossible date filter without a cursor is not blamed on a cursor.
+  await assert.rejects(
+    s.store.search(owner, s.ws.id, { ...base, from: '0000-01-01' }),
+    (e: unknown) => !(e instanceof Error && /page cursor/.test(e.message)),
+  );
   // A cursor continues one type, under its own sort and words only.
   await rejects(
     'INVALID_CONTRACT',

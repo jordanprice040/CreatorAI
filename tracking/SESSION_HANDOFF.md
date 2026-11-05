@@ -97,6 +97,16 @@ Windows `pg_ctl` path test cannot run on Linux). Browser walk
 `tracking/evidence/chat-context/walk.mjs` passes in dark, light and phone width.
 Next: a separate independent review of the P03 PR.
 
+## P07 preview lifetime (November 5, branch `claude/project-thread-7c9lp1`)
+
+Previews can be **Timed** (default, 1–60 min) or **Until stopped** (ADR-0069, migration 44,
+schema 44): no expiry; live while a preview page heartbeats within 3 minutes; abandoned
+previews end and free their slot; links expire after 10 minutes and can be renewed by the
+owner; Stop/Revoke cancels in-flight runs and records cleanup. Limits unchanged. Verified
+locally on disposable PostgreSQL 16 in the cloud container (see the PR for counts); the preview
+page script was walked in headless Chromium against a stand-in store. Not verified: a full
+studio browser walk, the installed app, real WSL runs. Awaiting independent review.
+
 ## P01 + P02 — activity links, Search reset, newest-first sorting (November 5)
 
 Branch `claude/project-thread-pb1ge7`; no migration or ADR. Activity (tab and sidebar) and
@@ -135,3 +145,8 @@ INVALID_CONTRACT before PostgreSQL parses them. Full `pnpm test:db`: 777 tests, 
 Third-review fixes: Name sort seeks from the title value it just checked (no second read), and
 cursor times that are well-formed but impossible (PostgreSQL 22007/22008/22009) are refused as
 INVALID_CONTRACT. Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known PowerShell only).
+
+Fourth-review nit: cursor-time error mapping now applies only when a cursor was used, so a bad
+Search date filter is no longer reported as a bad page cursor. Merged main (API route list keeps
+main's `link` action). Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known
+PowerShell only).
