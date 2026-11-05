@@ -328,7 +328,13 @@ function summarize(action: string, kind: string, version: unknown, p: Row) {
     case 'artifact.registered':
       return `Registered ${String(p.state)} package for spec v${String(p.spec_version)}`;
     case 'preview.leased':
-      return `Leased private preview for ${String(p.ttl_minutes)} min, ${String(p.max_runs)} runs`;
+      return p.lifetime === 'until_stopped'
+        ? `Leased private preview until stopped, ${String(p.max_runs)} runs`
+        : `Leased private preview for ${String(p.ttl_minutes)} min, ${String(p.max_runs)} runs`;
+    case 'preview.link_renewed':
+      return 'Issued a new private preview link';
+    case 'preview.cleanup':
+      return `Preview runs at stop: ${String(p.cleanup)}`;
     case 'preview.ready':
     case 'preview.failed':
     case 'preview.blocked':

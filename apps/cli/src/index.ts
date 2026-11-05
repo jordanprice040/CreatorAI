@@ -147,7 +147,8 @@ const USAGE = `Usage:
   pnpm cli artifact <workspace> <artifact-id>
   pnpm cli artifact-download <workspace> <artifact-id> <manifest-sha256> <output.tar>
   pnpm cli artifact-compare <workspace> <base-artifact-id> <candidate-artifact-id>
-  pnpm cli preview-start <workspace> <artifact-id> <manifest-sha256> [ttl-minutes] [max-runs]
+  pnpm cli preview-start <workspace> <artifact-id> <manifest-sha256> [ttl-minutes|until-stopped] [max-runs]
+  pnpm cli preview-link <workspace> <preview-id>
   pnpm cli preview-stop <workspace> <preview-id> <expected-version> <reason> [--revoke]
   pnpm cli feedback-submit <workspace> <artifact-id> <manifest-sha256> <defect|change_request|question|praise> <text>
   pnpm cli feedback-decide <workspace> <feedback-id> <expected-version> <accept|decline> <rationale>
@@ -892,10 +893,20 @@ export async function runCli(
           `${ws(rest[0])}/artifacts/${encodeURIComponent(rest[1] ?? '')}/previews`,
           {
             expected_manifest_sha256: rest[2],
-            ttl_minutes: Number(rest[3] ?? 15),
+            // ADR-0069: "until-stopped" instead of minutes = no expiry while a page is open.
+            ...(rest[3] === 'until-stopped'
+              ? { lifetime: 'until_stopped' }
+              : { lifetime: 'timed', ttl_minutes: Number(rest[3] ?? 15) }),
             max_runs: Number(rest[4] ?? 10),
           },
           120000,
+        );
+        break;
+      case 'preview-link':
+        data = await call(
+          PreviewStartSchema,
+          `${ws(rest[0])}/previews/${encodeURIComponent(rest[1] ?? '')}/link`,
+          {},
         );
         break;
       case 'preview-stop':

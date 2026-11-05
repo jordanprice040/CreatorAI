@@ -7,7 +7,11 @@ import { promisify } from 'node:util';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
+import {
+  createApi,
+  createPreviewServer,
+  DEFAULT_OWNER_ACTOR_ID,
+} from '@creator/api';
 import {
   ArtifactSupervisor,
   BuildSupervisor,
@@ -909,6 +913,192 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   assert.equal((await run(p4.body.preview.id, cookie4)).status, 200);
   assert.equal((await run(p4.body.preview.id, cookie4)).status, 429);
   await stop(p4.body.preview, false, p4.body.preview.version);
+
+  // ADR-0069: Until stopped. No expiry (not a far-future date); it lives while a preview page
+  // reports a viewer within the grace; Stop cuts off runs in flight; links expire and renew.
+  const startUntil = (extra: object = {}) =>
+    http(`workspaces/${ws}/artifacts/${a1.id}/previews`, {
+      expected_manifest_sha256: a1.manifest_sha256,
+      lifetime: 'until_stopped',
+      max_runs: 5,
+      ...extra,
+    });
+  // An Until-stopped preview takes no TTL, and a Timed one needs one.
+  assert.equal((await startUntil({ ttl_minutes: 5 })).status, 400);
+  assert.equal(
+    (
+      await http(`workspaces/${ws}/artifacts/${a1.id}/previews`, {
+        expected_manifest_sha256: a1.manifest_sha256,
+        lifetime: 'timed',
+        max_runs: 1,
+      })
+    ).status,
+    400,
+  );
+  const u1 = await startUntil();
+  assert.equal(u1.status, 201, JSON.stringify(u1.body));
+  assert.equal(u1.body.preview.state, 'ready');
+  assert.equal(u1.body.preview.lifetime, 'until_stopped');
+  assert.equal(u1.body.preview.expires_at, null);
+  assert.equal(u1.body.preview.idle_grace_seconds, 180);
+  assert.ok(u1.body.preview.idle_until);
+  assert.equal(
+    (
+      await db.pool.query(
+        'select expires_at from artifact_previews where id = $1',
+        [u1.body.preview.id],
+      )
+    ).rows[0].expires_at,
+    null,
+  );
+  const u1Id = u1.body.preview.id;
+  const cookieU1 = (await fetch(u1.body.url, { redirect: 'manual' })).headers
+    .get('set-cookie')!
+    .split(';')[0]!;
+  const beat = (
+    previewId: string,
+    cookieValue: string,
+    at = previewOrigin,
+    from = at,
+  ) =>
+    fetch(`${at}/preview/${previewId}/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieValue,
+        Origin: from,
+      },
+      body: '{}',
+    });
+  const u1Page = await (
+    await fetch(`${previewOrigin}/preview/${u1Id}`, {
+      headers: { Cookie: cookieU1 },
+    })
+  ).text();
+  assert.match(u1Page, /Until you stop it in the studio/);
+  assert.match(
+    u1Page,
+    /id="life"[^>]*data-heartbeat="30"[^>]*data-grace="180"/,
+  );
+  // Heartbeats need the preview page's own origin and session.
+  assert.equal((await beat(u1Id, cookieU1, previewOrigin, origin)).status, 403);
+  assert.equal((await beat(u1Id, auth.cookie)).status, 403);
+  // Connected well past the old 60-minute maximum: still available.
+  await db.pool.query(
+    `update artifact_previews set created_at = now() - interval '3 hours',
+       last_seen_at = now() - interval '60 seconds' where id = $1`,
+    [u1Id],
+  );
+  const kept = await beat(u1Id, cookieU1);
+  assert.equal(kept.status, 200);
+  assert.equal(((await kept.json()) as any).state, 'ready');
+  assert.equal((await run(u1Id, cookieU1)).status, 200);
+  // Two tabs of the same browser share the session; either one keeps it alive.
+  assert.equal((await beat(u1Id, cookieU1)).status, 200);
+  assert.equal((await beat(u1Id, cookieU1)).status, 200);
+  // Reconnect inside the grace (sleep, network drop or studio restart shorter than 3 min):
+  // a restarted preview server serves the same DB-backed session.
+  await db.pool.query(
+    `update artifact_previews set last_seen_at = now() - interval '170 seconds' where id = $1`,
+    [u1Id],
+  );
+  const restarted = createPreviewServer(store, artifacts);
+  await new Promise<void>((r) => restarted.listen(0, '127.0.0.1', r));
+  t.after(() => new Promise<void>((r) => restarted.close(() => r())));
+  const restartedOrigin = `http://127.0.0.1:${(restarted.address() as { port: number }).port}`;
+  assert.equal((await beat(u1Id, cookieU1, restartedOrigin)).status, 200);
+  // New link: authority rechecked; the old tab keeps working until the new link is opened,
+  // then the preview moves to the browser that opened it.
+  const linkPath = `workspaces/${ws}/previews/${u1Id}/link`;
+  // A mutation without the CSRF token is refused before any authority check.
+  assert.equal((await http(linkPath, {}, auth.read)).status, 403);
+  const renewed = await http(linkPath, {});
+  assert.equal(renewed.status, 200, JSON.stringify(renewed.body));
+  assert.equal(renewed.body.preview.lifetime, 'until_stopped');
+  assert.equal((await beat(u1Id, cookieU1)).status, 200);
+  const moved = await fetch(renewed.body.url, { redirect: 'manual' });
+  assert.equal(moved.status, 303);
+  const cookieU1b = moved.headers.get('set-cookie')!.split(';')[0]!;
+  assert.equal((await beat(u1Id, cookieU1)).status, 403);
+  assert.equal((await beat(u1Id, cookieU1b)).status, 200);
+  // Links are short-lived even though the preview is not.
+  const staleLink = await http(linkPath, {});
+  await db.pool.query(
+    `update artifact_previews set ticket_expires_at = now() - interval '1 second' where id = $1`,
+    [u1Id],
+  );
+  assert.equal(
+    (await fetch(staleLink.body.url, { redirect: 'manual' })).status,
+    410,
+  );
+  assert.equal((await beat(u1Id, cookieU1b)).status, 200);
+
+  // Stop during a run: admission closes at once and the in-flight run is cut off.
+  double.hold();
+  const runsBefore = double.runs.length;
+  const cancelsBefore = double.cancelled.length;
+  const inFlight = run(u1Id, cookieU1b);
+  for (let i = 0; i < 400 && double.runs.length === runsBefore; i++)
+    await new Promise((r) => setTimeout(r, 5));
+  await new Promise((r) => setTimeout(r, 50));
+  const u1Now = (
+    await http(`workspaces/${ws}/artifacts/${a1.id}`)
+  ).body.previews.find((p: any) => p.id === u1Id);
+  const stoppedU1 = await stop(u1Now, false);
+  assert.equal(stoppedU1.status, 200, JSON.stringify(stoppedU1.body));
+  assert.equal(stoppedU1.body.state, 'stopped');
+  assert.equal(stoppedU1.body.cleanup, 'cancelled');
+  assert.equal(double.cancelled.length, cancelsBefore + 1);
+  const cutRun = (await (await inFlight).json()) as any;
+  assert.equal(cutRun.state, 'cancelled');
+  double.gate = null;
+  assert.equal((await beat(u1Id, cookieU1b)).status, 403);
+  assert.equal((await run(u1Id, cookieU1b)).status, 403);
+  // A stopped preview gets no new link.
+  assert.equal((await http(linkPath, {})).status, 403);
+
+  // Closed tab, crash or long sleep: no heartbeat within the grace ends it as abandoned and
+  // frees its slot; browser unload is never needed.
+  const u2 = await startUntil();
+  const cookieU2 = (await fetch(u2.body.url, { redirect: 'manual' })).headers
+    .get('set-cookie')!
+    .split(';')[0]!;
+  await db.pool.query(
+    `update artifact_previews set last_seen_at = now() - interval '181 seconds' where id = $1`,
+    [u2.body.preview.id],
+  );
+  const gone = await beat(u2.body.preview.id, cookieU2);
+  assert.equal(gone.status, 410);
+  assert.match(
+    ((await gone.json()) as any).error.message,
+    /no preview page was open for 3 minutes/,
+  );
+  assert.equal((await run(u2.body.preview.id, cookieU2)).status, 410);
+  assert.equal(
+    (await http(`workspaces/${ws}/previews/${u2.body.preview.id}/link`, {}))
+      .status,
+    409,
+  );
+  // Abandoned previews do not hold the two-preview limit; live ones still do.
+  const u3 = await startUntil();
+  const u4 = await startUntil();
+  assert.equal(u3.status, 201);
+  assert.equal(u4.status, 201);
+  assert.equal((await startUntil()).status, 429);
+  const u3Stop = await stop(u3.body.preview, false);
+  assert.equal(u3Stop.body.cleanup, 'none');
+  await stop(u4.body.preview, true);
+  const lifetimes = (
+    await http(`workspaces/${ws}/artifacts/${a1.id}`)
+  ).body.previews
+    .filter((p: any) => p.lifetime === 'until_stopped')
+    .map((p: any) => [p.state, p.cleanup]);
+  assert.deepEqual(lifetimes, [
+    ['stopped', 'cancelled'],
+    ['expired', null],
+    ['stopped', 'none'],
+    ['revoked', 'none'],
+  ]);
 
   // Hash mismatch: changed bytes on disk are detected on read, download and start.
   const archivePath = join(artifacts.dir(first.id, a1.id), 'source.tar');

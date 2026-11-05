@@ -64,3 +64,13 @@ results were not rerun. The actual project is C:\dev\creator_agent; the supplied
 OneDrive workspace path no longer exists. A read-only Git status attempt reported
 “must be run in a work tree”; exact candidate/dirty-state reconciliation is included
 in P00. Next eligible remains the focused independent F1/F2 recheck, before additions.
+
+## P07 preview lifetime (November 5, branch `claude/project-thread-7c9lp1`)
+
+Previews can be **Timed** (default, 1–60 min) or **Until stopped** (ADR-0069, migration 42,
+schema 42): no expiry; live while a preview page heartbeats within 3 minutes; abandoned
+previews end and free their slot; links expire after 10 minutes and can be renewed by the
+owner; Stop/Revoke cancels in-flight runs and records cleanup. Limits unchanged. Verified
+locally on disposable PostgreSQL 16 in the cloud container (see the PR for counts); the preview
+page script was walked in headless Chromium against a stand-in store. Not verified: a full
+studio browser walk, the installed app, real WSL runs. Awaiting independent review.

@@ -23,6 +23,23 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
   /** When set, package (not worktree) runs report this output instead of the expected one. */
   packageOutput: string | null = null;
   runs: { source: 'task_worktree' | 'exported_package'; input: unknown }[] = [];
+  /** When set, package runs wait here until released or cancelled (in-flight run tests). */
+  gate: { release: () => void; promise: Promise<void> } | null = null;
+  /** Execution ids whose cancel was requested. */
+  cancelled: string[] = [];
+  hold(): void {
+    let release = () => {};
+    const promise = new Promise<void>((r) => (release = r));
+    this.gate = { release, promise };
+  }
+  override async cancel(
+    _productId: string,
+    executionId: string,
+    _owner: string,
+  ): Promise<void> {
+    this.cancelled.push(executionId);
+    this.gate?.release();
+  }
   private record(
     productId: string,
     taskId: string,
@@ -103,7 +120,12 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
       'exported_package',
       input,
     );
-    onStarted(e.id);
+    await onStarted(e.id);
+    if (this.gate) {
+      await this.gate.promise;
+      if (this.cancelled.includes(e.id))
+        return { ...e, state: 'cancelled', reason: 'cancelled', log: '' };
+    }
     return e;
   }
 }

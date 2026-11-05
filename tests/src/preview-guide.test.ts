@@ -157,6 +157,8 @@ function runScript(html: string, script: string) {
     'args-note': el('args-note'),
     args: el('args'),
     stdin: el('stdin'),
+    // ADR-0069 viewer heartbeat status line.
+    life: { ...el('life'), dataset: { heartbeat: '30' } },
   };
   const listeners: Record<string, (e: unknown) => unknown> = {};
   const submit = { disabled: false, focus() {} };
@@ -186,6 +188,7 @@ function runScript(html: string, script: string) {
   const document = {
     getElementById: (id: keyof typeof nodes) => nodes[id],
     querySelectorAll: () => buttons,
+    addEventListener: () => {},
   };
   const fetch = async (_url: string, init: { body: string }) => {
     sent.push(JSON.parse(init.body));
@@ -200,9 +203,13 @@ function runScript(html: string, script: string) {
       }),
     };
   };
-  new Function('document', 'fetch', 'location', script)(document, fetch, {
-    pathname: '/preview/x',
-  });
+  // The heartbeat timer is not started here; the artifact API test covers heartbeats.
+  new Function('document', 'fetch', 'location', 'setInterval', script)(
+    document,
+    fetch,
+    { pathname: '/preview/x' },
+    () => 0,
+  );
   return {
     nodes: nodes as unknown as Record<
       string,

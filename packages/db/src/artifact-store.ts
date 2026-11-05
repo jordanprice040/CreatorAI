@@ -9,6 +9,8 @@ import {
   BuildManifestSchema,
   DecideFeedbackRequestSchema,
   FeedbackRevisionRequestSchema,
+  PREVIEW_IDLE_GRACE_SECONDS,
+  PREVIEW_LINK_MINUTES,
   StartPreviewRequestSchema,
   SpecBodySchema,
   StopPreviewRequestSchema,
@@ -43,6 +45,23 @@ const calls = (m: BuildManifest) =>
 const secretHash = (v: string) => createHash('sha256').update(v).digest('hex');
 const same = (a: string, b: string) =>
   a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+
+/**
+ * ADR-0069: when a live preview ends by time. Timed: its fixed expiry. Until stopped: the last
+ * viewer heartbeat plus the row's grace (browser unload is never trusted to end it).
+ */
+function previewUntil(r: Row): number | null {
+  if (r.lifetime === 'until_stopped')
+    return (
+      Date.parse(iso(r.last_seen_at)) + Number(r.idle_grace_seconds) * 1000
+    );
+  return r.expires_at ? Date.parse(iso(r.expires_at)) : null;
+}
+/** SQL twin of previewUntil for counting live leases. */
+const LIVE_PREVIEW_SQL = `state in ('starting','ready') and (
+  (lifetime = 'timed' and expires_at > clock_timestamp())
+  or (lifetime = 'until_stopped'
+      and last_seen_at + make_interval(secs => idle_grace_seconds) > clock_timestamp()))`;
 
 /** Visible examples shown on a preview page; held-out cases are never included. */
 export const MAX_PREVIEW_EXAMPLES = 3;
@@ -108,7 +127,8 @@ export class ArtifactStore extends StudyBuildStore {
   }
   private preview(r: Row): Preview {
     const live = r.state === 'starting' || r.state === 'ready';
-    const expired = live && Date.parse(iso(r.expires_at)) <= Date.now();
+    const until = previewUntil(r);
+    const expired = live && until !== null && until <= Date.now();
     return {
       id: String(r.id),
       artifact_id: String(r.artifact_id),
@@ -117,7 +137,18 @@ export class ArtifactStore extends StudyBuildStore {
       readiness: (r.readiness as unknown) ?? null,
       max_runs: Number(r.max_runs),
       runs_used: Number(r.runs_used),
-      expires_at: iso(r.expires_at),
+      lifetime: r.lifetime === 'until_stopped' ? 'until_stopped' : 'timed',
+      expires_at: r.expires_at ? iso(r.expires_at) : null,
+      last_seen_at: r.last_seen_at ? iso(r.last_seen_at) : null,
+      idle_until:
+        r.lifetime === 'until_stopped' && until !== null
+          ? new Date(until).toISOString()
+          : null,
+      idle_grace_seconds:
+        r.idle_grace_seconds === null || r.idle_grace_seconds === undefined
+          ? null
+          : Number(r.idle_grace_seconds),
+      cleanup: (r.cleanup as Preview['cleanup']) ?? null,
       created_at: iso(r.created_at),
       ended_at: r.ended_at ? iso(r.ended_at) : null,
       end_reason: (r.end_reason as string | null) ?? null,
@@ -422,7 +453,7 @@ export class ArtifactStore extends StudyBuildStore {
         );
       const active = await c.query(
         `select count(*)::int as n from artifact_previews where workspace_id = $1
-           and state in ('starting','ready') and expires_at > clock_timestamp()`,
+           and ${LIVE_PREVIEW_SQL}`,
         [ws],
       );
       if (Number(active.rows[0]?.n) >= MAX_ACTIVE_PREVIEWS)
@@ -432,10 +463,16 @@ export class ArtifactStore extends StudyBuildStore {
         );
       const id = randomUUID();
       const ticket = randomBytes(32).toString('base64url');
+      const lifetime = req.lifetime ?? 'timed';
+      // Until stopped has no expiry (never a far-future date); it lives on viewer heartbeats.
       const { rows } = await c.query(
         `insert into artifact_previews (id, workspace_id, artifact_id, manifest_sha256, actor_id,
-           ticket_hash, state, max_runs, expires_at)
-         values ($1,$2,$3,$4,$5,$6,'starting',$7, clock_timestamp() + make_interval(mins => $8))
+           ticket_hash, state, max_runs, lifetime, expires_at, idle_grace_seconds, last_seen_at,
+           ticket_expires_at)
+         values ($1,$2,$3,$4,$5,$6,'starting',$7,$8,
+           case when $8 = 'timed' then clock_timestamp() + make_interval(mins => $9::int) end,
+           case when $8 = 'until_stopped' then $10::int end, clock_timestamp(),
+           clock_timestamp() + make_interval(mins => $11::int))
          returning *`,
         [
           id,
@@ -445,7 +482,10 @@ export class ArtifactStore extends StudyBuildStore {
           ctx.actorId,
           secretHash(ticket),
           req.max_runs,
-          req.ttl_minutes,
+          lifetime,
+          req.ttl_minutes ?? null,
+          PREVIEW_IDLE_GRACE_SECONDS,
+          PREVIEW_LINK_MINUTES,
         ],
       );
       await this.append(c, ctx, {
@@ -457,7 +497,10 @@ export class ArtifactStore extends StudyBuildStore {
         contentHash: record.summary.manifest_sha256,
         payload: {
           preview_id: id,
-          ttl_minutes: req.ttl_minutes,
+          lifetime,
+          ttl_minutes: req.ttl_minutes ?? null,
+          idle_grace_seconds:
+            lifetime === 'until_stopped' ? PREVIEW_IDLE_GRACE_SECONDS : null,
           max_runs: req.max_runs,
         },
       });
@@ -474,9 +517,18 @@ export class ArtifactStore extends StudyBuildStore {
     ctx = normalize(ctx);
     return this.tx(async (c) => {
       const { rows } = await c.query(
-        `update artifact_previews set state = $3, readiness = $4, version = version + 1
+        // Readiness can take a while: the viewer grace and link window start once it is ready.
+        `update artifact_previews set state = $3, readiness = $4, version = version + 1,
+           last_seen_at = clock_timestamp(),
+           ticket_expires_at = clock_timestamp() + make_interval(mins => $5::int)
          where workspace_id = $1 and id = $2 and state = 'starting' returning *`,
-        [uuid(ws), uuid(previewId), state, JSON.stringify(readiness)],
+        [
+          uuid(ws),
+          uuid(previewId),
+          state,
+          JSON.stringify(readiness),
+          PREVIEW_LINK_MINUTES,
+        ],
       );
       // A stop that raced readiness wins; report the stopped lease.
       if (!rows[0]) return this.previewRow(c, ws, previewId);
@@ -555,8 +607,14 @@ export class ArtifactStore extends StudyBuildStore {
         'ACCESS_DENIED',
         `Preview access was ${String(r.state === 'revoked' ? 'revoked' : 'stopped')}.`,
       );
-    if (Date.parse(iso(r.expires_at)) <= Date.now())
-      throw fail('EXPIRED', 'This preview has expired.');
+    const until = previewUntil(r);
+    if (until !== null && until <= Date.now())
+      throw fail(
+        'EXPIRED',
+        r.lifetime === 'until_stopped'
+          ? `This preview ended: no preview page was open for ${Math.round(Number(r.idle_grace_seconds) / 60)} minutes. Start a new one from the studio.`
+          : 'This preview has expired.',
+      );
     if (r.state !== 'ready')
       throw fail(
         'INVALID_TRANSITION',
@@ -592,9 +650,20 @@ export class ArtifactStore extends StudyBuildStore {
           'ACCESS_DENIED',
           'This preview link was already used or is wrong.',
         );
+      // ADR-0069: a link is short-lived even when the preview is not; renew it in the studio.
+      if (
+        row.ticket_expires_at &&
+        Date.parse(iso(row.ticket_expires_at)) <= Date.now()
+      )
+        throw fail(
+          'EXPIRED',
+          'This preview link has expired. Get a new link from the studio.',
+        );
+      // A new link moves the preview to the browser that opens it; older tabs lose access.
       const session = randomBytes(32).toString('base64url');
       await c.query(
-        'update artifact_previews set ticket_used = true, session_hash = $2 where id = $1',
+        `update artifact_previews set ticket_used = true, session_hash = $2,
+           last_seen_at = clock_timestamp() where id = $1`,
         [row.id, secretHash(session)],
       );
       await this.append(
@@ -622,9 +691,15 @@ export class ArtifactStore extends StudyBuildStore {
         !same(secretHash(session), String(row.session_hash))
       )
         throw fail('ACCESS_DENIED', 'Preview session is not valid.');
-      let r = row;
+      // Every page load or run is also a viewer heartbeat.
+      let r = (
+        await c.query(
+          'update artifact_previews set last_seen_at = clock_timestamp() where id = $1 returning *',
+          [row.id],
+        )
+      ).rows[0] as Row;
       if (claim) {
-        if (Number(row.runs_used) >= Number(row.max_runs))
+        if (Number(r.runs_used) >= Number(r.max_runs))
           throw fail(
             'LIMIT_EXCEEDED',
             'This preview has used all of its runs.',
@@ -632,7 +707,7 @@ export class ArtifactStore extends StudyBuildStore {
         r = (
           await c.query(
             'update artifact_previews set runs_used = runs_used + 1 where id = $1 returning *',
-            [row.id],
+            [r.id],
           )
         ).rows[0] as Row;
       }
@@ -657,6 +732,94 @@ export class ArtifactStore extends StudyBuildStore {
           ).rows[0]!.product_id,
         ),
       };
+    });
+  }
+  /**
+   * ADR-0069: an open preview page reports that a viewer is still there. Same checks as any
+   * preview use (lease, expiry, owner membership, manifest, session); not audited per beat.
+   */
+  async previewHeartbeat(previewId: string, session: string): Promise<Preview> {
+    return this.tx(async (c) => {
+      const { row } = await this.livePreview(c, previewId);
+      if (
+        !row.session_hash ||
+        !same(secretHash(session), String(row.session_hash))
+      )
+        throw fail('ACCESS_DENIED', 'Preview session is not valid.');
+      const { rows } = await c.query(
+        'update artifact_previews set last_seen_at = clock_timestamp() where id = $1 returning *',
+        [row.id],
+      );
+      return this.preview(rows[0] as Row);
+    });
+  }
+  /**
+   * ADR-0069: a fresh one-time link for a live preview. Authority is rechecked now (caller is
+   * the workspace owner; the lease is live and its owner still owns the workspace); the
+   * preview's lifetime and run count do not change.
+   */
+  async renewPreviewLink(
+    ctx: CommandContext,
+    ws: string,
+    previewId: string,
+  ): Promise<{ preview: Preview; ticket: string }> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const owned = await c.query(
+        'select actor_id from artifact_previews where workspace_id = $1 and id = $2',
+        [ws, uuid(previewId)],
+      );
+      if (!owned.rows[0]) throw fail('NOT_FOUND', 'Preview not found.');
+      const { row } = await this.livePreview(c, previewId);
+      const ticket = randomBytes(32).toString('base64url');
+      const { rows } = await c.query(
+        `update artifact_previews set ticket_hash = $2, ticket_used = false,
+           ticket_expires_at = clock_timestamp() + make_interval(mins => $3::int),
+           last_seen_at = clock_timestamp(), version = version + 1
+         where id = $1 returning *`,
+        [row.id, secretHash(ticket), PREVIEW_LINK_MINUTES],
+      );
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'preview.link_renewed',
+        subjectKind: 'preview',
+        subjectId: String(row.id),
+        subjectVersion: Number(rows[0].version),
+        contentHash: String(row.manifest_sha256),
+        payload: { link_minutes: PREVIEW_LINK_MINUTES },
+      });
+      return { preview: this.preview(rows[0] as Row), ticket };
+    });
+  }
+  /** ADR-0069: what happened to runs that were in flight when Stop/Revoke ended a preview. */
+  async recordPreviewCleanup(
+    ctx: CommandContext,
+    ws: string,
+    previewId: string,
+    cleanup: 'none' | 'cancelled' | 'unknown',
+    detail: Record<string, unknown>,
+  ): Promise<Preview> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      const { rows } = await c.query(
+        `update artifact_previews set cleanup = $3
+         where workspace_id = $1 and id = $2 and state in ('stopped','revoked') returning *`,
+        [ws, uuid(previewId), cleanup],
+      );
+      if (!rows[0]) return this.previewRow(c, ws, previewId);
+      await this.append(c, ctx, {
+        workspaceId: ws,
+        action: 'preview.cleanup',
+        subjectKind: 'preview',
+        subjectId: previewId,
+        subjectVersion: Number(rows[0].version),
+        contentHash: String(rows[0].manifest_sha256),
+        payload: { cleanup, ...detail },
+      });
+      return this.preview(rows[0] as Row);
     });
   }
   /** ADR-0059: the spec part of Try's usage guide for one artifact (owner only). */
