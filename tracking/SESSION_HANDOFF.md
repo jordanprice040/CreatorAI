@@ -131,3 +131,7 @@ Re-review fixes: Name cursors carry a short hash of the last row's lowercased ti
 rename between pages is refused with "start again"; hand-edited time cursors are refused as
 INVALID_CONTRACT before PostgreSQL parses them. Full `pnpm test:db`: 777 tests, 744 pass,
 28 skip, 5 fail (known PowerShell-wrapper tests only).
+
+Third-review fixes: Name sort seeks from the title value it just checked (no second read), and
+cursor times that are well-formed but impossible (PostgreSQL 22007/22008/22009) are refused as
+INVALID_CONTRACT. Full `pnpm test:db`: 777 tests, 744 pass, 28 skip, 5 fail (known PowerShell only).

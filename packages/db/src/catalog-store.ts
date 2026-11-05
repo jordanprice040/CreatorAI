@@ -110,6 +110,24 @@ function cursorTime(c: Cursor): string {
     );
   return c.t;
 }
+/**
+ * Runs a query that seeks past a cursor's time. The time already matches PostgreSQL's text
+ * form, but a hand-edited one can still name an impossible date or offset; that is a bad
+ * cursor, not a server failure (third review N1).
+ */
+async function seekQuery(c: PoolClient, sql: string, args: unknown[]) {
+  try {
+    return await c.query(sql, args);
+  } catch (e) {
+    const code = (e as { code?: unknown }).code;
+    if (code === '22007' || code === '22008' || code === '22009')
+      throw fail(
+        'INVALID_CONTRACT',
+        'That page cursor is not valid; start again.',
+      );
+    throw e;
+  }
+}
 /** A short hash of a Name key, so a cursor notices the last row was renamed. */
 const titleHash = (key: string) =>
   createHash('sha256').update(key).digest('hex').slice(0, 16);
@@ -378,7 +396,7 @@ export class CatalogStore extends SelectionStore {
          where ${seek}
          order by ${byRank ? 'x.sort_rank desc, ' : ''}x.sort_at ${dir}, x.sort_id ${dir}
          limit ${p(query.limit + 1)}${offset ? ` offset ${p(offset)}` : ''}`;
-      const { rows } = await c.query(sql, args);
+      const { rows } = await seekQuery(c, sql, args);
       const page = (rows as Row[]).slice(0, query.limit);
       const last = page[page.length - 1];
       const more = rows.length > query.limit && last !== undefined;
@@ -856,14 +874,16 @@ export class CatalogStore extends SelectionStore {
             'INVALID_CONTRACT',
             'The last record shown was renamed since this page was read; start again.',
           );
-        args.push(anchorId);
-        seek = `(x.sort_key, x.sort_id) > (select lower(a.title), a.id::text
-                  from entities a where a.workspace_id = $1 and a.id = $5::uuid)`;
+        // Third review L1: seek from the title just checked, not a second read of it, so a
+        // rename committed in between cannot move the page edge.
+        args.push(String(anchor.rows[0].key), anchorId);
+        seek = `(x.sort_key, x.sort_id) > ($5::text, $6::text)`;
       } else if (cursor) {
         args.push(cursorTime(cursor), cursor.i);
         seek = `(x.sort_key, x.sort_id) ${dir === 'asc' ? '>' : '<'} ($5::timestamptz, $6::text)`;
       }
-      const { rows } = await c.query(
+      const { rows } = await seekQuery(
+        c,
         `select x.*, x.sort_key::text as cursor_key from (
            select e.*, ${key} as sort_key, e.id::text as sort_id, count(*) over () as total
              from entities e

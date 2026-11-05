@@ -538,4 +538,17 @@ test('P02 re-review: a rename between Name pages and a hand-edited time cursor a
     'INVALID_CONTRACT',
     s.store.library(owner, s.ws.id, { kind: 'idea', limit: 1, after: forged }),
   );
+  // Right shape, impossible value: still a bad cursor, never a server error.
+  for (const t of [
+    '2026-13-45 25:61:61.000001+00',
+    '2026-11-05 18:00:00.000001+99',
+  ]) {
+    const odd = Buffer.from(JSON.stringify({ ...c, t }), 'utf8').toString(
+      'base64url',
+    );
+    await rejects(
+      'INVALID_CONTRACT',
+      s.store.library(owner, s.ws.id, { kind: 'idea', limit: 1, after: odd }),
+    );
+  }
 });
