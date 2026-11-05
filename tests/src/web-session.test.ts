@@ -17,6 +17,8 @@ test('browser session retains sign-in on failed logout and clears it after confi
   const slots: unknown[] = [];
   // ADR-0060 review N-1: unsaved notes copies are cleared only by a confirmed sign-out.
   let cleared = 0;
+  // ADR-0072: the transfer tray is emptied by the same confirmed sign-out.
+  let transfersReset = 0;
   // Review L-D/L-E: other people's copies go when a session starts; unsaved text asks first.
   let drafts = false;
   // PR #110 L-F: a notes save in flight lands (and clears the copy) before sign-out asks.
@@ -48,18 +50,20 @@ test('browser session retains sign-in on failed logout and clears it after confi
         ? { usePageActive: () => true }
         : name === './labels.js'
           ? {}
-          : name === './note-drafts.js'
-            ? {
-                clearNoteDrafts: () => void cleared++,
-                hasNoteDrafts: () => drafts,
-                noteSavesSettled: async () => {
-                  settledWaits++;
-                  if (landing) drafts = false;
-                },
-                clearOtherNoteDrafts: (actor: string) =>
-                  void keptFor.push(actor),
-              }
-            : require(name);
+          : name === './transfers.js'
+            ? { resetTransfers: () => void transfersReset++ }
+            : name === './note-drafts.js'
+              ? {
+                  clearNoteDrafts: () => void cleared++,
+                  hasNoteDrafts: () => drafts,
+                  noteSavesSettled: async () => {
+                    settledWaits++;
+                    if (landing) drafts = false;
+                  },
+                  clearOtherNoteDrafts: (actor: string) =>
+                    void keptFor.push(actor),
+                }
+              : require(name);
   const window = {
     dispatchEvent: () => true,
     confirm: (text: string) => {
@@ -152,12 +156,14 @@ test('browser session retains sign-in on failed logout and clears it after confi
     assert.equal(render().session, session);
     assert.match(render().error, /Sign-out was not confirmed.*Try again/);
     assert.equal(cleared, 0);
+    assert.equal(transfersReset, 0);
   }
   response = 'success';
   await render().signOut();
   assert.equal(render().session, null);
   assert.equal(render().error, '');
   assert.equal(cleared, 1);
+  assert.equal(transfersReset, 1);
   assert.equal(requests.length, 3);
   // Each attempt asked once because unsaved text was there.
   assert.equal(confirms.length, 4);
