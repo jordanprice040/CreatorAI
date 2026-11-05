@@ -73,10 +73,16 @@ const GENERAL_OPENER =
  * project", "our runs"). A plain topic ("the problems with remote work") does not count.
  */
 const STUDIO_MENTION =
-  /\b(?:my|our)\s+(?:(?:latest|newest|current|last|recent|saved|top|best|two|three|other|own)\s+){0,2}(?:studio|workspace|projects?|runs?|ideas?|problems?|specs?|specifications?|products?|builds?|sources?|claims?|evidence|discover(?:y|ies)|approvals?|records?|scores?|scorecards?|explorations?|briefs?)\b|\b(?:this|these|the)\s+(?:studio|workspace|projects?)\b/i;
+  /\b(?:my|our)\s+(?:(?:latest|newest|current|last|recent|saved|top|best|two|three|other|own)\s+){0,2}(?:studio|workspace|projects?|runs?|ideas?|problems?|specs?|specifications?|products?|builds?|sources?|claims?|evidence|discover(?:y|ies)|approvals?|records?|scores?|scorecards?|explorations?|briefs?)\b|\b(?:this|my|our)\s+(?:studio|workspace)\b(?!\s+(?:apartment|flat|space|desk|setup))/i;
 /** Approval phrases only the studio uses, whatever the message opens with. */
 const STRONG_APPROVALS =
   /\b(?:waiting (?:on|for) me|needs? me|needs? my (?:approval|answer|decision)|my answer|my approvals?|pending (?:approvals?|decisions?)|decisions? for me)\b/;
+/** PR #136 review M1: whole-message studio questions about blocked work. */
+const STUDIO_BLOCKED_QUESTION =
+  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+)?(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why\s+(?:is|are|'s)\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$/i;
+/** PR #136 review M1: whole-message studio questions about approvals and waiting decisions. */
+const STUDIO_APPROVAL_QUESTION =
+  /^(?:(?:what|anything|is anything|is there anything|does anything|do i have anything)\s+)?(?:that\s+)?(?:needs?|waiting(?:\s+(?:for|on))?|to)(?:\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision|me))?[\s?.!]*$|^(?:what'?s|whats|what is)\s+(?:waiting|pending)[\s?.!]*$|^(?:any\s+)?(?:pending\s+)?approvals?[\s?.!]*$/i;
 /** "What's next?" and its few forms, as the whole message, or the studio's next step. */
 const NEXT = [
   /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:what'?s|whats|what is|what do i do|what should i do)\s+next[\s?.!]*$/i,
@@ -184,9 +190,10 @@ export function classifyChat(
 } {
   const text = raw.trim();
   const lower = text.toLowerCase();
-  // ADR-0070: the person chose General, so the message is a request to answer, never a studio
-  // command; their explicit choice wins over every rule below.
-  if (scope === 'general') return { intent: 'note', target: {} };
+  // ADR-0070: the person chose a context (General, My projects or Selected records), so the
+  // message is a question for the model with that context, never a studio command; their
+  // explicit choice wins over every rule below (PR #136 review M2).
+  if (scope !== 'auto') return { intent: 'note', target: {} };
   const url = URL_RE.exec(text)?.[0]?.replace(/[.,;:!?]+$/, '');
   if (url && z.url().max(2000).safeParse(url).success)
     return { intent: 'add_source', target: { url } };
@@ -194,7 +201,12 @@ export function classifyChat(
     /^(?:please\s+)?(?:save|remember|note(?:\s+down)?)\b(?:\s+(?:this|that|an?|my))?(?:\s+(?:idea|thought|note))?\b(.*)$/is.exec(
       text,
     );
-  if (save) {
+  if (
+    save &&
+    !/^(?:please\s+)?remember\s+(?:to|when|how|why|what|who|where|me|us)\b/i.test(
+      text,
+    )
+  ) {
     const idea = strip(save[1] ?? '');
     return { intent: 'save_idea', target: idea ? { text: idea } : {} };
   }
@@ -222,7 +234,17 @@ export function classifyChat(
     /^(?:please\s+)?(?:(?:start|run|begin|kick\s+off)\s+(?:a\s+|the\s+)?discovery|research|discover|explore)\b(?:\s+(?:on|about|into|for))?(.*)$/is.exec(
       text,
     );
-  if (discover) {
+  const bareVerb = /^(?:please\s+)?(?:research|discover|explore)\b/i.test(text);
+  if (
+    discover &&
+    !(
+      bareVerb &&
+      /^(?:please\s+)?(?:research|discover|explore)\s+(?:how|why|what|whether|when|where|who|which|the|a|an)\b/i.test(
+        text,
+      ) &&
+      !chatMentionsStudio(text)
+    )
+  ) {
     const theme = strip(discover[1] ?? '');
     return {
       intent: 'start_discovery',
@@ -238,14 +260,19 @@ export function classifyChat(
   const general = GENERAL_OPENER.test(text) && !studio;
   if (
     STRONG_APPROVALS.test(lower) ||
+    STUDIO_APPROVAL_QUESTION.test(text) ||
     (!general && /\b(?:approv\w*|decisions? (?:waiting|pending))\b/.test(lower))
   )
     return { intent: 'approvals', target: {} };
+  // PR #136 review M1/L3: short studio questions ("What's blocked?", "Is anything stuck?",
+  // "Why is it blocked?") stay studio questions whatever they open with; otherwise "blocked",
+  // "stuck", "why" and "can't" count only with a studio record or step ("I'm stuck on my
+  // essay" is a broad request).
   if (
-    !general &&
-    (/\b(?:blocked|stuck)\b/.test(lower) ||
-      (/\b(?:why|can'?t|cannot|won'?t)\b/.test(lower) &&
-        (studio || STUDIO_WORK.test(lower))))
+    STUDIO_BLOCKED_QUESTION.test(text) ||
+    (!general &&
+      /\b(?:blocked|stuck|why|can'?t|cannot|won'?t)\b/.test(lower) &&
+      (studio || STUDIO_WORK.test(lower)))
   )
     return { intent: 'why_blocked', target: {} };
   if (NEXT.some((re) => re.test(text))) return { intent: 'next', target: {} };

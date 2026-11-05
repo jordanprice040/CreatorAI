@@ -90,6 +90,12 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     'Where do I start with learning the piano?',
     'Explain the CAP theorem with an example.',
     'Can you compare Rust and Go for a small CLI?',
+    // PR #136 review L3: broad requests the older rules used to swallow.
+    'Research how vaccines work',
+    'Explore the themes of Hamlet',
+    'Remember to be concise',
+    "I'm stuck on my essay intro",
+    'My drain is blocked',
   ];
   for (const text of notes)
     assert.deepEqual(classifyChat(text), { intent: 'note', target: {} }, text);
@@ -104,28 +110,45 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     ['Next step?', 'next'],
     ['What is my next step?', 'next'],
     ['so what do I do next', 'next'],
+    // PR #136 review M1: short studio questions that open like general ones.
+    ["What's blocked?", 'why_blocked'],
+    ['Is anything blocked?', 'why_blocked'],
+    ['anything stuck?', 'why_blocked'],
+    ['Why is it blocked?', 'why_blocked'],
+    ['What needs approval?', 'approvals'],
+    ['Anything waiting?', 'approvals'],
+    ["What's waiting?", 'approvals'],
+    ['research input timing drills', 'start_discovery'],
+    ['remember', 'save_idea'],
   ];
   for (const [text, intent] of studio)
     assert.equal(classifyChat(text).intent, intent, text);
-  // The person's explicit General choice: always answered, never a command or a source.
-  for (const text of [
-    "What's next?",
-    'Why is it blocked?',
-    'Save this idea: a timer',
-    'research input timing drills',
-    'https://example.org/a',
-  ])
-    assert.deepEqual(classifyChat(text, 'general'), {
-      intent: 'note',
-      target: {},
-    });
-  assert.equal(classifyChat("What's next?", 'project').intent, 'next');
+  // An explicit choice (General, My projects or Selected records): always answered with that
+  // context, never a command or a source (PR #136 review M2).
+  for (const scope of ['general', 'project', 'selected'] as const)
+    for (const text of [
+      "What's next?",
+      'Why is it blocked?',
+      'Save this idea: a timer',
+      'research input timing drills',
+      'https://example.org/a',
+      "Why won't my idea work?",
+    ])
+      assert.deepEqual(
+        classifyChat(text, scope),
+        {
+          intent: 'note',
+          target: {},
+        },
+        `${scope}: ${text}`,
+      );
+  assert.equal(classifyChat("What's next?", 'auto').intent, 'next');
 
   // Studio mentions decide Automatic context; topics alone do not.
   for (const t of [
     'Summarise my ideas',
     'compare my two newest projects',
-    'Is this project worth finishing?',
+    'How is my studio doing?',
     'what do our runs show',
   ])
     assert.ok(chatMentionsStudio(t), t);
@@ -133,6 +156,11 @@ test('chat rules leave general requests to the model; explicit General wins', ()
     'What are the problems with remote work?',
     'Give me product ideas for gardeners',
     'How do I add a source in Creator Agent?',
+    // PR #136 review L2: ordinary uses of "the project/workspace/studio".
+    'Tell me about the projects of Frank Lloyd Wright',
+    "What's the best way to structure the workspace in my garage?",
+    'Make a list of pros and cons of the studio apartment',
+    'Suggest a name for this project',
   ])
     assert.ok(!chatMentionsStudio(t), t);
   const r = (

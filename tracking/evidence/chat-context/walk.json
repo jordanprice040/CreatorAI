@@ -5,7 +5,12 @@
   },
   {
     "check": "context options",
-    "result": ["Automatic", "General", "My projects", "Selected records"]
+    "result": [
+      "Automatic",
+      "General",
+      "My projects",
+      "Selected records"
+    ]
   },
   {
     "check": "general hint",
@@ -20,7 +25,9 @@
   },
   {
     "check": "chips after remove",
-    "result": ["Problem: Rural clinic no-shows ×"]
+    "result": [
+      "Problem: Rural clinic no-shows ×"
+    ]
   },
   {
     "check": "turns",
@@ -29,7 +36,7 @@
         "you": "Brainstorm three names for a neighbourhood bakery.",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:30 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 7:04 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -39,7 +46,7 @@
         "you": "Which of my ideas is the easiest first build?",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:30 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 7:04 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -49,7 +56,7 @@
         "you": "What's next?",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:31 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 7:04 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -59,7 +66,7 @@
         "you": "What is the riskiest assumption here?",
         "model": [
           {
-            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 6:31 PM",
+            "meta": "Claude · claude-sonnet-5-5 · fixture stand-in, not a real model · model answer, not checked · Nov 5, 2026, 7:04 PM",
             "text": "Here are a few directions:"
           }
         ],
@@ -83,14 +90,16 @@
         "selected": false
       },
       {
-        "summary": "366 characters to Claude, with the fixed instructions chat-assistant-v2. Context: General: no studio records. You chose General, so no studio records were sent. 4 earlier messages and answers.",
+        "summary": "267 characters to Claude, with the fixed instructions chat-assistant-v2. Context: General: no studio records. You chose General, so no studio records were sent. 1 earlier answer that used studio records was left out; your earlier messages were included. 3 earlier messages and answers.",
         "records": [],
         "snapshot": false,
         "selected": false
       },
       {
         "summary": "744 characters to Claude, with the fixed instructions chat-assistant-v2. Context: Selected records. You picked the records that were sent. 6 earlier messages and answers.",
-        "records": ["problem: Rural clinic no-shows"],
+        "records": [
+          "problem: Rural clinic no-shows"
+        ],
         "snapshot": false,
         "selected": true
       }
@@ -98,7 +107,12 @@
   },
   {
     "check": "context tags on your messages",
-    "result": ["", "", "General", "Selected records (1)"]
+    "result": [
+      "",
+      "",
+      "General",
+      "Selected records (1)"
+    ]
   },
   {
     "check": "answer requests sent",

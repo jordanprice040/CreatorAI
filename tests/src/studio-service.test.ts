@@ -18,6 +18,7 @@ import pg from 'pg';
 import { migrationChecksum, migrations } from '@creator/db';
 import {
   guardOwnership,
+  inspectDatabase,
   ownershipMac,
   parseStudioInput,
   sourceFetchEnv,
@@ -508,4 +509,28 @@ test('adoption copies a studio through a verified backup and leaves the source u
   const twice = studio('adopt', base);
   assert.equal((await twice.next('error', 120000)).code, 'INVALID_CONTRACT');
   assert.notEqual(await twice.exit, 0);
+});
+
+// PR #136 review M3: a database that skipped a known migration (43 applied before 42 existed)
+// must read as needing migration, not as current; a version this code does not know is newer.
+test('inspectDatabase compares the set of applied migrations, not only the highest', async (t) => {
+  const fresh = await freshDatabase(t);
+  if (!fresh) return;
+  const latest = migrations.at(-1)!.version;
+  const current = await inspectDatabase(fresh.url);
+  assert.equal(current.applied, latest);
+  assert.equal(current.expected, latest);
+  assert.equal(current.unknown_newer, false);
+  const gap = migrations.at(-3)!.version;
+  await fresh.pool.query('delete from schema_migrations where version = $1', [
+    gap,
+  ]);
+  const skipped = await inspectDatabase(fresh.url);
+  assert.equal(skipped.applied, migrations.at(-4)!.version);
+  assert.notEqual(skipped.applied, skipped.expected);
+  assert.equal(skipped.unknown_newer, false);
+  await fresh.pool.query(
+    `insert into schema_migrations (version, name, checksum) values (9999, 'future', repeat('0', 64))`,
+  );
+  assert.equal((await inspectDatabase(fresh.url)).unknown_newer, true);
 });

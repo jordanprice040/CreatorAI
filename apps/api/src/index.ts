@@ -1226,12 +1226,23 @@ export function createApi(
       if (method === 'GET') {
         const kind = url.searchParams.get('kind');
         const status = url.searchParams.get('status');
+        const rows = await store.listEntities(ctx, ws, {
+          ...(kind ? { kind } : {}),
+          ...(status ? { status } : {}),
+        });
+        // PR #136 review L5: `brief=1` lists titles only (the chat record picker), without
+        // sending every record body.
         return send(
           200,
-          await store.listEntities(ctx, ws, {
-            ...(kind ? { kind } : {}),
-            ...(status ? { status } : {}),
-          }),
+          url.searchParams.get('brief') === '1'
+            ? rows.map((e) => ({
+                id: e.id,
+                kind: e.kind,
+                status: e.status,
+                title: e.title,
+                updated_at: e.updated_at,
+              }))
+            : rows,
           false,
         );
       }

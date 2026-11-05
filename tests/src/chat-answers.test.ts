@@ -383,7 +383,8 @@ test('chat answers: owner switch, private data, saved answer, retries, daily lim
   assert.equal(s.runs().length, before + 1);
 
   // The next question carries the earlier turn and its answer.
-  const q2 = await s.say('And what would that cost me?');
+  // It names the studio's ideas too, so the earlier snapshot answer goes with it (ADR-0070).
+  const q2 = await s.say('And what would my ideas cost me?');
   const a2 = await service.chatAnswer(owner, ws.id, chat.id, q2.id, {
     client_id: randomUUID(),
   });
@@ -1028,6 +1029,16 @@ test('chat context: general in an empty workspace, automatic, explicit choices, 
   const genA = await answer(await post('Rank my ideas by effort.', 'general'));
   assert.equal(genA.sent?.context, 'general');
   assert.match(genA.sent?.context_reason ?? '', /You chose General/);
+  // PR #136 review L1: the earlier answer made from the snapshot is left out of a General
+  // answer, and the reason says so; the person's own messages still go.
+  assert.match(
+    genA.sent?.context_reason ?? '',
+    /1 earlier answer that used studio records was left out/,
+  );
+  assert.ok(
+    genA.sent?.input.includes('Person: Compare my two newest projects.'),
+  );
+  assert.ok(!genA.sent?.input.includes('<studio_snapshot>'));
   // An explicit My projects sends the snapshot even for a broad sentence.
   const proj = await answer(await post('Any thoughts?', 'project'));
   assert.equal(proj.sent?.context, 'project');
@@ -1101,6 +1112,10 @@ test('chat context: general in an empty workspace, automatic, explicit choices, 
     cid,
   );
   assert.equal(same.id, pickedMsg.id);
+  // PR #136 review M2: with picked records, a sentence the rules would treat as a studio
+  // command is still a question for the model.
+  const wontWork = await post("Why won't my idea work?", 'selected', [idea.id]);
+  assert.equal(wontWork.intent, 'note');
   const picked = await answer(pickedMsg);
   assert.equal(picked.state, 'completed', picked.reason ?? '');
   assert.equal(picked.sent?.context, 'selected');
@@ -1161,15 +1176,17 @@ test('chat context: general in an empty workspace, automatic, explicit choices, 
   assert.equal(quiet.sent?.context, 'general');
   assert.match(quiet.sent?.context_reason ?? '', /turned off/);
   const before = s.runs().length;
+  // PR #136 review L4: refused when sent, so no unanswerable message is saved.
+  const saved = (await store.chatDetail(owner, ws.id, chat.id)).messages.length;
+  await rejects('ACCESS_DENIED', post('Thoughts?', 'project'), /turned off/);
   await rejects(
     'ACCESS_DENIED',
-    answer(await post('Thoughts?', 'project')),
+    post('Thoughts?', 'selected', [idea.id]),
     /turned off/,
   );
-  await rejects(
-    'ACCESS_DENIED',
-    answer(await post('Thoughts?', 'selected', [idea.id])),
-    /turned off/,
+  assert.equal(
+    (await store.chatDetail(owner, ws.id, chat.id)).messages.length,
+    saved,
   );
   assert.equal(s.runs().length, before);
 });

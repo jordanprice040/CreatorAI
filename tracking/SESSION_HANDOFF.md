@@ -96,3 +96,16 @@ PowerShell-wrapper tests, no `pwsh` in the container); formatting passes; dev-sa
 Windows `pg_ctl` path test cannot run on Linux). Browser walk
 `tracking/evidence/chat-context/walk.mjs` passes in dark, light and phone width.
 Next: a separate independent review of the P03 PR.
+
+## P03 review fixes (November 5, 2026, ADR-0070 amendment, no migration)
+
+Fixes the PR #136 review (project file reviews/PR136_CHAT_CONTEXT_REVIEW_2026-11-05.md): M1–M3,
+L1–L5, N1–N2. Short studio questions ("What's blocked?", "What needs approval?") reach their
+cards again; any explicit context makes a message a model question; Automatic mentions are
+narrower; broad "research how…", "remember to…" and "stuck on my essay" are no longer
+swallowed; General answers leave out earlier studio-record answers and say so; an explicit
+studio context the setting refuses is refused at send; the picker lists titles only and
+reloads; `inspectDatabase` compares the set of applied migrations (migration 43 kept; previews
+take 44). Checks: typecheck, formatting; suite 772 tests, 739 pass, 28 skip, 5 known
+PowerShell fails (no `pwsh`); dev-safety 19/20 (Windows `pg_ctl` path); chat-context walk rerun.
+Next: a fresh independent review.

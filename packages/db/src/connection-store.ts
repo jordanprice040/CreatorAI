@@ -739,6 +739,16 @@ export class ConnectionStore extends PortfolioStore {
             'A picked record is not an active problem, idea, spec, product or run in this workspace.',
           );
       }
+      // PR #136 review L4: an explicit studio context the owner's setting does not allow is
+      // refused here, so no unanswerable message is saved.
+      if (
+        (req.scope === 'project' || req.scope === 'selected') &&
+        !(await chatSettings(c, uuid(ws))).include_snapshot
+      )
+        throw fail(
+          'ACCESS_DENIED',
+          'Studio records are turned off for chat answers (Models and connections › Chat answers). Choose General or Automatic, or ask the owner to turn them on.',
+        );
       const { intent, target } = classifyChat(req.text, req.scope);
       const messageId = randomUUID();
       const { rows } = await c.query(
@@ -1003,20 +1013,6 @@ export class ConnectionStore extends PortfolioStore {
           'Chat answers are turned off. The owner can turn them on in Models and connections.',
         );
       const conn = await this.#connection(c, uuid(ws), settings.connection_id);
-      const turns = await c.query(
-        `select m.seq, m.text,
-           (select a.text from chat_answers a where a.message_id = m.id and a.state = 'completed'
-             order by a.created_at desc limit 1) as answer
-         from chat_messages m where m.conversation_id = $1 and m.seq < $2
-         order by m.seq desc limit $3`,
-        [conversation.id, msg.seq, CHAT_HISTORY_TURNS],
-      );
-      const history: { who: 'person' | 'assistant'; text: string }[] = [];
-      for (const t of turns.rows.reverse() as Row[]) {
-        history.push({ who: 'person', text: String(t.text) });
-        if (t.answer)
-          history.push({ who: 'assistant', text: String(t.answer) });
-      }
       // ADR-0070: the context comes from the person's choice on the message, or fixed rules
       // when it was Automatic. Studio records go only where the owner's setting allows them;
       // an explicit choice it does not allow is refused before anything is recorded or sent.
@@ -1028,6 +1024,30 @@ export class ConnectionStore extends PortfolioStore {
       });
       if (!resolved.ok) throw fail('ACCESS_DENIED', resolved.reason);
       let reason = resolved.reason;
+      // PR #136 review L1: a General answer gets earlier answers only when they were made
+      // without studio records, so "no studio records were sent" stays true. The person's own
+      // earlier messages always go.
+      const turns = await c.query(
+        `select m.seq, m.text, a.text as answer,
+           (a.context in ('project','selected') or (a.context is null and a.snapshot)) as studio
+         from chat_messages m
+         left join lateral (select text, context, snapshot from chat_answers
+           where message_id = m.id and state = 'completed'
+           order by created_at desc limit 1) a on true
+         where m.conversation_id = $1 and m.seq < $2
+         order by m.seq desc limit $3`,
+        [conversation.id, msg.seq, CHAT_HISTORY_TURNS],
+      );
+      const history: { who: 'person' | 'assistant'; text: string }[] = [];
+      let withheld = 0;
+      for (const t of turns.rows.reverse() as Row[]) {
+        history.push({ who: 'person', text: String(t.text) });
+        if (!t.answer) continue;
+        if (resolved.context === 'general' && t.studio) withheld += 1;
+        else history.push({ who: 'assistant', text: String(t.answer) });
+      }
+      if (withheld > 0)
+        reason = `${reason} ${withheld} earlier ${withheld === 1 ? 'answer that used' : 'answers that used'} studio records ${withheld === 1 ? 'was' : 'were'} left out; your earlier messages were included.`;
       const snapshot =
         resolved.context === 'project' ? await chatSnapshot(c, uuid(ws)) : null;
       const picked =

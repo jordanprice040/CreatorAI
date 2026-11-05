@@ -256,8 +256,19 @@ export async function inspectDatabase(raw: string): Promise<DatabaseState> {
       const { rows } = await pool.query<{ version: number }>(
         'select version from schema_migrations order by version',
       );
-      applied = rows.at(-1)?.version ?? 0;
-      unknownNewer = rows.some((r) => r.version > expected);
+      // PR #136 review M3: the schema position is the highest known migration up to which
+      // every known migration is applied, not the highest applied one. A database that skipped
+      // a migration (applied 43 before 42 existed) then reads as needing migration, and
+      // `migrate` applies the missing one, instead of looking current and failing the startup
+      // gate. A version this code does not know still counts as newer.
+      const done = new Set(rows.map((r) => r.version));
+      for (const m of migrations) {
+        if (!done.has(m.version)) break;
+        applied = m.version;
+      }
+      unknownNewer = rows.some(
+        (r) => !migrations.some((m) => m.version === r.version),
+      );
     }
     const ws = await pool.query<{ ok: boolean }>(
       `select to_regclass('public.workspaces') is not null as ok`,
