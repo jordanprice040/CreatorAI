@@ -2923,3 +2923,93 @@ table.usage-options th[scope='row'] {
 .file-facts dd {
   text-align: left;
 }
+
+/* P04: guided start, routine folds, what-will-happen summary and shared blocked reasons. */
+.start-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.start-choice {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+.start-choice:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.start-choice span {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.presentation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+details.routine {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 2px 12px 8px;
+  margin-top: 12px;
+}
+details.routine > summary {
+  font-weight: 500;
+}
+.what-happens {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  padding: 12px 14px;
+  margin-top: 16px;
+}
+.what-happens h4 {
+  margin: 0 0 8px;
+}
+.what-happens dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.what-happens dl > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 160px) 1fr;
+  gap: 8px;
+}
+.what-happens dt {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.what-happens dd {
+  margin: 0;
+  text-align: left;
+}
+.what-happens .source {
+  color: var(--text-3);
+  font-size: 12px;
+}
+@media (max-width: 560px) {
+  .what-happens dl > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+.notice.blocked {
+  display: block;
+}
+.notice.blocked p {
+  margin: 0 0 4px;
+}
+.notice.blocked ul {
+  margin: 0;
+  padding-left: 18px;
+}
