@@ -1173,6 +1173,32 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   await stuck;
   double.gate = null;
 
+  // Re-review L-3: a preview left 'starting' (API crashed during readiness) holds its slot only
+  // for the start bound, then ends instead of living until Stop.
+  const u8 = await startUntil();
+  const u8Id = u8.body.preview.id;
+  const orphan = (age: string) =>
+    db.pool.query(
+      `update artifact_previews set state = 'starting', created_at = now() - $2::interval
+       where id = $1`,
+      [u8Id, age],
+    );
+  const u8State = async () =>
+    (await http(`workspaces/${ws}/artifacts/${a1.id}`)).body.previews.find(
+      (p: any) => p.id === u8Id,
+    ).state;
+  await orphan('60 seconds');
+  assert.equal(await u8State(), 'starting');
+  const u9 = await startUntil();
+  assert.equal(u9.status, 201);
+  assert.equal((await startUntil()).status, 429);
+  await orphan('301 seconds');
+  assert.equal(await u8State(), 'expired');
+  const u10 = await startUntil();
+  assert.equal(u10.status, 201, 'the orphaned start no longer holds a slot');
+  await stop(u9.body.preview, false);
+  await stop(u10.body.preview, false);
+
   // Hash mismatch: changed bytes on disk are detected on read, download and start.
   const archivePath = join(artifacts.dir(first.id, a1.id), 'source.tar');
   const original = await readFile(archivePath);
