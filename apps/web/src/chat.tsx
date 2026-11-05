@@ -113,6 +113,19 @@ export function Chat({
   // ADR-0070: the context for the next message; it stays chosen until changed.
   const [scope, setScope] = useState<ChatScope>('auto');
   const [picked, setPicked] = useState<PickedRecord[]>([]);
+  // PR #136 review N2: picked records belong to one conversation. They are cleared on every
+  // conversation change except the one the first message creates (PR #139 reviews L-A, N-1).
+  const createdFor = useRef('');
+  const pickedFor = useRef(focus);
+  useEffect(() => {
+    if (
+      pickedFor.current !== focus &&
+      !(createdFor.current && focus === createdFor.current)
+    )
+      setPicked([]);
+    createdFor.current = '';
+    pickedFor.current = focus;
+  }, [focus]);
   // One id per message being written, reused on retry so a resend never adds it twice.
   const clientId = useRef<string>(crypto.randomUUID());
   const listSeq = useRef(0);
@@ -173,6 +186,12 @@ export function Chat({
       .catch(() => setSettings(null));
   }, [active, focus, workspace.id]);
   const answersOn = Boolean(settings?.enabled && settings.model_id);
+  // PR #136 review L4: an explicit studio context the owner's setting refuses cannot be sent.
+  const studioBlocked =
+    owner &&
+    answersOn &&
+    settings?.include_snapshot === false &&
+    (scope === 'project' || scope === 'selected');
 
   /** ADR-0057: asks the chosen plan to answer one saved message. */
   async function ask(conversation: string, messageId: string) {
@@ -231,6 +250,12 @@ export function Chat({
     if (!text || busy || !canWrite) return;
     const chooses = owner && answersOn;
     const sendScope: ChatScope = chooses ? scope : 'auto';
+    if (studioBlocked) {
+      setError(
+        'Studio records are turned off for chat answers. Choose General or Automatic.',
+      );
+      return;
+    }
     if (sendScope === 'selected' && picked.length === 0) {
       setError('Pick at least one record, or choose another context.');
       return;
@@ -248,6 +273,7 @@ export function Chat({
         // PR #98 L-2: open the new conversation before posting, so a failed post is retried
         // into it instead of starting another empty one.
         focusRef.current = id;
+        createdFor.current = id;
         onFocus(id);
       }
       const posted = await api(ChatMessageSchema, `${base}/${id}/messages`, {
@@ -516,7 +542,7 @@ export function Chat({
               <button
                 type="submit"
                 className="primary"
-                disabled={busy || !draft.trim()}
+                disabled={busy || !draft.trim() || studioBlocked}
               >
                 {busy ? 'Sending…' : 'Send'}
               </button>

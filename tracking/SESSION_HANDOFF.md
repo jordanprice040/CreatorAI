@@ -97,6 +97,49 @@ Windows `pg_ctl` path test cannot run on Linux). Browser walk
 `tracking/evidence/chat-context/walk.mjs` passes in dark, light and phone width.
 Next: a separate independent review of the P03 PR.
 
+## P03 review fixes (November 5, 2026, ADR-0070 amendment, no migration)
+
+Fixes the PR #136 review (project file reviews/PR136_CHAT_CONTEXT_REVIEW_2026-11-05.md): M1–M3,
+L1–L5, N1–N2. Short studio questions ("What's blocked?", "What needs approval?") reach their
+cards again; any explicit context makes a message a model question; Automatic mentions are
+narrower; broad "research how…", "remember to…" and "stuck on my essay" are no longer
+swallowed; General answers leave out earlier studio-record answers and say so; an explicit
+studio context the setting refuses is refused at send; the picker lists titles only and
+reloads; `inspectDatabase` compares the set of applied migrations (migration 43 kept; previews
+take 44). Checks: typecheck, formatting; suite 772 tests, 739 pass, 28 skip, 5 known
+PowerShell fails (no `pwsh`); dev-safety 19/20 (Windows `pg_ctl` path); chat-context walk rerun.
+Next: a fresh independent review.
+Re-review Lows (PR #139 re-review, same day): L-A picks survive a new conversation's first
+message; L-B Selected answers also leave out snapshot-made earlier answers; L-C/L-D more
+blocked/approval variants, "remember that…"/"note that…"/"save me…" stay questions, "my studio
+apartment" is not a mention; N-A unknown migrations are named; N-B ADR wording. Same check
+counts (772/739/28 skip/5 known pwsh); walk rerun on a fresh DB.
+Third review (same day): L-1 blocked/stuck keeps the general-request guard ("How do I fix a
+stuck build in Jenkins?" is a question; "Are any runs blocked?" is a whole-message studio form);
+L-2 "Remember that idea…"/"Remember my thought…" save again; N-1 picks made before a new
+conversation's first send are cleared when another conversation is opened.
+Fourth review (same day): L-A picks clear on every conversation change, including to New
+conversation and after delete, except the one the first send creates; L-B only singular
+"that/my idea|thought|note" saves; L-C anchored "Which runs are blocked?", "Show me what's
+blocked" forms; "Note to self:" saves, a "?"-only target is dropped. All reviewed phrasings now
+live in one table test, tests/src/chat-classifier-table.test.ts.
+Fifth review (same day): L-1 "about"/"to self" are dropped only straight after the verb, so
+"Save my idea: About Time" keeps its text; L-2 curly apostrophes read as straight ones and joined
+'s matches ("Everything's stuck", "Why's it blocked?"); L-3 one polite wrapper ("Can you…",
+"…please", "…and why?") is removed before the whole-message studio tests; nits: thought
+experiments and "Remember: I/you/we…" are not saves, a target with no letter or digit saves no
+text. All new cases are in the table test.
+Sixth review (same day): L-1 "Note: we should build…" and "Remember: we could…" save again
+(only "Remember: I prefer/said…" stays a remark); L-2 up to two greetings or fillers ("Hey,",
+"Please, can you") and "tell/show me" before a question are removed before the whole-message
+tests, and "Is it stuck?" counts; nits: "Note to self:buy milk" and emoji ideas save, bare
+"to"/"waiting" no longer open approvals. Cases added to the table test.
+Seventh review (same day): L-1 "Show me everything that's blocked" is a studio question again;
+L-2 acknowledgement and punctuation lead-ins ("Thanks! What's next?", "Got it, …", "Hi there,
+…", "So... …") are removed before the whole-message tests; nits: "Remember: I'm vegan" / "my
+name is…" are remarks, "Waiting for an answer" is not an approvals question, "Note to self,
+buy milk" saves "buy milk". Rows added to the table test.
+
 ## P07 preview lifetime (November 5, branch `claude/project-thread-7c9lp1`)
 
 Previews can be **Timed** (default, 1–60 min) or **Until stopped** (ADR-0069, migration 44,

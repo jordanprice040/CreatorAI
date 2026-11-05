@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   CHAT_CONTEXT_KINDS,
   CHAT_SELECTED_MAX,
-  StoredEntitySchema,
   z,
   type ChatContext,
   type ChatScope,
@@ -24,7 +23,7 @@ export const CONTEXT_LABEL: Record<ChatContext, string> = {
   selected: 'Selected records',
 };
 const SCOPE_HINT: Record<ChatScope, string> = {
-  auto: 'Studio records are sent only when your message mentions them ("my ideas", "this project").',
+  auto: 'Studio records are sent only when your message mentions them ("my ideas", "our runs").',
   general:
     'Answered as a general question. No studio records are sent and the message is never treated as a studio command.',
   project:
@@ -41,7 +40,16 @@ const KIND_LABEL: Record<string, string> = {
 
 export type PickedRecord = { id: string; kind: string; title: string };
 
-const Listed = z.array(StoredEntitySchema);
+/** PR #136 review L5: titles only (`brief=1`), not every record body. */
+const Listed = z.array(
+  z.object({
+    id: z.string(),
+    kind: z.string(),
+    title: z.string(),
+    updated_at: z.string(),
+  }),
+);
+const SHOWN_MAX = 30;
 
 /** The context choice above the message box, with the record picker for Selected records. */
 export function ChatContextPicker({
@@ -65,14 +73,21 @@ export function ChatContextPicker({
   const [records, setRecords] = useState<PickedRecord[] | null>(null);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('');
+  // PR #136 review L5: the list is read again each time Selected records is chosen, and on
+  // Refresh, so records made after Chat opened can be picked.
+  const [reload, setReload] = useState(0);
   useEffect(() => {
-    if (scope !== 'selected' || records) return;
+    if (scope !== 'selected') {
+      setRecords(null);
+      return;
+    }
     let live = true;
+    setError('');
     Promise.all(
       CHAT_CONTEXT_KINDS.map((k) =>
         api(
           Listed,
-          `workspaces/${workspaceId}/entities?kind=${k}&status=active`,
+          `workspaces/${workspaceId}/entities?kind=${k}&status=active&brief=1`,
         ),
       ),
     )
@@ -89,14 +104,14 @@ export function ChatContextPicker({
     return () => {
       live = false;
     };
-  }, [scope, records, workspaceId]);
+  }, [scope, workspaceId, reload]);
 
   const pickedIds = new Set(picked.map((p) => p.id));
   const q = filter.trim().toLowerCase();
-  const shown = (records ?? [])
+  const matching = (records ?? [])
     .filter((r) => !pickedIds.has(r.id))
-    .filter((r) => !q || r.title.toLowerCase().includes(q))
-    .slice(0, 30);
+    .filter((r) => !q || r.title.toLowerCase().includes(q));
+  const shown = matching.slice(0, SHOWN_MAX);
   const full = picked.length >= CHAT_SELECTED_MAX;
 
   return (
@@ -123,7 +138,8 @@ export function ChatContextPicker({
       {!studioAllowed && (scope === 'project' || scope === 'selected') && (
         <p className="small" role="status">
           Studio records are turned off for chat answers (Models and connections
-          › Chat answers), so this question would not be sent.
+          › Chat answers), so this context cannot be sent. Choose General or
+          Automatic.
         </p>
       )}
       {scope === 'selected' && (
@@ -192,6 +208,17 @@ export function ChatContextPicker({
                   </li>
                 ))}
               </ul>
+              <p className="small">
+                {matching.length > SHOWN_MAX &&
+                  `Showing the newest ${SHOWN_MAX} of ${matching.length}; type to filter. `}
+                <button
+                  type="button"
+                  className="text"
+                  onClick={() => setReload((n) => n + 1)}
+                >
+                  Refresh the list
+                </button>
+              </p>
             </details>
           )}
         </div>

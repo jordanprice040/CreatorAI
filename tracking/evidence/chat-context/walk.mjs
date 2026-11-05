@@ -144,6 +144,37 @@ const answered = (p, n) =>
     path: join(shots, 'chat-context-dark.png'),
     fullPage: true,
   });
+  // PR #139 re-review L-A: picks survive the first message of a new conversation.
+  await p.click('text=New conversation');
+  await p.waitForFunction(
+    () => document.querySelectorAll('.chat-turn').length === 0,
+  );
+  // PR #139 fourth review L-A: picks from an existing conversation do not follow into a new one.
+  log(
+    'existing -> new conversation: chips',
+    await p.$$eval('.chat-chips li', (l) => l.map((x) => x.textContent)),
+  );
+  await p.selectOption('.chat-context select', 'selected');
+  await p.waitForSelector('.chat-context details summary');
+  await p.$eval('.chat-context details', (d) => {
+    d.open = true;
+  });
+  await p.click('.chat-pick-list button >> nth=0');
+  await send(p, 'First question in a new conversation');
+  await answered(p, 1);
+  log(
+    'new conversation: chips after first send',
+    await p.$$eval('.chat-chips li', (l) => l.map((x) => x.textContent)),
+  );
+  // PR #139 third review N-1 and fourth review L-A: leaving the conversation clears the picks.
+  await p.click('text=New conversation');
+  await p.waitForFunction(
+    () => document.querySelectorAll('.chat-turn').length === 0,
+  );
+  log(
+    'after first send -> new conversation: chips',
+    await p.$$eval('.chat-chips li', (l) => l.map((x) => x.textContent)),
+  );
   log('dark: page errors', errors);
 }
 {
