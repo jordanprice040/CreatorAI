@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { DestinationSchema } from '@creator/contracts';
-import { api, message, words } from './oversight.js';
+import { ApiError, api, message, words } from './oversight.js';
 import { subjectTarget, type View } from './ui.js';
 
 // P01 (R01): one place that decides where an activity subject or search hit opens, used by
@@ -110,7 +110,15 @@ export function useOpenSubject(
         open(...subjectTarget(kind, id)!);
       else setNotice({ key, text: unavailableText(kind, d.state) });
     } catch (e) {
-      if (ticket === latest.current) setNotice({ key, text: message(e) });
+      // Review N3: a malformed id is refused as not found; say so in the same words.
+      if (ticket === latest.current)
+        setNotice({
+          key,
+          text:
+            e instanceof ApiError && e.code === 'NOT_FOUND'
+              ? unavailableText(kind, 'missing')
+              : message(e),
+        });
     } finally {
       if (ticket === latest.current) setBusy('');
     }

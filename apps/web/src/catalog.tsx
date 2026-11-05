@@ -193,7 +193,11 @@ export function Catalog({
     next: string | null;
   }>({ of: null, rows: [], next: null });
   const [moreBusy, setMoreBusy] = useState(false);
-  const [moreError, setMoreError] = useState('');
+  // Review L1: an error is tied to the list it was loading more of.
+  const [moreError, setMoreError] = useState<{ of: unknown; text: string }>({
+    of: null,
+    text: '',
+  });
   const extra = more.of === list.data ? more : null;
   const rows: StoredEntity[] | null = list.data
     ? [...list.data.entities, ...(extra?.rows ?? [])]
@@ -203,7 +207,7 @@ export function Catalog({
     if (!nextCursor || !list.data) return;
     const of = list.data;
     setMoreBusy(true);
-    setMoreError('');
+    setMoreError({ of: null, text: '' });
     try {
       const page = await api(LibraryPageSchema, query(nextCursor));
       setMore((m) => ({
@@ -212,7 +216,7 @@ export function Catalog({
         next: page.next,
       }));
     } catch (err) {
-      setMoreError(message(err));
+      setMoreError({ of, text: message(err) });
     } finally {
       setMoreBusy(false);
     }
@@ -377,9 +381,9 @@ export function Catalog({
                     </li>
                   ))}
                 </ul>
-                {moreError && (
+                {moreError.of === list.data && moreError.text && (
                   <p className="error small" role="alert">
-                    {moreError}
+                    {moreError.text}
                   </p>
                 )}
                 {nextCursor && (

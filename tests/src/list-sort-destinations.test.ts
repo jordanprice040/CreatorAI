@@ -414,3 +414,65 @@ test('P01/P02 HTTP: Library pages and destinations are served to members, with t
     await api.close();
   }
 });
+
+test('P02 review M1: Name sort pages past long titles with a short cursor', async (t) => {
+  const s = await discoverySetup(t, new FixtureAdapter());
+  if (!s) return;
+  // Titles at the 500-character limit that differ only at the end, plus mid-length ones:
+  // every page edge falls between long, nearly equal titles.
+  const long = 'x'.repeat(495);
+  for (const [i, title] of [
+    `${long} e`,
+    `${long} a`,
+    'y'.repeat(75),
+    `${long} C`,
+    `${long} b`,
+    'Y'.repeat(75),
+    `${long} d`,
+  ].entries())
+    await s.store.createEntity(owner, s.ws.id, {
+      kind: 'idea',
+      title,
+      body: { summary: `Long ${i}`, uncertainty: 'Untested' },
+    });
+  const expected = (
+    await s.db.pool.query<{ id: string }>(
+      `select id from entities where workspace_id = $1 and kind = 'idea'
+        order by lower(title), id::text`,
+      [s.ws.id],
+    )
+  ).rows.map((r) => r.id);
+  const ids: string[] = [];
+  let after: string | undefined;
+  for (;;) {
+    const page: LibraryPage = await s.store.library(owner, s.ws.id, {
+      kind: 'idea',
+      sort: 'name',
+      limit: 2,
+      ...(after ? { after } : {}),
+    });
+    ids.push(...page.entities.map((e) => e.id));
+    if (!page.next) break;
+    assert.ok(page.next.length < 300, 'the cursor stays short');
+    after = page.next;
+  }
+  assert.deepEqual(ids, expected);
+  // A Name cursor from another workspace's record cannot continue here.
+  const other = await s.store.createWorkspace(owner, {
+    name: 'Other',
+    record_mode: 'fixture',
+  });
+  const first = await s.store.library(owner, s.ws.id, {
+    kind: 'idea',
+    sort: 'name',
+    limit: 1,
+  });
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.library(owner, other.id, {
+      kind: 'idea',
+      sort: 'name',
+      after: first.next!,
+    }),
+  );
+});

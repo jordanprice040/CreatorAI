@@ -1,8 +1,11 @@
 import type { PoolClient } from 'pg';
 import {
   CHAT_DAILY_LIMIT_DEFAULT,
+  CHAT_CONTEXT_KINDS,
   CHAT_HISTORY_TURNS,
   ChatTargetSchema,
+  type ChatContext,
+  type ChatScope,
   parse,
   type ChatAnswer,
   type ChatAnswerState,
@@ -47,6 +50,8 @@ export const toChatMessage = (r: Row): ChatMessage => ({
   text: String(r.text),
   intent: String(r.intent) as ChatIntent,
   target: parse(ChatTargetSchema, r.target),
+  scope: String(r.scope ?? 'auto') as ChatScope,
+  selected: ((r.selected as unknown[] | null) ?? []).map(String),
   created_at: iso(r.created_at),
 });
 
@@ -143,6 +148,16 @@ export const toChatAnswer = (r: Row): ChatAnswer => ({
           instructions_hash: String(r.instructions_hash),
           history_items: Number(r.history_items),
           snapshot: Boolean(r.snapshot),
+          context: r.context ? (String(r.context) as ChatContext) : null,
+          context_reason: r.context_reason ? String(r.context_reason) : null,
+          records: (
+            (r.context_records as
+              { id: string; kind: string; title: string }[] | null) ?? []
+          ).map((x) => ({
+            id: String(x.id),
+            kind: String(x.kind),
+            title: String(x.title),
+          })),
           input_chars: String(r.input).length,
           input: String(r.input),
         },
@@ -303,18 +318,80 @@ export async function chatSnapshot(c: PoolClient, ws: string): Promise<string> {
 }
 
 /**
- * The input for one answer: the snapshot (when on), the earlier turns of the conversation up to
- * the asked message, and the question. Older turns are dropped first to fit `maxChars`.
+ * ADR-0070: the records a person picked for one message, in a fixed shape: kind, title, state
+ * and the record's own short summary fields. Only active records of the pickable kinds in
+ * this workspace are read; evidence bodies, source text, file paths and product code are
+ * never read, so none of them can be sent. Records archived or removed since are left out
+ * and counted.
+ */
+export async function chatSelected(
+  c: PoolClient,
+  ws: string,
+  ids: string[],
+): Promise<{
+  text: string;
+  records: { id: string; kind: string; title: string }[];
+  missing: number;
+}> {
+  if (ids.length === 0) return { text: '', records: [], missing: 0 };
+  const { rows } = await c.query(
+    `select id, kind, title, body, version, updated_at from entities
+     where workspace_id = $1 and id = any($2::uuid[]) and status = 'active'
+       and kind = any($3::text[])`,
+    [ws, ids, [...CHAT_CONTEXT_KINDS]],
+  );
+  const byId = new Map(rows.map((r: Row) => [String(r.id), r]));
+  const records: { id: string; kind: string; title: string }[] = [];
+  const blocks: string[] = [];
+  for (const id of ids) {
+    const r = byId.get(id) as Row | undefined;
+    if (!r) continue;
+    const b = (r.body ?? {}) as Record<string, unknown>;
+    const field = (k: string, label: string, n = 600) =>
+      typeof b[k] === 'string' && String(b[k]).trim()
+        ? [`${label}: ${clip(b[k], n)}`]
+        : [];
+    const title = String(r.title);
+    records.push({ id, kind: String(r.kind), title: title.slice(0, 500) });
+    blocks.push(
+      [
+        `- ${String(r.kind)}: ${clip(title, 200)} (version ${Number(r.version)}, updated ${iso(r.updated_at).slice(0, 10)})`,
+        ...field('statement', '  Statement'),
+        ...field('affected_group', '  Affected group', 200),
+        ...field('summary', '  Summary'),
+        ...field('stage', '  Stage', 40),
+        ...field('state', '  State', 40),
+        ...field('discovery_method', '  Discovery method', 60),
+        ...field('uncertainty', '  Uncertainty', 300),
+      ].join('\n'),
+    );
+  }
+  return {
+    text: blocks.join('\n'),
+    records,
+    missing: ids.length - records.length,
+  };
+}
+
+/**
+ * Builds the input for one answer: optional studio context, then as many earlier turns as fit
+ * the connection's input cap, then the question. The context is dropped only when even the
+ * bare question would not fit with it (ADR-0070: whatever was dropped is reported, so the
+ * answer records the context actually sent).
  */
 export function chatInput(p: {
   snapshot: string | null;
+  /** ADR-0070: picked records, used instead of the snapshot. */
+  selected?: string | null;
   history: { who: 'person' | 'assistant'; text: string }[];
   question: string;
   maxChars: number;
 }): { input: string; history_items: number; snapshot: boolean } {
-  const head = p.snapshot
-    ? `<studio_snapshot>\n${p.snapshot}\n</studio_snapshot>\n\n`
-    : '';
+  const head = p.selected
+    ? `<selected_records>\n${p.selected}\n</selected_records>\n\n`
+    : p.snapshot
+      ? `<studio_snapshot>\n${p.snapshot}\n</studio_snapshot>\n\n`
+      : '';
   const tail = `Question:\n${chatEscape(p.question)}`;
   let turns = p.history.slice(-CHAT_HISTORY_TURNS);
   const build = () =>

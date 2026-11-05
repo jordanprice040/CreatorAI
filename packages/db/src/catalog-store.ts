@@ -816,15 +816,30 @@ export class CatalogStore extends SelectionStore {
       name: 'lower(e.title)',
     }[sort];
     const dir = sort === 'oldest' || sort === 'name' ? 'asc' : 'desc';
-    const keyType = sort === 'name' ? 'text' : 'timestamptz';
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
       await c.query('set transaction read only');
       const args: unknown[] = [ws, kind, status, limit + 1];
       let seek = 'true';
-      if (cursor) {
+      if (cursor && sort === 'name') {
+        const anchorId = uuid(cursor.i!, 'INVALID_CONTRACT');
+        // Review M1: titles can be thousands of characters, too long to carry in a cursor,
+        // so Name continues after the last row shown, read again by its id.
+        const anchor = await c.query(
+          'select 1 from entities where workspace_id = $1 and id = $2::uuid',
+          [ws, anchorId],
+        );
+        if (anchor.rowCount === 0)
+          throw fail(
+            'INVALID_CONTRACT',
+            'The last record shown is no longer in this workspace; start again.',
+          );
+        args.push(anchorId);
+        seek = `(x.sort_key, x.sort_id) > (select lower(a.title), a.id::text
+                  from entities a where a.workspace_id = $1 and a.id = $5::uuid)`;
+      } else if (cursor) {
         args.push(cursor.t, cursor.i);
-        seek = `(x.sort_key, x.sort_id) ${dir === 'asc' ? '>' : '<'} ($5::${keyType}, $6::text)`;
+        seek = `(x.sort_key, x.sort_id) ${dir === 'asc' ? '>' : '<'} ($5::timestamptz, $6::text)`;
       }
       const { rows } = await c.query(
         `select x.*, x.sort_key::text as cursor_key from (
@@ -848,7 +863,7 @@ export class CatalogStore extends SelectionStore {
                 s: sort,
                 ty: 'library',
                 f: bound,
-                t: String(last.cursor_key),
+                t: sort === 'name' ? '' : String(last.cursor_key),
                 i: String(last.sort_id),
               })
             : null,

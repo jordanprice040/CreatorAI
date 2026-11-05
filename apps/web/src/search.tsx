@@ -93,13 +93,15 @@ export function Search({
     next: Partial<Record<SearchType, string | null>>;
   }>({ key: '', hits: [], next: {} });
   const [moreBusy, setMoreBusy] = useState<SearchType | null>(null);
-  const [moreError, setMoreError] = useState('');
+  // Review L1: an error belongs to the result it was loading more of; new words, sort or
+  // filters start a new result, so an old error is not shown above it.
+  const [moreError, setMoreError] = useState({ key: '', text: '' });
   const resultKey = `${queryKey}|${result.data?.freshness.as_of ?? ''}`;
   const extra =
     more.key === resultKey ? more : { key: resultKey, hits: [], next: {} };
   async function loadMore(t: SearchType, after: string) {
     setMoreBusy(t);
-    setMoreError('');
+    setMoreError({ key: '', text: '' });
     try {
       const p = params([t]);
       p.set('after', after);
@@ -114,7 +116,7 @@ export function Search({
         return { key: resultKey, hits: [...base.hits, ...page.hits], next };
       });
     } catch (e) {
-      setMoreError(message(e));
+      setMoreError({ key: resultKey, text: message(e) });
     } finally {
       setMoreBusy(null);
     }
@@ -239,7 +241,7 @@ export function Search({
                   ? 'best match first (records, passages, decisions and activity; other types newest first)'
                   : `${SORT_LABEL[r.order].toLowerCase()} first`}
                 {r.order !== sort
-                  ? ' (best match needs words, so this id search is newest first)'
+                  ? ' (best match needs words, so this search is newest first)'
                   : ''}
                 {' · each type in its own group'}
                 {r.fixture ? ' · fixture workspace' : ''}
@@ -250,9 +252,9 @@ export function Search({
                   : ''}
               </p>
               {r.hits.length === 0 && <Empty>No matches.</Empty>}
-              {moreError && (
+              {moreError.key === resultKey && moreError.text && (
                 <p className="error small" role="alert">
-                  {moreError}
+                  {moreError.text}
                 </p>
               )}
               {SEARCH_TYPES.filter((t) => r.hits.some((h) => h.type === t)).map(

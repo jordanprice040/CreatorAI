@@ -16,6 +16,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { Markdown } from './markdown-view.js';
+import { CONTEXT_LABEL } from './chat-context.js';
 import { api, message, when } from './oversight.js';
 import { withFreshCount } from './usage-refresh.js';
 
@@ -78,13 +79,24 @@ export function AnswerView({
             {a.sent.input_chars.toLocaleString()} characters to{' '}
             {planName(a.connection_kind)}, with the fixed instructions{' '}
             {a.sent.instructions_version}.{' '}
-            {a.sent.snapshot
-              ? 'Included a studio snapshot (names, states and counts only).'
-              : 'No studio snapshot.'}{' '}
+            {a.sent.context
+              ? `Context: ${CONTEXT_LABEL[a.sent.context]}. ${a.sent.context_reason ?? ''}`
+              : a.sent.snapshot
+                ? 'Included a studio snapshot (names, states and counts only).'
+                : 'No studio snapshot.'}{' '}
             {a.sent.history_items === 0
               ? 'No earlier messages.'
               : `${a.sent.history_items} earlier ${a.sent.history_items === 1 ? 'message' : 'messages and answers'}.`}
           </p>
+          {a.sent.records.length > 0 && (
+            <ul className="small">
+              {a.sent.records.map((r) => (
+                <li key={r.id}>
+                  {r.kind}: {r.title}
+                </li>
+              ))}
+            </ul>
+          )}
           <pre>{a.sent.input}</pre>
         </details>
       )}
@@ -363,9 +375,10 @@ export function ChatAnswersCard({
               }
             />
             <span>
-              Send a short studio snapshot with each question (workspace name,
-              runs, ideas, specs, products, waiting approvals; names, states and
-              counts only)
+              Allow studio records in answers: a short snapshot when a question
+              mentions your records or you choose My projects (names, states and
+              counts only), or the records you pick. General questions never
+              include them.
             </span>
           </label>
           <label>
