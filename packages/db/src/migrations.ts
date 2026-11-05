@@ -2702,28 +2702,6 @@ alter table plan_requests add column credential_ref text;
 `,
   },
   {
-    // ADR-0069 (P07): a preview is Timed (fixed expiry) or Until stopped (no expiry; it lives
-    // while a preview page keeps a viewer heartbeat within its grace). Link tickets expire and
-    // can be renewed; cleanup of runs cut off by Stop is recorded. Old rows stay Timed.
-    version: 42,
-    name: 'preview_lifetime',
-    sql: `
-alter table artifact_previews add column lifetime text not null default 'timed'
-  check (lifetime in ('timed', 'until_stopped'));
-alter table artifact_previews alter column expires_at drop not null;
-alter table artifact_previews add column last_seen_at timestamptz;
-alter table artifact_previews add column idle_grace_seconds integer
-  check (idle_grace_seconds between 30 and 3600);
-alter table artifact_previews add column ticket_expires_at timestamptz;
-alter table artifact_previews add column cleanup text
-  check (cleanup in ('none', 'cancelled', 'unknown'));
-alter table artifact_previews add constraint artifact_previews_lifetime_shape check (
-  (lifetime = 'timed' and expires_at is not null and idle_grace_seconds is null)
-  or (lifetime = 'until_stopped' and expires_at is null and idle_grace_seconds is not null
-      and last_seen_at is not null));
-`,
-  },
-  {
     // ADR-0070: chat context. Each message keeps the context the person chose (older messages
     // are 'auto') and the records they picked; each answer keeps the context actually used, why,
     // and which picked records were sent. Set once at insert, like the rest of both rows.
@@ -2742,6 +2720,28 @@ alter table chat_answers add column context_reason text
   check (length(context_reason) <= 600);
 alter table chat_answers add column context_records jsonb not null default '[]'
   check (jsonb_typeof(context_records) = 'array' and jsonb_array_length(context_records) <= 5);
+`,
+  },
+  {
+    // ADR-0069 (P07, migration 44): a preview is Timed (fixed expiry) or Until stopped (no expiry; it lives
+    // while a preview page keeps a viewer heartbeat within its grace). Link tickets expire and
+    // can be renewed; cleanup of runs cut off by Stop is recorded. Old rows stay Timed.
+    version: 44,
+    name: 'preview_lifetime',
+    sql: `
+alter table artifact_previews add column lifetime text not null default 'timed'
+  check (lifetime in ('timed', 'until_stopped'));
+alter table artifact_previews alter column expires_at drop not null;
+alter table artifact_previews add column last_seen_at timestamptz;
+alter table artifact_previews add column idle_grace_seconds integer
+  check (idle_grace_seconds between 30 and 3600);
+alter table artifact_previews add column ticket_expires_at timestamptz;
+alter table artifact_previews add column cleanup text
+  check (cleanup in ('none', 'cancelled', 'unknown'));
+alter table artifact_previews add constraint artifact_previews_lifetime_shape check (
+  (lifetime = 'timed' and expires_at is not null and idle_grace_seconds is null)
+  or (lifetime = 'until_stopped' and expires_at is null and idle_grace_seconds is not null
+      and last_seen_at is not null));
 `,
   },
 ];
