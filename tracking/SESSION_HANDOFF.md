@@ -212,3 +212,17 @@ recorded on the newest package (next-rules), meaningful run labels and newest-fi
 (PRs #100, #101, #138). For P17: the first-run "No workspace yet" card still mentions
 `pnpm cli seed-selection`; the Start-with-a-theme draft form is long; Guided does not yet
 apply to Explore's own options or to Build; presets are browser-local. Awaiting review.
+
+## P04 review fixes (November 5, PR #140 review, no migration)
+
+Fixes the PR #140 review (project file reviews/PR140_DISCOVER_REVIEW_2026-11-05.md): L-1 a
+picked model pins its connection; L-2 presets drop blank time and budget text; L-3 a failed
+start opens the right fold and focuses the field, and the problem list items are buttons; L-6
+"What will happen" shows a Ceilings row (plan requests used of the daily allowance, or budget
+available and the overall spending ceiling left) and fold summaries name the source of every
+value; L-7 merged main keeping main's ADR-0070; nits N-1 (no per-call charge text when model
+calls are not pre-approved), N-2 (studio default, not connection caps, when no connection),
+N-3 (the reset button and note say routine edits are reset), N-4 (setup blocker views are a
+literal union, no cast), N-5 (no private class in presets). Recorded, not fixed: L-4 for P17
+(Guided still needs the six brief fields and one claim; the output is a statement, not a
+choice) and L-5 in ADR-0071 (Projects pages keep their own blocker text, for P17).

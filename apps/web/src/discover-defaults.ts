@@ -57,7 +57,8 @@ const DATA_CLASSES: readonly DataClass[] = [
  * Reads a stored preset, keeping only well-formed known fields. Anything else (an older
  * shape, a hand edit, a value outside the form's choices) is dropped, so a preset can never
  * put an unchecked value into the form. A fixture workspace never takes a non-synthetic
- * data class from a preset.
+ * data class from a preset, and no preset holds the private class. A blank time limit or
+ * budget constraint is dropped, so the studio default stays.
  */
 export function parsePreset(
   raw: unknown,
@@ -73,14 +74,22 @@ export function parsePreset(
     const v = r[k];
     if (typeof v === 'string' && v.length <= max) out[k] = v;
   };
-  text('timeLimit', 300);
-  text('budgetLimit', 300);
+  // The brief needs both; a blank one would only fail later inside a folded field (review L-2).
+  const filled = (k: 'timeLimit' | 'budgetLimit') => {
+    const v = r[k];
+    if (typeof v === 'string' && v.trim() && v.length <= 300) out[k] = v;
+  };
+  filled('timeLimit');
+  filled('budgetLimit');
   text('constraints', 4000);
   text('dataAndTools', 4000);
   if (
     typeof r.dataClass === 'string' &&
     (DATA_CLASSES as readonly string[]).includes(r.dataClass) &&
-    (!fixture || r.dataClass === 'synthetic')
+    (!fixture || r.dataClass === 'synthetic') &&
+    // Sharing private data is always chosen on purpose for each start, never by a preset
+    // (review N-5).
+    r.dataClass !== 'private_approved'
   )
     out.dataClass = r.dataClass as DataClass;
   if (r.revisions === 0 || r.revisions === 1 || r.revisions === 2)
@@ -157,8 +166,14 @@ export function defaultPlanChoice(
   return { connection: first?.id ?? '', model: first?.models[0]?.id ?? '' };
 }
 
+/** The tabs a setup step can send the person to; a literal union so a typo fails to compile. */
+export type SetupView = 'models' | 'budgets';
+
 /** One reason something cannot start yet, with the tab that can fix it when there is one. */
-export type Blocker = { text: string; fix?: { view: string; label: string } };
+export type Blocker = {
+  text: string;
+  fix?: { view: SetupView; label: string };
+};
 
 /**
  * Plain-words setup steps for a discovery start. Missing evidence or brief fields are not
@@ -179,8 +194,11 @@ export function discoverSetupBlockers(input: {
   pricing: number;
   fixture: boolean;
 }): Blocker[] {
-  const models = { view: 'models', label: 'Open Models and connections' };
-  const budgets = { view: 'budgets', label: 'Open Budgets' };
+  const models = {
+    view: 'models' as const,
+    label: 'Open Models and connections',
+  };
+  const budgets = { view: 'budgets' as const, label: 'Open Budgets' };
   if (input.route === 'subscription') {
     const out: Blocker[] = [];
     if (input.connectionError) out.push({ text: input.connectionError });

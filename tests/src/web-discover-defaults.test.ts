@@ -95,7 +95,24 @@ test('a preset keeps only well-formed known fields and cannot widen a fixture', 
       },
       false,
     ),
-    { timeLimit: 'Two weeks', dataClass: 'private_approved' },
+    { timeLimit: 'Two weeks' },
+  );
+  // Private sharing is never carried by a preset (review N-5); public still is.
+  assert.deepEqual(m.parsePreset({ dataClass: 'public' }, false), {
+    dataClass: 'public',
+  });
+  // A blank time limit or budget constraint keeps the studio default (review L-2).
+  assert.deepEqual(
+    m.parsePreset(
+      { timeLimit: '   ', budgetLimit: '', constraints: '' },
+      false,
+    ),
+    { constraints: '' },
+  );
+  assert.equal(
+    m.startingSettings(false, m.parsePreset({ timeLimit: ' ' }, false))
+      .timeLimit,
+    'Six weeks',
   );
   // A fixture workspace keeps synthetic data whatever a preset says.
   assert.deepEqual(m.parsePreset({ dataClass: 'public' }, true), {});

@@ -18,6 +18,7 @@ import {
   PricingSnapshotSchema,
   ResponseTypeSchema,
   RunControlSchema,
+  RuntimeCeilingSchema,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
   StoredEntitySchema,
@@ -151,6 +152,53 @@ const plain = (m: string) =>
       ? 'too long'
       : m;
 
+type Issue = { text: string; field?: string | undefined };
+
+/** The form control that holds a brief field, for taking the person to it (review L-3). */
+const FIELD_IDS: Record<string, string> = {
+  theme: '#b-theme',
+  target_users: '#b-users',
+  context: '#b-ctx',
+  measurable_problem: '#b-prob',
+  outcome_measure: '#b-meas',
+  data_and_tools: '#b-data',
+  time_limit: '#b-time',
+  budget_limit: '#b-budget',
+  constraints: '#b-cons',
+};
+const fieldTarget = (path: PropertyKey[]): string | undefined =>
+  path[0] === 'fields'
+    ? path[1] === 1
+      ? '#b-fb'
+      : '#b-fa'
+    : FIELD_IDS[String(path[0])];
+
+/** Opens any folds around the field, then moves focus to it. */
+function focusField(selector: string) {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return;
+  for (
+    let d = el.closest('details');
+    d;
+    d = d.parentElement?.closest('details') ?? null
+  )
+    d.open = true;
+  el.focus();
+  el.scrollIntoView({ block: 'center' });
+}
+
+/** Where several values came from, in one short phrase for a fold's summary (review L-6). */
+function sourcesText(entries: readonly (readonly [string, string])[]): string {
+  const changed = entries.filter(([, s]) => s !== SOURCE_TEXT.studio);
+  if (!changed.length) return 'studio defaults';
+  if (
+    changed.length === entries.length &&
+    new Set(changed.map(([, s]) => s)).size === 1
+  )
+    return `all ${changed[0]![1]}`;
+  return changed.map(([n, s]) => `${n}: ${s}`).join(', ');
+}
+
 /**
  * Submits a theme as a versioned search brief and starts a discovery run on the server.
  * Evidence comes from claims already recorded with sources; the locator does not search the
@@ -200,6 +248,11 @@ export function Submit({
         }),
       ),
     );
+    // P04 review L-6: the owner's overall spending ceiling, shown before starting. Reading it
+    // may be refused (not an owner); the panel then just leaves it out.
+    const ceiling = await api(RuntimeCeilingSchema, 'settings/spending').catch(
+      () => null,
+    );
     const evidence = new Map<string, ClaimEvidence>();
     await Promise.all(
       claims.map((c) =>
@@ -227,6 +280,7 @@ export function Submit({
       pricing: newestFirst(pricing),
       planDetails: planDetails.filter((p) => p !== null),
       connectionError,
+      ceiling,
     };
   }, [workspace.id]);
   // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
@@ -348,13 +402,14 @@ export function Submit({
     constraints: lines(constraints),
   };
   const briefCheck = SearchBriefBodySchema.safeParse(brief);
-  const issues = useMemo(
+  const issues: Issue[] = useMemo(
     () =>
       briefCheck.success
         ? []
-        : briefCheck.error.issues.map(
-            (i) => `${fieldName(i.path)}: ${plain(i.message)}`,
-          ),
+        : briefCheck.error.issues.map((i) => ({
+            text: `${fieldName(i.path)}: ${plain(i.message)}`,
+            field: fieldTarget(i.path),
+          })),
     [JSON.stringify(brief)],
   );
   const evidence = Object.entries(roles)
@@ -402,8 +457,9 @@ export function Submit({
   const plan = c?.planDetails.find(
     (p) => p.connection.id === (connectionId || planDefault.connection),
   );
+  // Review L-1: a picked model counts only while it belongs to the connection in use.
   const model =
-    planModel ||
+    (plan && verifiedModels(plan).includes(planModel) ? planModel : '') ||
     (plan && plan.connection.id === planDefault.connection
       ? planDefault.model
       : '') ||
@@ -431,7 +487,7 @@ export function Submit({
     fixture,
   }).map((b) => ({
     text: b.text,
-    ...(b.fix ? { fix: { view: b.fix.view as View, label: b.fix.label } } : {}),
+    ...(b.fix ? { fix: b.fix } : {}),
   }));
   const planTimeout =
     plan?.connection.settings.caps.responses.request_timeout_ms ??
@@ -509,7 +565,44 @@ export function Submit({
     resourceKind === 'subscription'
       ? `ChatGPT plan · ${plan?.connection.label ?? 'no connection yet'} · ${model || 'no verified model'}`
       : `${fixture ? 'Fixture' : 'API'} · budget ${usableEnvelopes.find((e) => e.id === envelope)?.name ?? 'none yet'}`;
-  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${routeText}`;
+  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${routeText} · ${sourcesText(
+    [
+      ['access', sourceText('route', resourceKind)],
+      ['sharing', sourceText('dataClass', dataClass)],
+      ...(runChoice === 'new'
+        ? ([
+            ['oversight', sourceText('oversight', newMode)],
+            ['model calls', sourceText('allowCalls', allowCalls)],
+          ] as const)
+        : []),
+    ],
+  )}`;
+  // Review L-6: the limits a returning person is most likely to reach, as they stand now.
+  const chosenEnvelope = usableEnvelopes.find((e) => e.id === envelope);
+  const ceiling = c?.ceiling ?? null;
+  const ceilingLeft = ceiling
+    ? money(
+        (
+          BigInt(ceiling.ceiling_nano_usd) - BigInt(ceiling.exposure_nano_usd)
+        ).toString(),
+        false,
+      )
+    : null;
+  const ceilingsText =
+    resourceKind === 'subscription'
+      ? plan
+        ? `${plan.usage.last_24h_requests} of ${plan.connection.settings.caps.shared.max_model_requests_per_day} plan requests used on this connection in the last 24 hours`
+        : 'No connection yet'
+      : [
+          chosenEnvelope
+            ? `Budget ${chosenEnvelope.name}: ${money(chosenEnvelope.available, chosenEnvelope.fixture)} available`
+            : 'No budget yet',
+          !fixture && ceiling
+            ? `overall spending ceiling ${money(ceiling.ceiling_nano_usd, false)}, ${ceilingLeft} left`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('; ');
   const happens: Happening[] = [
     {
       label: 'Run',
@@ -541,9 +634,17 @@ export function Submit({
       value:
         resourceKind === 'subscription'
           ? `At most ${limits.max_calls} plan requests, ${Math.round(limits.call_timeout_ms / 1000)} s each, ${limits.max_wall_seconds} s in all; no API spending`
-          : `At most ${limits.max_calls} calls, up to 2 ${fixture ? 'simulated units' : 'dollars'} each from the budget, ${limits.max_wall_seconds} s in all`,
+          : runChoice === 'new' && !allowCalls
+            ? `At most ${limits.max_calls} calls, each waiting for your approval and charged to the budget, ${limits.max_wall_seconds} s in all`
+            : `At most ${limits.max_calls} calls, up to 2 ${fixture ? 'simulated units' : 'dollars'} each from the budget, ${limits.max_wall_seconds} s in all`,
       source:
-        resourceKind === 'subscription' ? 'connection caps' : 'studio default',
+        resourceKind === 'subscription' && plan
+          ? 'connection caps'
+          : 'studio default',
+    },
+    {
+      label: 'Ceilings',
+      value: ceilingsText,
     },
     {
       label: 'Evidence sharing',
@@ -587,16 +688,27 @@ export function Submit({
     setNewMode(d.oversight);
     setAllowCalls(d.allowCalls);
     setResourceKind(d.route);
-    setPresetNote('Back to the studio defaults.');
+    setPresetNote(
+      'Back to the studio defaults. Routine settings changed on this visit were reset too; the brief and claims are unchanged.',
+    );
   }
   const reqCheck = StartDiscoveryRequestSchema.safeParse(request);
-  const reqIssues = reqCheck.success
+  const reqIssues: Issue[] = reqCheck.success
     ? []
     : reqCheck.error.issues.map((i) =>
         i.path[0] === 'evidence'
-          ? 'Evidence: attach at least one claim and say what it bears on'
-          : plain(i.message),
+          ? {
+              text: 'Evidence: attach at least one claim and say what it bears on',
+              field: '.claims-pick input[type=checkbox]',
+            }
+          : i.path[0] === 'excluded' && typeof i.path[1] === 'number'
+            ? {
+                text: `Left-out response type: ${plain(i.message)}`,
+                field: `#b-ex-${exclusions[i.path[1]]?.perspective ?? ''}`,
+              }
+            : { text: plain(i.message) },
       );
+  const allIssues = [...issues, ...reqIssues];
   const ready =
     briefCheck.success &&
     reqCheck.success &&
@@ -631,7 +743,12 @@ export function Submit({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setTried(true);
-    if (!ready) return;
+    if (!ready) {
+      // Review L-3: take the person to the first field to fix, opening its fold.
+      const first = allIssues.find((i) => i.field);
+      if (first?.field) focusField(first.field);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -880,7 +997,14 @@ export function Submit({
               />
               <Fold
                 guided={guided}
-                summary={`Routine details: ${timeLimit.trim() || 'no time limit'} · ${lines(constraints).length} constraint${lines(constraints).length === 1 ? '' : 's'} · ${sourceText('timeLimit', timeLimit)}`}
+                summary={`Routine details: ${timeLimit.trim() || 'no time limit'} · ${lines(constraints).length} constraint${lines(constraints).length === 1 ? '' : 's'} · ${sourcesText(
+                  [
+                    ['time limit', sourceText('timeLimit', timeLimit)],
+                    ['budget', sourceText('budgetLimit', budgetLimit)],
+                    ['constraints', sourceText('constraints', constraints)],
+                    ['data and tools', sourceText('dataAndTools', data)],
+                  ],
+                )}`}
               >
                 <label htmlFor="b-ctx">Context or geography (optional)</label>
                 <input
@@ -1055,6 +1179,7 @@ export function Submit({
                       </label>
                       {excluded[p] !== undefined && (
                         <input
+                          id={`b-ex-${p}`}
                           aria-label={`Why ${words(p)} is left out`}
                           placeholder="Why it does not apply"
                           maxLength={300}
@@ -1196,7 +1321,12 @@ export function Submit({
                     <select
                       id="b-plan-model"
                       value={model}
-                      onChange={(e) => setPlanModel(e.target.value)}
+                      onChange={(e) => {
+                        // Picking a model pins its connection, so a later change of the
+                        // default cannot pair it with another connection (review L-1).
+                        setPlanModel(e.target.value);
+                        if (plan) setConnectionId(plan.connection.id);
+                      }}
                     >
                       {!model && <option value="">No verified model</option>}
                       {plan?.model_access
@@ -1279,10 +1409,22 @@ export function Submit({
               open={(v) => open(v)}
             />
             <div id="sub-issues" aria-live="polite">
-              {tried && [...issues, ...reqIssues].length > 0 && (
+              {tried && allIssues.length > 0 && (
                 <ul className="small issues">
-                  {[...issues, ...reqIssues].slice(0, 8).map((i) => (
-                    <li key={i}>{i}</li>
+                  {allIssues.slice(0, 8).map((i) => (
+                    <li key={i.text}>
+                      {i.field ? (
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() => focusField(i.field!)}
+                        >
+                          {i.text}
+                        </button>
+                      ) : (
+                        i.text
+                      )}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -1374,7 +1516,7 @@ function WhatHappens({
         </button>
         {presetSaved && (
           <button type="button" className="text" onClick={onClear}>
-            Back to studio defaults
+            Back to studio defaults (resets these routine settings)
           </button>
         )}
       </div>
