@@ -2701,6 +2701,27 @@ alter table plan_requests add column auth_generation bigint check (auth_generati
 alter table plan_requests add column credential_ref text;
 `,
   },
+  {
+    // ADR-0070: chat context. Each message keeps the context the person chose (older messages
+    // are 'auto') and the records they picked; each answer keeps the context actually used, why,
+    // and which picked records were sent. Set once at insert, like the rest of both rows.
+    version: 43,
+    name: 'chat_context_scope',
+    sql: `
+alter table chat_messages add column scope text not null default 'auto'
+  check (scope in ('auto','general','project','selected'));
+alter table chat_messages add column selected uuid[] not null default '{}'
+  check (cardinality(selected) <= 5);
+alter table chat_messages add constraint chat_messages_selected_scope
+  check ((scope = 'selected') = (cardinality(selected) > 0));
+alter table chat_answers add column context text
+  check (context in ('general','project','selected'));
+alter table chat_answers add column context_reason text
+  check (length(context_reason) <= 600);
+alter table chat_answers add column context_records jsonb not null default '[]'
+  check (jsonb_typeof(context_records) = 'array' and jsonb_array_length(context_records) <= 5);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

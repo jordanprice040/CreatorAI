@@ -73,3 +73,17 @@ in P00. Next eligible remains the focused independent F1/F2 recheck, before addi
 
 No code, data, configuration, provider call or installation changed, and no tests were run (docs only).
 Next eligible: P01. P11 continues with tester accounts (G1) once started, and its deploy waits on D1–D9.
+
+## P03 chat context (November 5, 2026, ADR-0070, migration 43)
+
+Chat now answers general requests broadly. Each message has a context choice (Automatic,
+General, My projects, Selected records); an explicit choice wins, and Automatic sends studio
+records only when the message names them. The fixed rules no longer turn ordinary sentences
+into approvals/blocked/next cards. Each answer records the context used, why, and any picked
+records, shown in "What was sent". Instructions `chat-assistant-v2`. Fixture-verified only (fake
+`claude`, disposable PostgreSQL 16 in the cloud container); no live call, no installed-app change.
+Checks: typecheck and web typecheck pass; suite 771 tests, 738 pass, 28 skip, 5 fail (the known
+PowerShell-wrapper tests, no `pwsh` in the container); formatting passes; dev-safety 19/20 (the
+Windows `pg_ctl` path test cannot run on Linux). Browser walk
+`tracking/evidence/chat-context/walk.mjs` passes in dark, light and phone width.
+Next: a separate independent review of the P03 PR.
