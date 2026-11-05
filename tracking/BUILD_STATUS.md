@@ -114,3 +114,9 @@ conversation and after delete, except the one the first send creates; L-B only s
 "that/my idea|thought|note" saves; L-C anchored "Which runs are blocked?", "Show me what's
 blocked" forms; "Note to self:" saves, a "?"-only target is dropped. All reviewed phrasings now
 live in one table test, tests/src/chat-classifier-table.test.ts.
+Fifth review (same day): L-1 "about"/"to self" are dropped only straight after the verb, so
+"Save my idea: About Time" keeps its text; L-2 curly apostrophes read as straight ones and joined
+'s matches ("Everything's stuck", "Why's it blocked?"); L-3 one polite wrapper ("Can you…",
+"…please", "…and why?") is removed before the whole-message studio tests; nits: thought
+experiments and "Remember: I/you/we…" are not saves, a target with no letter or digit saves no
+text. All new cases are in the table test.

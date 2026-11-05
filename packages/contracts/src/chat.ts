@@ -79,7 +79,7 @@ const STRONG_APPROVALS =
   /\b(?:waiting (?:on|for) me|needs? me|needs? my (?:approval|answer|decision)|my answer|my approvals?|pending (?:approvals?|decisions?)|decisions? for me)\b/;
 /** PR #136 review M1: whole-message studio questions about blocked work. */
 const STUDIO_BLOCKED_QUESTION =
-  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why\s+(?:is|are|'s)\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|it|things)\s+(?:is|are|'s|seems?|looks?)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:any|my|our|the)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:which|what)\s+(?:of\s+(?:my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:are|is)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^is\s+there\s+(?:a|any)\s+(?:run|build|discovery|spec|preview|worker)\s+(?:that'?s|that\s+is)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^how\s+come\s+(?:the|my|our)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:is|are)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:show|tell)\s+me\s+(?:what'?s|what\s+is|everything|anything)\s+(?:that'?s\s+)?(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:what'?s|what\s+is|is\s+anything|anything)\s+(?:still\s+)?(?:blocked|stuck)\s+in\s+(?:this|my|our)\s+(?:project|studio|workspace)[\s?.!]*$/i;
+  /^(?:(?:ok(?:ay)?|so)[,\s]+)?(?:(?:what'?s|whats|what is|what are|is|are)\s+)?(?:(?:there|anything|something|things|everything)\s+){0,2}(?:(?:still|currently|now)\s+)?(?:blocked|stuck)(?:\s+(?:right now|now|anywhere))?[\s?.!]*$|^why(?:'s|\s+(?:is|are))\s+(?:it|this|that|things|everything|something|anything)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:everything|something|anything|it|this|that|things)(?:'s|\s+(?:is|are|seems?|looks?))\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:are|is)\s+(?:there\s+)?(?:(?:any|my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:which|what)\s+(?:of\s+(?:my|our|the)\s+)?(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:are|is)\s+(?:still\s+|currently\s+)?(?:blocked|stuck)[\s?.!]*$|^is\s+there\s+(?:a|any)\s+(?:run|build|discovery|spec|preview|worker)\s+(?:that'?s|that\s+is)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^how\s+come\s+(?:the|my|our)\s+(?:runs?|builds?|discover(?:y|ies)|specs?|previews?|workers?)\s+(?:is|are)\s+(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:show|tell)\s+me\s+(?:what'?s|what\s+is|everything|anything)\s+(?:that'?s\s+)?(?:still\s+)?(?:blocked|stuck)[\s?.!]*$|^(?:what'?s|what\s+is|is\s+anything|anything)\s+(?:still\s+)?(?:blocked|stuck)\s+in\s+(?:this|my|our)\s+(?:project|studio|workspace)[\s?.!]*$/i;
 /** PR #136 review M1: whole-message studio questions about approvals and waiting decisions. */
 const STUDIO_APPROVAL_QUESTION =
   /^(?:(?:what|anything|is anything|is there anything|does anything|do i have anything)\s+)?(?:that\s+)?(?:needs?|waiting(?:\s+(?:for|on))?|to)(?:\s+(?:my\s+|an?\s+)?(?:approv(?:al|e)|answer|decision|me))?[\s?.!]*$|^(?:what'?s|whats|what is|anything|is anything|is there anything)\s+(?:still\s+)?(?:waiting|pending)[\s?.!]*$|^do i (?:need|have) to (?:approve|answer|decide) anything[\s?.!]*$|^(?:any\s+)?(?:pending\s+)?approvals?[\s?.!]*$/i;
@@ -188,7 +188,10 @@ export function classifyChat(
   intent: ChatIntent;
   target: ChatTarget;
 } {
-  const text = raw.trim();
+  // PR #139 fifth review L-2: curly apostrophes (phone keyboards, smart punctuation) read as
+  // straight ones for the rules; saved and searched text keeps what the person typed.
+  const original = raw.trim();
+  const text = original.replace(/[\u2018\u2019]/g, "'");
   const lower = text.toLowerCase();
   // ADR-0070: the person chose a context (General, My projects or Selected records), so the
   // message is a question for the model with that context, never a studio command; their
@@ -199,31 +202,39 @@ export function classifyChat(
     return { intent: 'add_source', target: { url } };
   const save =
     /^(?:please\s+)?(?:save|remember|note(?:\s+down)?)\b(?:\s+(?:this|that|an?|my))?(?:\s+(?:idea|thought|note))?\b(.*)$/is.exec(
-      text,
+      original,
     );
   // "Remember that I prefer…", "Note that the deadline…", "Save me a seat" are instructions or
   // remarks, not ideas to save (PR #136/#139 reviews L3/L-C); "Remember that idea…" and
   // "Remember my thought…" still save (third review L-2). A bare "remember that" is a remark.
   if (
     save &&
-    !/^(?:please\s+)?(?:remember|note)\s+(?:(?:that|this|my|an?)\s+thought\s+experiments?|to(?!\s+self\b)|that(?!\s+(?:idea|thought|note)\b)|i|i'?m|i'?d|when|how|why|what|who|where|me|us|my\s+(?!(?:idea|thought|note)\b))\b/i.test(
+    !/^(?:please\s+)?(?:remember|note)[:,]?\s+(?:to(?!\s+self\b)|that(?!\s+(?:idea|thought|note)\b)|i|i'?m|i'?d|we|you|he|she|they|when|how|why|what|who|where|me|us|my\s+(?!(?:idea|thought|note)\b))\b/i.test(
+      text,
+    ) &&
+    !/^(?:please\s+)?(?:save|remember|note)\s+(?:(?:that|this|my|an?|the)\s+)?thought\s+experiments?\b/i.test(
       text,
     ) &&
     !/^(?:please\s+)?save\s+(?:me|us|time|money)\b/i.test(text)
   ) {
-    // Fourth review N-A/N-B: "Note to self: …" saves; a target of only punctuation, or a
-    // leading "about"/"to self", is not part of the idea.
+    // Fourth review N-A/N-B: "Note to self: …" saves. A leading "about"/"to self" word is
+    // dropped only straight after the verb ("Remember that idea about timers"), never after
+    // a colon or dash or inside a word (fifth review L-1). A target with no letter or digit
+    // is no idea (fifth review N-4).
     const idea = strip(
-      strip(save[1] ?? '').replace(/^(?:to\s+self|about)\b/i, ''),
-    ).replace(/^[\s?!.]+$/, '');
-    return { intent: 'save_idea', target: idea ? { text: idea } : {} };
+      (save[1] ?? '').replace(/^\s+(?:to\s+self:?|about)\s+/i, ' '),
+    );
+    return {
+      intent: 'save_idea',
+      target: /[\p{L}\p{N}]/u.test(idea) ? { text: idea } : {},
+    };
   }
   // ADR-0065: asking the studio to look for problems itself, with no theme. The phrases are
   // anchored to the whole message, so "show me problems with the build" stays what it was;
   // "explore for me <topic>" keeps the topic as the theme (PR #131 review L-4).
   const explore =
     /^(?:please\s+)?(?:can you\s+)?explore for me\b(?:\s+(?:on|about|into))?(.*)$/is.exec(
-      text,
+      original,
     );
   if (explore) {
     const theme = strip(explore[1] ?? '').replace(/[.!?]+$/, '');
@@ -240,7 +251,7 @@ export function classifyChat(
     return { intent: 'start_discovery', target: {} };
   const discover =
     /^(?:please\s+)?(?:(?:start|run|begin|kick\s+off)\s+(?:a\s+|the\s+)?discovery|research|discover|explore)\b(?:\s+(?:on|about|into|for))?(.*)$/is.exec(
-      text,
+      original,
     );
   const bareVerb = /^(?:please\s+)?(?:research|discover|explore)\b/i.test(text);
   if (
@@ -266,9 +277,18 @@ export function classifyChat(
   // being swallowed as a studio command.
   const studio = chatMentionsStudio(text);
   const general = GENERAL_OPENER.test(text) && !studio;
+  // PR #139 fifth review L-3: the whole-message studio questions also match inside one polite
+  // wrapper ("Can you show me what's blocked?", "What's blocked and why?"). They stay anchored,
+  // so longer general requests are unaffected.
+  const core = text
+    .replace(
+      /^(?:ok(?:ay)?|so|please|(?:can|could|would)\s+you(?:\s+please)?)[,\s]+/i,
+      '',
+    )
+    .replace(/[,\s]+(?:please|and why)([\s?.!]*)$/i, '$1');
   if (
     STRONG_APPROVALS.test(lower) ||
-    STUDIO_APPROVAL_QUESTION.test(text) ||
+    STUDIO_APPROVAL_QUESTION.test(core) ||
     (!general && /\b(?:approv\w*|decisions? (?:waiting|pending))\b/.test(lower))
   )
     return { intent: 'approvals', target: {} };
@@ -277,13 +297,13 @@ export function classifyChat(
   // "stuck", "why" and "can't" count only with a studio record or step ("I'm stuck on my
   // essay" is a broad request).
   if (
-    STUDIO_BLOCKED_QUESTION.test(text) ||
+    STUDIO_BLOCKED_QUESTION.test(core) ||
     (!general &&
       /\b(?:blocked|stuck|why|can'?t|cannot|won'?t)\b/.test(lower) &&
       (studio || STUDIO_WORK.test(lower)))
   )
     return { intent: 'why_blocked', target: {} };
-  if (NEXT.some((re) => re.test(text))) return { intent: 'next', target: {} };
+  if (NEXT.some((re) => re.test(core))) return { intent: 'next', target: {} };
   return { intent: 'note', target: {} };
 }
 

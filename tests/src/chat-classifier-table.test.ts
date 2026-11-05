@@ -5,8 +5,8 @@ import { classifyChat, chatMentionsStudio } from '@creator/contracts';
 // PR #139 fourth review: every phrasing named in the four chat-context review reports
 // (PR #136 review, PR #139 re-review, third and fourth reviews), with the route it must take
 // in Automatic. Later classifier edits must keep all of them; add new review cases here.
-// A target is checked where the saved or searched text matters.
-type Row = [text: string, intent: string, text?: string];
+// A target is checked where the saved or searched text matters; null means no text is saved.
+type Row = [text: string, intent: string, text?: string | null];
 const ROUTES: Row[] = [
   // PR #136 review M1/M2
   ["What's blocked?", 'why_blocked'],
@@ -78,7 +78,7 @@ const ROUTES: Row[] = [
   // fourth review L-C/nits
   ['Which builds get stuck in Jenkins and why?', 'note'],
   ['Note to self: buy milk', 'save_idea', 'buy milk'],
-  ['Remember that idea?', 'save_idea'],
+  ['Remember that idea?', 'save_idea', null],
   ['Remember that thought experiment about trolleys?', 'note'],
   // earlier tests and fourth review checks
   ['Why is my build stuck?', 'why_blocked'],
@@ -102,6 +102,68 @@ const ROUTES: Row[] = [
   ['Is my build stuck?', 'why_blocked'],
   ['Are there any runs stuck?', 'why_blocked'],
   ['Brainstorm three names for a neighbourhood bakery.', 'note'],
+  // fifth review L-1: "about"/"to self" stay part of an idea after a colon, dash or in a word
+  ['Save my idea: About Time', 'save_idea', 'About Time'],
+  [
+    'Save this idea: about.me for plumbers',
+    'save_idea',
+    'about.me for plumbers',
+  ],
+  [
+    'Remember that idea: to self-publish books',
+    'save_idea',
+    'to self-publish books',
+  ],
+  ['Save this idea - about face drills', 'save_idea', 'about face drills'],
+  ['Note to self: buy milk', 'save_idea', 'buy milk'],
+  ['Note: buy milk', 'save_idea', 'buy milk'],
+  [
+    'Save this idea: a caf\u00e9 called \u2018Rise\u2019',
+    'save_idea',
+    'a caf\u00e9 called \u2018Rise\u2019',
+  ],
+  // fifth review L-2: curly apostrophes and joined 's
+  ['What\u2019s blocked?', 'why_blocked'],
+  ['Show me what\u2019s blocked', 'why_blocked'],
+  ['Is there a run that\u2019s stuck?', 'why_blocked'],
+  ["Everything's stuck", 'why_blocked'],
+  ["Everything's blocked", 'why_blocked'],
+  ["It's stuck", 'why_blocked'],
+  ["Something's blocked", 'why_blocked'],
+  ["Why's it blocked?", 'why_blocked'],
+  ['What\u2019s next?', 'next'],
+  ['What\u2019s waiting?', 'approvals'],
+  ['I can\u2019t start the build', 'why_blocked'],
+  ["It's stuck in my throat", 'note'],
+  ["That's stuck with me for years", 'note'],
+  // fifth review L-3: one polite wrapper around a short studio question
+  ["Can you show me what's blocked?", 'why_blocked'],
+  ["Please show me what's blocked", 'why_blocked'],
+  ["Show me what's blocked please", 'why_blocked'],
+  ['So which runs are blocked?', 'why_blocked'],
+  ["What's blocked and why?", 'why_blocked'],
+  ['Are workers stuck?', 'why_blocked'],
+  ["Please, what's next?", 'next'],
+  // fifth review checked-and-fine: general questions that stay notes
+  ['Which websites are blocked in China?', 'note'],
+  ['Which roads are blocked by snow?', 'note'],
+  ['Which runs are blocked by the referee in cricket?', 'note'],
+  ['How come the run is blocked by the defender?', 'note'],
+  ['Tell me everything stuck in my head', 'note'],
+  ['What is stuck in my throat?', 'note'],
+  ["Is there a run that's stuck in my stocking?", 'note'],
+  ['Which grants are blocked?', 'note'],
+  // fifth review nits N-1, N-2, N-4
+  ['Save a thought experiment about trolleys', 'note'],
+  ['Remember the thought experiment about trolleys', 'note'],
+  ['Remember: I prefer short answers', 'note'],
+  ['Remember, I prefer short answers', 'note'],
+  ['Remember you said timers are good', 'note'],
+  ['Remember we agreed on timers', 'note'],
+  ['Save this idea: \u2026', 'save_idea', null],
+  // PR #139 re-review N-C, left as discovery on purpose
+  ['Explore remote work tools', 'start_discovery', 'remote work tools'],
+  ['Discover new music', 'start_discovery', 'new music'],
 ];
 
 // PR #136 review L2 and PR #139 re-review L-D: ordinary uses of studio words are not mentions.
@@ -115,15 +177,19 @@ const MENTIONS: [string, boolean][] = [
   ['Which of my ideas is the easiest first build?', true],
   ["What's in my studio?", true],
   ['our runs', true],
+  // third and fifth reviews: checked-and-fine mentions
+  ['my projects space', false],
+  ["my studio's apartment", true],
+  ['Compare my ideas', true],
+  ['Design my workspace desk', false],
 ];
 
 test('chat classifier keeps every reviewed phrasing on its route', () => {
   for (const [text, intent, target] of ROUTES) {
     const got = classifyChat(text);
     assert.equal(got.intent, intent, text);
-    if (target !== undefined) assert.equal(got.target.text, target, text);
-    else if (intent === 'save_idea')
-      assert.ok(!('text' in got.target) || got.target.text !== '?', text);
+    if (target === null) assert.deepEqual(got.target, {}, text);
+    else if (target !== undefined) assert.equal(got.target.text, target, text);
   }
 });
 
