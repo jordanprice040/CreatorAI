@@ -51,6 +51,7 @@ import {
   ChatRenameRequestSchema,
   chatTitle,
   classifyChat,
+  resolveChatContext,
   type ChatAnswer,
   type ChatAnswerState,
   type ChatConversation,
@@ -87,6 +88,7 @@ import {
   chatSettings,
   chatSnapshot,
   chatStudyOpen,
+  chatSelected,
   chatUsed24h,
   toChatAnswer,
   toChatMessage,
@@ -716,21 +718,35 @@ export class ConnectionStore extends PortfolioStore {
       );
       if (existing.rows[0]) {
         const message = toChatMessage(existing.rows[0] as Row);
-        if (message.text !== req.text || message.author_id !== ctx.actorId)
+        if (
+          message.text !== req.text ||
+          message.author_id !== ctx.actorId ||
+          message.scope !== req.scope ||
+          message.selected.join() !== req.selected.join()
+        )
           throw new ContractError(
             'IDEMPOTENCY_CONFLICT',
             'This message id was already used for a different message.',
           );
         return { message, duplicate: true };
       }
-      const { intent, target } = classifyChat(req.text);
+      // ADR-0070: picked records must be this workspace's active records of a pickable kind.
+      if (req.selected.length) {
+        const found = await chatSelected(c, uuid(ws), req.selected);
+        if (found.missing > 0)
+          throw fail(
+            'INVALID_CONTRACT',
+            'A picked record is not an active problem, idea, spec, product or run in this workspace.',
+          );
+      }
+      const { intent, target } = classifyChat(req.text, req.scope);
       const messageId = randomUUID();
       const { rows } = await c.query(
         `insert into chat_messages (id, workspace_id, conversation_id, seq, client_id,
-           author_id, text, intent, target)
+           author_id, text, intent, target, scope, selected)
          values ($1, $2, $3,
            (select coalesce(max(seq), 0) + 1 from chat_messages where conversation_id = $3),
-           $4, $5, $6, $7, $8)
+           $4, $5, $6, $7, $8, $9, $10::uuid[])
          returning *`,
         [
           messageId,
@@ -741,6 +757,8 @@ export class ConnectionStore extends PortfolioStore {
           req.text,
           intent,
           target,
+          req.scope,
+          req.selected,
         ],
       );
       await c.query(
@@ -758,7 +776,12 @@ export class ConnectionStore extends PortfolioStore {
         subjectVersion: null,
         contentHash: canonicalHash({ text: req.text }),
         // The words stay in the conversation; the audit trail records only what kind of ask it was.
-        payload: { message_id: messageId, intent },
+        payload: {
+          message_id: messageId,
+          intent,
+          scope: req.scope,
+          selected: req.selected.length,
+        },
       });
       return { message: toChatMessage(rows[0] as Row), duplicate: false };
     });
@@ -994,11 +1017,33 @@ export class ConnectionStore extends PortfolioStore {
         if (t.answer)
           history.push({ who: 'assistant', text: String(t.answer) });
       }
-      const snapshot = settings.include_snapshot
-        ? await chatSnapshot(c, uuid(ws))
-        : null;
+      // ADR-0070: the context comes from the person's choice on the message, or fixed rules
+      // when it was Automatic. Studio records go only where the owner's setting allows them;
+      // an explicit choice it does not allow is refused before anything is recorded or sent.
+      const message = toChatMessage(msg);
+      const resolved = resolveChatContext({
+        scope: message.scope,
+        text: message.text,
+        allowStudio: settings.include_snapshot,
+      });
+      if (!resolved.ok) throw fail('ACCESS_DENIED', resolved.reason);
+      let reason = resolved.reason;
+      const snapshot =
+        resolved.context === 'project' ? await chatSnapshot(c, uuid(ws)) : null;
+      const picked =
+        resolved.context === 'selected'
+          ? await chatSelected(c, uuid(ws), message.selected)
+          : null;
+      if (picked && picked.records.length === 0)
+        throw fail(
+          'ACCESS_DENIED',
+          'None of the picked records is still active, so nothing was sent. Pick other records or choose General.',
+        );
+      if (picked && picked.missing > 0)
+        reason = `${reason} ${picked.missing} picked ${picked.missing === 1 ? 'record is' : 'records are'} no longer active and ${picked.missing === 1 ? 'was' : 'were'} left out.`;
       const built = chatInput({
         snapshot,
+        selected: picked?.text ?? null,
         history,
         question: String(msg.text),
         maxChars: Math.max(
@@ -1007,14 +1052,17 @@ export class ConnectionStore extends PortfolioStore {
             CHAT_INSTRUCTIONS.length,
         ),
       });
+      const context = built.snapshot ? resolved.context : 'general';
+      if (resolved.context !== 'general' && !built.snapshot)
+        reason = `${reason} The studio records were left out because the question alone fills the connection's input limit.`;
       const id = randomUUID();
       const op = randomUUID();
       const { rows } = await c.query(
         `insert into chat_answers (id, workspace_id, conversation_id, message_id, client_id, state,
            connection_id, connection_kind, fixture, model_id, logical_operation_id,
            instructions_version, instructions_hash, history_items, snapshot, input, input_hash,
-           created_by)
-         values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+           created_by, context, context_reason, context_records)
+         values ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          returning *`,
         [
           id,
@@ -1034,6 +1082,11 @@ export class ConnectionStore extends PortfolioStore {
           built.input,
           createHash('sha256').update(built.input).digest('hex'),
           ctx.actorId,
+          context,
+          reason.slice(0, 600),
+          JSON.stringify(
+            context === 'selected' && picked ? picked.records : [],
+          ),
         ],
       );
       await this.append(c, ctx, {
@@ -1049,6 +1102,7 @@ export class ConnectionStore extends PortfolioStore {
           message_id: String(msg.id),
           connection_id: conn.id,
           model_id: settings.model_id,
+          context,
         },
       });
       return {

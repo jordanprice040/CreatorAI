@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
-import { classifyChat, chatTitle } from '@creator/contracts';
+import {
+  classifyChat,
+  chatTitle,
+  chatMentionsStudio,
+  resolveChatContext,
+  ChatMessageRequestSchema,
+} from '@creator/contracts';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
 // ADR-0055: the studio chat's first version. Conversations and the person's messages are
@@ -67,6 +73,116 @@ test('chat messages are sorted by fixed rules, in a stable order', () => {
     'A practice timer for frame-perfect inputs in fighting games with a metronome mode',
   );
   assert.ok(long.length <= 61 && long.endsWith('…'), long);
+});
+
+// ADR-0070 (P03): a broad request is not swallowed as a studio command, and an explicit
+// General choice wins over every rule.
+test('chat rules leave general requests to the model; explicit General wins', () => {
+  const notes = [
+    'Write a short story about a lighthouse keeper.',
+    'Brainstorm names for a bakery.',
+    "Why can't penguins fly?",
+    'Why do cats purr?',
+    'How do I fix a blocked drain?',
+    'Help me draft an email asking my boss to approve my vacation.',
+    'What decisions should I make before buying a house?',
+    "What's next for electric cars?",
+    'Where do I start with learning the piano?',
+    'Explain the CAP theorem with an example.',
+    'Can you compare Rust and Go for a small CLI?',
+  ];
+  for (const text of notes)
+    assert.deepEqual(classifyChat(text), { intent: 'note', target: {} }, text);
+  // Studio questions still reach their cards.
+  const studio: [string, string][] = [
+    ['Why is my run stuck?', 'why_blocked'],
+    ["I can't start the build", 'why_blocked'],
+    ['Why is the build blocked?', 'why_blocked'],
+    ['What needs my approval?', 'approvals'],
+    ['Are there pending approvals?', 'approvals'],
+    ['approve', 'approvals'],
+    ['Next step?', 'next'],
+    ['What is my next step?', 'next'],
+    ['so what do I do next', 'next'],
+  ];
+  for (const [text, intent] of studio)
+    assert.equal(classifyChat(text).intent, intent, text);
+  // The person's explicit General choice: always answered, never a command or a source.
+  for (const text of [
+    "What's next?",
+    'Why is it blocked?',
+    'Save this idea: a timer',
+    'research input timing drills',
+    'https://example.org/a',
+  ])
+    assert.deepEqual(classifyChat(text, 'general'), {
+      intent: 'note',
+      target: {},
+    });
+  assert.equal(classifyChat("What's next?", 'project').intent, 'next');
+
+  // Studio mentions decide Automatic context; topics alone do not.
+  for (const t of [
+    'Summarise my ideas',
+    'compare my two newest projects',
+    'Is this project worth finishing?',
+    'what do our runs show',
+  ])
+    assert.ok(chatMentionsStudio(t), t);
+  for (const t of [
+    'What are the problems with remote work?',
+    'Give me product ideas for gardeners',
+    'How do I add a source in Creator Agent?',
+  ])
+    assert.ok(!chatMentionsStudio(t), t);
+  const r = (
+    scope: 'auto' | 'general' | 'project' | 'selected',
+    text: string,
+    allowStudio = true,
+  ) => resolveChatContext({ scope, text, allowStudio });
+  assert.deepEqual(
+    [r('auto', 'Write a poem'), r('auto', 'Rank my ideas')].map((x) =>
+      x.ok ? x.context : 'refused',
+    ),
+    ['general', 'project'],
+  );
+  const chosen = r('general', 'Rank my ideas');
+  assert.ok(chosen.ok && chosen.context === 'general');
+  const off = r('auto', 'Rank my ideas', false);
+  assert.ok(
+    off.ok && off.context === 'general' && /turned off/.test(off.reason),
+  );
+  assert.equal(r('project', 'x', false).ok, false);
+  assert.equal(r('selected', 'x', false).ok, false);
+
+  // The request shape keeps picks and scope consistent.
+  const base = { client_id: randomUUID(), text: 'Hi' };
+  assert.equal(ChatMessageRequestSchema.parse(base).scope, 'auto');
+  assert.ok(
+    !ChatMessageRequestSchema.safeParse({ ...base, scope: 'selected' }).success,
+  );
+  const one = randomUUID();
+  assert.ok(
+    !ChatMessageRequestSchema.safeParse({
+      ...base,
+      scope: 'general',
+      selected: [one],
+    }).success,
+  );
+  assert.ok(
+    !ChatMessageRequestSchema.safeParse({
+      ...base,
+      scope: 'selected',
+      selected: [one, one],
+    }).success,
+  );
+  assert.ok(
+    !ChatMessageRequestSchema.safeParse({
+      ...base,
+      scope: 'selected',
+      selected: Array.from({ length: 6 }, () => randomUUID()),
+    }).success,
+  );
 });
 
 test('chat API: conversations, server-sorted messages, retries, search and access', async (t) => {

@@ -13,6 +13,7 @@ import {
   type ChatConversation,
   type ChatDetail,
   type ChatMessage,
+  type ChatScope,
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
@@ -27,6 +28,11 @@ import {
 } from './chat-replies.js';
 import { placeLabel, type View } from './pages.js';
 import { AnswerView } from './chat-answers.js';
+import {
+  ChatContextPicker,
+  SCOPE_LABEL,
+  type PickedRecord,
+} from './chat-context.js';
 
 /**
  * A plan answer can take as long as the connection's request timeout, which the owner sets
@@ -104,6 +110,9 @@ export function Chat({
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  // ADR-0070: the context for the next message; it stays chosen until changed.
+  const [scope, setScope] = useState<ChatScope>('auto');
+  const [picked, setPicked] = useState<PickedRecord[]>([]);
   // One id per message being written, reused on retry so a resend never adds it twice.
   const clientId = useRef<string>(crypto.randomUUID());
   const listSeq = useRef(0);
@@ -220,6 +229,12 @@ export function Chat({
     e?.preventDefault();
     const text = draft.trim();
     if (!text || busy || !canWrite) return;
+    const chooses = owner && answersOn;
+    const sendScope: ChatScope = chooses ? scope : 'auto';
+    if (sendScope === 'selected' && picked.length === 0) {
+      setError('Pick at least one record, or choose another context.');
+      return;
+    }
     setBusy(true);
     setError('');
     let id = focus;
@@ -237,7 +252,12 @@ export function Chat({
       }
       const posted = await api(ChatMessageSchema, `${base}/${id}/messages`, {
         csrf: session.csrf_token,
-        body: { client_id: clientId.current, text },
+        body: {
+          client_id: clientId.current,
+          text,
+          scope: sendScope,
+          selected: sendScope === 'selected' ? picked.map((p) => p.id) : [],
+        },
       });
       clientId.current = crypto.randomUUID();
       setDraft('');
@@ -291,13 +311,12 @@ export function Chat({
     <section className="panel chat" aria-labelledby="chat-title">
       <h2 id="chat-title">Chat</h2>
       <p className="small">
-        Ask what&apos;s next or why something is blocked, paste a web address,
-        or save an idea. The studio answers those from your records by fixed
-        rules, and nothing here starts work: buttons open the tab where you do
-        it.{' '}
         {answersOn
-          ? `Other questions are answered by ${settings?.model_id} through your plan, at no extra cost; those answers are labelled and never change anything.`
-          : 'The owner can let a connected ChatGPT or Claude plan answer other questions (Models and connections › Chat answers).'}
+          ? `Ask anything: writing, ideas, explanations or advice are answered by ${settings?.model_id} through your plan, at no extra cost. Those answers are labelled and never change anything. `
+          : 'The owner can let a connected ChatGPT or Claude plan answer any question, studio or not (Models and connections › Chat answers). '}
+        The studio itself answers what&apos;s next, why something is blocked,
+        web addresses and saved ideas from your records by fixed rules, and
+        nothing here starts work: buttons open the tab where you do it.
       </p>
       {error && (
         <p className="error" role="alert">
@@ -461,6 +480,17 @@ export function Chat({
           <div ref={endRef} />
           {canWrite ? (
             <form className="chat-compose" onSubmit={(e) => void send(e)}>
+              {owner && answersOn && (
+                <ChatContextPicker
+                  workspaceId={workspace.id}
+                  scope={scope}
+                  onScope={setScope}
+                  picked={picked}
+                  onPicked={setPicked}
+                  disabled={busy}
+                  studioAllowed={settings?.include_snapshot ?? true}
+                />
+              )}
               <label htmlFor="chat-input" className="sr-only">
                 Message
               </label>
@@ -469,7 +499,11 @@ export function Chat({
                 ref={inputRef}
                 rows={2}
                 maxLength={4000}
-                placeholder="Ask what's next, paste a link, or save an idea…"
+                placeholder={
+                  answersOn
+                    ? 'Ask anything, or ask what’s next, paste a link, save an idea…'
+                    : "Ask what's next, paste a link, or save an idea…"
+                }
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -531,6 +565,8 @@ function MessageItem({
       <div className="chat-you">
         <p className="chat-meta">
           You · <time dateTime={m.created_at}>{when(m.created_at)}</time>
+          {m.scope !== 'auto' &&
+            ` · ${SCOPE_LABEL[m.scope]}${m.scope === 'selected' ? ` (${m.selected.length})` : ''}`}
         </p>
         <p className="chat-text">{m.text}</p>
       </div>
