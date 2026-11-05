@@ -85,6 +85,15 @@ export function Gallery({
             </button>
           </Empty>
         )}
+        {focus && list.data && !list.data.some((a) => a.id === focus) && (
+          // P01: a link to a code version that is no longer listed says so instead of
+          // quietly showing another one.
+          <p className="notice small" role="status">
+            The code version this link names isn't in this workspace's packages
+            any more.
+            {list.data.length > 0 ? ' Showing the newest package instead.' : ''}
+          </p>
+        )}
         {list.data && list.data.length > 0 && (
           <div className="gallery">
             <ul className="rows artifact-list" aria-label="Artifacts">

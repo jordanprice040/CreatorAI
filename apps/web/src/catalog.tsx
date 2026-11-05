@@ -3,13 +3,16 @@ import { useShown } from './page-active.js';
 import {
   ActivityPageSchema,
   EntityDetailSchema,
-  StoredEntitySchema,
+  LibraryPageSchema,
+  LibrarySortSchema,
   StoredKindSchema,
   StoredLinkSchema,
   provenanceOrigin,
   z,
   type ActivityEntry,
   type EntityDetail,
+  type LibrarySort,
+  type StoredEntity,
   type SessionInfo,
   type StoredLink,
   type Workspace,
@@ -32,6 +35,16 @@ import {
   STALE_NOTE,
 } from './owner-actions.js';
 import { ReasonForm } from './reason-form.js';
+import { useListSort } from './list-sort.js';
+
+const LIBRARY_SORTS = LibrarySortSchema.options;
+const LIBRARY_SORT_LABEL: Record<LibrarySort, string> = {
+  newest: 'Newest (created)',
+  oldest: 'Oldest (created)',
+  updated: 'Recently updated',
+  name: 'Name (A–Z)',
+};
+const LIBRARY_PAGE = 100;
 
 const LineageSchema = z.array(
   z.strictObject({ depth: z.number(), link: StoredLinkSchema }),
@@ -154,17 +167,56 @@ export function Catalog({
   useEffect(() => {
     if (preset) setKind(preset);
   }, [preset]);
-  const list = useLoad(
-    () =>
-      api(
-        z.array(StoredEntitySchema),
-        `${base}/entities?${new URLSearchParams({
-          ...(kind ? { kind } : {}),
-          ...(status ? { status } : {}),
-        }).toString()}`,
-      ),
-    [workspace.id, kind, status],
+  const { sort, set: setSort } = useListSort(
+    'library',
+    workspace.id,
+    LIBRARY_SORTS,
+    'newest',
   );
+  // P02: sorted on the server before the limit; later pages continue with a cursor bound to
+  // this order and these filters. A return to the tab re-reads the first page.
+  const query = (after?: string) =>
+    `${base}/library?${new URLSearchParams({
+      ...(kind ? { kind } : {}),
+      ...(status ? { status } : {}),
+      ...(sort !== 'newest' ? { sort } : {}),
+      limit: String(LIBRARY_PAGE),
+      ...(after ? { after } : {}),
+    }).toString()}`;
+  const list = useLoad(
+    () => api(LibraryPageSchema, query()),
+    [workspace.id, kind, status, sort],
+  );
+  const [more, setMore] = useState<{
+    of: unknown;
+    rows: StoredEntity[];
+    next: string | null;
+  }>({ of: null, rows: [], next: null });
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [moreError, setMoreError] = useState('');
+  const extra = more.of === list.data ? more : null;
+  const rows: StoredEntity[] | null = list.data
+    ? [...list.data.entities, ...(extra?.rows ?? [])]
+    : null;
+  const nextCursor = extra ? extra.next : (list.data?.next ?? null);
+  async function loadMore() {
+    if (!nextCursor || !list.data) return;
+    const of = list.data;
+    setMoreBusy(true);
+    setMoreError('');
+    try {
+      const page = await api(LibraryPageSchema, query(nextCursor));
+      setMore((m) => ({
+        of,
+        rows: [...(m.of === of ? m.rows : []), ...page.entities],
+        next: page.next,
+      }));
+    } catch (err) {
+      setMoreError(message(err));
+    } finally {
+      setMoreBusy(false);
+    }
+  }
   const [detail, setDetail] = useState<EntityDetail | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [lineage, setLineage] = useState<Lineage | null>(null);
@@ -178,13 +230,13 @@ export function Catalog({
   const [notice, setNotice] = useState('');
   const [names, setNames] = useState(new Map<string, string>());
   useEffect(() => {
-    if (list.data)
+    if (rows)
       setNames((m) => {
         const n = new Map(m);
-        for (const e of list.data!) n.set(e.id, e.title);
+        for (const e of rows) n.set(e.id, e.title);
         return n;
       });
-  }, [list.data]);
+  }, [list.data, extra?.rows]);
   // The open record is read again when this tab is shown again (audit L-10); a return keeps
   // what is on screen until the new read arrives, and a traced lineage stays open.
   const shown = useShown();
@@ -272,6 +324,20 @@ export function Catalog({
           <option value="archived">Archived</option>
           <option value="redacted">Redacted</option>
         </select>
+        <label htmlFor="cat-sort" className="inline">
+          Sort by
+        </label>
+        <select
+          id="cat-sort"
+          value={sort}
+          onChange={(x) => setSort(x.target.value as LibrarySort)}
+        >
+          {LIBRARY_SORTS.map((s) => (
+            <option key={s} value={s}>
+              {LIBRARY_SORT_LABEL[s]}
+            </option>
+          ))}
+        </select>
         <button className="secondary" onClick={list.reload}>
           Refresh
         </button>
@@ -279,18 +345,16 @@ export function Catalog({
       <div className="records-grid">
         <div>
           <Status loading={list.loading} error={list.error} retry={list.reload}>
-            {list.data && list.data.length === 0 ? (
+            {rows && rows.length === 0 ? (
               <Empty>No records match these filters.</Empty>
             ) : (
               <>
                 <p className="small">
-                  {list.data?.length ?? 0} records
-                  {list.data?.length === 500
-                    ? ' (first 500; narrow the filters)'
-                    : ''}
+                  {rows?.length ?? 0} of {list.data?.total ?? 0} records ·{' '}
+                  {LIBRARY_SORT_LABEL[sort].toLowerCase()}
                 </p>
                 <ul className="rows entities">
-                  {list.data?.map((x) => (
+                  {rows?.map((x) => (
                     <li key={x.id}>
                       <button
                         className="text"
@@ -313,6 +377,20 @@ export function Catalog({
                     </li>
                   ))}
                 </ul>
+                {moreError && (
+                  <p className="error small" role="alert">
+                    {moreError}
+                  </p>
+                )}
+                {nextCursor && (
+                  <button
+                    className="secondary"
+                    disabled={moreBusy}
+                    onClick={() => void loadMore()}
+                  >
+                    {moreBusy ? 'Loading…' : 'More records'}
+                  </button>
+                )}
               </>
             )}
           </Status>

@@ -64,3 +64,26 @@ results were not rerun. The actual project is C:\dev\creator_agent; the supplied
 OneDrive workspace path no longer exists. A read-only Git status attempt reported
 “must be run in a work tree”; exact candidate/dirty-state reconciliation is included
 in P00. Next eligible remains the focused independent F1/F2 recheck, before additions.
+
+## P01 + P02 — activity links, Search reset, newest-first sorting (November 5)
+
+Branch `claude/project-thread-pb1ge7`; no migration or ADR. Activity (tab and sidebar) and
+Search open a subject through one server check (`GET …/destination`): a task opens its
+workflow, an artifact its newest code version on Try, a selection its problem's scores;
+missing/other-workspace subjects read the same and show a reason without a title. Reset
+fields on Search/Activity/Library also clears the address words, kind filter and remembered
+sort. Search and the Library have Sort by (Newest by creation by default; Search also Oldest
+and Best match; Library also Recently updated and Name), applied on the server before the
+limit with id tie-breaks and cursors bound to sort and filters. Pickers still use the
+unchanged newest-first `entities` list (cap 500). Next eligible prompt: separate review of
+this PR, then P03.
+
+Checks (cloud container, PostgreSQL 16, Node 22.23.4): full `pnpm test:db` 772 tests,
+737 pass, 28 skip, 7 fail: the 5 known PowerShell-wrapper tests (no pwsh here) plus 2
+studio-service tests that collided with a dev server on 5173/4310; those 2 pass when rerun
+alone with the new test file, catalog and search suites (18 pass, 2 pg_dump skips). New
+`tests/src/list-sort-destinations.test.ts` covers cap+1, tied microsecond times, inserts
+between pages, cursor/sort/filter binding, membership and the HTTP routes. TypeScript, web
+typecheck, Prettier and whitespace pass. A Playwright walk on a throwaway studio checked
+Search sort/More/Reset (address cleared, sort back to Newest after reload), Activity opening a
+record, a deleted chat's explanation, and Library name sort with More records.

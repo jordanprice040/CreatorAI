@@ -55,3 +55,9 @@ results were not rerun. The actual project is C:\dev\creator_agent; the supplied
 OneDrive workspace path no longer exists. A read-only Git status attempt reported
 “must be run in a work tree”; exact candidate/dirty-state reconciliation is included
 in P00. Next eligible remains the focused independent F1/F2 recheck, before additions.
+
+## P01 + P02 (November 5, branch `claude/project-thread-pb1ge7`)
+
+Activity destinations, Search reset and server-side sort/paging for Search and the Library;
+details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
+installed-app change or live call. Not yet independently reviewed.
