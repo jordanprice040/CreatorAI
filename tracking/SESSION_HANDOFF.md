@@ -134,3 +134,8 @@ Sixth review (same day): L-1 "Note: we should build…" and "Remember: we could�
 "Please, can you") and "tell/show me" before a question are removed before the whole-message
 tests, and "Is it stuck?" counts; nits: "Note to self:buy milk" and emoji ideas save, bare
 "to"/"waiting" no longer open approvals. Cases added to the table test.
+Seventh review (same day): L-1 "Show me everything that's blocked" is a studio question again;
+L-2 acknowledgement and punctuation lead-ins ("Thanks! What's next?", "Got it, …", "Hi there,
+…", "So... …") are removed before the whole-message tests; nits: "Remember: I'm vegan" / "my
+name is…" are remarks, "Waiting for an answer" is not an approvals question, "Note to self,
+buy milk" saves "buy milk". Rows added to the table test.
