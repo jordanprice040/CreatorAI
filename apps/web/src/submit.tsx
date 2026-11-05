@@ -1,5 +1,11 @@
 import type { Prefill } from './prefill.js';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   ClaimEvidenceSchema,
   PlanConnectionSchema,
@@ -12,6 +18,7 @@ import {
   PricingSnapshotSchema,
   ResponseTypeSchema,
   RunControlSchema,
+  RuntimeCeilingSchema,
   SearchBriefBodySchema,
   StartDiscoveryRequestSchema,
   StoredEntitySchema,
@@ -29,12 +36,47 @@ import {
 import { api, message, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
-import { useDesktopApp } from './desktop-app.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
+import { Blocked, type BlockedReason } from './blocked.js';
+import {
+  SOURCE_TEXT,
+  defaultPlanChoice,
+  discoverSetupBlockers,
+  parsePreset,
+  parsePresentation,
+  presentationKey,
+  presetKey,
+  sourceOf,
+  startingSettings,
+  studioDefaults,
+  type DataClass,
+  type Oversight,
+  type Presentation,
+  type RouteKind,
+  type RoutineSettings,
+} from './discover-defaults.js';
+
+/** This person's saved Discover preset for a workspace; empty when none or unreadable. */
+function readPreset(actor: string, ws: string, fixture: boolean) {
+  try {
+    const raw = localStorage.getItem(presetKey(actor, ws));
+    return raw ? parsePreset(JSON.parse(raw), fixture) : {};
+  } catch {
+    return {};
+  }
+}
+function readPresentation(actor: string): Presentation {
+  try {
+    return parsePresentation(localStorage.getItem(presentationKey(actor)));
+  } catch {
+    return 'guided';
+  }
+}
+const DISCOVERY_CLASSES = [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
 
 /** Key-order-free JSON, so a stored brief (jsonb reorders keys) compares with the form. */
 const stable = (v: unknown): string =>
@@ -110,6 +152,53 @@ const plain = (m: string) =>
       ? 'too long'
       : m;
 
+type Issue = { text: string; field?: string | undefined };
+
+/** The form control that holds a brief field, for taking the person to it (review L-3). */
+const FIELD_IDS: Record<string, string> = {
+  theme: '#b-theme',
+  target_users: '#b-users',
+  context: '#b-ctx',
+  measurable_problem: '#b-prob',
+  outcome_measure: '#b-meas',
+  data_and_tools: '#b-data',
+  time_limit: '#b-time',
+  budget_limit: '#b-budget',
+  constraints: '#b-cons',
+};
+const fieldTarget = (path: PropertyKey[]): string | undefined =>
+  path[0] === 'fields'
+    ? path[1] === 1
+      ? '#b-fb'
+      : '#b-fa'
+    : FIELD_IDS[String(path[0])];
+
+/** Opens any folds around the field, then moves focus to it. */
+function focusField(selector: string) {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return;
+  for (
+    let d = el.closest('details');
+    d;
+    d = d.parentElement?.closest('details') ?? null
+  )
+    d.open = true;
+  el.focus();
+  el.scrollIntoView({ block: 'center' });
+}
+
+/** Where several values came from, in one short phrase for a fold's summary (review L-6). */
+function sourcesText(entries: readonly (readonly [string, string])[]): string {
+  const changed = entries.filter(([, s]) => s !== SOURCE_TEXT.studio);
+  if (!changed.length) return 'studio defaults';
+  if (
+    changed.length === entries.length &&
+    new Set(changed.map(([, s]) => s)).size === 1
+  )
+    return `all ${changed[0]![1]}`;
+  return changed.map(([n, s]) => `${n}: ${s}`).join(', ');
+}
+
 /**
  * Submits a theme as a versioned search brief and starts a discovery run on the server.
  * Evidence comes from claims already recorded with sources; the locator does not search the
@@ -127,7 +216,6 @@ export function Submit({
   /** An idea handed over from Chat as the brief's theme. */
   prefill?: Prefill;
 }) {
-  const desktop = useDesktopApp();
   const base = `workspaces/${workspace.id}`;
   const ctx = useLoad(async () => {
     let connectionError = '';
@@ -160,6 +248,11 @@ export function Submit({
         }),
       ),
     );
+    // P04 review L-6: the owner's overall spending ceiling, shown before starting. Reading it
+    // may be refused (not an owner); the panel then just leaves it out.
+    const ceiling = await api(RuntimeCeilingSchema, 'settings/spending').catch(
+      () => null,
+    );
     const evidence = new Map<string, ClaimEvidence>();
     await Promise.all(
       claims.map((c) =>
@@ -187,6 +280,7 @@ export function Submit({
       pricing: newestFirst(pricing),
       planDetails: planDetails.filter((p) => p !== null),
       connectionError,
+      ceiling,
     };
   }, [workspace.id]);
   // useLoad reads again, quietly, each time this page is shown (coming back from Decisions
@@ -198,46 +292,51 @@ export function Submit({
     setTheme(prefill.value.slice(0, 300));
     prefill.used();
   }, [prefill?.nonce]);
+  const fixture = workspace.record_mode === 'fixture';
+  // P04: routine fields start from the studio defaults with this person's saved preset for
+  // this workspace laid over them; the summary below says where each value came from.
+  const [preset, setPreset] = useState<Partial<RoutineSettings>>(() =>
+    readPreset(session.actor_id, workspace.id, fixture),
+  );
+  const start = startingSettings(fixture, preset);
+  const [presentation, setPresentationState] = useState<Presentation>(() =>
+    readPresentation(session.actor_id),
+  );
+  function setPresentation(p: Presentation) {
+    setPresentationState(p);
+    try {
+      localStorage.setItem(presentationKey(session.actor_id), p);
+    } catch {
+      // Blocked storage: the choice lasts for this page only.
+    }
+  }
   const [fieldA, setFieldA] = useState('');
   const [fieldB, setFieldB] = useState('');
   const [users, setUsers] = useState('');
   const [context, setContext] = useState('');
   const [problem, setProblem] = useState('');
   const [measure, setMeasure] = useState('');
-  const [data, setData] = useState('');
-  const [timeLimit, setTimeLimit] = useState('Six weeks');
-  const [budgetLimit, setBudgetLimit] = useState(
-    workspace.record_mode === 'fixture'
-      ? 'Fixture budget only; no paid services'
-      : 'No extra metered spending',
-  );
+  const [data, setData] = useState(start.dataAndTools);
+  const [timeLimit, setTimeLimit] = useState(start.timeLimit);
+  const [budgetLimit, setBudgetLimit] = useState(start.budgetLimit);
   const [seed, setSeed] = useState('');
-  const [constraints, setConstraints] = useState(
-    workspace.record_mode === 'fixture'
-      ? 'Synthetic data only.'
-      : 'Use permitted public evidence only.',
-  );
+  const [constraints, setConstraints] = useState(start.constraints);
   const [roles, setRoles] = useState<Record<string, EvidenceRole[]>>({});
   const [openClaims, setOpenClaims] = useState<ReadonlySet<string>>(new Set());
   const [excluded, setExcluded] = useState<
     Partial<Record<ResponseType, string>>
   >({});
   const [runChoice, setRunChoice] = useState('new');
-  const [newMode, setNewMode] = useState<'human_in_loop' | 'supervised'>(
-    'human_in_loop',
-  );
-  const [allowCalls, setAllowCalls] = useState(true);
+  const [newMode, setNewMode] = useState<Oversight>(start.oversight);
+  const [allowCalls, setAllowCalls] = useState(start.allowCalls);
   const [envelopeId, setEnvelopeId] = useState('');
   const [pricingId, setPricingId] = useState('');
-  const [resourceKind, setResourceKind] = useState<'api' | 'subscription'>(
-    workspace.record_mode === 'fixture' ? 'api' : 'subscription',
-  );
+  const [resourceKind, setResourceKind] = useState<RouteKind>(start.route);
   const [connectionId, setConnectionId] = useState('');
   const [planModel, setPlanModel] = useState('');
-  const [dataClass, setDataClass] = useState<
-    'synthetic' | 'public' | 'private_approved'
-  >(workspace.record_mode === 'fixture' ? 'synthetic' : 'public');
-  const [revisions, setRevisions] = useState(1);
+  const [dataClass, setDataClass] = useState<DataClass>(start.dataClass);
+  const [revisions, setRevisions] = useState(start.revisions);
+  const [presetNote, setPresetNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [tried, setTried] = useState(false);
@@ -303,13 +402,14 @@ export function Submit({
     constraints: lines(constraints),
   };
   const briefCheck = SearchBriefBodySchema.safeParse(brief);
-  const issues = useMemo(
+  const issues: Issue[] = useMemo(
     () =>
       briefCheck.success
         ? []
-        : briefCheck.error.issues.map(
-            (i) => `${fieldName(i.path)}: ${plain(i.message)}`,
-          ),
+        : briefCheck.error.issues.map((i) => ({
+            text: `${fieldName(i.path)}: ${plain(i.message)}`,
+            field: fieldTarget(i.path),
+          })),
     [JSON.stringify(brief)],
   );
   const evidence = Object.entries(roles)
@@ -332,35 +432,63 @@ export function Submit({
     usableEnvelopes[0]?.id ||
     '';
   const price = pricingId || c?.pricing[0]?.id || '';
-  const plan = connectionId
-    ? c?.planDetails.find((p) => p.connection.id === connectionId)
-    : c?.planDetails[0];
+  // P04: with nothing chosen, the default is a connection that can actually run a discovery
+  // (no blockers, allows the data class, a verified model qualified for every step), not
+  // simply the first one listed. A choice the person made is kept and its blockers shown.
+  const verifiedModels = (p: NonNullable<typeof c>['planDetails'][number]) =>
+    p.model_access
+      .filter((a) => a.path === 'responses' && a.access === 'verified')
+      .map((a) => a.model_id);
+  const planDefault = defaultPlanChoice(
+    (c?.planDetails ?? []).map((p) => ({
+      id: p.connection.id,
+      blockers: p.blockers,
+      allowedDataClasses: p.connection.settings.allowed_data_classes,
+      models: verifiedModels(p).map((m) => ({
+        id: m,
+        qualified: DISCOVERY_CLASSES.filter((tc) =>
+          isQualified(p.qualifications, m, tc),
+        ),
+      })),
+    })),
+    dataClass,
+    DISCOVERY_CLASSES,
+  );
+  const plan = c?.planDetails.find(
+    (p) => p.connection.id === (connectionId || planDefault.connection),
+  );
+  // Review L-1: a picked model counts only while it belongs to the connection in use.
   const model =
-    planModel ||
-    plan?.model_access.find(
-      (a) => a.path === 'responses' && a.access === 'verified',
-    )?.model_id ||
+    (plan && verifiedModels(plan).includes(planModel) ? planModel : '') ||
+    (plan && plan.connection.id === planDefault.connection
+      ? planDefault.model
+      : '') ||
+    (plan ? verifiedModels(plan)[0] : '') ||
     '';
-  const planBlockers =
-    resourceKind === 'subscription'
-      ? [
-          ...(c?.connectionError ? [c.connectionError] : []),
-          ...(plan?.blockers ?? [
-            'Add and verify a ChatGPT-plan connection in Models and connections.',
-          ]),
-          ...(plan &&
-          !plan.connection.settings.allowed_data_classes.includes(dataClass)
-            ? [
-                'This connection does not permit the selected evidence sharing class.',
-              ]
-            : []),
-          ...[...new Set(Object.values(DISCOVERY_TASK_CLASSES))]
-            .filter((tc) => !isQualified(plan?.qualifications ?? [], model, tc))
-            .map(
-              (tc) => `Model is not qualified for ${tc.replaceAll('_', ' ')}.`,
-            ),
-        ]
-      : [];
+  const setup: BlockedReason[] = discoverSetupBlockers({
+    route: resourceKind,
+    connectionError: c?.connectionError ?? '',
+    plan: plan
+      ? {
+          blockers: plan.blockers,
+          allowedDataClasses: plan.connection.settings.allowed_data_classes,
+        }
+      : null,
+    dataClass,
+    model,
+    unqualified: model
+      ? DISCOVERY_CLASSES.filter(
+          (tc) => !isQualified(plan?.qualifications ?? [], model, tc),
+        )
+      : [],
+    envelopes: c?.envelopes.length ?? 0,
+    usableEnvelopes: usableEnvelopes.length,
+    pricing: c?.pricing.length ?? 0,
+    fixture,
+  }).map((b) => ({
+    text: b.text,
+    ...(b.fix ? { fix: b.fix } : {}),
+  }));
   const planTimeout =
     plan?.connection.settings.caps.responses.request_timeout_ms ??
     LIMITS.call_timeout_ms;
@@ -416,20 +544,176 @@ export function Submit({
     data_class: dataClass,
     limits,
   };
+  const guided = presentation === 'guided';
+  const current: RoutineSettings = {
+    timeLimit,
+    budgetLimit,
+    constraints,
+    dataAndTools: data,
+    dataClass,
+    revisions,
+    oversight: newMode,
+    allowCalls,
+    route: resourceKind,
+  };
+  const sourceText = <K extends keyof RoutineSettings>(
+    k: K,
+    v: RoutineSettings[K],
+  ) => SOURCE_TEXT[sourceOf(k, v, fixture, preset)];
+  const existingRun = c?.runs.find((r) => r.run_id === runChoice);
+  const routeText =
+    resourceKind === 'subscription'
+      ? `ChatGPT plan · ${plan?.connection.label ?? 'no connection yet'} · ${model || 'no verified model'}`
+      : `${fixture ? 'Fixture' : 'API'} · budget ${usableEnvelopes.find((e) => e.id === envelope)?.name ?? 'none yet'}`;
+  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${routeText} · ${sourcesText(
+    [
+      ['access', sourceText('route', resourceKind)],
+      ['sharing', sourceText('dataClass', dataClass)],
+      ...(runChoice === 'new'
+        ? ([
+            ['oversight', sourceText('oversight', newMode)],
+            ['model calls', sourceText('allowCalls', allowCalls)],
+          ] as const)
+        : []),
+    ],
+  )}`;
+  // Review L-6: the limits a returning person is most likely to reach, as they stand now.
+  const chosenEnvelope = usableEnvelopes.find((e) => e.id === envelope);
+  const ceiling = c?.ceiling ?? null;
+  const ceilingLeft = ceiling
+    ? money(
+        (
+          BigInt(ceiling.ceiling_nano_usd) - BigInt(ceiling.exposure_nano_usd)
+        ).toString(),
+        false,
+      )
+    : null;
+  const ceilingsText =
+    resourceKind === 'subscription'
+      ? plan
+        ? `${plan.usage.last_24h_requests} of ${plan.connection.settings.caps.shared.max_model_requests_per_day} plan requests used on this connection in the last 24 hours`
+        : 'No connection yet'
+      : [
+          chosenEnvelope
+            ? `Budget ${chosenEnvelope.name}: ${money(chosenEnvelope.available, chosenEnvelope.fixture)} available`
+            : 'No budget yet',
+          !fixture && ceiling
+            ? `overall spending ceiling ${money(ceiling.ceiling_nano_usd, false)}, ${ceilingLeft} left`
+            : null,
+        ]
+          .filter(Boolean)
+          .join('; ');
+  const happens: Happening[] = [
+    {
+      label: 'Run',
+      value:
+        runChoice === 'new'
+          ? `A new run, ${newMode === 'supervised' ? 'supervised: it asks before every consequential step' : 'human in the loop: it asks at stage gates'}`
+          : `Continues ${existingRun && c ? runLabel(existingRun, c.names) : 'the chosen run'}`,
+      source:
+        runChoice === 'new' ? sourceText('oversight', newMode) : 'changed here',
+    },
+    {
+      label: 'Model calls',
+      value:
+        runChoice !== 'new'
+          ? "Use the chosen run's own permissions"
+          : allowCalls
+            ? `Allowed for 24 hours on ${dataClass.replace('_', ' ')} data, revocable under Monitor › Approvals`
+            : 'Each call waits for your approval',
+      source:
+        runChoice === 'new' ? sourceText('allowCalls', allowCalls) : undefined,
+    },
+    {
+      label: 'Model access',
+      value: routeText,
+      source: sourceText('route', resourceKind),
+    },
+    {
+      label: 'Limits',
+      value:
+        resourceKind === 'subscription'
+          ? `At most ${limits.max_calls} plan requests, ${Math.round(limits.call_timeout_ms / 1000)} s each, ${limits.max_wall_seconds} s in all; no API spending`
+          : runChoice === 'new' && !allowCalls
+            ? `At most ${limits.max_calls} calls, each waiting for your approval and charged to the budget, ${limits.max_wall_seconds} s in all`
+            : `At most ${limits.max_calls} calls, up to 2 ${fixture ? 'simulated units' : 'dollars'} each from the budget, ${limits.max_wall_seconds} s in all`,
+      source:
+        resourceKind === 'subscription' && plan
+          ? 'connection caps'
+          : 'studio default',
+    },
+    {
+      label: 'Ceilings',
+      value: ceilingsText,
+    },
+    {
+      label: 'Evidence sharing',
+      value: `${dataClass.replace('_', ' ')} data only`,
+      source: sourceText('dataClass', dataClass),
+    },
+    {
+      label: 'Output',
+      value: `Proposals for ${perspectives.length} response type${perspectives.length === 1 ? '' : 's'}, each critiqued, with ${revisions} revision round${revisions === 1 ? '' : 's'}; you compare them under Projects › Decide`,
+    },
+  ];
+  function savePreset() {
+    const saved = parsePreset(current, fixture);
+    try {
+      localStorage.setItem(
+        presetKey(session.actor_id, workspace.id),
+        JSON.stringify(saved),
+      );
+      setPreset(saved);
+      setPresetNote(
+        'Saved as your starting settings for this workspace in this browser.',
+      );
+    } catch {
+      setPresetNote('This browser blocks saving settings; nothing was saved.');
+    }
+  }
+  function clearPreset() {
+    try {
+      localStorage.removeItem(presetKey(session.actor_id, workspace.id));
+    } catch {
+      // Nothing stored to remove.
+    }
+    setPreset({});
+    const d = studioDefaults(fixture);
+    setTimeLimit(d.timeLimit);
+    setBudgetLimit(d.budgetLimit);
+    setConstraints(d.constraints);
+    setData(d.dataAndTools);
+    setDataClass(d.dataClass);
+    setRevisions(d.revisions);
+    setNewMode(d.oversight);
+    setAllowCalls(d.allowCalls);
+    setResourceKind(d.route);
+    setPresetNote(
+      'Back to the studio defaults. Routine settings changed on this visit were reset too; the brief and claims are unchanged.',
+    );
+  }
   const reqCheck = StartDiscoveryRequestSchema.safeParse(request);
-  const reqIssues = reqCheck.success
+  const reqIssues: Issue[] = reqCheck.success
     ? []
     : reqCheck.error.issues.map((i) =>
         i.path[0] === 'evidence'
-          ? 'Evidence: attach at least one claim and say what it bears on'
-          : plain(i.message),
+          ? {
+              text: 'Evidence: attach at least one claim and say what it bears on',
+              field: '.claims-pick input[type=checkbox]',
+            }
+          : i.path[0] === 'excluded' && typeof i.path[1] === 'number'
+            ? {
+                text: `Left-out response type: ${plain(i.message)}`,
+                field: `#b-ex-${exclusions[i.path[1]]?.perspective ?? ''}`,
+              }
+            : { text: plain(i.message) },
       );
+  const allIssues = [...issues, ...reqIssues];
   const ready =
     briefCheck.success &&
     reqCheck.success &&
-    (resourceKind === 'subscription'
-      ? !!model && planBlockers.length === 0
-      : !!envelope && !!price);
+    setup.length === 0 &&
+    (resourceKind === 'subscription' ? !!model : !!envelope && !!price);
 
   /** Attaching a claim opens its role chips; detaching clears whatever roles it had. */
   function attach(claim: string, on: boolean) {
@@ -459,7 +743,12 @@ export function Submit({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setTried(true);
-    if (!ready) return;
+    if (!ready) {
+      // Review L-3: take the person to the first field to fix, opening its fold.
+      const first = allIssues.find((i) => i.field);
+      if (first?.field) focusField(first.field);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -555,26 +844,44 @@ export function Submit({
   return (
     <section className="panel" aria-labelledby="sub-title">
       <h2 id="sub-title">Discover</h2>
-      <p>
-        Three ways in: let the studio explore your recorded evidence for
-        problems with no theme at all, save a rough theme as a draft and plan it
-        later, or fill in the full brief under{' '}
-        <button
-          type="button"
-          className="text"
-          // The address hash holds the route, so scroll instead of linking.
-          // Kept-alive pages can repeat the id, so look inside this page only.
-          onClick={(e) =>
-            e.currentTarget
-              .closest('section')
-              ?.querySelector('#discover')
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }
-        >
-          Discover from existing claims
-        </button>{' '}
-        to start a discovery run now.
-      </p>
+      <div className="start-choices" role="group" aria-label="How to start">
+        {(
+          [
+            [
+              'explore-title',
+              'Explore for me',
+              'No theme yet: the studio looks for problems in your recorded evidence.',
+            ],
+            [
+              'theme-intent-title',
+              'Start with a theme',
+              'A rough idea saved as a draft to plan later.',
+            ],
+            [
+              'discover',
+              'Discover from claims',
+              'You know the problem: write a short brief and start a run now.',
+            ],
+          ] as const
+        ).map(([target, label, text]) => (
+          <button
+            key={target}
+            type="button"
+            className="start-choice"
+            // The address hash holds the route, so scroll instead of linking.
+            // Kept-alive pages can repeat the id, so look inside this page only.
+            onClick={(e) =>
+              e.currentTarget
+                .closest('section')
+                ?.querySelector(`#${target}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          >
+            <strong>{label}</strong>
+            <span>{text}</span>
+          </button>
+        ))}
+      </div>
       <Explore
         key={`explore-${workspace.id}`}
         session={session}
@@ -584,12 +891,25 @@ export function Submit({
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
-      <p>
-        A theme becomes a versioned search brief and a discovery run: a locator
-        narrows it to affected users and an observable problem, then each
-        response type is proposed independently and critiqued. Evidence is the
-        claims you attach, with their recorded sources; the locator does not
-        search the web.
+      <div className="presentation" role="radiogroup" aria-label="Form detail">
+        {(['guided', 'advanced'] as const).map((p) => (
+          <label key={p} className="chip">
+            <input
+              type="radio"
+              name={`presentation-${workspace.id}`}
+              checked={presentation === p}
+              onChange={() => setPresentation(p)}
+            />
+            {p === 'guided'
+              ? 'Guided: routine settings folded, with their defaults'
+              : 'Advanced: every setting open'}
+          </label>
+        ))}
+      </div>
+      <p className="small">
+        Write what you know, attach the claims it rests on, and start. Evidence
+        is only the claims you attach; the locator does not search the web.
+        {guided && ' Routine settings use the defaults shown under each fold.'}
       </p>
       {explored && (
         <p className="notice">
@@ -656,13 +976,6 @@ export function Submit({
                 value={users}
                 onChange={(e) => setUsers(e.target.value)}
               />
-              <label htmlFor="b-ctx">Context or geography (optional)</label>
-              <input
-                id="b-ctx"
-                maxLength={300}
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-              />
               <label htmlFor="b-prob">Measurable problem</label>
               <textarea
                 id="b-prob"
@@ -682,62 +995,81 @@ export function Submit({
                 value={measure}
                 onChange={(e) => setMeasure(e.target.value)}
               />
-              <label htmlFor="b-data">
-                Data and tools you may use (one per line)
-              </label>
-              <textarea
-                id="b-data"
-                rows={2}
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-              />
-              <div className="two">
-                <div>
-                  <label htmlFor="b-time">Time limit</label>
-                  <input
-                    id="b-time"
-                    required
-                    maxLength={300}
-                    value={timeLimit}
-                    onChange={(e) => setTimeLimit(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="b-budget">
-                    Solution budget constraint (separate from run limits)
-                  </label>
-                  <input
-                    id="b-budget"
-                    required
-                    maxLength={300}
-                    value={budgetLimit}
-                    onChange={(e) => setBudgetLimit(e.target.value)}
-                  />
-                </div>
-              </div>
-              <label htmlFor="b-seed">
-                NAE Grand Challenge seed (optional; inspires, never replaces the
-                theme)
-              </label>
-              <select
-                id="b-seed"
-                value={seed}
-                onChange={(e) => setSeed(e.target.value)}
+              <Fold
+                guided={guided}
+                summary={`Routine details: ${timeLimit.trim() || 'no time limit'} · ${lines(constraints).length} constraint${lines(constraints).length === 1 ? '' : 's'} · ${sourcesText(
+                  [
+                    ['time limit', sourceText('timeLimit', timeLimit)],
+                    ['budget', sourceText('budgetLimit', budgetLimit)],
+                    ['constraints', sourceText('constraints', constraints)],
+                    ['data and tools', sourceText('dataAndTools', data)],
+                  ],
+                )}`}
               >
-                <option value="">None</option>
-                {NAE_GRAND_CHALLENGES.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-              <label htmlFor="b-cons">Constraints (one per line)</label>
-              <textarea
-                id="b-cons"
-                rows={2}
-                value={constraints}
-                onChange={(e) => setConstraints(e.target.value)}
-              />
+                <label htmlFor="b-ctx">Context or geography (optional)</label>
+                <input
+                  id="b-ctx"
+                  maxLength={300}
+                  value={context}
+                  onChange={(e) => setContext(e.target.value)}
+                />
+                <label htmlFor="b-data">
+                  Data and tools you may use (one per line)
+                </label>
+                <textarea
+                  id="b-data"
+                  rows={2}
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                />
+                <div className="two">
+                  <div>
+                    <label htmlFor="b-time">Time limit</label>
+                    <input
+                      id="b-time"
+                      required
+                      maxLength={300}
+                      value={timeLimit}
+                      onChange={(e) => setTimeLimit(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="b-budget">
+                      Solution budget constraint (separate from run limits)
+                    </label>
+                    <input
+                      id="b-budget"
+                      required
+                      maxLength={300}
+                      value={budgetLimit}
+                      onChange={(e) => setBudgetLimit(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <label htmlFor="b-seed">
+                  NAE Grand Challenge seed (optional; inspires, never replaces
+                  the theme)
+                </label>
+                <select
+                  id="b-seed"
+                  value={seed}
+                  onChange={(e) => setSeed(e.target.value)}
+                >
+                  <option value="">None</option>
+                  {NAE_GRAND_CHALLENGES.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="b-cons">Constraints (one per line)</label>
+                <textarea
+                  id="b-cons"
+                  rows={2}
+                  value={constraints}
+                  onChange={(e) => setConstraints(e.target.value)}
+                />
+              </Fold>
             </fieldset>
 
             <fieldset>
@@ -748,16 +1080,16 @@ export function Submit({
               </p>
               {c.claims.length === 0 ? (
                 <Empty>
-                  No claims in this workspace yet. In the Evidence view,
-                  register a run, fetch a page and cite its passages in claims
-                  {desktop ? (
-                    '.'
-                  ) : (
-                    <>
-                      {' '}
-                      (or <code>pnpm cli seed-research</code>).
-                    </>
-                  )}
+                  No claims in this workspace yet. Record a source and cite its
+                  passages in a claim first, or use Explore for me above once
+                  there are some.{' '}
+                  <button
+                    type="button"
+                    className="text"
+                    onClick={() => open('evidence')}
+                  >
+                    Open Sources and claims
+                  </button>
                 </Empty>
               ) : (
                 <ul className="rows claims-pick">
@@ -819,262 +1151,280 @@ export function Submit({
 
             <fieldset>
               <legend>Responses to propose</legend>
-              <p className="small">
-                Each type is proposed independently. Leave one out only with a
-                reason; at least one must not be new software.
-              </p>
-              <ul className="rows">
-                {ResponseTypeSchema.options.map((p) => (
-                  <li key={p}>
-                    <label className="chip">
-                      <input
-                        type="checkbox"
-                        checked={excluded[p] === undefined}
-                        onChange={() =>
-                          setExcluded((x) => {
-                            const n = { ...x };
-                            if (n[p] === undefined) n[p] = '';
-                            else delete n[p];
-                            return n;
-                          })
-                        }
-                      />
-                      {words(p)}
-                    </label>
-                    {excluded[p] !== undefined && (
-                      <input
-                        aria-label={`Why ${words(p)} is left out`}
-                        placeholder="Why it does not apply"
-                        maxLength={300}
-                        value={excluded[p]}
-                        onChange={(e) =>
-                          setExcluded((x) => ({ ...x, [p]: e.target.value }))
-                        }
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <label htmlFor="b-rev">Revision rounds after critique</label>
-              <select
-                id="b-rev"
-                value={revisions}
-                onChange={(e) => setRevisions(Number(e.target.value))}
+              <Fold
+                guided={guided}
+                summary={`${perspectives.length} of ${ResponseTypeSchema.options.length} response types · ${revisions} revision round${revisions === 1 ? '' : 's'} · ${sourceText('revisions', revisions)}`}
               >
-                {[0, 1, 2].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                <p className="small">
+                  Each type is proposed independently. Leave one out only with a
+                  reason; at least one must not be new software.
+                </p>
+                <ul className="rows">
+                  {ResponseTypeSchema.options.map((p) => (
+                    <li key={p}>
+                      <label className="chip">
+                        <input
+                          type="checkbox"
+                          checked={excluded[p] === undefined}
+                          onChange={() =>
+                            setExcluded((x) => {
+                              const n = { ...x };
+                              if (n[p] === undefined) n[p] = '';
+                              else delete n[p];
+                              return n;
+                            })
+                          }
+                        />
+                        {words(p)}
+                      </label>
+                      {excluded[p] !== undefined && (
+                        <input
+                          id={`b-ex-${p}`}
+                          aria-label={`Why ${words(p)} is left out`}
+                          placeholder="Why it does not apply"
+                          maxLength={300}
+                          value={excluded[p]}
+                          onChange={(e) =>
+                            setExcluded((x) => ({ ...x, [p]: e.target.value }))
+                          }
+                        />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <label htmlFor="b-rev">Revision rounds after critique</label>
+                <select
+                  id="b-rev"
+                  value={revisions}
+                  onChange={(e) => setRevisions(Number(e.target.value))}
+                >
+                  {[0, 1, 2].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </Fold>
             </fieldset>
 
             <fieldset>
-              <legend>Run, budget and permission</legend>
-              <label htmlFor="b-run">Run</label>
-              <select
-                id="b-run"
-                value={runChoice}
-                onChange={(e) => setRunChoice(e.target.value)}
-              >
-                <option value="new">Register a new run</option>
-                {c.runs.map((r) => (
-                  <option key={r.run_id} value={r.run_id}>
-                    Existing: {runLabel(r, c.names)}
-                  </option>
-                ))}
-              </select>
-              {runChoice === 'new' && (
-                <>
-                  <label htmlFor="b-mode">Oversight</label>
-                  <select
-                    id="b-mode"
-                    value={newMode}
-                    onChange={(e) =>
-                      setNewMode(e.target.value as typeof newMode)
-                    }
-                  >
-                    <option value="human_in_loop">
-                      Human in the loop (asks at stage gates)
+              <legend>Run, model and permission</legend>
+              <Fold guided={guided} summary={routeSummary}>
+                <label htmlFor="b-run">Run</label>
+                <select
+                  id="b-run"
+                  value={runChoice}
+                  onChange={(e) => setRunChoice(e.target.value)}
+                >
+                  <option value="new">Register a new run</option>
+                  {c.runs.map((r) => (
+                    <option key={r.run_id} value={r.run_id}>
+                      Existing: {runLabel(r, c.names)}
                     </option>
-                    <option value="supervised">
-                      Supervised (asks before every consequential step)
-                    </option>
-                  </select>
-                  <label className="chip">
-                    <input
-                      type="checkbox"
-                      checked={allowCalls}
-                      onChange={(e) => setAllowCalls(e.target.checked)}
-                    />
-                    Let this run make model calls on the selected data class for
-                    24 hours,{' '}
-                    {resourceKind === 'subscription'
-                      ? 'within the subscription caps shown below; no API spending'
-                      : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
-                    (a standing permission you can revoke under Monitor ›
-                    Approvals)
-                  </label>
-                  {!allowCalls && (
-                    <p className="small">
-                      Without it, each model call waits for your approval.
-                    </p>
-                  )}
-                </>
-              )}
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => ctx.reload()}
-              >
-                Refresh run setup
-              </button>
-              <label htmlFor="b-route">Model access</label>
-              <select
-                id="b-route"
-                value={resourceKind}
-                onChange={(e) =>
-                  setResourceKind(e.target.value as 'api' | 'subscription')
-                }
-              >
-                <option value="subscription">
-                  ChatGPT plan · subscription quota
-                </option>
-                <option value="api">API / fixture · budget and pricing</option>
-              </select>
-              <label htmlFor="b-data-class">Evidence sharing class</label>
-              <select
-                id="b-data-class"
-                value={dataClass}
-                onChange={(e) =>
-                  setDataClass(e.target.value as typeof dataClass)
-                }
-              >
-                <option value="synthetic">Synthetic</option>
-                <option value="public">Public</option>
-                <option value="private_approved">
-                  Private · approved provider sharing required
-                </option>
-              </select>
-              {resourceKind === 'subscription' ? (
-                <>
-                  <label htmlFor="b-connection">Connection</label>
-                  <select
-                    id="b-connection"
-                    value={plan?.connection.id ?? ''}
-                    onChange={(e) => {
-                      setConnectionId(e.target.value);
-                      setPlanModel('');
-                    }}
-                  >
-                    {!c.planDetails.length && (
-                      <option value="">No plan connection</option>
-                    )}
-                    {c.planDetails.map((p) => (
-                      <option key={p.connection.id} value={p.connection.id}>
-                        {p.connection.label}
+                  ))}
+                </select>
+                {runChoice === 'new' && (
+                  <>
+                    <label htmlFor="b-mode">Oversight</label>
+                    <select
+                      id="b-mode"
+                      value={newMode}
+                      onChange={(e) =>
+                        setNewMode(e.target.value as typeof newMode)
+                      }
+                    >
+                      <option value="human_in_loop">
+                        Human in the loop (asks at stage gates)
                       </option>
-                    ))}
-                  </select>
-                  <label htmlFor="b-plan-model">Verified model</label>
-                  <select
-                    id="b-plan-model"
-                    value={model}
-                    onChange={(e) => setPlanModel(e.target.value)}
-                  >
-                    {!model && <option value="">No verified model</option>}
-                    {plan?.model_access
-                      .filter(
-                        (a) =>
-                          a.path === 'responses' && a.access === 'verified',
-                      )
-                      .map((a) => (
-                        <option key={a.model_id} value={a.model_id}>
-                          {a.model_id}
+                      <option value="supervised">
+                        Supervised (asks before every consequential step)
+                      </option>
+                    </select>
+                    <label className="chip">
+                      <input
+                        type="checkbox"
+                        checked={allowCalls}
+                        onChange={(e) => setAllowCalls(e.target.checked)}
+                      />
+                      Let this run make model calls on the selected data class
+                      for 24 hours,{' '}
+                      {resourceKind === 'subscription'
+                        ? 'within the subscription caps shown below; no API spending'
+                        : `up to 2 ${workspace.record_mode === 'fixture' ? 'simulated units' : 'dollars'} per call`}{' '}
+                      (a standing permission you can revoke under Monitor ›
+                      Approvals)
+                    </label>
+                    {!allowCalls && (
+                      <p className="small">
+                        Without it, each model call waits for your approval.
+                      </p>
+                    )}
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => ctx.reload()}
+                >
+                  Refresh run setup
+                </button>
+                <label htmlFor="b-route">Model access</label>
+                <select
+                  id="b-route"
+                  value={resourceKind}
+                  onChange={(e) =>
+                    setResourceKind(e.target.value as 'api' | 'subscription')
+                  }
+                >
+                  <option value="subscription">
+                    ChatGPT plan · subscription quota
+                  </option>
+                  <option value="api">
+                    API / fixture · budget and pricing
+                  </option>
+                </select>
+                <label htmlFor="b-data-class">Evidence sharing class</label>
+                <select
+                  id="b-data-class"
+                  value={dataClass}
+                  onChange={(e) =>
+                    setDataClass(e.target.value as typeof dataClass)
+                  }
+                >
+                  <option value="synthetic">Synthetic</option>
+                  <option value="public">Public</option>
+                  <option value="private_approved">
+                    Private · approved provider sharing required
+                  </option>
+                </select>
+                {resourceKind === 'subscription' ? (
+                  <>
+                    <label htmlFor="b-connection">Connection</label>
+                    <select
+                      id="b-connection"
+                      value={plan?.connection.id ?? ''}
+                      onChange={(e) => {
+                        setConnectionId(e.target.value);
+                        setPlanModel('');
+                      }}
+                    >
+                      {!c.planDetails.length && (
+                        <option value="">No plan connection</option>
+                      )}
+                      {c.planDetails.map((p) => (
+                        <option key={p.connection.id} value={p.connection.id}>
+                          {p.connection.label}
                         </option>
                       ))}
-                  </select>
-                  <p className="small">
-                    Subscription quota; no API pricing or money envelope. One
-                    model job, at most {limits.max_calls} requests,{' '}
-                    {limits.max_wall_seconds} seconds per workflow and{' '}
-                    {Math.min(
-                      100000,
-                      plan?.connection.settings.caps.responses
-                        .max_output_chars ?? 16000,
-                    )}{' '}
-                    characters per response. Provider allowance is shared and
-                    may be unavailable. No paid fallback or search is included.
-                  </p>
-                  {planBlockers.length > 0 && (
-                    <ul className="error">
-                      {planBlockers.map((b) => (
-                        <li key={b}>{b}</li>
+                    </select>
+                    <label htmlFor="b-plan-model">Verified model</label>
+                    <select
+                      id="b-plan-model"
+                      value={model}
+                      onChange={(e) => {
+                        // Picking a model pins its connection, so a later change of the
+                        // default cannot pair it with another connection (review L-1).
+                        setPlanModel(e.target.value);
+                        if (plan) setConnectionId(plan.connection.id);
+                      }}
+                    >
+                      {!model && <option value="">No verified model</option>}
+                      {plan?.model_access
+                        .filter(
+                          (a) =>
+                            a.path === 'responses' && a.access === 'verified',
+                        )
+                        .map((a) => (
+                          <option key={a.model_id} value={a.model_id}>
+                            {a.model_id}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="small">
+                      Subscription quota; no API pricing or money envelope. One
+                      model job, at most {limits.max_calls} requests,{' '}
+                      {limits.max_wall_seconds} seconds per workflow and{' '}
+                      {Math.min(
+                        100000,
+                        plan?.connection.settings.caps.responses
+                          .max_output_chars ?? 16000,
+                      )}{' '}
+                      characters per response. Provider allowance is shared and
+                      may be unavailable. No paid fallback or search is
+                      included.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="b-env">Budget</label>
+                    <select
+                      id="b-env"
+                      value={envelope}
+                      onChange={(e) => setEnvelopeId(e.target.value)}
+                    >
+                      {usableEnvelopes.length === 0 && (
+                        <option value="">
+                          {c.envelopes.length === 0
+                            ? 'No active budget'
+                            : 'No budget this run can use'}
+                        </option>
+                      )}
+                      {usableEnvelopes.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name} · {money(e.available, e.fixture)} available
+                        </option>
                       ))}
-                    </ul>
-                  )}
-                </>
-              ) : (
-                <>
-                  <label htmlFor="b-env">Budget</label>
-                  <select
-                    id="b-env"
-                    value={envelope}
-                    onChange={(e) => setEnvelopeId(e.target.value)}
-                  >
-                    {usableEnvelopes.length === 0 && (
-                      <option value="">
-                        {c.envelopes.length === 0
-                          ? 'No active budget'
-                          : 'No budget this run can use'}
-                      </option>
-                    )}
-                    {usableEnvelopes.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} · {money(e.available, e.fixture)} available
-                      </option>
-                    ))}
-                  </select>
-                  <label htmlFor="b-price">Pricing snapshot</label>
-                  <select
-                    id="b-price"
-                    value={price}
-                    onChange={(e) => setPricingId(e.target.value)}
-                  >
-                    {c.pricing.length === 0 && (
-                      <option value="">No pricing snapshot</option>
-                    )}
-                    {c.pricing.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.body.provider}/{p.body.model_id} · {p.body.basis}
-                      </option>
-                    ))}
-                  </select>
-                  {c.envelopes.length > 0 && usableEnvelopes.length === 0 && (
-                    <p className="error">
-                      No active budget can be used by this run: a run or task
-                      budget belongs to its own run. Choose another run, or add
-                      a shared budget under Monitor › Budgets.
-                    </p>
-                  )}
-                  {(c.envelopes.length === 0 || c.pricing.length === 0) && (
-                    <p className="error">
-                      A discovery run needs an active budget (Budgets view) and
-                      a pricing snapshot
-                      {workspace.record_mode === 'fixture'
-                        ? ' (Budgets view: Add fixture pricing).'
-                        : ' (Budgets view: Add this pricing).'}
-                    </p>
-                  )}
-                </>
-              )}
+                    </select>
+                    <label htmlFor="b-price">Pricing snapshot</label>
+                    <select
+                      id="b-price"
+                      value={price}
+                      onChange={(e) => setPricingId(e.target.value)}
+                    >
+                      {c.pricing.length === 0 && (
+                        <option value="">No pricing snapshot</option>
+                      )}
+                      {c.pricing.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.body.provider}/{p.body.model_id} · {p.body.basis}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+              </Fold>
             </fieldset>
 
+            <WhatHappens
+              items={happens}
+              presetSaved={Object.keys(preset).length > 0}
+              onSave={savePreset}
+              onClear={clearPreset}
+              note={presetNote}
+              disabled={viewer}
+            />
+            <Blocked
+              action="start this discovery"
+              reasons={setup}
+              open={(v) => open(v)}
+            />
             <div id="sub-issues" aria-live="polite">
-              {tried && [...issues, ...reqIssues].length > 0 && (
+              {tried && allIssues.length > 0 && (
                 <ul className="small issues">
-                  {[...issues, ...reqIssues].slice(0, 8).map((i) => (
-                    <li key={i}>{i}</li>
+                  {allIssues.slice(0, 8).map((i) => (
+                    <li key={i.text}>
+                      {i.field ? (
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() => focusField(i.field!)}
+                        >
+                          {i.text}
+                        </button>
+                      ) : (
+                        i.text
+                      )}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -1091,6 +1441,90 @@ export function Submit({
           </form>
         )}
       </Status>
+    </section>
+  );
+}
+
+type Happening = { label: string; value: string; source?: string | undefined };
+
+/** Guided shows a routine group folded under a one-line summary; Advanced shows it open. */
+function Fold({
+  guided,
+  summary,
+  children,
+}: {
+  guided: boolean;
+  summary: string;
+  children: ReactNode;
+}) {
+  return guided ? (
+    <details className="routine">
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  ) : (
+    <>{children}</>
+  );
+}
+
+/**
+ * P04: what starting will do and the effective limits, each with where its value came from,
+ * shown before anything starts. A saved preset only fills these routine settings.
+ */
+function WhatHappens({
+  items,
+  presetSaved,
+  onSave,
+  onClear,
+  note,
+  disabled,
+}: {
+  items: readonly Happening[];
+  presetSaved: boolean;
+  onSave: () => void;
+  onClear: () => void;
+  note: string;
+  disabled: boolean;
+}) {
+  return (
+    <section className="what-happens" aria-labelledby="wh-title">
+      <h4 id="wh-title">What will happen</h4>
+      <dl>
+        {items.map((i) => (
+          <div key={i.label}>
+            <dt>{i.label}</dt>
+            <dd>
+              {i.value}
+              {i.source && <span className="source"> · {i.source}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="small">
+        Nothing starts until you press the button below, and the server checks
+        every permission, cap and qualification again. Defaults never add
+        evidence, permissions or qualifications.
+      </p>
+      <div className="actions">
+        <button
+          type="button"
+          className="secondary"
+          onClick={onSave}
+          disabled={disabled}
+        >
+          Save these settings as my defaults here
+        </button>
+        {presetSaved && (
+          <button type="button" className="text" onClick={onClear}>
+            Back to studio defaults (resets these routine settings)
+          </button>
+        )}
+      </div>
+      {note && (
+        <p className="small" role="status">
+          {note}
+        </p>
+      )}
     </section>
   );
 }

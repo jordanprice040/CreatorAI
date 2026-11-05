@@ -34,6 +34,7 @@ import {
   useLoad,
   type View,
 } from './ui.js';
+import { Blocked, type BlockedReason } from './blocked.js';
 import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
 import { recordLabel, runLabel } from './labels.js';
@@ -981,6 +982,7 @@ function Product({
                 specVersion={p.binding.spec_version}
                 data={data}
                 fixture={fixture}
+                open={open}
                 busy={busy || builds.some((b) => b.state === 'running')}
                 start={(plan) =>
                   act(
@@ -1116,6 +1118,7 @@ function StartBuild({
   fixture,
   busy,
   start,
+  open,
 }: {
   taskKey: string;
   specId: string;
@@ -1123,6 +1126,7 @@ function StartBuild({
   data: Data;
   fixture: boolean;
   busy: boolean;
+  open: (view: View, id?: string) => void;
   start: (plan: unknown) => Promise<void>;
 }) {
   const reviews = data.reviews.filter((r) => {
@@ -1194,14 +1198,52 @@ function StartBuild({
         connection.connection_label,
       )
     : null;
-  const missing = [
-    !runId && 'an active run (register one under Sources or Discover)',
-    !budgetId && 'an active budget (Monitor › Budgets)',
-    !priceId && 'a pricing snapshot (Monitor › Budgets)',
-    !chosen && 'a humility review of this spec version',
-    lostBuilder &&
-      `a builder: the plan model chosen (${lostBuilder.split(':').slice(2).join(':')}) is no longer verified, so choose again (Models and connections shows why)`,
-  ].filter(Boolean);
+  // P04: the same blocked-reasons list as Discover, each with the tab that fixes it.
+  const missing: BlockedReason[] = [
+    ...(!runId
+      ? [
+          {
+            text: 'Needs an active run: start one from Discover.',
+            fix: { view: 'submit' as View, label: 'Open Discover' },
+          },
+        ]
+      : []),
+    ...(!budgetId
+      ? [
+          {
+            text: 'Needs an active budget.',
+            fix: { view: 'budgets' as View, label: 'Open Budgets' },
+          },
+        ]
+      : []),
+    ...(!priceId
+      ? [
+          {
+            text: 'Needs a pricing snapshot.',
+            fix: { view: 'budgets' as View, label: 'Open Budgets' },
+          },
+        ]
+      : []),
+    ...(!chosen
+      ? [
+          {
+            text: 'Needs a humility review of this exact spec version.',
+            fix: { view: 'scores' as View, label: 'Open Scores and specs' },
+          },
+        ]
+      : []),
+    ...(lostBuilder
+      ? [
+          {
+            text: `The plan model chosen as builder (${lostBuilder.split(':').slice(2).join(':')}) is no longer verified; choose a builder again.`,
+            fix: {
+              view: 'models' as View,
+              label: 'Open Models and connections',
+            },
+          },
+        ]
+      : []),
+  ];
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -1361,26 +1403,28 @@ function StartBuild({
           grants must cover it, or the build stops before anything is sent.
         </p>
       )}
-      {refusedClass && (
-        <p className="notice" role="note">
-          {refusedClass}
-        </p>
-      )}
-      {blockers.length > 0 && (
-        <div className="notice" role="note">
-          <p>
-            <strong>
-              This task can't be built from this spec version yet.
-            </strong>
-          </p>
-          {blockers.map((b) => (
-            <p key={b}>{b}</p>
-          ))}
-        </div>
-      )}
-      {missing.length > 0 && (
-        <p className="small">Still needed: {missing.join(', ')}.</p>
-      )}
+      <Blocked
+        action="build this task from this spec version"
+        reasons={[
+          ...blockers.map((b) => ({
+            text: b,
+            fix: { view: 'scores' as View, label: 'Open Scores and specs' },
+          })),
+          ...(refusedClass
+            ? [
+                {
+                  text: refusedClass,
+                  fix: {
+                    view: 'models' as View,
+                    label: 'Open Models and connections',
+                  },
+                },
+              ]
+            : []),
+          ...missing,
+        ]}
+        open={open}
+      />
       <div className="actions">
         <button
           className="primary"
