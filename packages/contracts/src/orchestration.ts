@@ -23,6 +23,10 @@ import {
   ExplorationTaskContextSchema,
   ExploreScopeSchema,
 } from './exploration.js';
+import {
+  AssessmentResultSchema,
+  AssessmentTaskContextSchema,
+} from './assessment.js';
 
 // T05 durable orchestration. A workflow is one finite coordinator run of one bounded role
 // for a registered run; its state lives in PostgreSQL, not in a browser or a worker's memory.
@@ -39,6 +43,8 @@ export const WorkflowRoleSchema = z.enum([
   'r02_discovery',
   /** C53 "Explore for me": one explorer task over the workspace's claims (ADR-0065). */
   'r01_exploration',
+  /** P08 automatic assessments: one assessor task over one problem's options (ADR-0074). */
+  'r08_assessment',
 ]);
 export type WorkflowRole = z.infer<typeof WorkflowRoleSchema>;
 export const WorkflowStateSchema = ExecutionStateSchema.exclude([
@@ -70,6 +76,7 @@ export const TaskKindSchema = z.enum([
   'synthesis',
   ...DiscoveryTaskKindSchema.options,
   'explore',
+  'assess',
 ]);
 export type TaskKind = z.infer<typeof TaskKindSchema>;
 
@@ -180,6 +187,7 @@ export const TaskContextSchema = z.discriminatedUnion('context_version', [
   SkepticTaskContextSchema,
   DiscoveryTaskContextSchema,
   ExplorationTaskContextSchema,
+  AssessmentTaskContextSchema,
 ]);
 export type TaskContext = z.infer<typeof TaskContextSchema>;
 
@@ -215,11 +223,19 @@ export const DISCOVERY_TASK_CLASSES = {
  * so it runs as research_synthesis and is admitted under the locator's qualification.
  */
 export const EXPLORATION_TASK_CLASS = 'research_synthesis' as const;
+/**
+ * ADR-0074: the assessor rates options against the rubrics, so it runs as `scoring`; on a plan
+ * connection it needs a scoring qualification bound to the assessor's own prompt, not the
+ * discovery skeptic's.
+ */
+export const ASSESSMENT_TASK_CLASS = 'scoring' as const;
 /** The plan task class of a workflow task kind, or undefined for a metered-only kind. */
 export const workflowTaskClass = (kind: string) =>
   kind === 'explore'
     ? EXPLORATION_TASK_CLASS
-    : DISCOVERY_TASK_CLASSES[kind as keyof typeof DISCOVERY_TASK_CLASSES];
+    : kind === 'assess'
+      ? ASSESSMENT_TASK_CLASS
+      : DISCOVERY_TASK_CLASSES[kind as keyof typeof DISCOVERY_TASK_CLASSES];
 
 export const StartDiscoveryRequestSchema = z
   .strictObject({
@@ -346,6 +362,37 @@ export type StartExplorationRequest = z.infer<
   typeof StartExplorationRequestSchema
 >;
 
+/**
+ * P08 (ADR-0074): assess every option of one problem, at the problem's current version, on the
+ * rubrics that apply. Same resource setup, data class and limits as an exploration.
+ */
+export const StartAssessmentRequestSchema = z
+  .strictObject({
+    problem: z.strictObject({ id, version }),
+    resource_setup: WorkflowResourceSetupSchema,
+    data_class: DataClassSchema,
+    limits: WorkflowLimitsSchema,
+    /** The preview the owner saw; the start is refused if what it would send changed. */
+    preview_hash: hash.optional(),
+  })
+  .superRefine((r, ctx) => {
+    if (r.resource_setup.kind !== 'subscription') {
+      if (r.limits.call_timeout_ms > METERED_CALL_TIMEOUT_MAX_MS)
+        ctx.addIssue({
+          code: 'custom',
+          message: 'API and local workflow calls time out within 600 seconds.',
+        });
+      if (r.limits.max_wall_seconds > METERED_WALL_MAX_SECONDS)
+        ctx.addIssue({
+          code: 'custom',
+          message: 'API and local workflows end within one day.',
+        });
+    }
+  });
+export type StartAssessmentRequest = z.infer<
+  typeof StartAssessmentRequestSchema
+>;
+
 // Role outputs. The runtime validates them; a malformed answer is a known failure, charged.
 const severity = z.enum(['low', 'medium', 'high']);
 export const CritiqueOutputSchema = z.strictObject({
@@ -430,6 +477,8 @@ export const WorkflowResultSchema = z.strictObject({
   discovery: DiscoveryResultSchema.optional(),
   /** Explorations only (ADR-0065). */
   exploration: ExplorationResultSchema.optional(),
+  /** Automatic assessments only (ADR-0074). */
+  assessment: AssessmentResultSchema.optional(),
 });
 export type WorkflowResult = z.infer<typeof WorkflowResultSchema>;
 export const WorkflowUsageSchema = z.strictObject({

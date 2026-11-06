@@ -9,6 +9,7 @@ import {
   canonicalHash,
   discoveryRoleInput,
   explorationRoleInput,
+  assessmentRoleInput,
   roleInput,
 } from '@creator/domain';
 import {
@@ -165,24 +166,34 @@ export class Worker {
         lease.exploration
           ? lease.exploration
           : null;
-      const check = exploration
-        ? { exploration: exploration.packet }
-        : discovery
-          ? { packet: discovery.packet, context: discovery.context }
-          : undefined;
-      const input = exploration
-        ? explorationRoleInput(exploration.packet)
-        : discovery
-          ? discoveryRoleInput(
-              discovery.kind,
-              discovery.context,
-              discovery.packet,
-              discovery.inputs,
-            )
-          : task.context.context_version === 'skeptic-context/1' &&
-              (task.kind === 'critique' || task.kind === 'synthesis')
-            ? roleInput(task.kind, task.context, lease.critiques)
-            : null;
+      const assessment =
+        task.context.context_version === 'assessment-context/1' &&
+        task.kind === 'assess' &&
+        lease.assessment
+          ? lease.assessment
+          : null;
+      const check = assessment
+        ? { assessment: assessment.packet }
+        : exploration
+          ? { exploration: exploration.packet }
+          : discovery
+            ? { packet: discovery.packet, context: discovery.context }
+            : undefined;
+      const input = assessment
+        ? assessmentRoleInput(assessment.packet)
+        : exploration
+          ? explorationRoleInput(exploration.packet)
+          : discovery
+            ? discoveryRoleInput(
+                discovery.kind,
+                discovery.context,
+                discovery.packet,
+                discovery.inputs,
+              )
+            : task.context.context_version === 'skeptic-context/1' &&
+                (task.kind === 'critique' || task.kind === 'synthesis')
+              ? roleInput(task.kind, task.context, lease.critiques)
+              : null;
       if (!input)
         throw new Error(
           `task ${task.id} has a context this worker cannot render`,
@@ -339,6 +350,7 @@ const ROLE_NAMES: Record<TaskKind, string> = {
   revise: 'R04 designer revision',
   skeptic: 'R05 skeptic',
   explore: 'R01 explorer',
+  assess: 'R08 assessor',
 };
 
 /** Maps a broker result to a task outcome. Unknown never becomes a retry. */

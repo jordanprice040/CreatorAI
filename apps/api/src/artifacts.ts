@@ -144,6 +144,8 @@ export async function artifactRoutes(o: {
       return send(200, await store.listArtifacts(ctx, ws), false);
     if (!item && method === 'POST') {
       const req = parse(RegisterArtifactRequestSchema, await o.body());
+      // PR #143 review N-1: only an owner makes the server read the product store at all.
+      await store.assertCanRegisterArtifact(ctx, ws);
       // Read and re-hash the local manifest and archive; the request carries only identities.
       const { manifest, manifest_sha256 } = await artifacts.manifest(
         req.product_id,

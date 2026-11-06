@@ -83,8 +83,43 @@ function versionParam(url: URL): number | null {
   return Number(v);
 }
 
+/**
+ * ADR-0075 (PR #141 review follow-up): at most `max` uploads in flight per person at once. An
+ * authorised member may otherwise hold several slow uploads open for up to 30 minutes each.
+ * Counted per API process, which is how both the desktop and the hosted stack run today.
+ */
+export class UploadSlots {
+  readonly #open = new Map<string, number>();
+  constructor(readonly max: number) {}
+  /** A release function, or null when this actor already has `max` uploads in flight. */
+  take(actorId: string): (() => void) | null {
+    const n = this.#open.get(actorId) ?? 0;
+    if (n >= this.max) return null;
+    this.#open.set(actorId, n + 1);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const left = (this.#open.get(actorId) ?? 1) - 1;
+      if (left > 0) this.#open.set(actorId, left);
+      else this.#open.delete(actorId);
+    };
+  }
+  inFlight(actorId: string): number {
+    return this.#open.get(actorId) ?? 0;
+  }
+}
+
+/** Two at once by default; the deployment may set any positive whole number. */
+export const DEFAULT_CONCURRENT_UPLOADS = 2;
+export function concurrentUploadsFromEnv(env: NodeJS.ProcessEnv): number {
+  const x = Number(env.CREATOR_FILE_CONCURRENT_UPLOADS);
+  return Number.isSafeInteger(x) && x > 0 ? x : DEFAULT_CONCURRENT_UPLOADS;
+}
+
 export async function fileRoutes(r: {
   store: FileStore;
+  slots: UploadSlots;
   ctx: CommandContext;
   ws: string;
   item: string | undefined;
@@ -106,31 +141,47 @@ export async function fileRoutes(r: {
       throw new ContractError('INVALID_CONTRACT', 'The upload key is missing.');
     // Review L2: a non-member or viewer is refused before any of the body is buffered.
     await store.assertCanUpload(ctx, ws);
-    // Review R-M1: only an upload the caller may make, declared within the size limit, gets
-    // longer than the ordinary 10 seconds to arrive.
-    const declared = Number(req.headers['content-length']);
-    if (
-      Number.isSafeInteger(declared) &&
-      declared >= 0 &&
-      declared <= store.limits.fileMaxBytes
-    )
-      extendBodyDeadline(req, uploadDeadlineMs(declared));
-    const bytes = await readRaw(req, store.limits.fileMaxBytes);
-    const link = one(req, 'x-link-entity');
-    const result = await store.uploadFile(
-      ctx,
-      ws,
-      {
-        bytes,
-        name,
-        declaredType: one(req, 'x-declared-type') ?? null,
-        uploadKey: key,
-        linkEntityId: link || null,
-        keepDuplicate: one(req, 'x-keep-duplicate') === 'true',
-      },
-      fileId,
-    );
-    return send(result.stored && !result.replayed ? 201 : 200, result, true);
+    // ADR-0075: a person over the in-flight cap is refused before the deadline is extended,
+    // so the refused body keeps only the ordinary 10 seconds and its connection then closes.
+    const release = r.slots.take(ctx.actorId);
+    if (!release)
+      throw new ContractError(
+        'LIMIT_EXCEEDED',
+        `You already have ${r.slots.max} upload${r.slots.max === 1 ? '' : 's'} in progress; wait for one to finish.`,
+      );
+    // The slot is freed however the upload ends: stored, refused, cancelled or cut off. The
+    // response's close, not the request's: Node closes the request once its body is read,
+    // before the bytes are inspected and stored (PR #143 review L-2).
+    res.once('close', release);
+    try {
+      // Review R-M1: only an upload the caller may make, declared within the size limit, gets
+      // longer than the ordinary 10 seconds to arrive.
+      const declared = Number(req.headers['content-length']);
+      if (
+        Number.isSafeInteger(declared) &&
+        declared >= 0 &&
+        declared <= store.limits.fileMaxBytes
+      )
+        extendBodyDeadline(req, uploadDeadlineMs(declared));
+      const bytes = await readRaw(req, store.limits.fileMaxBytes);
+      const link = one(req, 'x-link-entity');
+      const result = await store.uploadFile(
+        ctx,
+        ws,
+        {
+          bytes,
+          name,
+          declaredType: one(req, 'x-declared-type') ?? null,
+          uploadKey: key,
+          linkEntityId: link || null,
+          keepDuplicate: one(req, 'x-keep-duplicate') === 'true',
+        },
+        fileId,
+      );
+      return send(result.stored && !result.replayed ? 201 : 200, result, true);
+    } finally {
+      release();
+    }
   };
   if (!item) {
     if (get)

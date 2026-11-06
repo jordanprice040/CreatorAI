@@ -25,7 +25,7 @@ import {
 } from '@creator/contracts';
 import { localTimestamp } from '@creator/domain';
 import { createHash } from 'node:crypto';
-import { SelectionStore } from './selection-store.js';
+import { PROBLEM_CLAIMS_SQL, SelectionStore } from './selection-store.js';
 import {
   fail,
   iso,
@@ -1187,10 +1187,8 @@ export class CatalogStore extends SelectionStore {
         [ws, problemId],
       );
       const claims = await linked(
-        `select distinct on (l.from_id) l.from_id, l.relation from entity_links l
-          where l.workspace_id = $1 and l.to_id = $2 and l.from_kind = 'claim'
-            and l.relation in ('supports', 'contradicts') and l.retracted_at is null
-          order by l.from_id, l.created_at`,
+        `select distinct on (x.from_id) x.from_id, x.relation from (${PROBLEM_CLAIMS_SQL}) x
+          order by x.from_id, x.created_at`,
         [ws, problemId],
       );
       const alts = (

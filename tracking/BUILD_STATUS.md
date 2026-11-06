@@ -270,3 +270,102 @@ unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migrati
   studio checkpoints instead of repairing. Evidence `tracking/evidence/p14-benchmarks/RESULTS_2026-11-06.json`.
   Next: a follow-up to state the path/`sys.path` rules to the builder (or allow `__init__.py`) and turn a refused
   patch into repair feedback, then a new larger-benchmark version.
+
+## P08 automatic assessments (November 6, branch `claude/project-thread-rbtrzm`, ADR-0074, migration 47)
+
+Compare can now assess every option of a problem automatically: an `r08_assessment` workflow
+(migration 47, schema 47) sends one packet (the problem version, up to 8 options, up to 30
+linked claims with passages, the anchored rubrics; nothing fetched) and writes one system
+scorecard per option and rubric with full provenance (route, model, prompt, rubric and packet
+hashes, cited claim versions and support, uncertainty). Code computes totals and ranks; unknown
+stays a range. People edit a system rating into their own card with a reason; the original is
+kept and marked replaced. System cards cannot clear ethics or access gates, never select, and
+are marked stale (not counted) when the problem, an option, a rubric or the evidence changes.
+Plan routes need a scoring qualification on the new `assessment-synthetic-v1` benchmark
+(draft for owner review); fixture connections use plain rules, labelled as such.
+
+Checked: `tests/src/assessment.test.ts` (fixture run with provenance, ties, re-run archiving;
+edits keep the original, forged/model cards and system-card revisions refused, edit of a
+replaced card refused; support retraction and problem revision mark cards stale; bad answers
+repaired then failed with no cards; unknown ratings stay a range; owner-only start) and
+`tests/src/assessment-benchmark.test.ts` (benchmark bound to the current prompt, fixture and
+instruction-obeying answers refused). Not done: owner review of the benchmark; live run.
+
+## P08 review fixes (November 6, PR #144 review, no new migration)
+
+Fixed every finding of the PR #144 review (project file reviews/PR144_ASSESSMENTS_REVIEW_2026-11-06.md;
+ADR-0074 amendments): M-1 claims linked or unlinked after an assessment mark it stale
+(`linked_hash`); M-2 Compare shows each system card's ratings, rationales, cited claims,
+confidence, uncertainty, gate notes and provenance; M-3 Edit targets the exact system card and
+a person's card moves on to replace a newer assessment; L-1 new ratings must cite current active
+evidence; L-2 a late older assessment never replaces a newer one; L-3 packet limits recorded;
+L-4 `admits_assessment` drives the Compare readiness check; L-5 edits name their author; N-1
+comment; N-2 plan provider is the connection kind; N-4 more than 8 options assesses the first 8
+with a note. Also: qualification starts take up to 256 KiB (the assessment benchmark did not fit
+in 128 KiB on the trial copy). N-3 unchanged.
+
+Checked: new DB tests (unlinked claim → stale; edit moves on after "Assess again" and cannot move
+back while the newer one is current; old evidence version refused; a late older assessment writes
+nothing), the benchmark size check, and a browser walk on a throwaway database
+(tracking/evidence/automatic-assessments/walk.txt, 16/16 PASS, fixture only, $0). Full suite:
+806 tests, 772 pass, 28 skip; failures only the 5 known PowerShell-wrapper tests plus one
+chunked-body test whose oversized body was under the new 256 KiB cap (fixed and re-run green).
+
+## P08 split assessment requests and L-6 (November 6, PR #144, no new migration)
+
+The first live assessment on the trial copy failed with `output_cap_exceeded` (19,510 characters
+against the plan route's 16,000). An assessment now sends one request per batch of at most four
+option-and-rubric pairs and writes scorecards only when every batch succeeds (ADR-0074
+amendments). The preview reports the request count and Compare sizes its limits from it. Re-review
+L-6: the edit form now says older claim versions must be replaced and offers to cite the current
+versions. Assessor prompt and benchmark unchanged, so qualification b9ad4984 on the trial copy
+still counts. Checked: assessment DB tests (two-batch run records every card, unknown answers per
+batch, limits too small refused) and the full suite; live re-run pending on the trial copy.
+
+Re-review at 7eaf45d (L-7, N-5): a batch that fails for good now stops the workflow through the
+shared stopper, so queued sibling tasks are cancelled and leased ones awaited (only reachable
+through the API with concurrency above 1). New tests: a domain check of the stop with a queued,
+leased and cancelled sibling, and a DB test where batch 1 succeeds, batch 2 fails after its
+repair and no card is written.
+
+## P11 preparation: tester accounts, sample workspaces, upload cap (November 6, branch `claude/project-thread-hdk4s6`)
+
+ADR-0075, migration 48, schema 48 (migration 47 is reserved for P08 in parallel). More than one
+person can now sign in through OIDC: allow-listed tester identities each get their own actor,
+an expiry and an editor or viewer role in their own synthetic sample workspace. `pnpm ops
+tester-add`, `tester-list`, `tester-reset` and `tester-remove` manage them from the command
+line; reset retires the old workspace and seeds a fresh one, removal disables the account and
+ends its sessions, and neither deletes records. Testers are refused on Settings, plan
+connections, payments, campaigns, GitHub, portfolio scheduling, operations and desktop routes,
+and the stores refuse them new workspaces, membership changes, owner policy actions and the
+spending ceiling. Each person may have at most `CREATOR_FILE_CONCURRENT_UPLOADS` (default 2)
+uploads in flight (PR #141 review follow-up).
+
+Checked on a disposable PostgreSQL 16 database in the cloud container: new
+`tester-accounts.test.ts` (real API with a local OIDC provider: stranger refused, owner subject,
+duplicate, past expiry and owner role refused, tester signs in as its own actor and lists only
+its sample, editor writes and viewer cannot, owner's and other tester's workspaces, files and
+notes not found, every owner-only route 403 while the owner keeps them, store-level refusals
+even with an owner membership inserted directly, reset keeps the old records, expiry and
+removal end live sessions, concurrent resets leave one current workspace) and a new
+`files-deadline.test.ts` case (two slow uploads at the cap stay open, the third gets 429 at once,
+dropping one frees its slot). The owner-only API check was confirmed to matter: with it
+disabled the tester test fails. The OIDC test provider moved to `tests/src/oidc-idp.ts`, shared
+with `auth-api.test.ts`. Not deployed; D1–D9 still open. Not done: committee profile (G6),
+per-tester quotas (G5), tester model route (G4), local Compose rehearsal, tester guide.
+Full `pnpm test:db` (PostgreSQL 16): 799 tests, 765 pass, 28 skipped, 6 failed: the five
+PowerShell-wrapper tests that always fail in the container (no pwsh), and the new upload-cap
+case, whose 429 worked but whose assertion read the error body wrongly; fixed and rerun with
+the auth, tester, storage and deadline suites (14/14). Typecheck and format check pass.
+Awaiting review.
+
+## P11 review fixes (November 6, PR #143 review, no new migration)
+
+Fixes the PR #143 review (project file reviews/PR143_TESTER_ACCOUNTS_REVIEW_2026-11-06.md): L-1
+`addMember` refuses a tester as owner; L-2 the upload slot is held until the response closes
+(new test holds the store step and gets 429 for a second upload; it fails with the old
+request-close release); N-1 artifact registration checks the owner role before reading the
+product store; N-2 tester sessions end no later than the account; N-3 `pnpm ops tester-extend
+[--restore]`; N-4 a failed seed after `tester-add` says to run `tester-reset`. N-5 (numbering
+with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
+`files-deadline.test.ts`.

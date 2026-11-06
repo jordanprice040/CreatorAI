@@ -194,6 +194,16 @@ export class ArtifactStore extends StudyBuildStore {
    * Indexes a manifest the caller has already read from disk and hashed. It must name the
    * current frozen spec version and its exact task hash; revisions name their feedback.
    */
+  /**
+   * PR #143 review N-1: the role check alone, so the route refuses a non-owner before it reads
+   * or hashes anything in the local product store.
+   */
+  async assertCanRegisterArtifact(ctx: CommandContext, ws: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    await this.tx((c) => this.requireOwner(c, ws, ctx.actorId));
+  }
+
   async registerArtifact(
     ctx: CommandContext,
     ws: string,

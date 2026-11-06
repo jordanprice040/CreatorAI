@@ -317,3 +317,82 @@ unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migrati
   studio checkpoints instead of repairing. Evidence `tracking/evidence/p14-benchmarks/RESULTS_2026-11-06.json`.
   Next: a follow-up to state the path/`sys.path` rules to the builder (or allow `__init__.py`) and turn a refused
   patch into repair feedback, then a new larger-benchmark version.
+
+## P08 automatic assessments (November 6, branch `claude/project-thread-rbtrzm`, ADR-0074, migration 47)
+
+What works: Compare's "Assess automatically" runs an `r08_assessment` workflow and writes
+system scorecards beside people's, with provenance, edit-with-reason (`edit_of`), gate limits
+and stale marking (see ADR-0074). New routes: `problems/{id}/assessment-preview`,
+`runs/{id}/assessments`, `workflows/{id}/assessment-packet`. Benchmark generator:
+`node scripts/assessment-benchmark.mjs` after `pnpm build:code`; regenerate it whenever the
+assessor prompt changes (the old manifest then stops admitting assessments).
+
+Open: Jordan reviews `config/connections/benchmarks/assessment-synthetic-v1.json` before it
+counts as frozen; plan-route assessments stay blocked until a scoring qualification on it
+passes. Next free numbers after P11: migration 49, ADR-0076.
+
+## P08 review fixes (November 6, PR #144 review, no new migration)
+
+All PR #144 review findings fixed except N-3 (see ADR-0074 amendments and BUILD_STATUS). The
+assessor prompt and the benchmark are unchanged, so a scoring qualification on
+assessment-synthetic-v1 still counts. Live trial: a copy of the dev studio database,
+`creator_p08_trial` on Jordan's Docker server, runs this branch from the worktree
+C:\dev\creator_agent_p08 on the review ports; creator_studio itself is untouched (backup
+C:\CreatorAgentBackups\creator_studio-20261105-200145-pre-p08-trial.dump). Jordan approved the
+benchmark cases and adding scoring to the Claude Code connection on the trial copy only.
+
+## P08 split assessment requests and L-6 (November 6, PR #144)
+
+Live trial so far (trial copy only, Claude plan, $0): scoring qualification b9ad4984 passed
+(dev 2/2, held-out 6/6, 8 requests); the first assessment e5aa5780 failed with
+`output_cap_exceeded` (1 request), which led to splitting assessments into batches of four
+option-and-rubric pairs. Next: re-run the live assessment of "CSV files need a quick quality check
+before analysis" on the trial copy after pulling this commit, then re-review.
+
+Live re-run at 7eaf45d on the trial copy: workflow ab5a4999 succeeded in 2 requests (answers
+12,166 and 11,825 characters), 8 system cards, 30 of 48 ratings unknown, every option incomplete
+so nothing ranked; connection at 11 of 30 daily, $0. Then re-review Low L-7 and nit N-5 fixed.
+Follow-up idea, not done: option rationales cite claim labels (C5 to C8) from the drafting step
+that differ from the assessment packet's numbering.
+
+## P11 preparation: tester accounts, sample workspaces, upload cap (November 6, branch `claude/project-thread-hdk4s6`)
+
+ADR-0075, migration 48, schema 48 (migration 47 is reserved for P08 in parallel). More than one
+person can now sign in through OIDC: allow-listed tester identities each get their own actor,
+an expiry and an editor or viewer role in their own synthetic sample workspace. `pnpm ops
+tester-add`, `tester-list`, `tester-reset` and `tester-remove` manage them from the command
+line; reset retires the old workspace and seeds a fresh one, removal disables the account and
+ends its sessions, and neither deletes records. Testers are refused on Settings, plan
+connections, payments, campaigns, GitHub, portfolio scheduling, operations and desktop routes,
+and the stores refuse them new workspaces, membership changes, owner policy actions and the
+spending ceiling. Each person may have at most `CREATOR_FILE_CONCURRENT_UPLOADS` (default 2)
+uploads in flight (PR #141 review follow-up).
+
+Checked on a disposable PostgreSQL 16 database in the cloud container: new
+`tester-accounts.test.ts` (real API with a local OIDC provider: stranger refused, owner subject,
+duplicate, past expiry and owner role refused, tester signs in as its own actor and lists only
+its sample, editor writes and viewer cannot, owner's and other tester's workspaces, files and
+notes not found, every owner-only route 403 while the owner keeps them, store-level refusals
+even with an owner membership inserted directly, reset keeps the old records, expiry and
+removal end live sessions, concurrent resets leave one current workspace) and a new
+`files-deadline.test.ts` case (two slow uploads at the cap stay open, the third gets 429 at once,
+dropping one frees its slot). The owner-only API check was confirmed to matter: with it
+disabled the tester test fails. The OIDC test provider moved to `tests/src/oidc-idp.ts`, shared
+with `auth-api.test.ts`. Not deployed; D1–D9 still open. Not done: committee profile (G6),
+per-tester quotas (G5), tester model route (G4), local Compose rehearsal, tester guide.
+Full `pnpm test:db` (PostgreSQL 16): 799 tests, 765 pass, 28 skipped, 6 failed: the five
+PowerShell-wrapper tests that always fail in the container (no pwsh), and the new upload-cap
+case, whose 429 worked but whose assertion read the error body wrongly; fixed and rerun with
+the auth, tester, storage and deadline suites (14/14). Typecheck and format check pass.
+Awaiting review.
+
+## P11 review fixes (November 6, PR #143 review, no new migration)
+
+Fixes the PR #143 review (project file reviews/PR143_TESTER_ACCOUNTS_REVIEW_2026-11-06.md): L-1
+`addMember` refuses a tester as owner; L-2 the upload slot is held until the response closes
+(new test holds the store step and gets 429 for a second upload; it fails with the old
+request-close release); N-1 artifact registration checks the owner role before reading the
+product store; N-2 tester sessions end no later than the account; N-3 `pnpm ops tester-extend
+[--restore]`; N-4 a failed seed after `tester-add` says to run `tester-reset`. N-5 (numbering
+with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
+`files-deadline.test.ts`.

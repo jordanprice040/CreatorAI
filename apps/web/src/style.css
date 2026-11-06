@@ -3013,3 +3013,18 @@ details.routine > summary {
   margin: 0;
   padding-left: 18px;
 }
+
+/* P08 automatic assessments: the per-card explanation reads top to bottom (review M-2). */
+.assess-why dl,
+.assess-why dl > div {
+  display: block;
+  text-align: left;
+}
+.assess-why dt {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+.assess-why dd {
+  margin: 0.15rem 0 0;
+  text-align: left;
+}
