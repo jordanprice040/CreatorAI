@@ -16,6 +16,7 @@ import {
 import { databaseUrl } from './config.js';
 import { assertSchemaCurrent } from './migrate.js';
 import { OPERATIONS_ACTOR_ID, OpsStore } from './ops-store.js';
+import { TesterStore, type TesterRole } from './tester-store.js';
 
 const USAGE = `Usage:
   pnpm ops config-check                       (validates this environment's configuration; no network)
@@ -24,6 +25,13 @@ const USAGE = `Usage:
   pnpm ops uncertain                          (every action whose outcome is unknown, with its runbook)
   pnpm ops cleanup [--apply]                  (expired sign-in material past retention; dry run by default)
   pnpm ops claim-environment <env> [--relabel-from <env>]
+  pnpm ops tester-add --subject <sub> --name <name> --expires <iso time> [--role editor|viewer] [--issuer <url>]
+                                              (allow-lists one OIDC identity and seeds its synthetic sample workspace)
+  pnpm ops tester-list
+  pnpm ops tester-extend <actor id> --expires <iso time> [--restore]
+                                              (moves the expiry; --restore re-enables a removed account with a fresh sample)
+  pnpm ops tester-reset <actor id>            (retires the tester's workspace and seeds a fresh sample)
+  pnpm ops tester-remove <actor id> --reason <text>  (disables the account and ends its sessions; keeps records)
 Environments: local, test, staging, live. NAME_FILE variables load secrets from files.`;
 
 function flag(args: string[], name: string): string | undefined {
@@ -31,9 +39,15 @@ function flag(args: string[], name: string): string | undefined {
   return at >= 0 ? args[at + 1] : undefined;
 }
 
+/** ADR-0075: tester accounts, run as the operations actor on the same pool. */
+const withTesters = <T>(
+  env: Record<string, string | undefined>,
+  fn: (testers: TesterStore) => Promise<T>,
+) => withStore(env, (_ops, pool) => fn(new TesterStore(pool)));
+
 async function withStore<T>(
   env: Record<string, string | undefined>,
-  fn: (ops: OpsStore) => Promise<T>,
+  fn: (ops: OpsStore, pool: pg.Pool) => Promise<T>,
 ): Promise<T> {
   const mode = env.CREATOR_DEPLOYMENT_MODE === 'hosted' ? 'hosted' : 'local';
   const url = databaseUrl(env.CREATOR_DATABASE_URL, mode);
@@ -45,7 +59,7 @@ async function withStore<T>(
     await assertSchemaCurrent(pool);
     const ops = new OpsStore(pool);
     await ops.ensureOperationsActor();
-    return await fn(ops);
+    return await fn(ops, pool);
   } finally {
     await pool.end();
   }
@@ -147,7 +161,38 @@ try {
           )
         : ops.claimEnvironment(ctx, to),
     );
-  } else throw new Error(USAGE);
+  } else if (command === 'tester-add') {
+    const issuer = flag(args, '--issuer') ?? env.CREATOR_OIDC_ISSUER;
+    if (!issuer)
+      throw new Error('Give --issuer or set CREATOR_OIDC_ISSUER.\n' + USAGE);
+    out = await withTesters(env, (t) =>
+      t.addTester(ctx, {
+        issuer,
+        subject: flag(args, '--subject') ?? '',
+        display_name: flag(args, '--name') ?? '',
+        expires_at: flag(args, '--expires') ?? '',
+        workspace_role: (flag(args, '--role') ?? 'editor') as TesterRole,
+        owner_subject: env.CREATOR_OIDC_OWNER_SUBJECT ?? null,
+      }),
+    );
+  } else if (command === 'tester-list')
+    out = await withTesters(env, (t) => t.listTesters());
+  else if (command === 'tester-extend' && args[0])
+    out = await withTesters(env, (t) =>
+      t.extendTester(
+        ctx,
+        args[0]!,
+        flag(args, '--expires') ?? '',
+        args.includes('--restore'),
+      ),
+    );
+  else if (command === 'tester-reset' && args[0])
+    out = await withTesters(env, (t) => t.resetTester(ctx, args[0]!));
+  else if (command === 'tester-remove' && args[0])
+    out = await withTesters(env, (t) =>
+      t.removeTester(ctx, args[0]!, flag(args, '--reason') ?? ''),
+    );
+  else throw new Error(USAGE);
   console.log(JSON.stringify(out, null, 2));
   if (
     out &&

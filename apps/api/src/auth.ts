@@ -234,13 +234,24 @@ export function createAuth(
           'The identity provider response did not verify.',
         );
       }
-      if (!claims || claims.sub !== config.oidc!.owner_subject)
+      if (!claims)
         throw new ContractError(
           'ACCESS_DENIED',
-          'This identity is not the workspace owner.',
+          'This identity is not allowed to sign in.',
+        );
+      // ADR-0075: the owner subject signs in as the owner; an allow-listed, unexpired tester
+      // account signs in as its own actor; everyone else is refused.
+      const actorId =
+        claims.sub === config.oidc!.owner_subject
+          ? ownerId
+          : await s.activeTester(claims.iss, claims.sub);
+      if (!actorId)
+        throw new ContractError(
+          'ACCESS_DENIED',
+          'This identity is not the workspace owner or an invited tester.',
         );
       const { token, session } = await s.createSession(
-        ownerId,
+        actorId,
         'oidc',
         `${claims.iss}|${claims.sub}`,
         config.session_hours,
@@ -255,9 +266,26 @@ export function createAuth(
     }
     throw new ContractError('NOT_FOUND', 'Route not found.');
   }
+  /**
+   * ADR-0075: routes for the deployment owner alone (operations, desktop pairing, Settings,
+   * plan connections, payments, campaigns, GitHub). A tester session is refused.
+   */
+  async function requireOwner(
+    req: IncomingMessage,
+    mutating: boolean,
+  ): Promise<SessionInfo> {
+    const session = await require(req, mutating);
+    if (session.account === 'tester')
+      throw new ContractError(
+        'ACCESS_DENIED',
+        'Tester accounts cannot use this part of the studio in this review build.',
+      );
+    return session;
+  }
   return {
     route,
     require,
+    requireOwner,
     generatedCode,
     mode: config.mode,
     desktopCookie: { name: cookieName, secure: config.cookie_secure },

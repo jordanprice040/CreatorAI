@@ -334,9 +334,11 @@ export class BudgetStore extends OversightStore {
    */
   /** A signed-in person who owns some workspace: the audience for the ceiling (ADR-0043). */
   protected async isCeilingOwner(c: PoolClient, actorId: string) {
+    // ADR-0075: a tester account never qualifies, even if it came to own a workspace.
     const { rows } = await c.query<{ kind: string; owner: boolean }>(
       `select a.kind, exists(select 1 from workspace_members m
-          where m.actor_id = a.id and m.role = 'owner') as owner
+          where m.actor_id = a.id and m.role = 'owner')
+          and not exists(select 1 from tester_accounts t where t.actor_id = a.id) as owner
          from actors a where a.id = $1`,
       [actorId],
     );
