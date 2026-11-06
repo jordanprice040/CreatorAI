@@ -2,7 +2,7 @@
 
 ## Pinned headless browser for static web QA (ADR-0078) — November 6, 2026
 
-Implemented and checked in a Linux container (real Bubblewrap, Chrome for Testing headless shell 156.0.8078.47), not installed on Jordan's WSL2 worker. The studio never downloads it: Jordan runs `packages/executor/worker/install_browser.py` in WSL as uid 1000 (downloads from `storage.googleapis.com/chrome-for-testing-public`, or `--zip FILE`), which checks the archive and tree SHA-256 and prints the apt command for system libraries. The browser runs only inside the QA sandbox with no network beyond loopback. No credential, account or paid service. Installing it and the live web qualification each need Jordan's typed OK ([setup](../docs/STATIC_WEB_RECIPE.md)).
+Implemented and checked in a Linux container (real Bubblewrap, Chrome for Testing headless shell 156.0.8078.47). Installed on Jordan's WSL2 worker on November 6, 2026 (hashes verified; Jordan installed the apt libraries) and used for the live web qualification (3 of 3, $0). The studio never downloads it: Jordan runs `packages/executor/worker/install_browser.py` in WSL as uid 1000 (downloads from `storage.googleapis.com/chrome-for-testing-public`, or `--zip FILE`), which checks the archive and tree SHA-256 and prints the apt command for system libraries. The browser runs only inside the QA sandbox with no network beyond loopback. No credential, account or paid service. Installing it and the live web qualification each need Jordan's typed OK ([setup](../docs/STATIC_WEB_RECIPE.md)).
 
 ## Authentication review follow-up — November 4, 2026
 

@@ -15,6 +15,7 @@ import {
   BuildSupervisor,
   ExecutionSupervisor,
   ProductSupervisor,
+  RECIPE_QUALIFICATIONS,
   WEB_QA_RUNTIME,
   WEB_TEMPLATE,
   browserResult,
@@ -37,6 +38,7 @@ import {
   parseBrowserSteps,
   specRecipe,
   unqualifiedTrial,
+  RECIPE_BENCHMARKS,
   PINNED_BROWSER,
   browserRecheckDue,
   UNQUALIFIED_TRIAL_NOTE,
@@ -47,6 +49,7 @@ import {
   type SpecContent,
 } from '@creator/contracts';
 import {
+  BUILD_ROLE_PROMPTS,
   BUILD_FIXTURE_SPEC,
   frozenBrowserCases,
   taskHashes,
@@ -766,6 +769,56 @@ test('review L-9: a web pass qualifies only the connection, model and role promp
     unqualifiedTrial('static-web/1', roles, [
       { ...pass, benchmark_id: 'p15-small-signup-v3' },
     ]),
+    true,
+  );
+});
+
+test('the recorded web qualification is the live 3 of 3 result on the current benchmark and prompts', () => {
+  const results = JSON.parse(
+    readFileSync(
+      join(
+        ROOT,
+        'tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json',
+      ),
+      'utf8',
+    ),
+  );
+  assert.equal(RECIPE_QUALIFICATIONS.length, 1);
+  const q = RECIPE_QUALIFICATIONS[0]!;
+  assert.match(results.outcome, /^3 of 3: qualified/);
+  assert.equal(results.attempts.length, 3);
+  for (const a of results.attempts) {
+    assert.equal(a.studio_state, 'verified_candidate');
+    assert.equal(a.score.passed, '10/10');
+    assert.equal(a.score.held_out, '6/6');
+  }
+  assert.deepEqual(q, {
+    recipe: results.recipe,
+    benchmark_id: results.benchmark_id,
+    connection_id: results.route.connection_id,
+    model_id: results.route.model_id,
+    builder_prompt_sha256: results.role_prompts.builder_prompt_sha256,
+    reviewer_prompt_sha256: results.role_prompts.reviewer_prompt_sha256,
+  });
+  // It qualifies only on the current benchmark version and today's role prompts.
+  assert.equal(q.benchmark_id, RECIPE_BENCHMARKS['static-web/1']);
+  assert.equal(q.builder_prompt_sha256, digest(BUILD_ROLE_PROMPTS.builder));
+  assert.equal(q.reviewer_prompt_sha256, digest(BUILD_ROLE_PROMPTS.reviewer));
+  assert.equal(
+    digest(readFileSync(join(BENCH, 'FREEZE.json'))),
+    results.freeze.freeze_json_sha256,
+  );
+  const roles = { ...q };
+  assert.equal(
+    unqualifiedTrial('static-web/1', roles, RECIPE_QUALIFICATIONS),
+    false,
+  );
+  assert.equal(
+    unqualifiedTrial(
+      'static-web/1',
+      { ...roles, connection_id: randomUUID() },
+      RECIPE_QUALIFICATIONS,
+    ),
     true,
   );
 });

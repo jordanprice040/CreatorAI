@@ -6,8 +6,10 @@ the [P14 matrix](CAPABILITY_MATRIX_2026-11-05.md) P15 order. Decision record: AD
 
 **Status (November 6, 2026):** implemented and tested in the cloud container (fixture builds, contract
 tests and the real checker in Linux Bubblewrap with the pinned browser), then revised after the PR #149
-review (section 10). **Not yet run on Jordan's WSL2 worker and not role-qualified.** Both need the owner
-steps in sections 6 and 7; Jordan gave his typed OK on November 6, held until the fixes are re-reviewed.
+review (section 10). **Live qualification, November 6 (section 11): 3 of 3 on Jordan's WSL2 worker**,
+on the ChatGPT-plan connection `4e4a7bec…` with `gpt-6-astra` and the current role prompts, at $0. Web
+builds on exactly that connection, model and prompt pair are qualified; every other web build is still
+labelled an unqualified trial.
 
 ## 1. What it builds
 
@@ -196,7 +198,9 @@ that registers a service worker also fails. The first run of this section was:
 
 ## 9. Limits and what is not covered
 
-- Not run on WSL2 and not qualified (sections 6 and 7).
+- Qualified only for one connection, model and role-prompt pair at the declared small scale (section
+  11). Other connections, models or prompt versions stay unqualified trials. The repair path was not
+  exercised live (no attempt needed a repair), and the desktop app's WebView2 frame was not observed.
 - No packages, Node toolchain, bundlers or frameworks: pinned Node and dependency acquisition inside
   isolation are a later slice, and with them hostile build scripts and dependency failures.
 - No server code, API, database or network, so readiness, restart and secret/network separation reduce
@@ -253,3 +257,31 @@ case passes only when both are empty; the reason names the kind without its URL.
 the checker, benchmark v3 became `p15-small-signup-v4` before any live run (cases, spec content and
 reference unchanged). N-c, the selector shape check pairs escapes left to right, so an escaped
 backslash followed by a comma is refused.
+
+## 11. Live qualification (November 6, 2026)
+
+Run on Jordan's PC under his typed OKs (11:28 and 20:24 UTC). Raw summary:
+[RESULTS_P15_V4_2026-11-06.json](../tracking/evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json)
+(per-attempt files stay on the device, gitignored).
+
+- Setup: the pinned browser was installed in WSL as uid 1000 by `install_browser.py` (hashes verified);
+  Jordan installed the system libraries with apt. `verify` ok; the reference scored 10/10 there with no
+  sandbox deviation. The dev studio (`creator_studio`, backed up first, migrated 48 to 49) ran from the
+  PR #149 head `b73bd95`; the worker used that worktree's `bridge.py` and checker (hash equals FREEZE).
+- Route: `plan_roles` on connection `4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4`, model `gpt-6-astra`, builder
+  prompt `73cb799e…`, reviewer prompt `9e1cc6b4…` (from each build's `intent.json`, matching its prompt
+  hash). 6 plan requests in all (UTC day 16 to 22 of 40), $0, credits off.
+- Each of the 3 attempts: its own run, selection, spec (equal to `spec.json` content) and product;
+  `verified_candidate` in 2 requests with no repair round in about 65 to 68 s; QA 10/10 in the WSL2
+  worker (6/6 held out); reviewer approved with no findings; package verified; the exported package
+  scored 10/10. No attempt was replaced and no patch was refused. The driver's own spec comparison
+  stopped attempt 1's setup once (it compared the stored record envelope); it was fixed before any
+  request.
+- Owner observation: Jordan opened attempt 1's private preview in Chrome and the sign-up page showed in
+  its frame ("it showed up!", with screenshots). Only that product was opened, as section 7 asks; the
+  desktop app (WebView2) was not observed because the installed app shares the dev studio's ports.
+- Result: **3 of 3, qualified at the declared scale** for that connection, model and prompt pair. The
+  pass is recorded in `RECIPE_QUALIFICATIONS` (`packages/executor/src/artifacts.ts`) with
+  `benchmark_id` `p15-small-signup-v4`; a test checks the record against the results file, the current
+  role prompts, `RECIPE_BENCHMARKS` and the freeze hash. The three packages made during the run were
+  labelled unqualified trials when packaged, and keep that label: a manifest is not rewritten.

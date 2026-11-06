@@ -1,0 +1,548 @@
+{
+ "format": "p15-results-summary/1",
+ "recorded_from": "per-attempt files on Jordan's PC, C:\\dev\\creator_agent_p15\\.creator\\p15-benchmarks\\v4\\runs\\ (gitignored); this file copies their key fields",
+ "benchmark_id": "p15-small-signup-v4",
+ "recipe": "static-web/1",
+ "dev_studio": {
+  "database": "creator_studio",
+  "schema": 49,
+  "code": "b73bd952aca390cc8a3da02acd269b0678acd0b3 (PR #149 head, merged with main at schema 49), worktree C:\\dev\\creator_agent_p15, started by .creator\\studio\\start-dev-p15.ps1",
+  "pre_migration_backup": "C:\\CreatorAgentBackups\\creator_studio-20261106T204916Z-pre-p15.dump (sha256 7445d92b685f4b98a77903cf2b4a4c106fc65ccffd2334edb9aaa09968373e86)",
+  "migration": "48 -> 49 (proposals) applied 2026-11-06T21:34:51Z",
+  "worker": "packages/executor/worker/bridge.py and web_recipe.py of the same worktree (resolved relative to the compiled executor, mapped to /mnt/c/dev/creator_agent_p15)"
+ },
+ "route": {
+  "kind": "plan_roles",
+  "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+  "model_id": "gpt-6-astra",
+  "cost_usd": "0.00",
+  "credits": "confirmed_off",
+  "caps": {
+   "max_model_requests_per_day": 40,
+   "max_requests_per_run": 10,
+   "max_input_chars": 60000
+  }
+ },
+ "role_prompts": {
+  "builder_prompt_sha256": "73cb799e9212ecdd2cd37fd5d642a292681b0169a4ddd12b831e6d1915da22ad",
+  "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c",
+  "prompt_hash": "a332c2522e73fc139237d83bfd98c82318d6ea63e58d118d8c2eeacf1add60f1",
+  "same_in_all_attempts": true,
+  "source": "SHA-256 of prompts.builder and prompts.reviewer in each build's intent.json; digest(JSON.stringify(prompts)) equals intent.prompt_hash in every attempt"
+ },
+ "role_qualification_in_manifests": [
+  "unqualified_trial",
+  "unqualified_trial",
+  "unqualified_trial"
+ ],
+ "grader_environment": "WSL2 Ubuntu 26.04, uid 1000, Node v22.23.4 linux-x64 (~/p14-node), Python 3.14.4, bubblewrap, Chrome for Testing headless shell 156.0.8078.47 installed by install_browser.py (archive and tree hashes verified)",
+ "device_setup": {
+  "browser_install": "2026-11-06 ~20:48 UTC by install_browser.py",
+  "system_libraries": "Jordan ran the apt command himself (finished by 21:36 UTC); ldd shows no missing library",
+  "verify": "ok",
+  "reference_score": {
+   "passed": "10/10",
+   "held_out": "6/6",
+   "freeze_sha256": "463ced35393be0a34b3e941f70cec104a1cfe979cd6931dd568a2db3b1a9ce2c",
+   "checker_sha256": "b229c4704f1b9803c943c79b65d895a12ef967ac85737000bcdf1b37d4b57f64",
+   "sandbox_deviations": []
+  }
+ },
+ "freeze": {
+  "freeze_json_sha256": "463ced35393be0a34b3e941f70cec104a1cfe979cd6931dd568a2db3b1a9ce2c",
+  "checker_web_recipe_py": "b229c4704f1b9803c943c79b65d895a12ef967ac85737000bcdf1b37d4b57f64"
+ },
+ "approvals": [
+  "Jordan's typed OK (project chat, 2026-11-06 11:28 UTC): WSL browser install and 3 live qualification builds on the $0 plan route",
+  "Jordan's typed \"OK live qualification\" (2026-11-06 20:24 UTC)",
+  "Jordan's typed \"OK stop the dev studio\" (2026-11-06 21:34 UTC); the old studio was already stopped when checked",
+  "Studio approvals (select, freeze, build start) answered approve_once per attempt citing those OKs"
+ ],
+ "plan_requests": {
+  "total": 6,
+  "utc_day_before": 16,
+  "utc_day_after": 22
+ },
+ "infrastructure_replacements": 0,
+ "owner_observation": {
+  "kind": "owner observation (recorded as Jordan reported it; not a check run by Claude)",
+  "observed_by": "Jordan",
+  "reported_at": "2026-11-06T22:21:06Z",
+  "words": "it showed up!",
+  "evidence": "Two screenshots Jordan posted in the project thread: Chrome at 127.0.0.1:4320/preview/381178f6-f912-4d7d-8959-d7777dfe948b showing the private preview page (artifact 43fc50bb-b2f4-4e1a-a30b-aae226d847b3, commit 4b048ff7..., manifest d455aef4..., site origin http://w381178f6f9124d7d8959d7777dfe948b-fe5e743f00569a6165517664.localhost:4320) and, in the frame, the Sign up page with Name, Email, Plan (Free), I accept the terms and Create account",
+  "preview": {
+   "preview_id": "381178f6-f912-4d7d-8959-d7777dfe948b",
+   "attempt": 1,
+   "artifact_id": "43fc50bb-b2f4-4e1a-a30b-aae226d847b3"
+  },
+  "normal_browser": "Chrome on Windows: the page shows in its frame",
+  "desktop_app_webview2": "not observed: the installed app uses the same ports as the running dev studio and its data is off-limits for this work",
+  "earlier_link": "The first link (21:44 UTC) was opened after its 10-minute one-time window and showed \"This preview link has expired\"; a fresh link from the same preview was issued at 22:17 UTC",
+  "preview_shows_page_for_attempt": {
+   "1": true,
+   "2": "not opened (the packet asks for one verified product)",
+   "3": "not opened (the packet asks for one verified product)"
+  }
+ },
+ "outcome": "3 of 3: qualified at declared scale on this connection, model and prompt pair. Every automated bar met in all three attempts; the private preview bar was observed by the owner on one verified product (attempt 1, Chrome) as the packet instructs; desktop WebView2 not observed",
+ "attempts": [
+  {
+   "attempt": 1,
+   "run_id": "fc6a068c-6f9a-414d-8a02-fe2f7ff4dfc4",
+   "selection_id": "f440bf05-e46d-4860-b87b-13e3d3a2d4c5",
+   "spec": {
+    "id": "38457020-63e7-457e-b4c9-6e0eea3d0495",
+    "version": 1
+   },
+   "product_id": "4cb73763-396c-45bb-a910-69ec051d085e",
+   "task_id": "5b9ce900-3c7a-4f99-8a46-d636478908c1",
+   "build_id": "ffa8b28e-ad64-40ac-ba6a-458e25065ddd",
+   "artifact_id": "43fc50bb-b2f4-4e1a-a30b-aae226d847b3",
+   "manifest_sha256": "d455aef4f31db19d4ae33544b87766a3f0bd41f8b2824de1dde9b7d6b98a8cbc",
+   "package_tar_sha256": "4a58b81ae76ee96754ecb7d19055d37a8baf7f8ce96d337b1e009f1c2b199171",
+   "candidate_commit": "4b048ff70538f206fd37e473402b92b45748d924",
+   "base_commit": "d482f4477ee91879072472636d890f2c9b7249a3",
+   "plan_hash": "1d0b8f610001870fda6a47da4135512639ebc3c1dd9b923784c60872247e569e",
+   "spec_hash": "e2df81a7cd3c7ea63ac0fc877c7fbf3beba6b76de5feb59593c781efd2ecb3b0",
+   "compare_spec": "pass",
+   "prepare_errors": [
+    "Driver bug: compared the whole stored body, which also holds the record envelope (format, alternative, selection_id). Fixed before any build; no model request made."
+   ],
+   "product_recipe": "static-web/1",
+   "requests": 2,
+   "calls": 2,
+   "repairs": 0,
+   "refused_patches": 0,
+   "plan_daily_count": {
+    "before": 16,
+    "after": 18
+   },
+   "build_started_at": "2026-11-06T21:38:10.598Z",
+   "build_finished_at": "2026-11-06T21:39:18.195Z",
+   "wall_ms": 67597,
+   "files_changed": [
+    "site/app.js +41",
+    "site/index.html +30/-2",
+    "site/style.css +6"
+   ],
+   "diff_lines": 79,
+   "studio_state": "verified_candidate",
+   "studio_reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+   "qa": {
+    "development": "4/4",
+    "held_out": "6/6"
+   },
+   "reviewer": {
+    "verdict": "approve",
+    "findings": [],
+    "summary": "approve, no findings (the review record has no separate summary field)"
+   },
+   "package": {
+    "state": "verified",
+    "recipe": "static-web/1",
+    "role_qualification": "unqualified_trial"
+   },
+   "roles": {
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "model_id": "gpt-6-astra",
+    "prompt_hash": "a332c2522e73fc139237d83bfd98c82318d6ea63e58d118d8c2eeacf1add60f1",
+    "prompt_hash_matches": true,
+    "builder_prompt_sha256": "73cb799e9212ecdd2cd37fd5d642a292681b0169a4ddd12b831e6d1915da22ad",
+    "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c"
+   },
+   "score": {
+    "freeze_sha256": "463ced35393be0a34b3e941f70cec104a1cfe979cd6931dd568a2db3b1a9ce2c",
+    "checker_sha256": "b229c4704f1b9803c943c79b65d895a12ef967ac85737000bcdf1b37d4b57f64",
+    "sandbox": "bridge.py sandbox_args (WEB_POLICY), without the systemd unit",
+    "sandbox_deviations": [],
+    "passed": "10/10",
+    "held_out": "6/6",
+    "results": [
+     {
+      "id": "A1.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A1.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.3",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A3.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A3.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A4.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A4.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A5.1",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     }
+    ]
+   },
+   "pass_bars": {
+    "verified_candidate_qa_10_of_10_reviewer_no_findings": true,
+    "package_verified": true,
+    "requests_within_max_calls": true,
+    "exported_package_scores_10_of_10": true,
+    "private_preview_shows_page": true
+   },
+   "verdict": "pass (all five bars; preview observed by the owner)"
+  },
+  {
+   "attempt": 2,
+   "run_id": "05af1181-fc26-4426-ba05-08b0a4063938",
+   "selection_id": "f2085459-08ed-41d8-900c-7d0dfbf10c25",
+   "spec": {
+    "id": "075a6716-494e-48f5-8e50-4b84339249ac",
+    "version": 1
+   },
+   "product_id": "8853000a-5246-4a03-a288-1ebfc0653462",
+   "task_id": "09f9c3bc-d6c0-4741-8248-73a49c9865d4",
+   "build_id": "4345fa47-773b-44e5-8629-399a3988f62a",
+   "artifact_id": "68654f2d-c9e3-461f-92f5-a455b0f6a126",
+   "manifest_sha256": "b49c9fec0eec00bfc863aca0d0f9dd12eb10d0b8f2b9488e7482a736d7fd2de4",
+   "package_tar_sha256": "24d0e55886934267c9e0e95f5f6f70afc753768dc8a88483cb4e93344ebdce3b",
+   "candidate_commit": "bf373f57521006d5a20da8ef68b7fbeeb28db5da",
+   "base_commit": "3cd634beb0a9d4f2700d7b0eb644f53a103c191f",
+   "plan_hash": "56e3fe763c5714cddb49ef7391cfee449ecaa5ec821f65e028313b44c1f15874",
+   "spec_hash": "c0112d8e23cad7ab85d2ace2016ccfcf3db6e112ea527706eb8143a06c892002",
+   "compare_spec": "pass",
+   "product_recipe": "static-web/1",
+   "requests": 2,
+   "calls": 2,
+   "repairs": 0,
+   "refused_patches": 0,
+   "plan_daily_count": {
+    "before": 18,
+    "after": 20
+   },
+   "build_started_at": "2026-11-06T21:40:36.649Z",
+   "build_finished_at": "2026-11-06T21:41:41.449Z",
+   "wall_ms": 64800,
+   "files_changed": [
+    "site/app.js +45",
+    "site/index.html +30/-2",
+    "site/style.css +6"
+   ],
+   "diff_lines": 83,
+   "studio_state": "verified_candidate",
+   "studio_reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+   "qa": {
+    "development": "4/4",
+    "held_out": "6/6"
+   },
+   "reviewer": {
+    "verdict": "approve",
+    "findings": [],
+    "summary": "approve, no findings (the review record has no separate summary field)"
+   },
+   "package": {
+    "state": "verified",
+    "recipe": "static-web/1",
+    "role_qualification": "unqualified_trial"
+   },
+   "roles": {
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "model_id": "gpt-6-astra",
+    "prompt_hash": "a332c2522e73fc139237d83bfd98c82318d6ea63e58d118d8c2eeacf1add60f1",
+    "prompt_hash_matches": true,
+    "builder_prompt_sha256": "73cb799e9212ecdd2cd37fd5d642a292681b0169a4ddd12b831e6d1915da22ad",
+    "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c"
+   },
+   "score": {
+    "freeze_sha256": "463ced35393be0a34b3e941f70cec104a1cfe979cd6931dd568a2db3b1a9ce2c",
+    "checker_sha256": "b229c4704f1b9803c943c79b65d895a12ef967ac85737000bcdf1b37d4b57f64",
+    "sandbox": "bridge.py sandbox_args (WEB_POLICY), without the systemd unit",
+    "sandbox_deviations": [],
+    "passed": "10/10",
+    "held_out": "6/6",
+    "results": [
+     {
+      "id": "A1.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A1.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.3",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A3.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A3.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A4.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A4.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A5.1",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     }
+    ]
+   },
+   "pass_bars": {
+    "verified_candidate_qa_10_of_10_reviewer_no_findings": true,
+    "package_verified": true,
+    "requests_within_max_calls": true,
+    "exported_package_scores_10_of_10": true,
+    "private_preview_shows_page": "not opened (the packet asks for one verified product)"
+   },
+   "verdict": "pass on the four automated bars; preview bar met at benchmark level by the observed attempt (this product not opened)"
+  },
+  {
+   "attempt": 3,
+   "run_id": "1b7513ff-3ad6-4cf3-9c51-8e81b6996daa",
+   "selection_id": "ae345613-07bf-4cd3-8ea0-9f6886cd1960",
+   "spec": {
+    "id": "e6b1ab53-4e8f-4faa-86d6-b4d4f0011e9f",
+    "version": 1
+   },
+   "product_id": "349cd6fa-035b-469a-94b5-5f4a12316613",
+   "task_id": "dce7dd09-8689-41d4-9e83-816e55f13dc8",
+   "build_id": "6bc569dc-ba8e-4ba2-a04c-e72ce478058f",
+   "artifact_id": "c9a519b5-ded6-4256-864c-705d45426b52",
+   "manifest_sha256": "419e6fd0c2b422c6c85621d470d4474906b86d2d0c8912782ce1c39da714b4fd",
+   "package_tar_sha256": "02b42ec7cdbc8dfda07a7fdd03697324ad82af8b376f5106fc7cdf06c4e82495",
+   "candidate_commit": "d81a8cc8c66416f2b7ae9573a699de3ab50fd128",
+   "base_commit": "7d4e2d66776974c165afe841ad61d83ffb2ffbdf",
+   "plan_hash": "03356df6177041769621c77462662bce508a3e261ac5eef1f85843f1a26d8980",
+   "spec_hash": "855f2590d52af3038e02013442425ca45e71d9a7ee45f1038f0f2031578ce7fb",
+   "compare_spec": "pass",
+   "product_recipe": "static-web/1",
+   "requests": 2,
+   "calls": 2,
+   "repairs": 0,
+   "refused_patches": 0,
+   "plan_daily_count": {
+    "before": 20,
+    "after": 22
+   },
+   "build_started_at": "2026-11-06T21:42:47.587Z",
+   "build_finished_at": "2026-11-06T21:43:52.810Z",
+   "wall_ms": 65223,
+   "files_changed": [
+    "site/app.js +45",
+    "site/index.html +30/-2",
+    "site/style.css +5"
+   ],
+   "diff_lines": 82,
+   "studio_state": "verified_candidate",
+   "studio_reason": "Fresh review and executed acceptance cases passed for this exact task candidate",
+   "qa": {
+    "development": "4/4",
+    "held_out": "6/6"
+   },
+   "reviewer": {
+    "verdict": "approve",
+    "findings": [],
+    "summary": "approve, no findings (the review record has no separate summary field)"
+   },
+   "package": {
+    "state": "verified",
+    "recipe": "static-web/1",
+    "role_qualification": "unqualified_trial"
+   },
+   "roles": {
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "model_id": "gpt-6-astra",
+    "prompt_hash": "a332c2522e73fc139237d83bfd98c82318d6ea63e58d118d8c2eeacf1add60f1",
+    "prompt_hash_matches": true,
+    "builder_prompt_sha256": "73cb799e9212ecdd2cd37fd5d642a292681b0169a4ddd12b831e6d1915da22ad",
+    "reviewer_prompt_sha256": "9e1cc6b4184526512d4cafa6f0f7f450579935c0bacaa3f17c558b1d2908f99c"
+   },
+   "score": {
+    "freeze_sha256": "463ced35393be0a34b3e941f70cec104a1cfe979cd6931dd568a2db3b1a9ce2c",
+    "checker_sha256": "b229c4704f1b9803c943c79b65d895a12ef967ac85737000bcdf1b37d4b57f64",
+    "sandbox": "bridge.py sandbox_args (WEB_POLICY), without the systemd unit",
+    "sandbox_deviations": [],
+    "passed": "10/10",
+    "held_out": "6/6",
+    "results": [
+     {
+      "id": "A1.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A1.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A2.3",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A3.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A3.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A4.1",
+      "held_out": false,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A4.2",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     },
+     {
+      "id": "A5.1",
+      "held_out": true,
+      "passed": true,
+      "reason": null,
+      "failed_step": null
+     }
+    ]
+   },
+   "pass_bars": {
+    "verified_candidate_qa_10_of_10_reviewer_no_findings": true,
+    "package_verified": true,
+    "requests_within_max_calls": true,
+    "exported_package_scores_10_of_10": true,
+    "private_preview_shows_page": "not opened (the packet asks for one verified product)"
+   },
+   "verdict": "pass on the four automated bars; preview bar met at benchmark level by the observed attempt (this product not opened)"
+  }
+ ],
+ "notes": [
+  "No patch was refused and no repair round was used, so the repair path was not exercised live.",
+  "Attempt 1 preparation first stopped at the driver's spec comparison, which wrongly included the stored record envelope (format, alternative, selection_id); fixed and re-compared before any build. Not a replacement attempt; no model request was made in between.",
+  "RECIPE_QUALIFICATIONS in packages/executor/src/artifacts.ts is still empty, so the manifests say unqualified_trial; adding a record for this connection, model and prompt pair is a reviewed code change, not done here."
+ ]
+}
