@@ -479,6 +479,18 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
 - Browser install and live builds still held until a clean review.
 
+## P15 live web qualification (November 6, Jordan's PC, no migration)
+
+- Under Jordan's typed OKs (11:28, 20:24 UTC): pinned browser installed in WSL; dev studio `creator_studio` backed up
+  (`C:\CreatorAgentBackups\creator_studio-20261106T204916Z-pre-p15.dump`), migrated 48 to 49 and run from worktree
+  `C:\dev\creator_agent_p15` (`b73bd95`) via `.creator\studio\start-dev-p15.ps1`.
+- `p15-small-signup-v4`: **3 of 3** on `plan_roles` (`4e4a7bec…`, `gpt-6-astra`): each verified in 2 requests, no repair,
+  QA 10/10 (6/6 held out), reviewer approved, exported package 10/10. 6 requests, $0. Jordan saw the preview page in
+  its frame in Chrome; WebView2 not observed. [Results](evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json).
+- `RECIPE_QUALIFICATIONS` now holds that pass, so new web builds on that connection, model and prompt pair are no longer
+  labelled unqualified trials. To return the dev studio to main: stop `start-dev-p15.ps1` and start
+  `start-dev-main.ps1` once `C:\dev\creator_agent_main` is at schema 49 or later.
+
 ## P09 why this response and non-code proposals (November 6, branch `claude/project-thread-raqxjh`, ADR-0077, migration 49)
 
 What works: see ADR-0077 and the BUILD_STATUS entry. New routes: `problems/{id}/explanation`, `proposals`

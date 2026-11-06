@@ -17,6 +17,8 @@ P15 slice 1 from the [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN
 
 - **Third-review amendment (PR #149 third review at `e9b5a68`, before any live run).** L-10: the role-prompt hashes that `unqualifiedTrial` matches come from the prompts the build recorded in `intent.json` (checked against its recorded prompt hash), not the code at packaging time, and a recorded pass counts only for the recipe's current benchmark version (`RECIPE_BENCHMARKS`). L-11: the build page reads each package's own `role_qualification`. N-b: the checker reports popups and unsupported workers in a separate `unsupported` list; that checker change replaced benchmark v3 with `p15-small-signup-v4`.
 
+- **Live qualification (November 6, after merge).** `p15-small-signup-v4` passed 3 of 3 live on the ChatGPT-plan connection `4e4a7bec…` with `gpt-6-astra` and the current builder and reviewer prompts ([results](evidence/p15-benchmarks/RESULTS_P15_V4_2026-11-06.json)); it is the first `RECIPE_QUALIFICATIONS` record. It qualifies only that connection, model and prompt pair on that benchmark version.
+
 Rejected: serving generated pages on another port of 127.0.0.1 (same host, so same cookie jar and same site); a cookie-authenticated frame (third-party cookies in an iframe are being blocked by browsers); running Playwright or Node inside the sandbox (needs packages and a Node toolchain the reviewed backend does not have); evaluating checker code in the page's main world (page scripts could fake results); and letting spec authors write JavaScript checks (that is code, not frozen data).
 
 ## ADR-0077 — Why this response, versioned non-code proposals, and the hybrid humility gate (November 6, 2026)
