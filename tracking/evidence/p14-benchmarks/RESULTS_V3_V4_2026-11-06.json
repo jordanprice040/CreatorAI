@@ -1,0 +1,218 @@
+{
+  "format": "p14-results-summary/1",
+  "recorded_from": "per-attempt files on Jordan's PC, C:\\dev\\creator_agent\\.creator\\p14-benchmarks\\v3\\runs\\ and v4\\runs\\ (gitignored); this file copies their key fields",
+  "dev_studio": {
+    "database": "creator_studio",
+    "schema": 41,
+    "code": "02c7646 plus the ADR-0076 executor files of branch claude/project-thread-q1juny (worktree C:\\dev\\creator_agent_p14v3); no migration"
+  },
+  "route": {
+    "kind": "plan_roles",
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "model_id": "gpt-6-astra",
+    "cost_usd": "0.00",
+    "role_prompts": "builder/1, independent-reviewer/2 (unchanged)"
+  },
+  "grader_environment": "WSL2 Ubuntu, Node v22.23.4 linux-x64 (the tarball verified in RESULTS_2026-11-06.json), bubblewrap, Python 3.14",
+  "approvals": [
+    "Jordan's typed advance OK for P14 live runs (project chat, 2026-11-06 00:24 UTC)",
+    "Jordan's typed OK to restart the dev studio from the fix worktree (thread, 05:53 UTC)",
+    "Jordan's decision card: raise the input cap to 60,000 and freeze v4 (06:15 UTC)"
+  ],
+  "cap_change": {
+    "at": "2026-11-06T06:19:28Z",
+    "setting": "responses.max_input_chars",
+    "from": 24000,
+    "to": 60000,
+    "connection_version": "13 -> 15",
+    "settings_hash": "e8fb682d3e68cea410047f77abce52defc625c7bbea28debfaaabfeae73d176b",
+    "caps_reaccepted": true
+  },
+  "plan_requests": {
+    "total": 7,
+    "utc_day_before": 9,
+    "utc_day_after": 16
+  },
+  "results": {
+    "p14-larger-ledgercheck-v3": {
+      "freeze_sha256": "aaf369d709aba3614f8a7bf8cac6f5fb6544762a2e10219409b69259fd4c0e13",
+      "benchmark_commit": "3723fb2",
+      "outcome": "stopped after attempt 1 (failed: reviewer packet over the 24,000-character input cap); not qualified",
+      "attempts": [
+        {
+          "attempt": 1,
+          "run_id": "20f48b7c-56af-434b-bc57-aee137e8492d",
+          "product_id": "0359b2e4-67cd-4cda-a920-fa7be8925e49",
+          "build_id": "72c983bb-7e81-4041-a0d2-9592b98efa68",
+          "candidate_commit": "4b6e06dd2055a1b0060f1fb69f179009f824f9e1",
+          "studio_state": "checkpoint",
+          "studio_reason": "API returned 403 ACCESS_DENIED: This plan request is not admitted. The request input is larger than the per-request input cap.",
+          "calls": 2,
+          "repairs": 0,
+          "requests": 1,
+          "wall_ms": 52984,
+          "compare_spec": "pass",
+          "refused": [],
+          "files_changed": [
+            "src/ledger/__init__.py +1",
+            "src/ledger/parse.py +75",
+            "src/ledger/report.py +41",
+            "src/ledger/rules.py +18",
+            "src/main.py +63/-2"
+          ],
+          "diff_lines": 200,
+          "verdict": "fail",
+          "failure": "The builder's patch was admitted (no refusal); the reviewer request (call 2) was refused before sending by the connection's responses.max_input_chars of 24,000. A failed attempt under the frozen rules, not an infrastructure fault; v3 stopped here by Jordan's choice."
+        }
+      ]
+    },
+    "p14-larger-ledgercheck-v4": {
+      "freeze_sha256": "a06e330fff26f2e12df185756c1d7f87e3284af2b7bb7ee77c7b62ff1466dcf9",
+      "grader_sha256": "e0eb5fbd9d1930f3796b76a526ef532e7a7cdb61d225904e01855cd9ebd80bd1",
+      "frozen_spec_sha256": "4834ddfbb1eefd27cd6405781edf0c996cc309c501496000739a8ac56f1ea5eb",
+      "benchmark_commit": "3e42bdf",
+      "outcome": "3 of 3: qualified at declared scale",
+      "attempts": [
+        {
+          "attempt": 1,
+          "run_id": "e0a4c292-a540-46c8-be2c-af767c201904",
+          "product_id": "5782cf0f-e45c-4d53-b1d7-660db2babcee",
+          "build_id": "562fcdd8-e891-42d4-821b-995af17ef92f",
+          "artifact_id": "2d006a86-a210-40f0-9fd2-6ccf59d5982b",
+          "manifest_sha256": "286899b4568647b61340a6fbcb06810552076613643436c9c90e9c6fc81ed29e",
+          "package_tar_sha256": "dc330fc3e0b65afa0b234950b6915b78e7f68a995e2af73ae5e985433dc43ce2",
+          "candidate_commit": "95767cec155c70f6acc996e8fe4d4733b4dd81f3",
+          "requests": 2,
+          "calls": 2,
+          "repairs": 0,
+          "refused_patches": 0,
+          "wall_ms": 66226,
+          "files_changed": [
+            "src/ledger/__init__.py +1",
+            "src/ledger/parse.py +75",
+            "src/ledger/report.py +39",
+            "src/ledger/rules.py +18",
+            "src/main.py +62/-2"
+          ],
+          "diff_lines": 197,
+          "studio_state": "verified_candidate",
+          "qa": {
+            "development": "5/5",
+            "held_out": "5/5"
+          },
+          "reviewer": {
+            "verdict": "approve",
+            "findings": []
+          },
+          "compare_spec": "pass",
+          "grader": {
+            "runner": "bwrap",
+            "build": "10/10",
+            "build_held_out": "5/5",
+            "extended": "21/21",
+            "structure": "pass (parse, rules, report, main imports ledger)",
+            "product_tree_sha256": "59a7436ddd6f510f08f311cd661ad02bc805fd618550b5589dcb75538a7979c3",
+            "max_cpu_s": 0.029,
+            "max_rss_kb": 11912,
+            "pass": true
+          },
+          "verdict": "pass"
+        },
+        {
+          "attempt": 2,
+          "run_id": "0256266c-d588-467b-aebd-280e9e942c2e",
+          "product_id": "ac3bb80c-fb7f-402d-93e8-90377e099d7d",
+          "build_id": "996767fa-87c9-4438-8dab-0e13d56ebcef",
+          "artifact_id": "7ee59634-3b3c-4657-b571-9d11617f7350",
+          "manifest_sha256": "3f7732c18b9debcfc5169a83594ea67fa20d18a7610372d0ab3f2d13ad4e67cd",
+          "package_tar_sha256": "7622eb96bdf60d572cca7de5bc39aa2742d108d92b4b67f5370097e152857120",
+          "candidate_commit": "4e41105c6199a8bbfdeb25915417b9e97245f3c5",
+          "requests": 2,
+          "calls": 2,
+          "repairs": 0,
+          "refused_patches": 0,
+          "wall_ms": 72635,
+          "files_changed": [
+            "src/ledger/__init__.py +1",
+            "src/ledger/parse.py +79",
+            "src/ledger/report.py +36",
+            "src/ledger/rules.py +20",
+            "src/main.py +65/-2"
+          ],
+          "diff_lines": 203,
+          "studio_state": "verified_candidate",
+          "qa": {
+            "development": "5/5",
+            "held_out": "5/5"
+          },
+          "reviewer": {
+            "verdict": "approve",
+            "findings": []
+          },
+          "compare_spec": "pass",
+          "grader": {
+            "runner": "bwrap",
+            "build": "10/10",
+            "build_held_out": "5/5",
+            "extended": "21/21",
+            "structure": "pass (parse, rules, report, main imports ledger)",
+            "product_tree_sha256": "85c5d8a452c7a3c496f9aa7d9d4f75ad27922106c4d9d8761aa883510af46134",
+            "max_cpu_s": 0.037,
+            "max_rss_kb": 11988,
+            "pass": true
+          },
+          "verdict": "pass"
+        },
+        {
+          "attempt": 3,
+          "run_id": "369afe04-ee4f-4d3a-bbd1-0ecea7b0b7c8",
+          "product_id": "25e4e9ea-df54-4545-98d1-853655c3581f",
+          "build_id": "47eddebd-1439-4ac2-a6f5-02f661c1bebd",
+          "artifact_id": "6499f5bb-688d-4a15-bc56-39b8030629fb",
+          "manifest_sha256": "af983e5be573046254271cd52f8face06077cf944bc73a32a693f961856bb979",
+          "package_tar_sha256": "ae4a63e8d2e3c238ecec2d438f2136cbbc53d383229f41aab2dbdc45c8e9221c",
+          "candidate_commit": "e63291a4be89c24c3b19bd06442b241e7e0b2940",
+          "requests": 2,
+          "calls": 2,
+          "repairs": 0,
+          "refused_patches": 0,
+          "wall_ms": 62931,
+          "files_changed": [
+            "src/ledger/__init__.py +1",
+            "src/ledger/parse.py +72",
+            "src/ledger/report.py +16",
+            "src/ledger/rules.py +31",
+            "src/main.py +64/-2"
+          ],
+          "diff_lines": 186,
+          "studio_state": "verified_candidate",
+          "qa": {
+            "development": "5/5",
+            "held_out": "5/5"
+          },
+          "reviewer": {
+            "verdict": "approve",
+            "findings": []
+          },
+          "compare_spec": "pass",
+          "grader": {
+            "runner": "bwrap",
+            "build": "10/10",
+            "build_held_out": "5/5",
+            "extended": "21/21",
+            "structure": "pass (parse, rules, report, main imports ledger)",
+            "product_tree_sha256": "ab96e49dc6540e71eb6f2c71ba7d9def95e8c5426ac6dc41a6ced76f823d2cdd",
+            "max_cpu_s": 0.031,
+            "max_rss_kb": 11860,
+            "pass": true
+          },
+          "verdict": "pass"
+        }
+      ]
+    }
+  },
+  "notes": [
+    "No patch was refused in v4, so the ADR-0076 repair path was not exercised live; it is covered by tests/src/build.test.ts.",
+    "Every builder patch included src/ledger/__init__.py, which ADR-0076 now admits."
+  ]
+}

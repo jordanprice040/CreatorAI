@@ -238,3 +238,21 @@ chose to raise the cap to 60,000 and freeze an identical v4 (2026-11-06 06:15 UT
 `e0eb5fbd9d1930f3796b76a526ef532e7a7cdb61d225904e01855cd9ebd80bd1`). The task, cases and reference
 are again the v2 ones (tests check this). The expectations add that the connection's input cap
 is at least 60,000 characters. The v2 and v3 results stay final.
+
+### v4 result (November 6, 2026): 3 of 3, qualified at its declared scale
+
+Same dev studio and route as v3, with the connection's input cap raised to 60,000 and the caps
+re-accepted (connection version 13 → 15). **6 plan requests, $0.** Key fields are in
+[`tracking/evidence/p14-benchmarks/RESULTS_V3_V4_2026-11-06.json`](../tracking/evidence/p14-benchmarks/RESULTS_V3_V4_2026-11-06.json).
+
+| Attempt | Studio                                                                                                | Change                                                         | Grader (Bubblewrap)                                     |
+| ------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------- |
+| 1       | verified_candidate; 2 requests, 0 repairs, 66 s; QA 5/5 + 5/5 held out; reviewer approve, no findings | 5 files (`__init__.py`, parse, rules, report, main), 197 lines | 10/10, 21/21 extended, structure pass; 0.029 s, 11.9 MB |
+| 2       | verified_candidate; 2 requests, 0 repairs, 73 s; QA 5/5 + 5/5; approve, no findings                   | 5 files, 203 lines                                             | 10/10, 21/21, structure pass; 0.037 s, 12.0 MB          |
+| 3       | verified_candidate; 2 requests, 0 repairs, 63 s; QA 5/5 + 5/5; approve, no findings                   | 5 files, 186 lines                                             | 10/10, 21/21, structure pass; 0.031 s, 11.9 MB          |
+
+Every stored spec passed `compare-spec`; every score names `freeze_sha256` `a06e330f…dcf9`,
+grader `e0eb5fbd…bd1` and the frozen spec `4834ddfb…a5eb`. No patch was refused, so the ADR-0076
+repair path was not exercised live (tests cover it). The recipe and plan roles are now qualified
+for the larger multi-module Python CLI at this declared scale, on a connection whose input cap is
+at least 60,000 characters.
