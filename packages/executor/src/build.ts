@@ -502,6 +502,8 @@ export class BuildSupervisor {
       };
       let feedback: unknown = null;
       let lastRefusal: string | null = null;
+      // The newest review and QA feedback, kept through later refused rounds (PR #146 M-1).
+      let lastReview: unknown = null;
       try {
         if (plan.plan_roles) {
           // Both roles must be admissible before the grant is used or the builder is sent.
@@ -557,7 +559,12 @@ export class BuildSupervisor {
             const refusal = refusalOf(reason, details);
             await jsonWrite(join(dir, `refused-${cycle}.json`), refusal);
             lastRefusal = refusal.reason;
-            feedback = { refused_patch: refusal, patch_rules: PATCH_RULES };
+            // patch_rules already travel in every builder packet. The earlier review stays, so a
+            // last round still knows why the previous candidate was rejected.
+            feedback =
+              lastReview === null
+                ? { refused_patch: refusal }
+                : { refused_patch: refusal, previous_review: lastReview };
           };
           let answer: unknown;
           if (plan.codex_plan_builder) {
@@ -738,7 +745,7 @@ export class BuildSupervisor {
             await jsonWrite(join(dir, 'outcome.json'), result);
             return result;
           }
-          feedback = { review, checks };
+          feedback = lastReview = { review, checks };
           if (review.verdict === 'blocked')
             throw new Error('Reviewer blocked candidate');
         }
