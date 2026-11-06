@@ -1,0 +1,466 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  AssessmentPacketSchema,
+  ContractError,
+  WorkflowDetailSchema,
+  type AssessmentPacket,
+  type AssessorOutput,
+  type ErrorCode,
+  type ScorecardBody,
+  type SelectionReport,
+  type StartAssessmentRequest,
+  type WorkflowDetail,
+} from '@creator/contracts';
+import {
+  ASSESSMENT_MARKER,
+  DISCOVERY_SCENARIOS,
+  assessmentFixtureAnswer,
+  assessmentRoleInput,
+  checkAssessmentOutput,
+  rubricsForKind,
+} from '@creator/domain';
+import {
+  FixtureAdapter,
+  usage,
+  type AdapterOutcome,
+  type AdapterRequest,
+  type ModelAdapter,
+} from '@creator/broker';
+import { discoverySetup, owner } from './discovery-harness.js';
+
+// P08 automatic assessments (ADR-0074): system ratings with evidence-linked rationales on the
+// T05 workflow path, application-computed totals, people's edits that keep the original, and
+// stale marking when the option, the problem or the evidence it read changes.
+
+const rejects = (code: ErrorCode, p: Promise<unknown>, message?: RegExp) =>
+  assert.rejects(
+    p,
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === code &&
+      (!message || message.test(e.message)),
+  );
+const software = DISCOVERY_SCENARIOS.find((s) => s.key === 'software')!;
+
+class Recording implements ModelAdapter {
+  readonly provider = 'fixture' as const;
+  readonly model_id = 'fixture-model-v1';
+  readonly live = false;
+  readonly inner = new FixtureAdapter();
+  calls: AdapterRequest[] = [];
+  override: ((req: AdapterRequest) => AdapterOutcome | null) | null = null;
+  call(req: AdapterRequest, signal: AbortSignal) {
+    this.calls.push(req);
+    const o = this.override?.(req) ?? null;
+    return o ? Promise.resolve(o) : this.inner.call(req, signal);
+  }
+  assessments() {
+    return this.calls.filter((c) =>
+      c.input[0]!.text.includes(ASSESSMENT_MARKER),
+    ).length;
+  }
+}
+const answer = (json: unknown): AdapterOutcome => ({
+  kind: 'completed',
+  response_id: 'scripted',
+  text: JSON.stringify(json),
+  vector: null,
+  usage: usage(40, 30, {}),
+  incomplete_reason: null,
+});
+
+async function setup(t: test.TestContext, adapter: ModelAdapter) {
+  const s = await discoverySetup(t, adapter);
+  if (!s) return null;
+  const envelope = (await s.store.listEnvelopes(owner, s.ws.id))[0]!;
+  const pricing = (await s.store.listPricing(owner, s.ws.id))[0]!;
+  const { detail, seeded } = await s.discover(software);
+  const problem = detail.workflow.result!.discovery!.catalog_records.problem!;
+  const request = (
+    version = problem.version,
+    over: Partial<StartAssessmentRequest> = {},
+  ): StartAssessmentRequest => ({
+    problem: { id: problem.id, version },
+    resource_setup: {
+      kind: 'api',
+      envelope_id: envelope.id,
+      pricing_snapshot_id: pricing.id,
+    },
+    data_class: 'synthetic',
+    limits: {
+      max_children: 1,
+      max_concurrency: 1,
+      max_depth: 1,
+      max_attempts: 1,
+      max_repairs: 1,
+      max_calls: 2,
+      max_output_tokens: 8000,
+      call_timeout_ms: 5000,
+      max_wall_seconds: 600,
+    },
+    ...over,
+  });
+  const assess = async (
+    over: Partial<StartAssessmentRequest> = {},
+  ): Promise<WorkflowDetail> => {
+    const runId = await s.run();
+    const started = await s.store.startAssessment(
+      owner,
+      s.ws.id,
+      runId,
+      request(problem.version, over),
+    );
+    await s.worker.settle();
+    return s.store.getWorkflow(owner, s.ws.id, started.workflow.id);
+  };
+  const report = () => s.store.selectionReport(owner, s.ws.id, problem.id);
+  const cards = async () =>
+    (await s.store.listEntities(owner, s.ws.id, {
+      kind: 'scorecard',
+    })) as { id: string; version: number; status: string; body: unknown }[];
+  return { ...s, problem, seeded, request, assess, report, cards };
+}
+const rows = (r: SelectionReport) =>
+  r.suitability.candidates.flatMap((c) =>
+    c.scorecards.map((s) => ({ ...s, alt: c.alternative })),
+  );
+
+test('a fixture assessment writes one system scorecard per option and rubric; code ranks; gates stay with people', async (t) => {
+  const adapter = new Recording();
+  const s = await setup(t, adapter);
+  if (!s) return;
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  AssessmentPacketSchema.parse(preview.packet);
+  assert.ok(preview.packet.claims.length >= 1, 'the problem has linked claims');
+  assert.ok(preview.packet.notes.some((n) => /did not search the web/.test(n)));
+  const detail = await s.assess({ preview_hash: preview.preview_hash });
+  WorkflowDetailSchema.parse(detail);
+  assert.equal(detail.workflow.state, 'succeeded', detail.workflow.reason);
+  assert.equal(detail.workflow.role, 'r08_assessment');
+  assert.equal(adapter.assessments(), 1);
+  const result = detail.workflow.result!.assessment!;
+  const expected = preview.packet.options.reduce(
+    (n, o) => n + rubricsForKind(o.kind).length,
+    0,
+  );
+  assert.equal(result.scorecards.length, expected);
+  // Every card carries its provenance and cites exact claim versions from the packet.
+  const all = await s.cards();
+  const system = all.filter((c) => (c.body as ScorecardBody).assessment);
+  assert.equal(system.length, expected);
+  for (const c of system) {
+    const b = c.body as ScorecardBody;
+    assert.equal(b.reviewer.kind, 'fixture');
+    assert.equal(b.assessment!.workflow_id, detail.workflow.id);
+    assert.equal(b.assessment!.packet_hash, result.packet_hash);
+    assert.equal(b.assessment!.route, 'fixture');
+    assert.equal(b.assessment!.model_id, 'fixture-model-v1');
+    assert.equal(b.assessment!.problem.version, s.problem.version);
+    for (const r of Object.values(b.ratings))
+      for (const e of r.evidence_refs)
+        assert.ok(
+          preview.packet.claims.some(
+            (x) => x.claim_id === e.id && x.version === e.version,
+          ),
+        );
+  }
+  // The report computes totals from the system cards; ethics stays unconfirmed.
+  const report = await s.report();
+  for (const c of report.suitability.candidates) {
+    assert.equal(c.status, 'complete');
+    assert.ok(c.score);
+    assert.ok(c.scorecards.every((x) => x.system && !x.stale));
+    assert.equal(c.gates.ethics_access, 'not_assessed');
+    assert.ok(
+      (c.gates.blocked.proceed_to_validation ?? []).some((r) =>
+        /a person must confirm/.test(r),
+      ),
+    );
+  }
+  // Ties keep the same rank (the fixture gives every option the same ratings).
+  const ranks = new Set(report.suitability.candidates.map((c) => c.rank));
+  assert.equal(ranks.size, 1);
+
+  // A second run replaces the earlier system cards (archived, kept in history).
+  const again = await s.assess();
+  assert.equal(again.workflow.state, 'succeeded');
+  assert.equal(again.workflow.result!.assessment!.replaced.length, expected);
+  const active = (await s.cards()).filter(
+    (c) => c.status === 'active' && (c.body as ScorecardBody).assessment,
+  );
+  assert.equal(active.length, expected);
+});
+
+test('a person edits a system rating without losing it; only an assessment writes system cards', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  const r0 = await s.report();
+  const target = rows(r0)[0]!;
+  const sys = (await s.cards()).find((c) => c.id === target.id)!;
+  const body = sys.body as ScorecardBody;
+
+  // Model cards and provenance cannot be posted as a person.
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.recordScorecard(owner, s.ws.id, {
+      title: 'Forged system card',
+      body: body as unknown as Record<string, unknown>,
+    }),
+  );
+  const { assessment: _a, ...plain } = body;
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.recordScorecard(owner, s.ws.id, {
+      title: 'Model card by hand',
+      body: { ...plain, reviewer: { kind: 'model', label: 'Me' } },
+    }),
+  );
+  // The system card itself is not revised.
+  await rejects(
+    'INVALID_TRANSITION',
+    s.store.reviseScorecard(owner, s.ws.id, sys.id, {
+      expected_version: sys.version,
+      title: 'Changed',
+      body: body as unknown as Record<string, unknown>,
+      reason: 'Try to overwrite.',
+    }),
+  );
+
+  // The edit: the person's own card, naming the system card, with one rating changed.
+  const key = Object.keys(body.ratings)[0]!;
+  const edited: ScorecardBody = {
+    ...plain,
+    reviewer: { kind: 'human', label: 'Owner' },
+    ratings: {
+      ...body.ratings,
+      [key]: {
+        ...body.ratings[key]!,
+        rating: body.ratings[key]!.rating === 5 ? 4 : 5,
+        rationale: 'I know this group; the need is sharper (test).',
+      },
+    },
+    gates: {
+      ethics: { status: 'clear', note: 'Checked with the clinic (test).' },
+      access: { status: 'clear', note: 'Checked with the clinic (test).' },
+    },
+    edit_of: {
+      scorecard: { id: sys.id, version: sys.version },
+      reason: 'Owner knowledge of the affected group (test).',
+    },
+  };
+  // An edit must keep the rubric and option.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.recordScorecard(owner, s.ws.id, {
+      title: 'Wrong subject',
+      body: {
+        ...edited,
+        subject: rows(r0).find((x) => x.alt.id !== target.alt.id)!.alt,
+      } as unknown as Record<string, unknown>,
+    }),
+  );
+  const mine = await s.store.recordScorecard(owner, s.ws.id, {
+    title: 'My edit',
+    body: edited as unknown as Record<string, unknown>,
+  });
+  const r1 = await s.report();
+  const sysRow = rows(r1).find((x) => x.id === sys.id)!;
+  const myRow = rows(r1).find((x) => x.id === mine.id)!;
+  assert.equal(sysRow.superseded_by, mine.id);
+  assert.equal(myRow.edit_of, sys.id);
+  assert.equal(myRow.system, false);
+  // The original is unchanged and still listed; the person's card counts instead.
+  const kept = (await s.cards()).find((c) => c.id === sys.id)!;
+  assert.equal(kept.version, sys.version);
+  assert.equal(kept.status, 'active');
+  const cand = r1.suitability.candidates.find(
+    (c) => c.alternative.id === target.alt.id,
+  )!;
+  assert.equal(
+    cand.disagreements.length,
+    0,
+    'the replaced card is not counted',
+  );
+  assert.notEqual(
+    cand.score?.display,
+    r0.suitability.candidates.find((c) => c.alternative.id === target.alt.id)!
+      .score?.display,
+  );
+  // Only a person can clear the gate: this option is now clear, the others are not.
+  assert.equal(cand.gates.ethics_access, 'clear');
+
+  // A newer assessment archives the system card; an edit of the old one is refused now.
+  await s.assess();
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.recordScorecard(owner, s.ws.id, {
+      title: 'Late edit',
+      body: edited as unknown as Record<string, unknown>,
+    }),
+  );
+});
+
+test('changed evidence, problem or option marks system assessments stale', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  const before = await s.report();
+  assert.ok(rows(before).every((x) => !x.stale));
+  // Retracting support for a claim the assessor read changes its evidence.
+  const claimId = s.seeded.evidence[0]!.claim_id;
+  const ev = await s.store.claimEvidence(owner, s.ws.id, claimId, 180);
+  const row = ev.rows.find((r) => r.freshness !== 'retracted')!;
+  await s.store.retractClaimSupport(owner, s.ws.id, row.support.id, {
+    reason: 'Misread passage (test).',
+  });
+  const after = await s.report();
+  const stale = rows(after).filter((x) => x.system && x.stale);
+  assert.ok(stale.length >= 1);
+  assert.ok(
+    stale.every((x) =>
+      x.stale_reasons!.some((r) => /evidence for claim .* changed/.test(r)),
+    ),
+  );
+  // Stale cards do not count, so the options are unscored again.
+  assert.ok(after.suitability.candidates.every((c) => c.status === 'unscored'));
+  assert.notEqual(after.report_hash, before.report_hash);
+
+  // A revised problem: a start must name its current version, and the old cards say why.
+  const p = (await s.store.getEntity(owner, s.ws.id, s.problem.id)).entity;
+  await s.store.reviseEntity(owner, s.ws.id, s.problem.id, {
+    expected_version: p.version,
+    title: p.title,
+    body: { ...p.body, uncertainty: 'Revised after review (test).' },
+    reason: 'Clarified (test).',
+    corrects_version: null,
+  });
+  const runId = await s.run();
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.startAssessment(owner, s.ws.id, runId, s.request(p.version)),
+  );
+  const revised = await s.report();
+  assert.ok(
+    rows(revised)
+      .filter((x) => x.system)
+      .every((x) =>
+        x.stale_reasons!.some((r) => /Assessed the problem at version/.test(r)),
+      ),
+  );
+});
+
+test('the assessor answer is checked against the packet; a bad answer is repaired, then fails without cards', async (t) => {
+  const adapter = new Recording();
+  const s = await setup(t, adapter);
+  if (!s) return;
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  const packet: AssessmentPacket = preview.packet;
+  const good = JSON.parse(
+    assessmentFixtureAnswer(assessmentRoleInput(packet))!,
+  ) as AssessorOutput;
+  assert.ok(checkAssessmentOutput(good, packet).ok);
+  const bad = (f: (o: AssessorOutput) => void) => {
+    const o = structuredClone(good);
+    f(o);
+    return checkAssessmentOutput(o, packet);
+  };
+  const first = good.assessments[0]!;
+  const k = Object.keys(first.ratings)[0]!;
+  assert.match(
+    (
+      bad((o) => (o.assessments[0]!.ratings[k]!.claim_refs = ['C99'])) as {
+        problem: string;
+      }
+    ).problem,
+    /C99, not in the packet/,
+  );
+  assert.match(
+    (bad((o) => o.assessments.pop()) as { problem: string }).problem,
+    /does not assess/,
+  );
+  assert.match(
+    (
+      bad((o) => {
+        o.assessments[0]!.ratings[k]!.rating = 4;
+        o.assessments[0]!.ratings[k]!.claim_refs = [];
+      }) as { problem: string }
+    ).problem,
+    /no cited claim/,
+  );
+  assert.match(
+    (
+      bad((o) => o.assessments.push(structuredClone(first))) as {
+        problem: string;
+      }
+    ).problem,
+    /twice/,
+  );
+  assert.match(
+    (bad((o) => delete o.assessments[0]!.ratings[k]) as { problem: string })
+      .problem,
+    /does not rate exactly/,
+  );
+  // Unknown is allowed and stays unknown: no score, no average.
+  const unknown = structuredClone(good);
+  for (const a of unknown.assessments)
+    for (const r of Object.values(a.ratings)) {
+      r.rating = null;
+      r.claim_refs = [];
+    }
+  assert.ok(checkAssessmentOutput(unknown, packet).ok);
+
+  // Twice invalid: one repair, then a failed workflow and no scorecards.
+  adapter.override = (req) =>
+    req.input[0]!.text.includes(ASSESSMENT_MARKER)
+      ? answer({ ...good, assessments: [] })
+      : null;
+  const failed = await s.assess({ preview_hash: preview.preview_hash });
+  assert.equal(failed.workflow.state, 'failed');
+  assert.equal(adapter.assessments(), 2);
+  assert.equal(failed.workflow.result!.assessment!.scorecards.length, 0);
+  assert.equal((await s.cards()).length, 0);
+
+  // Unknown answers are recorded as unknown: incomplete, never averaged.
+  adapter.override = (req) =>
+    req.input[0]!.text.includes(ASSESSMENT_MARKER) ? answer(unknown) : null;
+  const done = await s.assess();
+  assert.equal(done.workflow.state, 'succeeded');
+  const r = await s.report();
+  for (const c of r.suitability.candidates) {
+    assert.equal(c.status, 'incomplete');
+    assert.equal(c.score, null);
+    assert.equal(c.range!.lower.display, '0.0');
+    assert.equal(c.range!.upper.display, '100.0');
+  }
+});
+
+test('assessments are owner actions and refuse problems without options', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  const lone = await s.store.createEntity(owner, s.ws.id, {
+    kind: 'problem',
+    title: 'A problem with no options',
+    body: {
+      statement: 'Nothing derived yet.',
+      affected_group: 'Nobody yet',
+      uncertainty: 'Test.',
+    },
+  });
+  await rejects(
+    'INVALID_TRANSITION',
+    s.store.previewAssessment(owner, s.ws.id, lone.id),
+    /no options/,
+  );
+  const stranger = { actorId: '00000000-0000-4000-8000-0000000000aa' };
+  await s.store.ensureActor({
+    id: stranger.actorId,
+    kind: 'human',
+    display_name: 'Stranger',
+  });
+  const runId = await s.run();
+  await assert.rejects(
+    s.store.startAssessment(stranger, s.ws.id, runId, s.request()),
+  );
+});

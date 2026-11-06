@@ -113,10 +113,91 @@ const HARD_DISCOVERY_BLOCKS = [
 interface Parsed {
   input: ScorecardInput;
   body: ScorecardBody | null;
+  /** The first reason it is stale, or null when it rates current versions. */
   stale: string | null;
+  stale_reasons: string[];
+  /** Written by an automatic assessment (ADR-0074). */
+  system: boolean;
+  /** The current person's card that replaces this system card; it is then not counted. */
+  superseded_by: string | null;
 }
-function parseCards(c: CandidateInput): Parsed[] {
-  return c.scorecards
+/** Current versions of the records scorecards cite or read, as the store finds them now. */
+export type EvidenceVersions = Readonly<
+  Record<
+    string,
+    { version: number; status: string; support_hash: string | null }
+  >
+>;
+interface ParseEnv {
+  problem: { id: string; version: number };
+  evidence?: EvidenceVersions | undefined;
+}
+const shortId = (id: string) => id.slice(0, 8);
+/** Why a card no longer rates what is current: option, cited evidence, problem, rubric, packet. */
+function staleReasons(
+  c: CandidateInput,
+  body: ScorecardBody,
+  env: ParseEnv,
+): string[] {
+  const out: string[] = [];
+  if (body.subject.id !== c.alternative.id)
+    out.push('Rates a different record.');
+  else if (body.subject.version !== c.alternative.version)
+    out.push(
+      `Rates version ${body.subject.version}; the alternative is now version ${c.alternative.version}.`,
+    );
+  const ev = env.evidence;
+  if (ev) {
+    const refs = new Map<string, number>();
+    for (const r of Object.values(body.ratings))
+      for (const e of r.evidence_refs) refs.set(e.id.toLowerCase(), e.version);
+    for (const [id, v] of [...refs].sort()) {
+      const cur = ev[id];
+      if (!cur || cur.status !== 'active')
+        out.push(
+          `Cited evidence ${shortId(id)} is ${cur ? cur.status : 'no longer in this workspace'}.`,
+        );
+      else if (cur.version !== v)
+        out.push(
+          `Cites evidence ${shortId(id)} version ${v}; it is now version ${cur.version}.`,
+        );
+    }
+  }
+  const a = body.assessment;
+  if (a) {
+    if (
+      a.problem.id.toLowerCase() !== env.problem.id.toLowerCase() ||
+      a.problem.version !== env.problem.version
+    )
+      out.push(
+        `Assessed the problem at version ${a.problem.version}; it is now version ${env.problem.version}.`,
+      );
+    if (a.rubric_hash !== rubricHash(RUBRICS[body.rubric]))
+      out.push('The rubric changed since this assessment.');
+    if (ev)
+      for (const e of a.evidence) {
+        const cur = ev[e.id.toLowerCase()];
+        if (!cur || cur.status !== 'active')
+          out.push(
+            `Claim ${shortId(e.id)} it read is ${cur ? cur.status : 'no longer in this workspace'}.`,
+          );
+        else if (cur.version !== e.version)
+          out.push(
+            `Claim ${shortId(e.id)} it read changed (version ${e.version} → ${cur.version}).`,
+          );
+        else if (
+          cur.support_hash !== null &&
+          cur.support_hash !== e.support_hash
+        )
+          out.push(
+            `The evidence for claim ${shortId(e.id)} changed since it was read (support added or retracted).`,
+          );
+      }
+  }
+  return [...new Set(out)];
+}
+function parseCards(c: CandidateInput, env: ParseEnv): Parsed[] {
+  const cards: Parsed[] = c.scorecards
     .filter((s) => s.status === 'active')
     .map((s) => {
       const parsed = ScorecardBodySchema.safeParse(s.body);
@@ -125,37 +206,62 @@ function parseCards(c: CandidateInput): Parsed[] {
           input: s,
           body: null,
           stale: 'Not valid under the current rubric version.',
+          stale_reasons: ['Not valid under the current rubric version.'],
+          system: false,
+          superseded_by: null,
         };
       const body = parsed.data;
-      const stale =
-        body.subject.id !== c.alternative.id
-          ? 'Rates a different record.'
-          : body.subject.version !== c.alternative.version
-            ? `Rates version ${body.subject.version}; the alternative is now version ${c.alternative.version}.`
-            : null;
-      return { input: s, body, stale };
+      const reasons = staleReasons(c, body, env);
+      return {
+        input: s,
+        body,
+        stale: reasons[0] ?? null,
+        stale_reasons: reasons,
+        system: !!body.assessment,
+        superseded_by: null,
+      };
     });
+  // A person's current edit replaces the system card it names (ADR-0074); the newest wins.
+  for (const p of [...cards].sort((a, b) =>
+    a.input.id < b.input.id ? -1 : 1,
+  )) {
+    const of = p.body?.edit_of?.scorecard.id.toLowerCase();
+    if (!of || p.stale || p.body?.rubric === undefined) continue;
+    const target = cards.find(
+      (x) =>
+        x.system &&
+        x.input.id.toLowerCase() === of &&
+        x.body?.rubric === p.body!.rubric,
+    );
+    if (target && !target.superseded_by) target.superseded_by = p.input.id;
+  }
+  return cards;
 }
+/** Cards that count: valid, current and not replaced by a person's edit. */
+const counted = (p: Parsed) => !!p.body && !p.stale && !p.superseded_by;
 const ratingsOf = (b: ScorecardBody) =>
   Object.fromEntries(Object.entries(b.ratings).map(([k, v]) => [k, v.rating]));
 
 function gatesFor(c: CandidateInput, cards: Parsed[], opportunity: string) {
-  const current = cards.filter((p) => p.body && !p.stale);
-  const ethics =
-    current.length === 0
+  const current = cards.filter(counted);
+  // ADR-0074: a system assessment can raise an ethics or access concern but never clear one.
+  const people = current.filter((p) => !p.system);
+  const ethics = current.some(
+    (p) =>
+      p.body!.gates.ethics.status === 'unresolved' ||
+      p.body!.gates.access.status === 'unresolved',
+  )
+    ? ('unresolved' as const)
+    : people.length === 0
       ? ('not_assessed' as const)
-      : current.some(
-            (p) =>
-              p.body!.gates.ethics.status === 'unresolved' ||
-              p.body!.gates.access.status === 'unresolved',
-          )
-        ? ('unresolved' as const)
-        : ('clear' as const);
+      : ('clear' as const);
   const ethicsReason =
     ethics === 'unresolved'
       ? 'An ethics or access question is unresolved; it is a gate, not a score.'
       : ethics === 'not_assessed'
-        ? 'Ethics and access have not been assessed on the current version.'
+        ? current.length
+          ? 'Only the automatic assessment looked at ethics and access; a person must confirm them (edit the assessment or score the option).'
+          : 'Ethics and access have not been assessed on the current version.'
         : null;
   const blocked: Partial<Record<SelectionDisposition, string[]>> = {};
   const block = (d: SelectionDisposition, reason: string | null) => {
@@ -321,7 +427,7 @@ function rankUnder(
     const all = (parsed.get(c.alternative.id) ?? []).filter(
       (p) => !p.body || p.body.rubric === rubricId,
     );
-    const cards = all.filter((p) => p.body && !p.stale).map((p) => p.body!);
+    const cards = all.filter(counted).map((p) => p.body!);
     const scores = cards.map((b) => scoreRatings(rubric, ratingsOf(b)));
     const lowers = cards.map((b) =>
       scoreRatings(rubric, ratingsOf(b), undefined, 1)!,
@@ -365,7 +471,7 @@ function rankUnder(
       s.cards.length < 2
         ? []
         : rubric.criteria.flatMap((k) => {
-            const current = s.all.filter((p) => p.body && !p.stale);
+            const current = s.all.filter(counted);
             const values = current.map(
               (p) => p.body!.ratings[k.key]?.rating ?? null,
             );
@@ -429,6 +535,10 @@ function rankUnder(
             upper: exact(hi ?? rat(100n, 1n)),
             stale: p.stale !== null,
             stale_reason: p.stale,
+            stale_reasons: p.stale_reasons,
+            system: p.system,
+            superseded_by: p.superseded_by,
+            edit_of: p.body?.edit_of?.scorecard.id.toLowerCase() ?? null,
           };
         })
         .sort((a, b) => (a.id < b.id ? -1 : 1)),
@@ -466,12 +576,17 @@ export function selectionReport(input: {
   problem: { id: string; version: number; title: string };
   candidates: readonly CandidateInput[];
   shortlist_size: number;
+  /** Current versions of cited and read evidence; without it evidence staleness is not checked. */
+  evidence?: EvidenceVersions;
 }): SelectionReport {
   const candidates = [...input.candidates].sort((a, b) =>
     a.alternative.id < b.alternative.id ? -1 : 1,
   );
   const parsed = new Map(
-    candidates.map((c) => [c.alternative.id, parseCards(c)]),
+    candidates.map((c) => [
+      c.alternative.id,
+      parseCards(c, { problem: input.problem, evidence: input.evidence }),
+    ]),
   );
   // Opportunity completeness feeds the build gate, so compute it first.
   const opportunity = rankUnder(

@@ -245,3 +245,23 @@ until the installed app's upgrade is confirmed, then cleared by a later migratio
 N-1 ADR wording on old-page tabs; N-2 a legacy notepad draft is kept when the note already has
 unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migration test starts
 "from the layout before 46" (wording fixed above).
+
+## P08 automatic assessments (November 6, branch `claude/project-thread-rbtrzm`, ADR-0074, migration 47)
+
+Compare can now assess every option of a problem automatically: an `r08_assessment` workflow
+(migration 47, schema 47) sends one packet (the problem version, up to 8 options, up to 30
+linked claims with passages, the anchored rubrics; nothing fetched) and writes one system
+scorecard per option and rubric with full provenance (route, model, prompt, rubric and packet
+hashes, cited claim versions and support, uncertainty). Code computes totals and ranks; unknown
+stays a range. People edit a system rating into their own card with a reason; the original is
+kept and marked replaced. System cards cannot clear ethics or access gates, never select, and
+are marked stale (not counted) when the problem, an option, a rubric or the evidence changes.
+Plan routes need a scoring qualification on the new `assessment-synthetic-v1` benchmark
+(draft for owner review); fixture connections use plain rules, labelled as such.
+
+Checked: `tests/src/assessment.test.ts` (fixture run with provenance, ties, re-run archiving;
+edits keep the original, forged/model cards and system-card revisions refused, edit of a
+replaced card refused; support retraction and problem revision mark cards stale; bad answers
+repaired then failed with no cards; unknown ratings stay a range; owner-only start) and
+`tests/src/assessment-benchmark.test.ts` (benchmark bound to the current prompt, fixture and
+instruction-obeying answers refused). Not done: owner review of the benchmark; live run.

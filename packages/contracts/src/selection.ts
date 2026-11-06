@@ -180,6 +180,38 @@ export const RUBRICS: Record<RubricId, RubricDefinition> = {
 
 // ---- Scorecards (one reviewer's ratings of one alternative version) ---------------------
 
+// P08 (ADR-0074): system scorecards carry their provenance; a person's edit names the card.
+/** Where a system scorecard came from: every version it was made against. */
+export const SystemAssessmentSchema = z.strictObject({
+  format: z.literal('system-assessment/1'),
+  workflow_id: id,
+  task_id: id,
+  output_hash: hash,
+  packet_hash: hash,
+  role_version: short,
+  prompt_hash: hash,
+  rubric_hash: hash,
+  route: z.enum(['fixture', 'api', 'subscription']),
+  provider: z.string().max(40).nullable(),
+  model_id: z.string().max(200),
+  problem: z.strictObject({ id, version }),
+  /**
+   * Every claim the assessor read, with a hash of its active support rows at that time: a newer
+   * claim version, a retraction or new support marks the assessment stale.
+   */
+  evidence: z
+    .array(z.strictObject({ id, version, support_hash: hash }))
+    .max(30),
+  uncertainty: short,
+});
+export type SystemAssessment = z.infer<typeof SystemAssessmentSchema>;
+
+/** A person's edit of a system scorecard: their own card, naming the card it replaces. */
+export const ScorecardEditSchema = z.strictObject({
+  scorecard: z.strictObject({ id, version }),
+  reason: short,
+});
+
 /** 1–5 ordinal, or null for unknown. Unknown is not a neutral score. */
 export const RatingSchema = z.number().int().min(1).max(5).nullable();
 export const CriterionRatingSchema = z
@@ -223,6 +255,10 @@ export const ScorecardBodySchema = z
       ethics: z.strictObject({ status: GateStatusSchema, note }),
       access: z.strictObject({ status: GateStatusSchema, note }),
     }),
+    /** Only on system scorecards, written by an assessment workflow (ADR-0074). */
+    assessment: SystemAssessmentSchema.optional(),
+    /** Only on a person's card that replaces a system scorecard (ADR-0074). */
+    edit_of: ScorecardEditSchema.optional(),
     /** The rubric's evidence and selection checks for every assessed candidate. */
     checks: z.strictObject({
       target_users: short,
@@ -256,6 +292,19 @@ export const ScorecardBodySchema = z
         code: 'custom',
         path: ['ratings'],
         message: `Rate every criterion (or mark it unknown): ${keys.join(', ')}.`,
+      });
+    if (s.assessment && s.reviewer.kind === 'human')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['reviewer'],
+        message: 'A system assessment is not a person’s scorecard.',
+      });
+    if (s.edit_of && (s.reviewer.kind !== 'human' || s.assessment))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['edit_of'],
+        message:
+          'Only a person’s own scorecard can replace a system scorecard.',
       });
     if ((s.rubric === 'suitability') !== (s.software_influence !== null))
       ctx.addIssue({
@@ -357,6 +406,14 @@ export const RankedCandidateSchema = z.strictObject({
       upper: ExactScoreSchema,
       stale: z.boolean(),
       stale_reason: z.string().max(300).nullable(),
+      /** ADR-0074: every reason it is stale (the first is `stale_reason`). */
+      stale_reasons: z.array(z.string().max(300)).max(40).optional(),
+      /** ADR-0074: written by an automatic assessment, not by a person. */
+      system: z.boolean().optional(),
+      /** ADR-0074: the person's card that replaces this system card; it is not counted. */
+      superseded_by: id.nullable().optional(),
+      /** ADR-0074: the system card this person's card replaces. */
+      edit_of: id.nullable().optional(),
     }),
   ),
   gates: GateReportSchema,

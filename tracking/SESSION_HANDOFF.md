@@ -292,3 +292,16 @@ until the installed app's upgrade is confirmed, then cleared by a later migratio
 N-1 ADR wording on old-page tabs; N-2 a legacy notepad draft is kept when the note already has
 unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migration test starts
 "from the layout before 46" (wording fixed above).
+
+## P08 automatic assessments (November 6, branch `claude/project-thread-rbtrzm`, ADR-0074, migration 47)
+
+What works: Compare's "Assess automatically" runs an `r08_assessment` workflow and writes
+system scorecards beside people's, with provenance, edit-with-reason (`edit_of`), gate limits
+and stale marking (see ADR-0074). New routes: `problems/{id}/assessment-preview`,
+`runs/{id}/assessments`, `workflows/{id}/assessment-packet`. Benchmark generator:
+`node scripts/assessment-benchmark.mjs` after `pnpm build:code`; regenerate it whenever the
+assessor prompt changes (the old manifest then stops admitting assessments).
+
+Open: Jordan reviews `config/connections/benchmarks/assessment-synthetic-v1.json` before it
+counts as frozen; plan-route assessments stay blocked until a scoring qualification on it
+passes. Next free numbers after P11: migration 49, ADR-0076.

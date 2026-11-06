@@ -14,6 +14,10 @@ import {
   FindingTypeSchema,
 } from './discovery.js';
 import { DataClassSchema } from './oversight.js';
+import {
+  AssessmentPacketSchema,
+  AssessmentTaskContextSchema,
+} from './assessment.js';
 import { MeteredActionSchema, ProviderSchema } from './budget.js';
 
 // X01 model registry and qualified routing. The registry describes what each model can do
@@ -423,6 +427,25 @@ export const BenchmarkCheckSchema = z.discriminatedUnion('kind', [
           });
       }
     }),
+  /**
+   * ADR-0074: an automatic assessment of a frozen packet. The answer must pass the studio's own
+   * output check (every option and rubric, every criterion, refs in the packet, evidence behind
+   * every rating) and then each assertion.
+   */
+  z
+    .strictObject({
+      kind: z.literal('assessment_contract'),
+      packet: AssessmentPacketSchema,
+      context: AssessmentTaskContextSchema,
+      assertions: z.array(BenchmarkAssertionSchema).min(1).max(20),
+    })
+    .superRefine((c, ctx) => {
+      if (c.assertions.some((a) => a.select))
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Identity selection is for discovery skeptic checks only.',
+        });
+    }),
   z.strictObject({
     kind: z.literal('json_keys'),
     keys: z.array(short).min(1).max(20),
@@ -506,6 +529,15 @@ export const BenchmarkManifestSchema = z
             message: 'Discovery check task class/output format mismatch.',
           });
       }
+    for (const c of b.cases)
+      if (
+        c.check.kind === 'assessment_contract' &&
+        (b.task_class !== 'scoring' || c.output_format !== 'json')
+      )
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Assessment check task class/output format mismatch.',
+        });
     // Build-role checks belong to their own task classes and answer in JSON (ADR-0048).
     const roleCheck = {
       patch_build: 'patch_cases',

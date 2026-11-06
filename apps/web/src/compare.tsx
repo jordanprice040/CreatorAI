@@ -34,6 +34,7 @@ import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
 import { ScoreOption } from './scorecard.js';
+import { AssessmentLines, AutoAssess } from './assess.js';
 import {
   carryDecisions,
   formGate,
@@ -227,6 +228,12 @@ export function Compare({
   const [overrideKept, setOverrideKept] = useState<string | null>(null);
   const [reasonsKept, setReasonsKept] = useState<Record<string, string>>({});
   const [humilityFor, setHumilityFor] = useState<string | null>(null);
+  /** ADR-0074: "Edit" on an automatic assessment opens the scoring form on it. */
+  const [scorePick, setScorePick] = useState<{
+    optionId: string;
+    rubric: 'suitability' | 'opportunity';
+    n: number;
+  } | null>(null);
   const [runId, setRunId] = useState('');
   const [outcome, setOutcome] = useState<SelectOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -597,6 +604,20 @@ export function Compare({
                           </div>
                         )}
                       </dl>
+                      <AssessmentLines
+                        rubrics={[
+                          { rubric: 'suitability', cand: s },
+                          { rubric: 'opportunity', cand: o },
+                        ]}
+                        canEdit={!viewer}
+                        onEdit={(rubric) =>
+                          setScorePick({
+                            optionId: a.entity.id,
+                            rubric,
+                            n: Date.now(),
+                          })
+                        }
+                      />
                       {s && s.unknown_criteria.length > 0 && (
                         <p className="small">
                           Unknown: {s.unknown_criteria.map(words).join(', ')}
@@ -691,8 +712,18 @@ export function Compare({
                 }}
               />
             )}
+            {alts.length > 0 && (
+              <AutoAssess
+                session={session}
+                workspace={workspace}
+                problem={d.cmp.problem}
+                onRecorded={detail.reload}
+                open={open}
+              />
+            )}
             {alts.length > 0 && !viewer && (
               <ScoreOption
+                pick={scorePick}
                 base={base}
                 session={session}
                 options={alts.map((a) => ({

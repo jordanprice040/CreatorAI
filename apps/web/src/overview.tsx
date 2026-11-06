@@ -174,7 +174,9 @@ export function Overview({
                         ? 'Discovery'
                         : w.role === 'r01_exploration'
                           ? 'Exploration'
-                          : 'Skeptic review'}{' '}
+                          : w.role === 'r08_assessment'
+                            ? 'Assessment'
+                            : 'Skeptic review'}{' '}
                       {shortId(w.id)}
                     </button>
                     <small>
@@ -255,7 +257,9 @@ export function Overview({
                             ? 'Discovery'
                             : w.role === 'r01_exploration'
                               ? 'Exploration'
-                              : 'Skeptic review'}{' '}
+                              : w.role === 'r08_assessment'
+                                ? 'Assessment'
+                                : 'Skeptic review'}{' '}
                           {shortId(w.id)}
                         </button>
                         <small>

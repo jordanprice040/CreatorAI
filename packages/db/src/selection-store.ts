@@ -8,7 +8,12 @@ import {
   ReviseSpecRequestSchema,
   SelectRequestSchema,
   SpecBodySchema,
+  StartAssessmentRequestSchema,
   parse,
+  type AssessmentPacket,
+  type AssessmentPreview,
+  type ClaimEvidence,
+  type WorkflowDetail,
   type Admission,
   type FreezeOutcome,
   type ScorecardBody,
@@ -21,6 +26,14 @@ import {
   type StoredEntity,
 } from '@creator/contracts';
 import {
+  ASSESSMENT_PROMPT_HASH,
+  ASSESSMENT_ROLE_VERSION,
+  MAX_ASSESSMENT_OPTIONS,
+  MAX_ASSESSMENT_PACKET_CHARS,
+  assessmentContext,
+  assessmentPreviewHash,
+  buildAssessmentPacket,
+  supportHash,
   canonicalHash,
   checkSelection,
   humilityGate,
@@ -29,8 +42,10 @@ import {
   taskImpact,
   validateSpec,
   type CandidateInput,
+  type EvidenceVersions,
   type HumilityState,
 } from '@creator/domain';
+import type { AssessmentWorkflowContext } from './workflow-store.js';
 import { DiscoveryStore } from './discovery-store.js';
 import {
   contentHashOf,
@@ -60,6 +75,17 @@ const notAllowed = (a: Admission) =>
       ? ('denied' as const)
       : ('deferred' as const);
 const iso = (v: unknown) => new Date(v as string | Date).toISOString();
+/**
+ * ADR-0074: system scorecards come only from an assessment workflow. A person (or the CLI)
+ * records human or labelled fixture scorecards, never a model's or one carrying provenance.
+ */
+function personalScorecard(body: ScorecardBody) {
+  if (body.assessment || body.reviewer.kind === 'model')
+    throw fail(
+      'ACCESS_DENIED',
+      'Model scorecards are written only by an automatic assessment; record your own ratings as a person.',
+    );
+}
 function toSelection(r: Row, current: boolean): Selection {
   return {
     id: String(r.id),
@@ -111,9 +137,11 @@ export class SelectionStore extends DiscoveryStore {
     ws = uuid(ws);
     const req = parse(CreateScorecardRequestSchema, raw);
     const body = validateBody('scorecard', req.body) as ScorecardBody;
+    personalScorecard(body);
     return this.idempotent(ws, ctx, { op: 'scorecard', req }, async (c) => {
       await this.role(c, ws, ctx.actorId, true);
       const subject = await this.checkScorecard(c, ws, body);
+      if (body.edit_of) await this.checkEditOf(c, ws, body);
       const card = await this.insertEntity(
         c,
         ctx,
@@ -161,6 +189,20 @@ export class SelectionStore extends DiscoveryStore {
           'Only an active scorecard can be revised.',
         );
       const before = current.body as ScorecardBody;
+      if (before.assessment)
+        throw fail(
+          'INVALID_TRANSITION',
+          'An automatic assessment is kept as it was written. Edit it instead: your edit is recorded as your own scorecard and the original stays.',
+        );
+      personalScorecard(body);
+      if (
+        (before.edit_of?.scorecard.id.toLowerCase() ?? null) !==
+        (body.edit_of?.scorecard.id.toLowerCase() ?? null)
+      )
+        throw fail(
+          'INVALID_CONTRACT',
+          'A revision keeps the system scorecard it replaces; record a new scorecard instead.',
+        );
       if (
         before.rubric !== body.rubric ||
         before.subject.id !== body.subject.id
@@ -197,6 +239,40 @@ export class SelectionStore extends DiscoveryStore {
       );
       return next;
     });
+  }
+
+  /**
+   * ADR-0074: an edit replaces an active system scorecard of the same option and rubric. The
+   * system card stays as written; a newer automatic assessment archives it and is edited instead.
+   */
+  private async checkEditOf(c: PoolClient, ws: string, body: ScorecardBody) {
+    const of = body.edit_of!.scorecard;
+    const { rows } = await c.query(
+      `select * from entities where workspace_id = $1 and id = $2 and kind = 'scorecard' for share`,
+      [ws, of.id.toLowerCase()],
+    );
+    if (!rows[0])
+      throw fail('NOT_FOUND', 'The edited scorecard was not found.');
+    const card = toEntity(rows[0] as Row);
+    const b = card.body as ScorecardBody;
+    if (!b.assessment)
+      throw fail(
+        'INVALID_CONTRACT',
+        'Only an automatic assessment is edited this way; revise your own scorecard instead.',
+      );
+    if (card.status !== 'active' || card.version !== of.version)
+      throw fail(
+        'VERSION_CONFLICT',
+        'A newer automatic assessment replaced this one; edit the current one.',
+      );
+    if (
+      b.rubric !== body.rubric ||
+      b.subject.id.toLowerCase() !== body.subject.id.toLowerCase()
+    )
+      throw fail(
+        'INVALID_CONTRACT',
+        'An edit keeps the rubric and option of the assessment it replaces.',
+      );
   }
 
   /** The subject must be the alternative's current version; evidence must exist here. */
@@ -381,7 +457,55 @@ export class SelectionStore extends DiscoveryStore {
         humility_reasons: reasons,
       };
     });
-    return { problem, candidates };
+    // ADR-0074: the current version of everything a card cites or an assessment read.
+    const cited = new Set<string>();
+    const claimIds = new Set<string>();
+    for (const s of cards) {
+      const b = s.body as Partial<ScorecardBody> | null;
+      for (const r of Object.values(b?.ratings ?? {}))
+        for (const e of r.evidence_refs ?? []) cited.add(e.id.toLowerCase());
+      for (const e of b?.assessment?.evidence ?? []) {
+        cited.add(e.id.toLowerCase());
+        claimIds.add(e.id.toLowerCase());
+      }
+    }
+    const evidence: Record<
+      string,
+      { version: number; status: string; support_hash: string | null }
+    > = {};
+    if (cited.size) {
+      const found = await c.query<{
+        id: string;
+        version: number;
+        status: string;
+      }>(
+        'select id, version, status from entities where workspace_id = $1 and id = any($2::uuid[])',
+        [ws, [...cited]],
+      );
+      const support = await this.supportHashes(c, ws, [...claimIds]);
+      for (const r of found.rows)
+        evidence[r.id] = {
+          version: Number(r.version),
+          status: String(r.status),
+          support_hash: support.get(r.id) ?? null,
+        };
+    }
+    return { problem, candidates, evidence: evidence as EvidenceVersions };
+  }
+
+  /** Each claim's active support rows, hashed (ADR-0074): new or retracted support changes it. */
+  protected async supportHashes(c: PoolClient, ws: string, claims: string[]) {
+    const out = new Map<string, string>();
+    if (!claims.length) return out;
+    const { rows } = await c.query<{ claim_id: string; ids: string[] }>(
+      `select claim_id, array_agg(id::text) as ids from claim_support
+        where workspace_id = $1 and claim_id = any($2::uuid[]) and retracted_at is null
+        group by claim_id`,
+      [ws, claims],
+    );
+    for (const id of claims) out.set(id, supportHash([]));
+    for (const r of rows) out.set(String(r.claim_id), supportHash(r.ids));
+    return out;
   }
 
   async selectionReport(
@@ -401,7 +525,11 @@ export class SelectionStore extends DiscoveryStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates } = await this.gather(c, ws, problemId);
+      const { problem, candidates, evidence } = await this.gather(
+        c,
+        ws,
+        problemId,
+      );
       return selectionReport({
         problem: {
           id: problem.id,
@@ -410,8 +538,290 @@ export class SelectionStore extends DiscoveryStore {
         },
         candidates,
         shortlist_size: shortlistSize,
+        evidence,
       });
     });
+  }
+
+  // ---- Automatic assessments (ADR-0074) -----------------------------------------------------
+
+  /**
+   * P08: starts an automatic assessment of every option of one problem at its current version.
+   * The packet is built here from the problem, its options and the claims linked to it, as the
+   * owner reads them now; it is bound by hash into the workflow and never changes. One assessor
+   * task runs on the T05 workflow path (caps, leases, cancellation, plan admission). When it
+   * succeeds, application code writes one system scorecard per option and rubric.
+   */
+  async startAssessment(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    raw: unknown,
+  ): Promise<WorkflowDetail> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    runId = uuid(runId);
+    const req = parse(StartAssessmentRequestSchema, raw);
+    await this.studyWorkflowGate(ctx, ws, runId, null);
+    const problemId = req.problem.id.toLowerCase();
+    const built = await this.buildAssessment(ctx, ws, problemId);
+    if (built.packet.problem.version !== req.problem.version)
+      throw fail(
+        'VERSION_CONFLICT',
+        `The problem is at version ${built.packet.problem.version}; reload before assessing.`,
+      );
+    if (
+      req.preview_hash &&
+      assessmentPreviewHash(built.packet) !== req.preview_hash
+    )
+      throw fail(
+        'VERSION_CONFLICT',
+        'What the assessment would send changed since the preview (an option, claim or its evidence changed). Check it again, then start.',
+      );
+    const context: AssessmentWorkflowContext = {
+      packet: built.packet,
+      packet_hash: canonicalHash(built.packet),
+      evidence: built.evidence,
+    };
+    const id = await this.idempotent(
+      ws,
+      ctx,
+      { op: 'assessment.start', runId, req },
+      async (c) => {
+        // What the packet read must still be current when the workflow is bound to it.
+        const now = await c.query<{
+          id: string;
+          version: number;
+          status: string;
+        }>(
+          `select id, version, status from entities where workspace_id = $1 and id = any($2::uuid[])
+             for share`,
+          [
+            ws,
+            [
+              problemId,
+              ...built.packet.options.map((o) => o.alternative_id),
+              ...built.packet.claims.map((x) => x.claim_id),
+            ],
+          ],
+        );
+        const at = (id: string) => now.rows.find((r) => r.id === id);
+        const moved = [
+          { id: problemId, version: built.packet.problem.version },
+          ...built.packet.options.map((o) => ({
+            id: o.alternative_id,
+            version: o.version,
+          })),
+          ...built.packet.claims.map((x) => ({
+            id: x.claim_id,
+            version: x.version,
+          })),
+        ].some(
+          (r) =>
+            at(r.id)?.version !== r.version || at(r.id)?.status !== 'active',
+        );
+        const support = await this.supportHashes(
+          c,
+          ws,
+          built.evidence.map((e) => e.id),
+        );
+        if (
+          moved ||
+          built.evidence.some((e) => support.get(e.id) !== e.support_hash)
+        )
+          throw fail(
+            'VERSION_CONFLICT',
+            'The problem, an option or a claim changed while the packet was built; start again.',
+          );
+        const workflowId = await this.insertWorkflow(c, ctx, ws, runId, {
+          role: 'r08_assessment',
+          roleVersion: ASSESSMENT_ROLE_VERSION,
+          promptHash: ASSESSMENT_PROMPT_HASH,
+          subject: req.problem,
+          context: { ...context },
+          limits: req.limits,
+          envelopeId:
+            req.resource_setup.kind === 'api'
+              ? req.resource_setup.envelope_id
+              : null,
+          pricingSnapshotId:
+            req.resource_setup.kind === 'api'
+              ? req.resource_setup.pricing_snapshot_id
+              : null,
+          resourceSetup: req.resource_setup,
+          dataClass: req.data_class,
+          audit: {
+            packet_hash: context.packet_hash,
+            options: built.packet.options.length,
+            claims: built.packet.claims.length,
+          },
+        });
+        await this.insertTask(c, ctx, ws, workflowId, {
+          kind: 'assess',
+          ordinal: 0,
+          round: 0,
+          repair: 0,
+          repairOf: null,
+          state: 'queued',
+          context: assessmentContext(context.packet_hash),
+        });
+        await this.coordinateIn(c, ctx, ws, workflowId);
+        return workflowId;
+      },
+    );
+    return this.getWorkflow(ctx, ws, id);
+  }
+
+  /** What an assessment of this problem would send now, without starting anything. */
+  async previewAssessment(
+    ctx: CommandContext,
+    ws: string,
+    problemId: string,
+  ): Promise<AssessmentPreview> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    const { packet } = await this.buildAssessment(ctx, ws, uuid(problemId));
+    return {
+      packet,
+      packet_hash: canonicalHash(packet),
+      preview_hash: assessmentPreviewHash(packet),
+      chars: JSON.stringify(packet).length,
+      limit: MAX_ASSESSMENT_PACKET_CHARS,
+    };
+  }
+
+  /** The packet an assessment read, for inspection. */
+  async assessmentPacket(ctx: CommandContext, ws: string, workflowId: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    workflowId = uuid(workflowId);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        'select 1 from workflows where workspace_id = $1 and id = $2',
+        [ws, workflowId],
+      );
+      if (!rows.length) throw fail('NOT_FOUND', 'Workflow not found.');
+      const d = await this.assessmentContextOf(c, workflowId);
+      return { packet: d.packet, packet_hash: d.packet_hash };
+    });
+  }
+
+  private async buildAssessment(
+    ctx: CommandContext,
+    ws: string,
+    problemId: string,
+  ): Promise<{
+    packet: AssessmentPacket;
+    evidence: AssessmentWorkflowContext['evidence'];
+  }> {
+    const read = await this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const p = await c.query(
+        `select * from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
+        [ws, problemId],
+      );
+      if (!p.rows[0]) throw fail('NOT_FOUND', 'Problem not found.');
+      const problem = toEntity(p.rows[0] as Row);
+      if (problem.status !== 'active')
+        throw fail('INVALID_TRANSITION', `The problem is ${problem.status}.`);
+      const alts = (
+        await c.query(
+          `select distinct e.* from entity_links l join entities e on e.id = l.from_id
+            where l.workspace_id = $1 and l.relation = 'derived_from' and l.to_id = $2
+              and l.from_kind = 'alternative' and l.retracted_at is null and e.status = 'active'
+            order by e.created_at, e.id`,
+          [ws, problemId],
+        )
+      ).rows.map((r: Row) => toEntity(r));
+      if (!alts.length)
+        throw fail(
+          'INVALID_TRANSITION',
+          'This problem has no options to assess.',
+        );
+      if (alts.length > MAX_ASSESSMENT_OPTIONS)
+        throw fail(
+          'INVALID_CONTRACT',
+          `One assessment covers at most ${MAX_ASSESSMENT_OPTIONS} options; this problem has ${alts.length}.`,
+        );
+      const claims = (
+        await c.query<{ from_id: string; relation: string }>(
+          `select distinct on (l.from_id) l.from_id, l.relation, l.created_at from entity_links l
+             join entities e on e.id = l.from_id and e.status = 'active'
+            where l.workspace_id = $1 and l.to_id = $2 and l.from_kind = 'claim'
+              and l.relation in ('supports', 'contradicts') and l.retracted_at is null
+            order by l.from_id, l.created_at`,
+          [ws, problemId],
+        )
+      ).rows;
+      const brief = (
+        await c.query(
+          `select e.body from entity_links l join entities e on e.id = l.to_id
+            where l.workspace_id = $1 and l.from_id = $2 and l.relation = 'derived_from'
+              and l.to_kind = 'search_brief' and l.retracted_at is null
+            order by l.created_at desc limit 1`,
+          [ws, problemId],
+        )
+      ).rows[0]?.body as Row | undefined;
+      return { problem, alts, claims, brief };
+    });
+    const claims: {
+      relation: 'supports' | 'contradicts';
+      evidence: ClaimEvidence;
+    }[] = [];
+    for (const cl of read.claims)
+      claims.push({
+        relation: cl.relation === 'contradicts' ? 'contradicts' : 'supports',
+        evidence: await this.claimEvidence(ctx, ws, cl.from_id, 180),
+      });
+    const str = (v: unknown) => (typeof v === 'string' ? v : '');
+    const b = read.problem.body as Row | null;
+    const packet = buildAssessmentPacket({
+      problem: {
+        id: read.problem.id,
+        version: read.problem.version,
+        title: read.problem.title,
+        statement: str(b?.statement) || read.problem.title,
+        affected_group: str(b?.affected_group) || null,
+        outcome_measure: str(read.brief?.outcome_measure) || null,
+      },
+      alternatives: read.alts.map((a) => {
+        const ab = a.body as Row | null;
+        return {
+          id: a.id,
+          version: a.version,
+          kind: str(ab?.kind),
+          title: a.title,
+          rationale: str(ab?.rationale),
+          tradeoffs: Array.isArray(ab?.tradeoffs)
+            ? (ab.tradeoffs as unknown[]).map(String)
+            : [],
+          uncertainty: str(ab?.uncertainty),
+        };
+      }),
+      claims,
+      now: new Date(),
+    });
+    if (JSON.stringify(packet).length > MAX_ASSESSMENT_PACKET_CHARS)
+      throw fail(
+        'INVALID_CONTRACT',
+        'The assessment packet is too large for one model message.',
+      );
+    const support = await this.tx((c) =>
+      this.supportHashes(
+        c,
+        ws,
+        packet.claims.map((x) => x.claim_id),
+      ),
+    );
+    return {
+      packet,
+      evidence: packet.claims.map((x) => ({
+        id: x.claim_id,
+        version: x.version,
+        support_hash: support.get(x.claim_id)!,
+      })),
+    };
   }
 
   // ---- Selection -----------------------------------------------------------------------
@@ -434,7 +844,11 @@ export class SelectionStore extends DiscoveryStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates } = await this.gather(c, ws, problemId);
+      const { problem, candidates, evidence } = await this.gather(
+        c,
+        ws,
+        problemId,
+      );
       if (problem.version !== req.problem.version)
         throw fail(
           'VERSION_CONFLICT',
@@ -448,6 +862,7 @@ export class SelectionStore extends DiscoveryStore {
         },
         candidates,
         shortlist_size: req.shortlist_size,
+        evidence,
       });
       if (report.report_hash !== req.report_hash)
         throw fail(
