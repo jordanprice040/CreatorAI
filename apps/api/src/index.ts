@@ -20,6 +20,8 @@ import {
   id as idSchema,
   type PaymentConnection,
   NOTE_MAX,
+  PROPOSAL_MAX_BODY_BYTES,
+  SaveProposalFileRequestSchema,
 } from '@creator/contracts';
 import {
   allowedHosts,
@@ -130,6 +132,8 @@ import {
   concurrentUploadsFromEnv,
   fileLimitsFromEnv,
   fileRoutes,
+  INERT,
+  disposition,
 } from './files.js';
 import { createOps } from './ops.js';
 
@@ -139,6 +143,8 @@ const MAX_BODY = 65536;
  * \uXXXX (6 bytes), so the notes route accepts that much plus room for the envelope.
  */
 const NOTES_MAX_BODY = NOTE_MAX * 6 + 1024;
+/** ADR-0077: a proposal body may be PROPOSAL_MAX_BODY_BYTES, each byte spelled \uXXXX at worst. */
+const PROPOSAL_MAX_REQUEST = PROPOSAL_MAX_BODY_BYTES * 6 + 4096;
 function respond(res: ServerResponse, status: number, value: unknown) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -236,7 +242,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -1663,6 +1669,9 @@ export function createApi(
         return send(200, detail, true);
       }
     } else if (collection === 'problems' && item && method === 'GET') {
+      // ADR-0077: why the chosen response was chosen, computed from the records.
+      if (action === 'explanation')
+        return send(200, await store.responseExplanation(ctx, ws, item), false);
       if (action === 'assessment-preview')
         return send(200, await store.previewAssessment(ctx, ws, item), false);
       if (action === 'report') {
@@ -1691,6 +1700,105 @@ export function createApi(
             days === null ? undefined : Number(days),
           ),
           false,
+        );
+      }
+    } else if (collection === 'proposals') {
+      // ADR-0077 (P09): versioned non-code proposals, their reviews and Markdown export.
+      const versionOf = () => {
+        const v = url.searchParams.get('version');
+        if (v === null) return undefined;
+        if (!/^[1-9][0-9]{0,8}$/.test(v))
+          throw new ContractError(
+            'INVALID_CONTRACT',
+            'version must be a positive integer.',
+          );
+        return Number(v);
+      };
+      if (!item && method === 'GET')
+        return send(
+          200,
+          await store.listProposals(
+            ctx,
+            ws,
+            url.searchParams.get('problem') ?? undefined,
+          ),
+          false,
+        );
+      if (!item && method === 'POST')
+        return send(
+          201,
+          await store.createProposal(
+            ctx,
+            ws,
+            await readJson(req, PROPOSAL_MAX_REQUEST),
+          ),
+          true,
+        );
+      if (item === 'draft' && !action && method === 'GET')
+        return send(
+          200,
+          await store.proposalDraft(
+            ctx,
+            ws,
+            url.searchParams.get('alternative') ?? '',
+          ),
+          false,
+        );
+      if (item && !action && method === 'GET')
+        return send(
+          200,
+          await store.proposalDetail(ctx, ws, item, versionOf()),
+          false,
+        );
+      if (item && action === 'revisions' && method === 'POST')
+        return send(
+          200,
+          await store.reviseProposal(
+            ctx,
+            ws,
+            item,
+            await readJson(req, PROPOSAL_MAX_REQUEST),
+          ),
+          true,
+        );
+      if (item && action === 'reviews' && method === 'POST')
+        return send(
+          200,
+          await store.reviewProposal(ctx, ws, item, await readJson(req)),
+          true,
+        );
+      if (item && action === 'export' && method === 'GET') {
+        const out = await store.proposalExport(ctx, ws, item, versionOf());
+        const bytes = Buffer.from(out.markdown, 'utf8');
+        res.writeHead(200, {
+          ...INERT,
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Length': String(bytes.length),
+          'Content-Disposition': disposition('attachment', out.name),
+        });
+        res.end(bytes);
+        return true;
+      }
+      // Saves one version's Markdown export into Files, linked to the proposal (ADR-0072 path).
+      if (item && action === 'files' && method === 'POST') {
+        if (!fileStore)
+          throw new ContractError(
+            'STORAGE_UNAVAILABLE',
+            'Files are not available.',
+          );
+        const body = parse(SaveProposalFileRequestSchema, await readJson(req));
+        const out = await store.proposalExport(ctx, ws, item, body.version);
+        return send(
+          201,
+          await fileStore.uploadFile(ctx, ws, {
+            bytes: Buffer.from(out.markdown, 'utf8'),
+            name: out.name,
+            declaredType: 'text/markdown',
+            uploadKey: body.upload_key,
+            linkEntityId: item,
+            keepDuplicate: false,
+          }),
+          true,
         );
       }
     } else if (collection === 'scorecards' && method === 'POST') {

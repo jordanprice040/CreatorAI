@@ -1101,65 +1101,75 @@ export class ResearchStore extends WorkflowStore {
         )
       ).rows[0] as Row | undefined;
       if (!claimRow) throw fail('NOT_FOUND', 'Claim not found.');
-      const claim = toEntity(claimRow);
-      const { rows } = await c.query(
-        `select cs.*, e.version as source_current_version, e.title as source_title,
-           e.body as source_body, rs.origin_cluster, rs.url_key,
-           (select x.state from source_retrievals x where x.source_id = cs.source_id
-              and x.finished_at is not null order by x.finished_at desc, x.started_at desc
-              limit 1) as latest_state,
-           (select max(f.finished_at) from source_retrievals f where f.source_id = cs.source_id
-              and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at
-         from claim_support cs
-           join entities e on e.id = cs.source_id
-           join research_sources rs on rs.source_id = cs.source_id
-         where cs.workspace_id = $1 and cs.claim_id = $2
-         order by cs.created_at`,
-        [ws, claimId],
-      );
-      const assessment = assessClaimEvidence({
-        claim_version: claim.version,
-        now: Date.now(),
-        max_age_ms: maxAgeDays * DAY_MS,
-        rows: rows.map((r: Row) => ({
-          stance: r.stance as ClaimSupport['stance'],
-          support_type: (r.support_type ??
-            null) as ClaimSupport['support_type'],
-          claim_version: Number(r.claim_version),
-          source_version: Number(r.source_version),
-          source_current_version: Number(r.source_current_version),
-          latest_state: (r.latest_state ?? null) as RetrievalState | null,
-          last_fetched_at: r.last_fetched_at ? iso(r.last_fetched_at) : null,
-          origin_cluster: String(r.origin_cluster),
-          retracted: r.retracted_at !== null,
-        })),
-      });
-      const body = claim.body as Row | null;
-      return {
-        claim: {
-          id: claim.id,
-          version: claim.version,
-          title: claim.title,
-          statement: body ? String(body.statement) : null,
-          basis: body ? (body.basis as 'observation' | 'inference') : null,
-        },
-        status: assessment.status,
-        labels: assessment.labels,
-        explanation: assessment.explanation,
-        independent_origins: assessment.independent_origins,
-        contrary_origins: assessment.contrary_origins,
-        max_age_days: maxAgeDays,
-        rows: rows.map((r: Row, i: number) => ({
-          support: toSupport(r),
-          freshness: assessment.rows[i]!.freshness,
-          counted: assessment.rows[i]!.counted,
-          origin_cluster: String(r.origin_cluster),
-          source_title: String(r.source_title),
-          source_url: String((r.source_body as Row | null)?.url ?? r.url_key),
-          source_current_version: Number(r.source_current_version),
-        })),
-      };
+      return this.claimEvidenceIn(c, ws, claimRow, maxAgeDays);
     });
+  }
+
+  /** claimEvidence inside the caller's transaction, for a claim row it already read. */
+  protected async claimEvidenceIn(
+    c: PoolClient,
+    ws: string,
+    claimRow: Row,
+    maxAgeDays = 180,
+  ): Promise<ClaimEvidence> {
+    const claim = toEntity(claimRow);
+    const claimId = claim.id;
+    const { rows } = await c.query(
+      `select cs.*, e.version as source_current_version, e.title as source_title,
+         e.body as source_body, rs.origin_cluster, rs.url_key,
+         (select x.state from source_retrievals x where x.source_id = cs.source_id
+            and x.finished_at is not null order by x.finished_at desc, x.started_at desc
+            limit 1) as latest_state,
+         (select max(f.finished_at) from source_retrievals f where f.source_id = cs.source_id
+            and f.state = 'fetched' and f.content_hash = e.body->>'content_hash') as last_fetched_at
+       from claim_support cs
+         join entities e on e.id = cs.source_id
+         join research_sources rs on rs.source_id = cs.source_id
+       where cs.workspace_id = $1 and cs.claim_id = $2
+       order by cs.created_at`,
+      [ws, claimId],
+    );
+    const assessment = assessClaimEvidence({
+      claim_version: claim.version,
+      now: Date.now(),
+      max_age_ms: maxAgeDays * DAY_MS,
+      rows: rows.map((r: Row) => ({
+        stance: r.stance as ClaimSupport['stance'],
+        support_type: (r.support_type ?? null) as ClaimSupport['support_type'],
+        claim_version: Number(r.claim_version),
+        source_version: Number(r.source_version),
+        source_current_version: Number(r.source_current_version),
+        latest_state: (r.latest_state ?? null) as RetrievalState | null,
+        last_fetched_at: r.last_fetched_at ? iso(r.last_fetched_at) : null,
+        origin_cluster: String(r.origin_cluster),
+        retracted: r.retracted_at !== null,
+      })),
+    });
+    const body = claim.body as Row | null;
+    return {
+      claim: {
+        id: claim.id,
+        version: claim.version,
+        title: claim.title,
+        statement: body ? String(body.statement) : null,
+        basis: body ? (body.basis as 'observation' | 'inference') : null,
+      },
+      status: assessment.status,
+      labels: assessment.labels,
+      explanation: assessment.explanation,
+      independent_origins: assessment.independent_origins,
+      contrary_origins: assessment.contrary_origins,
+      max_age_days: maxAgeDays,
+      rows: rows.map((r: Row, i: number) => ({
+        support: toSupport(r),
+        freshness: assessment.rows[i]!.freshness,
+        counted: assessment.rows[i]!.counted,
+        origin_cluster: String(r.origin_cluster),
+        source_title: String(r.source_title),
+        source_url: String((r.source_body as Row | null)?.url ?? r.url_key),
+        source_current_version: Number(r.source_current_version),
+      })),
+    };
   }
 
   // ---- Owner-approved evidence websites (ADR-0056, migration 35) ----------------------------

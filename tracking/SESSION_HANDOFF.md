@@ -417,3 +417,18 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   production gate (`checkPilot`/`evaluateReadiness`, which still default to the real time) are unchanged.
 - Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix), rebased on main after #146;
   `pnpm check` 835 tests, 534 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
+
+## P09 why this response and non-code proposals (November 6, branch `claude/project-thread-raqxjh`, ADR-0077, migration 49)
+
+What works: see ADR-0077 and the BUILD_STATUS entry. New routes: `problems/{id}/explanation`, `proposals`
+(list, create), `proposals/draft?alternative=`, `proposals/{id}` (`?version=`), `proposals/{id}/revisions`,
+`proposals/{id}/reviews`, `proposals/{id}/export?version=` (Markdown attachment), `proposals/{id}/files`. New tab
+Projects › Proposals (`#/projects/proposals`). Stores: `ProposalStore` sits between `CatalogStore` and
+`StudyStore`; `SelectionStore.gather` is now protected and `toSelection` exported.
+
+Review fixes (L-1–L-7, N-1, N-2 from the independent review at d99a7ff) are in ADR-0077's "Review fixes" bullet;
+migration 49 was amended (append-only trigger, workspace FK) since it is unmerged. `ResearchStore.claimEvidenceIn`
+reads one claim's evidence inside a caller's transaction. After the re-review, section text is exported inside fenced text blocks and record text is escaped (`inlineText`). Migration 49 changed in place before merge: a throwaway review or test database that ran an earlier text of it fails the checksum check; recreate it (no lasting database ran 49).
+
+F9: Jordan confirmed "Judge the hybrid row" on November 6, as implemented. No live run or device step was needed or done. Main becomes schema 49; next free numbers
+are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).

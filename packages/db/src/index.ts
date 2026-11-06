@@ -9,6 +9,7 @@ export * from './research-store.js';
 export * from './discovery-store.js';
 export * from './selection-store.js';
 export * from './catalog-store.js';
+export * from './proposal-store.js';
 
 export * from './study-store.js';
 export * from './study-build-store.js';

@@ -39,6 +39,7 @@ import {
   coverageHash,
   evaluateAction,
   humilityGate,
+  type HumilitySubjectKind,
   standingAllowed,
   standingDraft,
   type HumilityVerdict,
@@ -1314,6 +1315,9 @@ export class OversightStore extends Store {
             body: e.body,
           },
           binding.target,
+          binding.target
+            ? await this.humilitySubjectKind(c, ws, binding.target.id)
+            : 'software',
         );
       }
       const resolved = (
@@ -1553,7 +1557,44 @@ export class OversightStore extends Store {
       return humilityGate(
         { id: e.id, version: e.version, status: e.status, body: e.body },
         { id: subjectId, version: Number((subject.rows[0] as Row).version) },
+        await this.humilitySubjectKind(c, ws, subjectId),
       );
     });
+  }
+
+  /**
+   * ADR-0077 (pilot F9): a hybrid option, or a spec written from one, is a hybrid subject; the
+   * humility gate then reads the hybrid comparison. Anything else is judged as software-only.
+   */
+  protected async humilitySubjectKind(
+    c: PoolClient,
+    ws: string,
+    subjectId: string,
+  ): Promise<HumilitySubjectKind> {
+    const { rows } = await c.query<{ kind: string; body: Row | null }>(
+      'select kind, body from entities where workspace_id = $1 and id = $2',
+      [ws, subjectId.toLowerCase()],
+    );
+    const e = rows[0];
+    if (!e?.body) return 'software';
+    if (e.kind === 'alternative')
+      return e.body.kind === 'hybrid' ? 'hybrid' : 'software';
+    // A spec is judged by the option version it was written from (review L-6), not by
+    // whatever that option says now.
+    const alt = e.body.alternative as Row | undefined;
+    if (
+      e.kind === 'specification' &&
+      typeof alt?.id === 'string' &&
+      Number.isInteger(alt.version)
+    ) {
+      const v = await c.query<{ body: Row | null }>(
+        `select v.body from entity_versions v join entities a on a.id = v.entity_id
+          where a.workspace_id = $1 and a.kind = 'alternative' and v.entity_id = $2
+            and v.version = $3`,
+        [ws, alt.id.toLowerCase(), alt.version],
+      );
+      return v.rows[0]?.body?.kind === 'hybrid' ? 'hybrid' : 'software';
+    }
+    return 'software';
   }
 }

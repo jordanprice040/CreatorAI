@@ -12,6 +12,7 @@ export type View =
   | 'catalog'
   | 'files'
   | 'compare'
+  | 'proposals'
   | 'evidence'
   | 'decisions'
   | 'runs'
@@ -63,6 +64,7 @@ export const PAGES: readonly Page[] = [
       { view: 'path', slug: 'path', label: 'Path' },
       { view: 'submit', slug: 'discover', label: 'Discover' },
       { view: 'compare', slug: 'decide', label: 'Decide' },
+      { view: 'proposals', slug: 'proposals', label: 'Proposals' },
       { view: 'scores', slug: 'specs', label: 'Scores and specs' },
       { view: 'build', slug: 'build', label: 'Build' },
       { view: 'gallery', slug: 'try', label: 'Try' },

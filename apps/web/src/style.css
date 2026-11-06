@@ -2198,6 +2198,22 @@ fieldset.flagged {
   font-size: inherit;
   overflow-wrap: normal;
 }
+/* A proposal section kept exactly as typed (a `proposal-text` block in an export, ADR-0077) is
+   prose: body font, wrapped, and as tall as it needs. Other code blocks, including `text`
+   diagrams in chat and notes, keep monospace, no wrapping and the usual height. */
+.md pre.md-code.md-code-text {
+  white-space: pre-wrap;
+  max-height: none;
+  overflow: visible;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+.md pre.md-code.md-code-text code {
+  font-family: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .md a {
   color: var(--accent);
   text-decoration: underline;
@@ -3027,4 +3043,51 @@ details.routine > summary {
 .assess-why dd {
   margin: 0.15rem 0 0;
   text-align: left;
+}
+
+/* ADR-0077 (P09): Proposals tab and the "Why this response" panel on Decide. */
+.proposals-layout {
+  display: grid;
+  gap: 1rem;
+}
+.proposal-form {
+  display: grid;
+  gap: 0.75rem;
+}
+.proposal-form label,
+.proposal-review-form label {
+  display: grid;
+  gap: 0.25rem;
+}
+.proposal-section textarea {
+  width: 100%;
+}
+.proposal-section label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.claim-picks {
+  list-style: none;
+  padding-left: 0;
+}
+.claim-picks label {
+  display: inline;
+}
+.proposal-checks,
+.proposal-reviews,
+.proposal-preview section {
+  margin-top: 1rem;
+}
+.proposal-review-form {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 40rem;
+}
+.explain-chosen,
+.explain-avenue {
+  margin: 0.75rem 0;
+}
+.explain-avenue summary {
+  cursor: pointer;
 }

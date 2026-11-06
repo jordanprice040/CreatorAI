@@ -17,6 +17,7 @@ import { RetentionSchema } from './research.js';
 import { SearchBriefBodySchema } from './discovery.js';
 import { ThemeIntentBodySchema } from './intake.js';
 import { ScorecardBodySchema, SpecBodySchema } from './selection.js';
+import { PROPOSAL_MAX_BODY_BYTES, ProposalBodySchema } from './proposal.js';
 
 // Persistent record bodies (T02). Bodies hold references and hashes; source content and
 // large artifacts stay outside the database and workflow history.
@@ -41,6 +42,7 @@ export const StoredKindSchema = z.enum([
   'search_brief',
   'scorecard',
   'theme_intent',
+  'proposal',
 ]);
 export type StoredKind = z.infer<typeof StoredKindSchema>;
 export const RecordModeSchema = z.enum(['fixture', 'real']);
@@ -157,6 +159,7 @@ export const StoredBodySchemas = {
   search_brief: SearchBriefBodySchema,
   scorecard: ScorecardBodySchema,
   theme_intent: ThemeIntentBodySchema,
+  proposal: ProposalBodySchema,
 } as const satisfies Record<StoredKind, z.ZodType>;
 export const lifecycleField: Partial<
   Record<StoredKind, { field: string; initial: string }>
@@ -166,6 +169,9 @@ export const lifecycleField: Partial<
   task: { field: 'state', initial: 'queued' },
 };
 export const MAX_BODY_BYTES = 16384;
+/** ADR-0077: a proposal holds its own text (up to 15 sections), so it may be larger. */
+export const maxBodyBytes = (kind: StoredKind) =>
+  kind === 'proposal' ? PROPOSAL_MAX_BODY_BYTES : MAX_BODY_BYTES;
 /** Kinds whose authority is enforced elsewhere (T03 decision and grant tables). */
 export const UNMANAGED_KINDS: readonly StoredKind[] = ['decision', 'grant'];
 
