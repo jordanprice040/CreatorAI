@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ContractError,
+  type Admission,
+  type Decision,
   PROPOSAL_SECTIONS,
   type ErrorCode,
   type ProposalBody,
@@ -315,24 +317,49 @@ test('a build of a spec written from a hybrid is admitted on the hybrid comparis
   });
   const verdict = await s.store.humilityVerdict(owner, s.ws.id, review.id);
   assert.equal(verdict.build_admissible, true, verdict.reasons.join(' '));
-  // The admission path reads the same kind: the humility gate does not refuse the build.
-  const admission = await s.store.admitAction(owner, s.ws.id, runId, {
-    action_type: 'product.commit_build',
+  // The admission path reads the same kind: the build is admitted once a person approves the
+  // exact action (the run has no standing grant for it), with no humility refusal on the way.
+  const commit = {
+    action_type: 'product.commit_build' as const,
     task_id: null,
     target: specRef,
     spec_hash: null,
     amount_nano_usd: null,
-    data_class: 'synthetic',
+    data_class: 'synthetic' as const,
     assumption_ids: [],
     humility_review: { id: review.id, version: 1 },
     flags: [],
     justification: 'Commit the hybrid build (test).',
-  });
-  assert.notEqual(admission.reason_code, 'humility_gate_failed');
-  assert.ok(
-    !admission.reasons.some((r) => /humility/.test(r)),
-    admission.reasons.join(' '),
+  };
+  let admission: Admission = await s.store.admitAction(
+    owner,
+    s.ws.id,
+    runId,
+    commit,
   );
+  for (let i = 0; i < 3 && admission.verdict === 'request_human'; i++) {
+    assert.ok(
+      !admission.reasons.some((r) => /humility/.test(r)),
+      admission.reasons.join(' '),
+    );
+    const d: Decision = await s.store.getDecision(
+      owner,
+      s.ws.id,
+      admission.decision_id!,
+    );
+    assert.equal(d.kind, 'authorization');
+    await s.store.answerDecision(owner, s.ws.id, d.id, {
+      choice: 'approve_once',
+      option_id: null,
+      rationale: 'Approved this exact build (test).',
+      coverage_hash: d.coverage.coverage_hash,
+      standing_expires_at: null,
+      time_spent_ms: null,
+      interruption: null,
+    });
+    admission = await s.store.admitAction(owner, s.ws.id, runId, commit);
+  }
+  assert.equal(admission.verdict, 'allow', admission.explanation);
 });
 
 test('a proposal is drafted from records, versioned, checked, reviewed and exported', async (t) => {

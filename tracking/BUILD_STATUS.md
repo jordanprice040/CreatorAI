@@ -417,6 +417,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   the option version it cites (new admission test); at most 60 cited claims; append-only reviews with a workspace
   FK; case-insensitive list filter. Checks after the fixes: proposal tests 5 DB + 6 pure pass; full `pnpm typecheck` +
   `pnpm test:db` 850 tests, 817 pass, 28 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes;
-  the browser walk passes again (no horizontal scroll at phone width).
+  the browser walk passes again (no horizontal scroll at phone width). Re-review fixes (L-A fenced section text and
+  escaped record text, N-A–N-C): same totals, 850 tests, 817 pass, 28 skip, 5 known `pwsh` fails; walk passes.
 - Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
   unverified.

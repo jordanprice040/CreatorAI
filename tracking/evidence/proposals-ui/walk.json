@@ -1,7 +1,7 @@
 {
-  "when": "2026-11-06T11:17:59.364Z",
+  "when": "2026-11-06T11:52:15.932Z",
   "steps": [
-    "seeded fixture problem 5160a988, selection 809cc9f8 recommends the existing tool",
+    "seeded fixture problem cf12ac16, selection 01d30819 recommends the existing tool",
     "Decide shows \"Why this response\" with the software routes and what would make them preferable",
     "screenshot 02-new-draft.png",
     "saved version 1 (drafted from records; core sections marked unknown)",

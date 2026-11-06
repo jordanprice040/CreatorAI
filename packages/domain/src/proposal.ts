@@ -708,27 +708,33 @@ export interface MarkdownInput {
 }
 
 /**
- * The person's section text, as Markdown, with any heading, setext underline or line-leading
- * HTML tag escaped so the text cannot forge a section, the References or the provenance lines (review L-4).
+ * Text from a record or a typed one-line field, flattened to one line with the Markdown
+ * characters that could start a heading, quote, code span or fence, link, HTML, emphasis or
+ * table escaped, so it renders as the literal text wherever it sits (re-review L-A).
  */
-export function sectionMarkdown(text: string): string {
-  return text
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .map((l) =>
-      l
-        .replace(/^( {0,3})([#<])/, '$1\\$2')
-        .replace(
-          /^( {0,3})(=+|-+)\s*$/,
-          (_m, sp: string, run: string) => `${sp}\\${run}`,
-        ),
-    )
-    .join('\n')
-    .trimEnd();
+export function inlineText(text: string): string {
+  return oneLine(text).replace(/[\\`*_[\]<>#|~!]/g, '\\$&');
 }
 
 /**
- * The canonical export. Section text is the person's own Markdown, with headings escaped. The
+ * The person's section text, kept exactly as typed inside a fenced block whose fence is longer
+ * than any backtick run in the text. Nothing typed can close the block, open another one, or
+ * become a heading, so no section can hide or forge the References, Open checks or provenance
+ * (review L-4, re-review L-A). Markdown in the text shows as written, not rendered.
+ */
+export function sectionMarkdown(text: string): string {
+  const body = text.replace(/\r\n?/g, '\n').trimEnd();
+  if (!body) return '';
+  const longest = Math.max(
+    0,
+    ...[...body.matchAll(/`+/g)].map((m) => m[0].length),
+  );
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return `${fence}text\n${body}\n${fence}`;
+}
+
+/**
+ * The canonical export. Section text is fenced and record text escaped (see above). The
  * bytes depend only on the version and the records it cites, not on the export time or on
  * reviews, so saving the same version to Files twice keeps one copy (review L-2).
  */
@@ -736,18 +742,18 @@ export function proposalMarkdown(m: MarkdownInput): string {
   const labelOf = new Map(
     m.checks.references.map((r) => [r.claim.id.toLowerCase(), r.label]),
   );
-  const line = sectionMarkdown;
   const out: string[] = [
-    `# ${oneLine(m.title)}`,
+    `# ${inlineText(m.title)}`,
     '',
-    `> ${oneLine(m.body.summary)}`,
+    `> ${inlineText(m.body.summary)}`,
     '',
-    `- Problem: ${oneLine(m.problem_title)} (v${m.body.problem.version})`,
-    `- Response: ${words(m.body.response)} — ${oneLine(m.option_title)} (v${m.body.alternative.version})`,
+    `- Problem: ${inlineText(m.problem_title)} (v${m.body.problem.version})`,
+    `- Response: ${words(m.body.response)} — ${inlineText(m.option_title)} (v${m.body.alternative.version})`,
     `- Proposal ${m.id}, version ${m.version}, content hash ${m.content_hash}`,
     `- Version saved ${m.saved_at}`,
     `- Document checks: ${m.checks.complete ? 'all core sections written' : 'core sections still unknown'}; ${m.checks.checks.filter((c) => c.level === 'blocker').length} blocker(s), ${m.checks.checks.filter((c) => c.level === 'warning').length} warning(s)`,
     '- Reviews are kept in the studio with the version they judged; they are not part of this file.',
+    '- Section text is shown exactly as written, in a text block.',
     '',
     '_This is a plan. It has not been carried out, and nothing here shows that it works in practice._',
     '',
@@ -755,11 +761,10 @@ export function proposalMarkdown(m: MarkdownInput): string {
   for (const k of PROPOSAL_SECTIONS) {
     const s = m.body.sections[k];
     out.push(`## ${PROPOSAL_SECTION_LABELS[k]}`, '');
-    if (s.state === 'unknown')
-      out.push(`**Unknown.**${s.text ? ` ${line(s.text)}` : ''}`);
-    else if (s.state === 'not_applicable')
-      out.push(`**Not applicable.** ${line(s.text)}`);
-    else out.push(line(s.text));
+    if (s.state === 'unknown') out.push('**Unknown.**');
+    else if (s.state === 'not_applicable') out.push('**Not applicable.**');
+    const text = sectionMarkdown(s.text);
+    if (text) out.push(...(s.state === 'written' ? [] : ['']), text);
     if (s.claims.length)
       out.push(
         '',
@@ -771,18 +776,18 @@ export function proposalMarkdown(m: MarkdownInput): string {
   if (!m.checks.references.length) out.push('No claims are cited.');
   for (const r of m.checks.references) {
     out.push(
-      `- [${r.label}] ${oneLine(r.statement)} — claim ${r.claim.id.slice(0, 8)} v${r.claim.version}; ${r.relation.replace('_', ' ')}; evidence ${r.status}`,
+      `- [${r.label}] ${inlineText(r.statement)} — claim ${r.claim.id.slice(0, 8)} v${r.claim.version}; ${r.relation.replace('_', ' ')}; evidence ${r.status}`,
     );
     for (const s of r.sources)
       out.push(
-        `  - ${oneLine(s.title || s.url)}: ${oneLine(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${oneLine(s.quote)}”` : ''}`,
+        `  - ${inlineText(s.title || s.url)}: ${inlineText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
       );
   }
   if (m.checks.checks.length) {
     out.push('', '## Open checks', '');
     for (const c of m.checks.checks)
       out.push(
-        `- ${c.level === 'blocker' ? 'Blocker' : 'Warning'}: ${oneLine(c.message)}`,
+        `- ${c.level === 'blocker' ? 'Blocker' : 'Warning'}: ${inlineText(c.message)}`,
       );
   }
   return `${out.join('\n')}\n`;

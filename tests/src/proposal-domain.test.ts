@@ -1,10 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
 import {
   CreateProposalRequestSchema,
   PROPOSAL_MAX_CITED_CLAIMS,
   PROPOSAL_SECTIONS,
+  PROPOSAL_SECTION_LABELS,
   ProposalBodySchema,
   type ProposalBody,
   type ProposalSection,
@@ -227,8 +230,11 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
     md,
     /- Warning: Cost estimates and unknowns is marked unknown\./,
   );
-  assert.match(md, /\*\*Unknown\.\*\* Licence price not known\./);
-  assert.match(md, /\*\*Not applicable\.\*\* One person\./);
+  assert.match(
+    md,
+    /\*\*Unknown\.\*\*\n\n```text\nLicence price not known\.\n```/,
+  );
+  assert.match(md, /\*\*Not applicable\.\*\*\n\n```text\nOne person\.\n```/);
   assert.match(md, /Cited: \[R1\]/);
   assert.match(md, /- \[R1\] Staff miss the hand-off/);
   assert.match(md, /https:\/\/example\.org\/report \(supports, current\)/);
@@ -243,39 +249,107 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
   assert.equal(proposalFileName('???', 2), 'proposal-v2.md');
 });
 
-test('export: section text cannot forge headings; titles are one line (review L-4)', () => {
-  assert.equal(
-    sectionMarkdown(
-      'Plan\n## References\n   # x\n<h2>y</h2>\nTitle\n---\n===\n- a list item',
-    ),
-    'Plan\n\\## References\n   \\# x\n\\<h2>y</h2>\nTitle\n\\---\n\\===\n- a list item',
-  );
-  const b = body({
-    methods: {
-      state: 'written',
-      text: 'Step one.\n## References\n- [R1] forged',
-      claims: [],
+// The Files Markdown viewer's own parser (markdown.ts has no imports, so it loads directly).
+async function viewerParser() {
+  const source = await readFile('apps/web/src/markdown.ts', 'utf8');
+  const code = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
     },
-  });
-  const md = proposalMarkdown({
-    id: randomUUID(),
-    version: 1,
-    title: 'Plain title',
-    content_hash: 'b'.repeat(64),
-    body: b,
-    checks: proposalChecks(b, ctxFor(b)),
-    problem_title: 'Problem\n## Forged',
-    option_title: 'Option',
-    saved_at: '2026-11-06T12:00:00.000Z',
-  });
-  assert.equal([...md.matchAll(/^## References$/gm)].length, 1);
-  assert.equal([...md.matchAll(/^## Forged/gm)].length, 0);
+  }).outputText;
+  const exports = {} as { parseMarkdown: (s: string) => unknown[] };
+  new Function('exports', code)(exports);
+  return exports.parseMarkdown;
+}
+type MdNode = { t: string; c?: unknown; v?: string };
+const plain = (v: unknown): string =>
+  Array.isArray(v)
+    ? v.map(plain).join('')
+    : v && typeof v === 'object'
+      ? (v as MdNode).t === 'text'
+        ? String((v as MdNode).v)
+        : plain((v as MdNode).c)
+      : '';
+/** Every heading in the tree, at any nesting, as "level text". */
+const headings = (tree: unknown): string[] => {
+  const out: string[] = [];
+  const walk = (v: unknown) => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') {
+      const n = v as MdNode & { level?: number };
+      if (n.t === 'heading') out.push(`${n.level} ${plain(n.c)}`);
+      Object.values(n).forEach(walk);
+    }
+  };
+  walk(tree);
+  return out;
+};
+
+test('export: typed and record text cannot hide or forge parts of the file (review L-4, re-review L-A)', async () => {
+  const parse = await viewerParser();
+  // A fence longer than any backtick run in the text: nothing typed can close it.
+  assert.equal(sectionMarkdown(''), '');
+  assert.equal(
+    sectionMarkdown('a ``` b\n````'),
+    '`````text\na ``` b\n````\n`````',
+  );
+  const attacks = [
+    '```\nunclosed fence',
+    '~~~\nunclosed tilde fence',
+    '- ## References\n> ## Open checks\n1. # Forged\n   ## nested',
+    'Title\n---\n===\n<h2>html</h2>\n    ## indented',
+    '````\n```\n## after inner fence',
+  ];
+  const c1 = ref();
+  for (const text of attacks) {
+    const b = body({
+      methods: { state: 'written', text, claims: [] },
+      costs: { state: 'unknown', text, claims: [] },
+      roles: { state: 'not_applicable', text, claims: [] },
+      evidence: { state: 'written', text: 'Cited.', claims: [c1] },
+    });
+    b.summary = '## Summary heading > ## and ```fence';
+    const checks = proposalChecks(
+      b,
+      ctxFor(b, new Map([[c1.id, claim({ statement: '## Statement ```' })]])),
+    );
+    const md = proposalMarkdown({
+      id: randomUUID(),
+      version: 1,
+      title: 'Plain title',
+      content_hash: 'b'.repeat(64),
+      body: b,
+      checks: { ...checks, checks: [] },
+      problem_title: 'Problem\n## Forged',
+      option_title: '> ## Option',
+      saved_at: '2026-11-06T12:00:00.000Z',
+    });
+    const tree = parse(md);
+    // Exactly the title, one heading per section and the References, nothing else.
+    assert.deepEqual(
+      headings(tree),
+      [
+        '1 Plain title',
+        ...PROPOSAL_SECTIONS.map((k) => `2 ${PROPOSAL_SECTION_LABELS[k]}`),
+        '2 References',
+      ],
+      text,
+    );
+    // The References survive every attack: the last block is the references list.
+    assert.match(JSON.stringify(tree.at(-1)), /Statement/, text);
+    // The typed text is kept exactly, as a text block.
+    const blocks = tree.filter(
+      (n) => (n as MdNode).t === 'code' && (n as MdNode).v === text,
+    );
+    assert.equal(blocks.length, 3, text);
+  }
   const req = (title: string) =>
     CreateProposalRequestSchema.safeParse({ title, body: body() }).success;
   assert.equal(req('A fine title'), true);
   assert.equal(req('Two\nlines'), false);
   assert.equal(req('Tab\there'), false);
-  assert.equal(req('Line\u2028separator'), false);
+  assert.equal(req('Line separator'), false);
 });
 
 test('a proposal cites at most the reference limit of distinct claims (review L-7)', () => {

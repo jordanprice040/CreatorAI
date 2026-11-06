@@ -428,7 +428,7 @@ Projects › Proposals (`#/projects/proposals`). Stores: `ProposalStore` sits be
 
 Review fixes (L-1–L-7, N-1, N-2 from the independent review at d99a7ff) are in ADR-0077's "Review fixes" bullet;
 migration 49 was amended (append-only trigger, workspace FK) since it is unmerged. `ResearchStore.claimEvidenceIn`
-reads one claim's evidence inside a caller's transaction.
+reads one claim's evidence inside a caller's transaction. After the re-review, section text is exported inside fenced text blocks and record text is escaped (`inlineText`). Migration 49 changed in place before merge: a throwaway review or test database that ran an earlier text of it fails the checksum check; recreate it (no lasting database ran 49).
 
 F9: Jordan confirmed "Judge the hybrid row" on November 6, as implemented. No live run or device step was needed or done. Main becomes schema 49; next free numbers
 are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).

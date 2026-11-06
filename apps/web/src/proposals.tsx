@@ -909,6 +909,11 @@ function Reviews({
   reviewed: () => void;
 }) {
   const [verdict, setVerdict] = useState<'ready' | 'revise'>('revise');
+  // "Ready" can't stay chosen once the checks say the version isn't ready (e.g. after a save).
+  const canBeReady = detail.checks.ready_for_review;
+  useEffect(() => {
+    if (!canBeReady) setVerdict('revise');
+  }, [canBeReady, detail.proposal.version]);
   const [marks, setMarks] = useState<
     Record<(typeof MARKS)[number][0], keyof typeof MARK_TEXT>
   >({
