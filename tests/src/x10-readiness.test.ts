@@ -31,8 +31,19 @@ const requirements = read('context/REQUIREMENTS.md');
 const registerBytes = read('config/readiness.json');
 const register = () => JSON.parse(registerBytes) as Register;
 const pilot = () => JSON.parse(read('config/owner-pilot.json')) as OwnerPilot;
-const evaluate = (r: Register, p: OwnerPilot = pilot()) =>
-  evaluateReadiness(r, p, requirements, exists, JSON.stringify(r));
+// Fixed clocks derived from the committed pilot window, so these checks neither start
+// failing when the real window passes nor drift if the owner edits the window.
+const committedStart = Date.parse(pilot().window.starts_at!);
+const committedEnd = Date.parse(pilot().window.ends_at!);
+const IN_WINDOW = new Date((committedStart + committedEnd) / 2);
+const JUST_BEFORE_END = new Date(committedEnd - 1000);
+const AT_END = new Date(committedEnd);
+const AFTER_WINDOW = new Date(committedEnd + 1000);
+const evaluate = (
+  r: Register,
+  p: OwnerPilot = pilot(),
+  now: Date = IN_WINDOW,
+) => evaluateReadiness(r, p, requirements, exists, JSON.stringify(r), now);
 const verifiedRow = (id: string): ReadinessRow => ({
   id,
   states: Object.fromEntries(
@@ -68,8 +79,18 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
   assert.equal(r.requirements.length, 54);
-  // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate.
+  // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate
+  // while its window is open (up to its last second), and is refused once it has ended.
   assert.deepEqual(r.pilot, { ready: true, refusals: [] });
+  assert.deepEqual(evaluate(register(), pilot(), JUST_BEFORE_END).pilot, {
+    ready: true,
+    refusals: [],
+  });
+  for (const now of [AT_END, AFTER_WINDOW])
+    assert.deepEqual(evaluate(register(), pilot(), now).pilot, {
+      ready: false,
+      refusals: ['Pilot window has already ended.'],
+    });
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(
     r.requirements.find((x) => x.id === 'C01')?.missing.includes('live'),
@@ -170,7 +191,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     (i) => i.id === 'claude-code',
   )!.states.activated = 'not_verified';
   assert.match(
-    checkPilot(pilot(), unactivated, exists).refusals.join('\n'),
+    checkPilot(pilot(), unactivated, exists, IN_WINDOW).refusals.join('\n'),
     /"claude-code" has not been activated/,
   );
   // A register in which everything is verified, with a complete owner plan, may start.

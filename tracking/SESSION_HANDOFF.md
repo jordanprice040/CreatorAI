@@ -406,3 +406,14 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   studio checkpoints instead of repairing. Evidence `tracking/evidence/p14-benchmarks/RESULTS_2026-11-06.json`.
   Next: a follow-up to state the path/`sys.path` rules to the builder (or allow `__init__.py`) and turn a refused
   patch into repair feedback, then a new larger-benchmark version.
+
+## X10 readiness test clock fix (November 6, branch `claude/project-thread-5z9ubg`, no migration/ADR)
+
+- From 2026-11-06 08:15 UTC the committed-register test in `tests/src/x10-readiness.test.ts` failed everywhere
+  because it read the real clock and the owner-pilot window in `config/owner-pilot.json` had ended. The test now
+  derives fixed times from the committed window (its midpoint, one second before the end, the end itself, one second
+  after): the plan is ready up to the last second and refused with "Pilot window has already ended." from the end
+  on; mutating the gate to `<` or to an early cut-off each fails the test (review L-1/L-2). Jordan's pilot dates and the
+  production gate (`checkPilot`/`evaluateReadiness`, which still default to the real time) are unchanged.
+- Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix), rebased on main after #146;
+  `pnpm check` 835 tests, 534 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
