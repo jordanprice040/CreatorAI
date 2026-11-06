@@ -2191,6 +2191,12 @@ fieldset.flagged {
   overflow-wrap: normal;
   color: var(--text);
 }
+/* A "text" block (e.g. a proposal section kept exactly as typed) is prose: let it wrap. */
+.md pre.md-code.md-code-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+}
 .md pre.md-code code {
   background: none;
   border: 0;

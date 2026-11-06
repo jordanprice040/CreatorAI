@@ -237,7 +237,8 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
   assert.match(md, /\*\*Not applicable\.\*\*\n\n```text\nOne person\.\n```/);
   assert.match(md, /Cited: \[R1\]/);
   assert.match(md, /- \[R1\] Staff miss the hand-off/);
-  assert.match(md, /https:\/\/example\.org\/report \(supports, current\)/);
+  assert.match(md, /<https:\/\/example\.org\/report> \(supports, current\)/);
+  assert.match(md, /claim [0-9a-f]{8}, cited at v1; supports/);
   assert.match(md, /version 4, content hash a{64}/);
   assert.match(md, /has not been carried out/);
   assert.match(md, /- Version saved 2026-11-06T12:00:00\.000Z/);
@@ -312,7 +313,40 @@ test('export: typed and record text cannot hide or forge parts of the file (revi
     b.summary = '## Summary heading > ## and ```fence';
     const checks = proposalChecks(
       b,
-      ctxFor(b, new Map([[c1.id, claim({ statement: '## Statement ```' })]])),
+      ctxFor(
+        b,
+        new Map([
+          [
+            c1.id,
+            claim({
+              statement: '## Statement ```',
+              sources: [
+                {
+                  title: '## Source _title_',
+                  url: 'https://x.test/a_b#c*d',
+                  stance: 'supports',
+                  freshness: 'current',
+                  quote: '> ## quoted',
+                },
+                {
+                  title: 'Odd address',
+                  url: 'https://x.test/a b<c>',
+                  stance: 'supports',
+                  freshness: 'current',
+                  quote: 'plain',
+                },
+                {
+                  title: 'Not a web address',
+                  url: 'javascript:alert(1) https://evil.test/',
+                  stance: 'supports',
+                  freshness: 'current',
+                  quote: 'plain',
+                },
+              ],
+            }),
+          ],
+        ]),
+      ),
     );
     const md = proposalMarkdown({
       id: randomUUID(),
@@ -338,6 +372,22 @@ test('export: typed and record text cannot hide or forge parts of the file (revi
     );
     // The References survive every attack: the last block is the references list.
     assert.match(JSON.stringify(tree.at(-1)), /Statement/, text);
+    // Review L-B: a source address links to exactly that address; an unsafe one is not a link.
+    const hrefs: string[] = [];
+    const walk = (v: unknown) => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === 'object') {
+        const n = v as MdNode & { href?: string };
+        if (n.t === 'link') hrefs.push(String(n.href));
+        Object.values(n).forEach(walk);
+      }
+    };
+    walk(tree);
+    assert.deepEqual(
+      hrefs,
+      ['https://x.test/a_b#c*d', 'https://x.test/a%20b%3Cc%3E'],
+      text,
+    );
     // The typed text is kept exactly, as a text block.
     const blocks = tree.filter(
       (n) => (n as MdNode).t === 'code' && (n as MdNode).v === text,
@@ -383,4 +433,45 @@ test('a proposal cites at most the reference limit of distinct claims (review L-
     JSON.stringify(parsed.error?.issues),
     /at most 60 different claims/,
   );
+});
+
+test('export: a changed claim says which version is shown; open checks are counted before the cut (N-D, N-E)', () => {
+  const c1 = ref();
+  const b = body({
+    evidence: { state: 'written', text: 'Cited.', claims: [c1] },
+  });
+  const checks = proposalChecks(
+    b,
+    ctxFor(b, new Map([[c1.id, claim({ version: 3 })]])),
+  );
+  assert.equal(checks.references[0]!.current_version, 3);
+  assert.equal(checks.warnings, checks.checks.length);
+  assert.equal(checks.blockers, 0);
+  const md = (c: typeof checks) =>
+    proposalMarkdown({
+      id: randomUUID(),
+      version: 1,
+      title: 'T',
+      content_hash: 'c'.repeat(64),
+      body: b,
+      checks: c,
+      problem_title: 'P',
+      option_title: 'O',
+      saved_at: '2026-11-06T12:00:00.000Z',
+    });
+  assert.match(md(checks), /cited at v1, now v3 \(the statement shown is v3\)/);
+  const many = {
+    ...checks,
+    blockers: 150,
+    warnings: 100,
+    checks: Array.from({ length: 200 }, (_, i) => ({
+      level: (i < 150 ? 'blocker' : 'warning') as 'blocker' | 'warning',
+      code: 'claim_missing' as const,
+      section: null,
+      message: `Check ${i}.`,
+    })),
+  };
+  const out = md(many);
+  assert.match(out, /150 blocker\(s\), 100 warning\(s\)/);
+  assert.match(out, /…and 50 more, not listed here/);
 });

@@ -481,6 +481,12 @@ function ChecksList({
           {warnings.map((c, i) => (
             <li key={`w${i}`}>{c.message}</li>
           ))}
+          {checks.blockers + checks.warnings > checks.checks.length && (
+            <li>
+              …and {checks.blockers + checks.warnings - checks.checks.length}{' '}
+              more, not listed (only the first 200 are kept).
+            </li>
+          )}
         </ul>
       )}
       <p className="small">
@@ -694,6 +700,11 @@ function ProposalEditor({
                   <li key={r.label}>
                     [{r.label}] {r.statement}{' '}
                     <small>
+                      · cited at v{r.claim.version}
+                      {r.current_version !== null &&
+                      r.current_version !== r.claim.version
+                        ? `, now v${r.current_version} (statement shown is v${r.current_version})`
+                        : ''}{' '}
                       · {words(r.relation)} · evidence {words(r.status)}
                     </small>
                     {r.sources.length > 0 && (
@@ -775,7 +786,7 @@ function ProposalEditor({
                       ? 'What is not known yet (optional)'
                       : s.state === 'not_applicable'
                         ? 'Why it does not apply'
-                        : 'Markdown is fine'
+                        : 'Plain text; Markdown shows as typed in the saved file'
                   }
                   onChange={(e) => setSection(k, { text: e.target.value })}
                 />

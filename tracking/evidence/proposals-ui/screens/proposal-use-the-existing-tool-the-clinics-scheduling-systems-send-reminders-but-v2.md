@@ -4,8 +4,8 @@
 
 - Problem: Unused first-appointment slots at rural clinics: Rural clinics recorded a 23 percent no-show rate for first appointments in 2025. (v1)
 - Response: an existing tool — Use the existing tool: The clinics’ scheduling systems send reminders but do not predict no-shows. (v1)
-- Proposal a9c2e81f-2afe-4121-99af-e8612860bbce, version 2, content hash 7f04e743e8bdb7f3f2ded47ea667db496002baeb648891524be28e476739d8e0
-- Version saved 2026-11-06T11:52:14.291Z
+- Proposal effd1e5f-45f3-4ed2-bf31-1ff64892dfa2, version 2, content hash 9c1ab79eb8be1bad525763d0c060dff81f1da4cf14686295eed63377cfb3a68f
+- Version saved 2026-11-06T12:26:25.673Z
 - Document checks: all core sections written; 0 blocker(s), 5 warning(s)
 - Reviews are kept in the studio with the version they judged; they are not part of this file.
 - Section text is shown exactly as written, in a text block.
@@ -110,7 +110,7 @@ Reminders use existing contact consent; staff keep every booking decision.
 ## Limitations
 
 ```text
-Discovery run 677aaae7-aaa8-42b0-9e7c-ce0123e13c02 (fixture): locator rated the evidence well supported; packet sufficient. Evidence for urgency or frequency is contested.
+Discovery run e217d92e-edd1-4e72-a8db-5f616de71e59 (fixture): locator rated the evidence well supported; packet sufficient. Evidence for urgency or frequency is contested.
 
 Disposition: candidate.
 ```
@@ -135,8 +135,8 @@ Disposition: candidate.
 
 ## References
 
-- [R1] Rural clinics recorded a 23 percent no-show rate for first appointments in 2025. — claim ee9c6412 v1; supports; evidence supported
-  - Missed first appointments at rural clinics, 2025: https://health.fixture.test/reports/no-shows-2025 (supports, current) — “recorded a 23 percent no-show rate for first appointments in 2025”
+- [R1] Rural clinics recorded a 23 percent no-show rate for first appointments in 2025. — claim bea9b3f0, cited at v1; supports; evidence supported
+  - Missed first appointments at rural clinics, 2025: <https://health.fixture.test/reports/no-shows-2025> (supports, current) — “recorded a 23 percent no-show rate for first appointments in 2025”
 
 ## Open checks
 

@@ -167,6 +167,8 @@ export type ProposalCheck = z.infer<typeof ProposalCheckSchema>;
 export const ProposalReferenceSchema = z.strictObject({
   label: z.string().regex(/^R[1-9][0-9]?$/),
   claim: ref,
+  /** The claim's version now, when it still exists; the statement is that version's. */
+  current_version: version.nullable(),
   statement: z.string().max(2000),
   /** How the claim bears on the problem as linked now: supports, contradicts or not linked. */
   relation: z.enum(['supports', 'contradicts', 'not_linked']),
@@ -192,6 +194,9 @@ export const ProposalChecksSchema = z.strictObject({
   written: counter,
   unknown: counter,
   not_applicable: counter,
+  /** Counted before the list is cut to its first 200 entries. */
+  blockers: counter,
+  warnings: counter,
   checks: z.array(ProposalCheckSchema).max(200),
   references: z.array(ProposalReferenceSchema).max(PROPOSAL_MAX_CITED_CLAIMS),
 });

@@ -668,6 +668,7 @@ export function proposalChecks(
       return {
         label: `R${i + 1}`,
         claim: { id, version: citedVersion.get(id)! },
+        current_version: now ? now.version : null,
         statement: clip(
           now?.statement ?? '(not found in this workspace)',
           2000,
@@ -687,6 +688,8 @@ export function proposalChecks(
     written,
     unknown: unknownN,
     not_applicable: na,
+    blockers: checks.filter((c) => c.level === 'blocker').length,
+    warnings: checks.filter((c) => c.level === 'warning').length,
     checks: checks.slice(0, 200),
     references,
   };
@@ -714,6 +717,19 @@ export interface MarkdownInput {
  */
 export function inlineText(text: string): string {
   return oneLine(text).replace(/[\\`*_[\]<>#|~!]/g, '\\$&');
+}
+
+/**
+ * A source address as a link that opens exactly that address (review L-B). An http(s) URL is
+ * written as an autolink `<url>`, which takes no escapes; a space, angle bracket, backslash or
+ * control character in it is percent-encoded first so the autolink cannot end early. Anything
+ * else is not a link: it is shown as escaped text with "://" broken so it cannot auto-link.
+ */
+export function urlText(url: string): string {
+  const u = url.trim();
+  if (/^https?:\/\//i.test(u))
+    return `<${u.replace(/[\s<>\\\p{Cc}\u2028\u2029]/gu, (c) => encodeURIComponent(c))}>`;
+  return inlineText(u).replace(/:\/\//g, '\\://');
 }
 
 /**
@@ -751,7 +767,7 @@ export function proposalMarkdown(m: MarkdownInput): string {
     `- Response: ${words(m.body.response)} — ${inlineText(m.option_title)} (v${m.body.alternative.version})`,
     `- Proposal ${m.id}, version ${m.version}, content hash ${m.content_hash}`,
     `- Version saved ${m.saved_at}`,
-    `- Document checks: ${m.checks.complete ? 'all core sections written' : 'core sections still unknown'}; ${m.checks.checks.filter((c) => c.level === 'blocker').length} blocker(s), ${m.checks.checks.filter((c) => c.level === 'warning').length} warning(s)`,
+    `- Document checks: ${m.checks.complete ? 'all core sections written' : 'core sections still unknown'}; ${m.checks.blockers} blocker(s), ${m.checks.warnings} warning(s)`,
     '- Reviews are kept in the studio with the version they judged; they are not part of this file.',
     '- Section text is shown exactly as written, in a text block.',
     '',
@@ -776,11 +792,11 @@ export function proposalMarkdown(m: MarkdownInput): string {
   if (!m.checks.references.length) out.push('No claims are cited.');
   for (const r of m.checks.references) {
     out.push(
-      `- [${r.label}] ${inlineText(r.statement)} — claim ${r.claim.id.slice(0, 8)} v${r.claim.version}; ${r.relation.replace('_', ' ')}; evidence ${r.status}`,
+      `- [${r.label}] ${inlineText(r.statement)} — claim ${r.claim.id.slice(0, 8)}, cited at v${r.claim.version}${r.current_version !== null && r.current_version !== r.claim.version ? `, now v${r.current_version} (the statement shown is v${r.current_version})` : ''}; ${r.relation.replace('_', ' ')}; evidence ${r.status}`,
     );
     for (const s of r.sources)
       out.push(
-        `  - ${inlineText(s.title || s.url)}: ${inlineText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
+        `  - ${inlineText(s.title || s.url)}: ${urlText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
       );
   }
   if (m.checks.checks.length) {
@@ -788,6 +804,11 @@ export function proposalMarkdown(m: MarkdownInput): string {
     for (const c of m.checks.checks)
       out.push(
         `- ${c.level === 'blocker' ? 'Blocker' : 'Warning'}: ${inlineText(c.message)}`,
+      );
+    const more = m.checks.blockers + m.checks.warnings - m.checks.checks.length;
+    if (more > 0)
+      out.push(
+        `- …and ${more} more, not listed here (only the first 200 are kept).`,
       );
   }
   return `${out.join('\n')}\n`;
