@@ -219,3 +219,22 @@ node scripts/p14-benchmark.mjs score p14-larger-ledgercheck-v3 <export-dir>
 
 The live packet is the one in section 6 for the larger benchmark (3 attempts, one run each, at
 most 6 requests per attempt, $0 on `plan_roles`), on a dev studio running this branch.
+
+### v3 result (November 6, 2026): stopped after attempt 1
+
+Dev studio running `02c7646` plus the ADR-0076 executor files from this branch (worktree
+`C:\dev\creator_agent_p14v3`, database `creator_studio`, schema 41, no migration), `plan_roles`
+with `gpt-6-astra`. Attempt 1 (run `20f48b7c…`, build `72c983bb…`): `compare-spec` passed; the
+builder's patch was **admitted** (5 files, 200 diff lines, including `src/ledger/__init__.py`,
+no refusal), then the studio refused to send the review request because the reviewer packet
+(spec, files and diff) exceeded the connection's `responses.max_input_chars` of 24,000. Under the
+frozen rules that is a failed attempt, so v3 could no longer qualify. 1 plan request, $0. Jordan
+chose to raise the cap to 60,000 and freeze an identical v4 (2026-11-06 06:15 UTC).
+
+## 9. Set v4: the same task with a 60,000-character input cap (frozen before any v4 run)
+
+`config/repo-benchmarks/v4/` repeats v3 with its own grader copy and `FREEZE.json`
+(SHA-256 `a06e330fff26f2e12df185756c1d7f87e3284af2b7bb7ee77c7b62ff1466dcf9`; grader
+`e0eb5fbd9d1930f3796b76a526ef532e7a7cdb61d225904e01855cd9ebd80bd1`). The task, cases and reference
+are again the v2 ones (tests check this). The expectations add that the connection's input cap
+is at least 60,000 characters. The v2 and v3 results stay final.

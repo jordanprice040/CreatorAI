@@ -1,0 +1,17 @@
+{
+  "format": "p14-benchmark-freeze/2",
+  "frozen_at": "2026-11-06T06:16:11.310Z",
+  "note": "Set v4. Written by the author before any studio or model run of this set; the git commit and this file hash (recorded in docs/REPO_BENCHMARKS_P14_2026-11-06.md) are the anchor.",
+  "benchmarks": ["p14-larger-ledgercheck-v4"],
+  "files": {
+    "grader.mjs": "e0eb5fbd9d1930f3796b76a526ef532e7a7cdb61d225904e01855cd9ebd80bd1",
+    "p14-larger-ledgercheck-v4/expectations.json": "d4bde6f02832e79d0998a3edd7aae6296c33fe21d96e0a1bb1572e2b183a2f27",
+    "p14-larger-ledgercheck-v4/extended-cases.json": "d71e043baf3c47d1c6eb3416b487b3609998ec82232f0957f7b764dbccb92783",
+    "p14-larger-ledgercheck-v4/reference/src/ledger/__init__.py": "20b04f8cf179708ab0c374be8402942a192a1aafdd0774c61a32ae0cde5e3779",
+    "p14-larger-ledgercheck-v4/reference/src/ledger/parse.py": "aa057ea2eb3c17dd227a326a5d323a755fb9f59d6f1e7905793b4d39bc844708",
+    "p14-larger-ledgercheck-v4/reference/src/ledger/report.py": "989e7c0cd0bcae0350eae11855dcc0fa34ed61b02207d495763413a103a6d4a9",
+    "p14-larger-ledgercheck-v4/reference/src/ledger/rules.py": "03a7c7352a3a309630606564de8c7561564ce830e8bcd8ee9c62e5ccb834c757",
+    "p14-larger-ledgercheck-v4/reference/src/main.py": "cb175725e1546de6cb26ac3624e85b8fb5f66359ea894bd7c27928fabb537efe",
+    "p14-larger-ledgercheck-v4/spec.json": "4834ddfbb1eefd27cd6405781edf0c996cc309c501496000739a8ac56f1ea5eb"
+  }
+}

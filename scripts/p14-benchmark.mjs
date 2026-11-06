@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // P14 repo benchmarks CLI. The grading rules live in the frozen config/repo-benchmarks/grader.mjs.
 //
-//   node scripts/p14-benchmark.mjs verify [--set v2|v3]
+//   node scripts/p14-benchmark.mjs verify [--set v2|v3|v4]
 //   node scripts/p14-benchmark.mjs score <benchmark-id> <product-dir> [--runner bwrap|direct] [--trusted]
 //   node scripts/p14-benchmark.mjs compare-spec <benchmark-id> <stored-spec.json>
 //   node scripts/p14-benchmark.mjs freeze --set <set>   (once per set; refuses to overwrite)
 //
 // Each set is a frozen grader with its own FREEZE.json: v2 is config/repo-benchmarks/grader.mjs,
-// v3 is config/repo-benchmarks/v3/grader.mjs. score and compare-spec pick the set from the
+// v3 and v4 are config/repo-benchmarks/v3/ and v4/grader.mjs. score and compare-spec pick the set from the
 // benchmark id's version suffix.
 //
 // `score` runs generated code. The default runner is Bubblewrap with no network and a read-only
@@ -25,6 +25,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const SETS = {
   v2: join(ROOT, 'config/repo-benchmarks/grader.mjs'),
   v3: join(ROOT, 'config/repo-benchmarks/v3/grader.mjs'),
+  v4: join(ROOT, 'config/repo-benchmarks/v4/grader.mjs'),
 };
 /** The frozen grader module of a set. */
 export async function loadSet(name = 'v2') {
