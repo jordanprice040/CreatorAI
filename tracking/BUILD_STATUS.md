@@ -451,3 +451,34 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 854 tests, 821 pass, 28 skips, 5 fail (known
   no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
 - Browser install and live builds still held until a clean review.
+
+## P09 why this response and non-code proposals (November 6, branch `claude/project-thread-raqxjh`, ADR-0077, migration 49)
+
+- Decide shows **Why this response** for the focused problem: the chosen response (the current selection's advancing
+  options, or the top suitability rank when nothing is selected), its reasons and "would change if", and for every
+  software or hybrid option not chosen, the criteria it is behind on, the ones nobody rated (unknown, not low), its
+  open build gates, its humility review and specific evidence or conditions that would make it preferable. Computed
+  by code from the records (`GET problems/{id}/explanation`); no model call.
+- New **Projects › Proposals** tab: a recommended non-code option (existing tool, process change, human-led, hybrid
+  or investigate) gets a versioned `proposal` record (migration 49) with 15 sections, drafted only from records with
+  everything else marked unknown. Document checks (completeness, citation fidelity, changed problem/option/selection),
+  reviews bound to one version (verdict, four marks, comments), revisions with a reason, older versions readable,
+  Markdown download and "Save to Files" (P05). Software options are refused ("goes to a spec and a build").
+- Pilot **F9** resolved in code: the humility gate judges a hybrid option, or its spec, on the hybrid comparison
+  (disposition build or hybrid); plain software is unchanged. Jordan confirmed this on November 6 ("Judge the hybrid row").
+- Checks (cloud container, local PostgreSQL 16): `tests/src/proposal.test.ts` (4 DB tests: explanation, F9 gate,
+  draft/version/check/review/export, API download, save to Files and viewer refusal) and
+  `tests/src/proposal-domain.test.ts` (4); browser walk `tracking/evidence/proposals-ui/walk.mjs` with screenshots
+  in `tracking/evidence/proposals-ui/screens/` (no horizontal scroll at phone width). Full `pnpm typecheck` + `pnpm test:db`: 843 tests, 810 pass,
+  28 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. CI not run (no Actions minutes).
+- Review fixes (independent review at d99a7ff, Lows L-1–L-7 and nits N-1/N-2, see ADR-0077): drafts cite claims
+  instead of copying them; the export is the same bytes for the same version (no export time, no reviews), so
+  Save to Files keeps one copy; "ready" is refused while checks block and self-reviews are marked; one-line titles
+  and escaped headings in the export; evidence read in one transaction with errors surfaced; a spec is judged by
+  the option version it cites (new admission test); at most 60 cited claims; append-only reviews with a workspace
+  FK; case-insensitive list filter. Checks after the fixes: proposal tests 5 DB + 6 pure pass; full `pnpm typecheck` +
+  `pnpm test:db` 850 tests, 817 pass, 28 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes;
+  the browser walk passes again (no horizontal scroll at phone width). Re-review fixes (L-A fenced section text and
+  escaped record text, N-A–N-C): same totals, 850 tests, 817 pass, 28 skip, 5 known `pwsh` fails; walk passes.
+- Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
+  unverified.

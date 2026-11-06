@@ -217,6 +217,12 @@ export function BuildView({
     return {
       specs: status,
       specEntities: specs,
+      /** ADR-0077: hybrid options, so a spec written from one is reviewed as a hybrid. */
+      hybridOptions: new Set(
+        alternatives
+          .filter((a) => a.body?.kind === 'hybrid')
+          .map((a) => a.id.toLowerCase()),
+      ),
       selections,
       // Every current selection, whatever it chose: a spec from any other can't be frozen.
       currentSelections: new Set(
@@ -561,6 +567,18 @@ export function BuildView({
                             label: s.spec.title,
                           }}
                           {...(startFrom(s) ? { earlier: startFrom(s)! } : {})}
+                          subjectKind={
+                            d?.hybridOptions.has(
+                              String(
+                                (
+                                  entityOf(s)?.body?.alternative as
+                                    { id: string } | undefined
+                                )?.id ?? '',
+                              ).toLowerCase(),
+                            )
+                              ? 'hybrid'
+                              : 'software'
+                          }
                           prefill={{
                             whose_perspective: String(
                               entityOf(s)?.body?.audience ?? '',

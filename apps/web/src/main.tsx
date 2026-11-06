@@ -21,6 +21,7 @@ import { Scoring } from './selection.js';
 import { Overview } from './overview.js';
 import { Submit } from './submit.js';
 import { Compare } from './compare.js';
+import { Proposals } from './proposals.js';
 import { Search } from './search.js';
 import { Activity } from './activity.js';
 import { Gallery } from './gallery.js';
@@ -749,6 +750,16 @@ function App() {
             focus={pageRoute.id}
             onFocus={focus}
             open={open}
+          />
+        );
+      case 'proposals':
+        return (
+          <Proposals
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            focus={pageRoute.id}
+            onFocus={focus}
           />
         );
       case 'evidence':

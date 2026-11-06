@@ -12,6 +12,7 @@ export type StepView =
   | 'catalog'
   | 'files'
   | 'compare'
+  | 'proposals'
   | 'evidence'
   | 'decisions'
   | 'runs'
@@ -468,6 +469,18 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       // The Path list's own step, budget and owner blocks included, so the line above the
       // tabs and the list never disagree (PR #97 review M-1).
       return pathStages(f).step;
+    case 'proposals':
+      // ADR-0077: proposals are the non-code branch; software goes on to a spec instead.
+      if (f.problems === 0)
+        return {
+          tone: 'blocked',
+          text: 'A proposal starts from a recommended option, and no discovery has recorded problems yet.',
+          action: { view: 'submit' },
+        };
+      return {
+        tone: 'next',
+        text: 'Write up a recommended non-code option as a proposal below. Software options go to a spec under Build instead.',
+      };
     case 'catalog':
     case 'files':
     case 'search':
@@ -667,6 +680,7 @@ const PROJECT_VIEWS: readonly StepView[] = [
   'path',
   'submit',
   'compare',
+  'proposals',
   'scores',
   'build',
   'gallery',

@@ -33,6 +33,7 @@ import {
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
+import { ResponseExplanationPanel } from './proposals.js';
 import { ScoreOption } from './scorecard.js';
 import { AssessmentLines, AutoAssess } from './assess.js';
 import {
@@ -699,6 +700,11 @@ export function Compare({
                   label: humilityAlt.entity.title,
                 }}
                 claims={d.cmp.claims.map((c) => c.evidence)}
+                subjectKind={
+                  humilityAlt.entity.body?.kind === 'hybrid'
+                    ? 'hybrid'
+                    : 'software'
+                }
                 {...(humilityAlt.humility_review
                   ? { earlier: humilityAlt.humility_review }
                   : {})}
@@ -1099,6 +1105,13 @@ export function Compare({
                 </div>
               </form>
             )}
+
+            <ResponseExplanationPanel
+              base={base}
+              problemId={focus}
+              reloadKey={`${d.report.report_hash}:${latest?.id ?? ''}`}
+              open={open}
+            />
 
             <h3>Selection history</h3>
             {d.selections.length === 0 ? (
