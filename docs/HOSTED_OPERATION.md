@@ -168,6 +168,30 @@ Restore drill for a hosted environment (run it into staging, never over live):
 Product files are still copied after the dump; stop workers first for a clean pair (see
 [BACKUP_AND_RESTORE.md](BACKUP_AND_RESTORE.md)).
 
+## Tester accounts (ADR-0075)
+
+A private review can let named testers sign in besides the owner. Each tester needs an account
+at the deployment's OIDC provider; the operator then allow-lists that identity:
+
+```
+pnpm ops tester-add --subject <provider subject> --name "<display name>" --expires 2026-12-15T00:00:00Z [--role editor|viewer] [--issuer <url>]
+pnpm ops tester-list
+pnpm ops tester-reset <actor id>
+pnpm ops tester-remove <actor id> --reason "Review window ended"
+```
+
+The issuer defaults to `CREATOR_OIDC_ISSUER`; the owner's subject is refused. Each tester signs
+in as their own person and sees only "Sample review workspace (synthetic)", seeded from labelled
+synthetic records and owned by the operations actor. Testers cannot create workspaces, change
+membership, open Settings, plan connections, payments, campaigns, GitHub, portfolio scheduling,
+operations or desktop pairing. An account stops working at its expiry; `tester-remove` also ends
+its sessions at once. Reset retires the old workspace and seeds a fresh one; nothing is deleted,
+so retired workspaces stay until a retention decision. Inviting testers is a separate outbound
+message and is not done by these commands.
+
+Each person may have at most `CREATOR_FILE_CONCURRENT_UPLOADS` uploads in flight (default 2),
+counted per API process.
+
 ## Retention and cleanup
 
 `pnpm ops cleanup` (dry run) and `pnpm ops cleanup --apply` remove only expired sign-in

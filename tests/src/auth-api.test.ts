@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { createApi } from '@creator/api';
 import {
   parse,
@@ -15,14 +13,7 @@ import {
   WorkspaceSchema,
 } from '@creator/contracts';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
-
-async function listen(server: Server): Promise<number> {
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  const address = server.address();
-  assert.ok(address && typeof address !== 'string');
-  return address.port;
-}
+import { listen, oidcSignIn, testIdp } from './oidc-idp.js';
 
 test('owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and the decision API', async (t) => {
   const db = await freshDatabase(t);
@@ -190,90 +181,9 @@ test('owner sessions: sign-in, HttpOnly cookie, CSRF, origin checks, logout and 
 test('OIDC sign-in with authorization code + PKCE admits only the configured owner, once per attempt', async (t) => {
   const db = await freshDatabase(t);
   if (!db) return;
-  // A minimal local identity provider for the test; signing uses jose, not our own crypto.
-  const { publicKey, privateKey } = await generateKeyPair('RS256');
-  const jwk = {
-    ...(await exportJWK(publicKey)),
-    kid: 'test-key',
-    alg: 'RS256',
-    use: 'sig',
-  };
-  const codes = new Map<
-    string,
-    { challenge: string; nonce: string; sub: string }
-  >();
-  let subject = 'owner-subject';
-  let issuer = '';
-  const idp = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', issuer);
-    const send = (status: number, value: unknown) => {
-      res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(value));
-    };
-    if (url.pathname === '/.well-known/openid-configuration')
-      return send(200, {
-        issuer,
-        authorization_endpoint: `${issuer}/authorize`,
-        token_endpoint: `${issuer}/token`,
-        jwks_uri: `${issuer}/jwks`,
-        response_types_supported: ['code'],
-        subject_types_supported: ['public'],
-        id_token_signing_alg_values_supported: ['RS256'],
-        code_challenge_methods_supported: ['S256'],
-        token_endpoint_auth_methods_supported: ['none'],
-      });
-    if (url.pathname === '/jwks') return send(200, { keys: [jwk] });
-    if (url.pathname === '/authorize') {
-      const code = randomUUID();
-      codes.set(code, {
-        challenge: url.searchParams.get('code_challenge') ?? '',
-        nonce: url.searchParams.get('nonce') ?? '',
-        sub: subject,
-      });
-      const back = new URL(url.searchParams.get('redirect_uri') ?? '');
-      back.searchParams.set('code', code);
-      back.searchParams.set('state', url.searchParams.get('state') ?? '');
-      res.writeHead(302, { Location: back.href });
-      return res.end();
-    }
-    if (url.pathname === '/token') {
-      let raw = '';
-      req.on('data', (c: Buffer) => (raw += c.toString()));
-      req.on('end', () => {
-        void (async () => {
-          const form = new URLSearchParams(raw);
-          const grant = codes.get(form.get('code') ?? '');
-          codes.delete(form.get('code') ?? '');
-          const verifier = form.get('code_verifier') ?? '';
-          if (
-            !grant ||
-            createHash('sha256').update(verifier).digest('base64url') !==
-              grant.challenge
-          )
-            return send(400, { error: 'invalid_grant' });
-          const id_token = await new SignJWT({ nonce: grant.nonce })
-            .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
-            .setIssuer(issuer)
-            .setAudience('creator-local')
-            .setSubject(grant.sub)
-            .setIssuedAt()
-            .setExpirationTime('5m')
-            .sign(privateKey);
-          send(200, {
-            access_token: randomUUID(),
-            token_type: 'Bearer',
-            expires_in: 300,
-            id_token,
-          });
-        })();
-      });
-      return;
-    }
-    send(404, {});
-  });
-  const idpPort = await listen(idp);
-  issuer = `http://127.0.0.1:${idpPort}`;
-  t.after(() => new Promise<void>((r) => idp.close(() => r())));
+  const idp = await testIdp();
+  t.after(idp.close);
+  const issuer = idp.state.issuer;
 
   // The API's port must be known for the redirect URI, so reserve it first.
   const probe = createServer();
@@ -304,18 +214,12 @@ test('OIDC sign-in with authorization code + PKCE admits only the configured own
   );
 
   async function signIn() {
-    const start = await fetch(`${base}/auth/oidc/login`, {
-      redirect: 'manual',
-    });
-    assert.equal(start.status, 302);
-    const authorize = new URL(start.headers.get('location') ?? '');
-    assert.equal(authorize.searchParams.get('code_challenge_method'), 'S256');
-    const atIdp = await fetch(authorize, { redirect: 'manual' });
-    const callback = atIdp.headers.get('location') ?? '';
-    return {
-      callback,
-      response: await fetch(callback, { redirect: 'manual' }),
-    };
+    const out = await oidcSignIn(base);
+    assert.equal(
+      out.authorize.searchParams.get('code_challenge_method'),
+      'S256',
+    );
+    return out;
   }
   const ok = await signIn();
   assert.equal(ok.response.status, 302);
@@ -330,7 +234,7 @@ test('OIDC sign-in with authorization code + PKCE admits only the configured own
   assert.equal(session.method, 'oidc');
   // Replaying the same callback fails: the attempt was single use.
   assert.equal((await fetch(ok.callback, { redirect: 'manual' })).status, 401);
-  subject = 'someone-else';
+  idp.state.subject = 'someone-else';
   const other = await signIn();
   assert.equal(other.response.status, 403);
   assert.equal(other.response.headers.getSetCookie().length, 0);
