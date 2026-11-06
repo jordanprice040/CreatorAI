@@ -404,7 +404,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   reviews bound to one version (verdict, four marks, comments), revisions with a reason, older versions readable,
   Markdown download and "Save to Files" (P05). Software options are refused ("goes to a spec and a build").
 - Pilot **F9** resolved in code: the humility gate judges a hybrid option, or its spec, on the hybrid comparison
-  (disposition build or hybrid); plain software is unchanged. Jordan was asked to confirm on a decision card.
+  (disposition build or hybrid); plain software is unchanged. Jordan confirmed this on November 6 ("Judge the hybrid row").
 - Checks (cloud container, local PostgreSQL 16): `tests/src/proposal.test.ts` (4 DB tests: explanation, F9 gate,
   draft/version/check/review/export, API download, save to Files and viewer refusal) and
   `tests/src/proposal-domain.test.ts` (4); browser walk `tracking/evidence/proposals-ui/walk.mjs` with screenshots
