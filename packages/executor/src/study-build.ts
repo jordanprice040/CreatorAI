@@ -17,7 +17,7 @@ import {
   hash,
   sha,
   type Binding,
-  type QaCase,
+  type CliCase as QaCase,
 } from './contracts.js';
 import {
   BuildSupervisor,

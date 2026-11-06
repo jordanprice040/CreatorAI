@@ -17,7 +17,7 @@ import {
   digest,
   scorePatchCase,
   gradePatchCase,
-  qaCaseSchema,
+  cliCaseSchema,
   PLAN_ROLE_CONTEXT_MAX,
   PATCH_RULES,
   pathSchema,
@@ -148,7 +148,7 @@ test('builder rejects missing acceptance coverage, stale task hashes and cancell
   await assert.rejects(s.run(), /cases frozen in the spec/);
   // A build cannot swap in weaker cases of its own: the frozen ones are bound by the task hash.
   s.plan.cases = structuredClone(BUILD_FIXTURE_CASES);
-  s.plan.cases[1]!.stdout = 'anything\n';
+  (s.plan.cases[1]! as { stdout: string }).stdout = 'anything\n';
   await assert.rejects(s.run(), /cases frozen in the spec/);
   s.plan.cases = structuredClone(BUILD_FIXTURE_CASES);
   s.spec.tasks[0]!.deliverable = 'Changed';
@@ -839,7 +839,7 @@ test('the patch scorer grades a manifest read back from jsonb, and an unrun case
       _s: unknown,
       qa: unknown,
     ) => {
-      const c = qaCaseSchema.parse(qa);
+      const c = cliCaseSchema.parse(qa);
       return {
         commit,
         state,

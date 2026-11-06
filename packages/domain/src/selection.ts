@@ -910,6 +910,23 @@ export function frozenCases(s: SpecContent, keys?: readonly string[]) {
     );
 }
 
+/**
+ * ADR-0078: the browser cases frozen with a spec for static-web/1 builds, in spec order. Like
+ * frozenCases, `held_out` stays here and never reaches a role packet.
+ */
+export function frozenBrowserCases(s: SpecContent, keys?: readonly string[]) {
+  return s.acceptance_checks
+    .filter((a) => !keys || keys.includes(a.key))
+    .flatMap((a) =>
+      (a.browser_cases ?? []).map((c) => ({
+        check_key: a.key,
+        page: c.page,
+        steps: c.steps,
+        held_out: c.held_out,
+      })),
+    );
+}
+
 /** How the current task graph compares with a frozen one. */
 export function taskImpact(
   s: SpecContent,

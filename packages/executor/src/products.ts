@@ -9,6 +9,7 @@ import {
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import type { BuildRecipe } from '@creator/contracts';
 import {
   bindingSchema,
   productSchema,
@@ -42,6 +43,36 @@ export const TEMPLATE = {
     'import json\nprint(json.dumps({"template": "checklist/1", "items": ["inspect", "build", "review"]}))\n',
 };
 export const TEMPLATE_HASH = digest(JSON.stringify(TEMPLATE));
+/**
+ * ADR-0078: the reviewed static-web/1 template. Plain HTML, CSS and JavaScript under site/,
+ * served as files: no packages, no build step and no network.
+ */
+export const WEB_TEMPLATE = {
+  'readme.md':
+    '# Reviewed static web template\nPlain HTML, CSS and JavaScript under site/. No packages, build step or network.\n',
+  'site/index.html':
+    '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>Static site</title>\n<link rel="stylesheet" href="style.css">\n</head>\n<body>\n<main id="app">\n<h1>Static site</h1>\n</main>\n<script src="app.js" defer></script>\n</body>\n</html>\n',
+  'site/style.css':
+    'body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.5; }\n',
+  'site/app.js': "'use strict';\n",
+};
+export const WEB_TEMPLATE_HASH = digest(JSON.stringify(WEB_TEMPLATE));
+/** The reviewed template, its hash and the commit message of each recipe. */
+export function templateOf(recipe: BuildRecipe | undefined) {
+  return recipe === 'static-web/1'
+    ? {
+        id: 'static-site/1' as const,
+        files: WEB_TEMPLATE,
+        hash: WEB_TEMPLATE_HASH,
+        message: 'Reviewed static site template v1',
+      }
+    : {
+        id: 'checklist/1' as const,
+        files: TEMPLATE,
+        hash: TEMPLATE_HASH,
+        message: 'Reviewed checklist template v1',
+      };
+}
 
 /**
  * A submitted patch the scoped tool refused before writing anything (ADR-0076). Nothing in the
@@ -75,7 +106,7 @@ export class ProductSupervisor {
     if (
       p.id !== productId ||
       p.integration_owner !== p.binding.owner_id ||
-      p.template_hash !== TEMPLATE_HASH
+      p.template_hash !== templateOf(p.recipe).hash
     )
       throw new Error('Product manifest identity mismatch');
     return p;
@@ -214,11 +245,14 @@ export class ProductSupervisor {
   async create(
     raw: unknown,
     base?: { files: PackageFile[]; lineage: NonNullable<Product['base']> },
+    /** ADR-0078: the recipe the frozen tasks build with; python-build/1 when absent. */
+    recipe?: BuildRecipe,
   ): Promise<Product> {
     const binding = checked(bindingSchema, raw);
+    const template = templateOf(recipe);
     const files = base
       ? base.files.map((f) => [f.path, f.content.toString('utf8')] as const)
-      : Object.entries(TEMPLATE);
+      : Object.entries(template.files);
     await this.initialize();
     const productId = randomUUID();
     const dir = this.dir(productId);
@@ -229,7 +263,8 @@ export class ProductSupervisor {
     return withLock(dir, async () => {
       await event(dir, 'product.create.intent', {
         binding,
-        template_hash: TEMPLATE_HASH,
+        template_hash: template.hash,
+        recipe: recipe ?? 'python-build/1',
         base: base?.lineage ?? null,
       });
       const repo = this.repo(productId);
@@ -245,14 +280,15 @@ export class ProductSupervisor {
         '-m',
         base
           ? `Revision base: verified package ${base.lineage.artifact_id}`
-          : 'Reviewed checklist template v1',
+          : template.message,
       ]);
       const p: Product = {
         format: 'local-product/1',
         id: productId,
         binding,
         integration_owner: binding.owner_id,
-        template_hash: TEMPLATE_HASH,
+        template_hash: template.hash,
+        ...(recipe === 'static-web/1' ? { recipe } : {}),
         initial_commit: await head(repo),
         git_version: await git(repo, ['--version']),
         ...(base ? { base: base.lineage } : {}),

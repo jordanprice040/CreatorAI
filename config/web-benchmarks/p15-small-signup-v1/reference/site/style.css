@@ -1,0 +1,16 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+  line-height: 1.5;
+}
+label {
+  display: block;
+  margin-top: 0.75rem;
+}
+p > label {
+  display: inline;
+}
+.error,
+#summary {
+  color: #9b1c1c;
+}

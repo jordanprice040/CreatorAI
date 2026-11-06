@@ -58,6 +58,7 @@ import {
   SelectionSchema,
   SpecStatusSchema,
   SpecBodySchema,
+  specRecipe,
   ActivityPageSchema,
   OverviewSchema,
   ProblemComparisonSchema,
@@ -486,6 +487,8 @@ export async function runCli(
         throw new Error('Workspace owner authorization required');
       return session.actor_id;
     };
+    // ADR-0078: the recipe a product made from the last frozen spec read here builds with.
+    let frozenRecipe = 'python-build/1' as ReturnType<typeof specRecipe>;
     const frozenBinding = async (
       workspace: string,
       specId: string,
@@ -514,6 +517,7 @@ export async function runCli(
       )
         throw new Error('A current active frozen specification is required');
       const spec = parse(SpecBodySchema, detail.entity.body);
+      frozenRecipe = specRecipe(spec);
       return parse(bindingSchema, {
         workspace_id: workspace,
         owner_id: owner,
@@ -772,8 +776,12 @@ export async function runCli(
       case 'product-init': {
         const binding = await frozenBinding(rest[0]!, rest[1]!);
         const [from] = flagged('--from');
+        if (frozenRecipe === 'mixed')
+          throw new Error(
+            'This spec mixes command-line and static web tasks; a product builds one kind',
+          );
         if (!from) {
-          data = await local.create(binding);
+          data = await local.create(binding, undefined, frozenRecipe);
           break;
         }
         // A revision starts from the exact verified package bytes, re-hashed against the index.
@@ -793,15 +801,19 @@ export async function runCli(
           from,
           detail.artifact.manifest_sha256,
         );
-        data = await local.create(binding, {
-          files: opened.files,
-          lineage: {
-            artifact_id: from,
-            manifest_sha256: detail.artifact.manifest_sha256,
-            product_id: detail.manifest.product_id,
-            commit: detail.manifest.repository.commit,
+        data = await local.create(
+          binding,
+          {
+            files: opened.files,
+            lineage: {
+              artifact_id: from,
+              manifest_sha256: detail.artifact.manifest_sha256,
+              product_id: detail.manifest.product_id,
+              commit: detail.manifest.repository.commit,
+            },
           },
-        });
+          detail.manifest.toolchain.recipe,
+        );
         break;
       }
       case 'artifact-package': {

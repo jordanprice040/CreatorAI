@@ -1,7 +1,11 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import {
+  BROWSER_STEP_HELP,
   FeedbackSchema,
   SpecStatusSchema,
+  formatBrowserStep,
+  parseBrowserSteps,
+  type BrowserStep,
   type SessionInfo,
   type SpecStatus,
   type StoredEntity,
@@ -11,6 +15,7 @@ import {
   buildNotes,
   draftFromContent,
   draftToContent,
+  emptyBrowserCase,
   emptyCase,
   emptySpecDraft,
   FEEDBACK_REASON_MAX,
@@ -28,7 +33,7 @@ import {
 
 const METHODS: { value: Method; label: string }[] = [
   { value: 'automated_test', label: 'Automated test (cases below)' },
-  { value: 'browser_check', label: 'Browser check' },
+  { value: 'browser_check', label: 'Browser check (web page; cases below)' },
   { value: 'manual_review', label: 'Manual review' },
   { value: 'metric', label: 'Metric' },
 ];
@@ -96,6 +101,7 @@ export function SpecForm({
       ? draftFromContent(
           mode.entity.title,
           mode.entity.body as unknown as SpecContentShape,
+          (step) => formatBrowserStep(step as BrowserStep),
         )
       : emptySpecDraft(mode.prefill),
   );
@@ -160,13 +166,13 @@ export function SpecForm({
       {err(k)}
     </div>
   );
-  const parsed = draftToContent(d);
+  const parsed = draftToContent(d, parseBrowserSteps);
   const notes = parsed.content ? buildNotes(parsed.content) : [];
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    const out = draftToContent(d);
+    const out = draftToContent(d, parseBrowserSteps);
     const errs = { ...(out.errors ?? {}) };
     if (mode.kind === 'revise' && !reason.trim())
       errs.reason = 'Say what changed and why.';
@@ -408,8 +414,10 @@ export function SpecForm({
         <legend>Acceptance checks</legend>
         <p className="small">
           The studio builds a task only when every check it delivers is an
-          automated test with frozen cases, and at least one case is held out:
-          QA runs it, but neither the builder nor the reviewer sees it.
+          automated test with frozen cases (a command-line program) or every
+          check is a browser check with frozen browser cases (a static web
+          page), and at least one case is held out: QA runs it, but neither the
+          builder nor the reviewer sees it.
         </p>
         {d.checks.map((c, i) => (
           <div key={c.key} className="sf-item">
@@ -442,6 +450,11 @@ export function SpecForm({
                     x.checks[i]!.method = m;
                     if (m === 'automated_test' && !x.checks[i]!.cases.length)
                       x.checks[i]!.cases.push(emptyCase());
+                    if (
+                      m === 'browser_check' &&
+                      !x.checks[i]!.browser_cases.length
+                    )
+                      x.checks[i]!.browser_cases.push(emptyBrowserCase());
                   })
                 }
               >
@@ -566,6 +579,79 @@ export function SpecForm({
                 )}
               </div>
             )}
+            {(c.method === 'browser_check' || c.browser_cases.length > 0) && (
+              <div className="sf-cases">
+                <details className="small">
+                  <summary>How to write browser steps</summary>
+                  <p>
+                    One step per line. The reviewed checker opens the page in a
+                    headless browser and runs the steps in order; each expect
+                    step waits up to 3 seconds. A selector is a CSS selector
+                    that matches exactly one element, such as <code>#name</code>{' '}
+                    or <code>button.save</code>.
+                  </p>
+                  <ul className="mono">
+                    {BROWSER_STEP_HELP.map((h) => (
+                      <li key={h}>{h}</li>
+                    ))}
+                  </ul>
+                </details>
+                {c.browser_cases.map((t, j) => {
+                  const k = `checks.${i}.browser_cases.${j}`;
+                  const up = (
+                    f: (y: (typeof c.browser_cases)[number]) => void,
+                  ) => set((x) => f(x.checks[i]!.browser_cases[j]!));
+                  return (
+                    <div key={j} className="sf-case">
+                      <strong>Browser case {j + 1}</strong>
+                      {box(`${k}.page`, 'Page to open', t.page, (v) =>
+                        up((y) => (y.page = v)),
+                      )}
+                      {box(
+                        `${k}.steps`,
+                        'Steps (one per line)',
+                        t.steps,
+                        (v) => up((y) => (y.steps = v)),
+                        { rows: 6, mono: true },
+                      )}
+                      <label className="sf-check">
+                        <input
+                          type="checkbox"
+                          checked={t.held_out}
+                          onChange={(e) =>
+                            up((y) => (y.held_out = e.target.checked))
+                          }
+                        />
+                        Held out (only QA sees this case)
+                      </label>
+                      <button
+                        type="button"
+                        className="text"
+                        onClick={() =>
+                          drop((x) => remove(x.checks[i]!.browser_cases, j))
+                        }
+                      >
+                        Remove browser case {j + 1}
+                      </button>
+                    </div>
+                  );
+                })}
+                {err(`checks.${i}.browser_cases`)}
+                {c.browser_cases.length < 10 && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      set((x) =>
+                        x.checks[i]!.browser_cases.push(emptyBrowserCase()),
+                      )
+                    }
+                  >
+                    Add a browser case
+                  </button>
+                )}
+              </div>
+            )}
             {err(`checks.${i}.covered`)}
             {d.checks.length > 1 && (
               <button
@@ -599,6 +685,7 @@ export function SpecForm({
                   measure: '',
                   method: '',
                   cases: [],
+                  browser_cases: [],
                 }),
               )
             }

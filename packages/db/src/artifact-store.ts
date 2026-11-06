@@ -780,6 +780,35 @@ export class ArtifactStore extends StudyBuildStore {
     });
   }
   /**
+   * ADR-0078: one file request of a static web preview's frame host. Same checks as any preview
+   * use (lease, expiry, owner membership, manifest); the caller checks the frame token against
+   * the session hash returned here, so a new link or Stop ends older frames. A request counts as
+   * a viewer, like a page load; it is not audited per file.
+   */
+  async previewFrame(previewId: string) {
+    return this.tx(async (c) => {
+      const { row, record } = await this.livePreview(c, previewId);
+      if (!row.session_hash)
+        throw fail('ACCESS_DENIED', 'Open this preview from the studio.');
+      await c.query(
+        'update artifact_previews set last_seen_at = clock_timestamp() where id = $1',
+        [row.id],
+      );
+      return {
+        session_hash: String(row.session_hash),
+        record,
+        product_id: String(
+          (
+            await c.query(
+              'select product_id from artifact_manifests where id = $1',
+              [row.artifact_id],
+            )
+          ).rows[0]!.product_id,
+        ),
+      };
+    });
+  }
+  /**
    * ADR-0069: a fresh one-time link for a live preview. Authority is rechecked now (caller is
    * the workspace owner; the lease is live and its owner still owns the workspace); the
    * preview's lifetime and run count do not change.

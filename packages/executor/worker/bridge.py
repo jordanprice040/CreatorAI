@@ -26,6 +26,15 @@ POLICY = {
 # prints is captured, and the session ends at 15 minutes, on Stop, or when the window closes.
 # ADR-0059: the same window can run the program again (Enter, or new arguments) until the
 # owner quits; each run gets a fresh unit and sandbox, and the window as a whole is bounded.
+# ADR-0078: the static-web/1 recipe runs the pinned headless browser inside the same sandbox.
+# It needs more memory, threads and time; the sandbox still has no network beyond its own
+# loopback (bwrap gives the new namespace only `lo`), and the same uid, lease and log bounds.
+BROWSER_VERSION = '156.0.8078.47'
+BROWSER_TREE_SHA256 = '2f84beb636e7c730bea98f70bfff326514e82e45e14e254db7b50d8c5747d141'
+WEB_POLICY = {**POLICY, 'recipe': 'static-web/1', 'network': 'loopback-only',
+              'memory_bytes': 1073741824, 'tasks': 512, 'cpu_percent': 100,
+              'runtime_seconds': 60, 'disk_bytes': 67108864, 'tmp_bytes': 268435456,
+              'browser': 'chrome-headless-shell ' + BROWSER_VERSION}
 TERMINAL_POLICY = {**POLICY, 'format': 'isolation-terminal/2', 'runtime_seconds': 900,
                    'session_seconds': 3600, 'idle_seconds': 600, 'max_runs': 50, 'max_args': 12,
                    'log_bytes': 0, 'terminal': 'pty'}
@@ -58,6 +67,25 @@ def environment():
             'host_network_namespace': os.readlink('/proc/self/ns/net')}
 
 
+def browser_dir():
+    """The owner-installed pinned browser (install_browser.py), verified before every web run."""
+    root = pathlib.Path.home() / '.local/share/creator-agent/browser' / ('chrome-headless-shell-' + BROWSER_VERSION)
+    hint = ' Run install_browser.py in WSL (see docs/STATIC_WEB_RECIPE.md).'
+    if not (root / 'chrome-headless-shell').is_file():
+        raise RuntimeError('Missing isolation capability: reviewed headless browser ' + BROWSER_VERSION + '.' + hint)
+    for p in [root, *root.rglob('*')]:
+        st = p.lstat()
+        if st.st_uid != os.getuid() or st.st_mode & 0o022 or p.is_symlink():
+            raise RuntimeError('Reviewed browser files must be owned by this user and not writable by others.' + hint)
+    h = hashlib.sha256()
+    for p in sorted(x for x in root.rglob('*') if x.is_file()):
+        h.update(p.relative_to(root).as_posix().encode() + b'\0' +
+                 hashlib.sha256(p.read_bytes()).hexdigest().encode() + b'\n')
+    if h.hexdigest() != BROWSER_TREE_SHA256:
+        raise RuntimeError('Reviewed headless browser files changed.' + hint)
+    return root
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('job')
@@ -65,7 +93,12 @@ def main():
     parser.add_argument('--reap', action='store_true')
     parser.add_argument('--recipe-hash', required=True)
     parser.add_argument('--interactive', action='store_true')
+    parser.add_argument('--recipe', choices=('python-build/1', 'static-web/1'), default='python-build/1')
     args = parser.parse_args()
+    web = args.recipe == 'static-web/1'
+    if web and args.interactive:
+        raise RuntimeError('Interactive sessions run Python packages only')
+    policy = WEB_POLICY if web else POLICY
     import uuid
     if str(uuid.UUID(args.execution_id)) != args.execution_id:
         raise RuntimeError('Invalid execution id')
@@ -73,8 +106,9 @@ def main():
     lease = job / 'lease.json'
     source = job / 'input'
     recipe = pathlib.Path(__file__).with_name(
-        'terminal.py' if args.interactive else 'recipe.py').resolve(strict=True)
+        'terminal.py' if args.interactive else 'web_recipe.py' if web else 'recipe.py').resolve(strict=True)
     identity = environment()
+    identity['policy'] = policy
     identity['recipe_hash'] = hashlib.sha256(recipe.read_bytes()).hexdigest()
     if identity['recipe_hash'] != args.recipe_hash:
         raise RuntimeError('Reviewed recipe hash changed before dispatch')
@@ -83,6 +117,10 @@ def main():
     if args.interactive and not args.reap:
         identity['policy'] = TERMINAL_POLICY
         return interactive(args, job, lease, source, recipe, unit, identity)
+    browser = None
+    if web and not args.reap:
+        browser = browser_dir()
+        identity['browser'] = {'version': BROWSER_VERSION, 'tree_sha256': BROWSER_TREE_SHA256}
     emit({'type': 'environment', 'value': identity})
     if args.reap:
         subprocess.run(['/usr/bin/systemctl', '--user', 'stop', unit], stdin=subprocess.DEVNULL,
@@ -96,22 +134,27 @@ def main():
                '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin',
                '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
                '--proc', '/proc', '--dev', '/dev',
-               '--size', str(POLICY['disk_bytes']), '--tmpfs', '/work',
-               '--size', '1048576', '--tmpfs', '/tmp',
+               '--size', str(policy['disk_bytes']), '--tmpfs', '/work',
+               '--size', str(policy.get('tmp_bytes', 1048576)), '--tmpfs', '/tmp',
                '--ro-bind', str(source), '/input', '--ro-bind', str(recipe), '/recipe.py',
+               *(['--ro-bind', str(browser), '/opt/browser'] if browser else []),
                '--remount-ro', '/', '--remount-ro', '/dev', '--remount-ro', '/proc',
                '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'HOME', '/nonexistent',
                '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
     acceptance = job / 'acceptance.json'
+    if web and not acceptance.is_file():
+        raise RuntimeError('A static web run needs a frozen browser case')
     if acceptance.is_file():
         # Refuse legacy/full QA records before exposing any bytes to generated code.
         runtime_input = json.loads(acceptance.read_text())
-        if not isinstance(runtime_input, dict) or set(runtime_input) != {'args', 'stdin'}:
-            raise RuntimeError('Only runtime argv and stdin may enter the sandbox')
+        allowed = {'page', 'steps'} if web else {'args', 'stdin'}
+        if not isinstance(runtime_input, dict) or set(runtime_input) != allowed:
+            raise RuntimeError('Only runtime argv and stdin (or a browser case\'s page and steps) may enter the sandbox')
         sandbox[1:1] = ['--ro-bind', str(acceptance), '/acceptance.json']
     launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pipe', '--wait', '--collect', '--unit=' + unit,
-              '-p', 'MemoryMax=268435456', '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32',
-              '-p', 'CPUQuota=50%', '-p', 'RuntimeMaxSec=20', '-p', 'KillMode=control-group',
+              '-p', 'MemoryMax=' + str(policy['memory_bytes']), '-p', 'MemorySwapMax=0',
+              '-p', 'TasksMax=' + str(policy['tasks']), '-p', 'CPUQuota=' + str(policy['cpu_percent']) + '%',
+              '-p', 'RuntimeMaxSec=' + str(policy['runtime_seconds']), '-p', 'KillMode=control-group',
               '-p', 'TimeoutStopSec=1', '-p', 'SendSIGKILL=yes', '-p', 'UMask=0077', *sandbox]
     child = subprocess.Popen(launch, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     selector = selectors.DefaultSelector()
@@ -128,7 +171,7 @@ def main():
                     properties = command(['/usr/bin/systemctl', '--user', 'show', unit,
                                           '-p', 'MemoryMax', '-p', 'MemorySwapMax', '-p', 'TasksMax',
                                           '-p', 'CPUQuotaPerSecUSec', '-p', 'RuntimeMaxUSec', '-p', 'KillMode'])
-                    if 'MemoryMax=268435456' in properties:
+                    if 'MemoryMax=' + str(policy['memory_bytes']) in properties:
                         emit({'type': 'limits', 'value': properties})
                         observed_limits = True
                 except subprocess.SubprocessError:
@@ -141,14 +184,14 @@ def main():
                     reason = 'lease_lost'
             except (OSError, ValueError):
                 reason = 'lease_lost'
-            if time.monotonic() - started > 23:
+            if time.monotonic() - started > policy['runtime_seconds'] + 3:
                 reason = reason or 'deadline'
             if reason:
                 break
             for key, _ in selector.select(0.1):
                 chunk = os.read(key.fileobj.fileno(), 4096)
                 if chunk:
-                    if len(log) + len(chunk) > POLICY['log_bytes']:
+                    if len(log) + len(chunk) > policy['log_bytes']:
                         reason = 'log_limit'
                         break
                     log.extend(chunk)

@@ -1,6 +1,7 @@
 import { z, id, hash, version, counter } from './primitives.js';
 import { ScopePathSchema } from './execution.js';
 import { DataClassSchema } from './oversight.js';
+import { BrowserCaseSchema, type BuildRecipe } from './web-recipe.js';
 
 // T08 scoring, selection and frozen specifications (context/SCORING_RUBRIC.md). Ratings are
 // ordinal judgments with evidence; arithmetic over them is done in code with exact rationals.
@@ -590,6 +591,11 @@ export const SpecContentSchema = z.strictObject({
           .min(1)
           .max(10)
           .optional(),
+        /**
+         * ADR-0078: frozen browser cases for a browser check (static-web/1 recipe). Held-out
+         * cases run in QA but are never shown to builder or reviewer.
+         */
+        browser_cases: z.array(BrowserCaseSchema).min(1).max(10).optional(),
       }),
     )
     .min(1)
@@ -752,6 +758,40 @@ const listed = (keys: readonly string[]) =>
  * Why the studio's reviewed builder cannot build this task of a spec, in words for people; empty
  * when it can. The build itself enforces the same rules: this only explains them before Start.
  */
+/**
+ * ADR-0078: the reviewed recipe a task builds with. Every check browser → static-web/1; every
+ * check an automated test → python-build/1; anything else has no recipe (buildBlockers says why).
+ */
+export function taskRecipe(
+  s: SpecContent,
+  taskKey: string,
+): BuildRecipe | null {
+  const task = s.tasks.find((t) => t.key === taskKey);
+  if (!task) return null;
+  const checks = s.acceptance_checks.filter((a) =>
+    task.acceptance.includes(a.key),
+  );
+  if (!checks.length) return null;
+  if (checks.every((a) => a.method === 'browser_check' && a.browser_cases))
+    return 'static-web/1';
+  if (checks.every((a) => a.method === 'automated_test' && a.cases))
+    return 'python-build/1';
+  return null;
+}
+/**
+ * ADR-0078: the recipe a product made from this spec builds with. Its buildable tasks must agree;
+ * a spec with none keeps python-build/1 (buildBlockers then says what is missing).
+ */
+export function specRecipe(s: SpecContent): BuildRecipe | 'mixed' {
+  const found = new Set(
+    s.tasks
+      .filter((t) => t.role === 'builder')
+      .map((t) => taskRecipe(s, t.key))
+      .filter((r): r is BuildRecipe => r !== null),
+  );
+  if (found.size > 1) return 'mixed';
+  return [...found][0] ?? 'python-build/1';
+}
 export function buildBlockers(
   s: SpecContent,
   taskKey: string,
@@ -784,7 +824,42 @@ export function buildBlockers(
       ...out,
       `Task ${taskKey} delivers no acceptance checks, so there is nothing to test the build against. Give it at least one automated-test check with test cases. ${fix}`,
     ];
-  const other = checks.filter((a) => a.method !== 'automated_test');
+  // ADR-0078: a task whose every check is a browser check builds with the static-web/1
+  // recipe; otherwise the Python rules below apply, as before.
+  if (checks.every((a) => a.method === 'browser_check')) {
+    const empty = checks.filter((a) => !a.browser_cases?.length);
+    if (empty.length)
+      out.push(
+        `${empty.length === 1 ? 'Check' : 'Checks'} ${listed(empty.map((a) => a.key))} of task ${taskKey} ${empty.length === 1 ? 'has' : 'have'} no browser cases. A web build needs at least one browser case (a page and its steps) for each browser check.`,
+      );
+    const cases = checks.flatMap((a) => a.browser_cases ?? []);
+    if (cases.length > MAX_BUILD_CASES)
+      out.push(
+        `Task ${taskKey} has ${cases.length} browser cases across its checks, and a build runs at most ${MAX_BUILD_CASES}. Remove cases, or move a check to another task.`,
+      );
+    if (!empty.length && !cases.some((c) => c.held_out))
+      out.push(
+        `None of task ${taskKey}'s browser cases is held out. Mark at least one case held out, so QA checks something the builder never saw.`,
+      );
+    if (!task.file_scope.some((p) => p === 'site' || p.startsWith('site/')))
+      out.push(
+        `Task ${taskKey} may not change anything under site/, where a web build's pages live. Add site (or a path under it) to the task's file scope.`,
+      );
+    if (out.length) out.push(fix);
+    return out;
+  }
+  const browser = checks.filter(
+    (a) => a.method === 'browser_check' && a.browser_cases?.length,
+  );
+  if (browser.length)
+    out.push(
+      `Task ${taskKey} mixes browser checks (${listed(browser.map((a) => a.key))}) with other checks. A task builds either a command-line program (automated tests) or a static web page (browser checks), not both; split it into two tasks.`,
+    );
+  const other = checks.filter(
+    (a) =>
+      a.method !== 'automated_test' &&
+      !(a.method === 'browser_check' && a.browser_cases?.length),
+  );
   if (other.length)
     out.push(
       `${other.length === 1 ? 'Check' : 'Checks'} ${listed(other.map((a) => `${a.key} (${METHOD_NAMES[a.method] ?? a.method})`))} of task ${taskKey} ${other.length === 1 ? 'is not an automated test' : 'are not automated tests'}. The studio builds a task only when every check it delivers is an automated test with test cases; change the method or take the check off the task.`,

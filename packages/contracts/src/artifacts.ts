@@ -1,5 +1,10 @@
 import { z, id, hash, version } from './primitives.js';
 import { SpecContentSchema } from './selection.js';
+import {
+  BrowserPageSchema,
+  BrowserStepSchema,
+  BuildRecipeSchema,
+} from './web-recipe.js';
 
 // T13 verified artifacts, private previews and feedback. The manifest is written once by the
 // local owner supervisor next to the package bytes; the database keeps an index and every
@@ -57,18 +62,24 @@ export const BuildManifestSchema = z.strictObject({
     initial_commit: sha,
     git_version: z.string().max(200),
   }),
-  template: z.strictObject({ id: z.literal('checklist/1'), hash }),
+  // ADR-0078: static-site/1 and static-web/1 for generated static web pages.
+  template: z.strictObject({
+    id: z.enum(['checklist/1', 'static-site/1']),
+    hash,
+  }),
   toolchain: z.strictObject({
-    recipe: z.literal('python-build/1'),
+    recipe: BuildRecipeSchema,
     recipe_hash: hash,
     policy_hash: hash,
     bridge_hash: hash,
     backend: z.string().max(80),
     python: z.string().max(80).nullable(),
+    /** static-web/1: the pinned headless browser QA ran in; absent on Python manifests. */
+    browser: z.string().max(80).nullable().optional(),
     supervisor_node: z.string().max(40),
   }),
   dependencies: z.strictObject({
-    kind: z.literal('python-stdlib-only'),
+    kind: z.enum(['python-stdlib-only', 'static-files-only']),
     lockfile: z.null(),
     note: short,
   }),
@@ -96,13 +107,21 @@ export const BuildManifestSchema = z.strictObject({
   tests: z.strictObject({
     cases: z
       .array(
-        z.strictObject({
-          check_key: checkKey,
-          args: RunInputSchema.shape.args,
-          stdin: RunInputSchema.shape.stdin,
-          stdout: z.string().max(12000),
-          exit_code: z.number().int(),
-        }),
+        z.union([
+          z.strictObject({
+            check_key: checkKey,
+            args: RunInputSchema.shape.args,
+            stdin: RunInputSchema.shape.stdin,
+            stdout: z.string().max(12000),
+            exit_code: z.number().int(),
+          }),
+          // ADR-0078: a frozen browser case (static-web/1).
+          z.strictObject({
+            check_key: checkKey,
+            page: BrowserPageSchema,
+            steps: z.array(BrowserStepSchema).min(1).max(25),
+          }),
+        ]),
       )
       .min(1)
       .max(10),

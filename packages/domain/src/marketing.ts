@@ -51,14 +51,23 @@ export function marketingContent(
       'No testimonials, customer counts, traffic or demand have been established.',
       'Call to action: inspect the private package and record feedback.',
     ].join('\n'),
-    demonstrations: m.tests.cases.map((c) => ({
-      check_key: c.check_key,
-      args: c.args,
-      stdin: c.stdin,
-      expected_stdout: c.stdout,
-      expected_exit_code: c.exit_code,
-      status: 'recorded_case_not_a_new_execution',
-    })),
+    demonstrations: m.tests.cases.map((c) =>
+      'steps' in c
+        ? {
+            check_key: c.check_key,
+            page: c.page,
+            steps: c.steps,
+            status: 'recorded_case_not_a_new_execution',
+          }
+        : {
+            check_key: c.check_key,
+            args: c.args,
+            stdin: c.stdin,
+            expected_stdout: c.stdout,
+            expected_exit_code: c.exit_code,
+            status: 'recorded_case_not_a_new_execution',
+          },
+    ),
     claims,
     limitations: m.limitations,
     pricing: {
