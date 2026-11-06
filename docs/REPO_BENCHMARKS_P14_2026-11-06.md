@@ -42,10 +42,13 @@ measures, known failures with the cases that catch each), `extended-cases.json`,
 
 ## 2. How the expected results were frozen
 
-1. Every expected stdout and exit code was written by hand from the spec text. The case files
-   and the grader were committed first (`4b4c26e`), the reference solutions and the freeze in the
-   next commit. That the outputs came from the spec and not from a run is the author's statement;
-   the commit order is the evidence that can be checked.
+1. Every expected stdout and exit code was written by hand from the spec text. The v2 case
+   files and the grader were committed (`4b4c26e`) before the reference solutions were added back
+   with the freeze. The reference solutions themselves are unchanged from v1, so they predate the
+   new v2 cases. The commit order shows only that the case files did not change after the
+   references were committed. The `ordering_note` in the frozen `expectations.json` overstates
+   this; the wording here is the corrected one, and a future v3 would carry it. That the outputs
+   came from the spec and not from a run is the author's statement.
 2. The reference solutions pass every case under both runners (small 10/10 + 8/8; larger 10/10 +
    21/21 and the structure check).
 3. Each known failure listed in `expectations.json` has a mutant of the reference in the test
@@ -117,6 +120,17 @@ for the reference solutions or a throwaway container only. Each score names `fre
 recomputes the studio's content hash (`canonicalHash({kind, title, body})`) to show the file is
 the stored version, then requires the body, minus `format`, `alternative` and `selection_id`,
 to equal the frozen `spec.json` content field by field.
+
+To get the stored record, read the frozen spec version from the dev studio's database
+(`entity_versions`) and save it as JSON, for example with psql against `creator_studio`:
+
+```text
+psql -At -d creator_studio -c "select json_build_object('title', title, 'content_hash', content_hash, 'body', body) from entity_versions where entity_id = '<spec-id>' and version = <frozen-version>" > stored-spec.json
+node scripts/p14-benchmark.mjs compare-spec p14-larger-ledgercheck-v2 stored-spec.json
+```
+
+Use the spec id and version that the run's spec freeze names (`spec-freeze` output or `pnpm cli
+spec <workspace> <spec-id>`).
 
 ## 5. Limits and deviations found while freezing
 
