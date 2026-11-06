@@ -296,3 +296,9 @@ L-6: the edit form now says older claim versions must be replaced and offers to 
 versions. Assessor prompt and benchmark unchanged, so qualification b9ad4984 on the trial copy
 still counts. Checked: assessment DB tests (two-batch run records every card, unknown answers per
 batch, limits too small refused) and the full suite; live re-run pending on the trial copy.
+
+Re-review at 7eaf45d (L-7, N-5): a batch that fails for good now stops the workflow through the
+shared stopper, so queued sibling tasks are cancelled and leased ones awaited (only reachable
+through the API with concurrency above 1). New tests: a domain check of the stop with a queued,
+leased and cancelled sibling, and a DB test where batch 1 succeeds, batch 2 fails after its
+repair and no card is written.

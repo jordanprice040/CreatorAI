@@ -16,6 +16,7 @@ import {
   ASSESSMENT_MARKER,
   DISCOVERY_SCENARIOS,
   assessmentFixtureAnswer,
+  coordinateAssessment,
   assessmentRoleInput,
   checkAssessmentOutput,
   rubricsForKind,
@@ -721,4 +722,94 @@ test('a problem derived from a claim reads that claim as support, in the packet 
   );
   const cmp = await s.store.comparison(owner, s.ws.id, s.problem.id);
   assert.ok(cmp.claims.some((c) => c.evidence.claim.id === claim.id));
+});
+
+test('review N-5: one batch succeeds and another fails after its repair, so nothing is written', async (t) => {
+  const adapter = new Recording();
+  const s = await setup(t, adapter);
+  if (!s) return;
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  assert.ok(preview.requests >= 2);
+  const before = (await s.cards()).length;
+  // The batch holding O1 answers well; every other batch answers with something unusable.
+  adapter.override = (req) => {
+    if (!req.input[0]!.text.includes(ASSESSMENT_MARKER)) return null;
+    const text = req.input[1]!.text;
+    const refs = AssessmentPacketSchema.parse(
+      JSON.parse(text.slice(text.indexOf('{'))),
+    ).options.map((o) => o.ref);
+    return refs.includes('O1') ? null : answer({ bad: true });
+  };
+  const failed = await s.assess({ preview_hash: preview.preview_hash });
+  assert.equal(failed.workflow.state, 'failed');
+  assert.match(failed.workflow.result!.explanation, /for part 2 of \d+/);
+  // The first batch succeeded, the second failed and was repaired once, then failed again.
+  const states = failed.tasks.map((x) => `${x.ordinal}/${x.repair}:${x.state}`);
+  assert.ok(states.includes('0/0:succeeded'), states.join(' '));
+  assert.ok(states.includes('1/1:failed'), states.join(' '));
+  assert.equal(failed.workflow.result!.assessment!.scorecards.length, 0);
+  assert.equal((await s.cards()).length, before);
+});
+
+test('review L-7: a batch that fails for good stops its sibling tasks', () => {
+  const limits = {
+    max_children: 4,
+    max_concurrency: 2,
+    max_depth: 1,
+    max_attempts: 1,
+    max_repairs: 1,
+    max_calls: 8,
+    max_output_tokens: 8000,
+    call_timeout_ms: 5000,
+    max_wall_seconds: 600,
+  } as const;
+  const view = (sibling: 'queued' | 'leased' | 'cancelled') => ({
+    state: 'running' as const,
+    control: 'run' as const,
+    limits,
+    perspectives: [],
+    deadline_at: new Date(Date.now() + 60_000).toISOString(),
+    steps: 3,
+    now: new Date(),
+    tasks: [
+      {
+        id: 'a',
+        kind: 'assess' as const,
+        ordinal: 0,
+        repair: 0,
+        state: 'failed' as const,
+        reason: 'invalid_output',
+      },
+      {
+        id: 'b',
+        kind: 'assess' as const,
+        ordinal: 0,
+        repair: 1,
+        state: 'failed' as const,
+        reason: 'invalid_output',
+      },
+      {
+        id: 'c',
+        kind: 'assess' as const,
+        ordinal: 1,
+        repair: 0,
+        state: sibling,
+        reason: sibling === 'cancelled' ? 'failed' : '',
+      },
+    ],
+  });
+  // A queued sibling is cancelled and the workflow ends failed.
+  const queued = coordinateAssessment(view('queued'), 2);
+  assert.deepEqual(queued.actions, [{ type: 'cancel_open', reason: 'failed' }]);
+  assert.equal(queued.state, 'failed');
+  assert.match(queued.terminal!.explanation, /part 1 of 2 \(invalid_output\)/);
+  // A leased sibling is waited for: no new work, no terminal state yet.
+  const leased = coordinateAssessment(view('leased'), 2);
+  assert.deepEqual(leased.actions, []);
+  assert.equal(leased.state, 'running');
+  assert.equal(leased.terminal, null);
+  // Once it is cancelled, the real failure is still the one named.
+  const done = coordinateAssessment(view('cancelled'), 2);
+  assert.equal(done.state, 'failed');
+  assert.match(done.terminal!.explanation, /part 1 of 2 \(invalid_output\)/);
 });

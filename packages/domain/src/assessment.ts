@@ -23,8 +23,10 @@ import {
   guard,
   isTerminalTask,
   settleState,
+  stopper,
   type CoordinatorAction,
   type CoordinatorPlan,
+  type CoordinatorTask,
   type CoordinatorView,
 } from './orchestration.js';
 import { rubricHash } from './selection.js';
@@ -371,15 +373,35 @@ export function coordinateAssessment(
   ).length;
   const callsLeft = () =>
     v.limits.max_calls - (all.length + actions.length) * v.limits.max_attempts;
+  const repairable = (t: CoordinatorTask | undefined) =>
+    t?.state === 'failed' &&
+    REPAIRABLE_REASONS.has(t.reason) &&
+    t.repair < v.limits.max_repairs &&
+    callsLeft() >= v.limits.max_attempts;
+  // A batch that ended without a usable answer fails the whole assessment: nothing is written,
+  // and the other batches are stopped (cancelled, or awaited when leased; review L-7). A batch
+  // cancelled by that stop is not the cause, so a real failure is named first.
+  const ended = Array.from({ length: batches }, (_, i) => ({
+    i,
+    t: latestOf(i),
+  })).filter(
+    ({ t }) =>
+      !!t &&
+      isTerminalTask(t.state) &&
+      t.state !== 'succeeded' &&
+      !repairable(t),
+  );
+  const cause = ended.find(({ t }) => t!.state !== 'cancelled') ?? ended[0];
+  if (cause)
+    return stopper(v)(
+      'failed',
+      'failed',
+      `The assessor did not produce a usable assessment${batches > 1 ? ` for part ${cause.i + 1} of ${batches}` : ''} (${cause.t!.reason}). No scorecard was written.`,
+    );
   let done = 0;
   for (let i = 0; i < batches; i += 1) {
     const prior = latestOf(i);
-    const repairable =
-      prior?.state === 'failed' &&
-      REPAIRABLE_REASONS.has(prior.reason) &&
-      prior.repair < v.limits.max_repairs &&
-      callsLeft() >= v.limits.max_attempts;
-    if (!prior || repairable) {
+    if (!prior || repairable(prior)) {
       if (!paused && active < v.limits.max_concurrency) {
         actions.push({
           type: 'delegate',
@@ -394,19 +416,7 @@ export function coordinateAssessment(
       }
       continue;
     }
-    if (!isTerminalTask(prior.state)) continue;
-    if (prior.state !== 'succeeded')
-      return {
-        actions: [],
-        state: 'failed',
-        reason: 'failed',
-        terminal: {
-          state: 'failed',
-          outcome: 'failed',
-          explanation: `The assessor did not produce a usable assessment${batches > 1 ? ` for part ${i + 1} of ${batches}` : ''} (${prior.reason}). No scorecard was written.`,
-        },
-      };
-    done += 1;
+    if (prior.state === 'succeeded') done += 1;
   }
   if (done < batches) return settleState(v, actions);
   return {

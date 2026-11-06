@@ -323,3 +323,9 @@ Live trial so far (trial copy only, Claude plan, $0): scoring qualification b9ad
 `output_cap_exceeded` (1 request), which led to splitting assessments into batches of four
 option-and-rubric pairs. Next: re-run the live assessment of "CSV files need a quick quality check
 before analysis" on the trial copy after pulling this commit, then re-review.
+
+Live re-run at 7eaf45d on the trial copy: workflow ab5a4999 succeeded in 2 requests (answers
+12,166 and 11,825 characters), 8 system cards, 30 of 48 ratings unknown, every option incomplete
+so nothing ranked; connection at 11 of 30 daily, $0. Then re-review Low L-7 and nit N-5 fixed.
+Follow-up idea, not done: option rationales cite claim labels (C5 to C8) from the drafting step
+that differ from the assessment packet's numbering.
