@@ -290,10 +290,12 @@ export function Workflows({
                       ? 'Discovery'
                       : w.role === 'r01_exploration'
                         ? 'Explore for me'
-                        : 'Skeptic review'}{' '}
+                        : w.role === 'r08_assessment'
+                          ? 'Automatic assessment'
+                          : 'Skeptic review'}{' '}
                     {runName(w.run_id, names) &&
                       `· ${clipText(runName(w.run_id, names), 48)} `}
-                    {w.role === 'r01_exploration'
+                    {w.role === 'r01_exploration' || w.role === 'r08_assessment'
                       ? '·'
                       : `· ${w.perspectives.length} perspectives ·`}{' '}
                     {when(w.created_at)}

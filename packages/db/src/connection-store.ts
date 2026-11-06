@@ -19,6 +19,7 @@ import {
   z,
   DISCOVERY_TASK_CLASSES,
   EXPLORATION_TASK_CLASS,
+  ASSESSMENT_TASK_CLASS,
   workflowTaskClass,
   type WorkflowResourceSetup,
   type WorkflowLimits,
@@ -73,6 +74,8 @@ import {
   BUILD_ROLE_TASK_CLASSES,
   DISCOVERY_ROLE_VERSION,
   discoveryRoleInput,
+  assessmentRoleInput,
+  ASSESSMENT_ROLE_VERSION,
   admissionBlockers,
   canonicalHash,
   connectionBlockers,
@@ -243,7 +246,10 @@ const toQualification = (r: Row): PlanQualification => ({
   created_by: String(r.created_by),
   created_at: iso(r.created_at),
   decided_at: r.decided_at ? iso(r.decided_at) : null,
-  prompt_current: currentForBuildRole(r) && currentForDiscoveryRole(r),
+  prompt_current:
+    currentForBuildRole(r) &&
+    (currentForDiscoveryRole(r) || currentForAssessmentRole(r)),
+  admits_assessment: currentForAssessmentRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),
@@ -288,6 +294,37 @@ function currentForBuildRole(r: Row): boolean {
       );
     })
   );
+}
+
+/**
+ * ADR-0074: a scoring qualification admits automatic assessments only when every case is an
+ * assessment check whose system message is the assessor's current prompt for that packet. The
+ * discovery skeptic's scoring qualification does not admit assessments, nor the reverse.
+ */
+function currentForAssessmentRole(r: Row): boolean {
+  if (String(r.task_class) !== 'scoring') return false;
+  const manifest = r.manifest as {
+    cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
+  };
+  if (!manifest.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
+    return false;
+  return manifest.cases.every((item) => {
+    const parsed = BenchmarkCheckSchema.safeParse(item.check);
+    if (!parsed.success || parsed.data.kind !== 'assessment_contract')
+      return false;
+    const check = parsed.data;
+    if (
+      check.context.role_version !== ASSESSMENT_ROLE_VERSION ||
+      check.context.packet_hash !== canonicalHash(check.packet)
+    )
+      return false;
+    return (
+      item.input
+        ?.filter((m) => m.role === 'system')
+        .map((m) => m.text)
+        .join('\n\n') === assessmentRoleInput(check.packet)[0]!.text
+    );
+  });
 }
 
 /** Same discovery prompt binding used for both admission and historical-result labels. */
@@ -1917,13 +1954,18 @@ export class ConnectionStore extends PortfolioStore {
   async #discoveryQualifications(
     c: PoolClient,
     id: string,
+    role: Workflow['role'] = 'r02_discovery',
   ): Promise<PlanQualification[]> {
     const rows = await c.query(
       'select * from plan_qualifications where connection_id=$1',
       [id],
     );
     return rows.rows
-      .filter((r) => currentForDiscoveryRole(r as Row))
+      .filter((r) =>
+        role === 'r08_assessment'
+          ? currentForAssessmentRole(r as Row)
+          : currentForDiscoveryRole(r as Row),
+      )
       .map((r) => toQualification(r as Row));
   }
 
@@ -1968,7 +2010,11 @@ export class ConnectionStore extends PortfolioStore {
         'Workflow limits exceed accepted connection caps.',
       );
     const access = await this.#access(c, conn.id);
-    const qualifications = await this.#discoveryQualifications(c, conn.id);
+    const qualifications = await this.#discoveryQualifications(
+      c,
+      conn.id,
+      role,
+    );
     const usage = await this.#usage(c, conn.id, runId, null);
     const classes: (
       | typeof EXPLORATION_TASK_CLASS
@@ -1976,7 +2022,9 @@ export class ConnectionStore extends PortfolioStore {
     )[] =
       role === 'r01_exploration'
         ? [EXPLORATION_TASK_CLASS]
-        : [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
+        : role === 'r08_assessment'
+          ? [ASSESSMENT_TASK_CLASS]
+          : [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
     const blockers = classes.flatMap((task_class) =>
       admissionBlockers({
         connection: conn,
@@ -2006,7 +2054,9 @@ export class ConnectionStore extends PortfolioStore {
         'ACCESS_DENIED',
         role === 'r01_exploration'
           ? 'Exploration route is not ready.'
-          : 'Discovery route is not ready.',
+          : role === 'r08_assessment'
+            ? 'Assessment route is not ready.'
+            : 'Discovery route is not ready.',
         [...new Set(blockers)],
       );
   }
@@ -2462,7 +2512,11 @@ export class ConnectionStore extends PortfolioStore {
       const usage = await this.#usage(c, conn.id, req.run_id, req.build_id);
       const access = await this.#access(c, conn.id);
       const qualifications = wf
-        ? await this.#discoveryQualifications(c, conn.id)
+        ? await this.#discoveryQualifications(
+            c,
+            conn.id,
+            wf.role as Workflow['role'],
+          )
         : await this.#qualifications(c, conn.id, true);
       // ADR-0057: a chat answer is the owner's, under the workspace's chat setting.
       let chat: PlanChatAllowance | null = null;

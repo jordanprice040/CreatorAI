@@ -6,6 +6,7 @@ import {
   DiscoveryTaskContextSchema,
   EvidencePacketSchema,
   ExplorationPacketSchema,
+  AssessmentPacketSchema,
   ORCHESTRATION_POLICY_VERSION,
   RESPONSE_OUTCOME,
   StartWorkflowRequestSchema,
@@ -21,6 +22,10 @@ import {
   type ExplorationCatalogEntry,
   type ExplorationPacket,
   type ExplorerOutput,
+  type AssessmentPacket,
+  type AssessmentResult,
+  type AssessorOutput,
+  type ScorecardBody,
   type LocatorOutput,
   type ProposalOutput,
   type Reservation,
@@ -45,6 +50,11 @@ import {
   catalogMatches,
   checkDiscoveryOutput,
   checkExplorationOutput,
+  checkAssessmentOutput,
+  coordinateAssessment,
+  assessmentContext,
+  packetForOptions,
+  assessmentScorecards,
   coordinate,
   coordinateDiscovery,
   coordinateExploration,
@@ -66,6 +76,7 @@ import {
   fail,
   iso,
   normalize,
+  toEntity,
   uuid,
   type CommandContext,
   type Row,
@@ -161,6 +172,8 @@ export interface TaskLease {
   discovery: { packet: EvidencePacket; inputs: DiscoveryInput[] } | null;
   /** Exploration tasks (ADR-0065): the packet, verified by hash. */
   exploration: { packet: ExplorationPacket } | null;
+  /** Assessment tasks (ADR-0074): the packet, verified by hash. */
+  assessment?: { packet: AssessmentPacket } | null;
 }
 export type TaskOutcome =
   | { state: 'succeeded'; reason: string; output: unknown }
@@ -200,10 +213,22 @@ export interface ExplorationWorkflowContext {
   /** Claims the owner left out in the preview; never sent to the model (re-review R-L1). */
   left_out?: string[];
 }
+/** Assessment workflow context (ADR-0074): the packet, its hash and what each claim stood on. */
+export interface AssessmentWorkflowContext {
+  packet: AssessmentPacket;
+  packet_hash: string;
+  /** supportHash of every claim id linked to the problem when the packet was built (review M-1). */
+  linked_hash: string;
+  /** Option refs per request, so each answer fits the output cap; absent: one request. */
+  batches?: string[][];
+  /** Every packet claim with a hash of its active support rows when the packet was built. */
+  evidence: { id: string; version: number; support_hash: string }[];
+}
 /** What an answer is checked against: a discovery packet and task context, or an exploration packet. */
 export type OutputCheck =
   | { packet: EvidencePacket; context: TaskContext }
-  | { exploration: ExplorationPacket };
+  | { exploration: ExplorationPacket }
+  | { assessment: AssessmentPacket };
 
 /**
  * Validates a role answer; anything else is a known, charged failure. Discovery answers are
@@ -218,6 +243,11 @@ export function validateOutput(
   if (kind === 'explore') {
     if (!check || !('exploration' in check)) return null;
     const checked = checkExplorationOutput(json, check.exploration);
+    return checked.ok ? checked.output : null;
+  }
+  if (kind === 'assess') {
+    if (!check || !('assessment' in check)) return null;
+    const checked = checkAssessmentOutput(json, check.assessment);
     return checked.ok ? checked.output : null;
   }
   const discovery = check && 'packet' in check ? check : undefined;
@@ -809,6 +839,10 @@ export class WorkflowStore extends BudgetStore {
       wf.role === 'r01_exploration'
         ? (ctxRow as unknown as ExplorationWorkflowContext)
         : null;
+    const assessment =
+      wf.role === 'r08_assessment'
+        ? (ctxRow as unknown as AssessmentWorkflowContext)
+        : null;
     const view = {
       state: wf.state,
       control: wf.control,
@@ -819,16 +853,18 @@ export class WorkflowStore extends BudgetStore {
       tasks,
       now,
     };
-    const plan: CoordinatorPlan = exploration
-      ? coordinateExploration(view)
-      : discovery
-        ? coordinateDiscovery({
-            ...view,
-            perspectives: discovery.perspectives,
-            max_revisions: discovery.max_revisions,
-            sufficient: discovery.packet.sufficiency.verdict === 'sufficient',
-          })
-        : coordinate(view);
+    const plan: CoordinatorPlan = assessment
+      ? coordinateAssessment(view, assessment.batches?.length ?? 1)
+      : exploration
+        ? coordinateExploration(view)
+        : discovery
+          ? coordinateDiscovery({
+              ...view,
+              perspectives: discovery.perspectives,
+              max_revisions: discovery.max_revisions,
+              sufficient: discovery.packet.sufficiency.verdict === 'sufficient',
+            })
+          : coordinate(view);
     const skepticRow = ctxRow as unknown as {
       subject: SkepticTaskContext['subject'];
       constraints: string[];
@@ -848,15 +884,20 @@ export class WorkflowStore extends BudgetStore {
           state: 'queued',
           context:
             prior?.context ??
-            (exploration
-              ? explorationContext(exploration.packet_hash)
-              : discovery
-                ? discoveryTaskContext(discovery, a, tasks)
-                : this.taskContext(
-                    skepticRow,
-                    skepticRow.perspectives[a.ordinal] ?? null,
-                    [],
-                  )),
+            (assessment
+              ? assessmentContext(
+                  assessment.packet_hash,
+                  assessment.batches?.[a.ordinal],
+                )
+              : exploration
+                ? explorationContext(exploration.packet_hash)
+                : discovery
+                  ? discoveryTaskContext(discovery, a, tasks)
+                  : this.taskContext(
+                      skepticRow,
+                      skepticRow.perspectives[a.ordinal] ?? null,
+                      [],
+                    )),
         });
       } else if (a.type === 'release_synthesis') {
         const inputs = skepticRow.perspectives.flatMap((p, i) => {
@@ -924,7 +965,76 @@ export class WorkflowStore extends BudgetStore {
           workflowId,
         ])
       ).rows.map((r: Row) => toTask(r));
-      if (exploration) {
+      if (assessment) {
+        // One checked answer per batch; their scorecards are recorded together.
+        const parts = (assessment.batches ?? [undefined]).map((refs, i) => ({
+          refs,
+          done: final
+            .filter(
+              (t) =>
+                t.kind === 'assess' &&
+                t.state === 'succeeded' &&
+                t.ordinal === i,
+            )
+            .sort((x, y) => y.repair - x.repair)[0],
+        }));
+        const results: AssessmentResult[] = [];
+        if (
+          plan.terminal.state === 'succeeded' &&
+          parts.every((p) => p.done?.output_hash)
+        )
+          for (const p of parts)
+            results.push(
+              await this.recordAssessment(
+                c,
+                wf,
+                {
+                  ...assessment,
+                  packet: packetForOptions(assessment.packet, p.refs),
+                },
+                {
+                  id: p.done!.id,
+                  output_hash: p.done!.output_hash!,
+                  output: p.done!.output as AssessorOutput,
+                },
+              ),
+            );
+        const recorded: AssessmentResult | null = results.length
+          ? {
+              ...results[0]!,
+              summary:
+                results
+                  .map((r) => r.summary)
+                  .filter(Boolean)
+                  .join(' ')
+                  .slice(0, 1200) || null,
+              scorecards: results.flatMap((r) => r.scorecards),
+              replaced: results.flatMap((r) => r.replaced),
+              not_covered: [
+                ...new Set(results.flatMap((r) => r.not_covered)),
+              ].slice(0, 8),
+              notes: [...new Set(results.flatMap((r) => r.notes))].slice(0, 10),
+            }
+          : null;
+        result = {
+          outcome: plan.terminal.outcome,
+          explanation: recorded
+            ? `The assessor rated ${assessment.packet.options.length} option${assessment.packet.options.length === 1 ? '' : 's'}; ${recorded.scorecards.length} system scorecard${recorded.scorecards.length === 1 ? ' was' : 's were'} recorded. Totals and ranks are computed by the studio, and a person can edit any rating.`
+            : plan.terminal.explanation,
+          synthesis: null,
+          critiques: [],
+          fixture: wf.fixture,
+          assessment: recorded ?? {
+            packet_hash: assessment.packet_hash,
+            task: null,
+            summary: null,
+            scorecards: [],
+            replaced: [],
+            not_covered: [],
+            notes: assessment.packet.notes,
+          },
+        };
+      } else if (exploration) {
         const done = final
           .filter((t) => t.kind === 'explore' && t.state === 'succeeded')
           .sort((x, y) => y.repair - x.repair)[0];
@@ -1156,12 +1266,224 @@ export class WorkflowStore extends BudgetStore {
     return { packet, packet_hash: d.packet_hash };
   }
 
+  /** An assessment workflow's context, its packet checked against the bound hash (ADR-0074). */
+  protected async assessmentContextOf(
+    c: PoolClient,
+    workflowId: string,
+  ): Promise<AssessmentWorkflowContext> {
+    const { rows } = await c.query(
+      `select context from workflows where id = $1 and role = 'r08_assessment'`,
+      [workflowId],
+    );
+    const d = rows[0]?.context as AssessmentWorkflowContext | undefined;
+    if (!d) throw fail('NOT_FOUND', 'Assessment workflow not found.');
+    const packet = parse(AssessmentPacketSchema, d.packet);
+    if (canonicalHash(packet) !== d.packet_hash)
+      throw fail('EVIDENCE_MISMATCH', 'The assessment packet changed.');
+    return {
+      packet,
+      packet_hash: d.packet_hash,
+      linked_hash: d.linked_hash,
+      evidence: d.evidence,
+      ...(d.batches ? { batches: d.batches } : {}),
+    };
+  }
+
+  /**
+   * Writes a finished assessment's scorecards as the workflow agent (ADR-0074): one per option
+   * and rubric, each with its provenance, linked to the option it assesses. Earlier active
+   * system scorecards of the same option and rubric are archived (kept in history); people's
+   * scorecards are never touched. Options that changed since the packet are skipped and noted.
+   */
+  private async recordAssessment(
+    c: PoolClient,
+    wf: Workflow,
+    a: AssessmentWorkflowContext,
+    task: { id: string; output_hash: string; output: AssessorOutput },
+  ): Promise<AssessmentResult> {
+    const agent: CommandContext = { actorId: ORCHESTRATOR_ACTOR_ID };
+    const ws = wf.workspace_id;
+    const setup = wf.resource_setup;
+    let provider: string | null = null;
+    let model = 'unknown';
+    if (setup?.kind === 'subscription') {
+      const r = await c.query<{ model_id: string }>(
+        'select model_id from plan_requests where workflow_task_id = $1 order by started_at desc limit 1',
+        [task.id],
+      );
+      const k = await c.query<{ kind: string }>(
+        'select kind from plan_connections where id = $1',
+        [setup.connection_id],
+      );
+      provider = k.rows[0]?.kind ?? 'plan';
+      model = r.rows[0]?.model_id ?? setup.model_id;
+    } else {
+      const r = await c.query<{ provider: string; model_id: string }>(
+        `select provider, model_id from budget_reservations where task_id = $1
+          order by created_at desc limit 1`,
+        [task.id],
+      );
+      provider = r.rows[0]?.provider ?? null;
+      model = r.rows[0]?.model_id ?? 'unknown';
+    }
+    const cards = assessmentScorecards({
+      packet: a.packet,
+      output: task.output,
+      fixture: wf.fixture,
+      provenance: {
+        workflow_id: wf.id,
+        task_id: task.id,
+        output_hash: task.output_hash,
+        packet_hash: a.packet_hash,
+        role_version: wf.role_version,
+        prompt_hash: wf.prompt_hash,
+        route: wf.fixture
+          ? 'fixture'
+          : setup?.kind === 'subscription'
+            ? 'subscription'
+            : 'api',
+        provider,
+        model_id: model.slice(0, 200),
+        evidence: a.evidence,
+        linked_hash: a.linked_hash,
+      },
+    });
+    const notes = [...a.packet.notes];
+    const written: AssessmentResult['scorecards'] = [];
+    const replaced: string[] = [];
+    for (const card of cards) {
+      const alt = (
+        await c.query(
+          `select version, status from entities where workspace_id = $1 and id = $2 for share`,
+          [ws, card.alternative_id],
+        )
+      ).rows[0] as Row | undefined;
+      if (
+        !alt ||
+        alt.status !== 'active' ||
+        Number(alt.version) !== card.body.subject.version
+      ) {
+        notes.push(
+          `Option ${card.option} changed or was archived during the assessment; its ${card.rubric} scorecard was not recorded.`,
+        );
+        continue;
+      }
+      const older = (
+        await c.query(
+          `select * from entities where workspace_id = $1 and kind = 'scorecard' and status = 'active'
+             and body->'subject'->>'id' = $2 and body->>'rubric' = $3
+             and body ? 'assessment' for update`,
+          [ws, card.alternative_id, card.rubric],
+        )
+      ).rows.map((r: Row) => toEntity(r));
+      // Review L-2: an older assessment that finishes late never replaces a newer one.
+      const newer = [];
+      for (const o of older) {
+        const oa = (o.body as unknown as ScorecardBody).assessment;
+        if (!oa) continue;
+        if (oa.problem.version > a.packet.problem.version) newer.push(o);
+        else if (oa.problem.version === a.packet.problem.version) {
+          const t = await c.query<{ later: boolean }>(
+            `select w.created_at > me.created_at as later from workflows w, workflows me
+              where w.id = $1 and me.id = $2`,
+            [oa.workflow_id, wf.id],
+          );
+          if (t.rows[0]?.later) newer.push(o);
+        }
+      }
+      if (newer.length) {
+        notes.push(
+          `A newer assessment already rates option ${card.option} on ${card.rubric}; this one was not recorded.`,
+        );
+        continue;
+      }
+      for (const o of older) {
+        await this.writeVersion(c, agent, o, {
+          status: 'archived',
+          title: o.title,
+          body: o.body,
+          hash: o.content_hash,
+          reason: `Replaced by automatic assessment ${wf.id}.`,
+          corrects: null,
+          action: 'entity.archived',
+          payload: { replaced_by_workflow: wf.id },
+        });
+        replaced.push(o.id);
+      }
+      const entity = await this.insertEntity(
+        c,
+        agent,
+        ws,
+        'scorecard',
+        card.title,
+        card.body as unknown as Record<string, unknown>,
+      );
+      const linkId = randomUUID();
+      await c.query(
+        `insert into entity_links (id, workspace_id, relation, from_id, from_kind, from_version,
+           to_id, to_kind, to_version, rationale, asserted_by)
+         values ($1,$2,'assesses',$3,'scorecard',1,$4,'alternative',$5,$6,$7) on conflict do nothing`,
+        [
+          linkId,
+          ws,
+          entity.id,
+          card.alternative_id,
+          card.body.subject.version,
+          `Automatic assessment ${wf.id}.`,
+          agent.actorId,
+        ],
+      );
+      written.push({
+        id: entity.id,
+        version: entity.version,
+        option: card.option,
+        alternative_id: card.alternative_id,
+        rubric: card.rubric,
+        unknown: Object.entries(card.body.ratings)
+          .filter(([, r]) => r.rating === null)
+          .map(([k]) => k),
+      });
+    }
+    await this.append(c, agent, {
+      workspaceId: ws,
+      action: 'assessment.recorded',
+      subjectKind: 'workflow',
+      subjectId: wf.id,
+      subjectVersion: null,
+      contentHash: task.output_hash,
+      payload: {
+        problem: a.packet.problem.id,
+        problem_version: a.packet.problem.version,
+        scorecards: written.length,
+        replaced: replaced.length,
+        model_id: model.slice(0, 200),
+      },
+      relatedIds: [a.packet.problem.id, ...written.map((w) => w.id)],
+    });
+    return {
+      packet_hash: a.packet_hash,
+      task: { task_id: task.id, output_hash: task.output_hash },
+      summary: task.output.summary,
+      scorecards: written,
+      replaced,
+      not_covered: task.output.not_covered,
+      notes: notes.slice(0, 10),
+    };
+  }
+
   /** What a task's answer is checked against, read from its workflow. */
   protected async outputCheck(
     c: PoolClient,
     workflowId: string,
     task: Pick<WorkflowTask, 'kind' | 'context'>,
   ): Promise<OutputCheck | undefined> {
+    if (task.kind === 'assess')
+      return {
+        assessment: packetForOptions(
+          (await this.assessmentContextOf(c, workflowId)).packet,
+          (task.context as { options?: string[] }).options,
+        ),
+      };
     if (task.kind === 'explore')
       return {
         exploration: (await this.explorationContextOf(c, workflowId)).packet,
@@ -1512,6 +1834,7 @@ export class WorkflowStore extends BudgetStore {
           const critiques = [];
           let discovery: TaskLease['discovery'] = null;
           let exploration: TaskLease['exploration'] = null;
+          let assessment: TaskLease['assessment'] = null;
           const output = async (taskId: string, hash: string) => {
             const { rows: src } = await c.query(
               'select output, output_hash from workflow_tasks where id = $1 and workflow_id = $2',
@@ -1521,7 +1844,14 @@ export class WorkflowStore extends BudgetStore {
               throw fail('EVIDENCE_MISMATCH', 'A task input changed.');
             return src[0]?.output as unknown;
           };
-          if (task.context.context_version === 'exploration-context/1') {
+          if (task.context.context_version === 'assessment-context/1') {
+            const d = await this.assessmentContextOf(c, wf.id);
+            if (d.packet_hash !== task.context.packet_hash)
+              throw fail('EVIDENCE_MISMATCH', 'The assessment packet changed.');
+            assessment = {
+              packet: packetForOptions(d.packet, task.context.options),
+            };
+          } else if (task.context.context_version === 'exploration-context/1') {
             const d = await this.explorationContextOf(c, wf.id);
             if (d.packet_hash !== task.context.packet_hash)
               throw fail(
@@ -1562,6 +1892,7 @@ export class WorkflowStore extends BudgetStore {
             critiques,
             discovery,
             exploration,
+            assessment,
           });
         }
       }

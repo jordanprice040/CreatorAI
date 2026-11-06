@@ -471,6 +471,26 @@ export class Store {
     return role;
   }
 
+  /** ADR-0075: whether this actor signs in through a tester account (never the owner). */
+  protected async isTester(c: PoolClient, actorId: string): Promise<boolean> {
+    const { rowCount } = await c.query(
+      'select 1 from tester_accounts where actor_id = $1',
+      [actorId],
+    );
+    return (rowCount ?? 0) > 0;
+  }
+  /**
+   * ADR-0075: deployment-wide powers (new workspaces, membership, the spending ceiling, plan
+   * connections that use the owner's own sign-ins) are never a tester's, whatever their role.
+   */
+  protected async refuseTester(c: PoolClient, actorId: string, what: string) {
+    if (await this.isTester(c, actorId))
+      throw fail(
+        'ACCESS_DENIED',
+        `Tester accounts cannot ${what} in this review build.`,
+      );
+  }
+
   /** Replays a stored response for a repeated idempotency key, or rejects a changed request. */
   protected async idempotent<T>(
     ws: string,
@@ -533,6 +553,7 @@ export class Store {
     ctx = normalize(ctx);
     const req = parse(CreateWorkspaceRequestSchema, raw);
     return this.tx(async (c) => {
+      await this.refuseTester(c, ctx.actorId, 'create workspaces');
       const wsId = randomUUID();
       const { rows } = await c.query(
         `insert into workspaces (id, name, record_mode, fixture, created_by)
@@ -578,8 +599,15 @@ export class Store {
     ws = uuid(ws);
     actorId = uuid(actorId, 'INVALID_CONTRACT');
     return this.tx(async (c) => {
+      await this.refuseTester(c, ctx.actorId, 'change membership');
       if ((await this.role(c, ws, ctx.actorId, true)) !== 'owner')
         throw fail('ACCESS_DENIED', 'Only owners can change membership.');
+      // PR #143 review L-1 (ADR-0075): a tester account is never a workspace owner.
+      if (role === 'owner' && (await this.isTester(c, actorId)))
+        throw fail(
+          'ACCESS_DENIED',
+          'A tester account can be an editor or viewer, never an owner.',
+        );
       await c.query(
         'insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, $3)',
         [ws, actorId, role],
@@ -617,6 +645,7 @@ export class Store {
         'A reason of 1-200 characters is required.',
       );
     return this.tx(async (c) => {
+      await this.refuseTester(c, ctx.actorId, 'change membership');
       if ((await this.role(c, ws, ctx.actorId, true)) !== 'owner')
         throw fail('ACCESS_DENIED', 'Only owners can change membership.');
       await c.query(

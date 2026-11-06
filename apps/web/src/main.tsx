@@ -1053,7 +1053,9 @@ function App() {
                   ? 'this computer'
                   : auth.session!.method === 'dev_local'
                     ? 'local development'
-                    : 'OIDC'}{' '}
+                    : auth.session!.account === 'tester'
+                      ? 'tester account'
+                      : 'OIDC'}{' '}
                 <button className="text" onClick={() => void auth.signOut()}>
                   Sign out
                 </button>

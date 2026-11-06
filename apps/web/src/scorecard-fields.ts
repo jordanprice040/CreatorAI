@@ -56,7 +56,32 @@ export type ScorecardBodyShape = {
   checks: ScorecardDraft['checks'] & {
     alternatives_checked: { name: string; checked_on: string }[];
   };
+  /** ADR-0074: present only on a system scorecard written by an automatic assessment. */
+  assessment?: {
+    workflow_id: string;
+    model_id: string;
+    route: string;
+    uncertainty: string;
+    problem: Ref;
+  };
+  /** ADR-0074: a person's card that replaces a system scorecard. */
+  edit_of?: { scorecard: Ref; reason: string };
 };
+
+/**
+ * ADR-0074: a draft that starts from an automatic assessment. Ratings, evidence and notes are
+ * kept for the person to change; the ethics and access gates are left for the person to pick,
+ * because a system assessment never clears a gate.
+ */
+export function draftFromSystem(
+  body: ScorecardBodyShape,
+  criteria: readonly string[],
+): ScorecardDraft {
+  const d = draftFromBody(body, criteria, true);
+  d.ethics = { status: '', note: '' };
+  d.access = { status: '', note: '' };
+  return d;
+}
 
 /** Option kinds with a software part: only these are rated on the opportunity rubric. */
 export const SOFTWARE_KINDS = ['build', 'hybrid'];
