@@ -232,9 +232,12 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
   );
   assert.match(
     md,
-    /\*\*Unknown\.\*\*\n\n```text\nLicence price not known\.\n```/,
+    /\*\*Unknown\.\*\*\n\n```proposal-text\nLicence price not known\.\n```/,
   );
-  assert.match(md, /\*\*Not applicable\.\*\*\n\n```text\nOne person\.\n```/);
+  assert.match(
+    md,
+    /\*\*Not applicable\.\*\*\n\n```proposal-text\nOne person\.\n```/,
+  );
   assert.match(md, /Cited: \[R1\]/);
   assert.match(md, /- \[R1\] Staff miss the hand-off/);
   assert.match(md, /<https:\/\/example\.org\/report> \(supports, current\)/);
@@ -293,7 +296,7 @@ test('export: typed and record text cannot hide or forge parts of the file (revi
   assert.equal(sectionMarkdown(''), '');
   assert.equal(
     sectionMarkdown('a ``` b\n````'),
-    '`````text\na ``` b\n````\n`````',
+    '`````proposal-text\na ``` b\n````\n`````',
   );
   const attacks = [
     '```\nunclosed fence',
@@ -319,7 +322,7 @@ test('export: typed and record text cannot hide or forge parts of the file (revi
           [
             c1.id,
             claim({
-              statement: '## Statement ```',
+              statement: '## Statement ``` per https://x.test/report_2026#p3',
               sources: [
                 {
                   title: '## Source _title_',
@@ -327,6 +330,13 @@ test('export: typed and record text cannot hide or forge parts of the file (revi
                   stance: 'supports',
                   freshness: 'current',
                   quote: '> ## quoted',
+                },
+                {
+                  title: '',
+                  url: 'https://x.test/untitled_1#top',
+                  stance: 'supports',
+                  freshness: 'current',
+                  quote: 'see https://x.test/q_1#a',
                 },
                 {
                   title: 'Odd address',
@@ -385,7 +395,11 @@ test('export: typed and record text cannot hide or forge parts of the file (revi
     walk(tree);
     assert.deepEqual(
       hrefs,
-      ['https://x.test/a_b#c*d', 'https://x.test/a%20b%3Cc%3E'],
+      [
+        'https://x.test/a_b#c*d',
+        'https://x.test/untitled_1#top',
+        'https://x.test/a%20b%3Cc%3E',
+      ],
       text,
     );
     // The typed text is kept exactly, as a text block.
@@ -460,18 +474,48 @@ test('export: a changed claim says which version is shown; open checks are count
       saved_at: '2026-11-06T12:00:00.000Z',
     });
   assert.match(md(checks), /cited at v1, now v3 \(the statement shown is v3\)/);
-  const many = {
-    ...checks,
-    blockers: 150,
-    warnings: 100,
-    checks: Array.from({ length: 200 }, (_, i) => ({
-      level: (i < 150 ? 'blocker' : 'warning') as 'blocker' | 'warning',
-      code: 'claim_missing' as const,
-      section: null,
-      message: `Check ${i}.`,
-    })),
-  };
-  const out = md(many);
-  assert.match(out, /150 blocker\(s\), 100 warning\(s\)/);
-  assert.match(out, /…and 50 more, not listed here/);
+  // N-G: the real counting code, with more than 200 checks: in every section, cite ten claims
+  // that changed and are not linked (warnings) before ten missing ones (blockers).
+  const present = Array.from({ length: 10 }, ref);
+  const missing = Array.from({ length: 10 }, ref);
+  const big = body(
+    Object.fromEntries(
+      PROPOSAL_SECTIONS.map((k) => [
+        k,
+        {
+          state: 'written',
+          text: `About ${k}.`,
+          claims: [...present, ...missing],
+        },
+      ]),
+    ),
+  );
+  const counted = proposalChecks(
+    big,
+    ctxFor(
+      big,
+      new Map(
+        present.map((c) => [
+          c.id,
+          claim({ version: 2, relation: 'not_linked' }),
+        ]),
+      ),
+    ),
+  );
+  const all = counted.blockers + counted.warnings;
+  assert.ok(all > 200, String(all));
+  assert.ok(counted.blockers > 0 && counted.warnings > 0);
+  assert.equal(counted.checks.length, 200);
+  // N-F: blockers are kept first, so the cut drops warnings, never a blocker before a warning.
+  const kept = Math.min(counted.blockers, 200);
+  assert.ok(counted.checks.slice(0, kept).every((c) => c.level === 'blocker'));
+  assert.ok(counted.checks.slice(kept).every((c) => c.level === 'warning'));
+  const out = md(counted);
+  assert.match(
+    out,
+    new RegExp(
+      `${counted.blockers} blocker\\(s\\), ${counted.warnings} warning\\(s\\)`,
+    ),
+  );
+  assert.match(out, new RegExp(`…and ${all - 200} more, not listed here`));
 });

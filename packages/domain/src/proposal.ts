@@ -690,7 +690,11 @@ export function proposalChecks(
     not_applicable: na,
     blockers: checks.filter((c) => c.level === 'blocker').length,
     warnings: checks.filter((c) => c.level === 'warning').length,
-    checks: checks.slice(0, 200),
+    // Blockers first, so a cut list never drops a blocker for a warning (N-F).
+    checks: [
+      ...checks.filter((c) => c.level === 'blocker'),
+      ...checks.filter((c) => c.level === 'warning'),
+    ].slice(0, 200),
     references,
   };
 }
@@ -713,10 +717,13 @@ export interface MarkdownInput {
 /**
  * Text from a record or a typed one-line field, flattened to one line with the Markdown
  * characters that could start a heading, quote, code span or fence, link, HTML, emphasis or
- * table escaped, so it renders as the literal text wherever it sits (re-review L-A).
+ * table escaped, and "://" broken so a web address inside it is text, not a link that the
+ * escapes would send to the wrong page (re-review L-A, review L-D).
  */
 export function inlineText(text: string): string {
-  return oneLine(text).replace(/[\\`*_[\]<>#|~!]/g, '\\$&');
+  return oneLine(text)
+    .replace(/[\\`*_[\]<>#|~!]/g, '\\$&')
+    .replace(/:\/\//g, '\\://');
 }
 
 /**
@@ -729,7 +736,7 @@ export function urlText(url: string): string {
   const u = url.trim();
   if (/^https?:\/\//i.test(u))
     return `<${u.replace(/[\s<>\\\p{Cc}\u2028\u2029]/gu, (c) => encodeURIComponent(c))}>`;
-  return inlineText(u).replace(/:\/\//g, '\\://');
+  return inlineText(u);
 }
 
 /**
@@ -746,7 +753,7 @@ export function sectionMarkdown(text: string): string {
     ...[...body.matchAll(/`+/g)].map((m) => m[0].length),
   );
   const fence = '`'.repeat(Math.max(3, longest + 1));
-  return `${fence}text\n${body}\n${fence}`;
+  return `${fence}proposal-text\n${body}\n${fence}`;
 }
 
 /**
@@ -796,7 +803,7 @@ export function proposalMarkdown(m: MarkdownInput): string {
     );
     for (const s of r.sources)
       out.push(
-        `  - ${inlineText(s.title || s.url)}: ${urlText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
+        `  - ${s.title.trim() ? `${inlineText(s.title)}: ` : ''}${urlText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
       );
   }
   if (m.checks.checks.length) {

@@ -135,7 +135,9 @@ function blocks(list: Block[], desktop: boolean): ReactNode[] {
         return (
           <pre
             key={k}
-            className={b.lang === 'text' ? 'md-code md-code-text' : 'md-code'}
+            className={
+              b.lang === 'proposal-text' ? 'md-code md-code-text' : 'md-code'
+            }
           >
             <code>{b.v}</code>
           </pre>
