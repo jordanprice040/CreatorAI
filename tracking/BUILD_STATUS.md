@@ -408,7 +408,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Checks (cloud container, local PostgreSQL 16): `tests/src/proposal.test.ts` (4 DB tests: explanation, F9 gate,
   draft/version/check/review/export, API download, save to Files and viewer refusal) and
   `tests/src/proposal-domain.test.ts` (4); browser walk `tracking/evidence/proposals-ui/walk.mjs` with screenshots
-  in `tracking/evidence/proposals-ui/screens/` (no horizontal scroll at phone width). Full suite results in the
-  handoff entry.
+  in `tracking/evidence/proposals-ui/screens/` (no horizontal scroll at phone width). Full `pnpm typecheck` + `pnpm test:db`: 843 tests, 810 pass,
+  28 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. CI not run (no Actions minutes).
 - Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
   unverified.
