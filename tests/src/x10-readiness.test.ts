@@ -31,10 +31,14 @@ const requirements = read('context/REQUIREMENTS.md');
 const registerBytes = read('config/readiness.json');
 const register = () => JSON.parse(registerBytes) as Register;
 const pilot = () => JSON.parse(read('config/owner-pilot.json')) as OwnerPilot;
-// A fixed clock inside the committed pilot window (2026-10-30 07:15Z to 2026-11-06 08:15Z),
-// so these checks do not start failing when the real window passes.
-const IN_WINDOW = new Date('2026-11-02T12:00:00Z');
-const AFTER_WINDOW = new Date('2026-11-06T08:15:01Z');
+// Fixed clocks derived from the committed pilot window, so these checks neither start
+// failing when the real window passes nor drift if the owner edits the window.
+const committedStart = Date.parse(pilot().window.starts_at!);
+const committedEnd = Date.parse(pilot().window.ends_at!);
+const IN_WINDOW = new Date((committedStart + committedEnd) / 2);
+const JUST_BEFORE_END = new Date(committedEnd - 1000);
+const AT_END = new Date(committedEnd);
+const AFTER_WINDOW = new Date(committedEnd + 1000);
 const evaluate = (
   r: Register,
   p: OwnerPilot = pilot(),
@@ -76,12 +80,17 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   assert.equal(r.verdict, 'not_ready');
   assert.equal(r.requirements.length, 54);
   // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate
-  // while its window is open, and is refused once the window has ended.
+  // while its window is open (up to its last second), and is refused once it has ended.
   assert.deepEqual(r.pilot, { ready: true, refusals: [] });
-  assert.deepEqual(evaluate(register(), pilot(), AFTER_WINDOW).pilot, {
-    ready: false,
-    refusals: ['Pilot window has already ended.'],
+  assert.deepEqual(evaluate(register(), pilot(), JUST_BEFORE_END).pilot, {
+    ready: true,
+    refusals: [],
   });
+  for (const now of [AT_END, AFTER_WINDOW])
+    assert.deepEqual(evaluate(register(), pilot(), now).pilot, {
+      ready: false,
+      refusals: ['Pilot window has already ended.'],
+    });
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(
     r.requirements.find((x) => x.id === 'C01')?.missing.includes('live'),

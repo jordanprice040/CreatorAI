@@ -411,8 +411,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 
 - From 2026-11-06 08:15 UTC the committed-register test in `tests/src/x10-readiness.test.ts` failed everywhere
   because it read the real clock and the owner-pilot window in `config/owner-pilot.json` had ended. The test now
-  passes a fixed time inside the window (2026-11-02 12:00 UTC), and also checks that one second after the window
-  ends the same committed plan is refused with "Pilot window has already ended." Jordan's pilot dates and the
+  derives fixed times from the committed window (its midpoint, one second before the end, the end itself, one second
+  after): the plan is ready up to the last second and refused with "Pilot window has already ended." from the end
+  on; mutating the gate to `<` or to an early cut-off each fails the test (review L-1/L-2). Jordan's pilot dates and the
   production gate (`checkPilot`/`evaluateReadiness`, which still default to the real time) are unchanged.
-- Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix);
-  `pnpm check` 816 tests, 515 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
+- Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix), rebased on main after #146;
+  `pnpm check` 835 tests, 534 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
