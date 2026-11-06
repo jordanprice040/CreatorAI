@@ -147,6 +147,78 @@ Activity destinations, Search reset and server-side sort/paging for Search and t
 details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
 installed-app change or live call. Not yet independently reviewed.
 
+## P05 workspace files (November 5, branch `claude/project-thread-h4hwto-p05`)
+
+Sources › Files (ADR-0072, migration 45, schema 45): upload by dropping files anywhere or with
+Add files; exact originals and SHA-256 in PostgreSQL with numbered immutable versions; newest-
+first list with search inside names and text; inert viewers for text, Markdown, JSON, CSV, code
+and images; download of any version's original bytes; rename, link to records, delete/restore
+and owner-only permanent deletion; per-file and per-workspace bounds from the environment.
+
+Checked: `tests/src/files-api.test.ts` (real API and PostgreSQL: traversal names, retries,
+duplicates, spoofed types, inline image headers, exact download, versions, search with line
+numbers, size limits, links, stranger/viewer/other-workspace access, delete/restore/purge,
+immutable versions), `files-inspect.test.ts`, and the restore test now round-trips a binary
+file through backup and restore. Walked in headless Chromium at 1280 and 390 px: drag over the
+Discover page shows the overlay, the drop uploads without leaving the page (an unsaved theme
+stayed), the same file again is reported as a duplicate, the picker adds a CSV, Markdown
+renders without running a `<script>` line, and the download's SHA-256 matches the source.
+Not done (B01): Trash expiry, OCR, editors, conversions, PDF preview, related files, global
+Search indexing, record-targeted drops. Awaiting review.
+
+## P05 review fixes (November 5, PR #141 review, migration 45 amended before merge)
+
+Fixes the PR #141 review (project file reviews/PR141_WORKSPACE_FILES_REVIEW_2026-11-05.md): L1
+invisible and C1 characters stripped from names; L2 role checked before the body is read; L3
+targeted duplicates link to their record and reused keys must name the same target; L4 upload
+bodies get a size-scaled deadline while other requests keep 10 seconds; L5 tests for mid-body
+cancellation, editor purge, workspace binding and retry keys in the tray (new
+`web-transfers.test.ts`); L6 search returns a window from the first match's line, kept text
+stays outside the quota (recorded in ADR-0072); L7 tray cleared when another person's session
+starts; nits N1–N8 (N5 adds an index to migration 45, which has not merged anywhere yet).
+
+## P05 re-review fix R-M1 (November 5)
+
+The longer upload deadline is granted only inside the upload route, after authentication, the
+role check and a declared size within the file limit; every other request on the API and web
+ports keeps the 10-second body deadline, and a refusal sent while a body is still arriving
+closes the connection. New `files-deadline.test.ts`: unauthenticated, over-limit and web-port
+slow bodies close within 11.5 s, and a member's upload still arriving at 14 s is stored (the
+test fails on the previous head).
+
+## P04 guided start and readable Discover (November 5, branch `claude/project-thread-h4hwto`)
+
+Discover now opens with three start choices and a Guided/Advanced switch over the same form
+(ADR-0071). Guided folds routine settings under one-line summaries; a "What will happen" panel
+shows run, permission, model access, effective limits, data class and output, each with its
+source; a per-person, per-workspace preset (this browser) can replace the studio defaults; the
+default plan connection is now one that is ready and qualified. Discover and Build share one
+blocked-reasons list with buttons to the fixing tab; the empty-claims state points to Sources
+instead of the CLI. No migration or API change.
+
+Walked in headless Chromium on a disposable database (fixture workspace from `seed-research`,
+budget and pricing added in the app): with only the six brief fields typed and one claim ticked,
+Guided started a real discovery run and opened it under Monitor › Runs; phone width (390 px)
+reads in one column. Already implemented and only inspected: Try completes when feedback is
+recorded on the newest package (next-rules), meaningful run labels and newest-first defaults
+(PRs #100, #101, #138). For P17: the first-run "No workspace yet" card still mentions
+`pnpm cli seed-selection`; the Start-with-a-theme draft form is long; Guided does not yet
+apply to Explore's own options or to Build; presets are browser-local. Awaiting review.
+
+## P04 review fixes (November 5, PR #140 review, no migration)
+
+Fixes the PR #140 review (project file reviews/PR140_DISCOVER_REVIEW_2026-11-05.md): L-1 a
+picked model pins its connection; L-2 presets drop blank time and budget text; L-3 a failed
+start opens the right fold and focuses the field, and the problem list items are buttons; L-6
+"What will happen" shows a Ceilings row (plan requests used of the daily allowance, or budget
+available and the overall spending ceiling left) and fold summaries name the source of every
+value; L-7 merged main keeping main's ADR-0070; nits N-1 (no per-call charge text when model
+calls are not pre-approved), N-2 (studio default, not connection caps, when no connection),
+N-3 (the reset button and note say routine edits are reset), N-4 (setup blocker views are a
+literal union, no cast), N-5 (no private class in presets). Recorded, not fixed: L-4 for P17
+(Guided still needs the six brief fields and one claim; the output is a statement, not a
+choice) and L-5 in ADR-0071 (Projects pages keep their own blocker text, for P17).
+
 ## P06 named notes (November 5, branch `claude/project-thread-h4hwto-p06`)
 
 Sidebar Notes (ADR-0073, migration 46, schema 46): several private named notes per person and

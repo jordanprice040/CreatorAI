@@ -10,6 +10,7 @@ export type StepView =
   | 'overview'
   | 'submit'
   | 'catalog'
+  | 'files'
   | 'compare'
   | 'evidence'
   | 'decisions'
@@ -468,6 +469,7 @@ export function nextStep(view: StepView, f: StudioFacts): Step {
       // tabs and the list never disagree (PR #97 review M-1).
       return pathStages(f).step;
     case 'catalog':
+    case 'files':
     case 'search':
     case 'activity':
     case 'desktop':
