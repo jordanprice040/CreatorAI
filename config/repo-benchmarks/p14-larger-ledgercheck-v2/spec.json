@@ -1,6 +1,6 @@
 {
   "format": "p14-benchmark-spec/1",
-  "benchmark_id": "p14-larger-ledgercheck-v1",
+  "benchmark_id": "p14-larger-ledgercheck-v2",
   "scale": "larger",
   "title": "Ledger cap checker CLI (P14 larger benchmark)",
   "content": {
@@ -61,7 +61,7 @@
       "If any row is invalid, print one line per invalid row in line order as: line N: reason, print nothing else and exit 1",
       "Otherwise total each category in integer cents. Money is printed as optional minus sign, whole part, dot, two digits (for example -0.05, 3.10, 1200.00); zero is 0.00",
       "Text report: one line per category in ascending category order, then a final line total T where T is the sum of the printed category totals. An uncapped category line is: name total. A capped one is: name total / cap status, where status is over when total is greater than cap, else ok",
-      "--cap name=amount (repeatable, at most 5, each name once) caps a category; amount uses the amount rule without a minus sign. A capped category with no rows is still listed with total 0.00",
+      "--cap name=amount (repeatable, at most 5, each name once) caps a category. name follows the category rule; amount uses the amount rule without a minus sign. A capped category with no rows is still listed with total 0.00",
       "--month YYYY-MM (a real month, at most once) keeps only rows whose date is in that month before totalling",
       "--format text or json (at most once, default text). JSON is json.dumps(report, sort_keys=True) plus newline, where report is {categories: [{name, total, cap, status}], total}; money values are strings in the money format, and cap and status are null when uncapped",
       "Any other argument, a flag without its value, or an invalid or repeated value prints exactly: invalid input, then newline, and exits 2, before reading rows",

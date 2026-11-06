@@ -1,0 +1,77 @@
+{
+  "format": "p14-benchmark-expectations/2",
+  "benchmark_id": "p14-small-wordtally-v2",
+  "scale": "small",
+  "recipe": "python-build/1",
+  "declared_scale": "One module (src/main.py), one builder task, 4 automated checks, 10 frozen studio cases of which 6 are held out, plus 8 extended held-out cases scored after the build",
+  "build_plan_caps": {
+    "max_repairs": 1,
+    "max_calls": 4,
+    "max_output_tokens": 4000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 4,
+    "note": "Each round is one builder and one reviewer request; one repair round adds two"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_run_per_attempt": "The plan connection caps requests per run at 10, so each attempt gets its own run, selection, spec and product. The spec typed into each run must pass compare-spec",
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles (worker crash, studio restart, plan outage) stops the attempt before a verdict. It is recorded with its cause, and each attempt may be replaced at most once",
+  "scorer_fault_rule": "If the studio verified the build but exporting or scoring fails for an infrastructure reason (Bubblewrap missing, a path problem, a scorer crash), the same exported package (same product_tree_sha256) may be exported or scored again. That does not re-run any role. A grader result on a package is final once it is produced",
+  "ordering_note": "The case files were committed before the reference solutions (see the commit history of PR #145). That the expected outputs were derived from the spec and not from a run is the author's statement",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes 10 of 10 frozen cases, including 6 of 6 held out, in the WSL2 isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (4)",
+    "compare-spec passes for the stored spec",
+    "The exported package scored by the frozen grader passes 10 of 10 build cases and 8 of 8 extended cases"
+  ],
+  "measure_and_record": [
+    "requests used and repair rounds used",
+    "wall time from Start to verified or failed",
+    "files changed and lines in the final diff (multi-file change count)",
+    "reviewer verdict and findings (verbatim summary)",
+    "QA pass counts, development and held out",
+    "compare-spec result for the stored spec",
+    "grader JSON (freeze_sha256, grader_sha256, product_tree_sha256, build, extended, resources)",
+    "clean export start: the exported package, extracted outside the studio, runs under the grader with no studio files present (the grader result is this check)",
+    "CPU and memory: the grader's per-case max CPU seconds and max RSS; studio QA records its limits, not usage, so studio-side usage is not measured on this route",
+    "plan daily request count before and after",
+    "dev studio schema and commit"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "unicode-words",
+      "description": "Unicode letters treated as word characters (spec says ASCII only)",
+      "caught_by": ["E1"]
+    },
+    {
+      "id": "tie-order",
+      "description": "Ties ordered by first appearance instead of word order",
+      "caught_by": ["A1.1", "E8"]
+    },
+    {
+      "id": "top-zero",
+      "description": "--top 0 accepted",
+      "caught_by": ["A4.2"]
+    },
+    {
+      "id": "top-repeated",
+      "description": "Repeated --top accepted",
+      "caught_by": ["E2"]
+    },
+    {
+      "id": "top-above-50",
+      "description": "--top above 50 accepted",
+      "caught_by": ["E3"]
+    },
+    {
+      "id": "no-words-newline",
+      "description": "Missing newline after no words",
+      "caught_by": ["A3.1", "A3.2"]
+    }
+  ]
+}
