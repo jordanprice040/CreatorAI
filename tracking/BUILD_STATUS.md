@@ -245,3 +245,20 @@ until the installed app's upgrade is confirmed, then cleared by a later migratio
 N-1 ADR wording on old-page tabs; N-2 a legacy notepad draft is kept when the note already has
 unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migration test starts
 "from the layout before 46" (wording fixed above).
+
+## P14 repo benchmarks frozen (November 6, branch `claude/project-thread-5g8cg6`, no migration or ADR)
+
+- [Repo benchmarks](../docs/REPO_BENCHMARKS_P14_2026-11-06.md): a small (`p14-small-wordtally-v1`, one
+  module, 10 cases, 6 held out) and a larger (`p14-larger-ledgercheck-v1`, entry point plus a 3-module
+  package, 10 studio cases with 5 held out, 15 extended held-out cases and a structure check) benchmark
+  for `python-build/1`. Specs pass the studio's spec schema and build rules.
+- Expected outputs were written by hand from the spec, then independent reference solutions passed all
+  of them on the first run. `config/repo-benchmarks/FREEZE.json` binds every file (SHA-256,
+  `frozen_before_any_run: true`); `node scripts/p14-benchmark.mjs verify` and
+  `tests/src/p14-benchmarks.test.ts` fail on any change. Pass bar: 3 of 3 attempts verified, reviewer
+  approve, within `max_calls`, export scorer all pass.
+- Limits found: QA runs at most 10 cases per build, only dependency-free builder tasks build, and
+  `python3 -I` leaves `src/` off the import path (multi-module code must set `sys.path`).
+- Checks executed: reference solutions under the direct runner and under Bubblewrap in the cloud
+  container; mutants (tie order, missing `sys.path`, unvalidated rows outside `--month`) fail as frozen.
+  No studio build, model request or live route was used for the freeze.

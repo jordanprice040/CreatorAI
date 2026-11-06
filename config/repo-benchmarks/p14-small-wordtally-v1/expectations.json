@@ -1,0 +1,44 @@
+{
+  "format": "p14-benchmark-expectations/1",
+  "benchmark_id": "p14-small-wordtally-v1",
+  "scale": "small",
+  "recipe": "python-build/1",
+  "declared_scale": "One module (src/main.py), one builder task, 4 automated checks, 10 frozen cases of which 6 are held out",
+  "build_plan_caps": {
+    "max_repairs": 1,
+    "max_calls": 4,
+    "max_output_tokens": 4000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 4,
+    "note": "Each round is one builder and one reviewer request; one repair round adds two"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified: QA passes 10 of 10 frozen cases, including 6 of 6 held out, in the WSL2 isolation worker",
+    "Independent reviewer verdict is approve on the final candidate",
+    "Requests used are at most the plan's max_calls (4)",
+    "Exported package scored by scripts/p14-benchmark.mjs passes 10 of 10 spec cases"
+  ],
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles (worker crash, studio restart, plan outage) stops the attempt before a verdict. It is recorded with its cause and replaced at most once",
+  "measure_and_record": [
+    "requests used and repair rounds used",
+    "wall time from Start to verified or failed",
+    "files changed and lines in the final diff",
+    "reviewer findings (verbatim summary)",
+    "QA pass counts development and held out",
+    "export scorer result",
+    "plan daily request count before and after"
+  ],
+  "known_failure_cases": [
+    "Unicode letters treated as word characters (spec says ASCII only)",
+    "Ties ordered by first appearance instead of word order",
+    "--top 0 or repeated --top accepted",
+    "Missing newline after no words or invalid input"
+  ]
+}
