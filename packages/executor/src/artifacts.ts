@@ -5,6 +5,8 @@ import {
   BuildManifestSchema,
   BrokerCallResultSchema,
   ContractError,
+  UNQUALIFIED_TRIAL_NOTE,
+  recipeQualified,
   type BuildManifest,
   type RunInput,
 } from '@creator/contracts';
@@ -241,6 +243,9 @@ export class ArtifactSupervisor {
         bridge_hash: checked(hash, env.bridge_hash),
         backend,
         python: typeof env.python === 'string' ? env.python : null,
+        ...(recipeQualified(recipe)
+          ? {}
+          : { role_qualification: 'unqualified_trial' as const }),
         ...(web
           ? {
               browser: browser
@@ -361,6 +366,7 @@ export class ArtifactSupervisor {
       },
       lineage,
       limitations: [
+        ...(recipeQualified(recipe) ? [] : [UNQUALIFIED_TRIAL_NOTE]),
         ...(web
           ? [
               'Verifies one task commit and its owner-authored browser cases in one pinned headless browser (Chrome 156), not other browsers, screen sizes, accessibility, the whole product or real user needs.',

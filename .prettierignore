@@ -122,3 +122,4 @@ docs/THEME_INTENT_CW01_OPERATIONAL_ADAPTER_DESIGN_V1_3_REVIEW_2026-10-26.md
 
 # P15 frozen web benchmark (ADR-0078): FREEZE.json binds these bytes.
 config/web-benchmarks/
+docs/PR149_STATIC_WEB_RECIPE_REVIEW_2026-11-06.md

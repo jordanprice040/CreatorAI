@@ -574,7 +574,7 @@ textarea::placeholder,input::placeholder{color:#6b6b66;opacity:1}
 const SCRIPT = `const life=document.getElementById('life');const every=Number(life.dataset.heartbeat)*1000;let ended=false;
 async function beat(){if(ended)return;try{const r=await fetch(location.pathname+'/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const v=await r.json();
 if(r.ok){life.className='muted';life.textContent=v.lifetime==='until_stopped'?'Open until you stop it in the studio. Viewer last seen '+new Date(v.last_seen_at).toLocaleTimeString()+'.':'Expires '+new Date(v.expires_at).toLocaleString()+'.';}
-else if(r.status===403||r.status===410||r.status===404){ended=true;life.className='error';life.textContent=v.error?v.error.message:'This preview has ended ('+r.status+').';const b=document.querySelector('#run button[type=submit]');if(b)b.disabled=true;}
+else if(r.status===403||r.status===410||r.status===404){ended=true;life.className='error';life.textContent=v.error?v.error.message:'This preview has ended ('+r.status+').';const b=document.querySelector('#run button[type=submit]');if(b)b.disabled=true;const f=document.querySelector('iframe.site');if(f){f.src='about:blank';f.remove();}}
 else{life.className='error';life.textContent='Studio not answering ('+r.status+'); retrying.';}}
 catch(err){life.className='error';life.textContent='Lost contact with the studio; retrying. '+(life.dataset.grace?'The preview ends if no page reconnects within '+Math.round(Number(life.dataset.grace)/60)+' minutes.':'');}}
 beat();setInterval(beat,every);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')beat();});
@@ -639,7 +639,7 @@ ${block('Command line', [...command, ...x.args].map(shellWord).join(' '))}${bloc
 const CLI_BANNER =
   'Creator Agent private preview · separate origin · the generated program runs only in the isolated worker';
 const WEB_BANNER =
-  'Creator Agent private preview · the generated site runs in your browser, in a sandboxed frame on its own origin, with no network';
+  'Creator Agent private preview · the generated site runs in your browser, in a sandboxed frame on its own origin; it cannot fetch or send data, but its links can still leave the site';
 function page(
   res: ServerResponse,
   status: number,
@@ -716,7 +716,7 @@ function webUsage(guide: PreviewGuide | null) {
         )
         .join('')}</ul>`
     : '';
-  return `${flows}<p class="muted">Use the site in the frame below. It is the exact package that passed QA, served from its own origin with no network, cookies or studio access. Anything it stores starts empty with each new preview link. The browser checks that verified it are in the spec; held-out ones are not shown.</p>`;
+  return `${flows}<p class="muted">Use the site in the frame below. It is the exact package that passed QA, served from its own origin with no cookies or studio access. Its scripts cannot fetch or send data, but a link or a location change in it can still open another site in the frame. Anything it stores starts empty with each new preview link. The browser checks that verified it are in the spec; held-out ones are not shown.</p>`;
 }
 
 /**
@@ -758,14 +758,22 @@ export function createPreviewServer(
             'Generated sites are read-only files.',
           );
         const id = uuidOf(frame[1]!);
-        const f = await store.previewFrame(id);
-        const want = Buffer.from(frameToken(id, f.session_hash));
+        // The token is checked inside the lookup, before the preview counts a viewer; a dead,
+        // unknown or stale-token frame gets one answer, so ids cannot be probed.
         const got = Buffer.from(frame[2]!);
-        if (want.length !== got.length || !timingSafeEqual(want, got))
-          throw new ContractError(
-            'ACCESS_DENIED',
-            'This frame is no longer valid; reload the preview page.',
-          );
+        const f = await store
+          .previewFrame(id, (sessionHash) => {
+            const want = Buffer.from(frameToken(id, sessionHash));
+            return want.length === got.length && timingSafeEqual(want, got);
+          })
+          .catch((e: unknown) => {
+            if (e instanceof ContractError)
+              throw new ContractError(
+                'ACCESS_DENIED',
+                'This frame is no longer valid; reload the preview page.',
+              );
+            throw e;
+          });
         const mf = f.record.manifest;
         if (mf.toolchain.recipe !== 'static-web/1')
           throw new ContractError('NOT_FOUND', 'Not a static web package.');
@@ -898,7 +906,7 @@ export function createPreviewServer(
                 : ''
             }></p>
 ${webUsage(a.guide)}
-<iframe class="site" src="${html(src)}" title="Generated site" sandbox="allow-scripts allow-forms allow-same-origin allow-modals" referrerpolicy="no-referrer"></iframe>
+<iframe class="site" src="${html(src)}" title="Generated site" sandbox="allow-scripts allow-forms allow-same-origin" referrerpolicy="no-referrer"></iframe>
 <script src="/preview-assets/preview.js"></script>`,
             `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src http://${host}; form-action 'none'; base-uri 'none'; frame-ancestors 'none'`,
             WEB_BANNER,

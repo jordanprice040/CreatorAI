@@ -1,6 +1,6 @@
 {
   "format": "p15-web-benchmark-expectations/1",
-  "benchmark_id": "p15-small-signup-v1",
+  "benchmark_id": "p15-small-signup-v2",
   "scale": "small",
   "recipe": "static-web/1",
   "declared_scale": "One page (site/index.html, style.css, app.js), one builder task, 5 browser checks, 10 frozen studio browser cases of which 6 are held out",
@@ -177,7 +177,79 @@
       "caught_by": [
         "A4.1"
       ]
+    },
+    {
+      "id": "worker-request",
+      "description": "A worker sends a request outside the site",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\nnew Worker(URL.createObjectURL(new Blob([\"fetch('http://10.9.9.9/x').catch(() => {});\"], { type: 'text/javascript' })));\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "websocket",
+      "description": "The page opens a WebSocket outside the site",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\ntry { new WebSocket('ws://10.1.2.3/x'); } catch (e) {}\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "webrtc",
+      "description": "The page tries WebRTC",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\ntry { new RTCPeerConnection(); } catch (e) {}\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "alert-dialog",
+      "description": "The page opens an alert dialog",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\nalert('Welcome');\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ]
+    },
+    {
+      "id": "native-submit",
+      "description": "The form submits natively (no preventDefault), so the page loads another document",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "  event.preventDefault();\n",
+          "replace": ""
+        }
+      ],
+      "caught_by": [
+        "A3.1",
+        "A3.2"
+      ]
     }
   ],
-  "whitespace_note": "Text expectations compare whitespace-collapsed text (the checker's rule), so a welcome message that keeps the name's outer spaces is indistinguishable from a trimmed one; trimming is checked through the length rule (A2.3) instead"
+  "whitespace_note": "Text expectations compare whitespace-collapsed text (the checker's rule), so a welcome message that keeps the name's outer spaces is indistinguishable from a trimmed one; trimming is checked through the length rule (A2.3) instead",
+  "replaces": "p15-small-signup-v1, frozen 2026-11-06 and replaced before any live run because the PR #149 review changed the checker (worker, WebSocket and WebRTC requests, dialogs and page navigation now fail a case). Cases, spec content and reference are unchanged."
 }

@@ -423,6 +423,13 @@ function Facts({ d }: { d: ArtifactDetail }) {
           {m.toolchain.recipe} on {m.toolchain.backend}
           {m.toolchain.python ? ` · Python ${m.toolchain.python}` : ''} · Node{' '}
           {m.toolchain.supervisor_node}
+          {m.toolchain.role_qualification === 'unqualified_trial' && (
+            <>
+              {' '}
+              · <strong>unqualified trial</strong> (build roles not yet
+              qualified for this recipe)
+            </>
+          )}
         </dd>
         <dt>Dependencies</dt>
         <dd>{m.dependencies.note}</dd>

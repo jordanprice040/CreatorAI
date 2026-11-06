@@ -1,12 +1,12 @@
 {
   "format": "p15-web-benchmark-freeze/1",
-  "benchmark_id": "p15-small-signup-v1",
+  "benchmark_id": "p15-small-signup-v2",
   "files": {
-    "expectations.json": "b31f56d8ee33d2845aabf9bd5e86743a6491f911521546dcdab69458de9ba41d",
+    "expectations.json": "7ed1b6d573492bc96d85090b681c5e3b18cdb75dd748b59a7344dff60d63e625",
     "reference/site/app.js": "0c9d1d02a05cdc5a83b4dcbddca30a2fa6ff4f93b4863900c7adbda7efd8e2bc",
     "reference/site/index.html": "a37556353c0fe4c851c9ec2a0f4ca3d5a70fee6dc951296d4af45fe6b74ac533",
     "reference/site/style.css": "167666550c04833877a36cde4c47275b8a0518dbe7249ad9fd4be31cb491aca4",
-    "spec.json": "26e753a53379ac618b701e1f66cd14719e7f9aced097edc721833ae25e5c2198",
-    "checker:web_recipe.py": "afa5cbdae438bc0909272911ab59019004b40af1d9f16d3a915e070ad89317eb"
+    "spec.json": "86f5258a4215feadecc1fdcc47703c6a1f266f3896e776d8889c231ab9a5bade",
+    "checker:web_recipe.py": "7d40fa6f241b46934f566c5b55481a18c5322be5fecd5ce08621608ca6efa381"
   }
 }

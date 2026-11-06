@@ -97,8 +97,55 @@ class Browser:
         os.close(from_browser_w)
         self.buffer = b''
         self.next_id = 0
+        self.side_id = 1 << 30
         self.events = []
         self.session = None
+        self.dialogs = []
+        self.workers = []
+        self.navigations = 0
+        self.main_frame = None
+        self.page_url = ''
+        self.unsupported = []
+
+    def _post(self, method, params, session):
+        # Fire-and-forget command (its reply is ignored), used while handling an event.
+        self.side_id += 1
+        os.write(self.to_browser, json.dumps({'id': self.side_id, 'method': method,
+                                              'params': params, 'sessionId': session}).encode() + b'\0')
+
+    def _handle(self, event):
+        """Events the checker must answer at once, wherever they arrive."""
+        m, p = event.get('method'), event.get('params', {})
+        if m == 'Target.attachedToTarget':
+            # Workers start paused (waitForDebuggerOnStart): record their requests and errors
+            # before they run, and attach to any worker they start in turn.
+            kind = p.get('targetInfo', {}).get('type', '')
+            if kind == 'page':
+                return  # the checker's own page session (attached explicitly below)
+            self.workers.append(kind)
+            sid = p['sessionId']
+            for method, params in (('Network.enable', {}), ('Runtime.enable', {}),
+                                   ('Target.setAutoAttach', {'autoAttach': True, 'waitForDebuggerOnStart': True,
+                                                             'flatten': True}),
+                                   ('Runtime.runIfWaitingForDebugger', {})):
+                self._post(method, params, sid)
+        elif m == 'Page.frameNavigated' and not p.get('frame', {}).get('parentId'):
+            self.navigations += 1
+            self.page_url = p['frame'].get('url', '')
+        elif m == 'Page.frameRequestedNavigation' and p.get('frameId') == self.main_frame:
+            # Seen when the page starts leaving, before the new document commits, so a late
+            # navigation cannot slip past the last step. A #hash change stays on the page.
+            same = p.get('url', '').split('#')[0] == self.page_url.split('#')[0]
+            if not same or not p.get('reason', '').startswith('scriptInitiated') and \
+                    p.get('reason') != 'anchorClick':
+                self.navigations += 1
+        elif m == 'Target.targetCreated' and p.get('targetInfo', {}).get('type') in (
+                'service_worker', 'shared_worker'):
+            self.unsupported.append(p['targetInfo']['type'].replace('_', ' '))
+        elif m == 'Page.javascriptDialogOpening':
+            # Nobody answers a dialog in QA: dismiss it, and fail the case with that reason.
+            self.dialogs.append(p.get('type', 'dialog'))
+            self._post('Page.handleJavaScriptDialog', {'accept': False}, event.get('sessionId'))
 
     def _read(self, deadline):
         import select
@@ -113,7 +160,10 @@ class Browser:
                     raise QaError('The browser exited')
                 self.buffer += chunk
         message, self.buffer = self.buffer.split(b'\0', 1)
-        return json.loads(message)
+        message = json.loads(message)
+        if 'method' in message:
+            self._handle(message)
+        return message
 
     def send(self, method, params=None, session=True, timeout=STEP_SECONDS + 2):
         self.next_id += 1
@@ -174,12 +224,40 @@ HELPERS = r"""
 """
 
 
+# Runs in the page's main world before its own scripts, in every frame. QA has no network at all;
+# this makes a WebRTC attempt visible as an outside request instead of a silent failure.
+BINDING = 'creatorQaBlocked'
+NO_WEBRTC = r"""
+(() => {
+  const report = globalThis.creatorQaBlocked;
+  for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel',
+                      'RTCSessionDescription', 'RTCIceCandidate']) {
+    if (!(name in globalThis)) continue;
+    const blocked = function () {
+      try { report && report('webrtc:' + name); } catch (e) {}
+      throw new TypeError(name + ' is not available in static-web/1 QA');
+    };
+    try { Object.defineProperty(globalThis, name, { value: blocked, configurable: false, writable: false }); }
+    catch (e) {}
+  }
+})();
+"""
+
+
 def evaluate(b, context, expression):
     r = b.send('Runtime.evaluate', {'expression': expression, 'contextId': context,
                                     'returnByValue': True, 'awaitPromise': True})
     if 'exceptionDetails' in r:
         raise QaError('checker script failed: ' + str(r['exceptionDetails'].get('text'))[:200])
     return r.get('result', {}).get('value')
+
+
+def interruption(b, loaded):
+    if b.dialogs:
+        return ('the page opened a dialog (' + b.dialogs[0] + '); QA dismisses dialogs and fails the case '
+                '(show messages in the page instead of alert/confirm/prompt)')
+    return ('the page loaded another document (a form submitted without preventDefault, a link or a '
+            'location change); a case stays on one page, and goto changes only #routes')
 
 
 def run_step(b, context, step):
@@ -282,12 +360,18 @@ def main():
         version = b.send('Browser.getVersion', session=False, timeout=LOAD_SECONDS)
         result['browser'] = version.get('product')
         target = b.send('Target.createTarget', {'url': 'about:blank'}, session=False)
+        b.main_frame = target['targetId']  # a page's main frame id is its target id
         b.session = b.send('Target.attachToTarget', {'targetId': target['targetId'], 'flatten': True},
                            session=False)['sessionId']
+        b.send('Target.setDiscoverTargets', {'discover': True}, session=False)
         for domain in ('Page', 'Runtime', 'Network'):
             b.send(domain + '.enable')
+        b.send('Target.setAutoAttach', {'autoAttach': True, 'waitForDebuggerOnStart': True, 'flatten': True})
+        b.send('Runtime.addBinding', {'name': BINDING})
+        b.send('Page.addScriptToEvaluateOnNewDocument', {'source': NO_WEBRTC})
         b.send('Page.navigate', {'url': origin + case['page']}, timeout=LOAD_SECONDS)
         b.wait_event('Page.loadEventFired', LOAD_SECONDS)
+        loaded = b.navigations
         frame = b.send('Page.getFrameTree')['frameTree']['frame']['id']
         context = b.send('Page.createIsolatedWorld', {'frameId': frame, 'worldName': 'creator-qa'})['executionContextId']
         ok = True
@@ -296,32 +380,58 @@ def main():
                 result['reason'] = 'case time limit'
                 ok = False
                 break
-            passed, detail = run_step(b, context, step)
+            if b.dialogs or b.navigations > loaded:
+                passed, detail = False, interruption(b, loaded)
+            else:
+                try:
+                    passed, detail = run_step(b, context, step)
+                except QaError:
+                    # A new document destroys the checker's isolated world mid-step.
+                    if not (b.dialogs or b.navigations > loaded):
+                        raise
+                    passed = False
+                if b.dialogs or b.navigations > loaded:
+                    passed, detail = False, interruption(b, loaded)
             result['steps'].append({'index': i, 'passed': passed, 'detail': detail})
             if not passed:
                 ok = False
-                result['reason'] = f'step {i + 1} ({step["action"]}) failed'
+                result['reason'] = f'step {i + 1} ({step["action"]}) failed' + (
+                    ': ' + detail.split(';')[0] if b.dialogs or b.navigations > loaded else '')
                 break
         time.sleep(0.2)
         try:
             b.send('Runtime.evaluate', {'expression': '0'}, timeout=2)
         except QaError:
             pass
+        if ok and (b.dialogs or b.navigations > loaded):
+            # Started after the last step's check passed.
+            ok = False
+            result['reason'] = 'after the last step: ' + interruption(b, loaded).split(';')[0]
         for e in b.events:
             m, p = e.get('method'), e.get('params', {})
             if m == 'Runtime.exceptionThrown' and len(result['page_errors']) < MAX_PAGE_ERRORS:
                 d = p.get('exceptionDetails', {})
                 result['page_errors'].append(
                     str((d.get('exception') or {}).get('description') or d.get('text'))[:300])
+            # From the page and from every worker session (auto-attached above).
             if m == 'Network.requestWillBeSent':
                 url = p.get('request', {}).get('url', '')
                 if not (url.startswith(origin + '/') or url.startswith(('data:', 'blob:', 'about:'))):
                     result['outbound'].append(url[:200])
+            if m == 'Network.webSocketCreated':
+                result['outbound'].append('websocket ' + p.get('url', '')[:190])
+            if m == 'Runtime.bindingCalled' and p.get('name') == BINDING:
+                result['outbound'].append(str(p.get('payload', 'webrtc'))[:200])
+        for kind in b.unsupported:
+            result['outbound'].append(kind + ' (not supported by static-web/1)')
+        result['workers'] = b.workers[:20]
+        if b.dialogs:
+            result['reason'] = result['reason'] or 'the page opened a dialog'
         if result['page_errors']:
             result['reason'] = result['reason'] or 'uncaught page error'
         if result['outbound']:
             result['reason'] = result['reason'] or 'request outside the site'
-        result['passed'] = ok and not result['page_errors'] and not result['outbound'] \
+        result['passed'] = ok and not result['page_errors'] and not result['outbound'] and not b.dialogs \
             and len(result['steps']) == len(case['steps'])
         result['site_requests'] = Handler.requests[:50]
     except QaError as e:

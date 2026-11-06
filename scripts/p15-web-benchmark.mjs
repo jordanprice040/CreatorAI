@@ -7,9 +7,10 @@
 //   node scripts/p15-web-benchmark.mjs mutants <benchmark-id> [--browser <dir>]
 //   node scripts/p15-web-benchmark.mjs freeze <benchmark-id>   (once; refuses to overwrite)
 //
-// `score` runs generated pages in the pinned headless browser inside Bubblewrap with no network
-// (Linux or WSL2), exactly as studio QA does but without the systemd unit. <product-dir> holds
-// site/. `--browser` defaults to the directory install_browser.py writes. `verify` needs
+// `score` checks the browser with the bridge's own check, then runs generated pages in it inside
+// the bridge's exact Bubblewrap list (Linux or WSL2); only the systemd unit is left out, and any
+// host difference is reported as sandbox_deviations. <product-dir> holds site/. `--browser`
+// defaults to the directory install_browser.py writes. `verify` needs
 // `pnpm build:code` (it reads the spec schema from contracts/dist).
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -18,7 +19,9 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  lstatSync,
   readdirSync,
+  readlinkSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -30,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DIR = join(ROOT, 'config/web-benchmarks');
 export const CHECKER = join(ROOT, 'packages/executor/worker/web_recipe.py');
-export const BENCHMARKS = ['p15-small-signup-v1'];
+export const BENCHMARKS = ['p15-small-signup-v2'];
 const BROWSER_VERSION = '156.0.8078.47';
 export const DEFAULT_BROWSER = join(
   homedir(),
@@ -112,7 +115,63 @@ export async function verify() {
   return problems;
 }
 
-/** One case in the reviewed checker under Bubblewrap; the checker's result line. */
+const BRIDGE_DIR = join(ROOT, 'packages/executor/worker');
+/** Runs a function of the reviewed bridge (bridge.py) and returns its JSON result. */
+function bridge(call, ...args) {
+  const code = `import json, sys\nsys.path.insert(0, sys.argv[1])\nimport bridge\nprint(json.dumps(${call}))`;
+  const r = spawnSync(
+    '/usr/bin/python3',
+    ['-I', '-c', code, BRIDGE_DIR, ...args],
+    {
+      encoding: 'utf8',
+      timeout: 60000,
+    },
+  );
+  if (r.status !== 0)
+    throw new Error(
+      (r.stderr || r.error?.message || 'bridge call failed')
+        .trim()
+        .split('\n')
+        .pop(),
+    );
+  return JSON.parse(r.stdout);
+}
+/** Every path a symlink chain passes through (Debian alternatives hop through /etc). */
+function linkHops(path) {
+  const hops = [path];
+  for (let i = 0; i < 10 && lstatSync(path).isSymbolicLink(); i++) {
+    path = resolve(dirname(path), readlinkSync(path));
+    hops.push(path);
+  }
+  return hops;
+}
+/** The bridge's own browser check (owner, modes, symlinks, pinned tree hash). */
+export function verifyBrowser(browser = DEFAULT_BROWSER) {
+  bridge('str(bridge.verify_browser(sys.argv[2]))', browser);
+}
+/**
+ * The bridge's exact Bubblewrap list for a web QA run (studio QA adds only the systemd unit).
+ * One host difference is allowed and reported: where /usr/bin/python3 resolves outside /usr
+ * (Debian alternatives), /etc/alternatives is bound read-only so the same interpreter starts.
+ */
+export function sandboxArgs(productDir, acceptance, browser = DEFAULT_BROWSER) {
+  const args = bridge(
+    'bridge.sandbox_args(bridge.WEB_POLICY, sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])',
+    resolve(productDir),
+    CHECKER,
+    browser,
+    acceptance,
+  );
+  const deviations = [];
+  if (linkHops('/usr/bin/python3').some((h) => !h.startsWith('/usr/'))) {
+    args.splice(1, 0, '--ro-bind', '/etc/alternatives', '/etc/alternatives');
+    deviations.push(
+      '/etc/alternatives bound read-only (host python3 resolves through it)',
+    );
+  }
+  return { args, deviations };
+}
+/** One case in the reviewed checker under the bridge's Bubblewrap list; the checker's result line. */
 export function runCase(productDir, c, browser = DEFAULT_BROWSER) {
   const job = mkdtempSync(join(tmpdir(), 'p15-case-'));
   try {
@@ -120,76 +179,15 @@ export function runCase(productDir, c, browser = DEFAULT_BROWSER) {
       join(job, 'acceptance.json'),
       JSON.stringify({ page: c.page, steps: c.steps }),
     );
-    const python = existsSync('/usr/bin/python3.12')
-      ? '/usr/bin/python3.12'
-      : '/usr/bin/python3';
-    const args = [
-      '--unshare-all',
-      '--unshare-user',
-      '--uid',
-      '1000',
-      '--gid',
-      '1000',
-      '--disable-userns',
-      '--die-with-parent',
-      '--new-session',
-      '--cap-drop',
-      'ALL',
-      '--ro-bind',
-      '/usr',
-      '/usr',
-      '--symlink',
-      'usr/bin',
-      '/bin',
-      '--symlink',
-      'usr/lib',
-      '/lib',
-      '--symlink',
-      'usr/lib64',
-      '/lib64',
-      '--ro-bind-try',
-      '/etc/alternatives',
-      '/etc/alternatives',
-      '--proc',
-      '/proc',
-      '--dev',
-      '/dev',
-      '--size',
-      String(64 * 1024 * 1024),
-      '--tmpfs',
-      '/work',
-      '--size',
-      String(256 * 1024 * 1024),
-      '--tmpfs',
-      '/tmp',
-      '--ro-bind',
-      resolve(productDir),
-      '/input',
-      '--ro-bind',
-      CHECKER,
-      '/recipe.py',
-      '--ro-bind',
+    const { args } = sandboxArgs(
+      productDir,
       join(job, 'acceptance.json'),
-      '/acceptance.json',
-      '--ro-bind',
       browser,
-      '/opt/browser',
-      '--remount-ro',
-      '/',
-      '--clearenv',
-      '--setenv',
-      'PATH',
-      '/usr/bin:/bin',
-      '--setenv',
-      'HOME',
-      '/nonexistent',
-      '--chdir',
-      '/work',
-      python,
-      '-I',
-      '/recipe.py',
-    ];
-    const r = spawnSync('bwrap', args, { encoding: 'utf8', timeout: 70000 });
+    );
+    const r = spawnSync(args[0], args.slice(1), {
+      encoding: 'utf8',
+      timeout: 70000,
+    });
     let result = null;
     try {
       result = JSON.parse(r.stdout);
@@ -207,6 +205,7 @@ export function runCase(productDir, c, browser = DEFAULT_BROWSER) {
 export function score(id, productDir, browser = DEFAULT_BROWSER) {
   const problems = freezeProblems(id);
   if (problems.length) throw new Error(`Freeze broken: ${problems.join('; ')}`);
+  verifyBrowser(browser);
   const { cases } = load(id);
   const results = cases.map((c) => {
     const r = runCase(productDir, c, browser);
@@ -223,6 +222,9 @@ export function score(id, productDir, browser = DEFAULT_BROWSER) {
     benchmark_id: id,
     freeze_sha256: freeze,
     checker_sha256: sha(readFileSync(CHECKER)),
+    sandbox: 'bridge.py sandbox_args (WEB_POLICY), without the systemd unit',
+    sandbox_deviations: sandboxArgs(productDir, '/dev/null', browser)
+      .deviations,
     passed: results.filter((r) => r.passed).length,
     total: results.length,
     held_out_passed: results.filter((r) => r.held_out && r.passed).length,

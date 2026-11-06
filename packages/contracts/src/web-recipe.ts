@@ -6,12 +6,43 @@ import { z } from './primitives.js';
  * order; every expectation waits up to a few seconds for the page to settle. The steps are data
  * read by the reviewed checker, never code: no step runs a script the spec author wrote.
  */
+/** Balanced quotes, brackets and parentheses, and no dangling combinator: the CSS mistakes a
+ * typed selector usually has. The browser still has the final word at QA time. */
+function selectorShapeOk(s: string): boolean {
+  const close: Record<string, string> = { '[': ']', '(': ')' };
+  const open: string[] = [];
+  let quote = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === '\\') {
+      i++;
+      continue;
+    }
+    if (quote) {
+      if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === '[' || c === '(') open.push(close[c]!);
+    else if (c === ']' || c === ')') {
+      if (open.pop() !== c) return false;
+    }
+  }
+  return !quote && !open.length && !/^[>+~,]|[>+~,]$/.test(s);
+}
 const selector = z
   .string()
   .trim()
   .min(1)
   .max(200)
-  .refine((s) => !/[\n\r]/.test(s), 'A selector is one line');
+  .refine((s) => !/[\n\r]/.test(s), 'A selector is one line')
+  // Typed steps split at the first " = ", so a selector cannot contain one.
+  .refine(
+    (s) => !s.includes(' = '),
+    'A selector cannot contain “ = ”; write [name="x"] without spaces around =',
+  )
+  .refine(
+    selectorShapeOk,
+    'The selector has unbalanced quotes, brackets or parentheses, or ends in a combinator',
+  );
 const value = z
   .string()
   .max(500)
@@ -124,18 +155,20 @@ const COMMANDS: Record<string, BrowserStep['action']> = {
 export function parseBrowserStep(
   line: string,
 ): { step: BrowserStep } | { error: string } {
-  const text = line.trim();
+  // Only the line's start and a pasted carriage return are trimmed, so a value keeps its
+  // trailing spaces and the typed form round-trips.
+  const text = line.replace(/\r$/, '').replace(/^\s+/, '');
   const command = Object.keys(COMMANDS)
     .sort((a, b) => b.length - a.length)
     .find((c) => text === c || text.startsWith(c + ' '));
   if (!command)
     return {
-      error: `Start the line with a step such as click, fill or expect text (got “${text.slice(0, 40)}”).`,
+      error: `Start the line with a step such as click, fill or expect text (got “${text.trim().slice(0, 40)}”).`,
     };
   const action = COMMANDS[command]!;
-  const rest = text.slice(command.length).trim();
-  // A trailing " =" (trimmed from "fill #name = ") means an empty value.
-  const body = rest.endsWith(' =') || rest === '=' ? rest + ' ' : rest;
+  const rest = text.slice(command.length).replace(/^ +/, '');
+  // A trailing " =" (an editor may drop the space of "fill #name = ") means an empty value.
+  const body = /(^| )=$/.test(rest) ? rest + ' ' : rest;
   const eq = body.startsWith('= ') ? 0 : body.indexOf(' = ');
   const target = eq === -1 ? body : body.slice(0, eq).trim();
   const after = eq === -1 ? null : body.slice(eq + (eq === 0 ? 2 : 3));
@@ -146,10 +179,10 @@ export function parseBrowserStep(
       raw = { action, selector: target, value: after };
       break;
     case 'press':
-      raw = { action, selector: target, key: after };
+      raw = { action, selector: target, key: after?.trim() ?? null };
       break;
     case 'goto':
-      raw = { action, path: rest };
+      raw = { action, path: rest.trim() };
       break;
     case 'expect_text':
     case 'expect_contains':
@@ -159,14 +192,17 @@ export function parseBrowserStep(
       raw = {
         action,
         selector: target,
-        count: after !== null && /^[0-9]+$/.test(after) ? Number(after) : after,
+        count:
+          after !== null && /^[0-9]+$/.test(after.trim())
+            ? Number(after.trim())
+            : after,
       };
       break;
     case 'expect_title':
       raw = { action, text: after };
       break;
     default:
-      raw = { action, selector: rest };
+      raw = { action, selector: rest.trim() };
   }
   if (
     [
@@ -225,3 +261,14 @@ export function formatBrowserStep(s: BrowserStep): string {
       return `${name} ${s.selector}`;
   }
 }
+
+/**
+ * ADR-0078 (review M-2): recipes whose build roles have passed a frozen benchmark live. A build
+ * with any other recipe is admitted only as an unqualified trial and says so in its manifest and
+ * on the build page. A recipe is added here only with the live results that qualify it.
+ */
+export const QUALIFIED_RECIPES: readonly BuildRecipe[] = ['python-build/1'];
+export const recipeQualified = (r: BuildRecipe) =>
+  QUALIFIED_RECIPES.includes(r);
+export const UNQUALIFIED_TRIAL_NOTE =
+  'Unqualified trial: the builder and reviewer were qualified on Python tasks only, not on static web pages, so this evidence is weaker than a qualified build until the frozen web benchmark passes live.';

@@ -785,11 +785,15 @@ export class ArtifactStore extends StudyBuildStore {
    * the session hash returned here, so a new link or Stop ends older frames. A request counts as
    * a viewer, like a page load; it is not audited per file.
    */
-  async previewFrame(previewId: string) {
+  async previewFrame(
+    previewId: string,
+    accept: (sessionHash: string) => boolean,
+  ) {
     return this.tx(async (c) => {
       const { row, record } = await this.livePreview(c, previewId);
-      if (!row.session_hash)
-        throw fail('ACCESS_DENIED', 'Open this preview from the studio.');
+      if (!row.session_hash || !accept(String(row.session_hash)))
+        throw fail('ACCESS_DENIED', 'This frame is no longer valid.');
+      // Only a frame holding the current token counts as a viewer.
       await c.query(
         'update artifact_previews set last_seen_at = clock_timestamp() where id = $1',
         [row.id],

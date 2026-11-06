@@ -69,7 +69,14 @@ def environment():
 
 def browser_dir():
     """The owner-installed pinned browser (install_browser.py), verified before every web run."""
-    root = pathlib.Path.home() / '.local/share/creator-agent/browser' / ('chrome-headless-shell-' + BROWSER_VERSION)
+    return verify_browser(pathlib.Path.home() / '.local/share/creator-agent/browser' /
+                          ('chrome-headless-shell-' + BROWSER_VERSION))
+
+
+def verify_browser(root):
+    """Owned by this user, not writable by others, no symlinks, and the pinned tree hash.
+    Also used by scripts/p15-web-benchmark.mjs, so benchmark scores use the same check."""
+    root = pathlib.Path(root)
     hint = ' Run install_browser.py in WSL (see docs/STATIC_WEB_RECIPE.md).'
     if not (root / 'chrome-headless-shell').is_file():
         raise RuntimeError('Missing isolation capability: reviewed headless browser ' + BROWSER_VERSION + '.' + hint)
@@ -84,6 +91,26 @@ def browser_dir():
     if h.hexdigest() != BROWSER_TREE_SHA256:
         raise RuntimeError('Reviewed headless browser files changed.' + hint)
     return root
+
+
+def sandbox_args(policy, source, recipe, browser=None, acceptance=None):
+    """The Bubblewrap command for one QA run. scripts/p15-web-benchmark.mjs runs this exact list
+    (without the systemd unit), so benchmark scores and studio QA share one sandbox."""
+    sandbox = ['/usr/bin/bwrap', '--unshare-all', '--unshare-user', '--uid', '1000', '--gid', '1000',
+               '--disable-userns', '--new-session', '--die-with-parent', '--cap-drop', 'ALL',
+               '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin',
+               '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
+               '--proc', '/proc', '--dev', '/dev',
+               '--size', str(policy['disk_bytes']), '--tmpfs', '/work',
+               '--size', str(policy.get('tmp_bytes', 1048576)), '--tmpfs', '/tmp',
+               '--ro-bind', str(source), '/input', '--ro-bind', str(recipe), '/recipe.py',
+               *(['--ro-bind', str(browser), '/opt/browser'] if browser else []),
+               '--remount-ro', '/', '--remount-ro', '/dev', '--remount-ro', '/proc',
+               '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'HOME', '/nonexistent',
+               '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
+    if acceptance:
+        sandbox[1:1] = ['--ro-bind', str(acceptance), '/acceptance.json']
+    return sandbox
 
 
 def main():
@@ -129,18 +156,6 @@ def main():
         emit({'type': 'result', 'value': {'exit_code': -1, 'reason': 'lease_lost', 'log': '',
               'cleaned': state in ('inactive', 'failed'), 'unit_state': state}})
         return
-    sandbox = ['/usr/bin/bwrap', '--unshare-all', '--unshare-user', '--uid', '1000', '--gid', '1000',
-               '--disable-userns', '--new-session', '--die-with-parent', '--cap-drop', 'ALL',
-               '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin',
-               '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
-               '--proc', '/proc', '--dev', '/dev',
-               '--size', str(policy['disk_bytes']), '--tmpfs', '/work',
-               '--size', str(policy.get('tmp_bytes', 1048576)), '--tmpfs', '/tmp',
-               '--ro-bind', str(source), '/input', '--ro-bind', str(recipe), '/recipe.py',
-               *(['--ro-bind', str(browser), '/opt/browser'] if browser else []),
-               '--remount-ro', '/', '--remount-ro', '/dev', '--remount-ro', '/proc',
-               '--clearenv', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'HOME', '/nonexistent',
-               '--chdir', '/work', '/usr/bin/python3', '-I', '/recipe.py']
     acceptance = job / 'acceptance.json'
     if web and not acceptance.is_file():
         raise RuntimeError('A static web run needs a frozen browser case')
@@ -150,7 +165,7 @@ def main():
         allowed = {'page', 'steps'} if web else {'args', 'stdin'}
         if not isinstance(runtime_input, dict) or set(runtime_input) != allowed:
             raise RuntimeError('Only runtime argv and stdin (or a browser case\'s page and steps) may enter the sandbox')
-        sandbox[1:1] = ['--ro-bind', str(acceptance), '/acceptance.json']
+    sandbox = sandbox_args(policy, source, recipe, browser, acceptance if acceptance.is_file() else None)
     launch = ['/usr/bin/systemd-run', '--user', '--quiet', '--pipe', '--wait', '--collect', '--unit=' + unit,
               '-p', 'MemoryMax=' + str(policy['memory_bytes']), '-p', 'MemorySwapMax=0',
               '-p', 'TasksMax=' + str(policy['tasks']), '-p', 'CPUQuota=' + str(policy['cpu_percent']) + '%',

@@ -28,12 +28,15 @@ import {
 } from '@creator/executor';
 import {
   BuildManifestSchema,
+  BrowserStepSchema,
   SpecContentSchema,
   buildBlockers,
   formatBrowserStep,
   parseBrowserStep,
   parseBrowserSteps,
   specRecipe,
+  QUALIFIED_RECIPES,
+  UNQUALIFIED_TRIAL_NOTE,
   taskRecipe,
   type BrokerCallRequest,
   type BrokerCallResult,
@@ -52,7 +55,7 @@ import {
 import { TestDoubleExecutor } from './artifact-double.js';
 
 const ROOT = resolve('.');
-const BENCH = join(ROOT, 'config/web-benchmarks/p15-small-signup-v1');
+const BENCH = join(ROOT, 'config/web-benchmarks/p15-small-signup-v2');
 const benchSpec = (): SpecContent =>
   JSON.parse(readFileSync(join(BENCH, 'spec.json'), 'utf8')).content;
 const reference = (name: string) =>
@@ -106,6 +109,24 @@ test('typed browser steps parse, format back and refuse malformed lines', () => 
     assert.ok('error' in parseBrowserStep(bad), bad);
   const line = parseBrowserSteps('click #a\n\nnope');
   assert.ok('error' in line && line.error.startsWith('Line 3:'));
+  // Review L-4: values keep their spaces; a selector cannot hold " = " or be malformed.
+  for (const step of [
+    { action: 'fill', selector: '#a', value: '  padded  ' },
+    { action: 'expect_text', selector: 'p.note', text: 'a = b ' },
+  ] as const)
+    assert.deepEqual(parseBrowserStep(formatBrowserStep(step)), { step });
+  for (const selector of [
+    'input[name = "x"]',
+    'a[href="x"',
+    'div >',
+    'p:not(.x',
+  ])
+    assert.equal(
+      BrowserStepSchema.safeParse({ action: 'click', selector }).success,
+      false,
+      selector,
+    );
+  assert.ok('error' in parseBrowserStep('click a[href="x"'));
 });
 
 test('the frozen checks choose the recipe; mixed, uncovered and unscoped web tasks are refused in words', () => {
@@ -322,6 +343,10 @@ test('a web build sends web QA rules, hides held-out cases, verifies and package
   assert.equal(manifest.state, 'verified');
   assert.equal(manifest.toolchain.recipe, 'static-web/1');
   assert.equal(manifest.template.id, 'static-site/1');
+  // Review M-2: the roles are qualified on Python only, so the build says it is a trial.
+  assert.equal(manifest.toolchain.role_qualification, 'unqualified_trial');
+  assert.ok(manifest.limitations.includes(UNQUALIFIED_TRIAL_NOTE));
+  assert.deepEqual(QUALIFIED_RECIPES, ['python-build/1']);
   assert.equal(manifest.dependencies.kind, 'static-files-only');
   assert.deepEqual(manifest.startup.command.slice(0, 3), [
     'python3',
@@ -477,6 +502,7 @@ async function previewHarness(t: test.TestContext, recipe = 'static-web/1') {
   let sessionHash: string | null = null;
   const live = { ok: true };
   const claims: boolean[] = [];
+  const seen: string[] = [];
   const record = {
     summary: { id: randomUUID(), manifest_sha256: digest('m') },
     manifest: {
@@ -518,9 +544,17 @@ async function previewHarness(t: test.TestContext, recipe = 'static-web/1') {
         product_id: randomUUID(),
       };
     },
-    previewFrame: async (pid: string) => {
+    // Like the store: the token is checked before a viewer is counted, and a dead preview
+    // fails differently from a stale token, which the server must hide.
+    previewFrame: async (pid: string, accept: (h: string) => boolean) => {
       if (pid !== id || !live.ok || !sessionHash)
-        throw new ContractError('ACCESS_DENIED', 'Preview access was stopped.');
+        throw new ContractError('EXPIRED', 'Preview access was stopped.');
+      if (!accept(sessionHash))
+        throw new ContractError(
+          'ACCESS_DENIED',
+          'This frame is no longer valid.',
+        );
+      seen.push(pid);
       return { session_hash: sessionHash, record, product_id: randomUUID() };
     },
   };
@@ -592,7 +626,7 @@ async function previewHarness(t: test.TestContext, recipe = 'static-web/1') {
   const cookie = String((open.headers['set-cookie'] as string[])[0]).split(
     ';',
   )[0]!;
-  return { id, port, self, call, cookie, live, claims };
+  return { id, port, self, call, cookie, live, claims, seen };
 }
 
 test('a web preview page frames the site on its own *.localhost origin with a token bound to the session', async (t) => {
@@ -611,7 +645,7 @@ test('a web preview page frames the site on its own *.localhost origin with a to
   );
   assert.match(
     page.body,
-    /sandbox="allow-scripts allow-forms allow-same-origin allow-modals"/,
+    /sandbox="allow-scripts allow-forms allow-same-origin"/,
   );
   assert.match(
     String(page.headers['content-security-policy']),
@@ -638,9 +672,19 @@ test('a web preview page frames the site on its own *.localhost origin with a to
   assert.equal((await h.call(src!, '/data.bin')).status, 404);
   assert.equal((await h.call(src!, '/missing.html')).status, 404);
   assert.notEqual((await h.call(src!, '/', { method: 'POST' })).status, 200);
-  // A forged token, or the same token on another preview id, is refused.
+  assert.doesNotMatch(page.body, /allow-modals/);
+  assert.match(page.body, /links can still leave the site/);
+  // The page blanks the frame once its heartbeat says the preview ended.
+  assert.match(
+    (await h.call(h.self, '/preview-assets/preview.js')).body,
+    /f\.src='about:blank';f\.remove\(\)/,
+  );
+  // A forged token, or the same token on another preview id, is refused, and is not
+  // counted as a viewer.
   const forged = src!.replace(/-[0-9a-f]{24}\./, `-${'0'.repeat(24)}.`);
+  const counted = h.seen.length;
   assert.equal((await h.call(forged, '/')).status, 403);
+  assert.equal(h.seen.length, counted);
   // A new link (new session) ends the old frame.
   await h.call(h.self, `/preview/${h.id}?ticket=t2`);
   assert.equal((await h.call(src!, '/')).status, 403);
@@ -666,7 +710,10 @@ test('a stopped web preview serves nothing from its frame host', async (t) => {
     page.body,
   )![1]!;
   h.live.ok = false;
-  assert.equal((await h.call(src, '/')).status, 403);
+  const stopped = await h.call(src, '/');
+  // Same answer as a stale token: a frame request cannot tell live ids from dead ones.
+  assert.equal(stopped.status, 403);
+  assert.match(stopped.body, /This frame is no longer valid/);
 });
 
 test('the frozen web benchmark still matches its freeze, its checker and the studio spec schema', async () => {
@@ -690,12 +737,12 @@ test(
     const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
     assert.deepEqual(await bench.verify(), []);
     const s = bench.score(
-      'p15-small-signup-v1',
+      'p15-small-signup-v2',
       join(BENCH, 'reference'),
       browserDir,
     );
     assert.equal(s.passed, 10, JSON.stringify(s.results));
-    for (const m of bench.mutants('p15-small-signup-v1', browserDir))
+    for (const m of bench.mutants('p15-small-signup-v2', browserDir))
       assert.ok(m.caught, `${m.id} not caught: ${JSON.stringify(m)}`);
   },
 );

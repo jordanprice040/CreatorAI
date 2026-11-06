@@ -410,3 +410,18 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Checks (cloud container, Linux, PostgreSQL 16): full `pnpm test:db` 851 tests (850 in the run plus the always-on freeze test added after), 816 pass, 28 skips, 6 fail: the 5 known no-`pwsh` wrapper tests and the opt-in REAL CHECKER test, which failed only because `pnpm format` had rewritten the frozen benchmark files. The exact frozen bytes were restored (all hashes match `FREEZE.json`), `config/web-benchmarks/` is now in `.prettierignore`, an always-on test checks the freeze, and the REAL CHECKER test passes again (reference 10/10, 6/6 held out, all 9 known failures caught; about 0.8 s per case). TypeScript, web typecheck and formatting pass.
 - Not done: WSL2 worker run, exported-package start outside the studio and the live role qualification (all need
   Jordan's typed OK; packet in the design doc). The web recipe is **unqualified**.
+
+## P15 review fixes (November 6, PR #149 review, ADR-0078 amendment, no migration)
+
+- Fixed every finding of [the review](../docs/PR149_STATIC_WEB_RECIPE_REVIEW_2026-11-06.md) (no High, M-1/M-2, L-1..L-7) before
+  any live run: worker, WebSocket and WebRTC traffic and service/shared workers now fail a case; web builds are
+  labelled unqualified trials (`QUALIFIED_RECIPES`, manifest `role_qualification`, build and Try pages); dialogs and
+  document loads fail with named reasons; the preview drops modals, removes the frame when the preview ends, checks
+  the frame token before counting a viewer and answers every refusal alike; typed steps round-trip and selectors are
+  shape-checked; the benchmark script runs the bridge's own `sandbox_args` and `verify_browser`; banner says links can
+  leave; L-7 recorded with a browser update plan ([design §10](../docs/STATIC_WEB_RECIPE.md)).
+- Benchmark v1 replaced before any run by `p15-small-signup-v2` (checker changed; same cases, spec content and
+  reference; 14 known failures incl. 5 hostile pages). Reference 10/10 (6/6 held out), all 14 caught, twice in a row.
+- Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 851 tests, 818 pass, 28 skips, 5 fail (the
+  known no-`pwsh` wrapper tests); the REAL CHECKER test passes. TypeScript, web typecheck and formatting pass.
+- Jordan gave a typed OK (11:28) for the WSL browser install and the 3 live builds; held until the re-review.

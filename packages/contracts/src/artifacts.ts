@@ -76,6 +76,8 @@ export const BuildManifestSchema = z.strictObject({
     python: z.string().max(80).nullable(),
     /** static-web/1: the pinned headless browser QA ran in; absent on Python manifests. */
     browser: z.string().max(80).nullable().optional(),
+    /** ADR-0078 review M-2: present when the build roles are not qualified for this recipe. */
+    role_qualification: z.literal('unqualified_trial').optional(),
     supervisor_node: z.string().max(40),
   }),
   dependencies: z.strictObject({

@@ -23,6 +23,8 @@ import {
   type SpecStatus,
   type StoredEntity,
   type Workspace,
+  UNQUALIFIED_TRIAL_NOTE,
+  recipeQualified,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import {
@@ -72,6 +74,8 @@ const ProductEntrySchema = z.object({
   product: z.object({
     id: z.string(),
     initial_commit: sha,
+    /** ADR-0078: absent means python-build/1. */
+    recipe: z.literal('static-web/1').optional(),
     binding: z.object({
       spec_id: z.string(),
       spec_version: z.number(),
@@ -870,6 +874,9 @@ function Product({
         {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version} · product{' '}
         {shortId(p.id)}
       </h4>
+      {p.recipe && !recipeQualified(p.recipe) && (
+        <p className="notice">{UNQUALIFIED_TRIAL_NOTE}</p>
+      )}
       {!current && (
         <p className="notice">
           The spec changed or was unfrozen after this product was made, so it
