@@ -324,6 +324,12 @@ export class ProductSupervisor {
       for (const c of change.changes) {
         if (seen.has(c.path))
           throw new PatchRefusedError(`Duplicate changed path: ${c.path}`);
+        // One changed path beneath another (src/a.py and src/a.py/b.py) cannot both be files.
+        for (const other of seen)
+          if (c.path.startsWith(`${other}/`) || other.startsWith(`${c.path}/`))
+            throw new PatchRefusedError(
+              `Changed path lies beneath another changed path: ${c.path} and ${other}`,
+            );
         seen.add(c.path);
         if (
           !t.file_scope.some(

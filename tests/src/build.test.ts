@@ -1454,24 +1454,40 @@ for (const [name, edit, reason] of [
   [
     'a directory named as a file',
     (a: Answer) => {
-      a.submission.changes.push({
-        path: 'src',
-        before_hash: null,
-        content: 'x',
-      });
+      // Alone: next to src/main.py it would be the nested-path refusal instead.
+      a.submission.changes = [{ path: 'src', before_hash: null, content: 'x' }];
     },
     /Path is not a file location .*: src$/,
   ],
   [
     'a path beneath an existing file',
     (a: Answer) => {
-      a.submission.changes.push({
-        path: 'src/main.py/extra.py',
-        before_hash: null,
-        content: 'x',
-      });
+      // Alone: next to src/main.py it would be the nested-path refusal instead.
+      a.submission.changes = [
+        { path: 'src/main.py/extra.py', before_hash: null, content: 'x' },
+      ];
     },
     /Path is not a file location .*: src\/main\.py\/extra\.py$/,
+  ],
+  [
+    'a new file with a path beneath it',
+    (a: Answer) => {
+      a.submission.changes.push(
+        { path: 'src/new.py', before_hash: null, content: 'x' },
+        { path: 'src/new.py/b.py', before_hash: null, content: 'x' },
+      );
+    },
+    /beneath another changed path: src\/new\.py\/b\.py and src\/new\.py$/,
+  ],
+  [
+    'a path beneath a new file listed before it',
+    (a: Answer) => {
+      a.submission.changes.push(
+        { path: 'src/new.py/b.py', before_hash: null, content: 'x' },
+        { path: 'src/new.py', before_hash: null, content: 'x' },
+      );
+    },
+    /beneath another changed path: src\/new\.py and src\/new\.py\/b\.py$/,
   ],
   [
     'a patch that changes nothing',
