@@ -44,6 +44,16 @@ export const TEMPLATE = {
 export const TEMPLATE_HASH = digest(JSON.stringify(TEMPLATE));
 
 /** Local owner-facing store. Never available to generated code or remote callers. */
+/**
+ * A submitted patch the scoped tool refused before writing anything (ADR-0076). Nothing in the
+ * workspace changed, so a build can return the reason to its builder as repair feedback.
+ */
+export class PatchRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PatchRefusedError';
+  }
+}
 export class ProductSupervisor {
   readonly root: string;
   constructor(root = resolve('.creator/products')) {
@@ -311,14 +321,15 @@ export class ProductSupervisor {
       const paths: string[] = [];
       let bytes = 0;
       for (const c of change.changes) {
-        if (seen.has(c.path)) throw new Error('Duplicate changed path');
+        if (seen.has(c.path))
+          throw new PatchRefusedError('Duplicate changed path');
         seen.add(c.path);
         if (
           !t.file_scope.some(
             (scope) => c.path === scope || c.path.startsWith(`${scope}/`),
           )
         )
-          throw new Error('Task file scope exceeded');
+          throw new PatchRefusedError('Task file scope exceeded');
         const full = await fileAt(dir, c.path);
         paths.push(full);
         let before: string | null = null;
@@ -328,10 +339,11 @@ export class ProductSupervisor {
           if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
         }
         if (before !== c.before_hash || (before === null && c.content === null))
-          throw new Error('Stale file content');
+          throw new PatchRefusedError('Stale file content');
         bytes += Buffer.byteLength(c.content ?? '');
       }
-      if (bytes > 512 * 1024) throw new Error('Change byte limit exceeded');
+      if (bytes > 512 * 1024)
+        throw new PatchRefusedError('Change byte limit exceeded');
       // An intent without an outcome is inspectable after a crash. Never reset it.
       const operation = randomUUID();
       await event(this.dir(productId), 'task.patch.intent', {

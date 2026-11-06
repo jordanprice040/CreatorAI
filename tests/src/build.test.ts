@@ -19,6 +19,8 @@ import {
   gradePatchCase,
   qaCaseSchema,
   PLAN_ROLE_CONTEXT_MAX,
+  PATCH_RULES,
+  pathSchema,
   type Execution,
   type Binding,
   type BuildApprovalScope,
@@ -1119,4 +1121,148 @@ test('a stopped build continues from its last candidate; the original base is st
   // The builder of the resumed build starts from the stopped build's candidate.
   const builder = JSON.parse(s.requests.at(-2)!.input[1]!.text);
   assert.equal(builder.candidate, first.commit);
+});
+
+test('the path dialect admits Python package files and still refuses dot, dash and cache paths', () => {
+  for (const ok of [
+    'src/ledger/__init__.py',
+    'src/__main__.py',
+    'src/ledger/_util.py',
+    'src/main.py',
+    'src',
+  ])
+    assert.ok(pathSchema.safeParse(ok).success, ok);
+  for (const bad of [
+    'src/__pycache__/main.cpython-314.pyc',
+    'src/.hidden',
+    '.git/config',
+    'src/-rf',
+    'src/_',
+    'src/__',
+    'src/Main.py',
+    'src/a..py',
+    'src/nul.py',
+    'con/x.py',
+    '/abs.py',
+    'src//x.py',
+    'src/../x.py',
+  ])
+    assert.ok(!pathSchema.safeParse(bad).success, bad);
+});
+
+test('a refused patch becomes repair feedback: nothing is applied and the next round can pass', async (t) => {
+  const s = await setup(t);
+  const builds = new BuildSupervisor(
+    s.products,
+    new TestDoubleExecutor(s.products),
+  );
+  const plan: BuildPlan = {
+    ...s.plan,
+    max_repairs: 2,
+    max_calls: 5,
+    timeout_ms: 120000,
+    plan_roles: { connection_id: randomUUID(), model_id: 'fixture-plan' },
+  };
+  const seen: { role: string; packet: Record<string, unknown> }[] = [];
+  let builderRound = 0;
+  const result = await builds.run(
+    s.product.id,
+    s.task.id,
+    s.product.initial_commit,
+    plan,
+    {
+      ...s.ports,
+      planRolesReady: async () => [],
+      planRole: async (target, request) => {
+        seen.push({ role: target.role, packet: JSON.parse(request.input) });
+        const answer = JSON.parse(
+          buildFixtureAnswer([
+            { role: 'system', text: BUILD_ROLE_PROMPTS[target.role] },
+            { role: 'user', text: request.input },
+          ])!,
+        );
+        if (target.role === 'builder') {
+          const extra = [
+            // Round 0: a generated cache file the path contract refuses.
+            {
+              path: 'src/__pycache__/main.cpython-314.pyc',
+              before_hash: null,
+              content: 'x',
+            },
+            // Round 1: a valid path outside the task scope (src).
+            { path: 'readme.md', before_hash: null, content: 'x' },
+            // Round 2: a Python package marker, now admitted.
+            { path: 'src/pkg/__init__.py', before_hash: null, content: '' },
+          ][builderRound++]!;
+          answer.submission.changes.push(extra);
+        }
+        return {
+          request_id: randomUUID(),
+          status: 'succeeded',
+          reason_code: 'ok',
+          text: JSON.stringify(answer),
+          fixture: true,
+        };
+      },
+    },
+  );
+  assert.equal(result.state, 'verified_candidate', JSON.stringify(result));
+  assert.equal(result.repairs, 2);
+  assert.equal(result.calls, 4);
+  assert.deepEqual(
+    seen.map((x) => x.role),
+    ['builder', 'builder', 'builder', 'reviewer'],
+  );
+  const builders = seen.filter((x) => x.role === 'builder');
+  // The rules travel as packet data; the qualified role prompt is unchanged.
+  for (const b of builders) {
+    assert.deepEqual(b.packet.patch_rules, [...PATCH_RULES]);
+    assert.match(
+      JSON.stringify(b.packet.qa_runtime),
+      /python3.*-I.*src\/main\.py/,
+    );
+    // A refused round changed nothing, so every round starts from the same candidate.
+    assert.equal(b.packet.candidate, s.product.initial_commit);
+  }
+  assert.equal(builders[0]!.packet.feedback, null);
+  const first = builders[1]!.packet.feedback as {
+    refused_patch: { reason: string; details: string[] };
+  };
+  assert.match(first.refused_patch.reason, /patch contract/);
+  assert.match(
+    first.refused_patch.details.join(' '),
+    /submission\.changes\.1\.path: .*__pycache__/,
+  );
+  const second = builders[2]!.packet.feedback as {
+    refused_patch: { reason: string };
+  };
+  assert.equal(second.refused_patch.reason, 'Task file scope exceeded');
+  const dir = join(s.products.dir(s.product.id), 'builds', result.id);
+  const files = await readdir(dir);
+  assert.ok(
+    files.includes('refused-0.json') && files.includes('refused-1.json'),
+  );
+  assert.ok(!files.includes('candidate-0.json'));
+  const tree = s.products.worktree(s.product.id, s.task.id);
+  assert.equal(await readFile(join(tree, 'src/pkg/__init__.py'), 'utf8'), '');
+});
+
+test('refusals use up the repair limit and the checkpoint names the last refusal', async (t) => {
+  const s = await setup(t);
+  s.plan.max_repairs = 1;
+  s.plan.max_calls = 3;
+  s.script((r) => {
+    const value = JSON.parse(buildFixtureAnswer(r.input)!);
+    value.submission.changes[0].path = 'src/.main.py';
+    return value;
+  });
+  const result = await s.run();
+  assert.equal(result.state, 'checkpoint');
+  assert.match(
+    result.reason,
+    /Repair limit reached; the last patch was refused/,
+  );
+  assert.equal(result.repairs, 1);
+  assert.equal(s.requests.length, 2);
+  assert.equal(result.commit, s.product.initial_commit);
 });
