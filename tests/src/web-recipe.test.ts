@@ -35,7 +35,9 @@ import {
   parseBrowserStep,
   parseBrowserSteps,
   specRecipe,
-  QUALIFIED_RECIPES,
+  unqualifiedTrial,
+  PINNED_BROWSER,
+  browserRecheckDue,
   UNQUALIFIED_TRIAL_NOTE,
   taskRecipe,
   type BrokerCallRequest,
@@ -55,7 +57,7 @@ import {
 import { TestDoubleExecutor } from './artifact-double.js';
 
 const ROOT = resolve('.');
-const BENCH = join(ROOT, 'config/web-benchmarks/p15-small-signup-v2');
+const BENCH = join(ROOT, 'config/web-benchmarks/p15-small-signup-v3');
 const benchSpec = (): SpecContent =>
   JSON.parse(readFileSync(join(BENCH, 'spec.json'), 'utf8')).content;
 const reference = (name: string) =>
@@ -127,6 +129,10 @@ test('typed browser steps parse, format back and refuse malformed lines', () => 
       selector,
     );
   assert.ok('error' in parseBrowserStep('click a[href="x"'));
+  // Review N-2: an escaped trailing character is part of a name.
+  assert.ok(
+    BrowserStepSchema.safeParse({ action: 'click', selector: '.a\\,' }).success,
+  );
 });
 
 test('the frozen checks choose the recipe; mixed, uncovered and unscoped web tasks are refused in words', () => {
@@ -346,7 +352,6 @@ test('a web build sends web QA rules, hides held-out cases, verifies and package
   // Review M-2: the roles are qualified on Python only, so the build says it is a trial.
   assert.equal(manifest.toolchain.role_qualification, 'unqualified_trial');
   assert.ok(manifest.limitations.includes(UNQUALIFIED_TRIAL_NOTE));
-  assert.deepEqual(QUALIFIED_RECIPES, ['python-build/1']);
   assert.equal(manifest.dependencies.kind, 'static-files-only');
   assert.deepEqual(manifest.startup.command.slice(0, 3), [
     'python3',
@@ -716,6 +721,51 @@ test('a stopped web preview serves nothing from its frame host', async (t) => {
   assert.match(stopped.body, /This frame is no longer valid/);
 });
 
+test('review L-9: a web pass qualifies only the connection, model and role prompts it ran on', () => {
+  const roles = {
+    connection_id: 'a',
+    model_id: 'm',
+    builder_prompt_sha256: 'b1',
+    reviewer_prompt_sha256: 'r2',
+  };
+  const pass = {
+    ...roles,
+    recipe: 'static-web/1' as const,
+    benchmark_id: 'p15-small-signup-v3',
+  };
+  assert.equal(unqualifiedTrial('python-build/1', null, []), false);
+  assert.equal(unqualifiedTrial('static-web/1', roles, []), true);
+  assert.equal(unqualifiedTrial('static-web/1', null, [pass]), true);
+  assert.equal(unqualifiedTrial('static-web/1', roles, [pass]), false);
+  for (const other of [
+    { connection_id: 'b' },
+    { model_id: 'n' },
+    { builder_prompt_sha256: 'b2' },
+    { reviewer_prompt_sha256: 'r3' },
+  ])
+    assert.equal(
+      unqualifiedTrial('static-web/1', { ...roles, ...other }, [pass]),
+      true,
+      JSON.stringify(other),
+    );
+});
+
+test('review N-4: the pinned browser shown in the app is the one the bridge verifies, with a recheck date', () => {
+  const bridge = readFileSync(
+    join(ROOT, 'packages/executor/worker/bridge.py'),
+    'utf8',
+  );
+  assert.equal(
+    /^BROWSER_VERSION = '([^']+)'/m.exec(bridge)?.[1],
+    PINNED_BROWSER.version,
+  );
+  assert.equal(
+    /^BROWSER_PINNED_ON = '([^']+)'/m.exec(bridge)?.[1],
+    PINNED_BROWSER.pinned_on,
+  );
+  assert.equal(browserRecheckDue(), '2026-12-06');
+});
+
 test('the frozen web benchmark still matches its freeze, its checker and the studio spec schema', async () => {
   const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
   assert.deepEqual(await bench.verify(), []);
@@ -737,12 +787,12 @@ test(
     const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
     assert.deepEqual(await bench.verify(), []);
     const s = bench.score(
-      'p15-small-signup-v2',
+      'p15-small-signup-v3',
       join(BENCH, 'reference'),
       browserDir,
     );
     assert.equal(s.passed, 10, JSON.stringify(s.results));
-    for (const m of bench.mutants('p15-small-signup-v2', browserDir))
+    for (const m of bench.mutants('p15-small-signup-v3', browserDir))
       assert.ok(m.caught, `${m.id} not caught: ${JSON.stringify(m)}`);
   },
 );

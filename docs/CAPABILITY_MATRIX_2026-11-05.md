@@ -119,8 +119,9 @@ the rule. The "Multi-module repository" row stays **unverified beyond small**.
 **Update, November 6 (P15 slice 1):** the static web frontend row is now implemented as
 `static-web/1` ([design and limits](STATIC_WEB_RECIPE.md), ADR-0078). Evidence executed: contract and
 fixture tests, and the reviewed browser checker run in real Bubblewrap with the pinned Chrome 156 in
-a Linux container, where the frozen benchmark `p15-small-signup-v2` reference passes 10 of 10 and all
-14 known failures (including worker, WebSocket, WebRTC, dialog and native-submit pages) are caught.
+a Linux container, where the frozen benchmark `p15-small-signup-v3` reference passes 10 of 10 and all
+16 known failures (including worker, WebSocket, WebRTC, dialog, native-submit, popup and late-request pages)
+are caught. The check shows no outside request was seen during the cases, not that none can ever happen.
 Not yet executed: the WSL2 worker, an exported package started outside the studio, and the live role
 qualification. The row stays **unqualified** until those run, and every web build is labelled an
 unqualified trial in its manifest and on the build page.

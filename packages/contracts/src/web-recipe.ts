@@ -26,7 +26,8 @@ function selectorShapeOk(s: string): boolean {
       if (open.pop() !== c) return false;
     }
   }
-  return !quote && !open.length && !/^[>+~,]|[>+~,]$/.test(s);
+  // An escaped trailing character (`.a\\,`) is part of a name, not a combinator.
+  return !quote && !open.length && !/^[>+~,]|(?<!\\)[>+~,]$/.test(s);
 }
 const selector = z
   .string()
@@ -263,12 +264,63 @@ export function formatBrowserStep(s: BrowserStep): string {
 }
 
 /**
- * ADR-0078 (review M-2): recipes whose build roles have passed a frozen benchmark live. A build
- * with any other recipe is admitted only as an unqualified trial and says so in its manifest and
- * on the build page. A recipe is added here only with the live results that qualify it.
+ * ADR-0078 review N-4: the pinned QA browser (bridge.py BROWSER_VERSION, checked equal by a test)
+ * and the day it was pinned. ADR-0078 commits to re-checking it against Chrome for Testing security
+ * releases at least monthly; the build page shows when that is due or overdue.
  */
-export const QUALIFIED_RECIPES: readonly BuildRecipe[] = ['python-build/1'];
-export const recipeQualified = (r: BuildRecipe) =>
-  QUALIFIED_RECIPES.includes(r);
+export const PINNED_BROWSER = {
+  name: 'Chrome for Testing headless shell',
+  version: '156.0.8078.47',
+  pinned_on: '2026-11-06',
+  recheck_days: 30,
+} as const;
+/** The day the pinned browser's monthly security re-check is due (YYYY-MM-DD). */
+export function browserRecheckDue(): string {
+  const d = new Date(PINNED_BROWSER.pinned_on + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + PINNED_BROWSER.recheck_days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * ADR-0078 (review M-2, L-9): who built a candidate, for deciding whether its roles are qualified
+ * for its recipe. Role qualifications are per connection, model and role prompt, so recipe
+ * qualification is too: there is no global switch.
+ */
+export type BuildRoles = {
+  connection_id: string;
+  model_id: string;
+  /** SHA-256 of the exact builder and reviewer role prompts. */
+  builder_prompt_sha256: string;
+  reviewer_prompt_sha256: string;
+};
+/** A recorded live pass of a recipe's frozen benchmark by one set of roles. */
+export type RecipeQualification = BuildRoles & {
+  recipe: BuildRecipe;
+  benchmark_id: string;
+};
+/**
+ * Whether a build is an unqualified trial. Python builds are admitted only on qualified roles
+ * (ADR-0048/0049), so they never are. Any other recipe is a trial unless a recorded benchmark pass
+ * matches this build's own connection, model and both current role prompts; a pass on another
+ * connection, model or prompt version never lifts the label.
+ */
+export function unqualifiedTrial(
+  recipe: BuildRecipe,
+  roles: BuildRoles | null,
+  qualifications: readonly RecipeQualification[],
+): boolean {
+  if (recipe === 'python-build/1') return false;
+  return !(
+    roles &&
+    qualifications.some(
+      (q) =>
+        q.recipe === recipe &&
+        q.connection_id === roles.connection_id &&
+        q.model_id === roles.model_id &&
+        q.builder_prompt_sha256 === roles.builder_prompt_sha256 &&
+        q.reviewer_prompt_sha256 === roles.reviewer_prompt_sha256,
+    )
+  );
+}
 export const UNQUALIFIED_TRIAL_NOTE =
-  'Unqualified trial: the builder and reviewer were qualified on Python tasks only, not on static web pages, so this evidence is weaker than a qualified build until the frozen web benchmark passes live.';
+  'Unqualified trial: the builder and reviewer were qualified on Python tasks only, not on static web pages, so this evidence is weaker than a qualified build until the frozen web benchmark passes live on the same connection, model and role prompts.';

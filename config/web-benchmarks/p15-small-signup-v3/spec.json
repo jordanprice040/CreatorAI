@@ -1,8 +1,8 @@
 {
   "format": "p15-web-benchmark-spec/1",
-  "benchmark_id": "p15-small-signup-v2",
+  "benchmark_id": "p15-small-signup-v3",
   "scale": "small",
-  "title": "P15 small web benchmark: sign-up form v2",
+  "title": "P15 small web benchmark: sign-up form v3",
   "content": {
     "audience": "Synthetic benchmark operator measuring the studio's static web build path at small scale",
     "problem_statement": "Measure whether the bounded builder and independent reviewer can deliver a single static page with a sign-up form and client-side validation, against frozen browser cases including held-out edge cases, run by the reviewed headless-browser checker. This is a synthetic benchmark, not a customer product.",

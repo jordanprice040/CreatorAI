@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DIR = join(ROOT, 'config/web-benchmarks');
 export const CHECKER = join(ROOT, 'packages/executor/worker/web_recipe.py');
-export const BENCHMARKS = ['p15-small-signup-v2'];
+export const BENCHMARKS = ['p15-small-signup-v3'];
 const BROWSER_VERSION = '156.0.8078.47';
 export const DEFAULT_BROWSER = join(
   homedir(),
@@ -252,10 +252,21 @@ export function mutants(id, browser = DEFAULT_BROWSER) {
       }
       const s = score(id, dir, browser);
       const failed = s.results.filter((r) => !r.passed).map((r) => r.id);
+      // Review N-1: a hostile page must fail for its own reason, so a broken detector cannot
+      // hide behind an unrelated failure such as a timeout.
+      const caught = s.results.some(
+        (r) =>
+          !r.passed &&
+          m.caught_by.includes(r.id) &&
+          (!m.reason_contains || (r.reason ?? '').includes(m.reason_contains)),
+      );
       return {
         id: m.id,
-        caught: m.caught_by.some((c) => failed.includes(c)),
+        caught,
         failed,
+        reasons: Object.fromEntries(
+          s.results.filter((r) => !r.passed).map((r) => [r.id, r.reason]),
+        ),
       };
     } finally {
       rmSync(dir, { recursive: true, force: true });

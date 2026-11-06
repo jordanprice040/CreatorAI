@@ -30,6 +30,7 @@ POLICY = {
 # It needs more memory, threads and time; the sandbox still has no network beyond its own
 # loopback (bwrap gives the new namespace only `lo`), and the same uid, lease and log bounds.
 BROWSER_VERSION = '156.0.8078.47'
+BROWSER_PINNED_ON = '2026-11-06'  # ADR-0078 N-4: re-check against security releases at least monthly
 BROWSER_TREE_SHA256 = '2f84beb636e7c730bea98f70bfff326514e82e45e14e254db7b50d8c5747d141'
 WEB_POLICY = {**POLICY, 'recipe': 'static-web/1', 'network': 'loopback-only',
               'memory_bytes': 1073741824, 'tasks': 512, 'cpu_percent': 100,

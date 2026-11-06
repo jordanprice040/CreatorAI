@@ -447,8 +447,21 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   the frame token before counting a viewer and answers every refusal alike; typed steps round-trip and selectors are
   shape-checked; the benchmark script runs the bridge's own `sandbox_args` and `verify_browser`; banner says links can
   leave; L-7 recorded with a browser update plan ([design §10](../docs/STATIC_WEB_RECIPE.md)).
-- Benchmark v1 replaced before any run by `p15-small-signup-v2` (checker changed; same cases, spec content and
+- Benchmark v1 replaced before any run by `p15-small-signup-v3` (checker changed; same cases, spec content and
   reference; 14 known failures incl. 5 hostile pages). Reference 10/10 (6/6 held out), all 14 caught, twice in a row.
 - Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 851 tests, 818 pass, 28 skips, 5 fail (the
   known no-`pwsh` wrapper tests); the REAL CHECKER test passes. TypeScript, web typecheck and formatting pass.
 - Jordan gave a typed OK (11:28) for the WSL browser install and the 3 live builds; held until the re-review.
+
+## P15 re-review fixes (November 6, PR #149 re-review at `aec1dc2`, ADR-0078 amendment, no migration)
+
+- [Re-review](../docs/PR149_REREVIEW_2026-11-06.md): no High or Medium. Fixed L-8 (popups fail the case; 1 s settle after
+  the last step; docs, ADR and manifest claim only "no outside request seen during the frozen cases"), L-9 (no global
+  qualified switch: `unqualifiedTrial` lifts the label only for a recorded pass on the build's own connection, model and
+  role-prompt hashes; none recorded), N-1 (hostile known failures pin their reason), N-2, N-3, N-4 (`PINNED_BROWSER` pin
+  date, build page shows when the monthly re-check is due or overdue).
+- Benchmark v2 became `p15-small-signup-v3` before any live run (popup and late-request known failures). Reference 10/10
+  (6/6 held out); all 16 known failures caught, each for its own reason, in two consecutive runs.
+- Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 853 tests, 820 pass, 28 skips, 5 fail (known
+  no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
+- Browser install and live builds (Jordan's typed OK 11:28) still held until a clean review.

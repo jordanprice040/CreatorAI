@@ -25,6 +25,10 @@ MAX_SITE_FILES = 60
 LOAD_SECONDS = 10.0
 STEP_SECONDS = 3.0
 CASE_SECONDS = 40.0
+# After the last step the page keeps running this long before its events are read, so late
+# requests, dialogs and document loads within it still fail the case. A dynamic check cannot
+# prove that a page never makes a request; it reports what it saw during the case.
+SETTLE_SECONDS = 1.0
 MAX_PAGE_ERRORS = 20
 
 resource.setrlimit(resource.RLIMIT_FSIZE, (8 * 1024 * 1024, 8 * 1024 * 1024))
@@ -141,7 +145,10 @@ class Browser:
                 self.navigations += 1
         elif m == 'Target.targetCreated' and p.get('targetInfo', {}).get('type') in (
                 'service_worker', 'shared_worker'):
-            self.unsupported.append(p['targetInfo']['type'].replace('_', ' '))
+            self.unsupported.append('a ' + p['targetInfo']['type'].replace('_', ' '))
+        elif m == 'Target.targetCreated' and p.get('targetInfo', {}).get('openerId'):
+            # window.open: a new top-level page the checker does not watch, so it fails the case.
+            self.unsupported.append(('a popup window ' + p['targetInfo'].get('url', '')[:150]).strip())
         elif m == 'Page.javascriptDialogOpening':
             # Nobody answers a dialog in QA: dismiss it, and fail the case with that reason.
             self.dialogs.append(p.get('type', 'dialog'))
@@ -398,7 +405,13 @@ def main():
                 result['reason'] = f'step {i + 1} ({step["action"]}) failed' + (
                     ': ' + detail.split(';')[0] if b.dialogs or b.navigations > loaded else '')
                 break
-        time.sleep(0.2)
+        settle = time.monotonic() + SETTLE_SECONDS
+        while time.monotonic() < settle:
+            try:
+                b.send('Runtime.evaluate', {'expression': '0'}, timeout=2)
+            except QaError:
+                pass
+            time.sleep(0.1)
         try:
             b.send('Runtime.evaluate', {'expression': '0'}, timeout=2)
         except QaError:
@@ -429,6 +442,10 @@ def main():
             result['reason'] = result['reason'] or 'the page opened a dialog'
         if result['page_errors']:
             result['reason'] = result['reason'] or 'uncaught page error'
+        if b.unsupported:
+            kinds = sorted({k.split(' http')[0].strip() for k in b.unsupported})
+            result['reason'] = result['reason'] or (
+                'the page opened ' + ', '.join(kinds) + ', which static-web/1 does not support')
         if result['outbound']:
             result['reason'] = result['reason'] or 'request outside the site'
         result['passed'] = ok and not result['page_errors'] and not result['outbound'] and not b.dialogs \

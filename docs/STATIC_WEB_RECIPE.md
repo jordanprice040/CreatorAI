@@ -54,7 +54,7 @@ Each expectation waits up to 3 seconds. Held-out cases never reach a builder or 
 like CLI cases.
 
 The typed form round-trips: only the start of a line is trimmed, so a value keeps its spaces. A
-selector cannot contain `=` (the line splits at the first one), and a selector with unbalanced quotes,
+selector cannot contain `=` with spaces (the line splits at the first one; `[name="x"]` is fine), and a selector with unbalanced quotes,
 brackets or parentheses, or a dangling combinator, is refused before the spec is frozen.
 
 ## 4. How QA runs a case
@@ -78,14 +78,19 @@ For each case the checker:
 
 "Outside the site" covers requests from the page and from every dedicated worker (auto-attached
 and paused until the checker records their traffic), WebSockets, and WebRTC (its constructors are
-replaced before page scripts run, and a call is recorded). A service or shared worker is not
-supported and fails the case. The QA sandbox has no network anyway; these checks make the manifest's
-`network: none` a checked claim rather than an assumption.
+replaced before page scripts run, and a call is recorded). A service worker, a shared worker or a
+popup window (`window.open`) is not supported and fails the case. After the last step the page keeps
+running for 1 second (`SETTLE_SECONDS`) before the checker reads what happened.
+
+What this establishes is **no outside request was seen during the frozen cases** (while they ran, plus
+that second). A dynamic check cannot prove that a page never makes a request: a timer that fires later
+is not seen. The QA sandbox has no network either way. The exported package runs in an ordinary
+browser, where only the code review and the owner's preview stand behind `network: none`.
 
 A case stays on one document. A dialog (`alert`, `confirm`, `prompt`) is dismissed and fails the case
 with "the page opened a dialog". Loading another document (a form submitted without `preventDefault`,
 a link to another page, a location change other than the hash) is detected when it is requested and
-fails the case with that reason, even if it starts after the last step. The builder packet's
+fails the case with that reason, including within the settle second after the last step. The builder packet's
 `qa_runtime` notes say all of this, so repair feedback can explain it.
 
 The studio accepts exactly one well-formed result line per case and a zero exit code. The bridge
@@ -134,7 +139,7 @@ system libraries (it never runs sudo). On Ubuntu 22.04 drop the `t64` suffixes.
 Check it with the frozen benchmark reference (no model call):
 
 ```
-node scripts/p15-web-benchmark.mjs score p15-small-signup-v2 config/web-benchmarks/p15-small-signup-v2/reference
+node scripts/p15-web-benchmark.mjs score p15-small-signup-v3 config/web-benchmarks/p15-small-signup-v3/reference
 ```
 
 Expected: 10 of 10, 6 of 6 held out.
@@ -145,17 +150,22 @@ The roles keep their prompts (`builder/1`, `independent-reviewer/2`); the builde
 `qa_runtime` describes the web checker. Their qualifications were measured on Python tasks only, so
 the web recipe is **not qualified** until this benchmark passes live.
 
-- Benchmark `config/web-benchmarks/p15-small-signup-v2` (frozen; `FREEZE.json` includes the checker hash):
+- Benchmark `config/web-benchmarks/p15-small-signup-v3` (frozen; `FREEZE.json` includes the checker hash):
   one sign-up page, one task, 5 browser checks, 10 studio cases of which 6 are held out.
   `scripts/p15-web-benchmark.mjs verify` checks the freeze and that the spec parses unchanged with
-  the studio's own schema and builds with `static-web/1`; `mutants` checks that all 14 listed known
+  the studio's own schema and builds with `static-web/1`; `mutants` checks that all 16 listed known
   failures are caught by the cases named for them (9 behaviour bugs, plus a worker request, a
-  WebSocket, WebRTC, an alert dialog and a native form submit). v1 was frozen and replaced before any
-  live run, because the review changed the checker; cases, spec content and reference are unchanged.
-- Until this passes, every `static-web/1` build is an **unqualified trial**: its manifest carries
+  WebSocket, WebRTC, an alert dialog, a native form submit, a popup window and a request 600 ms after
+  the first input). The hostile ones must also fail for their own reason (`reason_contains`). v1 and
+  v2 were frozen and replaced before any live run, because the reviews changed the checker; cases,
+  spec content and reference are unchanged.
+- Until it passes, every `static-web/1` build is an **unqualified trial**: its manifest carries
   `toolchain.role_qualification: 'unqualified_trial'` and a limitation saying so, and the build and Try
-  pages show it (`QUALIFIED_RECIPES` in `packages/contracts/src/web-recipe.ts` lists only
-  `python-build/1`; a recipe is added there only with the live results that qualify it).
+  pages show it. There is no global switch (review L-9): `unqualifiedTrial` in
+  `packages/contracts/src/web-recipe.ts` lifts the label only for a build whose own connection, model
+  and both role-prompt hashes match a recorded pass (`RECIPE_QUALIFICATIONS` in
+  `packages/executor/src/artifacts.ts`, empty today). A pass on one connection, model or prompt version
+  never qualifies another.
 - Route: `plan_roles` on the dev studio, $0. Caps per attempt: `max_repairs` 1, `max_calls` 4,
   8,000 output tokens. Expected 2 requests per attempt, at most 4; 3 attempts, at most 12 requests.
 - Pass bar per attempt and what to record: `expectations.json`. Qualified at its declared scale only
@@ -165,8 +175,8 @@ the web recipe is **not qualified** until this benchmark passes live.
 
 ## 8. Checks run for this slice (cloud container, Linux)
 
-After the review (section 10): the v2 reference passes 10 of 10 and all 14 known failures are caught,
-in two consecutive runs, through `scripts/p15-web-benchmark.mjs`, which now runs the bridge's own
+After the re-review (section 10): the v3 reference passes 10 of 10 and all 16 known failures are
+caught, each hostile one for its own reason, in two consecutive runs, through `scripts/p15-web-benchmark.mjs`, which now runs the bridge's own
 `sandbox_args` list and `verify_browser` check (the only host difference, binding `/etc/alternatives`
 because this container's `python3` resolves through it, is reported as `sandbox_deviations`). A page
 that registers a service worker also fails. The first run of this section was:
@@ -220,3 +230,11 @@ found two Medium and seven Low issues. All were fixed before any live run:
   update is a reviewed change of `install_browser.py` and the bridge hashes, plus a new benchmark
   version, since the freeze binds the checker. Running the browser under its own sandbox (allowing a
   user namespace for it alone) is the larger fix and needs its own ADR.
+
+**Re-review (same day, at `aec1dc2`; no High or Medium).** Fixed: L-8 popups fail the case and the page
+gets a 1 s settle after the last step; the docs, ADR and manifest claim only what was seen during the
+cases (section 4). L-9: per-connection recipe qualification, no global switch (section 7). N-1: hostile
+known failures pin their reason. N-2: selector wording; an escaped trailing character is accepted.
+N-3: the superseded ADR-0078 bullets are marked. N-4: `PINNED_BROWSER` (contracts, checked equal to the
+bridge) records the pin date, and the build page shows when the monthly security re-check is due or
+overdue. Benchmark v2 became v3 before any live run.

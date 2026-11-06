@@ -23,8 +23,8 @@ import {
   type SpecStatus,
   type StoredEntity,
   type Workspace,
-  UNQUALIFIED_TRIAL_NOTE,
-  recipeQualified,
+  PINNED_BROWSER,
+  browserRecheckDue,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import {
@@ -874,8 +874,22 @@ function Product({
         {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version} · product{' '}
         {shortId(p.id)}
       </h4>
-      {p.recipe && !recipeQualified(p.recipe) && (
-        <p className="notice">{UNQUALIFIED_TRIAL_NOTE}</p>
+      {p.recipe === 'static-web/1' && (
+        <p className="notice">
+          Static web builds are unqualified trials unless the builder and
+          reviewer on this build&apos;s own connection, model and role prompts
+          passed the frozen web benchmark live; each package says which it is.
+          None has yet. QA runs in the pinned {PINNED_BROWSER.name}{' '}
+          {PINNED_BROWSER.version} (pinned {PINNED_BROWSER.pinned_on});{' '}
+          {new Date().toISOString().slice(0, 10) > browserRecheckDue() ? (
+            <strong>
+              its security re-check was due {browserRecheckDue()} and is overdue
+            </strong>
+          ) : (
+            <>its next security re-check is due {browserRecheckDue()}</>
+          )}
+          .
+        </p>
       )}
       {!current && (
         <p className="notice">

@@ -1,12 +1,14 @@
 import { mkdir, readFile, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { BUILD_ROLE_PROMPTS } from '@creator/domain';
 import {
   BuildManifestSchema,
   BrokerCallResultSchema,
   ContractError,
   UNQUALIFIED_TRIAL_NOTE,
-  recipeQualified,
+  unqualifiedTrial,
+  type RecipeQualification,
   type BuildManifest,
   type RunInput,
 } from '@creator/contracts';
@@ -29,6 +31,13 @@ import {
   type BuildPorts,
 } from './build.js';
 import { canonical, jsonWrite, readJson, event } from './files.js';
+
+/**
+ * ADR-0078 review L-9: recorded live passes of a recipe's frozen web benchmark, each for one
+ * connection, model and pair of role prompts. None yet: the web benchmark has not run live. A pass
+ * is added as its own record with its evidence; it never qualifies other connections or prompts.
+ */
+const RECIPE_QUALIFICATIONS: readonly RecipeQualification[] = [];
 import { readTar, writeTar, type PackageFile } from './tar.js';
 
 export const REVIEWED_BACKEND = 'wsl2-bwrap-systemd';
@@ -201,6 +210,17 @@ export class ArtifactSupervisor {
     const backend = String(env.backend ?? 'unknown');
     const recipe = p.recipe ?? 'python-build/1';
     const web = recipe === 'static-web/1';
+    const trial = unqualifiedTrial(
+      recipe,
+      intent.plan.plan_roles
+        ? {
+            ...intent.plan.plan_roles,
+            builder_prompt_sha256: digest(BUILD_ROLE_PROMPTS.builder),
+            reviewer_prompt_sha256: digest(BUILD_ROLE_PROMPTS.reviewer),
+          }
+        : null,
+      RECIPE_QUALIFICATIONS,
+    );
     const template = templateOf(p.recipe);
     const browser =
       env.browser && typeof env.browser === 'object'
@@ -243,9 +263,7 @@ export class ArtifactSupervisor {
         bridge_hash: checked(hash, env.bridge_hash),
         backend,
         python: typeof env.python === 'string' ? env.python : null,
-        ...(recipeQualified(recipe)
-          ? {}
-          : { role_qualification: 'unqualified_trial' as const }),
+        ...(trial ? { role_qualification: 'unqualified_trial' as const } : {}),
         ...(web
           ? {
               browser: browser
@@ -366,11 +384,12 @@ export class ArtifactSupervisor {
       },
       lineage,
       limitations: [
-        ...(recipeQualified(recipe) ? [] : [UNQUALIFIED_TRIAL_NOTE]),
+        ...(trial ? [UNQUALIFIED_TRIAL_NOTE] : []),
         ...(web
           ? [
               'Verifies one task commit and its owner-authored browser cases in one pinned headless browser (Chrome 156), not other browsers, screen sizes, accessibility, the whole product or real user needs.',
               'Static HTML, CSS and JavaScript only: no packages, build step, server code, network or storage kept between visits.',
+              'QA saw no request outside the site while its frozen cases ran (plus 1 s after each); a dynamic check cannot prove the page never makes one.',
               'No native installer; the private preview serves the files on its own preview host.',
             ]
           : [
