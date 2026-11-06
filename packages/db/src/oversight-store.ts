@@ -177,7 +177,8 @@ export class OversightStore extends Store {
     return this.tx(async (c) => {
       const { rows } = await c.query(
         `insert into auth_sessions (token_hash, actor_id, method, subject, csrf_token, expires_at)
-         values ($1, $2, $3, $4, $5, now() + make_interval(hours => $6))
+         values ($1, $2, $3, $4, $5, least(now() + make_interval(hours => $6),
+           (select expires_at from tester_accounts where actor_id = $2)))
          returning expires_at, (select display_name from actors where id = $2) as display_name,
            exists(select 1 from tester_accounts where actor_id = $2) as tester`,
         [sha256(secret), actorId, method, subject, csrf, hours],

@@ -5,6 +5,7 @@ import { connect } from 'node:net';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createApi } from '@creator/api';
+import { FileStore } from '@creator/db';
 import { webHandler } from '@creator/api/studio';
 import { freshDatabase, LOGIN_CODE, login } from './pg-harness.js';
 
@@ -227,4 +228,69 @@ test('concurrent uploads: a person over the cap is refused at once; a dropped up
   }
   assert.equal(retry?.status, 201);
   second.stop();
+});
+
+// PR #143 review L-2: the slot is held until the upload is answered, not just until its body
+// has arrived, so a fast client cannot have more uploads than the cap in storage at once.
+test('concurrent uploads: the slot is held while a fully received upload is still being stored', async (t) => {
+  let closeApi = async () => undefined as unknown;
+  t.after(() => closeApi());
+  const db = await freshDatabase(t);
+  if (!db) return;
+  // Hold the store step of the next upload until released.
+  const original = FileStore.prototype.uploadFile;
+  let open!: () => void;
+  const gate = new Promise<void>((r) => (open = r));
+  let entered!: () => void;
+  const storing = new Promise<void>((r) => (entered = r));
+  FileStore.prototype.uploadFile = async function (...args) {
+    entered();
+    await gate;
+    return original.apply(this, args);
+  };
+  t.after(() => {
+    FileStore.prototype.uploadFile = original;
+  });
+  const api = createApi({
+    CREATOR_DATABASE_URL: db.url,
+    CREATOR_DEV_LOGIN_CODE: LOGIN_CODE,
+    CREATOR_WORKER: 'off',
+    CREATOR_FILE_CONCURRENT_UPLOADS: '1',
+  });
+  api.server.listen(0, '127.0.0.1');
+  await once(api.server, 'listening');
+  closeApi = api.close;
+  await api.ready();
+  const port = (api.server.address() as { port: number }).port;
+  const base = `http://127.0.0.1:${port}/api`;
+  const auth = await login(base);
+  const created = await fetch(`${base}/workspaces`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth.write },
+    body: JSON.stringify({ name: 'Slot held', record_mode: 'fixture' }),
+  });
+  const ws = ((await created.json()) as { id: string }).id;
+  const send = (name: string) =>
+    fetch(`${base}/workspaces/${ws}/files`, {
+      method: 'POST',
+      headers: {
+        ...auth.write,
+        'Content-Type': 'application/octet-stream',
+        'X-File-Name': name,
+        'X-Upload-Key': randomUUID(),
+      },
+      body: `${name} body`,
+    });
+  const first = send('first.txt');
+  await storing; // its whole body has arrived; it is now in the store step
+  // Bounded wait: without the held slot, this upload would itself wait at the gate.
+  t.after(() => open());
+  const second = await Promise.race([
+    send('second.txt'),
+    wait(5000).then(() => null),
+  ]);
+  assert.equal(second?.status, 429);
+  open();
+  assert.equal((await first).status, 201);
+  assert.equal((await send('third.txt')).status, 201);
 });

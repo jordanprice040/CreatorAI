@@ -28,6 +28,8 @@ const USAGE = `Usage:
   pnpm ops tester-add --subject <sub> --name <name> --expires <iso time> [--role editor|viewer] [--issuer <url>]
                                               (allow-lists one OIDC identity and seeds its synthetic sample workspace)
   pnpm ops tester-list
+  pnpm ops tester-extend <actor id> --expires <iso time> [--restore]
+                                              (moves the expiry; --restore re-enables a removed account with a fresh sample)
   pnpm ops tester-reset <actor id>            (retires the tester's workspace and seeds a fresh sample)
   pnpm ops tester-remove <actor id> --reason <text>  (disables the account and ends its sessions; keeps records)
 Environments: local, test, staging, live. NAME_FILE variables load secrets from files.`;
@@ -175,6 +177,15 @@ try {
     );
   } else if (command === 'tester-list')
     out = await withTesters(env, (t) => t.listTesters());
+  else if (command === 'tester-extend' && args[0])
+    out = await withTesters(env, (t) =>
+      t.extendTester(
+        ctx,
+        args[0]!,
+        flag(args, '--expires') ?? '',
+        args.includes('--restore'),
+      ),
+    );
   else if (command === 'tester-reset' && args[0])
     out = await withTesters(env, (t) => t.resetTester(ctx, args[0]!));
   else if (command === 'tester-remove' && args[0])

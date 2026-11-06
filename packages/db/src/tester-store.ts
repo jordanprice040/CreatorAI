@@ -156,7 +156,67 @@ export class TesterStore extends Store {
         },
       });
     });
-    await this.seedSample(ctx, actorId);
+    // PR #143 review N-4: the account is committed first; if seeding fails, say how to recover.
+    try {
+      await this.seedSample(ctx, actorId);
+    } catch (e) {
+      throw fail(
+        'INTERNAL_ERROR',
+        `Tester account ${actorId} was created, but its sample workspace was not (${e instanceof Error ? e.message : String(e)}). Run pnpm ops tester-reset ${actorId} to seed it.`,
+      );
+    }
+    return this.tester(actorId);
+  }
+
+  /**
+   * PR #143 review N-3: moves an account's expiry (earlier or later). A removed account is
+   * re-enabled only with `restore`; it then gets a fresh sample workspace, since removal retired
+   * its last one. An account with no current workspace (a failed seed) also gets one.
+   */
+  async extendTester(
+    ctxIn: CommandContext,
+    actorId: string,
+    expiresAt: string,
+    restore = false,
+  ) {
+    const ctx = normalize(ctxIn);
+    const expires = Date.parse(expiresAt);
+    if (!Number.isFinite(expires) || expires <= Date.now())
+      throw fail(
+        'INVALID_CONTRACT',
+        'The expiry must be a future date and time.',
+      );
+    const until = new Date(expires).toISOString();
+    await this.tx(async (c) => {
+      const { rows } = await c.query<{ disabled: boolean }>(
+        `select disabled_at is not null as disabled from tester_accounts
+         where actor_id = $1 for update`,
+        [actorId],
+      );
+      const row = rows[0];
+      if (!row) throw fail('NOT_FOUND', 'Tester account not found.');
+      if (row.disabled && !restore)
+        throw fail(
+          'INVALID_TRANSITION',
+          'This tester account is removed; add --restore to re-enable it.',
+        );
+      await c.query(
+        `update tester_accounts set expires_at = $2, disabled_at = null, disabled_reason = null
+         where actor_id = $1`,
+        [actorId, until],
+      );
+      await this.append(c, ctx, {
+        workspaceId: null,
+        action: row.disabled ? 'tester.restored' : 'tester.extended',
+        subjectKind: 'actor',
+        subjectId: actorId,
+        subjectVersion: null,
+        contentHash: null,
+        payload: { expires_at: until },
+      });
+    });
+    if (!(await this.tester(actorId)).workspace_id)
+      await this.seedSample(ctx, actorId);
     return this.tester(actorId);
   }
 

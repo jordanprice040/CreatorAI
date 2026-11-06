@@ -176,6 +176,7 @@ at the deployment's OIDC provider; the operator then allow-lists that identity:
 ```
 pnpm ops tester-add --subject <provider subject> --name "<display name>" --expires 2026-12-15T00:00:00Z [--role editor|viewer] [--issuer <url>]
 pnpm ops tester-list
+pnpm ops tester-extend <actor id> --expires 2027-01-15T00:00:00Z [--restore]
 pnpm ops tester-reset <actor id>
 pnpm ops tester-remove <actor id> --reason "Review window ended"
 ```
@@ -186,7 +187,11 @@ synthetic records and owned by the operations actor. Testers cannot create works
 membership, open Settings, plan connections, payments, campaigns, GitHub, portfolio scheduling,
 operations or desktop pairing. An account stops working at its expiry; `tester-remove` also ends
 its sessions at once. Reset retires the old workspace and seeds a fresh one; nothing is deleted,
-so retired workspaces stay until a retention decision. Inviting testers is a separate outbound
+so retired workspaces stay until a retention decision. `tester-extend` moves an account's expiry;
+with `--restore` it re-enables a removed account (one identity keeps one account, so it cannot
+be added again) and seeds a fresh sample. If `tester-add` reports that the account was created
+but its sample was not, run `tester-reset` for that actor id. A tester's session never outlasts
+the account's expiry. Inviting testers is a separate outbound
 message and is not done by these commands.
 
 Each person may have at most `CREATOR_FILE_CONCURRENT_UPLOADS` uploads in flight (default 2),

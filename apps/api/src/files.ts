@@ -149,8 +149,10 @@ export async function fileRoutes(r: {
         'LIMIT_EXCEEDED',
         `You already have ${r.slots.max} upload${r.slots.max === 1 ? '' : 's'} in progress; wait for one to finish.`,
       );
-    // The slot is freed however the request ends: stored, refused, cancelled or cut off.
-    req.once('close', release);
+    // The slot is freed however the upload ends: stored, refused, cancelled or cut off. The
+    // response's close, not the request's: Node closes the request once its body is read,
+    // before the bytes are inspected and stored (PR #143 review L-2).
+    res.once('close', release);
     try {
       // Review R-M1: only an upload the caller may make, declared within the size limit, gets
       // longer than the ordinary 10 seconds to arrive.

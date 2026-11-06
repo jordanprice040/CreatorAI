@@ -602,6 +602,12 @@ export class Store {
       await this.refuseTester(c, ctx.actorId, 'change membership');
       if ((await this.role(c, ws, ctx.actorId, true)) !== 'owner')
         throw fail('ACCESS_DENIED', 'Only owners can change membership.');
+      // PR #143 review L-1 (ADR-0075): a tester account is never a workspace owner.
+      if (role === 'owner' && (await this.isTester(c, actorId)))
+        throw fail(
+          'ACCESS_DENIED',
+          'A tester account can be an editor or viewer, never an owner.',
+        );
       await c.query(
         'insert into workspace_members (workspace_id, actor_id, role) values ($1, $2, $3)',
         [ws, actorId, role],

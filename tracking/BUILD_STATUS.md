@@ -276,3 +276,14 @@ PowerShell-wrapper tests that always fail in the container (no pwsh), and the ne
 case, whose 429 worked but whose assertion read the error body wrongly; fixed and rerun with
 the auth, tester, storage and deadline suites (14/14). Typecheck and format check pass.
 Awaiting review.
+
+## P11 review fixes (November 6, PR #143 review, no new migration)
+
+Fixes the PR #143 review (project file reviews/PR143_TESTER_ACCOUNTS_REVIEW_2026-11-06.md): L-1
+`addMember` refuses a tester as owner; L-2 the upload slot is held until the response closes
+(new test holds the store step and gets 429 for a second upload; it fails with the old
+request-close release); N-1 artifact registration checks the owner role before reading the
+product store; N-2 tester sessions end no later than the account; N-3 `pnpm ops tester-extend
+[--restore]`; N-4 a failed seed after `tester-add` says to run `tester-reset`. N-5 (numbering
+with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
+`files-deadline.test.ts`.

@@ -269,6 +269,21 @@ test('tester accounts: own actor, own sample workspace, no owner powers, expiry 
     'delete from workspace_members where workspace_id = $1 and actor_id = $2',
     [ownerWs.id, a.actor_id],
   );
+  // Review L-1: the owner cannot make a tester a workspace owner through membership either.
+  const ownerCtx = { actorId: owner.session!.actor_id };
+  assert.equal(
+    await code(store.addMember(ownerCtx, ownerWs.id, a.actor_id, 'owner')),
+    'ACCESS_DENIED',
+  );
+  assert.equal(
+    (
+      await db.pool.query(
+        'select count(*)::int as n from workspace_members where actor_id = $1',
+        [a.actor_id],
+      )
+    ).rows[0].n,
+    1,
+  );
 
   // A viewer tester reads but cannot write.
   const tb = await signInAs('tester-b');
@@ -285,6 +300,17 @@ test('tester accounts: own actor, own sample workspace, no owner powers, expiry 
       })
     ).status,
     403,
+  );
+  // Review N-1: a viewer is refused before the server reads the local product store.
+  const reg = await post(`/workspaces/${b.workspace_id}/artifacts`, tb.write!, {
+    product_id: '00000000-0000-4000-8000-0000000000aa',
+    artifact_id: '00000000-0000-4000-8000-0000000000bb',
+    manifest_sha256: 'a'.repeat(64),
+  });
+  assert.equal(reg.status, 403);
+  assert.equal(
+    ((await reg.json()) as { error: { code: string } }).error.code,
+    'ACCESS_DENIED',
   );
 
   // Reset retires A's workspace (kept, not deleted) and seeds a fresh one.
@@ -344,6 +370,33 @@ test('tester accounts: own actor, own sample workspace, no owner powers, expiry 
       ['Tester A', 'expired'],
       ['Tester B', 'disabled'],
     ],
+  );
+
+  // Review N-3: extend refuses a removed account unless restoring; restore re-enables it with a
+  // fresh sample workspace, and the tester can sign in again.
+  const soon = new Date(Date.now() + 30 * 60_000).toISOString();
+  assert.equal(
+    await code(testers.extendTester(ctx, b.actor_id, soon)),
+    'INVALID_TRANSITION',
+  );
+  const restored = await testers.extendTester(ctx, b.actor_id, soon, true);
+  assert.equal(restored.state, 'active');
+  assert.ok(restored.workspace_id && restored.workspace_id !== b.workspace_id);
+  assert.equal(restored.retired_workspaces, 1);
+  const tb2 = await signInAs('tester-b');
+  assert.equal(tb2.status, 302);
+  // Review N-2: the session never outlasts the account (30 minutes, under the session hours).
+  assert.equal(
+    Date.parse(tb2.session!.expires_at),
+    Date.parse(restored.expires_at),
+  );
+  // Extending an expired account brings it back without a new workspace.
+  const extended = await testers.extendTester(ctx, a.actor_id, later);
+  assert.equal(extended.state, 'active');
+  assert.equal(extended.workspace_id, reset.workspace_id);
+  assert.equal(
+    await code(testers.extendTester(ctx, a.actor_id, '2000-01-01T00:00:00Z')),
+    'INVALID_CONTRACT',
   );
 });
 
