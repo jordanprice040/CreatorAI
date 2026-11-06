@@ -163,3 +163,33 @@ Jordan gave a typed OK in advance for these runs (project chat, 2026-11-06 00:24
   in all, $0 on the plan route, inside the connection's 40 a day.
 - **Records:** one results file per attempt under `tracking/evidence/p14-benchmarks/` with the
   measured fields, build and package ids, the `FREEZE.json` hash and commit, and the grader JSON.
+
+## 7. Results (live runs, November 6, 2026)
+
+Run on the dev studio (`creator_studio`, schema 41, code `02c7646`), `plan_roles` on the
+ChatGPT-plan connection with `gpt-6-astra`, benchmark commit `79dfea8`, `FREEZE.json`
+`e762e0dd…45dbcd`, grader `5fc73efa…7a84`. **9 plan requests in total, $0.** Every stored spec
+passed `compare-spec`. Key fields are in
+[`tracking/evidence/p14-benchmarks/RESULTS_2026-11-06.json`](../tracking/evidence/p14-benchmarks/RESULTS_2026-11-06.json);
+the full per-attempt files stay on Jordan's PC under `.creator\p14-benchmarks\v2\results\`.
+
+| Benchmark                   | Outcome                                     | Per attempt                                                                                                                                                                               |
+| --------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `p14-small-wordtally-v2`    | **3 of 3, qualified at its declared scale** | verified_candidate; 2 requests, 0 repairs, 27–31 s; QA 4/4 + 6/6 held out; reviewer approve, no findings; grader (Bubblewrap) 10/10 + 8/8 extended; max 0.019 s CPU, 11.5 MB RSS per case |
+| `p14-larger-ledgercheck-v2` | **0 of 3, not qualified**                   | each stopped at a checkpoint after 1 builder request (48–51 s); no QA, review or package                                                                                                  |
+
+**Why the larger benchmark failed (all three the same).** The builder's patch included
+`src/ledger/__init__.py`. The executor's `pathSchema` requires every path segment to start with
+a lowercase letter or digit, so the whole submission was refused at admission
+("Input does not satisfy the versioned contract"). The other four files were valid. The
+builder prompt (`builder/1`) never states the path rule, the spec does not require
+`__init__.py` (a namespace package would satisfy it), and the studio stops the build instead of
+giving the builder a repair round with the reason. Under the frozen rules these are failed
+attempts, not infrastructure faults, and were not re-run.
+
+What this shows: the current recipe and roles are qualified for **small single-module**
+Python CLIs. They are **not** qualified for multi-module packages, and the first blocker is in
+the studio (path rule not stated to the builder, no repair on a refused patch), before model
+quality at that scale is even measured. Follow-ups, each needing its own change and a new
+benchmark version or run: state the path and `sys.path` rules in the builder packet, or allow
+`__init__.py`; and turn a refused patch into repair feedback instead of a checkpoint.

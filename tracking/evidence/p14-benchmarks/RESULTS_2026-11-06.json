@@ -1,0 +1,191 @@
+{
+  "format": "p14-results-summary/1",
+  "recorded_from": "per-attempt files on Jordan's PC, C:\\dev\\creator_agent\\.creator\\p14-benchmarks\\v2\\results\\ (gitignored); this file copies their key fields",
+  "benchmark_commit": "79dfea8",
+  "freeze_sha256": "e762e0ddf7b9aee387e6adf422fac940f8c57addc1828637297091d09345dbcd",
+  "grader_sha256": "5fc73efa40c442a15be00e8f5654e364c7914e6fd60a5d69565cee3b4aff7a84",
+  "dev_studio": {
+    "database": "creator_studio",
+    "schema": 41,
+    "code_commit": "02c7646"
+  },
+  "route": {
+    "kind": "plan_roles",
+    "connection_id": "4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4",
+    "model_id": "gpt-6-astra",
+    "cost_usd": "0.00"
+  },
+  "grader_environment": "WSL2 Ubuntu, official Node v22.23.4 linux-x64 tarball (SHA-256 1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce matches nodejs.org SHASUMS256.txt), bubblewrap 0.11.1, Python 3.14.4; verify OK before scoring",
+  "plan_requests": {
+    "total": 9,
+    "utc_day_before": 0,
+    "utc_day_after": 9
+  },
+  "results": {
+    "p14-small-wordtally-v2": {
+      "outcome": "3 of 3: qualified at declared scale",
+      "attempts": [
+        {
+          "attempt": 1,
+          "run_id": "31db66f3-57aa-4612-b108-3cd8335d3f4e",
+          "build_id": "21439a00-59a5-4325-a5b7-b98ecfdaf92c",
+          "product_id": "99072d2c-e90e-404c-8c0e-7744a993fe50",
+          "artifact_id": "0132563a-fadc-4113-8182-185cc74b89a3",
+          "package_tar_sha256": "e9dc548ccdf7e216d54742cd155fa6532e9c0e8ae89d65b8b1451dbacb8e5539",
+          "candidate_commit": "321eeeb06536fdd7b8a8c2ca7cac8d7d211a0620",
+          "requests": 2,
+          "repairs": 0,
+          "wall_ms": 31050,
+          "diff": "src/main.py +41/-2",
+          "product_tree_sha256": "de3603ccfd3fe503662e5d7eb39cc10a7b14195ec3f5e2350b6d63ffc46eab7e",
+          "max_cpu_s": 0.019,
+          "max_rss_kb": 11464,
+          "verdict": "pass",
+          "studio_state": "verified_candidate",
+          "qa": {
+            "development": "4/4",
+            "held_out": "6/6"
+          },
+          "reviewer": {
+            "verdict": "approve",
+            "findings": []
+          },
+          "compare_spec": "pass",
+          "grader": {
+            "runner": "bwrap",
+            "build": "10/10",
+            "build_held_out": "6/6",
+            "extended": "8/8",
+            "pass": true
+          }
+        },
+        {
+          "attempt": 2,
+          "run_id": "b51c2337-f343-4c5e-ad4f-52acbcc6e26d",
+          "build_id": "759afcc5-7562-4706-80ec-b1451567ee4c",
+          "product_id": "cafd75c2-ffba-48df-a1a9-a633f787510b",
+          "artifact_id": "eb63bb8c-89b1-4421-9197-9fda013c0a6f",
+          "package_tar_sha256": "14c6d587ca5f0c4c51589e90c76db3f80ce0ecaec4c00cfce7c99f3f9c93f87f",
+          "candidate_commit": "a1ec07b1c1b07400236d3739e1a73989f48f15cc",
+          "requests": 2,
+          "repairs": 0,
+          "wall_ms": 26520,
+          "diff": "src/main.py +39/-2",
+          "product_tree_sha256": "4bf4a95f333076c00335c8c457710200b8b0e3fadec95449dcbfc3c00b6e52a4",
+          "max_cpu_s": 0.017,
+          "max_rss_kb": 11536,
+          "verdict": "pass",
+          "studio_state": "verified_candidate",
+          "qa": {
+            "development": "4/4",
+            "held_out": "6/6"
+          },
+          "reviewer": {
+            "verdict": "approve",
+            "findings": []
+          },
+          "compare_spec": "pass",
+          "grader": {
+            "runner": "bwrap",
+            "build": "10/10",
+            "build_held_out": "6/6",
+            "extended": "8/8",
+            "pass": true
+          }
+        },
+        {
+          "attempt": 3,
+          "run_id": "ff70bbf6-078b-4efc-9fa7-dfd338674ef4",
+          "build_id": "aa67c115-bc1b-4d4f-8d89-bf2f74dc40bb",
+          "product_id": "c91b2377-42ab-4d10-8dd5-f46f36d3de51",
+          "artifact_id": "e9587f18-9035-497c-b236-3b074cecb9df",
+          "package_tar_sha256": "10612bbd61f6250e1463bfe5bf4b1e3bced5236165babac5defc8e751653af9f",
+          "candidate_commit": "0ffeeaca9cfc24b9c8fd883b19b57f3d2958bcc2",
+          "requests": 2,
+          "repairs": 0,
+          "wall_ms": 27571,
+          "diff": "src/main.py +41/-2",
+          "product_tree_sha256": "ad18ce9b0b2b5bb6eef8975e47c991eaf7ddec1d10622656f4dfecefd415c3a7",
+          "max_cpu_s": 0.018,
+          "max_rss_kb": 11500,
+          "verdict": "pass",
+          "studio_state": "verified_candidate",
+          "qa": {
+            "development": "4/4",
+            "held_out": "6/6"
+          },
+          "reviewer": {
+            "verdict": "approve",
+            "findings": []
+          },
+          "compare_spec": "pass",
+          "grader": {
+            "runner": "bwrap",
+            "build": "10/10",
+            "build_held_out": "6/6",
+            "extended": "8/8",
+            "pass": true
+          }
+        }
+      ]
+    },
+    "p14-larger-ledgercheck-v2": {
+      "outcome": "0 of 3: not qualified",
+      "attempts": [
+        {
+          "attempt": 1,
+          "run_id": "96c0144b-64c1-408a-aae8-b6389bea0a8e",
+          "build_id": "517b23eb-657f-4645-8e65-1bfc67371f6f",
+          "product_id": "474ace2f-8890-4ee0-8d4c-430485869513",
+          "wall_ms": 51350,
+          "verdict": "fail",
+          "studio_state": "checkpoint",
+          "studio_reason": "ContractError: Input does not satisfy the versioned contract.",
+          "requests": 1,
+          "repairs": 0,
+          "compare_spec": "pass",
+          "qa": null,
+          "reviewer": null,
+          "grader": null,
+          "failure": "builder output admission: submission.changes[1].path src/ledger/__init__.py refused by the executor pathSchema (segments must start with a-z or 0-9); builder/1 does not state the rule; the spec does not require __init__.py. The studio stopped at a checkpoint instead of a repair round. Classified as a failed attempt, not an infrastructure fault; not replaced."
+        },
+        {
+          "attempt": 2,
+          "run_id": "6a94b80e-c427-428c-8341-333387678f46",
+          "build_id": "c1bde06e-5e21-4f2c-8292-30e34b4e3f09",
+          "product_id": "80b908bf-5757-46b0-9321-8ae63636555e",
+          "wall_ms": 47957,
+          "verdict": "fail",
+          "studio_state": "checkpoint",
+          "studio_reason": "ContractError: Input does not satisfy the versioned contract.",
+          "requests": 1,
+          "repairs": 0,
+          "compare_spec": "pass",
+          "qa": null,
+          "reviewer": null,
+          "grader": null,
+          "failure": "builder output admission: submission.changes[1].path src/ledger/__init__.py refused by the executor pathSchema (segments must start with a-z or 0-9); builder/1 does not state the rule; the spec does not require __init__.py. The studio stopped at a checkpoint instead of a repair round. Classified as a failed attempt, not an infrastructure fault; not replaced."
+        },
+        {
+          "attempt": 3,
+          "run_id": "8032667b-a54d-4f87-837d-445cc171131b",
+          "build_id": "26dd19cc-5dc9-4901-80b4-93e33c1a3dce",
+          "product_id": "b48a7b35-7c86-4546-a219-35c04398a65e",
+          "wall_ms": 47606,
+          "verdict": "fail",
+          "studio_state": "checkpoint",
+          "studio_reason": "ContractError: Input does not satisfy the versioned contract.",
+          "requests": 1,
+          "repairs": 0,
+          "compare_spec": "pass",
+          "qa": null,
+          "reviewer": null,
+          "grader": null,
+          "failure": "builder output admission: submission.changes[1].path src/ledger/__init__.py refused by the executor pathSchema (segments must start with a-z or 0-9); builder/1 does not state the rule; the spec does not require __init__.py. The studio stopped at a checkpoint instead of a repair round. Classified as a failed attempt, not an infrastructure fault; not replaced."
+        }
+      ]
+    }
+  },
+  "approvals": "select, freeze and the one build approval per attempt answered approve_once under Jordan's typed advance OK (2026-11-06 00:24 UTC). Selection scorecards and humility reviews were benchmark scaffolding with placeholder ratings, not an assessment.",
+  "aborted_prep": "A first preparation of small attempt 1 (run 6e89cc01\u2026) was cancelled before selection because of a driver bug; no build and no plan request."
+}

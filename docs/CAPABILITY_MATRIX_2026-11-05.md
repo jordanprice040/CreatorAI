@@ -110,3 +110,8 @@ P14 inventory gate: a documented capability and support policy, and an evidence 
 unexecuted rows marked unverified. Both are in this document. Next for P14: freeze the larger
 Python CLI task from section 3 and prepare its qualification packet for Jordan's OK. Next for
 P15: slice 1 design.
+
+**Update, November 6:** the [P14 repo benchmarks](REPO_BENCHMARKS_P14_2026-11-06.md) ran live.
+The small single-module benchmark is qualified 3 of 3. The larger multi-module benchmark is
+0 of 3, because the studio refuses `__init__.py` in a builder patch without telling the builder
+the rule. The "Multi-module repository" row stays **unverified beyond small**.
