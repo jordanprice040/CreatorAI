@@ -151,7 +151,12 @@ export class OversightStore extends Store {
   /** Policy changes (grants, run registration, cancellation) are owner actions by a person. */
   protected async requireOwner(c: PoolClient, ws: string, actorId: string) {
     const role = await this.role(c, ws, actorId, true);
-    if (role !== 'owner' || (await this.actorKind(c, actorId)) !== 'human')
+    // ADR-0075: tester accounts are never workspace owners for policy purposes.
+    if (
+      role !== 'owner' ||
+      (await this.actorKind(c, actorId)) !== 'human' ||
+      (await this.isTester(c, actorId))
+    )
       throw fail(
         'ACCESS_DENIED',
         'Only a workspace owner, signed in as a person, can change oversight policy.',
@@ -172,8 +177,10 @@ export class OversightStore extends Store {
     return this.tx(async (c) => {
       const { rows } = await c.query(
         `insert into auth_sessions (token_hash, actor_id, method, subject, csrf_token, expires_at)
-         values ($1, $2, $3, $4, $5, now() + make_interval(hours => $6))
-         returning expires_at, (select display_name from actors where id = $2) as display_name`,
+         values ($1, $2, $3, $4, $5, least(now() + make_interval(hours => $6),
+           (select expires_at from tester_accounts where actor_id = $2)))
+         returning expires_at, (select display_name from actors where id = $2) as display_name,
+           exists(select 1 from tester_accounts where actor_id = $2) as tester`,
         [sha256(secret), actorId, method, subject, csrf, hours],
       );
       await this.append(
@@ -198,6 +205,7 @@ export class OversightStore extends Store {
           method,
           csrf_token: csrf,
           expires_at: iso(rows[0]?.expires_at),
+          account: rows[0]?.tester ? ('tester' as const) : ('owner' as const),
         },
       };
     });
@@ -206,9 +214,13 @@ export class OversightStore extends Store {
   async session(secret: string): Promise<SessionInfo | null> {
     if (!/^[A-Za-z0-9_-]{43}$/.test(secret)) return null;
     const { rows } = await this.pool.query(
-      `select s.actor_id, s.method, s.csrf_token, s.expires_at, a.display_name
+      // ADR-0075: a tester's session ends with the account's expiry or disabling.
+      `select s.actor_id, s.method, s.csrf_token, s.expires_at, a.display_name,
+              t.actor_id is not null as tester
        from auth_sessions s join actors a on a.id = s.actor_id
-       where s.token_hash = $1 and s.revoked_at is null and s.expires_at > now()`,
+       left join tester_accounts t on t.actor_id = s.actor_id
+       where s.token_hash = $1 and s.revoked_at is null and s.expires_at > now()
+         and (t.actor_id is null or (t.disabled_at is null and t.expires_at > now()))`,
       [sha256(secret)],
     );
     const r = rows[0] as Row | undefined;
@@ -220,6 +232,7 @@ export class OversightStore extends Store {
       method: r.method as SessionInfo['method'],
       csrf_token: String(r.csrf_token),
       expires_at: iso(r.expires_at),
+      account: r.tester ? 'tester' : 'owner',
     };
   }
   async endSession(secret: string): Promise<void> {
@@ -265,6 +278,19 @@ export class OversightStore extends Store {
       [sha256(state)],
     );
     return rows[0] ?? null;
+  }
+
+  /**
+   * ADR-0075: the tester actor allow-listed for this verified (issuer, subject), if the account
+   * is neither disabled nor expired. Anyone else is refused at sign-in.
+   */
+  async activeTester(issuer: string, subject: string): Promise<string | null> {
+    const { rows } = await this.pool.query<{ actor_id: string }>(
+      `select actor_id from tester_accounts
+       where issuer = $1 and subject = $2 and disabled_at is null and expires_at > now()`,
+      [issuer.replace(/\/+$/, ''), subject],
+    );
+    return rows[0]?.actor_id ?? null;
   }
 
   // ---- Runs -----------------------------------------------------------------------------

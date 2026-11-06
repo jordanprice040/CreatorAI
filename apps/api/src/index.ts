@@ -126,6 +126,8 @@ import {
   FILES_ROUTE,
   SERVER_REQUEST_MS,
   bodyDeadline,
+  UploadSlots,
+  concurrentUploadsFromEnv,
   fileLimitsFromEnv,
   fileRoutes,
 } from './files.js';
@@ -295,6 +297,8 @@ export function createApi(
   const fileStore = pool
     ? new FileStore(pool, fileLimitsFromEnv(env, DEFAULT_FILE_LIMITS))
     : null;
+  // ADR-0075: uploads in flight per person, per API process.
+  const uploadSlots = new UploadSlots(concurrentUploadsFromEnv(env));
   const codexLauncher = codexLauncherFromEnv(env);
   const ops = pool ? new OpsStore(pool) : null;
   // Local product store shared with the owner CLI. Generated code only ever runs in its worker.
@@ -668,7 +672,21 @@ export function createApi(
             new ContractError('STORAGE_UNAVAILABLE', 'Database unavailable.'));
     });
     const method = req.method ?? 'GET';
-    const session = await authn.require(req, method !== 'GET');
+    // ADR-0075: deployment-wide settings, the owner's plan connections, money, campaigns,
+    // GitHub and portfolio scheduling are the owner's alone; a tester session is refused.
+    const ownerOnly = [
+      SETTINGS_SPENDING_ROUTE,
+      SETTINGS_LIMITS_ROUTE,
+      CONNECTIONS_ROUTE,
+      GITHUB_ROUTE,
+      PAYMENTS_ROUTE,
+      MARKETING_ROUTE,
+      PORTFOLIO_ROUTE,
+    ].some((r) => r.test(url.pathname));
+    const session = await (ownerOnly ? authn.requireOwner : authn.require)(
+      req,
+      method !== 'GET',
+    );
     const [, ws, collection, item, action] = match;
     const correlation = header(req, 'x-correlation-id');
     const causation = header(req, 'x-causation-id');
@@ -770,6 +788,7 @@ export function createApi(
       if (
         await fileRoutes({
           store: fileStore,
+          slots: uploadSlots,
           ctx,
           ws,
           item,
@@ -1836,7 +1855,8 @@ export function createApi(
     ensureReady,
     workerMode,
     schemaVersion: () => schemaVersion,
-    requireSession: (req, mutating) => authn.require(req, mutating),
+    // ADR-0075: operations status and verification are the owner's, never a tester's.
+    requireSession: (req, mutating) => authn.requireOwner(req, mutating),
   });
   const server = createServer((req, res) => {
     bodyDeadline(req, res);
@@ -1988,7 +2008,8 @@ export function createApi(
           res,
           url,
           store,
-          auth: authn,
+          // ADR-0075: device pairing and desktop jobs are the owner's alone.
+          auth: { ...authn, require: authn.requireOwner },
           artifacts,
           body: () => readJson(req),
           send: (status, value) => respond(res, status, value),

@@ -2852,6 +2852,35 @@ alter table workflow_tasks add constraint workflow_tasks_kind_check
   check (kind in ('critique', 'synthesis', 'locate', 'propose', 'skeptic', 'revise', 'explore', 'assess'));
 `,
   },
+  {
+    // ADR-0075 (P11 G1/G2): tester accounts for a private committee review. Each allow-listed
+    // (issuer, subject) pair signs in as its own person actor, never the owner's; an account
+    // stops working at its expiry or when disabled. Each tester's sample workspaces are listed
+    // so reset can retire one and seed another without deleting any audited record.
+    version: 48,
+    name: 'tester_accounts',
+    sql: `
+create table tester_accounts (
+ actor_id uuid primary key references actors(id),
+ issuer text not null check (length(issuer) between 1 and 500),
+ subject text not null check (length(subject) between 1 and 255),
+ workspace_role text not null check (workspace_role in ('editor', 'viewer')),
+ expires_at timestamptz not null,
+ disabled_at timestamptz,
+ disabled_reason text check (disabled_reason is null or length(disabled_reason) between 1 and 200),
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ unique (issuer, subject)
+);
+create table tester_workspaces (
+ workspace_id uuid primary key references workspaces(id),
+ actor_id uuid not null references tester_accounts(actor_id),
+ created_at timestamptz not null default clock_timestamp(),
+ retired_at timestamptz
+);
+create unique index tester_workspaces_current on tester_workspaces (actor_id) where retired_at is null;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

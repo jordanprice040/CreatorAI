@@ -511,6 +511,8 @@ export const SessionInfoSchema = z.strictObject({
   method: AuthModeSchema,
   csrf_token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   expires_at: timestamp,
+  /** ADR-0075: a tester account's session; absent or 'owner' for the owner. */
+  account: z.enum(['owner', 'tester']).optional(),
 });
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 export const AuthStatusSchema = z.strictObject({
