@@ -1,0 +1,21 @@
+{
+  "format": "p14-benchmark-freeze/2",
+  "frozen_at": "2026-11-06T01:08:55.505Z",
+  "note": "Written by the author before any studio or model run; the git commit and this file hash (recorded in docs/REPO_BENCHMARKS_P14_2026-11-06.md) are the anchor.",
+  "benchmarks": ["p14-small-wordtally-v2", "p14-larger-ledgercheck-v2"],
+  "files": {
+    "grader.mjs": "5fc73efa40c442a15be00e8f5654e364c7914e6fd60a5d69565cee3b4aff7a84",
+    "p14-small-wordtally-v2/expectations.json": "595829293676297e2e7147abd53a988c3a66e15c09348d36ecfe46b8222bd6fb",
+    "p14-small-wordtally-v2/extended-cases.json": "589e2906905b641d86815dcbdd958f4f5dc99002dbe64551f5dd52002717d9b1",
+    "p14-small-wordtally-v2/reference/src/main.py": "6ca4c7b7f426abe617e7dd03611801cef42f6012e9f65867009277f2b097ad1f",
+    "p14-small-wordtally-v2/spec.json": "a61fb8f8db5a343e86fa644491cbace4c379197e0662ec55bd59b248c2d30cb9",
+    "p14-larger-ledgercheck-v2/expectations.json": "14ea7162c684da3976e00b0ba474f5bf88abb4dc9b37ac34d2f2e6d2c4e50deb",
+    "p14-larger-ledgercheck-v2/extended-cases.json": "0614f440bfe30b3c7fe85681387094902152df6536672bb5dc9180ae57c5afe7",
+    "p14-larger-ledgercheck-v2/reference/src/ledger/__init__.py": "20b04f8cf179708ab0c374be8402942a192a1aafdd0774c61a32ae0cde5e3779",
+    "p14-larger-ledgercheck-v2/reference/src/ledger/parse.py": "aa057ea2eb3c17dd227a326a5d323a755fb9f59d6f1e7905793b4d39bc844708",
+    "p14-larger-ledgercheck-v2/reference/src/ledger/report.py": "989e7c0cd0bcae0350eae11855dcc0fa34ed61b02207d495763413a103a6d4a9",
+    "p14-larger-ledgercheck-v2/reference/src/ledger/rules.py": "03a7c7352a3a309630606564de8c7561564ce830e8bcd8ee9c62e5ccb834c757",
+    "p14-larger-ledgercheck-v2/reference/src/main.py": "cb175725e1546de6cb26ac3624e85b8fb5f66359ea894bd7c27928fabb537efe",
+    "p14-larger-ledgercheck-v2/spec.json": "e79f8021401bb7f46229f61cc107d76c4b3c9c89b2b0a1695dcc6f9c5df5f645"
+  }
+}

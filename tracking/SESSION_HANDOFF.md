@@ -295,17 +295,18 @@ unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migrati
 
 ## P14 repo benchmarks frozen (November 6, branch `claude/project-thread-5g8cg6`, no migration or ADR)
 
-- [Repo benchmarks](../docs/REPO_BENCHMARKS_P14_2026-11-06.md): a small (`p14-small-wordtally-v1`, one
-  module, 10 cases, 6 held out) and a larger (`p14-larger-ledgercheck-v1`, entry point plus a 3-module
-  package, 10 studio cases with 5 held out, 15 extended held-out cases and a structure check) benchmark
-  for `python-build/1`. Specs pass the studio's spec schema and build rules.
-- Expected outputs were written by hand from the spec, then independent reference solutions passed all
-  of them on the first run. `config/repo-benchmarks/FREEZE.json` binds every file (SHA-256,
-  `frozen_before_any_run: true`); `node scripts/p14-benchmark.mjs verify` and
-  `tests/src/p14-benchmarks.test.ts` fail on any change. Pass bar: 3 of 3 attempts verified, reviewer
-  approve, within `max_calls`, export scorer all pass.
+- [Repo benchmarks](../docs/REPO_BENCHMARKS_P14_2026-11-06.md), **version 2** (v1 was replaced before any run
+  after review findings M-1..M-4 and L-1..L-6): small `p14-small-wordtally-v2` (one module, 10 studio cases with 6
+  held out, 8 extended) and larger `p14-larger-ledgercheck-v2` (entry point plus a 3-module package, 10 studio
+  cases with 5 held out, 21 extended and a structure check) for `python-build/1`.
+- The grader is frozen with the cases (`config/repo-benchmarks/grader.mjs`): it compiles every file, merges
+  stderr into the compared log like studio QA, and names the freeze, grader, spec and package hashes.
+  `compare-spec` binds the studio's stored spec to `spec.json`. `FREEZE.json` SHA-256 `e762e0dd…45dbcd`.
+- Every listed known failure has a mutant in `tests/src/p14-benchmarks.test.ts` that the cases named for it
+  catch. Cases and grader were committed (`4b4c26e`) before the reference solutions and the freeze.
 - Limits found: QA runs at most 10 cases per build, only dependency-free builder tasks build, and
-  `python3 -I` leaves `src/` off the import path (multi-module code must set `sys.path`).
-- Checks executed: reference solutions under the direct runner and under Bubblewrap in the cloud
-  container; mutants (tie order, missing `sys.path`, unvalidated rows outside `--month`) fail as frozen.
-  No studio build, model request or live route was used for the freeze.
+  `python3 -I` leaves `src/` off the import path. The plan connection allows 10 requests per run, so each
+  attempt uses its own run.
+- Live runs: Jordan gave a typed OK in advance. The dev studio was migrated 40 → 41 with his typed OK (backup
+  `C:\CreatorAgentBackups\creator_studio-20261105-200007-pre-migration41.dump`) and is ready; builds wait for
+  the v2 re-review.
