@@ -31,8 +31,15 @@ const requirements = read('context/REQUIREMENTS.md');
 const registerBytes = read('config/readiness.json');
 const register = () => JSON.parse(registerBytes) as Register;
 const pilot = () => JSON.parse(read('config/owner-pilot.json')) as OwnerPilot;
-const evaluate = (r: Register, p: OwnerPilot = pilot()) =>
-  evaluateReadiness(r, p, requirements, exists, JSON.stringify(r));
+// A fixed clock inside the committed pilot window (2026-10-30 07:15Z to 2026-11-06 08:15Z),
+// so these checks do not start failing when the real window passes.
+const IN_WINDOW = new Date('2026-11-02T12:00:00Z');
+const AFTER_WINDOW = new Date('2026-11-06T08:15:01Z');
+const evaluate = (
+  r: Register,
+  p: OwnerPilot = pilot(),
+  now: Date = IN_WINDOW,
+) => evaluateReadiness(r, p, requirements, exists, JSON.stringify(r), now);
 const verifiedRow = (id: string): ReadinessRow => ({
   id,
   states: Object.fromEntries(
@@ -68,8 +75,13 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
   assert.equal(r.requirements.length, 54);
-  // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate.
+  // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate
+  // while its window is open, and is refused once the window has ended.
   assert.deepEqual(r.pilot, { ready: true, refusals: [] });
+  assert.deepEqual(evaluate(register(), pilot(), AFTER_WINDOW).pilot, {
+    ready: false,
+    refusals: ['Pilot window has already ended.'],
+  });
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(
     r.requirements.find((x) => x.id === 'C01')?.missing.includes('live'),
@@ -170,7 +182,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     (i) => i.id === 'claude-code',
   )!.states.activated = 'not_verified';
   assert.match(
-    checkPilot(pilot(), unactivated, exists).refusals.join('\n'),
+    checkPilot(pilot(), unactivated, exists, IN_WINDOW).refusals.join('\n'),
     /"claude-code" has not been activated/,
   );
   // A register in which everything is verified, with a complete owner plan, may start.
