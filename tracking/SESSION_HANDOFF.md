@@ -315,3 +315,11 @@ assessment-synthetic-v1 still counts. Live trial: a copy of the dev studio datab
 C:\dev\creator_agent_p08 on the review ports; creator_studio itself is untouched (backup
 C:\CreatorAgentBackups\creator_studio-20261105-200145-pre-p08-trial.dump). Jordan approved the
 benchmark cases and adding scoring to the Claude Code connection on the trial copy only.
+
+## P08 split assessment requests and L-6 (November 6, PR #144)
+
+Live trial so far (trial copy only, Claude plan, $0): scoring qualification b9ad4984 passed
+(dev 2/2, held-out 6/6, 8 requests); the first assessment e5aa5780 failed with
+`output_cap_exceeded` (1 request), which led to splitting assessments into batches of four
+option-and-rubric pairs. Next: re-run the live assessment of "CSV files need a quick quality check
+before analysis" on the trial copy after pulling this commit, then re-review.

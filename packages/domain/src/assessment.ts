@@ -1,4 +1,5 @@
 import {
+  AssessmentPacketSchema,
   AssessmentTaskContextSchema,
   AssessorOutputSchema,
   RUBRICS,
@@ -22,6 +23,7 @@ import {
   guard,
   isTerminalTask,
   settleState,
+  type CoordinatorAction,
   type CoordinatorPlan,
   type CoordinatorView,
 } from './orchestration.js';
@@ -209,12 +211,61 @@ export const ASSESSMENT_PROMPT_HASH = canonicalHash({
 });
 export const ASSESSMENT_MARKER = '[assessment-task:assess]';
 
-export const assessmentContext = (packetHash: string): AssessmentTaskContext =>
+export const assessmentContext = (
+  packetHash: string,
+  options?: readonly string[],
+): AssessmentTaskContext =>
   AssessmentTaskContextSchema.parse({
     context_version: 'assessment-context/1',
     role_version: ASSESSMENT_ROLE_VERSION,
     packet_hash: packetHash,
+    ...(options ? { options: [...options] } : {}),
   });
+
+/**
+ * At most this many option-and-rubric assessments in one answer. A live answer for seven
+ * options (eleven assessments) ran to about 19,500 characters, past a 16,000-character plan
+ * cap; four stay near 7,000 to 11,000.
+ */
+export const ASSESSMENTS_PER_REQUEST = 4;
+
+/** The packet's options in request-sized batches, in packet order (refs). */
+export function assessmentBatches(packet: AssessmentPacket): string[][] {
+  const out: string[][] = [];
+  let cur: string[] = [];
+  let n = 0;
+  for (const o of packet.options) {
+    const k = o.rubrics.length;
+    if (cur.length && n + k > ASSESSMENTS_PER_REQUEST) {
+      out.push(cur);
+      cur = [];
+      n = 0;
+    }
+    cur.push(o.ref);
+    n += k;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
+/**
+ * The packet one batch's task reads: the same problem, claims and notes, only its options (with
+ * their original refs) and the rubrics they use.
+ */
+export function packetForOptions(
+  packet: AssessmentPacket,
+  refs: readonly string[] | undefined,
+): AssessmentPacket {
+  if (!refs) return packet;
+  const options = packet.options.filter((o) => refs.includes(o.ref));
+  return AssessmentPacketSchema.parse({
+    ...packet,
+    options,
+    rubrics: packet.rubrics.filter((r) =>
+      options.some((o) => o.rubrics.includes(r.id)),
+    ),
+  });
+}
 
 /** Model input for the assessor: the fixed role text and the packet, quoted as data. */
 export function assessmentRoleInput(
@@ -298,46 +349,66 @@ export function checkAssessmentOutput(
 
 // ---- Coordinator --------------------------------------------------------------------------
 
-/** One assessor task, repaired at most `max_repairs` times after a known bad answer. */
-export function coordinateAssessment(v: CoordinatorView): CoordinatorPlan {
+/**
+ * One assessor task per batch of options (ordinal = batch), each repaired at most
+ * `max_repairs` times after a known bad answer, run at most `max_concurrency` at a time. The
+ * workflow succeeds when every batch has a checked answer; if any batch fails for good, it
+ * fails and no scorecard is written.
+ */
+export function coordinateAssessment(
+  v: CoordinatorView,
+  batches = 1,
+): CoordinatorPlan {
   const stopped = guard(v);
   if (stopped) return stopped;
-  const tasks = v.tasks
-    .filter((t) => t.kind === 'assess')
-    .sort((a, b) => b.repair - a.repair);
-  const prior = tasks[0];
-  const callsLeft = v.limits.max_calls - tasks.length * v.limits.max_attempts;
-  const repairable =
-    prior?.state === 'failed' &&
-    REPAIRABLE_REASONS.has(prior.reason) &&
-    prior.repair < v.limits.max_repairs &&
-    callsLeft >= v.limits.max_attempts;
-  if (!prior || repairable) {
-    if (v.control === 'pause') return settleState(v, []);
-    return settleState(v, [
-      {
-        type: 'delegate',
-        kind: 'assess',
-        ordinal: 0,
-        round: 0,
-        repair: prior ? prior.repair + 1 : 0,
-        repair_of: prior ? prior.id : null,
-        inputs: [],
-      },
-    ]);
-  }
-  if (!isTerminalTask(prior.state)) return settleState(v, []);
-  if (prior.state !== 'succeeded')
-    return {
-      actions: [],
-      state: 'failed',
-      reason: 'failed',
-      terminal: {
+  const all = v.tasks.filter((t) => t.kind === 'assess');
+  const latestOf = (i: number) =>
+    all.filter((t) => t.ordinal === i).sort((a, b) => b.repair - a.repair)[0];
+  const paused = v.control === 'pause';
+  const actions: CoordinatorAction[] = [];
+  let active = all.filter(
+    (t) => t.state === 'queued' || t.state === 'leased',
+  ).length;
+  const callsLeft = () =>
+    v.limits.max_calls - (all.length + actions.length) * v.limits.max_attempts;
+  let done = 0;
+  for (let i = 0; i < batches; i += 1) {
+    const prior = latestOf(i);
+    const repairable =
+      prior?.state === 'failed' &&
+      REPAIRABLE_REASONS.has(prior.reason) &&
+      prior.repair < v.limits.max_repairs &&
+      callsLeft() >= v.limits.max_attempts;
+    if (!prior || repairable) {
+      if (!paused && active < v.limits.max_concurrency) {
+        actions.push({
+          type: 'delegate',
+          kind: 'assess',
+          ordinal: i,
+          round: 0,
+          repair: prior ? prior.repair + 1 : 0,
+          repair_of: prior ? prior.id : null,
+          inputs: [],
+        });
+        active += 1;
+      }
+      continue;
+    }
+    if (!isTerminalTask(prior.state)) continue;
+    if (prior.state !== 'succeeded')
+      return {
+        actions: [],
         state: 'failed',
-        outcome: 'failed',
-        explanation: `The assessor did not produce a usable assessment (${prior.reason}). No scorecard was written.`,
-      },
-    };
+        reason: 'failed',
+        terminal: {
+          state: 'failed',
+          outcome: 'failed',
+          explanation: `The assessor did not produce a usable assessment${batches > 1 ? ` for part ${i + 1} of ${batches}` : ''} (${prior.reason}). No scorecard was written.`,
+        },
+      };
+    done += 1;
+  }
+  if (done < batches) return settleState(v, actions);
   return {
     actions: [],
     state: 'succeeded',

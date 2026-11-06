@@ -180,6 +180,13 @@ export function ScoreOption({
   const offered = new Set(
     claims.map((c) => refKey({ id: c.claim.id, version: c.claim.version })),
   );
+  /** The current version of each linked claim, by claim id, for swapping older citations. */
+  const current = new Map(
+    claims.map((c) => [
+      c.claim.id.toLowerCase(),
+      refKey({ id: c.claim.id, version: c.claim.version }),
+    ]),
+  );
 
   // The draft is derived in the same render as the option, rubric and card it belongs to,
   // so the fields never render against another rubric's draft (review H-1).
@@ -525,7 +532,28 @@ export function ScoreOption({
                   <p className="small">
                     Also cites {stray.length} claim version
                     {stray.length === 1 ? '' : 's'} not linked to this problem
-                    now (kept unless you untick:{' '}
+                    now. Saving needs the current version of every cited claim,
+                    so an older version is refused.{' '}
+                    {stray.some((k) => current.has(k.split('@')[0]!)) && (
+                      <>
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() =>
+                            set((d) => {
+                              const ev = d.ratings[c.key]!.evidence.map(
+                                (y) => current.get(y.split('@')[0]!) ?? y,
+                              );
+                              d.ratings[c.key]!.evidence = [...new Set(ev)];
+                              return d;
+                            })
+                          }
+                        >
+                          Cite the current versions
+                        </button>{' '}
+                        or{' '}
+                      </>
+                    )}
                     <button
                       type="button"
                       className="text"
@@ -540,7 +568,7 @@ export function ScoreOption({
                     >
                       remove them
                     </button>
-                    ).
+                    .
                   </p>
                 )}
                 {err(`ratings.${c.key}.evidence`)}

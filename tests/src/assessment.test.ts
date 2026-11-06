@@ -89,12 +89,13 @@ async function setup(t: test.TestContext, adapter: ModelAdapter) {
     },
     data_class: 'synthetic',
     limits: {
-      max_children: 1,
+      // One task per batch of options (two here), each with one repair.
+      max_children: 4,
       max_concurrency: 1,
       max_depth: 1,
       max_attempts: 1,
       max_repairs: 1,
-      max_calls: 2,
+      max_calls: 8,
       max_output_tokens: 8000,
       call_timeout_ms: 5000,
       max_wall_seconds: 600,
@@ -138,7 +139,12 @@ test('a fixture assessment writes one system scorecard per option and rubric; co
   WorkflowDetailSchema.parse(detail);
   assert.equal(detail.workflow.state, 'succeeded', detail.workflow.reason);
   assert.equal(detail.workflow.role, 'r08_assessment');
-  assert.equal(adapter.assessments(), 1);
+  // One request per batch of options, as the preview said.
+  assert.ok(
+    preview.requests >= 2,
+    'the fixture packet needs more than one request',
+  );
+  assert.equal(adapter.assessments(), preview.requests);
   const result = detail.workflow.result!.assessment!;
   const expected = preview.packet.options.reduce(
     (n, o) => n + rubricsForKind(o.kind).length,
@@ -423,8 +429,18 @@ test('the assessor answer is checked against the packet; a bad answer is repaire
   assert.equal((await s.cards()).length, 0);
 
   // Unknown answers are recorded as unknown: incomplete, never averaged.
-  adapter.override = (req) =>
-    req.input[0]!.text.includes(ASSESSMENT_MARKER) ? answer(unknown) : null;
+  // Each request carries only its own batch of options, so answer for those.
+  adapter.override = (req) => {
+    if (!req.input[0]!.text.includes(ASSESSMENT_MARKER)) return null;
+    const text = req.input[1]!.text;
+    const asked = AssessmentPacketSchema.parse(
+      JSON.parse(text.slice(text.indexOf('{'))),
+    ).options.map((o) => o.ref);
+    return answer({
+      ...unknown,
+      assessments: unknown.assessments.filter((a) => asked.includes(a.option)),
+    });
+  };
   const done = await s.assess();
   assert.equal(done.workflow.state, 'succeeded');
   const r = await s.report();
@@ -462,6 +478,15 @@ test('assessments are owner actions and refuse problems without options', async 
   const runId = await s.run();
   await assert.rejects(
     s.store.startAssessment(stranger, s.ws.id, runId, s.request()),
+  ); // Too few tasks or calls for the batches the packet needs is refused up front.
+  const tight = s.request();
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.startAssessment(owner, s.ws.id, runId, {
+      ...tight,
+      limits: { ...tight.limits, max_children: 1, max_calls: 2 },
+    }),
+    /takes \d+ requests/,
   );
 });
 

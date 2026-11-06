@@ -28,7 +28,7 @@ import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View } from './ui.js';
 
-// P08 automatic assessments (ADR-0074). One request rates every option of this problem on the
+// P08 automatic assessments (ADR-0074). Requests of a few options each rate every option on the
 // rubrics that apply, citing the claims linked to it. The studio checks the answer, writes one
 // system scorecard per option and rubric, and computes totals and ranks itself; a person edits
 // any rating as their own scorecard, and only a person clears an ethics or access gate.
@@ -144,21 +144,35 @@ export function AutoAssess({
   const timeout =
     plan?.connection.settings.caps.responses.request_timeout_ms ??
     LIMITS.call_timeout_ms;
+  const preview = c?.preview.data ?? null;
+  // One request per batch of options, each with one retry for a malformed answer.
+  const requests = preview?.requests ?? 1;
+  const sized = {
+    ...LIMITS,
+    max_children: requests,
+    max_calls: 2 * requests,
+  };
   const limits =
     resourceKind === 'subscription'
       ? {
-          ...LIMITS,
+          ...sized,
           call_timeout_ms: timeout,
           max_wall_seconds: Math.min(
             WORKFLOW_WALL_MAX_SECONDS,
             Math.max(
               LIMITS.max_wall_seconds,
-              Math.ceil((2 * timeout) / 1000) + 60,
+              Math.ceil((2 * requests * timeout) / 1000) + 60,
             ),
           ),
         }
-      : { ...LIMITS, call_timeout_ms: 30_000 };
-  const preview = c?.preview.data ?? null;
+      : {
+          ...sized,
+          call_timeout_ms: 30_000,
+          max_wall_seconds: Math.min(
+            WORKFLOW_WALL_MAX_SECONDS,
+            Math.max(LIMITS.max_wall_seconds, 60 * requests + 60),
+          ),
+        };
   const request = {
     problem: { id: problem.id, version: problem.version },
     resource_setup:
@@ -315,12 +329,12 @@ export function AutoAssess({
     <section className="assess" aria-labelledby="assess-title">
       <h3 id="assess-title">Automatic assessment</h3>
       <p className="small">
-        One model request rates every option of this problem on the rubrics that
-        apply, citing the claims linked to it, or says unknown. The studio
-        checks every reference, records one scorecard per option and rubric, and
-        computes the totals and ranks itself. You can edit any rating below as
-        your own scorecard; the original stays. Only you can clear an ethics or
-        access gate, and nothing is selected for you.
+        The model rates every option of this problem (a few options per request)
+        on the rubrics that apply, citing the claims linked to it, or says
+        unknown. The studio checks every reference, records one scorecard per
+        option and rubric, and computes the totals and ranks itself. You can
+        edit any rating below as your own scorecard; the original stays. Only
+        you can clear an ethics or access gate, and nothing is selected for you.
       </p>
       {ctx.error && <p className="error">{ctx.error}</p>}
       {c && (
@@ -332,7 +346,10 @@ export function AutoAssess({
               {preview.packet.claims.length} linked claim
               {preview.packet.claims.length === 1 ? '' : 's'} (
               {preview.chars.toLocaleString()} of{' '}
-              {preview.limit.toLocaleString()} characters).{' '}
+              {preview.limit.toLocaleString()} characters)
+              {preview.requests > 1
+                ? ` in ${preview.requests} requests of a few options each.`
+                : '.'}{' '}
               {preview.packet.notes.slice(0, -1).join(' ')}{' '}
               <button
                 type="button"
@@ -422,8 +439,8 @@ export function AutoAssess({
               </select>
               <p className="small">
                 {resourceKind === 'subscription'
-                  ? 'One request on your plan (plus one retry if the answer is malformed), within the connection’s accepted caps. No API spending.'
-                  : `Metered under ${envelope?.name ?? 'no budget'}; at most two calls.`}{' '}
+                  ? `${requests === 1 ? 'One request' : `${requests} requests (a few options each, so every answer fits the connection’s answer cap)`} on your plan, plus one retry each if an answer is malformed, within the connection’s accepted caps. No API spending.`
+                  : `Metered under ${envelope?.name ?? 'no budget'}; at most ${2 * requests} calls.`}{' '}
                 Starting registers a new run with a 24-hour permission for this
                 request only.
               </p>

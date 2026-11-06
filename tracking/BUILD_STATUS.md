@@ -285,3 +285,14 @@ nothing), the benchmark size check, and a browser walk on a throwaway database
 (tracking/evidence/automatic-assessments/walk.txt, 16/16 PASS, fixture only, $0). Full suite:
 806 tests, 772 pass, 28 skip; failures only the 5 known PowerShell-wrapper tests plus one
 chunked-body test whose oversized body was under the new 256 KiB cap (fixed and re-run green).
+
+## P08 split assessment requests and L-6 (November 6, PR #144, no new migration)
+
+The first live assessment on the trial copy failed with `output_cap_exceeded` (19,510 characters
+against the plan route's 16,000). An assessment now sends one request per batch of at most four
+option-and-rubric pairs and writes scorecards only when every batch succeeds (ADR-0074
+amendments). The preview reports the request count and Compare sizes its limits from it. Re-review
+L-6: the edit form now says older claim versions must be replaced and offers to cite the current
+versions. Assessor prompt and benchmark unchanged, so qualification b9ad4984 on the trial copy
+still counts. Checked: assessment DB tests (two-batch run records every card, unknown answers per
+batch, limits too small refused) and the full suite; live re-run pending on the trial copy.

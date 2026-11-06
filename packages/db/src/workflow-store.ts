@@ -53,6 +53,7 @@ import {
   checkAssessmentOutput,
   coordinateAssessment,
   assessmentContext,
+  packetForOptions,
   assessmentScorecards,
   coordinate,
   coordinateDiscovery,
@@ -218,6 +219,8 @@ export interface AssessmentWorkflowContext {
   packet_hash: string;
   /** supportHash of every claim id linked to the problem when the packet was built (review M-1). */
   linked_hash: string;
+  /** Option refs per request, so each answer fits the output cap; absent: one request. */
+  batches?: string[][];
   /** Every packet claim with a hash of its active support rows when the packet was built. */
   evidence: { id: string; version: number; support_hash: string }[];
 }
@@ -851,7 +854,7 @@ export class WorkflowStore extends BudgetStore {
       now,
     };
     const plan: CoordinatorPlan = assessment
-      ? coordinateAssessment(view)
+      ? coordinateAssessment(view, assessment.batches?.length ?? 1)
       : exploration
         ? coordinateExploration(view)
         : discovery
@@ -882,7 +885,10 @@ export class WorkflowStore extends BudgetStore {
           context:
             prior?.context ??
             (assessment
-              ? assessmentContext(assessment.packet_hash)
+              ? assessmentContext(
+                  assessment.packet_hash,
+                  assessment.batches?.[a.ordinal],
+                )
               : exploration
                 ? explorationContext(exploration.packet_hash)
                 : discovery
@@ -960,17 +966,56 @@ export class WorkflowStore extends BudgetStore {
         ])
       ).rows.map((r: Row) => toTask(r));
       if (assessment) {
-        const done = final
-          .filter((t) => t.kind === 'assess' && t.state === 'succeeded')
-          .sort((x, y) => y.repair - x.repair)[0];
-        const recorded =
-          done?.output_hash && plan.terminal.state === 'succeeded'
-            ? await this.recordAssessment(c, wf, assessment, {
-                id: done.id,
-                output_hash: done.output_hash,
-                output: done.output as AssessorOutput,
-              })
-            : null;
+        // One checked answer per batch; their scorecards are recorded together.
+        const parts = (assessment.batches ?? [undefined]).map((refs, i) => ({
+          refs,
+          done: final
+            .filter(
+              (t) =>
+                t.kind === 'assess' &&
+                t.state === 'succeeded' &&
+                t.ordinal === i,
+            )
+            .sort((x, y) => y.repair - x.repair)[0],
+        }));
+        const results: AssessmentResult[] = [];
+        if (
+          plan.terminal.state === 'succeeded' &&
+          parts.every((p) => p.done?.output_hash)
+        )
+          for (const p of parts)
+            results.push(
+              await this.recordAssessment(
+                c,
+                wf,
+                {
+                  ...assessment,
+                  packet: packetForOptions(assessment.packet, p.refs),
+                },
+                {
+                  id: p.done!.id,
+                  output_hash: p.done!.output_hash!,
+                  output: p.done!.output as AssessorOutput,
+                },
+              ),
+            );
+        const recorded: AssessmentResult | null = results.length
+          ? {
+              ...results[0]!,
+              summary:
+                results
+                  .map((r) => r.summary)
+                  .filter(Boolean)
+                  .join(' ')
+                  .slice(0, 1200) || null,
+              scorecards: results.flatMap((r) => r.scorecards),
+              replaced: results.flatMap((r) => r.replaced),
+              not_covered: [
+                ...new Set(results.flatMap((r) => r.not_covered)),
+              ].slice(0, 8),
+              notes: [...new Set(results.flatMap((r) => r.notes))].slice(0, 10),
+            }
+          : null;
         result = {
           outcome: plan.terminal.outcome,
           explanation: recorded
@@ -1240,6 +1285,7 @@ export class WorkflowStore extends BudgetStore {
       packet_hash: d.packet_hash,
       linked_hash: d.linked_hash,
       evidence: d.evidence,
+      ...(d.batches ? { batches: d.batches } : {}),
     };
   }
 
@@ -1433,7 +1479,10 @@ export class WorkflowStore extends BudgetStore {
   ): Promise<OutputCheck | undefined> {
     if (task.kind === 'assess')
       return {
-        assessment: (await this.assessmentContextOf(c, workflowId)).packet,
+        assessment: packetForOptions(
+          (await this.assessmentContextOf(c, workflowId)).packet,
+          (task.context as { options?: string[] }).options,
+        ),
       };
     if (task.kind === 'explore')
       return {
@@ -1799,7 +1848,9 @@ export class WorkflowStore extends BudgetStore {
             const d = await this.assessmentContextOf(c, wf.id);
             if (d.packet_hash !== task.context.packet_hash)
               throw fail('EVIDENCE_MISMATCH', 'The assessment packet changed.');
-            assessment = { packet: d.packet };
+            assessment = {
+              packet: packetForOptions(d.packet, task.context.options),
+            };
           } else if (task.context.context_version === 'exploration-context/1') {
             const d = await this.explorationContextOf(c, wf.id);
             if (d.packet_hash !== task.context.packet_hash)

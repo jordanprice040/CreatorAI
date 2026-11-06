@@ -81,6 +81,11 @@ export const AssessmentTaskContextSchema = z.strictObject({
   context_version: z.literal('assessment-context/1'),
   role_version: short,
   packet_hash: hash,
+  /**
+   * The option refs this task rates (one batch of the workflow's packet), when the packet is
+   * split so each answer fits the route's output cap. Absent: every option in the packet.
+   */
+  options: z.array(optionRef).min(1).max(8).optional(),
 });
 export type AssessmentTaskContext = z.infer<typeof AssessmentTaskContextSchema>;
 
@@ -162,5 +167,7 @@ export const AssessmentPreviewSchema = z.strictObject({
   preview_hash: hash,
   chars: z.number().int().min(0),
   limit: z.number().int().min(0),
+  /** How many model requests the assessment takes (a few options each). */
+  requests: z.number().int().min(1).max(8),
 });
 export type AssessmentPreview = z.infer<typeof AssessmentPreviewSchema>;

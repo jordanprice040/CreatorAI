@@ -29,7 +29,7 @@ import {
   ASSESSMENT_PROMPT_HASH,
   ASSESSMENT_ROLE_VERSION,
   MAX_ASSESSMENT_PACKET_CHARS,
-  assessmentContext,
+  assessmentBatches,
   assessmentPreviewHash,
   buildAssessmentPacket,
   supportHash,
@@ -647,11 +647,22 @@ export class SelectionStore extends DiscoveryStore {
         'VERSION_CONFLICT',
         'What the assessment would send changed since the preview (an option, claim or its evidence changed). Check it again, then start.',
       );
+    // Each request rates a few options so its answer fits the route's output cap.
+    const batches = assessmentBatches(built.packet);
+    if (
+      req.limits.max_children < batches.length ||
+      req.limits.max_calls < batches.length * req.limits.max_attempts
+    )
+      throw fail(
+        'INVALID_CONTRACT',
+        `This assessment takes ${batches.length} requests (a few options each); allow at least ${batches.length} tasks and ${batches.length * req.limits.max_attempts} calls.`,
+      );
     const context: AssessmentWorkflowContext = {
       packet: built.packet,
       packet_hash: canonicalHash(built.packet),
       linked_hash: built.linked_hash,
       evidence: built.evidence,
+      batches,
     };
     const id = await this.idempotent(
       ws,
@@ -727,15 +738,7 @@ export class SelectionStore extends DiscoveryStore {
             claims: built.packet.claims.length,
           },
         });
-        await this.insertTask(c, ctx, ws, workflowId, {
-          kind: 'assess',
-          ordinal: 0,
-          round: 0,
-          repair: 0,
-          repairOf: null,
-          state: 'queued',
-          context: assessmentContext(context.packet_hash),
-        });
+        // The coordinator queues one task per batch, within the run's concurrency.
         await this.coordinateIn(c, ctx, ws, workflowId);
         return workflowId;
       },
@@ -758,6 +761,7 @@ export class SelectionStore extends DiscoveryStore {
       preview_hash: assessmentPreviewHash(packet),
       chars: JSON.stringify(packet).length,
       limit: MAX_ASSESSMENT_PACKET_CHARS,
+      requests: assessmentBatches(packet).length,
     };
   }
 
