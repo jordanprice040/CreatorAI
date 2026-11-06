@@ -497,9 +497,17 @@
         "key": "T1",
         "title": "Build the sign-up page",
         "role": "builder",
-        "file_scope": ["site"],
+        "file_scope": [
+          "site"
+        ],
         "depends_on": [],
-        "acceptance": ["A1", "A2", "A3", "A4", "A5"],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ],
         "deliverable": "site/index.html, site/style.css and site/app.js meeting the scope"
       }
     ]

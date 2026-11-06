@@ -669,6 +669,11 @@ test('a stopped web preview serves nothing from its frame host', async (t) => {
   assert.equal((await h.call(src, '/')).status, 403);
 });
 
+test('the frozen web benchmark still matches its freeze, its checker and the studio spec schema', async () => {
+  const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
+  assert.deepEqual(await bench.verify(), []);
+});
+
 const browserDir = process.env.CREATOR_TEST_BROWSER_DIR;
 const canRun =
   !!browserDir &&

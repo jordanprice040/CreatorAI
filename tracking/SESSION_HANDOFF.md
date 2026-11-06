@@ -417,3 +417,23 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   production gate (`checkPilot`/`evaluateReadiness`, which still default to the real time) are unchanged.
 - Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix), rebased on main after #146;
   `pnpm check` 835 tests, 534 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
+
+## P15 slice 1: static web recipe (November 6, branch `claude/project-thread-ja3wd1`, ADR-0078, no migration)
+
+- New recipe `static-web/1` ([design, limits and owner setup](../docs/STATIC_WEB_RECIPE.md)): a task whose frozen
+  checks are all `browser_check` with `browser_cases` builds a plain HTML/CSS/JS site from the reviewed
+  `static-site/1` template; CLI tasks keep `python-build/1`; a mix is refused. Products without the new `recipe`
+  field are unchanged. The spec form edits browser cases (one typed step per line, held-out flag).
+- QA: the reviewed checker `packages/executor/worker/web_recipe.py` runs inside the existing Bubblewrap + systemd
+  unit with a web policy, serves `site/` on loopback inside the sandbox and drives the pinned Chrome for Testing
+  headless shell 156.0.8078.47 over a pipe; steps run in an isolated world; any page error or outside request
+  fails the case. The browser is an owner-run, hash-checked install (`install_browser.py`); the studio installs
+  nothing.
+- Preview: the site is framed from its own `w<id>-<token>.localhost` origin with a session-bound HMAC token, a
+  strict CSP and per-request lease and package checks; no command runs or terminal for web previews; hosted
+  studios refuse them.
+- Frozen benchmark `config/web-benchmarks/p15-small-signup-v1` (10 cases, 6 held out, 9 known failures, checker
+  hash in `FREEZE.json`) and `scripts/p15-web-benchmark.mjs` (verify, score, mutants).
+- Checks (cloud container, Linux, PostgreSQL 16): full `pnpm test:db` 851 tests (850 in the run plus the always-on freeze test added after), 816 pass, 28 skips, 6 fail: the 5 known no-`pwsh` wrapper tests and the opt-in REAL CHECKER test, which failed only because `pnpm format` had rewritten the frozen benchmark files. The exact frozen bytes were restored (all hashes match `FREEZE.json`), `config/web-benchmarks/` is now in `.prettierignore`, an always-on test checks the freeze, and the REAL CHECKER test passes again (reference 10/10, 6/6 held out, all 9 known failures caught; about 0.8 s per case). TypeScript, web typecheck and formatting pass.
+- Not done: WSL2 worker run, exported-package start outside the studio and the live role qualification (all need
+  Jordan's typed OK; packet in the design doc). The web recipe is **unqualified**.

@@ -11,10 +11,7 @@ $('signup').addEventListener('submit', (event) => {
   const name = $('name').value.trim();
   const email = $('email').value.trim();
   const errors = {
-    'name-error':
-      name.length >= 2 && name.length <= 40
-        ? ''
-        : 'Enter your name (2 to 40 characters)',
+    'name-error': name.length >= 2 && name.length <= 40 ? '' : 'Enter your name (2 to 40 characters)',
     'email-error': EMAIL.test(email) ? '' : 'Enter a valid email address',
     'terms-error': $('terms').checked ? '' : 'Accept the terms to continue',
   };
@@ -26,8 +23,5 @@ $('signup').addEventListener('submit', (event) => {
   }
   show('summary', '');
   $('signup').hidden = true;
-  show(
-    'done',
-    `Welcome, ${name}! You chose the ${PLANS[$('plan').value]} plan.`,
-  );
+  show('done', `Welcome, ${name}! You chose the ${PLANS[$('plan').value]} plan.`);
 });

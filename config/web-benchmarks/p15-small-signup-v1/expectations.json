@@ -51,7 +51,9 @@
           "replace": "const EMAIL = /^[^\\s@]+@[^\\s@]+$/;"
         }
       ],
-      "caught_by": ["A2.2"]
+      "caught_by": [
+        "A2.2"
+      ]
     },
     {
       "id": "plural-always",
@@ -63,7 +65,11 @@
           "replace": "'problems'"
         }
       ],
-      "caught_by": ["A2.2", "A3.2", "A5.1"]
+      "caught_by": [
+        "A2.2",
+        "A3.2",
+        "A5.1"
+      ]
     },
     {
       "id": "untrimmed-length",
@@ -75,7 +81,9 @@
           "replace": "const name = $('name').value;"
         }
       ],
-      "caught_by": ["A2.3"]
+      "caught_by": [
+        "A2.3"
+      ]
     },
     {
       "id": "no-max-length",
@@ -87,7 +95,9 @@
           "replace": "name.length >= 2"
         }
       ],
-      "caught_by": ["A5.1"]
+      "caught_by": [
+        "A5.1"
+      ]
     },
     {
       "id": "enter-does-not-submit",
@@ -104,7 +114,10 @@
           "replace": "$('submit').addEventListener('click', (event) => {"
         }
       ],
-      "caught_by": ["A1.2", "A3.2"]
+      "caught_by": [
+        "A1.2",
+        "A3.2"
+      ]
     },
     {
       "id": "errors-not-cleared",
@@ -116,7 +129,10 @@
           "replace": "for (const [id, text] of Object.entries(errors)) if (text) show(id, text);"
         }
       ],
-      "caught_by": ["A3.1", "A3.2"]
+      "caught_by": [
+        "A3.1",
+        "A3.2"
+      ]
     },
     {
       "id": "pro-label",
@@ -128,7 +144,11 @@
           "replace": "${$('plan').value} plan"
         }
       ],
-      "caught_by": ["A1.1", "A1.2", "A3.2"]
+      "caught_by": [
+        "A1.1",
+        "A1.2",
+        "A3.2"
+      ]
     },
     {
       "id": "external-font",
@@ -140,7 +160,9 @@
           "replace": "<link rel=\"stylesheet\" href=\"style.css\"><link rel=\"stylesheet\" href=\"https://fonts.example.com/inter.css\">"
         }
       ],
-      "caught_by": ["A4.1"]
+      "caught_by": [
+        "A4.1"
+      ]
     },
     {
       "id": "messages-shown-at-start",
@@ -152,7 +174,9 @@
           "replace": "<p id=\"name-error\" class=\"error\">Enter your name (2 to 40 characters)</p>"
         }
       ],
-      "caught_by": ["A4.1"]
+      "caught_by": [
+        "A4.1"
+      ]
     }
   ],
   "whitespace_note": "Text expectations compare whitespace-collapsed text (the checker's rule), so a welcome message that keeps the name's outer spaces is indistinguishable from a trimmed one; trimming is checked through the length rule (A2.3) instead"
