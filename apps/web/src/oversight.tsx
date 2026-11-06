@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
 import { runLabel } from './labels.js';
+import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
   clearNoteDrafts,
   clearOtherNoteDrafts,
@@ -108,6 +109,7 @@ export function useSession(persistent: boolean) {
   // Review L-D: a session starting in this tab removes notes copies left by anyone else.
   function start(next: SessionInfo) {
     clearOtherNoteDrafts(next.actor_id);
+    clearOtherTransfers(next.actor_id);
     setSession(next);
   }
   async function load() {
@@ -153,6 +155,7 @@ export function useSession(persistent: boolean) {
       });
       // ADR-0060 review N-1: unsaved notes copies never outlive the person's session here.
       clearNoteDrafts();
+      resetTransfers();
       setSession(null);
     } catch (e) {
       setError(`Sign-out was not confirmed. Try again. ${message(e)}`);

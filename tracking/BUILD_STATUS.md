@@ -147,6 +147,45 @@ Activity destinations, Search reset and server-side sort/paging for Search and t
 details and checks are in [the handoff](SESSION_HANDOFF.md) and the PR. No migration, ADR,
 installed-app change or live call. Not yet independently reviewed.
 
+## P05 workspace files (November 5, branch `claude/project-thread-h4hwto-p05`)
+
+Sources › Files (ADR-0072, migration 45, schema 45): upload by dropping files anywhere or with
+Add files; exact originals and SHA-256 in PostgreSQL with numbered immutable versions; newest-
+first list with search inside names and text; inert viewers for text, Markdown, JSON, CSV, code
+and images; download of any version's original bytes; rename, link to records, delete/restore
+and owner-only permanent deletion; per-file and per-workspace bounds from the environment.
+
+Checked: `tests/src/files-api.test.ts` (real API and PostgreSQL: traversal names, retries,
+duplicates, spoofed types, inline image headers, exact download, versions, search with line
+numbers, size limits, links, stranger/viewer/other-workspace access, delete/restore/purge,
+immutable versions), `files-inspect.test.ts`, and the restore test now round-trips a binary
+file through backup and restore. Walked in headless Chromium at 1280 and 390 px: drag over the
+Discover page shows the overlay, the drop uploads without leaving the page (an unsaved theme
+stayed), the same file again is reported as a duplicate, the picker adds a CSV, Markdown
+renders without running a `<script>` line, and the download's SHA-256 matches the source.
+Not done (B01): Trash expiry, OCR, editors, conversions, PDF preview, related files, global
+Search indexing, record-targeted drops. Awaiting review.
+
+## P05 review fixes (November 5, PR #141 review, migration 45 amended before merge)
+
+Fixes the PR #141 review (project file reviews/PR141_WORKSPACE_FILES_REVIEW_2026-11-05.md): L1
+invisible and C1 characters stripped from names; L2 role checked before the body is read; L3
+targeted duplicates link to their record and reused keys must name the same target; L4 upload
+bodies get a size-scaled deadline while other requests keep 10 seconds; L5 tests for mid-body
+cancellation, editor purge, workspace binding and retry keys in the tray (new
+`web-transfers.test.ts`); L6 search returns a window from the first match's line, kept text
+stays outside the quota (recorded in ADR-0072); L7 tray cleared when another person's session
+starts; nits N1–N8 (N5 adds an index to migration 45, which has not merged anywhere yet).
+
+## P05 re-review fix R-M1 (November 5)
+
+The longer upload deadline is granted only inside the upload route, after authentication, the
+role check and a declared size within the file limit; every other request on the API and web
+ports keeps the 10-second body deadline, and a refusal sent while a body is still arriving
+closes the connection. New `files-deadline.test.ts`: unauthenticated, over-limit and web-port
+slow bodies close within 11.5 s, and a member's upload still arriving at 14 s is stored (the
+test fails on the previous head).
+
 ## P04 guided start and readable Discover (November 5, branch `claude/project-thread-h4hwto`)
 
 Discover now opens with three start choices and a Guided/Advanced switch over the same form

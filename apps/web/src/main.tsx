@@ -12,6 +12,7 @@ import {
   type Workspace,
 } from '@creator/contracts';
 import { Catalog } from './catalog.js';
+import { FileDrop } from './file-drop.js';
 import { Oversight, SignIn, api, message, useSession } from './oversight.js';
 import { Budgets } from './budgets.js';
 import { Workflows } from './workflows.js';
@@ -52,6 +53,9 @@ import { Chat } from './chat.js';
 import type { Prefill } from './prefill.js';
 
 // Declared once: visited pages keep their component identity and session-memory drafts.
+const Files = lazy(() =>
+  import('./files.js').then((m) => ({ default: m.Files })),
+);
 const Operations = lazy(() =>
   import('./operations.js').then((m) => ({ default: m.Operations })),
 );
@@ -716,6 +720,16 @@ function App() {
             prefill={prefillFor('submit', workspace.id)}
           />
         );
+      case 'files':
+        return (
+          <Files
+            key={workspace.id}
+            session={s}
+            workspace={workspace}
+            focus={pageRoute.id}
+            onFocus={focus}
+          />
+        );
       case 'catalog':
         return (
           <Catalog
@@ -1113,6 +1127,13 @@ function App() {
           </footer>
         )}
       </div>
+      {inStudio && workspace && auth.session && (
+        <FileDrop
+          workspace={workspace}
+          csrf={auth.session.csrf_token}
+          open={(view, id) => open(view, id)}
+        />
+      )}
       {inStudio && workspace && auth.session && (
         <RightSidebar
           workspace={workspace}

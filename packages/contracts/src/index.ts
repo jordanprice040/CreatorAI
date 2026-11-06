@@ -51,3 +51,4 @@ export * from './connections.js';
 export * from './usage.js';
 export * from './chat.js';
 export * from './sidebar.js';
+export * from './files.js';

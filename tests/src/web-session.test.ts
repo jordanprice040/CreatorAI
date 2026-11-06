@@ -17,6 +17,10 @@ test('browser session retains sign-in on failed logout and clears it after confi
   const slots: unknown[] = [];
   // ADR-0060 review N-1: unsaved notes copies are cleared only by a confirmed sign-out.
   let cleared = 0;
+  // ADR-0072: the transfer tray is emptied by the same confirmed sign-out.
+  let transfersReset = 0;
+  // PR #141 review L7: a session starting here drops other people's transfers too.
+  const transfersKeptFor: string[] = [];
   // Review L-D/L-E: other people's copies go when a session starts; unsaved text asks first.
   let drafts = false;
   // PR #110 L-F: a notes save in flight lands (and clears the copy) before sign-out asks.
@@ -48,18 +52,24 @@ test('browser session retains sign-in on failed logout and clears it after confi
         ? { usePageActive: () => true }
         : name === './labels.js'
           ? {}
-          : name === './note-drafts.js'
+          : name === './transfers.js'
             ? {
-                clearNoteDrafts: () => void cleared++,
-                hasNoteDrafts: () => drafts,
-                noteSavesSettled: async () => {
-                  settledWaits++;
-                  if (landing) drafts = false;
-                },
-                clearOtherNoteDrafts: (actor: string) =>
-                  void keptFor.push(actor),
+                resetTransfers: () => void transfersReset++,
+                clearOtherTransfers: (actor: string) =>
+                  void transfersKeptFor.push(actor),
               }
-            : require(name);
+            : name === './note-drafts.js'
+              ? {
+                  clearNoteDrafts: () => void cleared++,
+                  hasNoteDrafts: () => drafts,
+                  noteSavesSettled: async () => {
+                    settledWaits++;
+                    if (landing) drafts = false;
+                  },
+                  clearOtherNoteDrafts: (actor: string) =>
+                    void keptFor.push(actor),
+                }
+              : require(name);
   const window = {
     dispatchEvent: () => true,
     confirm: (text: string) => {
@@ -125,6 +135,7 @@ test('browser session retains sign-in on failed logout and clears it after confi
   await render().signIn('x'.repeat(32));
   assert.deepEqual(render().session, signedIn);
   assert.deepEqual(keptFor, [signedIn.actor_id]);
+  assert.deepEqual(transfersKeptFor, [signedIn.actor_id]);
   const session = { actor_id: signedIn.actor_id, csrf_token: 'session-csrf' };
   slots[0] = session;
   // A save already on its way when Sign out is clicked is waited for; once it lands nothing is
@@ -152,12 +163,14 @@ test('browser session retains sign-in on failed logout and clears it after confi
     assert.equal(render().session, session);
     assert.match(render().error, /Sign-out was not confirmed.*Try again/);
     assert.equal(cleared, 0);
+    assert.equal(transfersReset, 0);
   }
   response = 'success';
   await render().signOut();
   assert.equal(render().session, null);
   assert.equal(render().error, '');
   assert.equal(cleared, 1);
+  assert.equal(transfersReset, 1);
   assert.equal(requests.length, 3);
   // Each attempt asked once because unsaved text was there.
   assert.equal(confirms.length, 4);

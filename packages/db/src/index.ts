@@ -28,3 +28,4 @@ export * from './runtime-ceiling.js';
 export { readPage, pageQuery, type PageRequest } from './paging.js';
 export * from './connection-store.js';
 export { chatInput, chatSnapshot } from './chat-store.js';
+export * from './file-store.js';
