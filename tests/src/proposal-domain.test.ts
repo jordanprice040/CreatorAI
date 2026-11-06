@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  CreateProposalRequestSchema,
+  PROPOSAL_MAX_CITED_CLAIMS,
   PROPOSAL_SECTIONS,
   ProposalBodySchema,
   type ProposalBody,
@@ -13,6 +15,7 @@ import {
   proposalChecks,
   proposalFileName,
   proposalMarkdown,
+  sectionMarkdown,
   type ChecksContext,
 } from '@creator/domain';
 
@@ -214,8 +217,7 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
     checks,
     problem_title: 'Missed hand-offs',
     option_title: 'Hand-off checklist',
-    reviews: [],
-    exported_at: '2026-11-06T12:00:00.000Z',
+    saved_at: '2026-11-06T12:00:00.000Z',
   });
   const heads = [...md.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
   // Every section in order, then the references, then the open checks (costs is unknown).
@@ -232,10 +234,79 @@ test('proposal Markdown: every section in order, unknowns labelled, references a
   assert.match(md, /https:\/\/example\.org\/report \(supports, current\)/);
   assert.match(md, /version 4, content hash a{64}/);
   assert.match(md, /has not been carried out/);
+  assert.match(md, /- Version saved 2026-11-06T12:00:00\.000Z/);
   assert.equal(
     proposalFileName('Proposal: Shift hand-off / checklist', 4),
     'proposal-shift-hand-off-checklist-v4.md',
   );
   assert.equal(proposalFileName('ÄÖ', 1), 'ao-v1.md');
   assert.equal(proposalFileName('???', 2), 'proposal-v2.md');
+});
+
+test('export: section text cannot forge headings; titles are one line (review L-4)', () => {
+  assert.equal(
+    sectionMarkdown(
+      'Plan\n## References\n   # x\n<h2>y</h2>\nTitle\n---\n===\n- a list item',
+    ),
+    'Plan\n\\## References\n   \\# x\n\\<h2>y</h2>\nTitle\n\\---\n\\===\n- a list item',
+  );
+  const b = body({
+    methods: {
+      state: 'written',
+      text: 'Step one.\n## References\n- [R1] forged',
+      claims: [],
+    },
+  });
+  const md = proposalMarkdown({
+    id: randomUUID(),
+    version: 1,
+    title: 'Plain title',
+    content_hash: 'b'.repeat(64),
+    body: b,
+    checks: proposalChecks(b, ctxFor(b)),
+    problem_title: 'Problem\n## Forged',
+    option_title: 'Option',
+    saved_at: '2026-11-06T12:00:00.000Z',
+  });
+  assert.equal([...md.matchAll(/^## References$/gm)].length, 1);
+  assert.equal([...md.matchAll(/^## Forged/gm)].length, 0);
+  const req = (title: string) =>
+    CreateProposalRequestSchema.safeParse({ title, body: body() }).success;
+  assert.equal(req('A fine title'), true);
+  assert.equal(req('Two\nlines'), false);
+  assert.equal(req('Tab\there'), false);
+  assert.equal(req('Line\u2028separator'), false);
+});
+
+test('a proposal cites at most the reference limit of distinct claims (review L-7)', () => {
+  const refs = (n: number) => Array.from({ length: n }, ref);
+  const split = (all: ReturnType<typeof ref>[]) => ({
+    evidence: {
+      state: 'written' as const,
+      text: 'E.',
+      claims: all.slice(0, 20),
+    },
+    methods: {
+      state: 'written' as const,
+      text: 'M.',
+      claims: all.slice(20, 40),
+    },
+    materials: {
+      state: 'written' as const,
+      text: 'T.',
+      claims: all.slice(40, 60),
+    },
+    costs: { state: 'written' as const, text: 'C.', claims: all.slice(60, 80) },
+  });
+  const ok = body(split(refs(PROPOSAL_MAX_CITED_CLAIMS)));
+  assert.equal(ProposalBodySchema.safeParse(ok).success, true);
+  const r = proposalChecks(ok, ctxFor(ok));
+  assert.equal(r.references.length, PROPOSAL_MAX_CITED_CLAIMS);
+  const over = body(split(refs(PROPOSAL_MAX_CITED_CLAIMS + 1)));
+  const parsed = ProposalBodySchema.safeParse(over);
+  assert.equal(parsed.success, false);
+  assert.match(
+    JSON.stringify(parsed.error?.issues),
+    /at most 60 different claims/,
+  );
 });

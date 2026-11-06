@@ -7,6 +7,7 @@ import {
   ProposalReviewRequestSchema,
   ReviseProposalRequestSchema,
   parse,
+  type ClaimEvidence,
   type HumilityBody,
   type ProposalBody,
   type ProposalDetail,
@@ -287,6 +288,14 @@ export class ProposalStore extends CatalogStore {
 
   /** The checks of one proposal body, against the records as they are now. */
   private async checksFor(ctx: CommandContext, ws: string, body: ProposalBody) {
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      return this.checksIn(c, ws, body);
+    });
+  }
+
+  /** checksFor inside the caller's transaction (the caller checked the role). */
+  private async checksIn(c: PoolClient, ws: string, body: ProposalBody) {
     const cited = [
       ...new Set(
         Object.values(body.sections).flatMap((s) =>
@@ -294,8 +303,7 @@ export class ProposalStore extends CatalogStore {
         ),
       ),
     ];
-    const base = await this.tx(async (c) => {
-      await this.role(c, ws, ctx.actorId, false);
+    const base = await (async () => {
       const p = await c.query(
         `select version, status from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
         [ws, body.problem.id.toLowerCase()],
@@ -317,12 +325,21 @@ export class ProposalStore extends CatalogStore {
       const found = cited.length
         ? (
             await c.query(
-              `select id, version, status, title, body from entities
+              `select * from entities
                 where workspace_id = $1 and kind = 'claim' and id = any($2::uuid[])`,
               [ws, cited],
             )
           ).rows
         : [];
+      // Evidence for every cited active claim, read in this one transaction. A failure fails
+      // the request: a reference never silently loses its evidence status (review L-5).
+      const evidence = new Map<string, ClaimEvidence>();
+      for (const r of found as Row[])
+        if (String(r.status) === 'active')
+          evidence.set(
+            String(r.id).toLowerCase(),
+            await this.claimEvidenceIn(c, ws, r),
+          );
       const pr = p.rows[0] as Row | undefined;
       const or = o.rows[0] as Row | undefined;
       return {
@@ -336,8 +353,9 @@ export class ProposalStore extends CatalogStore {
           body.selection_id.toLowerCase(),
         linked,
         found: found as Row[],
+        evidence,
       };
-    });
+    })();
     const claims: Map<
       string,
       ChecksContext['claims'] extends ReadonlyMap<string, infer V> ? V : never
@@ -349,7 +367,7 @@ export class ProposalStore extends CatalogStore {
       let sources: ProposalDetail['checks']['references'][number]['sources'] =
         [];
       if (status === 'active') {
-        const ev = await this.claimEvidence(ctx, ws, id).catch(() => null);
+        const ev = base.evidence.get(id);
         if (ev) {
           evidenceStatus = ev.status;
           sources = ev.rows.slice(0, 10).map((x) => ({
@@ -551,7 +569,7 @@ export class ProposalStore extends CatalogStore {
       const { rows } = await c.query(
         `select * from entities where workspace_id = $1 and kind = 'proposal'
            and status in ('active', 'archived')
-           and ($2::text is null or body->'problem'->>'id' = $2)
+           and ($2::text is null or lower(body->'problem'->>'id') = $2)
          order by updated_at desc, id desc limit 200`,
         [ws, problem],
       );
@@ -662,6 +680,13 @@ export class ProposalStore extends CatalogStore {
         reviewer_name: String(r.display_name),
         created_at: iso(r.created_at),
         current: Number(r.proposal_version) === e.version,
+        self_review:
+          String(r.reviewer) ===
+          String(
+            versions.find(
+              (v) => Number(v.version) === Number(r.proposal_version),
+            )?.actor_id ?? '',
+          ),
       })),
       problem_title: title(body.problem.id),
       option_title: title(body.alternative.id),
@@ -703,6 +728,20 @@ export class ProposalStore extends CatalogStore {
           );
         if (req.verdict === 'revise' && !req.comments)
           throw fail('INVALID_CONTRACT', 'Say what to revise.');
+        // Review L-3: "ready" is refused while the document checks still find a blocker or an
+        // unknown core section; the reviewer can still ask for a revision.
+        if (req.verdict === 'ready') {
+          const checks = await this.checksIn(
+            c,
+            ws,
+            e.body as unknown as ProposalBody,
+          );
+          if (!checks.ready_for_review)
+            throw fail(
+              'INVALID_TRANSITION',
+              'This version is not ready for review: a core section is unknown or a check found a blocker. Ask for a revision instead.',
+            );
+        }
         const reviewId = randomUUID();
         await c.query(
           `insert into proposal_reviews (id, workspace_id, proposal_id, proposal_version, content_hash,
@@ -754,8 +793,9 @@ export class ProposalStore extends CatalogStore {
         checks: d.checks,
         problem_title: d.problem_title,
         option_title: d.option_title,
-        reviews: d.reviews,
-        exported_at: new Date().toISOString(),
+        saved_at:
+          d.versions.find((v) => v.version === d.shown_version)?.created_at ??
+          d.proposal.updated_at,
       }),
     };
   }

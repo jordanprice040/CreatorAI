@@ -3,6 +3,7 @@ import {
   CORE_PROPOSAL_SECTIONS,
   PROPOSAL_SECTIONS,
   PROPOSAL_SECTION_LABELS,
+  PROPOSAL_MAX_CITED_CLAIMS,
   PROPOSAL_SECTION_MAX,
   SUITABILITY_RUBRIC,
   type HumilityBody,
@@ -10,7 +11,6 @@ import {
   type ProposalCheck,
   type ProposalChecks,
   type ProposalReference,
-  type ProposalReview,
   type ProposalSection,
   type ProposalSectionBody,
   type RankedCandidate,
@@ -366,6 +366,8 @@ const written = (
     text: clip(text, PROPOSAL_SECTION_MAX),
     claims,
   }) satisfies ProposalSectionBody;
+/** One line of text from a record: no line breaks or control characters (review L-4). */
+const oneLine = (s: string) => s.replace(/[\p{Cc}\u2028\u2029]+/gu, ' ').trim();
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 /** A title ending a sentence: no doubled full stop. */
 const end = (t: string) => t.replace(/[.\s]+$/, '');
@@ -386,8 +388,10 @@ export function draftProposal(input: DraftInput): {
   const contrary = input.claims
     .filter((c) => c.relation === 'contradicts')
     .slice(0, 20);
-  const bullet = (cs: typeof supports) =>
-    cs.map((c) => `- ${clip(c.statement, 280)}`).join('\n');
+  // Review L-1: the draft cites claims; it never copies their statements into the text, so a
+  // later redaction of a claim reaches every saved version through the References.
+  const cites = (n: number, what: string) =>
+    `${n} ${what} claim${n === 1 ? ' is' : 's are'} cited here; their statements, sources and current evidence status are listed under References.`;
   const tradeoffs = Array.isArray(o.tradeoffs)
     ? (o.tradeoffs as unknown[]).map(str).filter(Boolean)
     : [];
@@ -434,7 +438,7 @@ export function draftProposal(input: DraftInput): {
     ),
     evidence: supports.length
       ? written(
-          bullet(supports),
+          cites(supports.length, 'supporting'),
           supports.map((c) => ({ id: c.id, version: c.version })),
         )
       : unknown(
@@ -442,7 +446,7 @@ export function draftProposal(input: DraftInput): {
         ),
     contrary_evidence: contrary.length
       ? written(
-          bullet(contrary),
+          cites(contrary.length, 'contrary'),
           contrary.map((c) => ({ id: c.id, version: c.version })),
         )
       : unknown(
@@ -492,7 +496,7 @@ export function draftProposal(input: DraftInput): {
     next_tasks: unknown('List the next concrete tasks.'),
   };
   return {
-    title: clip(`Proposal: ${input.option.title}`, 300),
+    title: clip(`Proposal: ${oneLine(input.option.title)}`, 300),
     body: {
       format: 'proposal/1',
       problem: { id: input.problem.id, version: input.problem.version },
@@ -657,21 +661,26 @@ export function proposalChecks(
       null,
       'A later selection for this problem replaced the one this proposal follows.',
     );
-  const references: ProposalReference[] = order.slice(0, 60).map((id, i) => {
-    const now = ctx.claims.get(id);
-    return {
-      label: `R${i + 1}`,
-      claim: { id, version: citedVersion.get(id)! },
-      statement: clip(now?.statement ?? '(not found in this workspace)', 2000),
-      relation: now?.relation ?? 'not_linked',
-      status: now
-        ? now.status === 'active'
-          ? now.evidence_status
-          : now.status
-        : 'missing',
-      sources: now?.sources.slice(0, 10) ?? [],
-    };
-  });
+  const references: ProposalReference[] = order
+    .slice(0, PROPOSAL_MAX_CITED_CLAIMS)
+    .map((id, i) => {
+      const now = ctx.claims.get(id);
+      return {
+        label: `R${i + 1}`,
+        claim: { id, version: citedVersion.get(id)! },
+        statement: clip(
+          now?.statement ?? '(not found in this workspace)',
+          2000,
+        ),
+        relation: now?.relation ?? 'not_linked',
+        status: now
+          ? now.status === 'active'
+            ? now.evidence_status
+            : now.status
+          : 'missing',
+        sources: now?.sources.slice(0, 10) ?? [],
+      };
+    });
   return {
     complete,
     ready_for_review: complete && !checks.some((c) => c.level === 'blocker'),
@@ -694,28 +703,51 @@ export interface MarkdownInput {
   checks: ProposalChecks;
   problem_title: string;
   option_title: string;
-  reviews: readonly ProposalReview[];
-  exported_at: string;
+  /** When the exported version was saved: the export is the same bytes for the same version. */
+  saved_at: string;
 }
 
-/** The canonical export. Section text is the person's own Markdown, included as written. */
+/**
+ * The person's section text, as Markdown, with any heading, setext underline or line-leading
+ * HTML tag escaped so the text cannot forge a section, the References or the provenance lines (review L-4).
+ */
+export function sectionMarkdown(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((l) =>
+      l
+        .replace(/^( {0,3})([#<])/, '$1\\$2')
+        .replace(
+          /^( {0,3})(=+|-+)\s*$/,
+          (_m, sp: string, run: string) => `${sp}\\${run}`,
+        ),
+    )
+    .join('\n')
+    .trimEnd();
+}
+
+/**
+ * The canonical export. Section text is the person's own Markdown, with headings escaped. The
+ * bytes depend only on the version and the records it cites, not on the export time or on
+ * reviews, so saving the same version to Files twice keeps one copy (review L-2).
+ */
 export function proposalMarkdown(m: MarkdownInput): string {
   const labelOf = new Map(
     m.checks.references.map((r) => [r.claim.id.toLowerCase(), r.label]),
   );
-  const line = (s: string) => s.replace(/\r\n?/g, '\n').trimEnd();
-  const mine = m.reviews.filter((r) => r.version === m.version);
+  const line = sectionMarkdown;
   const out: string[] = [
-    `# ${m.title}`,
+    `# ${oneLine(m.title)}`,
     '',
-    `> ${m.body.summary.replace(/\n+/g, ' ')}`,
+    `> ${oneLine(m.body.summary)}`,
     '',
-    `- Problem: ${m.problem_title} (v${m.body.problem.version})`,
-    `- Response: ${words(m.body.response)} — ${m.option_title} (v${m.body.alternative.version})`,
+    `- Problem: ${oneLine(m.problem_title)} (v${m.body.problem.version})`,
+    `- Response: ${words(m.body.response)} — ${oneLine(m.option_title)} (v${m.body.alternative.version})`,
     `- Proposal ${m.id}, version ${m.version}, content hash ${m.content_hash}`,
-    `- Exported ${m.exported_at}`,
+    `- Version saved ${m.saved_at}`,
     `- Document checks: ${m.checks.complete ? 'all core sections written' : 'core sections still unknown'}; ${m.checks.checks.filter((c) => c.level === 'blocker').length} blocker(s), ${m.checks.checks.filter((c) => c.level === 'warning').length} warning(s)`,
-    `- Reviews of this version: ${mine.length ? mine.map((r) => `${r.verdict} (${r.reviewer_name}, ${r.created_at.slice(0, 10)})`).join('; ') : 'none'}`,
+    '- Reviews are kept in the studio with the version they judged; they are not part of this file.',
     '',
     '_This is a plan. It has not been carried out, and nothing here shows that it works in practice._',
     '',
@@ -739,18 +771,18 @@ export function proposalMarkdown(m: MarkdownInput): string {
   if (!m.checks.references.length) out.push('No claims are cited.');
   for (const r of m.checks.references) {
     out.push(
-      `- [${r.label}] ${r.statement.replace(/\n+/g, ' ')} — claim ${r.claim.id.slice(0, 8)} v${r.claim.version}; ${r.relation.replace('_', ' ')}; evidence ${r.status}`,
+      `- [${r.label}] ${oneLine(r.statement)} — claim ${r.claim.id.slice(0, 8)} v${r.claim.version}; ${r.relation.replace('_', ' ')}; evidence ${r.status}`,
     );
     for (const s of r.sources)
       out.push(
-        `  - ${s.title || s.url}: ${s.url} (${s.stance}, ${s.freshness})${s.quote ? ` — “${s.quote.replace(/\n+/g, ' ')}”` : ''}`,
+        `  - ${oneLine(s.title || s.url)}: ${oneLine(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${oneLine(s.quote)}”` : ''}`,
       );
   }
   if (m.checks.checks.length) {
     out.push('', '## Open checks', '');
     for (const c of m.checks.checks)
       out.push(
-        `- ${c.level === 'blocker' ? 'Blocker' : 'Warning'}: ${c.message}`,
+        `- ${c.level === 'blocker' ? 'Blocker' : 'Warning'}: ${oneLine(c.message)}`,
       );
   }
   return `${out.join('\n')}\n`;

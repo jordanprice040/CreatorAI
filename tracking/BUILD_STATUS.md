@@ -410,5 +410,13 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   `tests/src/proposal-domain.test.ts` (4); browser walk `tracking/evidence/proposals-ui/walk.mjs` with screenshots
   in `tracking/evidence/proposals-ui/screens/` (no horizontal scroll at phone width). Full `pnpm typecheck` + `pnpm test:db`: 843 tests, 810 pass,
   28 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. CI not run (no Actions minutes).
+- Review fixes (independent review at d99a7ff, Lows L-1–L-7 and nits N-1/N-2, see ADR-0077): drafts cite claims
+  instead of copying them; the export is the same bytes for the same version (no export time, no reviews), so
+  Save to Files keeps one copy; "ready" is refused while checks block and self-reviews are marked; one-line titles
+  and escaped headings in the export; evidence read in one transaction with errors surfaced; a spec is judged by
+  the option version it cites (new admission test); at most 60 cited claims; append-only reviews with a workspace
+  FK; case-insensitive list filter. Checks after the fixes: proposal tests 5 DB + 6 pure pass; full `pnpm typecheck` +
+  `pnpm test:db` 850 tests, 817 pass, 28 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes;
+  the browser walk passes again (no horizontal scroll at phone width).
 - Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
   unverified.

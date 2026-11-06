@@ -1579,9 +1579,22 @@ export class OversightStore extends Store {
     if (!e?.body) return 'software';
     if (e.kind === 'alternative')
       return e.body.kind === 'hybrid' ? 'hybrid' : 'software';
-    const alt = (e.body.alternative as Row | undefined)?.id;
-    if (e.kind === 'specification' && typeof alt === 'string')
-      return this.humilitySubjectKind(c, ws, alt);
+    // A spec is judged by the option version it was written from (review L-6), not by
+    // whatever that option says now.
+    const alt = e.body.alternative as Row | undefined;
+    if (
+      e.kind === 'specification' &&
+      typeof alt?.id === 'string' &&
+      Number.isInteger(alt.version)
+    ) {
+      const v = await c.query<{ body: Row | null }>(
+        `select v.body from entity_versions v join entities a on a.id = v.entity_id
+          where a.workspace_id = $1 and a.kind = 'alternative' and v.entity_id = $2
+            and v.version = $3`,
+        [ws, alt.id.toLowerCase(), alt.version],
+      );
+      return v.rows[0]?.body?.kind === 'hybrid' ? 'hybrid' : 'software';
+    }
     return 'software';
   }
 }

@@ -5,20 +5,25 @@ import {
   PROPOSAL_SECTIONS,
   type ErrorCode,
   type ProposalBody,
+  type ScorecardBody,
   type SelectRequest,
   type SelectionReport,
 } from '@creator/contracts';
 import {
   DISCOVERY_SCENARIOS,
+  FIXTURE_SPEC,
   fixtureHumilityReview,
   fixtureScorecards,
 } from '@creator/domain';
 import { FixtureAdapter } from '@creator/broker';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 import { createApi, DEFAULT_OWNER_ACTOR_ID } from '@creator/api';
 import { discoverySetup, owner } from './discovery-harness.js';
 import { LOGIN_CODE, login } from './pg-harness.js';
+
+const { Client } = pg;
 
 // ADR-0077 (P09): the response explanation and versioned non-code proposals, end to end on
 // PostgreSQL. A non-code choice ends with a downloadable proposal and review/revision support.
@@ -89,6 +94,7 @@ async function nonCodeSelected(s: Setup) {
       : await s.store.select(owner, s.ws.id, runId, req);
   assert.equal(done.status, 'recorded', done.admission.explanation);
   return {
+    runId,
     problem,
     evidence,
     build,
@@ -223,6 +229,112 @@ test('the humility gate judges a hybrid on the hybrid comparison (pilot F9)', as
   assert.deepEqual(no.reasons, ['The review found the hybrid not viable.']);
 });
 
+test('a build of a spec written from a hybrid is admitted on the hybrid comparison (review L-6)', async (t) => {
+  const s = await discoverySetup(t, new FixtureAdapter());
+  if (!s) return;
+  const { runId, problem, evidence, hybrid } = await nonCodeSelected(s);
+  // Complete the hybrid's opportunity assessment (the fixture leaves one criterion unknown).
+  const cards = await s.store.listEntities(owner, s.ws.id, {
+    kind: 'scorecard',
+  });
+  const card = cards.find((c) => {
+    const b = c.body as unknown as ScorecardBody;
+    return b.subject.id === hybrid.id && b.rubric === 'opportunity';
+  })!;
+  const rated = structuredClone(card.body) as unknown as ScorecardBody;
+  rated.ratings.differentiation = {
+    rating: 3,
+    evidence_refs: evidence.slice(0, 2),
+    rationale: 'Rated 3 (test).',
+  };
+  await s.store.reviseScorecard(owner, s.ws.id, card.id, {
+    expected_version: card.version,
+    title: card.title,
+    body: rated,
+    reason: 'Differentiation rated (test).',
+  });
+  const hybridReview = (subject: { id: string; version: number }) => {
+    const body = fixtureHumilityReview(subject, evidence);
+    body.comparisons.software.viable = false; // software alone is not viable...
+    body.disposition = 'hybrid'; // ...the hybrid is what gets built.
+    return body;
+  };
+  await s.store.createEntity(owner, s.ws.id, {
+    kind: 'humility_review',
+    title: 'Hybrid humility review',
+    body: hybridReview({ id: hybrid.id, version: hybrid.version }),
+  });
+  const report = await s.store.selectionReport(owner, s.ws.id, problem.id);
+  const req: SelectRequest = {
+    problem: { id: report.problem.id, version: report.problem.version },
+    report_hash: report.report_hash,
+    dispositions: dispositions(report).map((d) =>
+      d.alternative.id === hybrid.id
+        ? {
+            ...d,
+            disposition: 'select_for_build' as const,
+            reasons: ['The hybrid is the viable build (test).'],
+          }
+        : d,
+    ),
+    override_reason: 'The hybrid goes to a spec (test).',
+    rationale: 'Build the hybrid; keep reminders recommended.',
+    shortlist_size: 3,
+    data_class: 'synthetic',
+  };
+  let picked = await s.store.select(owner, s.ws.id, runId, req);
+  if (picked.status === 'needs_human') {
+    const d = await s.store.getDecision(
+      owner,
+      s.ws.id,
+      picked.admission.decision_id!,
+    );
+    await s.store.answerDecision(owner, s.ws.id, d.id, {
+      choice: 'approve_once',
+      option_id: null,
+      rationale: 'Approved (test).',
+      coverage_hash: d.coverage.coverage_hash,
+      standing_expires_at: null,
+      time_spent_ms: null,
+      interruption: null,
+    });
+    picked = await s.store.select(owner, s.ws.id, runId, req);
+  }
+  assert.equal(picked.status, 'recorded', picked.admission.explanation);
+  const spec = await s.store.createSpec(owner, s.ws.id, {
+    selection_id: picked.selection!.id,
+    alternative: { id: hybrid.id, version: hybrid.version },
+    title: 'Hybrid no-show flags',
+    content: FIXTURE_SPEC,
+  });
+  const specRef = { id: spec.spec.id, version: spec.spec.version };
+  const review = await s.store.createEntity(owner, s.ws.id, {
+    kind: 'humility_review',
+    title: 'Spec humility review',
+    body: hybridReview(specRef),
+  });
+  const verdict = await s.store.humilityVerdict(owner, s.ws.id, review.id);
+  assert.equal(verdict.build_admissible, true, verdict.reasons.join(' '));
+  // The admission path reads the same kind: the humility gate does not refuse the build.
+  const admission = await s.store.admitAction(owner, s.ws.id, runId, {
+    action_type: 'product.commit_build',
+    task_id: null,
+    target: specRef,
+    spec_hash: null,
+    amount_nano_usd: null,
+    data_class: 'synthetic',
+    assumption_ids: [],
+    humility_review: { id: review.id, version: 1 },
+    flags: [],
+    justification: 'Commit the hybrid build (test).',
+  });
+  assert.notEqual(admission.reason_code, 'humility_gate_failed');
+  assert.ok(
+    !admission.reasons.some((r) => /humility/.test(r)),
+    admission.reasons.join(' '),
+  );
+});
+
 test('a proposal is drafted from records, versioned, checked, reviewed and exported', async (t) => {
   const s = await discoverySetup(t, new FixtureAdapter());
   if (!s) return;
@@ -246,6 +358,22 @@ test('a proposal is drafted from records, versioned, checked, reviewed and expor
     assert.equal(draft.body.sections[k].state, 'unknown', k);
   assert.equal(draft.body.sections.evidence.state, 'written');
   assert.ok(draft.body.sections.evidence.claims.length > 0);
+  // Review L-1: the draft cites claims and never copies their statements into the text.
+  for (const r of draft.checks.references)
+    for (const k of ['evidence', 'contrary_evidence'] as const)
+      assert.ok(
+        !draft.body.sections[k].text.includes(r.statement),
+        `${k} copies ${r.label}`,
+      );
+  assert.match(draft.body.sections.evidence.text, /listed under References/);
+  // Review L-4: a title is one line.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.createProposal(owner, s.ws.id, {
+      title: 'Proposal\n## References',
+      body: draft.body,
+    }),
+  );
   assert.equal(draft.checks.complete, false);
   assert.ok(draft.checks.checks.some((c) => c.code === 'core_unknown'));
   // The generic record path refuses the kind.
@@ -328,6 +456,21 @@ test('a proposal is drafted from records, versioned, checked, reviewed and expor
     'VERSION_CONFLICT',
     s.store.reviewProposal(owner, s.ws.id, v1.proposal.id, review),
   );
+  // Review L-3: "ready" is refused for a version the checks do not find ready.
+  const unready = await s.store.createProposal(owner, s.ws.id, {
+    title: `${draft.title} (second)`,
+    body: draft.body,
+  });
+  await rejects(
+    'INVALID_TRANSITION',
+    s.store.reviewProposal(owner, s.ws.id, unready.proposal.id, {
+      ...review,
+      version: 1,
+      content_hash: unready.proposal.content_hash,
+      verdict: 'ready',
+    }),
+    /not ready for review/,
+  );
   await rejects(
     'INVALID_CONTRACT',
     s.store.reviewProposal(owner, s.ws.id, v1.proposal.id, {
@@ -350,6 +493,23 @@ test('a proposal is drafted from records, versioned, checked, reviewed and expor
   );
   assert.equal(reviewed.reviews.length, 1);
   assert.equal(reviewed.reviews[0]!.current, true);
+  // The owner saved v2 and reviewed it: shown as a self-review, not an independent one.
+  assert.equal(reviewed.reviews[0]!.self_review, true);
+  // Review N-1: reviews are append-only.
+  const sql = new Client({ connectionString: s.db.url });
+  await sql.connect();
+  try {
+    await assert.rejects(
+      sql.query(`update proposal_reviews set verdict = 'ready'`),
+      /append-only/,
+    );
+    await assert.rejects(
+      sql.query('delete from proposal_reviews'),
+      /append-only/,
+    );
+  } finally {
+    await sql.end();
+  }
   const body3 = structuredClone(filled(draft.body));
   body3.sections.costs.text =
     'About 2 staff hours per clinic; licence cost unknown.';
@@ -367,6 +527,13 @@ test('a proposal is drafted from records, versioned, checked, reviewed and expor
   assert.equal(old.proposal.body.sections.methods.state, 'unknown');
   // Markdown export of the exact version.
   const md = await s.store.proposalExport(owner, s.ws.id, v1.proposal.id, 1);
+  // Review L-2: the same version exports the same bytes.
+  assert.equal(
+    (await s.store.proposalExport(owner, s.ws.id, v1.proposal.id, 1)).markdown,
+    md.markdown,
+  );
+  assert.match(md.markdown, /- Version saved \S+/);
+  assert.doesNotMatch(md.markdown, /Exported /);
   assert.match(md.name, /-v1\.md$/);
   assert.match(md.markdown, /^# Proposal: /);
   assert.match(
@@ -390,10 +557,18 @@ test('a proposal is drafted from records, versioned, checked, reviewed and expor
   });
   const after = await s.store.proposalDetail(owner, s.ws.id, v1.proposal.id);
   assert.ok(after.checks.checks.some((c) => c.code === 'problem_changed'));
-  const list = await s.store.listProposals(owner, s.ws.id, problem.id);
+  // Review N-2: the problem filter ignores the id's letter case.
+  const list = await s.store.listProposals(
+    owner,
+    s.ws.id,
+    problem.id.toUpperCase(),
+  );
   assert.deepEqual(
-    list.map((x) => [x.id, x.version]),
-    [[v1.proposal.id, 3]],
+    list.map((x) => [x.id, x.version]).sort(),
+    [
+      [unready.proposal.id, 1],
+      [v1.proposal.id, 3],
+    ].sort(),
   );
 });
 
@@ -466,6 +641,16 @@ test('proposal API: Markdown download, save to Files, and a viewer cannot change
     }
   ).file;
   assert.match(file.name, /-v1\.md$/);
+  // Review L-2: the export is deterministic, so a second save keeps the one copy.
+  const again = await post(`${path}/files`, {
+    version: 1,
+    upload_key: randomUUID(),
+  });
+  assert.ok(again.status === 200 || again.status === 201, `${again.status}`);
+  assert.equal(
+    ((await again.json()) as { file: { id: string } }).file.id,
+    file.id,
+  );
   const linked = await fetch(`${base}/workspaces/${s.ws.id}/files/${file.id}`, {
     headers: auth.read,
   });

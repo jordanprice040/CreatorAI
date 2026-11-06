@@ -2904,9 +2904,12 @@ create table proposal_reviews (
  comments text not null check (length(comments) <= 4000),
  reviewer uuid not null references actors(id),
  created_at timestamptz not null default clock_timestamp(),
+ foreign key (workspace_id, proposal_id) references entities (workspace_id, id),
  foreign key (proposal_id, proposal_version) references entity_versions (entity_id, version)
 );
 create index proposal_reviews_by_proposal on proposal_reviews (workspace_id, proposal_id, created_at);
+create trigger proposal_reviews_append_only before update or delete on proposal_reviews
+  for each row execute function creator_reject_change();
 `,
   },
 ];

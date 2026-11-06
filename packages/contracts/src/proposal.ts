@@ -7,6 +7,10 @@ import { z, id, hash, version, counter } from './primitives.js';
 
 const ref = z.strictObject({ id, version });
 const short = z.string().trim().min(1).max(300);
+/** A title or reason: one line, no control characters, so it cannot forge export lines (L-4). */
+const oneLine = short.refine((v) => !/[\p{Cc}\u2028\u2029]/u.test(v), {
+  message: 'Use one line without control characters.',
+});
 const note = z.string().trim().min(1).max(1200);
 
 /** Section order is the export order. References are built from the cited claims, never typed. */
@@ -65,6 +69,8 @@ export const PROPOSAL_KINDS = [
 ] as const;
 export const PROPOSAL_SECTION_MAX = 6000;
 export const PROPOSAL_MAX_BODY_BYTES = 131072;
+/** Distinct claims one proposal may cite; every one gets a reference label (review L-7). */
+export const PROPOSAL_MAX_CITED_CLAIMS = 60;
 
 export const ProposalSectionBodySchema = z
   .strictObject({
@@ -109,19 +115,30 @@ export const ProposalBodySchema = z
           path: ['sections', k, 'state'],
           message: `${PROPOSAL_SECTION_LABELS[k]} always applies; mark it unknown until it is written.`,
         });
+    const cited = new Set(
+      Object.values(b.sections).flatMap((s) =>
+        s.claims.map((c) => c.id.toLowerCase()),
+      ),
+    );
+    if (cited.size > PROPOSAL_MAX_CITED_CLAIMS)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sections'],
+        message: `Cite at most ${PROPOSAL_MAX_CITED_CLAIMS} different claims in one proposal (${cited.size} cited).`,
+      });
   });
 export type ProposalBody = z.infer<typeof ProposalBodySchema>;
 
 export const CreateProposalRequestSchema = z.strictObject({
-  title: short,
+  title: oneLine,
   body: ProposalBodySchema,
 });
 export const ReviseProposalRequestSchema = z.strictObject({
   expected_version: version,
-  title: short,
+  title: oneLine,
   body: ProposalBodySchema,
   /** What changed, e.g. "Answered review feedback on costs". */
-  reason: short,
+  reason: oneLine,
 });
 
 // ---- Checks (computed on read against the exact version) --------------------------------
@@ -176,7 +193,7 @@ export const ProposalChecksSchema = z.strictObject({
   unknown: counter,
   not_applicable: counter,
   checks: z.array(ProposalCheckSchema).max(200),
-  references: z.array(ProposalReferenceSchema).max(60),
+  references: z.array(ProposalReferenceSchema).max(PROPOSAL_MAX_CITED_CLAIMS),
 });
 export type ProposalChecks = z.infer<typeof ProposalChecksSchema>;
 
@@ -204,6 +221,8 @@ export const ProposalReviewSchema = ProposalReviewRequestSchema.extend({
   created_at: z.iso.datetime(),
   /** Computed on read: false once the proposal has a newer version. */
   current: z.boolean(),
+  /** Computed on read: the reviewer saved the version reviewed (not an independent review). */
+  self_review: z.boolean(),
 });
 export type ProposalReview = z.infer<typeof ProposalReviewSchema>;
 

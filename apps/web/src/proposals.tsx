@@ -962,8 +962,10 @@ function Reviews({
               <strong>{r.verdict === 'ready' ? 'Ready' : 'Revise'}</strong>{' '}
               <small>
                 · v{r.version}
-                {r.current ? '' : ' (an earlier version)'} · {r.reviewer_name} ·{' '}
-                {when(r.created_at)}
+                {r.current ? '' : ' (an earlier version)'} · {r.reviewer_name}
+                {r.self_review
+                  ? ' (self-review: saved this version)'
+                  : ''} · {when(r.created_at)}
               </small>
               <div className="small">
                 {MARKS.map(([k, label]) => (
@@ -991,11 +993,18 @@ function Reviews({
                   type="radio"
                   name="verdict"
                   checked={verdict === x}
+                  disabled={x === 'ready' && !detail.checks.ready_for_review}
                   onChange={() => setVerdict(x)}
                 />{' '}
                 {x === 'ready' ? 'Ready to use' : 'Needs revision'}
               </label>
             ))}
+            {!detail.checks.ready_for_review && (
+              <p className="small">
+                “Ready to use” opens once every core section is written and no
+                check finds a blocker.
+              </p>
+            )}
           </fieldset>
           {MARKS.map(([k, label]) => (
             <label key={k}>

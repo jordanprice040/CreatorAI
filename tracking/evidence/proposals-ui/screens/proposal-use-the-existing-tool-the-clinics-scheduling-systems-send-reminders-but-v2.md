@@ -4,10 +4,10 @@
 
 - Problem: Unused first-appointment slots at rural clinics: Rural clinics recorded a 23 percent no-show rate for first appointments in 2025. (v1)
 - Response: an existing tool — Use the existing tool: The clinics’ scheduling systems send reminders but do not predict no-shows. (v1)
-- Proposal 209f5de8-362b-49f1-b921-6b4226244067, version 2, content hash 49c1a6d2447616686003bd3f7e0566448ab9e175f548dbd32ddb512aae0c3126
-- Exported 2026-11-06T10:29:53.833Z
+- Proposal 0e977dde-c14a-44b0-afc1-9d7ea5e158d5, version 2, content hash 55d42a4a26f126febaef6026ca90c821f9d8e61ba0205cc1a3c49190f49edc5b
+- Version saved 2026-11-06T11:17:57.725Z
 - Document checks: all core sections written; 0 blocker(s), 5 warning(s)
-- Reviews of this version: revise (Local owner, 2026-11-06)
+- Reviews are kept in the studio with the version they judged; they are not part of this file.
 
 _This is a plan. It has not been carried out, and nothing here shows that it works in practice._
 
@@ -34,7 +34,7 @@ Cut unused first-appointment slots by a quarter within two months.
 
 ## Evidence
 
-- Rural clinics recorded a 23 percent no-show rate for first appointments in 2025.
+1 supporting claim is cited here; their statements, sources and current evidence status are listed under References.
 
 Cited: [R1]
 
@@ -74,7 +74,7 @@ Reminders use existing contact consent; staff keep every booking decision.
 
 ## Limitations
 
-Discovery run bd40dca5-b4a9-4b6c-bb3d-aebd687e1dd8 (fixture): locator rated the evidence well supported; packet sufficient. Evidence for urgency or frequency is contested.
+Discovery run 5ddf7cb5-8204-4042-b9b4-d9f958b2c501 (fixture): locator rated the evidence well supported; packet sufficient. Evidence for urgency or frequency is contested.
 
 Disposition: candidate.
 
@@ -94,7 +94,7 @@ Disposition: candidate.
 
 ## References
 
-- [R1] Rural clinics recorded a 23 percent no-show rate for first appointments in 2025. — claim b340a0ef v1; supports; evidence supported
+- [R1] Rural clinics recorded a 23 percent no-show rate for first appointments in 2025. — claim 46f06b70 v1; supports; evidence supported
   - Missed first appointments at rural clinics, 2025: https://health.fixture.test/reports/no-shows-2025 (supports, current) — “recorded a 23 percent no-show rate for first appointments in 2025”
 
 ## Open checks

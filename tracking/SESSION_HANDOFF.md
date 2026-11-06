@@ -426,6 +426,10 @@ What works: see ADR-0077 and the BUILD_STATUS entry. New routes: `problems/{id}/
 Projects › Proposals (`#/projects/proposals`). Stores: `ProposalStore` sits between `CatalogStore` and
 `StudyStore`; `SelectionStore.gather` is now protected and `toSelection` exported.
 
+Review fixes (L-1–L-7, N-1, N-2 from the independent review at d99a7ff) are in ADR-0077's "Review fixes" bullet;
+migration 49 was amended (append-only trigger, workspace FK) since it is unmerged. `ResearchStore.claimEvidenceIn`
+reads one claim's evidence inside a caller's transaction.
+
 Open: Jordan's answer on the F9 card (the code implements "judge the hybrid row"; reverting is a one-line change in
 `humilityGate`'s callers). No live run or device step was needed or done. Main becomes schema 49; next free numbers
 are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
