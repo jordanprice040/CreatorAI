@@ -38,7 +38,7 @@ export const setOf = (id) => /-(v[0-9]+)$/.exec(id ?? '')?.[1] ?? 'v2';
 export async function verify(set = 'v2') {
   const { BENCHMARKS, freezeProblems, loadBenchmark } = await loadSet(set);
   const { SpecContentSchema, buildBlockers, MAX_BUILD_CASES } = await import(
-    join(ROOT, 'packages/contracts/dist/index.js')
+    pathToFileURL(join(ROOT, 'packages/contracts/dist/index.js')).href
   );
   const problems = freezeProblems();
   for (const id of BENCHMARKS) {
