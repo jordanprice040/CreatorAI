@@ -632,7 +632,9 @@ export function createApi(
   const CHAT_ANSWER_ROUTE =
     /^\/api\/workspaces\/([^/]+)\/(chats)\/([^/]+)\/messages\/([^/]+)\/answer$/;
   const CHAT_SETTINGS_ROUTE = /^\/api\/workspaces\/([^/]+)\/(chat-settings)$/;
-  const NOTES_ROUTE = /^\/api\/workspaces\/([^/]+)\/(notes)$/;
+  // ADR-0073: the person's named notes; one note, its rename and its archive switch.
+  const NOTES_ROUTE =
+    /^\/api\/workspaces\/([^/]+)\/(notes)(?:\/([^/]+)(?:\/(rename|archive))?)?$/;
   const ACTIVITY_NOW_ROUTE = /^\/api\/workspaces\/([^/]+)\/(activity-now)$/;
   async function records(req: IncomingMessage, res: ServerResponse, url: URL) {
     const match =
@@ -722,20 +724,45 @@ export function createApi(
         );
       throw new ContractError('NOT_FOUND', 'Unknown evidence websites route.');
     }
-    // ADR-0060 sidebar: each person's own notes for the workspace, and what is running now.
+    // ADR-0060/ADR-0073 sidebar: each person's own named notes, and what is running now.
     if (ws && NOTES_ROUTE.test(url.pathname)) {
-      if (method === 'GET')
-        return send(200, await store.workspaceNote(ctx, ws), false);
-      if (method === 'POST')
+      if (!item) {
+        if (method === 'GET')
+          return send(200, await store.listWorkspaceNotes(ctx, ws), false);
+        if (method === 'POST')
+          return send(
+            201,
+            await store.createWorkspaceNote(
+              ctx,
+              ws,
+              await readJson(req, NOTES_MAX_BODY),
+            ),
+            true,
+          );
+      } else if (!action) {
+        if (method === 'GET')
+          return send(200, await store.workspaceNote(ctx, ws, item), false);
+        if (method === 'POST')
+          return send(
+            200,
+            await store.saveWorkspaceNote(
+              ctx,
+              ws,
+              item,
+              await readJson(req, NOTES_MAX_BODY),
+            ),
+            true,
+          );
+      } else if (method === 'POST') {
+        const body = await readJson(req);
         return send(
           200,
-          await store.saveWorkspaceNote(
-            ctx,
-            ws,
-            await readJson(req, NOTES_MAX_BODY),
-          ),
+          action === 'rename'
+            ? await store.renameWorkspaceNote(ctx, ws, item, body)
+            : await store.setWorkspaceNoteArchived(ctx, ws, item, body),
           true,
         );
+      }
       throw new ContractError('NOT_FOUND', 'Unknown notes route.');
     }
     // ADR-0072: workspace files (upload, list, view, download, delete).

@@ -15,6 +15,9 @@ type Drafts = {
   clearOtherNoteDrafts: (actor: string) => void;
   trackNoteSave: <T>(p: Promise<T>) => Promise<T>;
   noteSavesSettled: (ms?: number) => Promise<void>;
+  noteSlot: (ws: string, note: string) => string;
+  takeLegacyNoteDraft: (actor: string, ws: string) => Draft | null;
+  noteFileName: (title: string) => string;
 };
 async function load(): Promise<Drafts> {
   const source = await readFile('apps/web/src/note-drafts.ts', 'utf8');
@@ -152,4 +155,46 @@ test('sign-out can wait for a notes save in flight, and for at most the time giv
     ]),
   );
   delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+});
+
+test('ADR-0073: drafts are per note, and the old notepad copy is handed over once', async () => {
+  const s = storage();
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = s;
+  const d = await load();
+  d.clearOtherNoteDrafts('owner');
+  d.writeNoteDraft('owner', 'ws1', {
+    text: 'from the old notepad',
+    base_version: 4,
+  });
+  d.writeNoteDraft('owner', d.noteSlot('ws1', 'n1'), {
+    text: 'one',
+    base_version: 1,
+  });
+  d.writeNoteDraft('owner', d.noteSlot('ws1', 'n2'), {
+    text: 'two',
+    base_version: 1,
+  });
+  assert.equal(d.readNoteDraft('owner', d.noteSlot('ws1', 'n1'))?.text, 'one');
+  assert.equal(d.readNoteDraft('owner', d.noteSlot('ws1', 'n2'))?.text, 'two');
+  assert.equal(d.readNoteDraft('member', d.noteSlot('ws1', 'n1')), null);
+  assert.deepEqual(d.takeLegacyNoteDraft('owner', 'ws1'), {
+    text: 'from the old notepad',
+    base_version: 4,
+  });
+  assert.equal(d.takeLegacyNoteDraft('owner', 'ws1'), null);
+  // Taking the old copy leaves the per-note copies alone.
+  assert.equal(d.readNoteDraft('owner', d.noteSlot('ws1', 'n1'))?.text, 'one');
+  assert.equal(d.hasNoteDrafts('owner'), true);
+  d.clearNoteDrafts();
+  assert.equal(d.hasNoteDrafts('owner'), false);
+  delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+});
+
+test('ADR-0073: exported note file names are safe and never empty', async () => {
+  const d = await load();
+  assert.equal(d.noteFileName('Launch plan'), 'Launch plan.md');
+  assert.equal(d.noteFileName('a/b\\c:d*?"<>|'), 'abcd.md');
+  assert.equal(d.noteFileName('...'), 'note.md');
+  assert.equal(d.noteFileName('  \n '), 'note.md');
+  assert.equal(d.noteFileName('x'.repeat(150)).length, 103);
 });

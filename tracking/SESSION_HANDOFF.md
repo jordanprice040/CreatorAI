@@ -265,3 +265,30 @@ N-3 (the reset button and note say routine edits are reset), N-4 (setup blocker 
 literal union, no cast), N-5 (no private class in presets). Recorded, not fixed: L-4 for P17
 (Guided still needs the six brief fields and one claim; the output is a statement, not a
 choice) and L-5 in ADR-0071 (Projects pages keep their own blocker text, for P17).
+
+## P06 named notes (November 5, branch `claude/project-thread-h4hwto-p06`)
+
+Sidebar Notes (ADR-0073, migration 46, schema 46): several private named notes per person and
+workspace with a switcher, New, Rename, Archive/Restore, Write/Preview (safe Markdown) and
+Export as `.md`. Existing notepads became a note named "Notes" with the same text and version;
+unsaved notepad drafts in the tab carry over. Autosave and conflict recovery work per note.
+
+Checked: `tests/src/sidebar.test.ts` (privacy across people and workspaces, versions, rename
+keeps the text version, archive read-only and restore, no audit rows, member removal, invalid
+names, concurrent saves, the 200-note limit under concurrent creates, migration 46 from the
+layout before 46, every route with sign-in and CSRF) and `web-note-drafts.test.ts` (per-note drafts,
+legacy draft hand-over, export names). Walked in headless Chromium at 1600 and 390 px: an old
+notepad draft became "Notes", Preview formats Markdown and keeps `<script>` as text, Export
+downloads the exact text, rename and archive work, an archived note is read-only, switching
+notes right after typing saves the text, and the chosen note comes back after reload.
+Not done: deleting notes, sharing, search over notes. Awaiting review.
+
+## P06 review fixes (November 5, PR #142 review, no new migration)
+
+Fixes the PR #142 review (project file reviews/PR142_NAMED_NOTES_REVIEW_2026-11-05.md): L-1
+Archive waits for a save in flight and saves text typed during it, and a restored note brings
+back text kept in the tab; L-2 the old `workspace_notes` rows are recorded in ADR-0073 as kept
+until the installed app's upgrade is confirmed, then cleared by a later migration (queued);
+N-1 ADR wording on old-page tabs; N-2 a legacy notepad draft is kept when the note already has
+unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migration test starts
+"from the layout before 46" (wording fixed above).

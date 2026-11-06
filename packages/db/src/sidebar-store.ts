@@ -1,33 +1,64 @@
 import type { PoolClient } from 'pg';
 import {
   ACTIVITY_NOW_MAX,
+  ContractError,
   type ActivityNowItem,
   type WorkspaceNote,
+  type WorkspaceNoteSummary,
 } from '@creator/contracts';
 import { iso, type Row } from './store.js';
 
 // ADR-0060 right-hand sidebar: the SQL behind the notepad and the "Running now" list. The store
 // methods in connection-store.ts hold the transaction and the membership check.
 
-/** The signed-in person's note for a workspace; an empty note at version 0 before the first save. */
+const NOTE_COLUMNS = `id, workspace_id, title, version, status, from_notepad, created_at, updated_at`;
+
+function noteFields(r: Row) {
+  return {
+    id: String(r.id),
+    workspace_id: String(r.workspace_id),
+    title: String(r.title),
+    version: Number(r.version),
+    status: r.status as 'active' | 'archived',
+    from_notepad: Boolean(r.from_notepad),
+    created_at: iso(r.created_at),
+    updated_at: iso(r.updated_at),
+  };
+}
+
+/** ADR-0073: one of the signed-in person's notes; another person's note is not found. */
 export async function workspaceNote(
   c: PoolClient,
   ws: string,
   actor: string,
+  note: string,
   lock = false,
 ): Promise<WorkspaceNote> {
   const { rows } = await c.query(
-    `select text, version, updated_at from workspace_notes
-     where workspace_id = $1 and actor_id = $2${lock ? ' for update' : ''}`,
-    [ws, actor],
+    `select ${NOTE_COLUMNS}, text from personal_notes
+     where workspace_id = $1 and actor_id = $2 and id = $3${lock ? ' for update' : ''}`,
+    [ws, actor, note],
   );
   const r = rows[0] as Row | undefined;
-  return {
-    workspace_id: ws,
-    text: r ? String(r.text) : '',
-    version: r ? Number(r.version) : 0,
-    updated_at: r ? iso(r.updated_at) : null,
-  };
+  if (!r) throw new ContractError('NOT_FOUND', 'Note not found.');
+  return { ...noteFields(r), text: String(r.text) };
+}
+
+/** The person's notes in a workspace, most recently changed first, without their text. */
+export async function workspaceNotes(
+  c: PoolClient,
+  ws: string,
+  actor: string,
+): Promise<WorkspaceNoteSummary[]> {
+  const { rows } = await c.query(
+    `select ${NOTE_COLUMNS}, length(text) as chars from personal_notes
+     where workspace_id = $1 and actor_id = $2 order by updated_at desc, id desc`,
+    [ws, actor],
+  );
+  return (rows as Row[]).map((r) => ({
+    ...noteFields(r),
+    chars: Number(r.chars),
+  }));
 }
 
 const PLAN_PURPOSE: Record<string, string> = {

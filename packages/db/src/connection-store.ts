@@ -46,8 +46,13 @@ import {
   ChatMessageRequestSchema,
   ChatSettingsRequestSchema,
   WorkspaceNoteRequestSchema,
+  NoteArchiveRequestSchema,
+  NoteCreateRequestSchema,
+  NoteRenameRequestSchema,
+  NOTES_PER_PERSON_MAX,
   type ActivityNow,
   type WorkspaceNote,
+  type WorkspaceNoteList,
   ChatRenameRequestSchema,
   chatTitle,
   classifyChat,
@@ -98,6 +103,7 @@ import {
   activityNow,
   PLAN_REQUEST_STALE_AFTER,
   workspaceNote,
+  workspaceNotes,
 } from './sidebar-store.js';
 import {
   buildApprovalBlockers,
@@ -797,60 +803,163 @@ export class ConnectionStore extends PortfolioStore {
     });
   }
 
-  /** ADR-0060: the signed-in person's own note for this workspace. Any member, any role. */
+  /** ADR-0073: the signed-in person's own notes in this workspace. Any member, any role. */
+  async listWorkspaceNotes(
+    ctxIn: CommandContext,
+    ws: string,
+  ): Promise<WorkspaceNoteList> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return { notes: await workspaceNotes(c, uuid(ws), ctx.actorId) };
+    });
+  }
+
+  /** ADR-0073: one of the person's notes, with its text. Another person's note is not found. */
   async workspaceNote(
     ctxIn: CommandContext,
     ws: string,
+    note: string,
   ): Promise<WorkspaceNote> {
     const ctx = normalize(ctxIn);
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
-      return workspaceNote(c, uuid(ws), ctx.actorId);
+      return workspaceNote(c, uuid(ws), ctx.actorId, uuid(note));
     });
   }
 
   /**
-   * ADR-0060: saves the person's note. A stale `expected_version` (another window saved first)
-   * is refused with VERSION_CONFLICT. The note is personal scratch, so a viewer may keep one
-   * too, and no audit event is written: the text never enters the activity history.
+   * ADR-0073: starts a named note. Notes are personal scratch, so a viewer may keep them too,
+   * and no audit event is written: their names and text never enter the activity history.
+   */
+  async createWorkspaceNote(
+    ctxIn: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<WorkspaceNote> {
+    const ctx = normalize(ctxIn);
+    const req = parse(NoteCreateRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      // Serializes one person's creates in a workspace so the count below cannot be raced.
+      await c.query(
+        `select pg_advisory_xact_lock(hashtextextended('personal_notes:' || $1 || ':' || $2, 0))`,
+        [uuid(ws), ctx.actorId],
+      );
+      const { rows } = await c.query(
+        'select count(*)::int as n from personal_notes where workspace_id = $1 and actor_id = $2',
+        [uuid(ws), ctx.actorId],
+      );
+      if (Number((rows[0] as Row).n) >= NOTES_PER_PERSON_MAX)
+        throw fail(
+          'LIMIT_EXCEEDED',
+          `You can keep up to ${NOTES_PER_PERSON_MAX} notes in a workspace. Archived notes count too; reuse one of them.`,
+        );
+      const id = randomUUID();
+      await c.query(
+        `insert into personal_notes (id, workspace_id, actor_id, title, text, version)
+         values ($1, $2, $3, $4, $5, 1)`,
+        [id, uuid(ws), ctx.actorId, req.title, req.text],
+      );
+      return workspaceNote(c, uuid(ws), ctx.actorId, id);
+    });
+  }
+
+  /**
+   * ADR-0073: saves a note's text. A stale `expected_version` (another window saved first) is
+   * refused with VERSION_CONFLICT; the check is in the write itself. An archived note is
+   * read-only until it is restored.
    */
   async saveWorkspaceNote(
     ctxIn: CommandContext,
     ws: string,
+    note: string,
     raw: unknown,
   ): Promise<WorkspaceNote> {
     const ctx = normalize(ctxIn);
     const req = parse(WorkspaceNoteRequestSchema, raw);
     return this.tx(async (c) => {
       await this.role(c, uuid(ws), ctx.actorId, false);
-      const current = await workspaceNote(c, uuid(ws), ctx.actorId, true);
+      const current = await workspaceNote(
+        c,
+        uuid(ws),
+        ctx.actorId,
+        uuid(note),
+        true,
+      );
+      if (current.status === 'archived')
+        throw fail(
+          'INVALID_TRANSITION',
+          'This note is archived. Restore it to edit it.',
+        );
       if (current.version !== req.expected_version)
         throw fail(
           'VERSION_CONFLICT',
-          'These notes were saved from another window since you opened them.',
+          'This note was saved from another window since you opened it.',
         );
-      if (current.version > 0 && current.text === req.text) return current;
-      // The version check is in the write itself, so two first saves racing (no row to lock
-      // yet) cannot both succeed: the second insert does nothing and is refused.
-      const { rowCount } =
-        req.expected_version === 0
-          ? await c.query(
-              `insert into workspace_notes (workspace_id, actor_id, text, version)
-               values ($1, $2, $3, 1) on conflict (workspace_id, actor_id) do nothing`,
-              [uuid(ws), ctx.actorId, req.text],
-            )
-          : await c.query(
-              `update workspace_notes set text = $3, version = version + 1,
-                 updated_at = clock_timestamp()
-               where workspace_id = $1 and actor_id = $2 and version = $4`,
-              [uuid(ws), ctx.actorId, req.text, req.expected_version],
-            );
+      if (current.text === req.text) return current;
+      const { rowCount } = await c.query(
+        `update personal_notes set text = $4, version = version + 1,
+           updated_at = clock_timestamp()
+         where workspace_id = $1 and actor_id = $2 and id = $3 and version = $5`,
+        [uuid(ws), ctx.actorId, uuid(note), req.text, req.expected_version],
+      );
       if (rowCount !== 1)
         throw fail(
           'VERSION_CONFLICT',
-          'These notes were saved from another window since you opened them.',
+          'This note was saved from another window since you opened it.',
         );
-      return workspaceNote(c, uuid(ws), ctx.actorId);
+      return workspaceNote(c, uuid(ws), ctx.actorId, uuid(note));
+    });
+  }
+
+  /** ADR-0073: renames a note. The text and its version are untouched. */
+  async renameWorkspaceNote(
+    ctxIn: CommandContext,
+    ws: string,
+    note: string,
+    raw: unknown,
+  ): Promise<WorkspaceNote> {
+    const ctx = normalize(ctxIn);
+    const req = parse(NoteRenameRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      await workspaceNote(c, uuid(ws), ctx.actorId, uuid(note), true);
+      await c.query(
+        `update personal_notes set title = $4, updated_at = clock_timestamp()
+         where workspace_id = $1 and actor_id = $2 and id = $3`,
+        [uuid(ws), ctx.actorId, uuid(note), req.title],
+      );
+      return workspaceNote(c, uuid(ws), ctx.actorId, uuid(note));
+    });
+  }
+
+  /** ADR-0073: archives or restores a note. Archiving keeps the text; nothing is deleted. */
+  async setWorkspaceNoteArchived(
+    ctxIn: CommandContext,
+    ws: string,
+    note: string,
+    raw: unknown,
+  ): Promise<WorkspaceNote> {
+    const ctx = normalize(ctxIn);
+    const req = parse(NoteArchiveRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      const current = await workspaceNote(
+        c,
+        uuid(ws),
+        ctx.actorId,
+        uuid(note),
+        true,
+      );
+      const status = req.archived ? 'archived' : 'active';
+      if (current.status === status) return current;
+      await c.query(
+        `update personal_notes set status = $4, updated_at = clock_timestamp()
+         where workspace_id = $1 and actor_id = $2 and id = $3`,
+        [uuid(ws), ctx.actorId, uuid(note), status],
+      );
+      return workspaceNote(c, uuid(ws), ctx.actorId, uuid(note));
     });
   }
 

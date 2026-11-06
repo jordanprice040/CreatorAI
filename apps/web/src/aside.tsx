@@ -3,7 +3,10 @@ import {
   ActivityNowSchema,
   ActivityPageSchema,
   NOTE_MAX,
+  NOTE_TITLE_MAX,
+  WorkspaceNoteListSchema,
   WorkspaceNoteSchema,
+  type WorkspaceNoteSummary,
   type ActivityEntry,
   type ActivityNowItem,
   type Workspace,
@@ -14,14 +17,19 @@ import { Icon, eventText, type View } from './ui.js';
 import { canOpen, useOpenSubject } from './destinations.js';
 import './aside.css';
 import {
+  noteFileName,
+  noteSlot,
   readNoteDraft,
+  takeLegacyNoteDraft,
   trackNoteSave,
   writeNoteDraft,
   type NoteDraft,
 } from './note-drafts.js';
+import { Markdown } from './markdown-view.js';
 
 // ADR-0060: the right-hand sidebar. Two tabs, Activity (what is running now and the latest
-// audit events) and Notes (the person's own notepad for this workspace, saved as they type).
+// audit events) and Notes (the person's own named notes for this workspace, saved as they
+// type; ADR-0073).
 // It docks open on wide windows, folds to a rail on mid-size ones and is a drawer on small
 // ones; see `useAsideMode`.
 
@@ -530,12 +538,15 @@ type SaveState =
 
 /** Keepalive requests are limited to 64 KiB by browsers; stay under it. */
 const KEEPALIVE_MAX = 60_000;
+const CURRENT_NOTE_KEY = 'creator.notes-current.';
+
+type EditorControls = { flush: () => Promise<void>; text: () => string };
 
 /**
- * The person's own notes for this workspace. Saved a moment after typing stops, when the
- * field loses focus, when the notepad closes and (best effort) when the page is closed. A save
- * from another window since this one loaded is never overwritten silently: the person picks
- * which text to keep. A failed save waits for more typing or "Try again" (review L-1).
+ * ADR-0073 (P06): the person's own named notes for this workspace. A switcher picks the note;
+ * each can be renamed, archived (kept, read-only) and restored, exported as a Markdown file,
+ * and shown as formatted Markdown. Only the author can see them and they are never sent to a
+ * model. The single notepad of ADR-0060 became the note called "Notes".
  */
 function Notes({
   ws,
@@ -546,6 +557,364 @@ function Notes({
   actor: string;
   csrf: string;
 }) {
+  const [notes, setNotes] = useState<WorkspaceNoteSummary[] | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [current, setCurrentState] = useState<string | null>(null);
+  const [naming, setNaming] = useState<{
+    kind: 'new' | 'rename';
+    value: string;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [preview, setPreview] = useState(false);
+  /** The note whose text the editor has loaded; Export waits for it (review N-3). */
+  const [readyId, setReadyId] = useState<string | null>(null);
+  const controls = useRef<EditorControls | null>(null);
+  const rememberKey = `${CURRENT_NOTE_KEY}${actor}.${ws}`;
+
+  const setCurrent = (id: string | null) => {
+    setCurrentState(id);
+    try {
+      if (id) localStorage.setItem(rememberKey, id);
+    } catch {
+      // Not remembered on this device.
+    }
+  };
+
+  async function load() {
+    setLoadError('');
+    try {
+      let list = (await api(WorkspaceNoteListSchema, `workspaces/${ws}/notes`))
+        .notes;
+      // Text typed in the old single notepad and not yet saved moves to the note it became,
+      // or, if that notepad was never saved, starts one.
+      const legacy = takeLegacyNoteDraft(actor, ws);
+      if (legacy) {
+        const notepad = list.find((n) => n.from_notepad);
+        if (notepad) {
+          if (!readNoteDraft(actor, noteSlot(ws, notepad.id)))
+            writeNoteDraft(actor, noteSlot(ws, notepad.id), {
+              text: legacy.text,
+              base_version: Math.max(1, legacy.base_version),
+            });
+          // That note already has unsaved text here: keep the old copy too, for a later load
+          // to hand over once that text is saved (PR #142 review N-2).
+          else writeNoteDraft(actor, ws, legacy);
+        } else if (legacy.text.trim()) {
+          try {
+            const made = await api(
+              WorkspaceNoteSchema,
+              `workspaces/${ws}/notes`,
+              {
+                body: { title: 'Notes', text: legacy.text },
+                csrf,
+                quiet: true,
+              },
+            );
+            list = [summary(made), ...list];
+          } catch {
+            writeNoteDraft(actor, ws, legacy);
+          }
+        }
+      }
+      setNotes(list);
+      let remembered: string | null = null;
+      try {
+        remembered = localStorage.getItem(rememberKey);
+      } catch {
+        // Nothing remembered.
+      }
+      const pick =
+        list.find((n) => n.id === remembered) ??
+        list.find((n) => n.status === 'active') ??
+        null;
+      setCurrentState(pick?.id ?? null);
+    } catch (e) {
+      setLoadError(message(e));
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, [ws]);
+
+  const note = notes?.find((n) => n.id === current) ?? null;
+  const replace = (n: WorkspaceNote | WorkspaceNoteSummary) =>
+    setNotes((list) =>
+      list ? list.map((x) => (x.id === n.id ? summary(n) : x)) : list,
+    );
+
+  async function act(run: () => Promise<void>) {
+    setBusy(true);
+    setError('');
+    try {
+      await run();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const create = (title: string) =>
+    act(async () => {
+      await controls.current?.flush();
+      const made = await api(WorkspaceNoteSchema, `workspaces/${ws}/notes`, {
+        body: { title, text: '' },
+        csrf,
+        quiet: true,
+      });
+      setNotes((list) => [summary(made), ...(list ?? [])]);
+      setCurrent(made.id);
+      setNaming(null);
+      setPreview(false);
+    });
+  const rename = (title: string) =>
+    act(async () => {
+      if (!note) return;
+      replace(
+        await api(
+          WorkspaceNoteSchema,
+          `workspaces/${ws}/notes/${note.id}/rename`,
+          { body: { title }, csrf, quiet: true },
+        ),
+      );
+      setNaming(null);
+    });
+  const archive = (archived: boolean) =>
+    act(async () => {
+      if (!note) return;
+      // Unsaved text is saved before the note becomes read-only.
+      if (archived) await controls.current?.flush();
+      replace(
+        await api(
+          WorkspaceNoteSchema,
+          `workspaces/${ws}/notes/${note.id}/archive`,
+          { body: { archived }, csrf, quiet: true },
+        ),
+      );
+    });
+  const exportNote = () => {
+    if (!note) return;
+    const url = URL.createObjectURL(
+      new Blob([controls.current?.text() ?? ''], {
+        type: 'text/markdown;charset=utf-8',
+      }),
+    );
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = noteFileName(note.title);
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  if (loadError)
+    return (
+      <p className="error small" role="alert">
+        Notes could not load: {loadError}{' '}
+        <button className="text" onClick={() => void load()}>
+          Try again
+        </button>
+      </p>
+    );
+  if (!notes) return <p className="small">Loading…</p>;
+  const active = notes.filter((n) => n.status === 'active');
+  const archived = notes.filter((n) => n.status === 'archived');
+  const nameForm = naming && (
+    <form
+      className="notes-name"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const title = naming.value.trim();
+        if (!title) return;
+        void (naming.kind === 'new' ? create(title) : rename(title));
+      }}
+    >
+      <label htmlFor={`note-name-${ws}`} className="sr-only">
+        {naming.kind === 'new' ? 'Name for the new note' : 'New name'}
+      </label>
+      <input
+        id={`note-name-${ws}`}
+        autoFocus
+        value={naming.value}
+        maxLength={NOTE_TITLE_MAX}
+        placeholder="Note name"
+        onChange={(e) => setNaming({ ...naming, value: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            setNaming(null);
+          }
+        }}
+      />
+      <button className="secondary" disabled={busy || !naming.value.trim()}>
+        {naming.kind === 'new' ? 'Create' : 'Rename'}
+      </button>
+      <button type="button" className="text" onClick={() => setNaming(null)}>
+        Cancel
+      </button>
+    </form>
+  );
+  if (!notes.length)
+    return (
+      <div className="notes-empty">
+        <p className="small">
+          Keep private notes while you work. Only you can see them; they are
+          saved in this workspace and never sent to a model.
+        </p>
+        {nameForm ?? (
+          <button
+            className="secondary"
+            onClick={() => setNaming({ kind: 'new', value: 'Notes' })}
+          >
+            Start a note
+          </button>
+        )}
+        {error && <p className="error small">{error}</p>}
+      </div>
+    );
+  return (
+    <>
+      <div className="notes-bar">
+        <label htmlFor={`note-pick-${ws}`} className="sr-only">
+          Note
+        </label>
+        <select
+          id={`note-pick-${ws}`}
+          value={current ?? ''}
+          onChange={(e) => {
+            setCurrent(e.target.value || null);
+            setNaming(null);
+            setError('');
+          }}
+        >
+          {!note && <option value="">Choose a note</option>}
+          {active.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.title}
+            </option>
+          ))}
+          {archived.length > 0 && (
+            <optgroup label="Archived">
+              {archived.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.title}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        <button
+          className="text"
+          disabled={busy}
+          onClick={() => setNaming({ kind: 'new', value: '' })}
+        >
+          New
+        </button>
+      </div>
+      {nameForm}
+      {note && (
+        <>
+          <div className="notes-tools" role="group" aria-label="This note">
+            <div className="notes-mode" role="radiogroup" aria-label="Show">
+              <button
+                role="radio"
+                aria-checked={!preview}
+                className={!preview ? 'on' : ''}
+                onClick={() => setPreview(false)}
+              >
+                {note.status === 'archived' ? 'Text' : 'Write'}
+              </button>
+              <button
+                role="radio"
+                aria-checked={preview}
+                className={preview ? 'on' : ''}
+                onClick={() => setPreview(true)}
+              >
+                Preview
+              </button>
+            </div>
+            <button
+              className="text"
+              disabled={busy}
+              onClick={() => setNaming({ kind: 'rename', value: note.title })}
+            >
+              Rename
+            </button>
+            <button
+              className="text"
+              onClick={exportNote}
+              disabled={readyId !== note.id}
+            >
+              Export
+            </button>
+            <button
+              className="text"
+              disabled={busy}
+              onClick={() => void archive(note.status === 'active')}
+            >
+              {note.status === 'active' ? 'Archive' : 'Restore'}
+            </button>
+          </div>
+          {note.status === 'archived' && (
+            <p className="small notes-archived">
+              Archived. Restore it to edit; the text is kept either way.
+            </p>
+          )}
+          {error && <p className="error small">{error}</p>}
+          <NoteEditor
+            key={note.id}
+            ws={ws}
+            actor={actor}
+            csrf={csrf}
+            note={note}
+            preview={preview}
+            controls={controls}
+            onSaved={replace}
+            onReady={setReadyId}
+          />
+        </>
+      )}
+      {!note && error && <p className="error small">{error}</p>}
+    </>
+  );
+}
+
+function summary(
+  n: WorkspaceNote | WorkspaceNoteSummary,
+): WorkspaceNoteSummary {
+  if (!('text' in n)) return n;
+  const { text, ...rest } = n;
+  return { ...rest, chars: text.length };
+}
+
+/**
+ * One note's text. Saved a moment after typing stops, when the field loses focus, when another
+ * note is picked or the notepad closes, and (best effort) when the page is closed. A save from
+ * another window since this one loaded is never overwritten silently: the person picks which
+ * text to keep. A failed save waits for more typing or "Try again" (review L-1).
+ */
+function NoteEditor({
+  ws,
+  actor,
+  csrf,
+  note: summaryIn,
+  preview,
+  controls,
+  onSaved,
+  onReady,
+}: {
+  ws: string;
+  actor: string;
+  csrf: string;
+  note: WorkspaceNoteSummary;
+  preview: boolean;
+  controls: React.MutableRefObject<EditorControls | null>;
+  onSaved: (note: WorkspaceNote) => void;
+  onReady: (id: string) => void;
+}) {
+  const id = summaryIn.id;
+  const readOnly = summaryIn.status === 'archived';
+  const path = `workspaces/${ws}/notes/${id}`;
+  const slot = noteSlot(ws, id);
   const [text, setText] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -553,27 +922,33 @@ function Notes({
   const base = useRef<WorkspaceNote | null>(null);
   const pending = useRef<string | null>(null);
   const saving = useRef(false);
+  /** The save now on its way, so Archive can wait for it (review L-1). */
+  const inFlight = useRef<Promise<void> | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const textRef = useRef(text);
+  textRef.current = text;
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
 
   /** The text of a save now in flight, kept with the draft (review L-A). */
   const sending = useRef<string | null>(null);
-  const writeDraft = (_ws: string, draft: NoteDraft | null) =>
-    writeNoteDraft(actor, ws, draft);
+  const writeDraft = (draft: NoteDraft | null) =>
+    writeNoteDraft(actor, slot, draft);
   const keepDraft = (value: string) =>
-    writeDraft(ws, {
+    writeDraft({
       text: value,
-      base_version: base.current?.version ?? 0,
+      base_version: base.current?.version ?? 1,
       ...(sending.current !== null ? { sent: sending.current } : {}),
     });
 
   async function load() {
     setLoadError('');
     try {
-      const note = await api(WorkspaceNoteSchema, `workspaces/${ws}/notes`);
+      const note = await api(WorkspaceNoteSchema, path);
       base.current = note;
-      let draft = readNoteDraft(actor, ws);
+      let draft = readNoteDraft(actor, slot);
       // Review L-A: a save that was in flight when the page reloaded landed as the next
       // version; the draft is based on it, not on someone else's change.
       if (
@@ -583,7 +958,7 @@ function Notes({
         note.text === draft.sent
       )
         draft = { text: draft.text, base_version: note.version };
-      if (draft && draft.text !== note.text) {
+      if (draft && draft.text !== note.text && note.status === 'active') {
         // Unsaved text from earlier in this tab comes back. If the server moved on since it
         // was typed, the person chooses; otherwise it is simply saved now.
         setText(draft.text);
@@ -596,36 +971,62 @@ function Notes({
           setState({ kind: 'conflict', theirs: note });
         }
       } else {
-        writeDraft(ws, null);
+        // An archived note keeps any unsaved copy until it is restored.
+        if (note.status === 'active') writeDraft(null);
         setText(note.text);
-        setState(
-          note.updated_at
-            ? { kind: 'saved', at: note.updated_at }
-            : { kind: 'idle' },
-        );
+        setState({ kind: 'saved', at: note.updated_at });
       }
       setLoaded(true);
+      onReady(id);
     } catch (e) {
       setLoadError(message(e));
     }
   }
   useEffect(() => {
     void load();
-  }, [ws]);
+  }, []);
+  // Review L-1: text kept in this tab while the note was archived comes back when it is
+  // restored, and is saved as usual.
+  const wasReadOnly = useRef(readOnly);
+  useEffect(() => {
+    const restored = wasReadOnly.current && !readOnly;
+    wasReadOnly.current = readOnly;
+    if (!restored || !loaded || !base.current) return;
+    const draft = readNoteDraft(actor, slot);
+    if (!draft || draft.text === textRef.current) return;
+    setText(draft.text);
+    pending.current = draft.text;
+    if (draft.base_version === base.current.version) schedule();
+    else {
+      const theirs = base.current;
+      base.current = { ...theirs, version: draft.base_version };
+      setState({ kind: 'conflict', theirs });
+    }
+  }, [readOnly]);
 
   async function flush() {
     window.clearTimeout(timer.current);
-    if (saving.current || pending.current === null || !base.current) return;
+    if (
+      saving.current ||
+      pending.current === null ||
+      !base.current ||
+      readOnlyRef.current
+    )
+      return;
     const value = pending.current;
     pending.current = null;
     saving.current = true;
+    let release = () => {};
+    inFlight.current = new Promise<void>((r) => {
+      release = r;
+    });
     sending.current = value;
     keepDraft(value);
     let ok = false;
     setState({ kind: 'saving' });
     try {
       const note = await trackNoteSave(
-        api(WorkspaceNoteSchema, `workspaces/${ws}/notes`, {
+        api(WorkspaceNoteSchema, path, {
           body: { expected_version: base.current.version, text: value },
           csrf,
           quiet: true,
@@ -633,20 +1034,15 @@ function Notes({
       );
       base.current = note;
       ok = true;
-      if (pending.current === null) writeDraft(ws, null);
+      if (pending.current === null) writeDraft(null);
       else keepDraft(pending.current);
-      setState({
-        kind: 'saved',
-        at: note.updated_at ?? new Date().toISOString(),
-      });
+      setState({ kind: 'saved', at: note.updated_at });
+      onSaved(note);
     } catch (e) {
       pending.current ??= value;
       if (e instanceof ApiError && e.code === 'VERSION_CONFLICT') {
         try {
-          const theirs = await api(
-            WorkspaceNoteSchema,
-            `workspaces/${ws}/notes`,
-          );
+          const theirs = await api(WorkspaceNoteSchema, path);
           setState({ kind: 'conflict', theirs });
         } catch (e2) {
           setState({ kind: 'failed', error: message(e2) });
@@ -657,6 +1053,8 @@ function Notes({
     } finally {
       saving.current = false;
       sending.current = null;
+      inFlight.current = null;
+      release();
     }
     // Typing that arrived during a successful save goes out next; after a failure nothing
     // retries on its own (review L-1).
@@ -669,8 +1067,17 @@ function Notes({
       if (stateRef.current.kind !== 'conflict') void flush();
     }, SAVE_DELAY_MS);
   }
-  // Save what is left when the notepad closes or the workspace changes. During a conflict the
-  // text stays in the draft and the choice comes back next time.
+  controls.current = {
+    // Waits for a save already in flight, then saves whatever was typed during it, so Archive
+    // never leaves typed text behind (review L-1).
+    flush: async () => {
+      while (inFlight.current) await inFlight.current;
+      if (stateRef.current.kind !== 'conflict') await flush();
+    },
+    text: () => textRef.current,
+  };
+  // Save what is left when another note is picked, the notepad closes or the workspace
+  // changes. During a conflict the text stays in the draft and the choice comes back next time.
   useEffect(
     () => () => {
       window.clearTimeout(timer.current);
@@ -686,6 +1093,7 @@ function Notes({
         pending.current === null ||
         saving.current ||
         !base.current ||
+        readOnlyRef.current ||
         stateRef.current.kind === 'conflict'
       )
         return;
@@ -695,7 +1103,7 @@ function Notes({
       });
       if (new Blob([body]).size > KEEPALIVE_MAX) return;
       try {
-        void fetch(`/api/workspaces/${ws}/notes`, {
+        void fetch(`/api/${path}`, {
           method: 'POST',
           keepalive: true,
           headers: {
@@ -710,7 +1118,7 @@ function Notes({
     };
     window.addEventListener('pagehide', leave);
     return () => window.removeEventListener('pagehide', leave);
-  }, [ws, csrf]);
+  }, [path, csrf]);
 
   function change(value: string) {
     setText(value);
@@ -731,19 +1139,15 @@ function Notes({
     if (state.kind !== 'conflict') return;
     base.current = state.theirs;
     pending.current = null;
-    writeDraft(ws, null);
+    writeDraft(null);
     setText(state.theirs.text);
-    setState(
-      state.theirs.updated_at
-        ? { kind: 'saved', at: state.theirs.updated_at }
-        : { kind: 'idle' },
-    );
+    setState({ kind: 'saved', at: state.theirs.updated_at });
   }
 
   if (loadError)
     return (
       <p className="error small" role="alert">
-        Notes could not load: {loadError}{' '}
+        This note could not load: {loadError}{' '}
         <button className="text" onClick={() => void load()}>
           Try again
         </button>
@@ -756,11 +1160,8 @@ function Notes({
       {state.kind === 'conflict' && (
         <div className="notice" role="alert">
           <p>
-            These notes were changed in another window
-            {state.theirs.updated_at
-              ? ` (${when(state.theirs.updated_at)})`
-              : ''}
-            . Which text do you want to keep?
+            This note was changed in another window (
+            {when(state.theirs.updated_at)}). Which text do you want to keep?
           </p>
           <div className="actions">
             <button className="secondary" onClick={useTheirs}>
@@ -772,21 +1173,37 @@ function Notes({
           </div>
         </div>
       )}
-      <label htmlFor={`notes-${ws}`} className="sr-only">
-        Your notes for this workspace
-      </label>
-      <textarea
-        id={`notes-${ws}`}
-        className="notes-field"
-        value={text}
-        maxLength={NOTE_MAX}
-        spellCheck
-        placeholder="Jot down anything while you work. Only you can see these notes; they are saved in this workspace and never sent to a model."
-        onChange={(e) => change(e.target.value)}
-        onBlur={() => {
-          if (state.kind !== 'conflict') void flush();
-        }}
-      />
+      {preview ? (
+        <div
+          className="notes-preview"
+          aria-label={`${summaryIn.title}, formatted`}
+        >
+          {text.trim() ? (
+            <Markdown text={text} />
+          ) : (
+            <p className="small">Nothing written yet.</p>
+          )}
+        </div>
+      ) : (
+        <>
+          <label htmlFor={`notes-${id}`} className="sr-only">
+            {summaryIn.title}
+          </label>
+          <textarea
+            id={`notes-${id}`}
+            className="notes-field"
+            value={text}
+            readOnly={readOnly}
+            maxLength={NOTE_MAX}
+            spellCheck
+            placeholder="Jot down anything while you work. Markdown works: # headings, - lists, **bold**, `code`. Only you can see these notes; they are never sent to a model."
+            onChange={(e) => change(e.target.value)}
+            onBlur={() => {
+              if (state.kind !== 'conflict') void flush();
+            }}
+          />
+        </>
+      )}
       <p className="notes-status small" aria-live="polite">
         {state.kind === 'saving' && 'Saving…'}
         {state.kind === 'saved' && `Saved ${when(state.at)}`}
