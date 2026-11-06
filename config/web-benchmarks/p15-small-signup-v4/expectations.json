@@ -1,6 +1,6 @@
 {
   "format": "p15-web-benchmark-expectations/1",
-  "benchmark_id": "p15-small-signup-v3",
+  "benchmark_id": "p15-small-signup-v4",
   "scale": "small",
   "recipe": "static-web/1",
   "declared_scale": "One page (site/index.html, style.css, app.js), one builder task, 5 browser checks, 10 frozen studio browser cases of which 6 are held out",
@@ -286,6 +286,6 @@
     }
   ],
   "whitespace_note": "Text expectations compare whitespace-collapsed text (the checker's rule), so a welcome message that keeps the name's outer spaces is indistinguishable from a trimmed one; trimming is checked through the length rule (A2.3) instead",
-  "replaces": "p15-small-signup-v2 (which replaced v1), both frozen 2026-11-06 and replaced before any live run because the PR #149 reviews changed the checker (v2: worker, WebSocket and WebRTC requests, dialogs and page loads; v3: popups and a 1 s settle after the last step). Cases, spec content and reference are unchanged.",
+  "replaces": "p15-small-signup-v3 (which replaced v2 and v1), all frozen 2026-11-06 and replaced before any live run because the PR #149 reviews changed the checker (v2: worker, WebSocket and WebRTC requests, dialogs and page loads; v3: popups and a 1 s settle after the last step; v4: popups and unsupported workers reported apart from outside requests). Cases, spec content and reference are unchanged.",
   "coverage_note": "The checker reports what it saw while a case ran plus 1 s after its last step. A request scheduled later than that is not seen; the QA sandbox has no network either way, and the claim is no outside request was seen during the frozen cases."
 }

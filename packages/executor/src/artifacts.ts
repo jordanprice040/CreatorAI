@@ -1,7 +1,6 @@
 import { mkdir, readFile, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { BUILD_ROLE_PROMPTS } from '@creator/domain';
 import {
   BuildManifestSchema,
   BrokerCallResultSchema,
@@ -9,6 +8,7 @@ import {
   UNQUALIFIED_TRIAL_NOTE,
   unqualifiedTrial,
   type RecipeQualification,
+  type BuildRoles,
   type BuildManifest,
   type RunInput,
 } from '@creator/contracts';
@@ -32,14 +32,39 @@ import {
 } from './build.js';
 import { canonical, jsonWrite, readJson, event } from './files.js';
 
+import { readTar, writeTar, type PackageFile } from './tar.js';
+
 /**
  * ADR-0078 review L-9: recorded live passes of a recipe's frozen web benchmark, each for one
  * connection, model and pair of role prompts. None yet: the web benchmark has not run live. A pass
  * is added as its own record with its evidence; it never qualifies other connections or prompts.
  */
 const RECIPE_QUALIFICATIONS: readonly RecipeQualification[] = [];
-import { readTar, writeTar, type PackageFile } from './tar.js';
 
+/**
+ * Review L-10: the roles a build actually ran with, hashed from the prompts its intent.json
+ * recorded when it started, not the prompts in the code at packaging time. A build with no plan
+ * roles, or whose recorded prompts do not match its recorded prompt hash, has none.
+ */
+export function buildRoles(intent: {
+  plan: Pick<BuildPlan, 'plan_roles'>;
+  prompts?: { builder?: unknown; reviewer?: unknown };
+  prompt_hash: string;
+}): BuildRoles | null {
+  const { builder, reviewer } = intent.prompts ?? {};
+  if (
+    !intent.plan.plan_roles ||
+    typeof builder !== 'string' ||
+    typeof reviewer !== 'string' ||
+    digest(JSON.stringify(intent.prompts)) !== intent.prompt_hash
+  )
+    return null;
+  return {
+    ...intent.plan.plan_roles,
+    builder_prompt_sha256: digest(builder),
+    reviewer_prompt_sha256: digest(reviewer),
+  };
+}
 export const REVIEWED_BACKEND = 'wsl2-bwrap-systemd';
 const mismatch = (m: string) => new ContractError('EVIDENCE_MISMATCH', m);
 /** A case passes only on the exact output and exit status, with no supervisor-side reason. */
@@ -59,7 +84,8 @@ export function casePassed(e: Execution, c: QaCase): boolean {
     r.steps.length === c.steps.length &&
     r.steps.every((x, i) => x.passed && x.index === i) &&
     !r.page_errors.length &&
-    !r.outbound.length
+    !r.outbound.length &&
+    !r.unsupported.length
   );
 }
 
@@ -100,6 +126,7 @@ export class ArtifactSupervisor {
     const buildDir = join(this.products.dir(productId), 'builds', buildId);
     const intent = (await readJson(join(buildDir, 'intent.json'))) as {
       plan: BuildPlan;
+      prompts?: { builder?: unknown; reviewer?: unknown };
       prompt_hash: string;
     };
     const buildQa: BuildManifest['tests']['build_qa'] = [];
@@ -212,13 +239,7 @@ export class ArtifactSupervisor {
     const web = recipe === 'static-web/1';
     const trial = unqualifiedTrial(
       recipe,
-      intent.plan.plan_roles
-        ? {
-            ...intent.plan.plan_roles,
-            builder_prompt_sha256: digest(BUILD_ROLE_PROMPTS.builder),
-            reviewer_prompt_sha256: digest(BUILD_ROLE_PROMPTS.reviewer),
-          }
-        : null,
+      buildRoles(intent),
       RECIPE_QUALIFICATIONS,
     );
     const template = templateOf(p.recipe);

@@ -18,6 +18,7 @@ import {
   WEB_QA_RUNTIME,
   WEB_TEMPLATE,
   browserResult,
+  buildRoles,
   casePassed,
   digest,
   qaPassed,
@@ -57,7 +58,7 @@ import {
 import { TestDoubleExecutor } from './artifact-double.js';
 
 const ROOT = resolve('.');
-const BENCH = join(ROOT, 'config/web-benchmarks/p15-small-signup-v3');
+const BENCH = join(ROOT, 'config/web-benchmarks/p15-small-signup-v4');
 const benchSpec = (): SpecContent =>
   JSON.parse(readFileSync(join(BENCH, 'spec.json'), 'utf8')).content;
 const reference = (name: string) =>
@@ -132,6 +133,16 @@ test('typed browser steps parse, format back and refuse malformed lines', () => 
   // Review N-2: an escaped trailing character is part of a name.
   assert.ok(
     BrowserStepSchema.safeParse({ action: 'click', selector: '.a\\,' }).success,
+  );
+  // Review N-c: an escaped backslash leaves the comma after it unescaped.
+  assert.equal(
+    BrowserStepSchema.safeParse({ action: 'click', selector: '.a\\\\,' })
+      .success,
+    false,
+  );
+  assert.ok(
+    BrowserStepSchema.safeParse({ action: 'click', selector: '.a\\\\\\,' })
+      .success,
   );
 });
 
@@ -446,6 +457,7 @@ test('a browser case passes only on one complete, clean checker result for this 
       ],
       page_errors: [],
       outbound: [],
+      unsupported: [],
       ...over,
     });
   const e = (log: string, more: Partial<Execution> = {}): Execution => ({
@@ -473,6 +485,7 @@ test('a browser case passes only on one complete, clean checker result for this 
     e(result({ steps: [{ index: 0, passed: true, detail: 'done' }] })),
     e(result({ page_errors: ['TypeError'] })),
     e(result({ outbound: ['https://cdn.example/x.js'] })),
+    e(result({ unsupported: ['a popup window about:blank'] })),
     e(result() + '\n' + result()),
     e('not json'),
     e(result(), { recipe: 'python-build/1' }),
@@ -731,7 +744,7 @@ test('review L-9: a web pass qualifies only the connection, model and role promp
   const pass = {
     ...roles,
     recipe: 'static-web/1' as const,
-    benchmark_id: 'p15-small-signup-v3',
+    benchmark_id: 'p15-small-signup-v4',
   };
   assert.equal(unqualifiedTrial('python-build/1', null, []), false);
   assert.equal(unqualifiedTrial('static-web/1', roles, []), true);
@@ -748,6 +761,35 @@ test('review L-9: a web pass qualifies only the connection, model and role promp
       true,
       JSON.stringify(other),
     );
+  // Review L-10: a pass on a replaced benchmark version qualifies nothing.
+  assert.equal(
+    unqualifiedTrial('static-web/1', roles, [
+      { ...pass, benchmark_id: 'p15-small-signup-v3' },
+    ]),
+    true,
+  );
+});
+
+test('review L-10: the roles hash the prompts the build recorded, not the code at packaging time', () => {
+  const prompts = { builder: 'old builder', reviewer: 'old reviewer' };
+  const plan = { plan_roles: { connection_id: randomUUID(), model_id: 'm' } };
+  const intent = {
+    plan,
+    prompts,
+    prompt_hash: digest(JSON.stringify(prompts)),
+  };
+  assert.deepEqual(buildRoles(intent), {
+    ...plan.plan_roles,
+    builder_prompt_sha256: digest('old builder'),
+    reviewer_prompt_sha256: digest('old reviewer'),
+  });
+  // No plan roles, no recorded prompts, or prompts that do not match their hash: no roles.
+  assert.equal(buildRoles({ ...intent, plan: {} }), null);
+  assert.equal(buildRoles({ plan, prompt_hash: intent.prompt_hash }), null);
+  assert.equal(
+    buildRoles({ ...intent, prompts: { ...prompts, builder: 'new builder' } }),
+    null,
+  );
 });
 
 test('review N-4: the pinned browser shown in the app is the one the bridge verifies, with a recheck date', () => {
@@ -787,12 +829,12 @@ test(
     const bench = await import(join(ROOT, 'scripts/p15-web-benchmark.mjs'));
     assert.deepEqual(await bench.verify(), []);
     const s = bench.score(
-      'p15-small-signup-v3',
+      'p15-small-signup-v4',
       join(BENCH, 'reference'),
       browserDir,
     );
     assert.equal(s.passed, 10, JSON.stringify(s.results));
-    for (const m of bench.mutants('p15-small-signup-v3', browserDir))
+    for (const m of bench.mutants('p15-small-signup-v4', browserDir))
       assert.ok(m.caught, `${m.id} not caught: ${JSON.stringify(m)}`);
   },
 );

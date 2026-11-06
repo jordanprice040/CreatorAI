@@ -438,3 +438,16 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 853 tests, 820 pass, 28 skips, 5 fail (known
   no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
 - Browser install and live builds (Jordan's typed OK 11:28) still held until a clean review.
+
+## P15 third-review fixes (November 6, PR #149 third review at `e9b5a68`, ADR-0078 amendment, no migration)
+
+- [Third review](../docs/PR149_THIRD_REVIEW_2026-11-06.md): no High or Medium. Fixed L-10 (trial label hashes the
+  prompts recorded in the build's `intent.json`, and only a pass on the current benchmark version in
+  `RECIPE_BENCHMARKS` counts), L-11 (build page shows the newest package's own label; artifact summaries carry
+  `role_qualification`), N-a, N-b (checker reports popups and unsupported workers in `unsupported`, apart from
+  `outbound`), N-c (escaped backslash then a comma is refused).
+- The N-b checker change made benchmark v3 `p15-small-signup-v4` before any live run. Reference 10/10 (6/6 held out);
+  all 16 known failures caught, each for its own reason. `verify` passes and checks `RECIPE_BENCHMARKS`.
+- Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 854 tests, 821 pass, 28 skips, 5 fail (known
+  no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
+- Browser install and live builds still held until a clean review.

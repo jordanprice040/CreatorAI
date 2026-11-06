@@ -132,6 +132,9 @@ export class ArtifactStore extends StudyBuildStore {
             Number(r.current_spec_version) === Number(r.spec_version),
           previous_id: r.previous_id ? String(r.previous_id) : null,
           created_at: iso(r.created_at),
+          ...(manifest.toolchain.role_qualification
+            ? { role_qualification: manifest.toolchain.role_qualification }
+            : {}),
         },
       };
     });

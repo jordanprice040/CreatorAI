@@ -145,10 +145,11 @@ class Browser:
                 self.navigations += 1
         elif m == 'Target.targetCreated' and p.get('targetInfo', {}).get('type') in (
                 'service_worker', 'shared_worker'):
-            self.unsupported.append('a ' + p['targetInfo']['type'].replace('_', ' '))
+            self.unsupported.append(('a ' + p['targetInfo']['type'].replace('_', ' '),
+                                     p['targetInfo'].get('url', '')[:150]))
         elif m == 'Target.targetCreated' and p.get('targetInfo', {}).get('openerId'):
             # window.open: a new top-level page the checker does not watch, so it fails the case.
-            self.unsupported.append(('a popup window ' + p['targetInfo'].get('url', '')[:150]).strip())
+            self.unsupported.append(('a popup window', p['targetInfo'].get('url', '')[:150]))
         elif m == 'Page.javascriptDialogOpening':
             # Nobody answers a dialog in QA: dismiss it, and fail the case with that reason.
             self.dialogs.append(p.get('type', 'dialog'))
@@ -362,7 +363,7 @@ def main():
     os.makedirs('/tmp/home', exist_ok=True)
     b = Browser('/tmp/profile')
     result = {'format': FORMAT, 'passed': False, 'steps': [], 'page_errors': [],
-              'outbound': [], 'reason': None}
+              'outbound': [], 'unsupported': [], 'reason': None}
     try:
         version = b.send('Browser.getVersion', session=False, timeout=LOAD_SECONDS)
         result['browser'] = version.get('product')
@@ -435,20 +436,21 @@ def main():
                 result['outbound'].append('websocket ' + p.get('url', '')[:190])
             if m == 'Runtime.bindingCalled' and p.get('name') == BINDING:
                 result['outbound'].append(str(p.get('payload', 'webrtc'))[:200])
-        for kind in b.unsupported:
-            result['outbound'].append(kind + ' (not supported by static-web/1)')
+        # Review N-b: kept apart from outbound, which lists requests outside the site only.
+        result['unsupported'] = [(kind + ' ' + url).strip() for kind, url in b.unsupported[:20]]
         result['workers'] = b.workers[:20]
         if b.dialogs:
             result['reason'] = result['reason'] or 'the page opened a dialog'
         if result['page_errors']:
             result['reason'] = result['reason'] or 'uncaught page error'
         if b.unsupported:
-            kinds = sorted({k.split(' http')[0].strip() for k in b.unsupported})
+            kinds = sorted({kind for kind, _ in b.unsupported})
             result['reason'] = result['reason'] or (
                 'the page opened ' + ', '.join(kinds) + ', which static-web/1 does not support')
         if result['outbound']:
             result['reason'] = result['reason'] or 'request outside the site'
-        result['passed'] = ok and not result['page_errors'] and not result['outbound'] and not b.dialogs \
+        result['passed'] = ok and not result['page_errors'] and not result['outbound'] \
+            and not b.unsupported and not b.dialogs \
             and len(result['steps']) == len(case['steps'])
         result['site_requests'] = Handler.requests[:50]
     except QaError as e:
@@ -464,4 +466,4 @@ if __name__ == '__main__':
         main()
     except QaError as e:
         finish({'format': FORMAT, 'passed': False, 'steps': [], 'page_errors': [], 'outbound': [],
-                'reason': str(e)[:500]})
+                'unsupported': [], 'reason': str(e)[:500]})

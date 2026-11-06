@@ -238,7 +238,8 @@ export function qaPassed(execution: Execution, commit: string, c: QaCase) {
     r.steps.length === c.steps.length &&
     r.steps.every((s, i) => s.passed && s.index === i) &&
     !r.page_errors.length &&
-    !r.outbound.length
+    !r.outbound.length &&
+    !r.unsupported.length
   );
 }
 export const browserResultSchema = z.object({
@@ -254,6 +255,8 @@ export const browserResultSchema = z.object({
   ),
   page_errors: z.array(z.string()),
   outbound: z.array(z.string()),
+  /** Review N-b: popups and service or shared workers, which static-web/1 does not support. */
+  unsupported: z.array(z.string()),
 });
 export type BrowserResult = z.infer<typeof browserResultSchema>;
 /** The checker's result from an execution log, or null when the log is not exactly one. */

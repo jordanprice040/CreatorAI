@@ -868,6 +868,12 @@ function Product({
     b.package?.state === 'done'
       ? b.package.artifact_id
       : artifactForBuild(data.artifacts, b, p.binding)?.id;
+  /** Review L-11: the trial wording comes from the newest package's own manifest. */
+  const newestPackage = entry.builds
+    .map((b) => packaged(b))
+    .filter(Boolean)
+    .map((id) => data.artifacts.find((a) => a.id === id))
+    .find(Boolean);
   return (
     <article className="artifact">
       <h4>
@@ -877,10 +883,14 @@ function Product({
       {p.recipe === 'static-web/1' && (
         <p className="notice">
           Static web builds are unqualified trials unless the builder and
-          reviewer on this build&apos;s own connection, model and role prompts
-          passed the frozen web benchmark live; each package says which it is.
-          None has yet. QA runs in the pinned {PINNED_BROWSER.name}{' '}
-          {PINNED_BROWSER.version} (pinned {PINNED_BROWSER.pinned_on});{' '}
+          reviewer on the build&apos;s own connection, model and role prompts
+          passed the frozen web benchmark live; each package records which it
+          is.{' '}
+          {newestPackage
+            ? `This product's newest package is ${newestPackage.role_qualification === 'unqualified_trial' ? 'an unqualified trial' : 'qualified'}.`
+            : 'This product has no package yet.'}{' '}
+          QA runs in the pinned {PINNED_BROWSER.name} {PINNED_BROWSER.version}{' '}
+          (pinned {PINNED_BROWSER.pinned_on});{' '}
           {new Date().toISOString().slice(0, 10) > browserRecheckDue() ? (
             <strong>
               its security re-check was due {browserRecheckDue()} and is overdue

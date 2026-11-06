@@ -174,6 +174,8 @@ export const ArtifactSummarySchema = z.strictObject({
   current: z.boolean(),
   previous_id: id.nullable(),
   created_at: z.iso.datetime(),
+  /** Review L-11: copied from the manifest so pages show what the package itself records. */
+  role_qualification: z.literal('unqualified_trial').optional(),
 });
 export type ArtifactSummary = z.infer<typeof ArtifactSummarySchema>;
 /** ADR-0069: how long a preview lasts. Timed is still the default. */

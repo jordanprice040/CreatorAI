@@ -12,9 +12,12 @@ function selectorShapeOk(s: string): boolean {
   const close: Record<string, string> = { '[': ']', '(': ')' };
   const open: string[] = [];
   let quote = '';
+  let escapedEnd = false;
   for (let i = 0; i < s.length; i++) {
     const c = s[i]!;
     if (c === '\\') {
+      // Review N-c: escapes pair left to right, so two backslashes then a comma end in a real comma.
+      escapedEnd = i + 1 === s.length - 1;
       i++;
       continue;
     }
@@ -27,7 +30,12 @@ function selectorShapeOk(s: string): boolean {
     }
   }
   // An escaped trailing character (`.a\\,`) is part of a name, not a combinator.
-  return !quote && !open.length && !/^[>+~,]|(?<!\\)[>+~,]$/.test(s);
+  return (
+    !quote &&
+    !open.length &&
+    !/^[>+~,]/.test(s) &&
+    (escapedEnd || !/[>+~,]$/.test(s))
+  );
 }
 const selector = z
   .string()
@@ -293,6 +301,13 @@ export type BuildRoles = {
   builder_prompt_sha256: string;
   reviewer_prompt_sha256: string;
 };
+/**
+ * Review L-10: the benchmark version that currently qualifies each non-Python recipe. A version is
+ * replaced whenever its cases or checker change, so a pass on an older version never qualifies a
+ * build. scripts/p15-web-benchmark.mjs verify checks it names a benchmark it publishes.
+ */
+export const RECIPE_BENCHMARKS: Readonly<Partial<Record<BuildRecipe, string>>> =
+  { 'static-web/1': 'p15-small-signup-v4' };
 /** A recorded live pass of a recipe's frozen benchmark by one set of roles. */
 export type RecipeQualification = BuildRoles & {
   recipe: BuildRecipe;
@@ -301,8 +316,9 @@ export type RecipeQualification = BuildRoles & {
 /**
  * Whether a build is an unqualified trial. Python builds are admitted only on qualified roles
  * (ADR-0048/0049), so they never are. Any other recipe is a trial unless a recorded benchmark pass
- * matches this build's own connection, model and both current role prompts; a pass on another
- * connection, model or prompt version never lifts the label.
+ * matches this build's own connection, model and both role prompts it used, on the recipe's
+ * current benchmark version; a pass on another connection, model, prompt or benchmark version
+ * never lifts the label.
  */
 export function unqualifiedTrial(
   recipe: BuildRecipe,
@@ -315,6 +331,7 @@ export function unqualifiedTrial(
     qualifications.some(
       (q) =>
         q.recipe === recipe &&
+        q.benchmark_id === RECIPE_BENCHMARKS[recipe] &&
         q.connection_id === roles.connection_id &&
         q.model_id === roles.model_id &&
         q.builder_prompt_sha256 === roles.builder_prompt_sha256 &&

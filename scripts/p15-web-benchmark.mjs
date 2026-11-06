@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DIR = join(ROOT, 'config/web-benchmarks');
 export const CHECKER = join(ROOT, 'packages/executor/worker/web_recipe.py');
-export const BENCHMARKS = ['p15-small-signup-v3'];
+export const BENCHMARKS = ['p15-small-signup-v4'];
 const BROWSER_VERSION = '156.0.8078.47';
 export const DEFAULT_BROWSER = join(
   homedir(),
@@ -84,11 +84,21 @@ export function load(id) {
   return { spec, cases, expectations: read('expectations.json') };
 }
 export async function verify() {
-  const { SpecContentSchema, buildBlockers, taskRecipe, MAX_BUILD_CASES } =
-    await import(
-      pathToFileURL(join(ROOT, 'packages/contracts/dist/index.js')).href
-    );
+  const {
+    SpecContentSchema,
+    buildBlockers,
+    taskRecipe,
+    MAX_BUILD_CASES,
+    RECIPE_BENCHMARKS,
+  } = await import(
+    pathToFileURL(join(ROOT, 'packages/contracts/dist/index.js')).href
+  );
   const problems = [];
+  // Review L-10: the version the studio qualifies against must be one published here.
+  if (!BENCHMARKS.includes(RECIPE_BENCHMARKS['static-web/1']))
+    problems.push(
+      `RECIPE_BENCHMARKS names ${RECIPE_BENCHMARKS['static-web/1']}, which is not published`,
+    );
   for (const id of BENCHMARKS) {
     problems.push(...freezeProblems(id));
     const b = load(id);

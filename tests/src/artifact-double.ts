@@ -68,6 +68,7 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
               })),
               page_errors: [],
               outbound: [],
+              unsupported: [],
             })
           : 'stdout' in (expected ?? {})
             ? (expected as { stdout: string }).stdout

@@ -139,7 +139,7 @@ system libraries (it never runs sudo). On Ubuntu 22.04 drop the `t64` suffixes.
 Check it with the frozen benchmark reference (no model call):
 
 ```
-node scripts/p15-web-benchmark.mjs score p15-small-signup-v3 config/web-benchmarks/p15-small-signup-v3/reference
+node scripts/p15-web-benchmark.mjs score p15-small-signup-v4 config/web-benchmarks/p15-small-signup-v4/reference
 ```
 
 Expected: 10 of 10, 6 of 6 held out.
@@ -150,14 +150,14 @@ The roles keep their prompts (`builder/1`, `independent-reviewer/2`); the builde
 `qa_runtime` describes the web checker. Their qualifications were measured on Python tasks only, so
 the web recipe is **not qualified** until this benchmark passes live.
 
-- Benchmark `config/web-benchmarks/p15-small-signup-v3` (frozen; `FREEZE.json` includes the checker hash):
+- Benchmark `config/web-benchmarks/p15-small-signup-v4` (frozen; `FREEZE.json` includes the checker hash):
   one sign-up page, one task, 5 browser checks, 10 studio cases of which 6 are held out.
   `scripts/p15-web-benchmark.mjs verify` checks the freeze and that the spec parses unchanged with
   the studio's own schema and builds with `static-web/1`; `mutants` checks that all 16 listed known
   failures are caught by the cases named for them (9 behaviour bugs, plus a worker request, a
   WebSocket, WebRTC, an alert dialog, a native form submit, a popup window and a request 600 ms after
-  the first input). The hostile ones must also fail for their own reason (`reason_contains`). v1 and
-  v2 were frozen and replaced before any live run, because the reviews changed the checker; cases,
+  the first input). The hostile ones must also fail for their own reason (`reason_contains`). v1, v2
+  and v3 were frozen and replaced before any live run, because the reviews changed the checker; cases,
   spec content and reference are unchanged.
 - Until it passes, every `static-web/1` build is an **unqualified trial**: its manifest carries
   `toolchain.role_qualification: 'unqualified_trial'` and a limitation saying so, and the build and Try
@@ -165,7 +165,10 @@ the web recipe is **not qualified** until this benchmark passes live.
   `packages/contracts/src/web-recipe.ts` lifts the label only for a build whose own connection, model
   and both role-prompt hashes match a recorded pass (`RECIPE_QUALIFICATIONS` in
   `packages/executor/src/artifacts.ts`, empty today). A pass on one connection, model or prompt version
-  never qualifies another.
+  never qualifies another. The prompt hashes come from the prompts the build recorded in its
+  `intent.json` when it started, not from the code at packaging time, and only a pass on the recipe's
+  current benchmark version (`RECIPE_BENCHMARKS`, checked by `verify`) counts (third review L-10). The
+  build page reads the newest package's own label rather than a fixed sentence (L-11).
 - Route: `plan_roles` on the dev studio, $0. Caps per attempt: `max_repairs` 1, `max_calls` 4,
   8,000 output tokens. Expected 2 requests per attempt, at most 4; 3 attempts, at most 12 requests.
 - Pass bar per attempt and what to record: `expectations.json`. Qualified at its declared scale only
@@ -175,8 +178,8 @@ the web recipe is **not qualified** until this benchmark passes live.
 
 ## 8. Checks run for this slice (cloud container, Linux)
 
-After the re-review (section 10): the v3 reference passes 10 of 10 and all 16 known failures are
-caught, each hostile one for its own reason, in two consecutive runs, through `scripts/p15-web-benchmark.mjs`, which now runs the bridge's own
+After the third review (section 10): the v4 reference passes 10 of 10 and all 16 known failures are
+caught, each hostile one for its own reason, through `scripts/p15-web-benchmark.mjs`, which now runs the bridge's own
 `sandbox_args` list and `verify_browser` check (the only host difference, binding `/etc/alternatives`
 because this container's `python3` resolves through it, is reported as `sandbox_deviations`). A page
 that registers a service worker also fails. The first run of this section was:
@@ -238,3 +241,15 @@ known failures pin their reason. N-2: selector wording; an escaped trailing char
 N-3: the superseded ADR-0078 bullets are marked. N-4: `PINNED_BROWSER` (contracts, checked equal to the
 bridge) records the pin date, and the build page shows when the monthly security re-check is due or
 overdue. Benchmark v2 became v3 before any live run.
+
+**Third review (same day, at `e9b5a68`; no High or Medium).** Fixed: L-10, the trial label's role
+hashes come from the prompts recorded in the build's `intent.json` (a mismatch with its recorded
+prompt hash, or no plan roles, means no roles and a trial), and a pass counts only on the recipe's
+current benchmark version (`RECIPE_BENCHMARKS` in contracts). L-11, the build page's notice states the
+newest package's own `role_qualification` (now also on artifact summaries) instead of "None has yet".
+N-a, the qualification list sits after the imports. N-b, popups and service or shared workers are
+reported in the checker's own `unsupported` list, apart from `outbound` (outside requests only), and a
+case passes only when both are empty; the reason names the kind without its URL. Because that changed
+the checker, benchmark v3 became `p15-small-signup-v4` before any live run (cases, spec content and
+reference unchanged). N-c, the selector shape check pairs escapes left to right, so an escaped
+backslash followed by a comma is refused.
