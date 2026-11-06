@@ -314,3 +314,91 @@ test(
     }
   },
 );
+
+// Sets v3 and v4 (ADR-0076): the larger task again, each under its own frozen grader and FREEZE.json.
+for (const [SET, LARGER3] of [
+  ['v3', 'p14-larger-ledgercheck-v3'],
+  ['v4', 'p14-larger-ledgercheck-v4'],
+] as const) {
+  const BENCH3 = join(BENCH, SET);
+
+  test(`set ${SET} is frozen on its own, repeats the v2 larger task, and refuses scoring when edited`, async () => {
+    const m = await load();
+    const v3 = await m.loadSet(SET);
+    assert.deepEqual(await m.verify(SET), []);
+    assert.deepEqual(v3.BENCHMARKS, [LARGER3]);
+    assert.equal(m.setOf(LARGER3), SET);
+    assert.equal(m.setOf(LARGER), 'v2');
+    // The task, cases and reference are the v2 ones; only the id and the run notes differ.
+    const two = m.loadBenchmark(LARGER);
+    const three = v3.loadBenchmark(LARGER3);
+    assert.deepEqual(three.spec.content, two.spec.content);
+    assert.deepEqual(three.cases, two.cases);
+    assert.deepEqual(three.extended, two.extended);
+    for (const f of [
+      'main.py',
+      'ledger/__init__.py',
+      'ledger/parse.py',
+      'ledger/rules.py',
+      'ledger/report.py',
+    ])
+      assert.equal(
+        readFileSync(join(BENCH3, LARGER3, 'reference/src', f), 'utf8'),
+        readFileSync(join(BENCH, LARGER, 'reference/src', f), 'utf8'),
+      );
+    assert.deepEqual(
+      three.expectations.known_failure_cases,
+      two.expectations.known_failure_cases,
+    );
+    // The v2 freeze does not bind v3 files, and editing a v3 file breaks only v3.
+    const p = join(BENCH3, 'grader.mjs');
+    const before = readFileSync(p);
+    try {
+      writeFileSync(p, Buffer.concat([before, Buffer.from('\n')]));
+      assert.deepEqual(await m.verify('v2'), []);
+      const r = spawnSync(process.execPath, [
+        script,
+        'score',
+        LARGER3,
+        join(BENCH3, LARGER3, 'reference'),
+        '--runner',
+        'direct',
+        '--trusted',
+      ]);
+      assert.equal(r.status, 2);
+      assert.match(r.stderr.toString(), /Refusing to score/);
+    } finally {
+      writeFileSync(p, before);
+    }
+  });
+
+  test(
+    `the ${SET} reference passes and every listed ${SET} known failure is caught`,
+    { skip: !hasPython && 'python3 not on PATH' },
+    async () => {
+      const m = await load();
+      const v3 = await m.loadSet(SET);
+      const ref = v3.score(LARGER3, join(BENCH3, LARGER3, 'reference'), {
+        kind: 'direct',
+      });
+      assert.equal(ref.pass, true, JSON.stringify(ref.failures));
+      const dir = mkdtempSync(join(tmpdir(), `p14-${SET}-mutant-`));
+      try {
+        for (const k of v3.loadBenchmark(LARGER3).expectations
+          .known_failure_cases as { id: string; caught_by: string[] }[]) {
+          const where = join(dir, k.id);
+          // The reference equals the v2 one (checked above), so the v2 mutants apply.
+          mutant(where, LARGER, MUTANTS[LARGER]![k.id]!);
+          const r = v3.score(LARGER3, where, { kind: 'direct' });
+          const failed = new Set(r.failures.map((f: { id: string }) => f.id));
+          assert.ok(
+            k.caught_by.some((c) => failed.has(c)),
+            `${LARGER3} ${k.id}: none of ${k.caught_by.join(', ')} failed`,
+          );
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
+}

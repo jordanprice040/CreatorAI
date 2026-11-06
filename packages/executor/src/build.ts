@@ -27,7 +27,7 @@ import {
   type Execution,
   type QaCase,
 } from './contracts.js';
-import { ProductSupervisor } from './products.js';
+import { PatchRefusedError, ProductSupervisor } from './products.js';
 import { ExecutionSupervisor } from './execution.js';
 import { canonical, fileAt, jsonWrite, readJson, withLock } from './files.js';
 import { git, head, clean, safeTree } from './git.js';
@@ -164,6 +164,31 @@ export const planRoleResultSchema = z.strictObject({
 });
 export type PlanRoleResult = z.infer<typeof planRoleResultSchema>;
 const PROMPTS = BUILD_ROLE_PROMPTS;
+/**
+ * ADR-0076: the scoped patch tool's rules, sent to the builder as packet data (not in the
+ * qualified role prompt) so a builder can follow them, and repeated with any refusal.
+ */
+export const PATCH_RULES = [
+  'Paths are relative, use / between segments and have at most 180 characters.',
+  'Each segment uses only a-z, 0-9, _ and -, with dots only between non-empty parts. It starts with a letter or digit after optional leading underscores, so __init__.py is allowed. __pycache__ and Windows device names (con, prn, aux, nul, com0-9, lpt0-9) are refused.',
+  'Every changed path must be a task.file_scope entry or lie beneath one, and each path appears once.',
+  'expected_commit is the candidate commit. before_hash is the SHA-256 hex of the file content given in files, or null for a new file; content null deletes an existing file.',
+  'All new content together is at most 512 KiB.',
+] as const;
+/** How studio QA runs each frozen case; build.ts runs exactly this command. */
+export const QA_RUNTIME = {
+  command: ['/usr/bin/python3', '-I', 'src/main.py', '<case args>'],
+  working_directory: 'the product root',
+  notes:
+    'python3 -I ignores PYTHON* variables and user site-packages and does not put the script directory on sys.path, so src/main.py must add its own directory to sys.path before importing local modules. No network.',
+} as const;
+/** A refused submission's reason and contract details, bounded for the feedback packet. */
+function refusalOf(reason: string, details: readonly string[]) {
+  return {
+    reason: reason.slice(0, 300),
+    details: details.slice(0, 20).map((d) => d.slice(0, 300)),
+  };
+}
 /** Role packet bound for metered broker builds, where nothing else bounds the input. */
 export const BROKER_ROLE_CONTEXT_MAX = 20_000;
 /**
@@ -476,6 +501,9 @@ export class BuildSupervisor {
         return result.output.json ?? JSON.parse(result.output.text);
       };
       let feedback: unknown = null;
+      let lastRefusal: string | null = null;
+      // The newest review and QA feedback, kept through later refused rounds (PR #146 M-1).
+      let lastReview: unknown = null;
       try {
         if (plan.plan_roles) {
           // Both roles must be admissible before the grant is used or the builder is sent.
@@ -521,9 +549,24 @@ export class BuildSupervisor {
             ...packet,
             candidate: commit,
             files: await files(),
+            patch_rules: PATCH_RULES,
+            qa_runtime: QA_RUNTIME,
             feedback,
           };
-          let built: z.infer<typeof builderSchema>;
+          // ADR-0076: a submission the patch contract or scoped tool refuses changes nothing; the
+          // reason goes back to the builder as feedback and the round counts as a repair.
+          const refuse = async (reason: string, details: readonly string[]) => {
+            const refusal = refusalOf(reason, details);
+            await jsonWrite(join(dir, `refused-${cycle}.json`), refusal);
+            lastRefusal = refusal.reason;
+            // patch_rules already travel in every builder packet. The earlier review stays, so a
+            // last round still knows why the previous candidate was rejected.
+            feedback =
+              lastReview === null
+                ? { refused_patch: refusal }
+                : { refused_patch: refusal, previous_review: lastReview };
+          };
+          let answer: unknown;
           if (plan.codex_plan_builder) {
             if (!ports.codexBuilder)
               throw new Error('Codex plan builder is not configured');
@@ -542,38 +585,58 @@ export class BuildSupervisor {
               candidate: commit,
               context_hash: digest(codexText),
             });
-            built = checked(
-              builderSchema,
-              await ports.codexBuilder(
-                {
-                  ...plan.codex_plan_builder,
-                  build_id: buildId,
-                  run_id: plan.run_id,
-                  data_class: plan.data_class,
-                },
-                codexPacket,
+            answer = await ports.codexBuilder(
+              {
+                ...plan.codex_plan_builder,
+                build_id: buildId,
+                run_id: plan.run_id,
+                data_class: plan.data_class,
+              },
+              codexPacket,
+            );
+            await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), answer);
+            await active();
+          } else answer = await invoke('builder', builderPacket);
+          const admitted = builderSchema.safeParse(answer);
+          if (
+            !admitted.success &&
+            admitted.error.issues.every((i) => i.path[0] === 'submission')
+          ) {
+            await refuse(
+              'The submission does not satisfy the patch contract',
+              admitted.error.issues.map(
+                (i) => `${i.path.join('.')}: ${i.message}`,
               ),
             );
-            await jsonWrite(join(dir, `codex-${cycle}-outcome.json`), built);
-            await active();
-          } else
-            built = checked(
-              builderSchema,
-              await invoke('builder', builderPacket),
-            );
+            continue;
+          }
+          // Any other malformed answer is not a patch; it stops the build as before.
+          const built = checked(builderSchema, answer);
           if (!built.submission)
             throw new Error(
               `Builder blocked: ${built.blocker ?? 'no submitted patch'}`,
             );
-          if (built.submission.expected_commit !== commit)
-            throw new Error('Builder submitted stale commit');
+          if (built.submission.expected_commit !== commit) {
+            await refuse('Builder submitted stale commit', [
+              `submission.expected_commit must equal the candidate ${commit}`,
+            ]);
+            continue;
+          }
           await active();
-          const submitted = await this.products.apply(
-            product,
-            taskId,
-            built.submission,
-            p.binding,
-          );
+          let submitted: { commit: string; changed_files: string[] };
+          try {
+            submitted = await this.products.apply(
+              product,
+              taskId,
+              built.submission,
+              p.binding,
+            );
+          } catch (e) {
+            if (!(e instanceof PatchRefusedError)) throw e;
+            await refuse(e.message, []);
+            continue;
+          }
+          lastRefusal = null;
           commit = submitted.commit;
           await jsonWrite(join(dir, `candidate-${cycle}.json`), submitted);
           // Deliberately excludes builder summaries, prior reviews and QA results.
@@ -682,12 +745,14 @@ export class BuildSupervisor {
             await jsonWrite(join(dir, 'outcome.json'), result);
             return result;
           }
-          feedback = { review, checks };
+          feedback = lastReview = { review, checks };
           if (review.verdict === 'blocked')
             throw new Error('Reviewer blocked candidate');
         }
         throw new Error(
-          'Repair limit reached; partial commits and evidence preserved',
+          lastRefusal
+            ? `Repair limit reached; the last patch was refused: ${lastRefusal}`
+            : 'Repair limit reached; partial commits and evidence preserved',
         );
       } catch (e) {
         const result: BuildOutcome = {

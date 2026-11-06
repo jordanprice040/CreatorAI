@@ -6,19 +6,29 @@ export const digest = (s: string | Buffer) =>
 export const id = z.uuid();
 export const sha = z.string().regex(/^[a-f0-9]{40}$/);
 export const hash = z.string().regex(/^[a-f0-9]{64}$/);
-// The filesystem dialect is deliberately smaller than either Git's or Windows'.
+// The filesystem dialect is deliberately smaller than either Git's or Windows'. ADR-0076: a
+// segment may start with underscores before its first letter or digit, so Python package files
+// such as __init__.py and __main__.py are admitted; a leading dot or dash still is not, and the
+// generated __pycache__ directory stays out of every candidate.
+export const PATH_SEGMENT = /^_*[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)*$/;
 export const pathSchema = z
   .string()
   .min(1)
   .max(180)
-  .refine((p) =>
-    p
-      .split('/')
-      .every(
-        (s) =>
-          /^[a-z0-9][a-z0-9_-]*(\.[a-z0-9_-]+)*$/.test(s) &&
-          !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/.test(s),
-      ),
+  .refine(
+    (p) =>
+      p
+        .split('/')
+        .every(
+          (s) =>
+            PATH_SEGMENT.test(s) &&
+            s !== '__pycache__' &&
+            !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/.test(s),
+        ),
+    {
+      message:
+        'Each path segment uses a-z, 0-9, _ and -, with dots only between parts; it starts with a letter or digit after optional leading underscores; __pycache__ and Windows device names are refused',
+    },
   );
 export const bindingSchema = z.strictObject({
   workspace_id: id,

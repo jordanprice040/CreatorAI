@@ -193,3 +193,66 @@ the studio (path rule not stated to the builder, no repair on a refused patch), 
 quality at that scale is even measured. Follow-ups, each needing its own change and a new
 benchmark version or run: state the path and `sys.path` rules in the builder packet, or allow
 `__init__.py`; and turn a refused patch into repair feedback instead of a checkpoint.
+
+## 8. Set v3: the larger task after ADR-0076 (frozen November 6, 2026, before any v3 run)
+
+ADR-0076 admits Python package files such as `__init__.py`, gives the builder the patch and QA
+runtime rules as packet data, and turns a refused patch into repair feedback. The v2 result
+(0 of 3) stays final. Set v3 lives in `config/repo-benchmarks/v3/` with its own copy of the
+grader (only the benchmark list differs) and its own `FREEZE.json`
+(SHA-256 `aaf369d709aba3614f8a7bf8cac6f5fb6544762a2e10219409b69259fd4c0e13`; grader
+`24d8e6b0281c736927e1da617a0ae56f68bec759f36b52d0d47c528dcc28cf4e`).
+
+`p14-larger-ledgercheck-v3` repeats the v2 larger task: the spec content, the 10 studio cases,
+the 21 extended cases, the known failures and the reference solution are the v2 ones (a test
+checks each). Reusing them is sound because no role saw a v2 QA result or held-out case: every
+v2 attempt stopped at its first builder answer, and builder packets never contain held-out
+cases. The expectations add only the v3 notes: the studio must run code with ADR-0076, a refused
+patch counts as one repair round within `max_repairs` 2 and `max_calls` 6, and refusals are
+recorded (`refused-N.json`).
+
+```text
+node scripts/p14-benchmark.mjs verify --set v3
+node scripts/p14-benchmark.mjs compare-spec p14-larger-ledgercheck-v3 stored-spec.json
+node scripts/p14-benchmark.mjs score p14-larger-ledgercheck-v3 <export-dir>
+```
+
+The live packet is the one in section 6 for the larger benchmark (3 attempts, one run each, at
+most 6 requests per attempt, $0 on `plan_roles`), on a dev studio running this branch.
+
+### v3 result (November 6, 2026): stopped after attempt 1
+
+Dev studio running `02c7646` plus the ADR-0076 executor files from this branch (worktree
+`C:\dev\creator_agent_p14v3`, database `creator_studio`, schema 41, no migration), `plan_roles`
+with `gpt-6-astra`. Attempt 1 (run `20f48b7c…`, build `72c983bb…`): `compare-spec` passed; the
+builder's patch was **admitted** (5 files, 200 diff lines, including `src/ledger/__init__.py`,
+no refusal), then the studio refused to send the review request because the reviewer packet
+(spec, files and diff) exceeded the connection's `responses.max_input_chars` of 24,000. Under the
+frozen rules that is a failed attempt, so v3 could no longer qualify. 1 plan request, $0. Jordan
+chose to raise the cap to 60,000 and freeze an identical v4 (2026-11-06 06:15 UTC).
+
+## 9. Set v4: the same task with a 60,000-character input cap (frozen before any v4 run)
+
+`config/repo-benchmarks/v4/` repeats v3 with its own grader copy and `FREEZE.json`
+(SHA-256 `a06e330fff26f2e12df185756c1d7f87e3284af2b7bb7ee77c7b62ff1466dcf9`; grader
+`e0eb5fbd9d1930f3796b76a526ef532e7a7cdb61d225904e01855cd9ebd80bd1`). The task, cases and reference
+are again the v2 ones (tests check this). The expectations add that the connection's input cap
+is at least 60,000 characters. The v2 and v3 results stay final.
+
+### v4 result (November 6, 2026): 3 of 3, qualified at its declared scale
+
+Same dev studio and route as v3, with the connection's input cap raised to 60,000 and the caps
+re-accepted (connection version 13 → 15). **6 plan requests, $0.** Key fields are in
+[`tracking/evidence/p14-benchmarks/RESULTS_V3_V4_2026-11-06.json`](../tracking/evidence/p14-benchmarks/RESULTS_V3_V4_2026-11-06.json).
+
+| Attempt | Studio                                                                                                | Change                                                         | Grader (Bubblewrap)                                     |
+| ------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------- |
+| 1       | verified_candidate; 2 requests, 0 repairs, 66 s; QA 5/5 + 5/5 held out; reviewer approve, no findings | 5 files (`__init__.py`, parse, rules, report, main), 197 lines | 10/10, 21/21 extended, structure pass; 0.029 s, 11.9 MB |
+| 2       | verified_candidate; 2 requests, 0 repairs, 73 s; QA 5/5 + 5/5; approve, no findings                   | 5 files, 203 lines                                             | 10/10, 21/21, structure pass; 0.037 s, 12.0 MB          |
+| 3       | verified_candidate; 2 requests, 0 repairs, 63 s; QA 5/5 + 5/5; approve, no findings                   | 5 files, 186 lines                                             | 10/10, 21/21, structure pass; 0.031 s, 11.9 MB          |
+
+Every stored spec passed `compare-spec`; every score names `freeze_sha256` `a06e330f…dcf9`,
+grader `e0eb5fbd…bd1` and the frozen spec `4834ddfb…a5eb`. No patch was refused, so the ADR-0076
+repair path was not exercised live (tests cover it). The recipe and plan roles are now qualified
+for the larger multi-module Python CLI at this declared scale, on a connection whose input cap is
+at least 60,000 characters.

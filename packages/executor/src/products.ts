@@ -43,6 +43,16 @@ export const TEMPLATE = {
 };
 export const TEMPLATE_HASH = digest(JSON.stringify(TEMPLATE));
 
+/**
+ * A submitted patch the scoped tool refused before writing anything (ADR-0076). Nothing in the
+ * workspace changed, so a build can return the reason to its builder as repair feedback.
+ */
+export class PatchRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PatchRefusedError';
+  }
+}
 /** Local owner-facing store. Never available to generated code or remote callers. */
 export class ProductSupervisor {
   readonly root: string;
@@ -310,16 +320,39 @@ export class ProductSupervisor {
       const seen = new Set<string>();
       const paths: string[] = [];
       let bytes = 0;
+      let changed = false;
       for (const c of change.changes) {
-        if (seen.has(c.path)) throw new Error('Duplicate changed path');
+        if (seen.has(c.path))
+          throw new PatchRefusedError(`Duplicate changed path: ${c.path}`);
+        // One changed path beneath another (src/a.py and src/a.py/b.py) cannot both be files.
+        for (const other of seen)
+          if (c.path.startsWith(`${other}/`) || other.startsWith(`${c.path}/`))
+            throw new PatchRefusedError(
+              `Changed path lies beneath another changed path: ${c.path} and ${other}`,
+            );
         seen.add(c.path);
         if (
           !t.file_scope.some(
             (scope) => c.path === scope || c.path.startsWith(`${scope}/`),
           )
         )
-          throw new Error('Task file scope exceeded');
-        const full = await fileAt(dir, c.path);
+          throw new PatchRefusedError(`Task file scope exceeded: ${c.path}`);
+        let full: string;
+        try {
+          full = await fileAt(dir, c.path);
+        } catch (e) {
+          // safeTree just refused links and hard links under the lock, so these two mean the
+          // builder named a directory or a path beneath an existing file: a builder mistake.
+          const m = (e as Error).message;
+          if (
+            m === 'Only unlinked regular files allowed' ||
+            m === 'Linked or non-directory path refused'
+          )
+            throw new PatchRefusedError(
+              `Path is not a file location (it is a directory or lies beneath a file): ${c.path}`,
+            );
+          throw e;
+        }
         paths.push(full);
         let before: string | null = null;
         try {
@@ -328,10 +361,19 @@ export class ProductSupervisor {
           if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
         }
         if (before !== c.before_hash || (before === null && c.content === null))
-          throw new Error('Stale file content');
+          throw new PatchRefusedError(`Stale file content: ${c.path}`);
+        if (c.content === null || digest(c.content) !== before) changed = true;
         bytes += Buffer.byteLength(c.content ?? '');
       }
-      if (bytes > 512 * 1024) throw new Error('Change byte limit exceeded');
+      if (bytes > 512 * 1024)
+        throw new PatchRefusedError(
+          `Change byte limit exceeded: ${bytes} bytes > ${512 * 1024}`,
+        );
+      // A patch equal to the current files would only fail at git commit after its intent.
+      if (!changed)
+        throw new PatchRefusedError(
+          'Patch changes nothing: every file already has this content',
+        );
       // An intent without an outcome is inspectable after a crash. Never reset it.
       const operation = randomUUID();
       await event(this.dir(productId), 'task.patch.intent', {

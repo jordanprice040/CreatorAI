@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 // P14 repo benchmarks CLI. The grading rules live in the frozen config/repo-benchmarks/grader.mjs.
 //
-//   node scripts/p14-benchmark.mjs verify
+//   node scripts/p14-benchmark.mjs verify [--set v2|v3|v4]
 //   node scripts/p14-benchmark.mjs score <benchmark-id> <product-dir> [--runner bwrap|direct] [--trusted]
 //   node scripts/p14-benchmark.mjs compare-spec <benchmark-id> <stored-spec.json>
-//   node scripts/p14-benchmark.mjs freeze        (once per benchmark version; refuses to overwrite)
+//   node scripts/p14-benchmark.mjs freeze --set <set>   (once per set; refuses to overwrite)
+//
+// Each set is a frozen grader with its own FREEZE.json: v2 is config/repo-benchmarks/grader.mjs,
+// v3 and v4 are config/repo-benchmarks/v3/ and v4/grader.mjs. score and compare-spec pick the set from the
+// benchmark id's version suffix.
 //
 // `score` runs generated code. The default runner is Bubblewrap with no network and a read-only
 // copy of the product (Linux or WSL2). `--runner direct` runs it without isolation and is
@@ -13,24 +17,29 @@
 // is broken. `verify` also needs `pnpm build:code` (it reads the spec schema from contracts/dist).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import {
-  BENCHMARKS,
-  FREEZE_FILE,
-  compareSpec,
-  freezeProblems,
-  frozenFiles,
-  loadBenchmark,
-  score,
-} from '../config/repo-benchmarks/grader.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
+// The v2 grader stays the default export surface, as before v3 existed.
 export * from '../config/repo-benchmarks/grader.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const SETS = {
+  v2: join(ROOT, 'config/repo-benchmarks/grader.mjs'),
+  v3: join(ROOT, 'config/repo-benchmarks/v3/grader.mjs'),
+  v4: join(ROOT, 'config/repo-benchmarks/v4/grader.mjs'),
+};
+/** The frozen grader module of a set. */
+export async function loadSet(name = 'v2') {
+  if (!(name in SETS)) throw new Error(`Unknown benchmark set ${name}`);
+  return import(pathToFileURL(SETS[name]).href);
+}
+/** The set a benchmark id belongs to, from its version suffix (p14-...-v3 is set v3). */
+export const setOf = (id) => /-(v[0-9]+)$/.exec(id ?? '')?.[1] ?? 'v2';
 
 /** Freeze problems plus the studio's own spec schema and build rules; empty when all hold. */
-export async function verify() {
+export async function verify(set = 'v2') {
+  const { BENCHMARKS, freezeProblems, loadBenchmark } = await loadSet(set);
   const { SpecContentSchema, buildBlockers, MAX_BUILD_CASES } = await import(
-    join(ROOT, 'packages/contracts/dist/index.js')
+    pathToFileURL(join(ROOT, 'packages/contracts/dist/index.js')).href
   );
   const problems = freezeProblems();
   for (const id of BENCHMARKS) {
@@ -57,17 +66,24 @@ export async function verify() {
 }
 
 async function main(argv) {
+  const at = argv.indexOf('--set');
+  const named = at >= 0 ? argv[at + 1] : null;
+  if (at >= 0) argv = argv.filter((_, i) => i !== at && i !== at + 1);
   const [cmd, ...rest] = argv;
   if (cmd === 'verify') {
-    const problems = await verify();
+    const set = named ?? 'v2';
+    const problems = await verify(set);
     for (const p of problems) console.error(`FAIL ${p}`);
     if (problems.length) process.exit(1);
+    const { BENCHMARKS } = await loadSet(set);
     console.log(
-      `OK ${BENCHMARKS.length} frozen benchmarks intact and buildable`,
+      `OK set ${set}: ${BENCHMARKS.length} frozen benchmarks intact and buildable`,
     );
     return;
   }
   if (cmd === 'freeze') {
+    if (!named) throw new Error('freeze needs --set <set>');
+    const { BENCHMARKS, FREEZE_FILE, frozenFiles } = await loadSet(named);
     if (existsSync(FREEZE_FILE))
       throw new Error(
         'FREEZE.json exists: a frozen version is never re-frozen; add a new benchmark version instead',
@@ -78,7 +94,7 @@ async function main(argv) {
         {
           format: 'p14-benchmark-freeze/2',
           frozen_at: new Date().toISOString(),
-          note: 'Written by the author before any studio or model run; the git commit and this file hash (recorded in docs/REPO_BENCHMARKS_P14_2026-11-06.md) are the anchor.',
+          note: `Set ${named}. Written by the author before any studio or model run of this set; the git commit and this file hash (recorded in docs/REPO_BENCHMARKS_P14_2026-11-06.md) are the anchor.`,
           benchmarks: BENCHMARKS,
           files: frozenFiles(),
         },
@@ -93,6 +109,7 @@ async function main(argv) {
     const [id, file] = rest;
     if (!id || !file)
       throw new Error('usage: compare-spec <benchmark-id> <stored-spec.json>');
+    const { compareSpec, freezeProblems } = await loadSet(setOf(id));
     const problems = [
       ...freezeProblems(),
       ...compareSpec(id, JSON.parse(readFileSync(file, 'utf8'))),
@@ -117,12 +134,13 @@ async function main(argv) {
       throw new Error(
         '--runner direct runs generated code without isolation; add --trusted only for the reference solutions or a throwaway container',
       );
+    const { score } = await loadSet(setOf(id));
     const result = score(id, dir, { kind });
     console.log(JSON.stringify(result, null, 2));
     process.exit(result.pass ? 0 : 1);
   }
   throw new Error(
-    'usage: verify | score <id> <dir> | compare-spec <id> <file> | freeze',
+    'usage: verify [--set s] | score <id> <dir> | compare-spec <id> <file> | freeze --set s',
   );
 }
 
