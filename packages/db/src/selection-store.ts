@@ -28,7 +28,6 @@ import {
 import {
   ASSESSMENT_PROMPT_HASH,
   ASSESSMENT_ROLE_VERSION,
-  MAX_ASSESSMENT_OPTIONS,
   MAX_ASSESSMENT_PACKET_CHARS,
   assessmentContext,
   assessmentPreviewHash,
@@ -195,13 +194,36 @@ export class SelectionStore extends DiscoveryStore {
           'An automatic assessment is kept as it was written. Edit it instead: your edit is recorded as your own scorecard and the original stays.',
         );
       personalScorecard(body);
-      if (
-        (before.edit_of?.scorecard.id.toLowerCase() ?? null) !==
-        (body.edit_of?.scorecard.id.toLowerCase() ?? null)
+      const was = before.edit_of?.scorecard.id.toLowerCase() ?? null;
+      const now = body.edit_of?.scorecard.id.toLowerCase() ?? null;
+      if (was !== now) {
+        // Review M-3: a person's card may move on to replace a newer automatic assessment of
+        // the same option and rubric, once the one it replaced is no longer current. It never
+        // drops its edit_of, and never stops replacing an assessment that still counts.
+        if (!now)
+          throw fail(
+            'INVALID_CONTRACT',
+            'A revision keeps the system scorecard it replaces; record a new scorecard instead.',
+          );
+        if (was) {
+          const old = await c.query(
+            `select status from entities where workspace_id = $1 and id = $2`,
+            [ws, was],
+          );
+          if (old.rows[0]?.status === 'active')
+            throw fail(
+              'INVALID_CONTRACT',
+              'This scorecard still replaces a current automatic assessment; edit that one instead.',
+            );
+        }
+        await this.checkEditOf(c, ws, body);
+      } else if (
+        now &&
+        body.edit_of!.scorecard.version !== before.edit_of!.scorecard.version
       )
         throw fail(
           'INVALID_CONTRACT',
-          'A revision keeps the system scorecard it replaces; record a new scorecard instead.',
+          'A revision keeps the system scorecard version it replaces.',
         );
       if (
         before.rubric !== body.rubric ||
@@ -292,23 +314,31 @@ export class SelectionStore extends DiscoveryStore {
       );
     const refs = Object.values(body.ratings).flatMap((r) => r.evidence_refs);
     if (refs.length) {
-      const found = await c.query<{ id: string; version: number }>(
-        `select v.entity_id as id, v.version from entity_versions v
-           join entities e on e.id = v.entity_id
-          where e.workspace_id = $1 and e.kind in ('claim', 'source') and e.status <> 'redacted'
-            and (v.entity_id, v.version) in (select * from unnest($2::uuid[], $3::int[]))`,
-        [ws, refs.map((r) => r.id.toLowerCase()), refs.map((r) => r.version)],
+      // Review L-1: a new rating cites the current, active version, so it is not stale on arrival.
+      const found = await c.query<{
+        id: string;
+        version: number;
+        status: string;
+      }>(
+        `select id, version, status from entities
+          where workspace_id = $1 and kind in ('claim', 'source') and id = any($2::uuid[])`,
+        [ws, refs.map((r) => r.id.toLowerCase())],
       );
-      for (const r of refs)
-        if (
-          !found.rows.some(
-            (f) => f.id === r.id.toLowerCase() && f.version === r.version,
-          )
-        )
+      for (const r of refs) {
+        const f = found.rows.find((x) => x.id === r.id.toLowerCase());
+        if (!f || f.status === 'redacted')
           throw fail(
             'MISSING_EVIDENCE',
-            `Evidence ${r.id} v${r.version} is not a claim or source version in this workspace.`,
+            `Evidence ${r.id} v${r.version} is not a claim or source in this workspace.`,
           );
+        if (f.status !== 'active' || Number(f.version) !== r.version)
+          throw fail(
+            'VERSION_CONFLICT',
+            f.status !== 'active'
+              ? `Evidence ${r.id.slice(0, 8)} is ${f.status}; cite active evidence.`
+              : `Evidence ${r.id.slice(0, 8)} is now version ${f.version}; cite the current version.`,
+          );
+      }
     }
     return subject;
   }
@@ -490,7 +520,32 @@ export class SelectionStore extends DiscoveryStore {
           support_hash: support.get(r.id) ?? null,
         };
     }
-    return { problem, candidates, evidence: evidence as EvidenceVersions };
+    return {
+      problem,
+      candidates,
+      evidence: evidence as EvidenceVersions,
+      linked_hash: await this.linkedClaimsHash(c, ws, problemId),
+    };
+  }
+
+  /**
+   * Review M-1: the claims linked to a problem as an assessment reads them (active claims with
+   * an unretracted supports/contradicts link), hashed as a set. A claim linked or unlinked
+   * since an assessment marks it stale.
+   */
+  protected async linkedClaimsHash(
+    c: PoolClient,
+    ws: string,
+    problemId: string,
+  ) {
+    const { rows } = await c.query<{ id: string }>(
+      `select distinct l.from_id::text as id from entity_links l
+         join entities e on e.id = l.from_id and e.status = 'active'
+        where l.workspace_id = $1 and l.to_id = $2 and l.from_kind = 'claim'
+          and l.relation in ('supports', 'contradicts') and l.retracted_at is null`,
+      [ws, problemId],
+    );
+    return supportHash(rows.map((r) => r.id));
   }
 
   /** Each claim's active support rows, hashed (ADR-0074): new or retracted support changes it. */
@@ -525,7 +580,7 @@ export class SelectionStore extends DiscoveryStore {
       throw fail('INVALID_CONTRACT', 'Shortlist size must be 1–10.');
     return this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
-      const { problem, candidates, evidence } = await this.gather(
+      const { problem, candidates, evidence, linked_hash } = await this.gather(
         c,
         ws,
         problemId,
@@ -539,6 +594,7 @@ export class SelectionStore extends DiscoveryStore {
         candidates,
         shortlist_size: shortlistSize,
         evidence,
+        linked_hash,
       });
     });
   }
@@ -581,6 +637,7 @@ export class SelectionStore extends DiscoveryStore {
     const context: AssessmentWorkflowContext = {
       packet: built.packet,
       packet_hash: canonicalHash(built.packet),
+      linked_hash: built.linked_hash,
       evidence: built.evidence,
     };
     const id = await this.idempotent(
@@ -627,7 +684,8 @@ export class SelectionStore extends DiscoveryStore {
         );
         if (
           moved ||
-          built.evidence.some((e) => support.get(e.id) !== e.support_hash)
+          built.evidence.some((e) => support.get(e.id) !== e.support_hash) ||
+          (await this.linkedClaimsHash(c, ws, problemId)) !== built.linked_hash
         )
           throw fail(
             'VERSION_CONFLICT',
@@ -714,6 +772,7 @@ export class SelectionStore extends DiscoveryStore {
   ): Promise<{
     packet: AssessmentPacket;
     evidence: AssessmentWorkflowContext['evidence'];
+    linked_hash: string;
   }> {
     const read = await this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
@@ -738,11 +797,6 @@ export class SelectionStore extends DiscoveryStore {
         throw fail(
           'INVALID_TRANSITION',
           'This problem has no options to assess.',
-        );
-      if (alts.length > MAX_ASSESSMENT_OPTIONS)
-        throw fail(
-          'INVALID_CONTRACT',
-          `One assessment covers at most ${MAX_ASSESSMENT_OPTIONS} options; this problem has ${alts.length}.`,
         );
       const claims = (
         await c.query<{ from_id: string; relation: string }>(
@@ -816,6 +870,7 @@ export class SelectionStore extends DiscoveryStore {
     );
     return {
       packet,
+      linked_hash: supportHash(read.claims.map((x) => x.from_id)),
       evidence: packet.claims.map((x) => ({
         id: x.claim_id,
         version: x.version,
@@ -844,7 +899,7 @@ export class SelectionStore extends DiscoveryStore {
         'select 1 from entities where workspace_id = $1 and id = $2 for update',
         [ws, problemId],
       );
-      const { problem, candidates, evidence } = await this.gather(
+      const { problem, candidates, evidence, linked_hash } = await this.gather(
         c,
         ws,
         problemId,
@@ -863,6 +918,7 @@ export class SelectionStore extends DiscoveryStore {
         candidates,
         shortlist_size: req.shortlist_size,
         evidence,
+        linked_hash,
       });
       if (report.report_hash !== req.report_hash)
         throw fail(
@@ -1191,7 +1247,7 @@ export class SelectionStore extends DiscoveryStore {
     if (!alt || alt.version !== body.alternative.version)
       blockers.push('The selected alternative changed after it was selected.');
     else {
-      const { problem, candidates } = await this.gather(
+      const { problem, candidates, evidence, linked_hash } = await this.gather(
         c,
         ws,
         selection.problem.id,
@@ -1204,6 +1260,8 @@ export class SelectionStore extends DiscoveryStore {
         },
         candidates,
         shortlist_size: 3,
+        evidence,
+        linked_hash,
       });
       const row = report.suitability.candidates.find(
         (x) => x.alternative.id === altId,

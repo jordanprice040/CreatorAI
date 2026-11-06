@@ -232,6 +232,8 @@ export function Compare({
   const [scorePick, setScorePick] = useState<{
     optionId: string;
     rubric: 'suitability' | 'opportunity';
+    /** The system card whose Edit was pressed (review M-3). */
+    systemId: string;
     n: number;
   } | null>(null);
   const [runId, setRunId] = useState('');
@@ -609,11 +611,14 @@ export function Compare({
                           { rubric: 'suitability', cand: s },
                           { rubric: 'opportunity', cand: o },
                         ]}
+                        cards={d.scorecards}
+                        claims={d.cmp.claims.map((c) => c.evidence.claim)}
                         canEdit={!viewer}
-                        onEdit={(rubric) =>
+                        onEdit={(rubric, systemId) =>
                           setScorePick({
                             optionId: a.entity.id,
                             rubric,
+                            systemId,
                             n: Date.now(),
                           })
                         }

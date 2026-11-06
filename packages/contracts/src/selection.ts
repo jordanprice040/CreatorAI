@@ -202,6 +202,11 @@ export const SystemAssessmentSchema = z.strictObject({
   evidence: z
     .array(z.strictObject({ id, version, support_hash: hash }))
     .max(30),
+  /**
+   * A hash of every claim linked to the problem when the packet was built, including any past
+   * the packet's limit: a claim linked or unlinked since then marks the assessment stale.
+   */
+  linked_hash: hash,
   uncertainty: short,
 });
 export type SystemAssessment = z.infer<typeof SystemAssessmentSchema>;

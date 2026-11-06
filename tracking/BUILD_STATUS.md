@@ -265,3 +265,23 @@ replaced card refused; support retraction and problem revision mark cards stale;
 repaired then failed with no cards; unknown ratings stay a range; owner-only start) and
 `tests/src/assessment-benchmark.test.ts` (benchmark bound to the current prompt, fixture and
 instruction-obeying answers refused). Not done: owner review of the benchmark; live run.
+
+## P08 review fixes (November 6, PR #144 review, no new migration)
+
+Fixed every finding of the PR #144 review (project file reviews/PR144_ASSESSMENTS_REVIEW_2026-11-06.md;
+ADR-0074 amendments): M-1 claims linked or unlinked after an assessment mark it stale
+(`linked_hash`); M-2 Compare shows each system card's ratings, rationales, cited claims,
+confidence, uncertainty, gate notes and provenance; M-3 Edit targets the exact system card and
+a person's card moves on to replace a newer assessment; L-1 new ratings must cite current active
+evidence; L-2 a late older assessment never replaces a newer one; L-3 packet limits recorded;
+L-4 `admits_assessment` drives the Compare readiness check; L-5 edits name their author; N-1
+comment; N-2 plan provider is the connection kind; N-4 more than 8 options assesses the first 8
+with a note. Also: qualification starts take up to 256 KiB (the assessment benchmark did not fit
+in 128 KiB on the trial copy). N-3 unchanged.
+
+Checked: new DB tests (unlinked claim → stale; edit moves on after "Assess again" and cannot move
+back while the newer one is current; old evidence version refused; a late older assessment writes
+nothing), the benchmark size check, and a browser walk on a throwaway database
+(tracking/evidence/automatic-assessments/walk.txt, 16/16 PASS, fixture only, $0). Full suite:
+806 tests, 772 pass, 28 skip; failures only the 5 known PowerShell-wrapper tests plus one
+chunked-body test whose oversized body was under the new 256 KiB cap (fixed and re-run green).

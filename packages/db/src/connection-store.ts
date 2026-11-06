@@ -249,6 +249,7 @@ const toQualification = (r: Row): PlanQualification => ({
   prompt_current:
     currentForBuildRole(r) &&
     (currentForDiscoveryRole(r) || currentForAssessmentRole(r)),
+  admits_assessment: currentForAssessmentRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),

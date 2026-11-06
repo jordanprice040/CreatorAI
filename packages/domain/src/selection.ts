@@ -131,6 +131,8 @@ export type EvidenceVersions = Readonly<
 interface ParseEnv {
   problem: { id: string; version: number };
   evidence?: EvidenceVersions | undefined;
+  /** The current hash of the claims linked to the problem (review M-1). */
+  linked_hash?: string | undefined;
 }
 const shortId = (id: string) => id.slice(0, 8);
 /** Why a card no longer rates what is current: option, cited evidence, problem, rubric, packet. */
@@ -174,6 +176,10 @@ function staleReasons(
       );
     if (a.rubric_hash !== rubricHash(RUBRICS[body.rubric]))
       out.push('The rubric changed since this assessment.');
+    if (env.linked_hash !== undefined && env.linked_hash !== a.linked_hash)
+      out.push(
+        'Evidence linked to the problem changed since this assessment (a claim was linked or unlinked).',
+      );
     if (ev)
       for (const e of a.evidence) {
         const cur = ev[e.id.toLowerCase()];
@@ -221,7 +227,8 @@ function parseCards(c: CandidateInput, env: ParseEnv): Parsed[] {
         superseded_by: null,
       };
     });
-  // A person's current edit replaces the system card it names (ADR-0074); the newest wins.
+  // A person's current edit replaces the system card it names (ADR-0074). If two people's
+  // edits name the same card, the label shows the first by id; both count either way.
   for (const p of [...cards].sort((a, b) =>
     a.input.id < b.input.id ? -1 : 1,
   )) {
@@ -578,6 +585,8 @@ export function selectionReport(input: {
   shortlist_size: number;
   /** Current versions of cited and read evidence; without it evidence staleness is not checked. */
   evidence?: EvidenceVersions;
+  /** The current hash of the problem's linked claims; without it linking is not checked. */
+  linked_hash?: string;
 }): SelectionReport {
   const candidates = [...input.candidates].sort((a, b) =>
     a.alternative.id < b.alternative.id ? -1 : 1,
@@ -585,7 +594,11 @@ export function selectionReport(input: {
   const parsed = new Map(
     candidates.map((c) => [
       c.alternative.id,
-      parseCards(c, { problem: input.problem, evidence: input.evidence }),
+      parseCards(c, {
+        problem: input.problem,
+        evidence: input.evidence,
+        linked_hash: input.linked_hash,
+      }),
     ]),
   );
   // Opportunity completeness feeds the build gate, so compute it first.

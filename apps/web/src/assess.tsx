@@ -13,9 +13,12 @@ import {
   WORKFLOW_WALL_MAX_SECONDS,
   WorkflowDetailSchema,
   WorkflowSchema,
+  RUBRICS,
+  latestDecided,
   z,
   type AssessmentPacket,
   type RankedCandidate,
+  type ScorecardBody,
   type SessionInfo,
   type StoredEntity,
   type Workspace,
@@ -192,13 +195,11 @@ export function AutoAssess({
             : []),
           ...(plan &&
           model &&
-          !plan.qualifications.some(
-            (q) =>
-              q.model_id === model &&
-              q.task_class === ASSESSMENT_TASK_CLASS &&
-              q.state === 'qualified' &&
-              q.prompt_current !== false,
-          )
+          latestDecided(
+            plan.qualifications.filter((q) => q.admits_assessment === true),
+            model,
+            ASSESSMENT_TASK_CLASS,
+          )?.state !== 'qualified'
             ? [
                 `${model} has no current scoring qualification. Qualify it on the "assessment" benchmark under Models and connections first (the discovery skeptic's scoring qualification does not count).`,
               ]
@@ -633,11 +634,13 @@ function Packet({ packet }: { packet: AssessmentPacket }) {
 
 /**
  * Who rated an option on each rubric, as the ranking counts it: the automatic assessment, a
- * person's edit that replaces it, stale cards and why. "Edit" opens the scoring form on the
- * system card's ratings.
+ * person's edit that replaces it, stale cards and why. Each system card opens to its full
+ * explanation (review M-2). "Edit" opens the scoring form on that exact system card.
  */
 export function AssessmentLines({
   rubrics,
+  cards,
+  claims,
   canEdit,
   onEdit,
 }: {
@@ -645,8 +648,12 @@ export function AssessmentLines({
     rubric: 'suitability' | 'opportunity';
     cand: RankedCandidate | undefined;
   }[];
+  /** The stored scorecards, for each system card's ratings, rationales and provenance. */
+  cards: StoredEntity[];
+  /** Claims linked to the problem, to name the claims a rating cites. */
+  claims: { id: string; title: string }[];
   canEdit: boolean;
-  onEdit: (rubric: 'suitability' | 'opportunity') => void;
+  onEdit: (rubric: 'suitability' | 'opportunity', systemId: string) => void;
 }) {
   const lines = rubrics.flatMap(({ rubric, cand }) =>
     (cand?.scorecards ?? []).map((s) => ({ rubric, s })),
@@ -656,38 +663,131 @@ export function AssessmentLines({
     r === 'suitability' ? 'Suitability' : 'Software opportunity';
   return (
     <ul className="small assess-lines">
-      {lines.map(({ rubric, s }) => (
-        <li key={s.id}>
-          <strong>{name(rubric)}</strong>:{' '}
-          {s.system ? 'Automatic assessment' : s.reviewer}
-          {s.edit_of ? ' (your edit of the automatic assessment)' : ''} ·{' '}
-          {s.score ? s.score.display : `${s.lower.display}–${s.upper.display}`}
-          {s.superseded_by
-            ? ' · replaced by a person’s edit, not counted'
-            : s.stale
-              ? ' · stale, not counted'
-              : ''}
-          {s.stale && s.stale_reasons?.length ? (
-            <ul>
-              {s.stale_reasons.slice(0, 4).map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-          ) : null}
-          {canEdit && s.system && !s.superseded_by && !s.stale && (
-            <>
-              {' '}
-              <button
-                type="button"
-                className="text"
-                onClick={() => onEdit(rubric)}
-              >
-                Edit
-              </button>
-            </>
-          )}
-        </li>
-      ))}
+      {lines.map(({ rubric, s }) => {
+        const card = cards.find((c) => c.id === s.id);
+        return (
+          <li key={s.id}>
+            <strong>{name(rubric)}</strong>:{' '}
+            {s.system ? 'Automatic assessment' : s.reviewer}
+            {s.edit_of
+              ? ` (${s.reviewer}’s edit of the automatic assessment)`
+              : ''}{' '}
+            ·{' '}
+            {s.score
+              ? s.score.display
+              : `${s.lower.display}–${s.upper.display}`}
+            {s.superseded_by
+              ? ' · replaced by a person’s edit, not counted'
+              : s.stale
+                ? ' · stale, not counted'
+                : ''}
+            {s.stale && s.stale_reasons?.length ? (
+              <ul>
+                {s.stale_reasons.slice(0, 4).map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            ) : null}
+            {canEdit && s.system && !s.superseded_by && !s.stale && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="text"
+                  onClick={() => onEdit(rubric, s.id)}
+                >
+                  Edit
+                </button>
+              </>
+            )}
+            {s.system && card && (
+              <SystemExplanation card={card} claims={claims} />
+            )}
+          </li>
+        );
+      })}
     </ul>
+  );
+}
+
+/** One system scorecard's ratings, rationales, cited claims, confidence and provenance. */
+function SystemExplanation({
+  card,
+  claims,
+}: {
+  card: StoredEntity;
+  claims: { id: string; title: string }[];
+}) {
+  const b = card.body as unknown as ScorecardBody | undefined;
+  const a = b?.assessment;
+  if (!b || !a) return null;
+  const criteria = RUBRICS[b.rubric].criteria;
+  const claimName = (id: string, version: number) => {
+    const c = claims.find((x) => x.id.toLowerCase() === id.toLowerCase());
+    return `${c ? c.title : `claim ${id.slice(0, 8)}`} (v${version})`;
+  };
+  return (
+    <details className="assess-why">
+      <summary>Why these ratings</summary>
+      <dl>
+        {criteria.map((c) => {
+          const r = b.ratings[c.key];
+          if (!r) return null;
+          return (
+            <div key={c.key}>
+              <dt>
+                {c.label}: {r.rating === null ? 'unknown' : `${r.rating} of 5`}
+              </dt>
+              <dd>
+                {r.rationale || 'No rationale given.'}
+                {r.evidence_refs.length > 0 && (
+                  <span className="muted">
+                    {' '}
+                    Cites:{' '}
+                    {r.evidence_refs
+                      .map((e) => claimName(e.id, e.version))
+                      .join('; ')}
+                    .
+                  </span>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+        <div>
+          <dt>Confidence: {b.confidence.level}</dt>
+          <dd>{b.confidence.rationale}</dd>
+        </div>
+        {b.software_influence && (
+          <div>
+            <dt>
+              Software influence (not counted):{' '}
+              {b.software_influence.rating ?? 'unknown'}
+            </dt>
+            <dd>{b.software_influence.note}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Ethics and access (a person confirms)</dt>
+          <dd>
+            Ethics {words(b.gates.ethics.status)}: {b.gates.ethics.note} Access{' '}
+            {words(b.gates.access.status)}: {b.gates.access.note}
+          </dd>
+        </div>
+        <div>
+          <dt>Uncertainty</dt>
+          <dd>{a.uncertainty}</dd>
+        </div>
+      </dl>
+      <p className="muted">
+        {a.route === 'fixture'
+          ? 'Fixture rules'
+          : `${a.model_id}${a.provider ? ` via ${a.provider}` : ''} (${a.route})`}{' '}
+        · assessed {new Date(card.created_at).toLocaleString()} · problem v
+        {a.problem.version} · {a.role_version} · prompt{' '}
+        {a.prompt_hash.slice(0, 8)} · rubric {b.rubric_version} · workflow{' '}
+        {a.workflow_id.slice(0, 8)}
+      </p>
+    </details>
   );
 }

@@ -464,3 +464,197 @@ test('assessments are owner actions and refuse problems without options', async 
     s.store.startAssessment(stranger, s.ws.id, runId, s.request()),
   );
 });
+
+test('review fixes: an unlinked claim marks assessments stale; edits move on to a newer assessment; old evidence versions are refused', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  await s.assess();
+  const r0 = await s.report();
+  assert.ok(rows(r0).every((x) => !x.stale));
+
+  // M-3: a person's edit of the first assessment moves on to replace a newer one.
+  const target = rows(r0)[0]!;
+  const sys1 = (await s.cards()).find((c) => c.id === target.id)!;
+  const b1 = sys1.body as ScorecardBody;
+  const { assessment: _a, ...plain } = b1;
+  const edit = (of: { id: string; version: number }): ScorecardBody => ({
+    ...plain,
+    reviewer: { kind: 'human', label: 'Owner' },
+    gates: {
+      ethics: { status: 'clear', note: 'Checked (test).' },
+      access: { status: 'clear', note: 'Checked (test).' },
+    },
+    edit_of: {
+      scorecard: { id: of.id, version: of.version },
+      reason: 'Owner knowledge (test).',
+    },
+  });
+  const mine = await s.store.recordScorecard(owner, s.ws.id, {
+    title: 'My edit',
+    body: edit(sys1) as unknown as Record<string, unknown>,
+  });
+  // While the first assessment is current, the card cannot drop or move its edit_of.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.reviseScorecard(owner, s.ws.id, mine.id, {
+      expected_version: mine.version,
+      title: 'Drop',
+      body: { ...edit(sys1), edit_of: undefined } as unknown as Record<
+        string,
+        unknown
+      >,
+      reason: 'Drop it (test).',
+    }),
+  );
+  await s.assess();
+  const sys2 = (await s.cards()).find(
+    (c) =>
+      c.status === 'active' &&
+      (c.body as ScorecardBody).assessment &&
+      (c.body as ScorecardBody).subject.id === b1.subject.id &&
+      (c.body as ScorecardBody).rubric === b1.rubric,
+  )!;
+  assert.notEqual(sys2.id, sys1.id);
+  let r1 = await s.report();
+  assert.equal(rows(r1).find((x) => x.id === sys2.id)!.superseded_by, null);
+  const moved = await s.store.reviseScorecard(owner, s.ws.id, mine.id, {
+    expected_version: mine.version,
+    title: 'My edit',
+    body: edit(sys2) as unknown as Record<string, unknown>,
+    reason: 'Edit the newer assessment (test).',
+  });
+  r1 = await s.report();
+  assert.equal(rows(r1).find((x) => x.id === sys2.id)!.superseded_by, mine.id);
+  assert.equal(rows(r1).find((x) => x.id === mine.id)!.edit_of, sys2.id);
+  // Now it replaces a current assessment, so it cannot move back to the archived one.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.reviseScorecard(owner, s.ws.id, mine.id, {
+      expected_version: moved.version,
+      title: 'Back',
+      body: edit(sys1) as unknown as Record<string, unknown>,
+      reason: 'Back (test).',
+    }),
+  );
+
+  // L-1: a new rating must cite the current, active version of its evidence.
+  const ref = Object.values(b1.ratings).find((r) => r.evidence_refs.length)!
+    .evidence_refs[0]!;
+  const claim = (await s.store.getEntity(owner, s.ws.id, ref.id)).entity;
+  await s.store.reviseEntity(owner, s.ws.id, ref.id, {
+    expected_version: claim.version,
+    title: `${claim.title} (revised)`,
+    body: claim.body,
+    reason: 'Wording (test).',
+    corrects_version: null,
+  });
+  const other = rows(r1).find((x) => x.alt.id !== target.alt.id && x.system)!;
+  const otherBody = (await s.cards()).find((c) => c.id === other.id)!
+    .body as ScorecardBody;
+  const { assessment: _b, ...otherPlain } = otherBody;
+  await rejects(
+    'VERSION_CONFLICT',
+    s.store.recordScorecard(owner, s.ws.id, {
+      title: 'Cites an old version',
+      body: {
+        ...otherPlain,
+        reviewer: { kind: 'human', label: 'Owner' },
+      } as unknown as Record<string, unknown>,
+    }),
+    /now version/,
+  );
+
+  // M-1: a claim unlinked from the problem marks the assessment stale.
+  await s.assess();
+  assert.ok(rows(await s.report()).every((x) => !x.system || !x.stale));
+  const pool = s.db.pool;
+  const link = (
+    await pool.query<{ id: string }>(
+      `select id from entity_links where workspace_id = $1 and to_id = $2
+         and from_kind = 'claim' and relation = 'supports' and retracted_at is null
+       order by created_at limit 1`,
+      [s.ws.id, s.problem.id],
+    )
+  ).rows[0]!;
+  await s.store.retractLink(owner, s.ws.id, link.id, {
+    reason: 'Not about this problem (test).',
+  });
+  const r2 = await s.report();
+  const sys = rows(r2).filter((x) => x.system);
+  assert.ok(sys.length > 0);
+  assert.ok(
+    sys.every((x) =>
+      x.stale_reasons!.some((r) => /linked to the problem changed/.test(r)),
+    ),
+  );
+});
+
+test('review L-2: an older assessment finishing late never replaces a newer one', async (t) => {
+  // The call for the packet at the older problem version waits until the newer one is done.
+  let v1 = 0;
+  let release!: () => void;
+  const newerDone = new Promise<void>((r) => (release = r));
+  const adapter = new Recording();
+  const inner = adapter.call.bind(adapter);
+  adapter.call = async (req, signal) => {
+    if (req.input[0]?.text.includes(ASSESSMENT_MARKER)) {
+      const text = req.input[1]!.text;
+      const packet = JSON.parse(
+        text.slice(text.indexOf('\n') + 1),
+      ) as AssessmentPacket;
+      if (packet.problem.version === v1) {
+        await newerDone;
+        await new Promise((r) => setTimeout(r, 300));
+        return inner(req, signal);
+      }
+      const out = await inner(req, signal);
+      setTimeout(release, 50);
+      return out;
+    }
+    return inner(req, signal);
+  };
+  const s = await setup(t, adapter);
+  if (!s) return;
+  v1 = s.problem.version;
+  const older = await s.store.startAssessment(
+    owner,
+    s.ws.id,
+    await s.run(),
+    s.request(v1),
+  );
+  const p = (await s.store.getEntity(owner, s.ws.id, s.problem.id)).entity;
+  await s.store.reviseEntity(owner, s.ws.id, s.problem.id, {
+    expected_version: p.version,
+    title: p.title,
+    body: { ...p.body, uncertainty: 'Revised (test).' },
+    reason: 'Clarified (test).',
+    corrects_version: null,
+  });
+  const newer = await s.store.startAssessment(
+    owner,
+    s.ws.id,
+    await s.run(),
+    s.request(v1 + 1),
+  );
+  await s.worker.settle();
+  const late = await s.store.getWorkflow(owner, s.ws.id, older.workflow.id);
+  const fresh = await s.store.getWorkflow(owner, s.ws.id, newer.workflow.id);
+  assert.equal(late.workflow.state, 'succeeded', late.workflow.reason);
+  assert.equal(fresh.workflow.state, 'succeeded', fresh.workflow.reason);
+  assert.equal(late.workflow.result!.assessment!.scorecards.length, 0);
+  assert.ok(
+    late.workflow.result!.assessment!.notes.some((n) =>
+      /A newer assessment already rates/.test(n),
+    ),
+  );
+  const active = (await s.cards()).filter(
+    (c) => c.status === 'active' && (c.body as ScorecardBody).assessment,
+  );
+  assert.ok(active.length > 0);
+  assert.ok(
+    active.every(
+      (c) =>
+        (c.body as ScorecardBody).assessment!.workflow_id === newer.workflow.id,
+    ),
+  );
+});

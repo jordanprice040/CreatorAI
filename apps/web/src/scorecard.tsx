@@ -82,7 +82,13 @@ export function ScoreOption({
   prefill: { target_users?: string; measurable_outcome?: string };
   saved: () => void;
   /** ADR-0074: open the form on this option and rubric ("Edit the assessment"). */
-  pick?: { optionId: string; rubric: RubricKey; n: number } | null;
+  pick?: {
+    optionId: string;
+    rubric: RubricKey;
+    /** The system card whose Edit was pressed (review M-3). */
+    systemId?: string;
+    n: number;
+  } | null;
 }) {
   const [optionId, setOptionId] = useState('');
   const [picked, setRubric] = useState<RubricKey>('suitability');
@@ -94,6 +100,8 @@ export function ScoreOption({
   } | null>(null);
   /** A human card under another label the owner said is theirs (review L-1). */
   const [claimed, setClaimed] = useState<string | null>(null);
+  /** The system card the owner chose to edit, from its Edit button (review M-3). */
+  const [target, setTarget] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -103,6 +111,7 @@ export function ScoreOption({
     if (!pick) return;
     setDone('');
     setClaimed(null);
+    setTarget(pick.systemId ?? null);
     setOptionId(pick.optionId);
     setRubric(pick.rubric);
     document
@@ -132,22 +141,37 @@ export function ScoreOption({
       yours(scorecards, option.entity.id, rubric, reviewer))
     : undefined;
   const others = humanCards.filter((c) => c.id !== existing?.id);
-  /** ADR-0074: the current automatic assessment of this option on this rubric, if any. */
-  const systemCard =
-    option && !existing
-      ? scorecards.find((c) => {
-          const b = c.body as ScorecardBodyShape | undefined;
-          return (
-            c.status === 'active' &&
-            b?.rubric === rubric &&
-            !!b.assessment &&
-            b.subject.id.toLowerCase() === option.entity.id &&
-            b.subject.version === option.entity.version
-          );
-        })
-      : undefined;
-  const systemBody = systemCard?.body as ScorecardBodyShape | undefined;
   const existingBody = existing?.body as ScorecardBodyShape | undefined;
+  /** ADR-0074: the current automatic assessments of this option on this rubric. */
+  const systemCards = option
+    ? scorecards.filter((c) => {
+        const b = c.body as ScorecardBodyShape | undefined;
+        return (
+          c.status === 'active' &&
+          b?.rubric === rubric &&
+          !!b.assessment &&
+          b.subject.id.toLowerCase() === option.entity.id &&
+          b.subject.version === option.entity.version
+        );
+      })
+    : [];
+  /**
+   * The system card this form edits: the one whose Edit was pressed, or with no card of the
+   * owner's, the current one. Review M-3: when the owner's card replaces an older assessment
+   * (or none), editing a newer one moves the owner's card on to replace it.
+   */
+  const chosen =
+    systemCards.find((c) => c.id === target) ??
+    (!existing ? systemCards[0] : undefined);
+  const systemCard =
+    chosen &&
+    existingBody?.edit_of?.scorecard.id.toLowerCase() ===
+      chosen.id.toLowerCase()
+      ? undefined
+      : chosen;
+  const systemBody = systemCard?.body as ScorecardBodyShape | undefined;
+  /** The owner's card moves on to replace a newer automatic assessment. */
+  const repoint = !!existing && !!systemCard;
   /** A card of an older option version: its judgments must be made again (review M-1). */
   const olderCard =
     !!existingBody &&
@@ -166,10 +190,10 @@ export function ScoreOption({
     () =>
       !option
         ? null
-        : existingBody
-          ? draftFromBody(existingBody, criteria, !olderCard)
-          : systemBody
-            ? draftFromSystem(systemBody, criteria)
+        : systemBody
+          ? draftFromSystem(systemBody, criteria)
+          : existingBody
+            ? draftFromBody(existingBody, criteria, !olderCard)
             : emptyDraft(criteria, prefill),
     [draftKey],
   );
@@ -231,10 +255,23 @@ export function ScoreOption({
             ? {
                 expected_version: existing.version,
                 title,
-                // A revision keeps the system card its first version replaced (ADR-0074).
-                body: existingBody?.edit_of
-                  ? { ...out.body, edit_of: existingBody.edit_of }
-                  : out.body,
+                // A revision keeps the system card its first version replaced (ADR-0074),
+                // unless the owner is editing a newer assessment (review M-3).
+                body:
+                  repoint && systemCard && out.body
+                    ? {
+                        ...out.body,
+                        edit_of: {
+                          scorecard: {
+                            id: systemCard.id,
+                            version: systemCard.version,
+                          },
+                          reason: reason.trim().slice(0, 300),
+                        },
+                      }
+                    : existingBody?.edit_of
+                      ? { ...out.body, edit_of: existingBody.edit_of }
+                      : out.body,
                 reason: reason.trim().slice(0, 300),
               }
             : {
@@ -256,11 +293,13 @@ export function ScoreOption({
         },
       );
       setDone(
-        existing
-          ? 'Scorecard revised. The ranking above now uses your new ratings.'
-          : systemCard
-            ? 'Your edit is saved as your own scorecard. The automatic assessment is kept as it was, marked as replaced, and the ranking now counts your ratings instead.'
-            : 'Scorecard saved. The ranking above now includes it.',
+        repoint
+          ? 'Your scorecard now replaces the newer automatic assessment. Its earlier ratings are kept in its history, and the assessment is kept as it was, marked as replaced.'
+          : existing
+            ? 'Scorecard revised. The ranking above now uses your new ratings.'
+            : systemCard
+              ? 'Your edit is saved as your own scorecard. The automatic assessment is kept as it was, marked as replaced, and the ranking now counts your ratings instead.'
+              : 'Scorecard saved. The ranking above now includes it.',
       );
       saved();
     } catch (x) {

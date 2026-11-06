@@ -25,6 +25,7 @@ import {
   type AssessmentPacket,
   type AssessmentResult,
   type AssessorOutput,
+  type ScorecardBody,
   type LocatorOutput,
   type ProposalOutput,
   type Reservation,
@@ -215,6 +216,8 @@ export interface ExplorationWorkflowContext {
 export interface AssessmentWorkflowContext {
   packet: AssessmentPacket;
   packet_hash: string;
+  /** supportHash of every claim id linked to the problem when the packet was built (review M-1). */
+  linked_hash: string;
   /** Every packet claim with a hash of its active support rows when the packet was built. */
   evidence: { id: string; version: number; support_hash: string }[];
 }
@@ -1232,7 +1235,12 @@ export class WorkflowStore extends BudgetStore {
     const packet = parse(AssessmentPacketSchema, d.packet);
     if (canonicalHash(packet) !== d.packet_hash)
       throw fail('EVIDENCE_MISMATCH', 'The assessment packet changed.');
-    return { packet, packet_hash: d.packet_hash, evidence: d.evidence };
+    return {
+      packet,
+      packet_hash: d.packet_hash,
+      linked_hash: d.linked_hash,
+      evidence: d.evidence,
+    };
   }
 
   /**
@@ -1257,7 +1265,11 @@ export class WorkflowStore extends BudgetStore {
         'select model_id from plan_requests where workflow_task_id = $1 order by started_at desc limit 1',
         [task.id],
       );
-      provider = 'plan';
+      const k = await c.query<{ kind: string }>(
+        'select kind from plan_connections where id = $1',
+        [setup.connection_id],
+      );
+      provider = k.rows[0]?.kind ?? 'plan';
       model = r.rows[0]?.model_id ?? setup.model_id;
     } else {
       const r = await c.query<{ provider: string; model_id: string }>(
@@ -1287,6 +1299,7 @@ export class WorkflowStore extends BudgetStore {
         provider,
         model_id: model.slice(0, 200),
         evidence: a.evidence,
+        linked_hash: a.linked_hash,
       },
     });
     const notes = [...a.packet.notes];
@@ -1317,6 +1330,27 @@ export class WorkflowStore extends BudgetStore {
           [ws, card.alternative_id, card.rubric],
         )
       ).rows.map((r: Row) => toEntity(r));
+      // Review L-2: an older assessment that finishes late never replaces a newer one.
+      const newer = [];
+      for (const o of older) {
+        const oa = (o.body as unknown as ScorecardBody).assessment;
+        if (!oa) continue;
+        if (oa.problem.version > a.packet.problem.version) newer.push(o);
+        else if (oa.problem.version === a.packet.problem.version) {
+          const t = await c.query<{ later: boolean }>(
+            `select w.created_at > me.created_at as later from workflows w, workflows me
+              where w.id = $1 and me.id = $2`,
+            [oa.workflow_id, wf.id],
+          );
+          if (t.rows[0]?.later) newer.push(o);
+        }
+      }
+      if (newer.length) {
+        notes.push(
+          `A newer assessment already rates option ${card.option} on ${card.rubric}; this one was not recorded.`,
+        );
+        continue;
+      }
       for (const o of older) {
         await this.writeVersion(c, agent, o, {
           status: 'archived',

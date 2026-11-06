@@ -305,3 +305,13 @@ assessor prompt changes (the old manifest then stops admitting assessments).
 Open: Jordan reviews `config/connections/benchmarks/assessment-synthetic-v1.json` before it
 counts as frozen; plan-route assessments stay blocked until a scoring qualification on it
 passes. Next free numbers after P11: migration 49, ADR-0076.
+
+## P08 review fixes (November 6, PR #144 review, no new migration)
+
+All PR #144 review findings fixed except N-3 (see ADR-0074 amendments and BUILD_STATUS). The
+assessor prompt and the benchmark are unchanged, so a scoring qualification on
+assessment-synthetic-v1 still counts. Live trial: a copy of the dev studio database,
+`creator_p08_trial` on Jordan's Docker server, runs this branch from the worktree
+C:\dev\creator_agent_p08 on the review ports; creator_studio itself is untouched (backup
+C:\CreatorAgentBackups\creator_studio-20261105-200145-pre-p08-trial.dump). Jordan approved the
+benchmark cases and adding scoring to the Claude Code connection on the trial copy only.

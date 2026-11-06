@@ -1015,7 +1015,8 @@ export function createApi(
             req,
             collection === 'plan-connections' && item && method === 'POST'
               ? action === 'qualifications'
-                ? 128 * 1024
+                ? // A bundled benchmark manifest; assessment-synthetic-v1 is ~132 KiB minified.
+                  256 * 1024
                 : action === 'build-calls' || action === 'codex-builds'
                   ? PLAN_BUILD_CALL_MAX_BODY
                   : MAX_BODY
