@@ -658,3 +658,42 @@ test('review L-2: an older assessment finishing late never replaces a newer one'
     ),
   );
 });
+
+test('a problem derived from a claim reads that claim as support, in the packet and on Compare', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  const pool = s.db.pool;
+  // Leave only the derived_from route: unlink every claim → problem link, then derive.
+  const links = (
+    await pool.query<{ id: string; from_id: string }>(
+      `select id, from_id from entity_links where workspace_id = $1 and to_id = $2
+         and from_kind = 'claim' and retracted_at is null`,
+      [s.ws.id, s.problem.id],
+    )
+  ).rows;
+  assert.ok(links.length > 0);
+  for (const l of links)
+    await s.store.retractLink(owner, s.ws.id, l.id, { reason: 'Test.' });
+  assert.equal(
+    (await s.store.previewAssessment(owner, s.ws.id, s.problem.id)).packet
+      .claims.length,
+    0,
+  );
+  const claim = (await s.store.getEntity(owner, s.ws.id, links[0]!.from_id))
+    .entity;
+  const problem = (await s.store.getEntity(owner, s.ws.id, s.problem.id))
+    .entity;
+  await s.store.createLink(owner, s.ws.id, {
+    relation: 'derived_from',
+    from: { id: problem.id, version: problem.version },
+    to: { id: claim.id, version: claim.version },
+    rationale: 'Drafted from this claim (test).',
+  });
+  const preview = await s.store.previewAssessment(owner, s.ws.id, s.problem.id);
+  assert.deepEqual(
+    preview.packet.claims.map((c) => [c.claim_id, c.relation]),
+    [[claim.id, 'supports']],
+  );
+  const cmp = await s.store.comparison(owner, s.ws.id, s.problem.id);
+  assert.ok(cmp.claims.some((c) => c.evidence.claim.id === claim.id));
+});

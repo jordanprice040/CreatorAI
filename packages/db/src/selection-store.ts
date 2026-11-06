@@ -128,6 +128,22 @@ const contentOf = (b: SpecBody) => {
  * ranking survives any override. Selecting and freezing are admitted actions under the run's
  * policy (T03), after deterministic gates that no score can clear.
  */
+/**
+ * The active claims linked to a problem ($1 workspace, $2 problem): a claim that supports or
+ * contradicts it, or one the problem was derived from (a drafted problem records its claims
+ * that way; it counts as support). Assessments, their staleness and Compare read the same set.
+ */
+export const PROBLEM_CLAIMS_SQL = `
+  select l.from_id, l.relation, l.created_at from entity_links l
+    join entities e on e.id = l.from_id and e.status = 'active'
+   where l.workspace_id = $1 and l.to_id = $2 and l.from_kind = 'claim'
+     and l.relation in ('supports', 'contradicts') and l.retracted_at is null
+  union all
+  select l.to_id as from_id, 'supports' as relation, l.created_at from entity_links l
+    join entities e on e.id = l.to_id and e.status = 'active'
+   where l.workspace_id = $1 and l.from_id = $2 and l.to_kind = 'claim'
+     and l.relation = 'derived_from' and l.retracted_at is null`;
+
 export class SelectionStore extends DiscoveryStore {
   // ---- Scorecards ----------------------------------------------------------------------
 
@@ -539,10 +555,7 @@ export class SelectionStore extends DiscoveryStore {
     problemId: string,
   ) {
     const { rows } = await c.query<{ id: string }>(
-      `select distinct l.from_id::text as id from entity_links l
-         join entities e on e.id = l.from_id and e.status = 'active'
-        where l.workspace_id = $1 and l.to_id = $2 and l.from_kind = 'claim'
-          and l.relation in ('supports', 'contradicts') and l.retracted_at is null`,
+      `select distinct x.from_id::text as id from (${PROBLEM_CLAIMS_SQL}) x`,
       [ws, problemId],
     );
     return supportHash(rows.map((r) => r.id));
@@ -800,11 +813,8 @@ export class SelectionStore extends DiscoveryStore {
         );
       const claims = (
         await c.query<{ from_id: string; relation: string }>(
-          `select distinct on (l.from_id) l.from_id, l.relation, l.created_at from entity_links l
-             join entities e on e.id = l.from_id and e.status = 'active'
-            where l.workspace_id = $1 and l.to_id = $2 and l.from_kind = 'claim'
-              and l.relation in ('supports', 'contradicts') and l.retracted_at is null
-            order by l.from_id, l.created_at`,
+          `select distinct on (x.from_id) x.from_id, x.relation, x.created_at from (${PROBLEM_CLAIMS_SQL}) x
+            order by x.from_id, x.created_at`,
           [ws, problemId],
         )
       ).rows;
