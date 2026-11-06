@@ -45,7 +45,10 @@ export function HumilityForm({
   prefill,
   saved,
   cancel,
+  subjectKind = 'software',
 }: {
+  /** ADR-0077: a hybrid option (or its spec) is judged on the hybrid comparison. */
+  subjectKind?: 'software' | 'hybrid';
   base: string;
   session: SessionInfo;
   subject: { id: string; version: number; label: string };
@@ -111,7 +114,7 @@ export function HumilityForm({
     </div>
   );
   const parsed = draftToBody(d, subject);
-  const preview = parsed.body ? gatePreview(parsed.body) : [];
+  const preview = parsed.body ? gatePreview(parsed.body, subjectKind) : [];
   const offered = new Set(
     claims.map((c) => refKey({ id: c.claim.id, version: c.claim.version })),
   );

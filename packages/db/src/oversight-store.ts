@@ -39,6 +39,7 @@ import {
   coverageHash,
   evaluateAction,
   humilityGate,
+  type HumilitySubjectKind,
   standingAllowed,
   standingDraft,
   type HumilityVerdict,
@@ -1314,6 +1315,9 @@ export class OversightStore extends Store {
             body: e.body,
           },
           binding.target,
+          binding.target
+            ? await this.humilitySubjectKind(c, ws, binding.target.id)
+            : 'software',
         );
       }
       const resolved = (
@@ -1553,7 +1557,31 @@ export class OversightStore extends Store {
       return humilityGate(
         { id: e.id, version: e.version, status: e.status, body: e.body },
         { id: subjectId, version: Number((subject.rows[0] as Row).version) },
+        await this.humilitySubjectKind(c, ws, subjectId),
       );
     });
+  }
+
+  /**
+   * ADR-0077 (pilot F9): a hybrid option, or a spec written from one, is a hybrid subject; the
+   * humility gate then reads the hybrid comparison. Anything else is judged as software-only.
+   */
+  protected async humilitySubjectKind(
+    c: PoolClient,
+    ws: string,
+    subjectId: string,
+  ): Promise<HumilitySubjectKind> {
+    const { rows } = await c.query<{ kind: string; body: Row | null }>(
+      'select kind, body from entities where workspace_id = $1 and id = $2',
+      [ws, subjectId.toLowerCase()],
+    );
+    const e = rows[0];
+    if (!e?.body) return 'software';
+    if (e.kind === 'alternative')
+      return e.body.kind === 'hybrid' ? 'hybrid' : 'software';
+    const alt = (e.body.alternative as Row | undefined)?.id;
+    if (e.kind === 'specification' && typeof alt === 'string')
+      return this.humilitySubjectKind(c, ws, alt);
+    return 'software';
   }
 }

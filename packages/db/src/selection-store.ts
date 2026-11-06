@@ -85,7 +85,7 @@ function personalScorecard(body: ScorecardBody) {
       'Model scorecards are written only by an automatic assessment; record your own ratings as a person.',
     );
 }
-function toSelection(r: Row, current: boolean): Selection {
+export function toSelection(r: Row, current: boolean): Selection {
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
@@ -409,7 +409,7 @@ export class SelectionStore extends DiscoveryStore {
   // ---- Ranking -------------------------------------------------------------------------
 
   /** Everything the report needs for one problem, read in the caller's transaction. */
-  private async gather(c: PoolClient, ws: string, problemId: string) {
+  protected async gather(c: PoolClient, ws: string, problemId: string) {
     const p = await c.query(
       `select * from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
       [ws, problemId],
@@ -479,6 +479,7 @@ export class SelectionStore extends DiscoveryStore {
               body: review.body,
             },
             { id: a.id, version: a.version },
+            kind === 'hybrid' ? 'hybrid' : 'software',
           );
           humility = v.build_admissible
             ? 'passing'

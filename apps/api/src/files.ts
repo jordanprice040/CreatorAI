@@ -11,7 +11,7 @@ export const FILES_ROUTE =
   /^\/api\/workspaces\/([^/]+)\/(files)(?:\/([^/]+)(?:\/(content|raw|text|rename|link|delete|restore|purge|versions))?)?$/;
 
 /** Headers on every response that carries file bytes. */
-const INERT = {
+export const INERT = {
   'X-Content-Type-Options': 'nosniff',
   'Content-Security-Policy': "default-src 'none'; sandbox",
   'Cross-Origin-Resource-Policy': 'same-origin',
@@ -70,7 +70,7 @@ function decodeName(raw: string | undefined) {
 }
 
 /** RFC 6266/5987 attachment header: an ASCII fallback plus the exact UTF-8 name. */
-function disposition(kind: 'attachment' | 'inline', name: string) {
+export function disposition(kind: 'attachment' | 'inline', name: string) {
   const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
   return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)}`;
 }

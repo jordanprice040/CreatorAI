@@ -119,6 +119,7 @@ test('buttons name the page only when the tab is on another page', async () => {
       'Path',
       'Discover',
       'Decide',
+      'Proposals',
       'Scores and specs',
       'Build',
       'Try',

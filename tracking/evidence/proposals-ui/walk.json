@@ -1,0 +1,18 @@
+{
+  "when": "2026-11-06T10:29:54.205Z",
+  "steps": [
+    "seeded fixture problem 3ee4aa6c, selection 1ee60cf9 recommends the existing tool",
+    "Decide shows \"Why this response\" with the software routes and what would make them preferable",
+    "screenshot 02-new-draft.png",
+    "saved version 1 (drafted from records; core sections marked unknown)",
+    "screenshot 03-version-2-ready.png",
+    "saved version 2: checks say \"Ready for review\"",
+    "screenshot 04-preview.png",
+    "screenshot 05-review.png",
+    "review saved against version 2",
+    "downloaded proposal-use-the-existing-tool-the-clinics-scheduling-systems-send-reminders-but-v2.md",
+    "saved the v2 export to Files",
+    "phone width horizontal overflow: false",
+    "screenshot 06-phone.png"
+  ]
+}

@@ -7,7 +7,7 @@ import {
   isAllowedLink,
   provenanceOrigin,
   lifecycleField,
-  MAX_BODY_BYTES,
+  maxBodyBytes,
   UNMANAGED_KINDS,
   StoredBodySchemas,
   CreateWorkspaceRequestSchema,
@@ -144,7 +144,7 @@ export function validateBody(
 ): Record<string, unknown> {
   const schema: z.ZodType<Record<string, unknown>> = StoredBodySchemas[kind];
   const parsed = parse(schema, body);
-  if (Buffer.byteLength(JSON.stringify(parsed)) > MAX_BODY_BYTES)
+  if (Buffer.byteLength(JSON.stringify(parsed)) > maxBodyBytes(kind))
     throw fail(
       'BODY_TOO_LARGE',
       'Record bodies hold references; store large content as an artifact.',
@@ -164,6 +164,11 @@ function refuseRetrievalFacts(kind: StoredKind, body: Record<string, unknown>) {
     throw fail(
       'INVALID_CONTRACT',
       'Record scorecards through the scorecard API, which checks the subject and evidence.',
+    );
+  if (kind === 'proposal')
+    throw fail(
+      'INVALID_CONTRACT',
+      'Write proposals through the proposal API, which checks the option, selection and citations.',
     );
   if (kind === 'specification' && body.format === 'spec/1')
     throw fail(

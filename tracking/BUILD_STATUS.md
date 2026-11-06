@@ -390,3 +390,25 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   production gate (`checkPilot`/`evaluateReadiness`, which still default to the real time) are unchanged.
 - Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix), rebased on main after #146;
   `pnpm check` 835 tests, 534 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
+
+## P09 why this response and non-code proposals (November 6, branch `claude/project-thread-raqxjh`, ADR-0077, migration 49)
+
+- Decide shows **Why this response** for the focused problem: the chosen response (the current selection's advancing
+  options, or the top suitability rank when nothing is selected), its reasons and "would change if", and for every
+  software or hybrid option not chosen, the criteria it is behind on, the ones nobody rated (unknown, not low), its
+  open build gates, its humility review and specific evidence or conditions that would make it preferable. Computed
+  by code from the records (`GET problems/{id}/explanation`); no model call.
+- New **Projects › Proposals** tab: a recommended non-code option (existing tool, process change, human-led, hybrid
+  or investigate) gets a versioned `proposal` record (migration 49) with 15 sections, drafted only from records with
+  everything else marked unknown. Document checks (completeness, citation fidelity, changed problem/option/selection),
+  reviews bound to one version (verdict, four marks, comments), revisions with a reason, older versions readable,
+  Markdown download and "Save to Files" (P05). Software options are refused ("goes to a spec and a build").
+- Pilot **F9** resolved in code: the humility gate judges a hybrid option, or its spec, on the hybrid comparison
+  (disposition build or hybrid); plain software is unchanged. Jordan was asked to confirm on a decision card.
+- Checks (cloud container, local PostgreSQL 16): `tests/src/proposal.test.ts` (4 DB tests: explanation, F9 gate,
+  draft/version/check/review/export, API download, save to Files and viewer refusal) and
+  `tests/src/proposal-domain.test.ts` (4); browser walk `tracking/evidence/proposals-ui/walk.mjs` with screenshots
+  in `tracking/evidence/proposals-ui/screens/` (no horizontal scroll at phone width). Full suite results in the
+  handoff entry.
+- Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
+  unverified.

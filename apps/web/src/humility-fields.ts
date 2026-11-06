@@ -276,13 +276,20 @@ export function draftToBody(
  * What the humility gate will say about this body for a build, in words. Mirrors
  * humilityGate in packages/domain/src/oversight.ts; the server's verdict is the authority.
  */
-export function gatePreview(b: HumilityBodyShape): string[] {
+export function gatePreview(
+  b: HumilityBodyShape,
+  subjectKind: 'software' | 'hybrid' = 'software',
+): string[] {
   const out: string[] = [];
-  if (b.disposition !== 'build')
+  // ADR-0077 (pilot F9): a hybrid's build is its software part, judged on the hybrid row.
+  const hybrid = subjectKind === 'hybrid';
+  if (b.disposition !== 'build' && !(hybrid && b.disposition === 'hybrid'))
     out.push(
       `It recommends ${b.disposition.replaceAll('_', ' ')}, so it does not admit a build.`,
     );
-  if (!b.comparisons.software.viable)
+  if (hybrid && !b.comparisons.hybrid.viable)
+    out.push('It finds the hybrid not viable, so it does not admit a build.');
+  if (!hybrid && !b.comparisons.software.viable)
     out.push(
       'It finds custom software not viable, so it does not admit a build.',
     );

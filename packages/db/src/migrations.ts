@@ -2881,6 +2881,34 @@ create table tester_workspaces (
 create unique index tester_workspaces_current on tester_workspaces (actor_id) where retired_at is null;
 `,
   },
+  {
+    // ADR-0077 (P09): versioned non-code proposals are entity records of a new kind, written
+    // only through the proposal API. Each review is feedback bound to one exact version and
+    // content hash; a later version leaves earlier reviews standing for the version they read.
+    version: 49,
+    name: 'proposals',
+    sql: `
+alter table entities drop constraint entities_kind_check;
+alter table entities add constraint entities_kind_check check (kind in ('source',
+  'claim', 'problem', 'idea', 'alternative', 'assessment', 'product',
+  'specification', 'run', 'task', 'decision', 'grant', 'artifact', 'assumption',
+  'humility_review', 'search_brief', 'scorecard', 'theme_intent', 'proposal'));
+create table proposal_reviews (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ proposal_id uuid not null,
+ proposal_version integer not null check (proposal_version > 0),
+ content_hash text not null check (content_hash ~ '^[a-f0-9]{64}$'),
+ verdict text not null check (verdict in ('ready', 'revise')),
+ marks jsonb not null,
+ comments text not null check (length(comments) <= 4000),
+ reviewer uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ foreign key (proposal_id, proposal_version) references entity_versions (entity_id, version)
+);
+create index proposal_reviews_by_proposal on proposal_reviews (workspace_id, proposal_id, created_at);
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

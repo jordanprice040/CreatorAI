@@ -193,6 +193,7 @@ export const linkPairs: Record<LinkRelation, readonly string[]> = {
     'product:idea',
     'specification:product',
     'artifact:task',
+    'proposal:alternative',
   ],
   uses: ['task:source', 'task:specification', 'run:config', 'run:prompt'],
   implements: ['task:specification', 'artifact:specification'],

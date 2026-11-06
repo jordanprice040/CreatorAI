@@ -162,10 +162,16 @@ export interface HumilityVerdict {
   needs_judgment: boolean;
   reasons: string[];
 }
+/**
+ * What the reviewed subject is (ADR-0077, pilot F9): a hybrid option, or a spec written from
+ * one, is judged on the hybrid comparison; anything else on the software-only comparison.
+ */
+export type HumilitySubjectKind = 'software' | 'hybrid';
 /** Pre-build humility gate. A serious unresolved ethical problem is its own gate, not a score. */
 export function humilityGate(
   review: HumilityInput,
   subject: { id: string; version: number } | null,
+  subjectKind: HumilitySubjectKind = 'software',
 ): HumilityVerdict {
   const body = parse(HumilityBodySchema, review.body);
   const blockers: string[] = [];
@@ -176,11 +182,19 @@ export function humilityGate(
     (body.subject.id !== subject.id || body.subject.version !== subject.version)
   )
     blockers.push('The review assesses a different subject or version.');
-  if (body.disposition !== 'build')
+  // A hybrid's build is its software part: "build" or "hybrid" both recommend building it,
+  // and the hybrid comparison (not software-only) says whether it is viable.
+  const hybrid = subjectKind === 'hybrid';
+  if (
+    body.disposition !== 'build' &&
+    !(hybrid && body.disposition === 'hybrid')
+  )
     blockers.push(
-      `The review recommends ${body.disposition.replaceAll('_', ' ')}, not building.`,
+      `The review recommends ${body.disposition.replaceAll('_', ' ')}, not building${hybrid ? ' the hybrid' : ''}.`,
     );
-  if (!body.comparisons.software.viable)
+  if (hybrid && !body.comparisons.hybrid.viable)
+    blockers.push('The review found the hybrid not viable.');
+  if (!hybrid && !body.comparisons.software.viable)
     blockers.push('The review found custom software not viable.');
   const cited =
     body.evidence.supported.length +
