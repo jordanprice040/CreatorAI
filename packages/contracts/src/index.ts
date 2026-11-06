@@ -34,6 +34,7 @@ export * from './research.js';
 export * from './discovery.js';
 export * from './exploration.js';
 export * from './selection.js';
+export * from './assessment.js';
 export * from './catalog.js';
 
 export * from './study.js';

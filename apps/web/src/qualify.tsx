@@ -4,6 +4,7 @@ import {
   planWaitMs,
   type PlanQualification,
 } from '@creator/contracts';
+import assessment from '../../../config/connections/benchmarks/assessment-synthetic-v1.json';
 import specification from '../../../config/connections/benchmarks/specification-synthetic-v1.json';
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
@@ -14,18 +15,23 @@ import { api, words } from './oversight.js';
  * The frozen benchmarks this app can start a plan qualification with (audit item 4, piece 4).
  * They are the files under config/connections/benchmarks that a Responses plan role uses
  * today; t12-reviewer-v1 is left out because its reviewer prompt was replaced (ADR-0049) and
- * the server refuses it. The server checks the manifest, the task class, the data class and
+ * the server refuses it. assessment-synthetic-v1 qualifies the automatic assessor (ADR-0074).
+ * The server checks the manifest, the task class, the data class and
  * that the model is verified before it records anything.
  */
-export const BENCHMARKS = [specification, summarization, builder, reviewer].map(
-  (m) => ({
-    manifest: m,
-    name: m.name,
-    task_class: m.task_class,
-    held_out: m.cases.filter((c) => c.split === 'held_out').length,
-    development: m.cases.filter((c) => c.split !== 'held_out').length,
-  }),
-);
+export const BENCHMARKS = [
+  specification,
+  summarization,
+  builder,
+  reviewer,
+  assessment,
+].map((m) => ({
+  manifest: m,
+  name: m.name,
+  task_class: m.task_class,
+  held_out: m.cases.filter((c) => c.split === 'held_out').length,
+  development: m.cases.filter((c) => c.split !== 'held_out').length,
+}));
 
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
 export function QualifyModel({

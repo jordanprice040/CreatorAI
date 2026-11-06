@@ -1,0 +1,19 @@
+Walk of P08 automatic assessments (ADR-0074) after the PR #144 review fixes, 2026-11-06, throwaway
+PostgreSQL 16 database p08_walk, review ports 5183/4330/4340, fixture provider only, $0, no plan or paid call.
+workspace a820e250-c216-4cd2-9fcf-e3328ad9b955
+PASS Assess: one assessment workflow, succeeded
+PASS Compare: the option shows its automatic assessment
+PASS Why: per-criterion ratings shown
+PASS Why: cited claims named
+PASS Why: confidence and uncertainty
+PASS Why: provenance line
+PASS Edit: saved as the person’s card, original kept
+PASS Compare: the system card is marked replaced
+PASS Compare: the edit names its author
+PASS Assess again: second workflow succeeded
+PASS Compare: the newer assessment counts until edited
+PASS Edit again: the person’s card moves on to the newer assessment
+PASS Compare: the newer assessment is marked replaced
+PASS Compare: no Edit on the replaced assessment (the other rubric keeps its own)
+PASS Phone width: no horizontal overflow on Compare
+PASS no page errors

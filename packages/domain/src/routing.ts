@@ -7,6 +7,7 @@ import {
   PricingSnapshotBodySchema,
 } from '@creator/contracts';
 import { checkDiscoveryOutput } from './discovery.js';
+import { checkAssessmentOutput } from './assessment.js';
 import { canonicalHash } from './rules.js';
 import type {
   ArmSummary,
@@ -287,6 +288,47 @@ export function checkOutput(
           return found.every((v) => a.values!.some((x) => same(x, v)));
         return found.some((v) =>
           Array.isArray(v) ? v.some((x) => same(x, a.value)) : same(v, a.value),
+        );
+      })
+        ? 'accepted'
+        : 'acceptance_check_failed';
+    }
+    case 'assessment_contract': {
+      // ADR-0074: the studio's own admissibility check first, then the case's assertions.
+      if (canonicalHash(check.packet) !== check.context.packet_hash)
+        return 'acceptance_check_failed';
+      const validated = checkAssessmentOutput(output.json, check.packet);
+      if (!validated.ok)
+        return validated.problem === 'does not match the output schema'
+          ? 'schema_invalid'
+          : 'acceptance_check_failed';
+      if ((output.json as { fixture?: boolean }).fixture === true)
+        return 'acceptance_check_failed';
+      const at = (value: unknown, path: string[]): unknown[] => {
+        if (!path.length) return [value];
+        const [key, ...rest] = path;
+        if (key === '*')
+          return Array.isArray(value) ? value.flatMap((v) => at(v, rest)) : [];
+        if (!value || typeof value !== 'object' || !Object.hasOwn(value, key!))
+          return [];
+        return at((value as Record<string, unknown>)[key!], rest);
+      };
+      const eq = (a: unknown, b: unknown) =>
+        JSON.stringify(a) === JSON.stringify(b);
+      return check.assertions.every((a) => {
+        const found = at(output.json, a.path);
+        if (!found.length) return false;
+        if (a.op === 'nonempty')
+          return found.every((v) =>
+            typeof v === 'string'
+              ? !!v.trim()
+              : Array.isArray(v) && v.length > 0,
+          );
+        if (a.op === 'equals') return found.every((v) => eq(v, a.value));
+        if (a.op === 'one_of')
+          return found.every((v) => a.values!.some((x) => eq(x, v)));
+        return found.some((v) =>
+          Array.isArray(v) ? v.some((x) => eq(x, a.value)) : eq(v, a.value),
         );
       })
         ? 'accepted'

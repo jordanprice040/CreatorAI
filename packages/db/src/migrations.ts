@@ -2839,6 +2839,20 @@ insert into personal_notes (id, workspace_id, actor_id, title, text, version, fr
 `,
   },
   {
+    // ADR-0074 (P08): automatic assessments reuse the T05 workflow tables with a fourth role
+    // and one task kind; their subject is the problem, pinned to the version assessed.
+    version: 47,
+    name: 'assessment_workflows',
+    sql: `
+alter table workflows drop constraint workflows_role_check;
+alter table workflows add constraint workflows_role_check
+  check (role in ('r05_skeptic', 'r02_discovery', 'r01_exploration', 'r08_assessment'));
+alter table workflow_tasks drop constraint workflow_tasks_kind_check;
+alter table workflow_tasks add constraint workflow_tasks_kind_check
+  check (kind in ('critique', 'synthesis', 'locate', 'propose', 'skeptic', 'revise', 'explore', 'assess'));
+`,
+  },
+  {
     // ADR-0075 (P11 G1/G2): tester accounts for a private committee review. Each allow-listed
     // (issuer, subject) pair signs in as its own person actor, never the owner's; an account
     // stops working at its expiry or when disabled. Each tester's sample workspaces are listed

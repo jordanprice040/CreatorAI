@@ -6,6 +6,7 @@ import {
   contextFixtureAnswer,
   discoveryFixtureAnswer,
   explorationFixtureAnswer,
+  assessmentFixtureAnswer,
 } from '@creator/domain';
 import type {
   BrokerCallRequest,
@@ -169,7 +170,8 @@ export class FixtureAdapter implements ModelAdapter {
         auditPlanFixtureAnswer(req.input) ??
         buildFixtureAnswer(req.input) ??
         discoveryFixtureAnswer(req.input) ??
-        explorationFixtureAnswer(req.input);
+        explorationFixtureAnswer(req.input) ??
+        assessmentFixtureAnswer(req.input);
     } catch {
       scripted = null;
     }

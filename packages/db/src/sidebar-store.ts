@@ -73,6 +73,7 @@ const PLAN_PURPOSE: Record<string, string> = {
 const WORKFLOW_ROLE: Record<string, string> = {
   r02_discovery: 'Discovery research',
   r01_exploration: 'Exploration',
+  r08_assessment: 'Assessment',
   r05_skeptic: 'Skeptic review',
 };
 

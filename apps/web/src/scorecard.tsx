@@ -11,6 +11,7 @@ import { clip } from './ui.js';
 import {
   CHECK_LABELS,
   draftFromBody,
+  draftFromSystem,
   draftToBody,
   earlierPicks,
   emptyDraft,
@@ -71,6 +72,7 @@ export function ScoreOption({
   scorecards,
   prefill,
   saved,
+  pick,
 }: {
   base: string;
   session: SessionInfo;
@@ -79,6 +81,14 @@ export function ScoreOption({
   scorecards: StoredEntity[];
   prefill: { target_users?: string; measurable_outcome?: string };
   saved: () => void;
+  /** ADR-0074: open the form on this option and rubric ("Edit the assessment"). */
+  pick?: {
+    optionId: string;
+    rubric: RubricKey;
+    /** The system card whose Edit was pressed (review M-3). */
+    systemId?: string;
+    n: number;
+  } | null;
 }) {
   const [optionId, setOptionId] = useState('');
   const [picked, setRubric] = useState<RubricKey>('suitability');
@@ -90,11 +100,24 @@ export function ScoreOption({
   } | null>(null);
   /** A human card under another label the owner said is theirs (review L-1). */
   const [claimed, setClaimed] = useState<string | null>(null);
+  /** The system card the owner chose to edit, from its Edit button (review M-3). */
+  const [target, setTarget] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
 
+  useEffect(() => {
+    if (!pick) return;
+    setDone('');
+    setClaimed(null);
+    setTarget(pick.systemId ?? null);
+    setOptionId(pick.optionId);
+    setRubric(pick.rubric);
+    document
+      .getElementById('score-title')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [pick?.n]);
   const reviewer = session.display_name.trim().slice(0, 300) || 'Owner';
   const option = options.find((o) => o.entity.id === optionId);
   const rubrics = option ? rubricsFor(option.kind) : [];
@@ -119,6 +142,36 @@ export function ScoreOption({
     : undefined;
   const others = humanCards.filter((c) => c.id !== existing?.id);
   const existingBody = existing?.body as ScorecardBodyShape | undefined;
+  /** ADR-0074: the current automatic assessments of this option on this rubric. */
+  const systemCards = option
+    ? scorecards.filter((c) => {
+        const b = c.body as ScorecardBodyShape | undefined;
+        return (
+          c.status === 'active' &&
+          b?.rubric === rubric &&
+          !!b.assessment &&
+          b.subject.id.toLowerCase() === option.entity.id &&
+          b.subject.version === option.entity.version
+        );
+      })
+    : [];
+  /**
+   * The system card this form edits: the one whose Edit was pressed, or with no card of the
+   * owner's, the current one. Review M-3: when the owner's card replaces an older assessment
+   * (or none), editing a newer one moves the owner's card on to replace it.
+   */
+  const chosen =
+    systemCards.find((c) => c.id === target) ??
+    (!existing ? systemCards[0] : undefined);
+  const systemCard =
+    chosen &&
+    existingBody?.edit_of?.scorecard.id.toLowerCase() ===
+      chosen.id.toLowerCase()
+      ? undefined
+      : chosen;
+  const systemBody = systemCard?.body as ScorecardBodyShape | undefined;
+  /** The owner's card moves on to replace a newer automatic assessment. */
+  const repoint = !!existing && !!systemCard;
   /** A card of an older option version: its judgments must be made again (review M-1). */
   const olderCard =
     !!existingBody &&
@@ -127,19 +180,28 @@ export function ScoreOption({
   const offered = new Set(
     claims.map((c) => refKey({ id: c.claim.id, version: c.claim.version })),
   );
+  /** The current version of each linked claim, by claim id, for swapping older citations. */
+  const current = new Map(
+    claims.map((c) => [
+      c.claim.id.toLowerCase(),
+      refKey({ id: c.claim.id, version: c.claim.version }),
+    ]),
+  );
 
   // The draft is derived in the same render as the option, rubric and card it belongs to,
   // so the fields never render against another rubric's draft (review H-1).
   const draftKey = option
-    ? `${option.entity.id}:${option.entity.version}:${rubric}:${existing?.id ?? ''}:${existing?.version ?? ''}`
+    ? `${option.entity.id}:${option.entity.version}:${rubric}:${existing?.id ?? ''}:${existing?.version ?? ''}:${systemCard?.id ?? ''}`
     : '';
   const fresh = useMemo(
     () =>
       !option
         ? null
-        : existingBody
-          ? draftFromBody(existingBody, criteria, !olderCard)
-          : emptyDraft(criteria, prefill),
+        : systemBody
+          ? draftFromSystem(systemBody, criteria)
+          : existingBody
+            ? draftFromBody(existingBody, criteria, !olderCard)
+            : emptyDraft(criteria, prefill),
     [draftKey],
   );
   const draft = edits?.key === draftKey ? edits.draft : fresh;
@@ -179,6 +241,8 @@ export function ScoreOption({
     const errs = { ...(out.errors ?? {}) };
     if (existing && !reason.trim())
       errs.reason = 'Say why you are changing your scores.';
+    if (systemCard && !reason.trim())
+      errs.reason = 'Say why you are changing the automatic assessment.';
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
@@ -198,16 +262,51 @@ export function ScoreOption({
             ? {
                 expected_version: existing.version,
                 title,
-                body: out.body,
+                // A revision keeps the system card its first version replaced (ADR-0074),
+                // unless the owner is editing a newer assessment (review M-3).
+                body:
+                  repoint && systemCard && out.body
+                    ? {
+                        ...out.body,
+                        edit_of: {
+                          scorecard: {
+                            id: systemCard.id,
+                            version: systemCard.version,
+                          },
+                          reason: reason.trim().slice(0, 300),
+                        },
+                      }
+                    : existingBody?.edit_of
+                      ? { ...out.body, edit_of: existingBody.edit_of }
+                      : out.body,
                 reason: reason.trim().slice(0, 300),
               }
-            : { title, body: out.body },
+            : {
+                title,
+                body:
+                  systemCard && out.body
+                    ? {
+                        ...out.body,
+                        edit_of: {
+                          scorecard: {
+                            id: systemCard.id,
+                            version: systemCard.version,
+                          },
+                          reason: reason.trim().slice(0, 300),
+                        },
+                      }
+                    : out.body,
+              },
         },
       );
       setDone(
-        existing
-          ? 'Scorecard revised. The ranking above now uses your new ratings.'
-          : 'Scorecard saved. The ranking above now includes it.',
+        repoint
+          ? 'Your scorecard now replaces the newer automatic assessment. Its earlier ratings are kept in its history, and the assessment is kept as it was, marked as replaced.'
+          : existing
+            ? 'Scorecard revised. The ranking above now uses your new ratings.'
+            : systemCard
+              ? 'Your edit is saved as your own scorecard. The automatic assessment is kept as it was, marked as replaced, and the ranking now counts your ratings instead.'
+              : 'Scorecard saved. The ranking above now includes it.',
       );
       saved();
     } catch (x) {
@@ -309,6 +408,17 @@ export function ScoreOption({
       )}
       {option && draft && (
         <>
+          {systemCard && systemBody && (
+            <p className="notice" role="status">
+              Starting from the automatic assessment of{' '}
+              {when(systemCard.updated_at)} ({systemBody.reviewer.label}). Its
+              ratings, evidence and notes are filled in for you to change; the
+              ethics and access gates are yours to pick, because an automatic
+              assessment never clears them. Saving records your own scorecard
+              that replaces it in the ranking. The automatic assessment is kept
+              as it was.
+            </p>
+          )}
           {existing && (
             <p className="notice" role="status">
               Revising your {RUBRIC_NAME[rubric].toLowerCase()} scorecard (v
@@ -422,7 +532,28 @@ export function ScoreOption({
                   <p className="small">
                     Also cites {stray.length} claim version
                     {stray.length === 1 ? '' : 's'} not linked to this problem
-                    now (kept unless you untick:{' '}
+                    now. Saving needs the current version of every cited claim,
+                    so an older version is refused.{' '}
+                    {stray.some((k) => current.has(k.split('@')[0]!)) && (
+                      <>
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() =>
+                            set((d) => {
+                              const ev = d.ratings[c.key]!.evidence.map(
+                                (y) => current.get(y.split('@')[0]!) ?? y,
+                              );
+                              d.ratings[c.key]!.evidence = [...new Set(ev)];
+                              return d;
+                            })
+                          }
+                        >
+                          Cite the current versions
+                        </button>{' '}
+                        or{' '}
+                      </>
+                    )}
                     <button
                       type="button"
                       className="text"
@@ -437,7 +568,7 @@ export function ScoreOption({
                     >
                       remove them
                     </button>
-                    ).
+                    .
                   </p>
                 )}
                 {err(`ratings.${c.key}.evidence`)}
@@ -715,10 +846,12 @@ export function ScoreOption({
             </label>
             {err('confidence.rationale')}
           </fieldset>
-          {existing && (
+          {(existing || systemCard) && (
             <>
               <label htmlFor="sc-reason">
-                Why you are changing your scores
+                {systemCard
+                  ? 'Why you are changing the automatic assessment'
+                  : 'Why you are changing your scores'}
                 <input
                   id="sc-reason"
                   maxLength={300}

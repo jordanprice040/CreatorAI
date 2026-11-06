@@ -293,6 +293,43 @@ N-1 ADR wording on old-page tabs; N-2 a legacy notepad draft is kept when the no
 unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migration test starts
 "from the layout before 46" (wording fixed above).
 
+## P08 automatic assessments (November 6, branch `claude/project-thread-rbtrzm`, ADR-0074, migration 47)
+
+What works: Compare's "Assess automatically" runs an `r08_assessment` workflow and writes
+system scorecards beside people's, with provenance, edit-with-reason (`edit_of`), gate limits
+and stale marking (see ADR-0074). New routes: `problems/{id}/assessment-preview`,
+`runs/{id}/assessments`, `workflows/{id}/assessment-packet`. Benchmark generator:
+`node scripts/assessment-benchmark.mjs` after `pnpm build:code`; regenerate it whenever the
+assessor prompt changes (the old manifest then stops admitting assessments).
+
+Open: Jordan reviews `config/connections/benchmarks/assessment-synthetic-v1.json` before it
+counts as frozen; plan-route assessments stay blocked until a scoring qualification on it
+passes. Next free numbers after P11: migration 49, ADR-0076.
+
+## P08 review fixes (November 6, PR #144 review, no new migration)
+
+All PR #144 review findings fixed except N-3 (see ADR-0074 amendments and BUILD_STATUS). The
+assessor prompt and the benchmark are unchanged, so a scoring qualification on
+assessment-synthetic-v1 still counts. Live trial: a copy of the dev studio database,
+`creator_p08_trial` on Jordan's Docker server, runs this branch from the worktree
+C:\dev\creator_agent_p08 on the review ports; creator_studio itself is untouched (backup
+C:\CreatorAgentBackups\creator_studio-20261105-200145-pre-p08-trial.dump). Jordan approved the
+benchmark cases and adding scoring to the Claude Code connection on the trial copy only.
+
+## P08 split assessment requests and L-6 (November 6, PR #144)
+
+Live trial so far (trial copy only, Claude plan, $0): scoring qualification b9ad4984 passed
+(dev 2/2, held-out 6/6, 8 requests); the first assessment e5aa5780 failed with
+`output_cap_exceeded` (1 request), which led to splitting assessments into batches of four
+option-and-rubric pairs. Next: re-run the live assessment of "CSV files need a quick quality check
+before analysis" on the trial copy after pulling this commit, then re-review.
+
+Live re-run at 7eaf45d on the trial copy: workflow ab5a4999 succeeded in 2 requests (answers
+12,166 and 11,825 characters), 8 system cards, 30 of 48 ratings unknown, every option incomplete
+so nothing ranked; connection at 11 of 30 daily, $0. Then re-review Low L-7 and nit N-5 fixed.
+Follow-up idea, not done: option rationales cite claim labels (C5 to C8) from the drafting step
+that differ from the assessment packet's numbering.
+
 ## P11 preparation: tester accounts, sample workspaces, upload cap (November 6, branch `claude/project-thread-hdk4s6`)
 
 ADR-0075, migration 48, schema 48 (migration 47 is reserved for P08 in parallel). More than one

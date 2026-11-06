@@ -446,6 +446,8 @@ export const PlanQualificationSchema = z.strictObject({
   decided_at: timestamp.nullable(),
   /** Derived by the server from the exact current role prompt; historical grades stay intact. */
   prompt_current: z.boolean().optional(),
+  /** ADR-0074 review L-4: a scoring qualification that admits automatic assessments. */
+  admits_assessment: z.boolean().optional(),
 });
 export type PlanQualification = z.infer<typeof PlanQualificationSchema>;
 /**
