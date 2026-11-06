@@ -1,0 +1,200 @@
+{
+  "format": "p14-benchmark-spec/1",
+  "benchmark_id": "p14-small-wordtally-v2",
+  "scale": "small",
+  "title": "Word tally CLI (P14 small benchmark)",
+  "content": {
+    "audience": "Synthetic benchmark operator measuring the studio's build path at small scale",
+    "problem_statement": "Measure whether the bounded builder and independent reviewer can deliver a single-module Python standard-library CLI that counts words read from stdin, against frozen exact-output cases including held-out edge cases. This is a synthetic benchmark, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Default tally",
+        "steps": [
+          "Pipe text into the CLI with no arguments",
+          "Read the three most frequent words with their counts"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Choose how many",
+        "steps": ["Run with --top K", "Read at most K words with their counts"]
+      },
+      {
+        "key": "F3",
+        "name": "No words",
+        "steps": [
+          "Pipe text that has no letters or digits",
+          "Read the no words message"
+        ]
+      },
+      {
+        "key": "F4",
+        "name": "Invalid arguments",
+        "steps": [
+          "Run with an argument the CLI does not accept",
+          "Read the invalid input message and exit status 2"
+        ]
+      }
+    ],
+    "scope": [
+      "Python 3.8+ standard library only, entry point src/main.py, all code under src",
+      "Read all of stdin as text. A word is a maximal run of ASCII letters A-Z, a-z and digits 0-9; every other character separates words. Words are lowercased before counting",
+      "Print one line per word as the word, one space, the count, newline. Order by count descending, then word ascending (plain string order). Print at most K lines; fewer when there are fewer distinct words",
+      "K is 3 by default. --top K sets it, where K is one or more ASCII digits with value 1 to 50. --top may appear at most once",
+      "When stdin has no words print exactly: no words, then newline, and exit 0",
+      "Any other argument, a missing or invalid K, or a repeated --top prints exactly: invalid input, then newline, and exits 2. Nothing else is printed",
+      "Exit 0 on success. No files, network, environment variables or third-party packages"
+    ],
+    "non_goals": [
+      "Unicode word rules",
+      "Reading files",
+      "Persistence",
+      "Web UI",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "wordtally/1",
+        "description": "Synthetic text on stdin; plain text lines on stdout",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "With no arguments print the three most frequent lowercased words, ties by word",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "the cat and the hat and the bat\n",
+            "stdout": "the 3\nand 2\nbat 1\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "Apple apple APPLE banana\nbanana cherry 42 42 42 42\n",
+            "stdout": "42 4\napple 3\nbanana 2\n",
+            "exit_code": 0,
+            "held_out": true
+          },
+          {
+            "args": [],
+            "stdin": "well-known well known; it's\n",
+            "stdout": "known 2\nwell 2\nit 1\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "--top K prints at most K words",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": ["--top", "1"],
+            "stdin": "b a b\n",
+            "stdout": "b 2\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": ["--top", "5"],
+            "stdin": "x y x\n",
+            "stdout": "x 2\ny 1\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F3",
+        "statement": "Input without words prints no words",
+        "measure": "Exact stdout and exit code 0",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": [],
+            "stdin": "",
+            "stdout": "no words\n",
+            "exit_code": 0,
+            "held_out": false
+          },
+          {
+            "args": [],
+            "stdin": "... !!! ---\n",
+            "stdout": "no words\n",
+            "exit_code": 0,
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": "F4",
+        "statement": "Invalid arguments print invalid input and exit 2",
+        "measure": "Exact stdout and exit code 2",
+        "method": "automated_test",
+        "cases": [
+          {
+            "args": ["--bogus"],
+            "stdin": "a\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": false
+          },
+          {
+            "args": ["--top", "0"],
+            "stdin": "a\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": true
+          },
+          {
+            "args": ["--top"],
+            "stdin": "a\n",
+            "stdout": "invalid input\n",
+            "exit_code": 2,
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "One benchmark at small scale does not establish general build quality",
+        "mitigation": "Report it only as small-scale evidence for this recipe, route, model and role prompts"
+      },
+      {
+        "risk": "Held-out cases leak to the builder",
+        "mitigation": "The studio hides held-out cases from builder and reviewer; the repository copy is never sent to runtime roles"
+      }
+    ],
+    "maintenance": {
+      "owner": "Jordan (benchmark owner)",
+      "obligations": [
+        "Keep this frozen version unchanged; changes need a new benchmark version"
+      ],
+      "review_interval": "On recipe, role prompt, route or model change"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Implement the word tally CLI",
+        "role": "builder",
+        "file_scope": ["src"],
+        "depends_on": [],
+        "acceptance": ["A1", "A2", "A3", "A4"],
+        "deliverable": "src/main.py that passes every acceptance check"
+      }
+    ]
+  }
+}

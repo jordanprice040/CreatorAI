@@ -1,0 +1,167 @@
+{
+  "format": "p14-extended-suite/1",
+  "benchmark_id": "p14-larger-ledgercheck-v2",
+  "note": "Held out from the studio entirely. Scored only after the build, on the exported package, by scripts/p14-benchmark.mjs.",
+  "cases": [
+    {
+      "id": "E1",
+      "args": ["--month", "2026-10", "--cap", "food=25", "--format", "json"],
+      "stdin": "2026-09-30,food,9\n2026-10-01,food,30\n2026-10-02,fun,15.75\n",
+      "stdout": "{\"categories\": [{\"cap\": \"25.00\", \"name\": \"food\", \"status\": \"over\", \"total\": \"30.00\"}, {\"cap\": null, \"name\": \"fun\", \"status\": null, \"total\": \"15.75\"}], \"total\": \"45.75\"}\n",
+      "exit_code": 4
+    },
+    {
+      "id": "E2",
+      "args": ["--month", "2026-11"],
+      "stdin": "2026-10-01,food,1\n",
+      "stdout": "total 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E3",
+      "args": [],
+      "stdin": "",
+      "stdout": "total 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E4",
+      "args": [
+        "--cap",
+        "a=1",
+        "--cap",
+        "b=1",
+        "--cap",
+        "c=1",
+        "--cap",
+        "d=1",
+        "--cap",
+        "e=1",
+        "--cap",
+        "f=1"
+      ],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E5",
+      "args": ["--cap", "food=-5"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E6",
+      "args": ["--format", "xml"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E7",
+      "args": ["--month", "2026-13"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E8",
+      "args": ["--cap", "food=1"],
+      "stdin": "2026-10-01,food,100\n2026-10-02,food,+5\n",
+      "stdout": "line 2: bad amount\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E9",
+      "args": ["--month", "2026-10"],
+      "stdin": "2026-09-31,food,1\n2026-10-01,food,2\n",
+      "stdout": "line 1: bad date\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E10",
+      "args": [],
+      "stdin": "2026-10-01,fees,-0.05\n",
+      "stdout": "fees -0.05\ntotal -0.05\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E11",
+      "args": [],
+      "stdin": "2026-10-01,food,1.5\r\n2026-10-02,food,2\r\n",
+      "stdout": "food 3.50\ntotal 3.50\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E12",
+      "args": [],
+      "stdin": "2027-02-29,food,1\n2026-10-01, food,1\n2026-10-01,food, 1\n",
+      "stdout": "line 1: bad date\nline 2: bad category\nline 3: bad amount\n",
+      "exit_code": 1
+    },
+    {
+      "id": "E13",
+      "args": [],
+      "stdin": "2026-10-01,food,007.1\n2026-10-01,a_1,0\n",
+      "stdout": "a_1 0.00\nfood 7.10\ntotal 7.10\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E14",
+      "args": ["--cap", "food"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E15",
+      "args": ["--cap", "Food=5"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E16",
+      "args": ["--cap", "food=0.3"],
+      "stdin": "2026-10-01,food,0.1\n2026-10-02,food,0.2\n",
+      "stdout": "food 0.30 / 0.30 ok\ntotal 0.30\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E17",
+      "args": [],
+      "stdin": "2026-10-01,fees,-0\n",
+      "stdout": "fees 0.00\ntotal 0.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E18",
+      "args": [],
+      "stdin": "2026-10-01,a,1.10\n2026-10-01,a,-1.1\n2026-10-02,b,0.7\n2026-10-02,b,0.1\n2026-10-02,b,0.2\n",
+      "stdout": "a 0.00\nb 1.00\ntotal 1.00\n",
+      "exit_code": 0
+    },
+    {
+      "id": "E19",
+      "args": ["--month", "2026-10", "--month", "2026-11"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E20",
+      "args": ["--format", "json", "--format", "text"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    },
+    {
+      "id": "E21",
+      "args": ["--cap", "=5"],
+      "stdin": "",
+      "stdout": "invalid input\n",
+      "exit_code": 2
+    }
+  ]
+}
