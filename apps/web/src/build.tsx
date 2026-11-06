@@ -23,6 +23,8 @@ import {
   type SpecStatus,
   type StoredEntity,
   type Workspace,
+  PINNED_BROWSER,
+  browserRecheckDue,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import {
@@ -72,6 +74,8 @@ const ProductEntrySchema = z.object({
   product: z.object({
     id: z.string(),
     initial_commit: sha,
+    /** ADR-0078: absent means python-build/1. */
+    recipe: z.literal('static-web/1').optional(),
     binding: z.object({
       spec_id: z.string(),
       spec_version: z.number(),
@@ -882,12 +886,39 @@ function Product({
     b.package?.state === 'done'
       ? b.package.artifact_id
       : artifactForBuild(data.artifacts, b, p.binding)?.id;
+  /** Review L-11: the trial wording comes from the newest package's own manifest. */
+  const newestPackage = entry.builds
+    .map((b) => packaged(b))
+    .filter(Boolean)
+    .map((id) => data.artifacts.find((a) => a.id === id))
+    .find(Boolean);
   return (
     <article className="artifact">
       <h4>
         {spec?.spec.title ?? 'Spec'} v{p.binding.spec_version} · product{' '}
         {shortId(p.id)}
       </h4>
+      {p.recipe === 'static-web/1' && (
+        <p className="notice">
+          Static web builds are unqualified trials unless the builder and
+          reviewer on the build&apos;s own connection, model and role prompts
+          passed the frozen web benchmark live; each package records which it
+          is.{' '}
+          {newestPackage
+            ? `This product's newest package is ${newestPackage.role_qualification === 'unqualified_trial' ? 'an unqualified trial' : 'qualified'}.`
+            : 'This product has no package yet.'}{' '}
+          QA runs in the pinned {PINNED_BROWSER.name} {PINNED_BROWSER.version}{' '}
+          (pinned {PINNED_BROWSER.pinned_on});{' '}
+          {new Date().toISOString().slice(0, 10) > browserRecheckDue() ? (
+            <strong>
+              its security re-check was due {browserRecheckDue()} and is overdue
+            </strong>
+          ) : (
+            <>its next security re-check is due {browserRecheckDue()}</>
+          )}
+          .
+        </p>
+      )}
       {!current && (
         <p className="notice">
           The spec changed or was unfrozen after this product was made, so it

@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from '@creator/contracts';
-import { digest, qaCaseSchema, type Binding } from './contracts.js';
+import {
+  digest,
+  cliCaseSchema as qaCaseSchema,
+  type Binding,
+} from './contracts.js';
 import type { ProductSupervisor } from './products.js';
 import type { ExecutionSupervisor } from './execution.js';
 import { builderSchema, qaPassed } from './build.js';

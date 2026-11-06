@@ -1,4 +1,10 @@
-import { z, parse } from '@creator/contracts';
+import {
+  z,
+  parse,
+  BrowserPageSchema,
+  BrowserStepSchema,
+  BuildRecipeSchema,
+} from '@creator/contracts';
 import { createHash } from 'node:crypto';
 
 export const digest = (s: string | Buffer) =>
@@ -54,6 +60,8 @@ export const productSchema = z.strictObject({
   id,
   binding: bindingSchema,
   template_hash: hash,
+  /** ADR-0078: absent means python-build/1, so existing product manifests are unchanged. */
+  recipe: z.literal('static-web/1').optional(),
   integration_owner: id,
   initial_commit: sha,
   git_version: z.string().max(200),
@@ -94,20 +102,30 @@ export const changesSchema = z.strictObject({
     .max(100),
 });
 export type Changes = z.infer<typeof changesSchema>;
-export const qaCaseSchema = z.strictObject({
+export const cliCaseSchema = z.strictObject({
   check_key: z.string().regex(/^A[1-9][0-9]?$/),
   args: z.array(z.string().max(500)).max(12),
   stdin: z.string().max(4000),
   stdout: z.string().max(12000),
   exit_code: z.number().int().min(0).max(125),
 });
+export type CliCase = z.infer<typeof cliCaseSchema>;
+/** ADR-0078: a frozen browser case for static-web/1; the reviewed checker runs its steps. */
+export const browserCaseSchema = z.strictObject({
+  check_key: z.string().regex(/^A[1-9][0-9]?$/),
+  page: BrowserPageSchema,
+  steps: z.array(BrowserStepSchema).min(1).max(25),
+});
+export type BrowserQaCase = z.infer<typeof browserCaseSchema>;
+export const qaCaseSchema = z.union([cliCaseSchema, browserCaseSchema]);
 export type QaCase = z.infer<typeof qaCaseSchema>;
+export const isBrowserCase = (c: QaCase): c is BrowserQaCase => 'steps' in c;
 export const executionSchema = z.strictObject({
   id,
   product_id: id,
   task_id: id,
   commit: sha,
-  recipe: z.literal('python-build/1'),
+  recipe: BuildRecipeSchema,
   recipe_hash: hash,
   policy_hash: hash,
   input_hash: hash,

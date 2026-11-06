@@ -310,6 +310,7 @@ function ArtifactPanel({
             )}
             {d.integrity.ok &&
               d.manifest.state === 'verified' &&
+              d.manifest.toolchain.recipe === 'python-build/1' &&
               d.manifest.availability.runnable_demo.state === 'available' && (
                 <TerminalPanel base={base} summary={summary} csrf={csrf} />
               )}
@@ -422,6 +423,13 @@ function Facts({ d }: { d: ArtifactDetail }) {
           {m.toolchain.recipe} on {m.toolchain.backend}
           {m.toolchain.python ? ` · Python ${m.toolchain.python}` : ''} · Node{' '}
           {m.toolchain.supervisor_node}
+          {m.toolchain.role_qualification === 'unqualified_trial' && (
+            <>
+              {' '}
+              · <strong>unqualified trial</strong> (build roles not yet
+              qualified for this recipe)
+            </>
+          )}
         </dd>
         <dt>Dependencies</dt>
         <dd>{m.dependencies.note}</dd>
@@ -458,7 +466,11 @@ function Facts({ d }: { d: ArtifactDetail }) {
         <thead>
           <tr>
             <th scope="col">Case</th>
-            <th scope="col">Arguments</th>
+            <th scope="col">
+              {m.toolchain.recipe === 'static-web/1'
+                ? 'Page and steps'
+                : 'Arguments'}
+            </th>
             <th scope="col">Build QA</th>
             <th scope="col">Exported package</th>
           </tr>
@@ -475,8 +487,17 @@ function Facts({ d }: { d: ArtifactDetail }) {
               <tr key={c.check_key}>
                 <th scope="row">{c.check_key}</th>
                 <td>
-                  <code>{c.args.join(' ') || '(none)'}</code> → exit{' '}
-                  {c.exit_code}
+                  {'steps' in c ? (
+                    <>
+                      <code>{c.page}</code> · {c.steps.length}{' '}
+                      {c.steps.length === 1 ? 'step' : 'steps'}
+                    </>
+                  ) : (
+                    <>
+                      <code>{c.args.join(' ') || '(none)'}</code> → exit{' '}
+                      {c.exit_code}
+                    </>
+                  )}
                 </td>
                 <td>{qa ? (qa.passed ? 'passed' : 'failed') : '—'}</td>
                 <td>

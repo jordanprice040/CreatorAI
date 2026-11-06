@@ -4,6 +4,7 @@ import {
   BrokerCallResultSchema,
   BuildApprovalResultSchema,
   buildBlockers,
+  specRecipe,
   connectionDataBlocker,
   ContractError,
   EntityDetailSchema,
@@ -476,8 +477,17 @@ export class StudioBuilds {
 
   async create(ctx: CommandContext, ws: string, raw: unknown) {
     const { spec_id } = parse(CreateProductBody, raw);
-    const { binding } = await this.frozen(ctx, ws, spec_id);
-    return this.artifacts.products.create(binding).catch(refusal);
+    const { binding, spec } = await this.frozen(ctx, ws, spec_id);
+    // ADR-0078: the frozen checks choose the recipe, and with it the reviewed template.
+    const recipe = specRecipe(spec);
+    if (recipe === 'mixed')
+      throw new ContractError(
+        'INVALID_TRANSITION',
+        'This spec has tasks for a command-line program and tasks for a static web page. A product builds one kind: split them into two specs.',
+      );
+    return this.artifacts.products
+      .create(binding, undefined, recipe)
+      .catch(refusal);
   }
 
   async createTask(

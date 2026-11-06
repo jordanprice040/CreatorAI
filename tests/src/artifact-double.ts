@@ -50,21 +50,42 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
     source: string,
     input?: QaCase | RunInput,
   ): Execution {
-    const expected = input && 'check_key' in input ? input : null;
+    const browser = input && 'steps' in input ? input : null;
+    const expected = input && 'check_key' in input && !browser ? input : null;
+    // A browser case gets the reviewed checker's passing result line (ADR-0078).
     const log =
       source === 'exported_package' && this.packageOutput !== null
         ? this.packageOutput
-        : (expected?.stdout ?? this.interactive);
+        : browser
+          ? JSON.stringify({
+              format: 'browser-qa/1',
+              passed: true,
+              reason: null,
+              steps: browser.steps.map((_, index) => ({
+                index,
+                passed: true,
+                detail: 'passed',
+              })),
+              page_errors: [],
+              outbound: [],
+              unsupported: [],
+            })
+          : 'stdout' in (expected ?? {})
+            ? (expected as { stdout: string }).stdout
+            : this.interactive;
     return {
       id: randomUUID(),
       product_id: productId,
       task_id: taskId,
       commit,
-      recipe: 'python-build/1',
+      recipe: browser ? 'static-web/1' : 'python-build/1',
       recipe_hash: digest('test-double-recipe'),
       policy_hash: digest('test-double-policy'),
       input_hash: hashOfInput,
-      state: expected && expected.exit_code !== 0 ? 'failed' : 'succeeded',
+      state:
+        expected && 'exit_code' in expected && expected.exit_code !== 0
+          ? 'failed'
+          : 'succeeded',
       started_at: new Date().toISOString(),
       finished_at: new Date().toISOString(),
       environment: {
@@ -75,7 +96,7 @@ export class TestDoubleExecutor extends ExecutionSupervisor {
         input_source: source,
       },
       log,
-      exit_code: expected?.exit_code ?? 0,
+      exit_code: expected && 'exit_code' in expected ? expected.exit_code : 0,
       reason: null,
     };
   }

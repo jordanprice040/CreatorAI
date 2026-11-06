@@ -1,5 +1,9 @@
 # Integration readiness
 
+## Pinned headless browser for static web QA (ADR-0078) — November 6, 2026
+
+Implemented and checked in a Linux container (real Bubblewrap, Chrome for Testing headless shell 156.0.8078.47), not installed on Jordan's WSL2 worker. The studio never downloads it: Jordan runs `packages/executor/worker/install_browser.py` in WSL as uid 1000 (downloads from `storage.googleapis.com/chrome-for-testing-public`, or `--zip FILE`), which checks the archive and tree SHA-256 and prints the apt command for system libraries. The browser runs only inside the QA sandbox with no network beyond loopback. No credential, account or paid service. Installing it and the live web qualification each need Jordan's typed OK ([setup](../docs/STATIC_WEB_RECIPE.md)).
+
 ## Authentication review follow-up — November 4, 2026
 
 Schema 41 privately binds plan requests to the admitted login and actual dispatched credential. Late authentication failures cannot expire a disconnected or newer login; browser completion tolerates unrelated settings changes and refresh. Synthetic checks only; no live activation, installed-app migration or new credential scope. The earlier schema-40 bundle and evidence remain historical. See [follow-up report](../docs/CODEBASE_AUTH_FOLLOWUP_2026-11-04.md) and ADR-0067.

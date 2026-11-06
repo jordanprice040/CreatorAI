@@ -1,0 +1,291 @@
+{
+  "format": "p15-web-benchmark-expectations/1",
+  "benchmark_id": "p15-small-signup-v4",
+  "scale": "small",
+  "recipe": "static-web/1",
+  "declared_scale": "One page (site/index.html, style.css, app.js), one builder task, 5 browser checks, 10 frozen studio browser cases of which 6 are held out",
+  "grader": "The studio's reviewed checker packages/executor/worker/web_recipe.py, frozen by hash in FREEZE.json, in the pinned Chrome for Testing headless shell 156.0.8078.47",
+  "build_plan_caps": {
+    "max_repairs": 1,
+    "max_calls": 4,
+    "max_output_tokens": 8000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 4,
+    "note": "Each round is one builder and one reviewer request; one repair round adds two"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_run_per_attempt": "Each attempt gets its own run, selection, spec and product; the spec typed into each run must equal spec.json content",
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles (worker crash, studio restart, plan outage, browser missing) stops the attempt before a verdict. It is recorded with its cause, and each attempt may be replaced at most once",
+  "ordering_note": "The cases and expected texts were written from the scope text before the reference was run; the reference was then checked against them. That is the author's statement; the commit only shows the files were frozen together",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes 10 of 10 frozen browser cases, including 6 of 6 held out, in the WSL2 isolation worker, and the reviewer approves with no findings",
+    "The exported package is verified by the studio (package re-check of every case)",
+    "Requests used are at most the plan's max_calls (4)",
+    "The exported package scored with this script passes 10 of 10 cases",
+    "The private preview opens and shows the page in its frame (owner observation, recorded as such)"
+  ],
+  "measure_and_record": [
+    "requests used and repair rounds used",
+    "wall time from Start to verified or failed",
+    "files changed and lines in the final diff",
+    "reviewer verdict and findings (verbatim summary)",
+    "QA pass counts, development and held out",
+    "score JSON (freeze_sha256, checker_sha256, results)",
+    "plan daily request count before and after",
+    "dev studio schema and commit"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "email-without-dot",
+      "description": "Email accepted without a dot after the @",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "const EMAIL = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;",
+          "replace": "const EMAIL = /^[^\\s@]+@[^\\s@]+$/;"
+        }
+      ],
+      "caught_by": [
+        "A2.2"
+      ]
+    },
+    {
+      "id": "plural-always",
+      "description": "Summary always says problems",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "count === 1 ? 'problem' : 'problems'",
+          "replace": "'problems'"
+        }
+      ],
+      "caught_by": [
+        "A2.2",
+        "A3.2",
+        "A5.1"
+      ]
+    },
+    {
+      "id": "untrimmed-length",
+      "description": "Name length counted before trimming",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "const name = $('name').value.trim();",
+          "replace": "const name = $('name').value;"
+        }
+      ],
+      "caught_by": [
+        "A2.3"
+      ]
+    },
+    {
+      "id": "no-max-length",
+      "description": "Names longer than 40 characters accepted",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "name.length >= 2 && name.length <= 40",
+          "replace": "name.length >= 2"
+        }
+      ],
+      "caught_by": [
+        "A5.1"
+      ]
+    },
+    {
+      "id": "enter-does-not-submit",
+      "description": "The button is not a submit button and only its click is handled, so Enter in a field does nothing",
+      "edits": [
+        {
+          "file": "site/index.html",
+          "find": "<button id=\"submit\" type=\"submit\">",
+          "replace": "<button id=\"submit\" type=\"button\">"
+        },
+        {
+          "file": "site/app.js",
+          "find": "$('signup').addEventListener('submit', (event) => {",
+          "replace": "$('submit').addEventListener('click', (event) => {"
+        }
+      ],
+      "caught_by": [
+        "A1.2",
+        "A3.2"
+      ]
+    },
+    {
+      "id": "errors-not-cleared",
+      "description": "Messages of fields that now pass stay visible",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "for (const [id, text] of Object.entries(errors)) show(id, text);",
+          "replace": "for (const [id, text] of Object.entries(errors)) if (text) show(id, text);"
+        }
+      ],
+      "caught_by": [
+        "A3.1",
+        "A3.2"
+      ]
+    },
+    {
+      "id": "pro-label",
+      "description": "Plan shown by its value instead of its label",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "${PLANS[$('plan').value]} plan",
+          "replace": "${$('plan').value} plan"
+        }
+      ],
+      "caught_by": [
+        "A1.1",
+        "A1.2",
+        "A3.2"
+      ]
+    },
+    {
+      "id": "external-font",
+      "description": "Loads a web font from a CDN (a request outside the site)",
+      "edits": [
+        {
+          "file": "site/index.html",
+          "find": "<link rel=\"stylesheet\" href=\"style.css\">",
+          "replace": "<link rel=\"stylesheet\" href=\"style.css\"><link rel=\"stylesheet\" href=\"https://fonts.example.com/inter.css\">"
+        }
+      ],
+      "caught_by": [
+        "A4.1"
+      ]
+    },
+    {
+      "id": "messages-shown-at-start",
+      "description": "Error elements visible before the first submit",
+      "edits": [
+        {
+          "file": "site/index.html",
+          "find": "<p id=\"name-error\" class=\"error\" hidden></p>",
+          "replace": "<p id=\"name-error\" class=\"error\">Enter your name (2 to 40 characters)</p>"
+        }
+      ],
+      "caught_by": [
+        "A4.1"
+      ]
+    },
+    {
+      "id": "worker-request",
+      "description": "A worker sends a request outside the site",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\nnew Worker(URL.createObjectURL(new Blob([\"fetch('http://10.9.9.9/x').catch(() => {});\"], { type: 'text/javascript' })));\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ],
+      "reason_contains": "request outside the site"
+    },
+    {
+      "id": "websocket",
+      "description": "The page opens a WebSocket outside the site",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\ntry { new WebSocket('ws://10.1.2.3/x'); } catch (e) {}\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ],
+      "reason_contains": "request outside the site"
+    },
+    {
+      "id": "webrtc",
+      "description": "The page tries WebRTC",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\ntry { new RTCPeerConnection(); } catch (e) {}\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ],
+      "reason_contains": "request outside the site"
+    },
+    {
+      "id": "alert-dialog",
+      "description": "The page opens an alert dialog",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\nalert('Welcome');\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ],
+      "reason_contains": "opened a dialog"
+    },
+    {
+      "id": "native-submit",
+      "description": "The form submits natively (no preventDefault), so the page loads another document",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "  event.preventDefault();\n",
+          "replace": ""
+        }
+      ],
+      "caught_by": [
+        "A3.1",
+        "A3.2"
+      ],
+      "reason_contains": "another document"
+    },
+    {
+      "id": "popup-window",
+      "description": "The page opens a popup window",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\nwindow.open('http://10.9.9.9/popup');\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ],
+      "reason_contains": "popup window"
+    },
+    {
+      "id": "late-request",
+      "description": "A request 600 ms after the first input event, which the last step can finish before",
+      "edits": [
+        {
+          "file": "site/app.js",
+          "find": "'use strict';\n",
+          "replace": "'use strict';\nlet sent = false; document.addEventListener('input', () => { if (!sent) { sent = true; setTimeout(() => fetch('http://10.9.9.9/late').catch(() => {}), 600); } });\n"
+        }
+      ],
+      "caught_by": [
+        "A1.1"
+      ],
+      "reason_contains": "request outside the site"
+    }
+  ],
+  "whitespace_note": "Text expectations compare whitespace-collapsed text (the checker's rule), so a welcome message that keeps the name's outer spaces is indistinguishable from a trimmed one; trimming is checked through the length rule (A2.3) instead",
+  "replaces": "p15-small-signup-v3 (which replaced v2 and v1), all frozen 2026-11-06 and replaced before any live run because the PR #149 reviews changed the checker (v2: worker, WebSocket and WebRTC requests, dialogs and page loads; v3: popups and a 1 s settle after the last step; v4: popups and unsupported workers reported apart from outside requests). Cases, spec content and reference are unchanged.",
+  "coverage_note": "The checker reports what it saw while a case ran plus 1 s after its last step. A request scheduled later than that is not seen; the QA sandbox has no network either way, and the claim is no outside request was seen during the frozen cases."
+}

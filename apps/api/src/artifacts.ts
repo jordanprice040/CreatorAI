@@ -19,7 +19,13 @@ import {
   type PreviewRun,
 } from '@creator/contracts';
 import type { ArtifactStore, CommandContext, PreviewGuide } from '@creator/db';
-import { randomUUID } from 'node:crypto';
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from 'node:crypto';
 import {
   TERMINAL_POLICY,
   cliOptions,
@@ -267,6 +273,16 @@ export async function artifactRoutes(o: {
         true,
       );
     if (item && action === 'previews' && method === 'POST') {
+      // ADR-0078: a static web preview's frame host is a *.localhost name, so local studios only.
+      if (
+        !o.localStudio &&
+        (await store.artifactRecord(ctx, ws, item, true)).manifest.toolchain
+          .recipe === 'static-web/1'
+      )
+        throw new ContractError(
+          'LIVE_DISABLED',
+          'Static web previews run only in a local studio for now. Download the package instead.',
+        );
       const { preview, ticket, record } = await store.beginPreview(
         ctx,
         ws,
@@ -401,6 +417,12 @@ export async function artifactRoutes(o: {
         throw new ContractError(
           'INVALID_TRANSITION',
           manifest.availability.runnable_demo.reason,
+        );
+      // ADR-0078: the terminal runs Python packages; a static site opens in its preview.
+      if (manifest.toolchain.recipe !== 'python-build/1')
+        throw new ContractError(
+          'INVALID_TRANSITION',
+          'A static web package opens in its private preview, not a terminal.',
         );
       // Audit the intent before the window opens (review L-4): a failed audit write then
       // starts nothing, and a failed start still leaves the attempt on record.
@@ -539,6 +561,7 @@ pre{background:#fff;border:1px solid #ccc;padding:.75rem;white-space:pre-wrap;mi
 .example pre{min-height:0;margin:0}
 .flows{padding-left:1.2rem}.flows ol{margin:.2rem 0 .5rem}
 code{font:13px ui-monospace,monospace}
+.site{display:block;width:100%;height:70vh;border:1px solid #ccc;background:#fff;margin:.75rem 0}
 textarea::placeholder,input::placeholder{color:#6b6b66;opacity:1}
 @media (prefers-color-scheme:dark){body{background:#161615;color:#ecebe7}pre,textarea,input{background:#222;color:#ecebe7;border-color:#444}dt,.muted{color:#aaa}.example{border-color:#444}textarea::placeholder,input::placeholder{color:#a8a8a2}}`;
 // One argument per line cannot hold an empty or multi-line argument, so "Use this example" keeps
@@ -551,11 +574,11 @@ textarea::placeholder,input::placeholder{color:#6b6b66;opacity:1}
 const SCRIPT = `const life=document.getElementById('life');const every=Number(life.dataset.heartbeat)*1000;let ended=false;
 async function beat(){if(ended)return;try{const r=await fetch(location.pathname+'/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const v=await r.json();
 if(r.ok){life.className='muted';life.textContent=v.lifetime==='until_stopped'?'Open until you stop it in the studio. Viewer last seen '+new Date(v.last_seen_at).toLocaleTimeString()+'.':'Expires '+new Date(v.expires_at).toLocaleString()+'.';}
-else if(r.status===403||r.status===410||r.status===404){ended=true;life.className='error';life.textContent=v.error?v.error.message:'This preview has ended ('+r.status+').';const b=document.querySelector('#run button[type=submit]');if(b)b.disabled=true;}
+else if(r.status===403||r.status===410||r.status===404){ended=true;life.className='error';life.textContent=v.error?v.error.message:'This preview has ended ('+r.status+').';const b=document.querySelector('#run button[type=submit]');if(b)b.disabled=true;const f=document.querySelector('iframe.site');if(f){f.src='about:blank';f.remove();}}
 else{life.className='error';life.textContent='Studio not answering ('+r.status+'); retrying.';}}
 catch(err){life.className='error';life.textContent='Lost contact with the studio; retrying. '+(life.dataset.grace?'The preview ends if no page reconnects within '+Math.round(Number(life.dataset.grace)/60)+' minutes.':'');}}
 beat();setInterval(beat,every);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')beat();});
-const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
+if(document.getElementById('run')){const form=document.getElementById('run');const out=document.getElementById('out');const meta=document.getElementById('meta');const note=document.getElementById('args-note');let exact=null;
 // Any edit of a box drops that box's exact value, even one that leaves the same text (PR #130 N-1).
 document.getElementById('args').addEventListener('input',()=>{if(exact)exact.args=null;note.textContent='';});
 document.getElementById('stdin').addEventListener('input',()=>{if(exact)exact.stdin=null;});
@@ -567,7 +590,7 @@ catch(err){out.textContent='Request failed';out.className='error';}finally{b.dis
 for(const x of document.querySelectorAll('button[data-example]'))x.addEventListener('click',()=>{const a=JSON.parse(x.dataset.args);const box=document.getElementById('args');const input=document.getElementById('stdin');box.value=a.join('\\n');const stdin=JSON.parse(x.dataset.stdin);input.value=stdin;
 // Both travel as JSON (HTML turns CR LF into LF); compare with what the boxes now hold.
 exact={args:a,text:box.value,stdin,stdinText:input.value};
-note.textContent=a.some((v)=>!v.length||/[\\r\\n]/.test(v))?'This example has an empty or multi-line argument. It runs exactly as in the spec while this box is unchanged.':'';form.querySelector('button[type=submit]').focus();});`;
+note.textContent=a.some((v)=>!v.length||/[\\r\\n]/.test(v))?'This example has an empty or multi-line argument. It runs exactly as in the spec while this box is unchanged.':'';form.querySelector('button[type=submit]').focus();});}`;
 
 /** One argument as it would be typed in a POSIX shell, for display only. */
 const shellWord = (v: string) =>
@@ -613,15 +636,21 @@ ${block('Command line', [...command, ...x.args].map(shellWord).join(' '))}${bloc
   return `${intro}${flows}${examples}${hidden}`;
 }
 
+const CLI_BANNER =
+  'Creator Agent private preview · separate origin · the generated program runs only in the isolated worker';
+const WEB_BANNER =
+  'Creator Agent private preview · the generated site runs in your browser, in a sandboxed frame on its own origin; it cannot fetch or send data, but its links can still leave the site';
 function page(
   res: ServerResponse,
   status: number,
   title: string,
   body: string,
+  csp = PREVIEW_CSP,
+  banner = CLI_BANNER,
 ) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
-    'Content-Security-Policy': PREVIEW_CSP,
+    'Content-Security-Policy': csp,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
@@ -629,7 +658,7 @@ function page(
     'Cross-Origin-Resource-Policy': 'same-origin',
   });
   res.end(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${html(title)}</title><link rel="stylesheet" href="/preview-assets/preview.css"></head><body><div class="banner">Creator Agent private preview · separate origin · the generated program runs only in the isolated worker</div><main>${body}</main></body></html>`,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${html(title)}</title><link rel="stylesheet" href="/preview-assets/preview.css"></head><body><div class="banner">${html(banner)}</div><main>${body}</main></body></html>`,
   );
 }
 const statusOf: Partial<Record<ContractError['code'], number>> = {
@@ -643,8 +672,57 @@ const statusOf: Partial<Record<ContractError['code'], number>> = {
 };
 
 /**
+ * ADR-0078: a static web preview's frame host, `w<preview id hex>-<frame token>.localhost` on the
+ * preview port. It is a different host, so a different origin and site, from the studio and the
+ * preview page (both 127.0.0.1): the generated site never shares their cookies or storage.
+ */
+const FRAME_HOST = /^w([0-9a-f]{32})-([0-9a-f]{24})\.localhost:([0-9]{1,5})$/;
+const uuidOf = (hex: string) =>
+  `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+const WEB_TYPES: Record<string, string> = {
+  html: 'text/html; charset=utf-8',
+  css: 'text/css; charset=utf-8',
+  js: 'text/javascript; charset=utf-8',
+  mjs: 'text/javascript; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+  svg: 'image/svg+xml',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/plain; charset=utf-8',
+};
+/** What a generated page may do: its own files and inline code, nothing over the network. */
+const frameCsp = (previewOrigin: string) =>
+  `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; frame-ancestors ${previewOrigin}`;
+/** The site file a frame-host path names, or null; `/` and `dir/` mean their index.html. */
+export function siteFile(pathname: string): string | null {
+  let path: string;
+  try {
+    path = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  if (path.endsWith('/')) path += 'index.html';
+  const parts = path.split('/').slice(1);
+  if (parts.some((x) => !x || x === '.' || x === '..' || x.includes('\\')))
+    return null;
+  return `site/${parts.join('/')}`;
+}
+/** How a static web package is used in the preview: its flows, not a command line. */
+function webUsage(guide: PreviewGuide | null) {
+  const flows = guide?.flows.length
+    ? `<h2>What it does</h2><ul class="flows">${guide.flows
+        .map(
+          (f) =>
+            `<li><strong>${html(f.name)}</strong><ol>${f.steps.map((x) => `<li>${html(x)}</li>`).join('')}</ol></li>`,
+        )
+        .join('')}</ul>`
+    : '';
+  return `${flows}<p class="muted">Use the site in the frame below. It is the exact package that passed QA, served from its own origin with no cookies or studio access. Its scripts cannot fetch or send data, but a link or a location change in it can still open another site in the frame. Anything it stores starts empty with each new preview link. The browser checks that verified it are in the spec; held-out ones are not shown.</p>`;
+}
+
+/**
  * The preview origin. It serves only studio-authored HTML/JS and never reads management
- * cookies; generated code runs in the isolated worker and only its text output comes back.
+ * cookies; generated CLI code runs in the isolated worker and only its text output comes back.
+ * ADR-0078: a generated static site is served as files on its own frame host (above).
  */
 export function createPreviewServer(
   store: ArtifactStore | null,
@@ -654,10 +732,82 @@ export function createPreviewServer(
   /** In-flight runs, shared with the management routes so Stop can cut them off. */
   runs: PreviewRuns = new PreviewRuns(),
 ): Server {
+  // Per process: a restart ends open frames; reloading the preview page gives a new one.
+  const frameKey = randomBytes(32);
+  const frameToken = (previewId: string, sessionHash: string) =>
+    createHmac('sha256', frameKey)
+      .update(`${previewId}:${sessionHash}`)
+      .digest('hex')
+      .slice(0, 24);
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       const port = req.socket.localPort;
       const self = publicOrigin ?? `http://127.0.0.1:${port}`;
+      const frame = publicOrigin
+        ? null
+        : FRAME_HOST.exec(req.headers.host ?? '');
+      if (frame && Number(frame[3]) === port) {
+        if (!store)
+          throw new ContractError(
+            'NOT_FOUND',
+            'Previews need PostgreSQL records.',
+          );
+        if (req.method !== 'GET' && req.method !== 'HEAD')
+          throw new ContractError(
+            'ACCESS_DENIED',
+            'Generated sites are read-only files.',
+          );
+        const id = uuidOf(frame[1]!);
+        // The token is checked inside the lookup, before the preview counts a viewer; a dead,
+        // unknown or stale-token frame gets one answer, so ids cannot be probed.
+        const got = Buffer.from(frame[2]!);
+        const f = await store
+          .previewFrame(id, (sessionHash) => {
+            const want = Buffer.from(frameToken(id, sessionHash));
+            return want.length === got.length && timingSafeEqual(want, got);
+          })
+          .catch((e: unknown) => {
+            if (e instanceof ContractError)
+              throw new ContractError(
+                'ACCESS_DENIED',
+                'This frame is no longer valid; reload the preview page.',
+              );
+            throw e;
+          });
+        const mf = f.record.manifest;
+        if (mf.toolchain.recipe !== 'static-web/1')
+          throw new ContractError('NOT_FOUND', 'Not a static web package.');
+        // Re-hashes the manifest and archive on every request: the exact verified bytes only.
+        const { files } = await artifacts.open(
+          f.product_id,
+          f.record.summary.id,
+          f.record.summary.manifest_sha256,
+        );
+        const path = siteFile(new URL(req.url ?? '/', 'http://x').pathname);
+        const file = path ? files.find((x) => x.path === path) : undefined;
+        const type =
+          file && WEB_TYPES[file.path.split('.').pop()!.toLowerCase()];
+        if (!file || !type) {
+          res.writeHead(404, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'X-Content-Type-Options': 'nosniff',
+            'Cache-Control': 'no-store',
+          });
+          return res.end('Not found in this package.');
+        }
+        res.writeHead(200, {
+          'Content-Type': type,
+          'Content-Length': String(file.content.length),
+          'Content-Security-Policy': frameCsp(self),
+          'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'no-store',
+          'Referrer-Policy': 'no-referrer',
+          'Cross-Origin-Resource-Policy': 'same-origin',
+          'Permissions-Policy':
+            'camera=(), microphone=(), geolocation=(), usb=(), serial=(), bluetooth=(), payment=(), display-capture=()',
+        });
+        return res.end(req.method === 'HEAD' ? undefined : file.content);
+      }
       if (req.headers.host !== new URL(self).host)
         throw new ContractError(
           'ORIGIN_DENIED',
@@ -721,6 +871,47 @@ export function createPreviewServer(
       if (req.method === 'GET' && !m[2]) {
         const a = await store.previewAccess(id, session, false);
         const mf = a.record.manifest;
+        if (mf.toolchain.recipe === 'static-web/1') {
+          if (publicOrigin)
+            throw new ContractError(
+              'LIVE_DISABLED',
+              'Static web previews run only in a local studio for now.',
+            );
+          const sessionHash = createHash('sha256')
+            .update(session)
+            .digest('hex');
+          const host = `w${id.replaceAll('-', '')}-${frameToken(id, sessionHash)}.localhost:${port}`;
+          const src = `http://${host}/`;
+          return page(
+            res,
+            200,
+            'Private preview',
+            `<h1>Private preview</h1>${
+              mf.toolchain.backend === 'wsl2-bwrap-systemd'
+                ? ''
+                : `<p class="error">Not isolation evidence: this package was checked on “${html(mf.toolchain.backend)}”, not the reviewed isolated worker.</p>`
+            }
+<dl><dt>Artifact</dt><dd>${html(mf.id)}</dd><dt>Commit</dt><dd>${html(mf.repository.commit)}</dd>
+<dt>Spec</dt><dd>v${html(mf.spec.version)}</dd><dt>Manifest sha256</dt><dd>${html(a.preview.manifest_sha256)}</dd>
+<dt>Lasts</dt><dd>${
+              a.preview.lifetime === 'until_stopped'
+                ? 'Until you stop it in the studio (ends if this page is closed for ' +
+                  html(Math.round((a.preview.idle_grace_seconds ?? 0) / 60)) +
+                  ' minutes)'
+                : `Until ${html(a.preview.expires_at)}`
+            }</dd><dt>Site origin</dt><dd>${html(`http://${host}`)}</dd></dl>
+<p id="life" class="muted" role="status" data-heartbeat="${PREVIEW_HEARTBEAT_SECONDS}"${
+              a.preview.idle_grace_seconds
+                ? ` data-grace="${html(a.preview.idle_grace_seconds)}"`
+                : ''
+            }></p>
+${webUsage(a.guide)}
+<iframe class="site" src="${html(src)}" title="Generated site" sandbox="allow-scripts allow-forms allow-same-origin" referrerpolicy="no-referrer"></iframe>
+<script src="/preview-assets/preview.js"></script>`,
+            `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src http://${host}; form-action 'none'; base-uri 'none'; frame-ancestors 'none'`,
+            WEB_BANNER,
+          );
+        }
         const first = a.guide?.examples[0];
         return page(
           res,
@@ -800,6 +991,15 @@ ${usage(mf.startup.command, a.guide)}
         }
         const raw = Buffer.concat(chunks).toString('utf8');
         const input = parse(RunInputSchema, JSON.parse(raw || 'null'));
+        // ADR-0078: a static web preview has no command runs; refused before a run is claimed.
+        if (
+          (await store.previewAccess(id, session, false)).record.manifest
+            .toolchain.recipe !== 'python-build/1'
+        )
+          throw new ContractError(
+            'INVALID_TRANSITION',
+            'A static web preview has no command runs; use the site in the preview page.',
+          );
         const a = await store.previewAccess(id, session, true);
         // Tracked so Stop/Revoke can cut off this run (ADR-0069).
         const tracked = runs.begin(id);

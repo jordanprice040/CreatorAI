@@ -250,6 +250,9 @@ test('a verified candidate packages to a manifest bound to its commit, spec, tas
   );
   assert.equal(manifest.availability.native_installer.state, 'unavailable');
   assert.ok(manifest.limitations.some((l) => /not isolation evidence/.test(l)));
+  // ADR-0078 review M-2: a Python build on qualified roles carries no trial label.
+  assert.equal(manifest.toolchain.role_qualification, undefined);
+  assert.ok(!manifest.limitations.some((l) => /Unqualified trial/.test(l)));
   const dir = artifacts.dir(s.product.id, manifest.id);
   const archive = await readFile(join(dir, 'source.tar'));
   assert.equal(digest(archive), manifest.package.sha256);

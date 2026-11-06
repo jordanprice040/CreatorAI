@@ -27,6 +27,21 @@ export type CaseDraft = {
   exit_code: string;
   held_out: boolean;
 };
+/**
+ * ADR-0078: a browser case as the form edits it. Steps are typed one per line (see
+ * BROWSER_STEP_HELP in the contracts); `stored` keeps a revised case's exact steps while the
+ * text still shows them.
+ */
+export type BrowserCaseDraft = {
+  page: string;
+  steps: string;
+  stored?: { text: string; steps: unknown[] };
+  held_out: boolean;
+};
+/** Parses typed steps; the form passes the contracts' parseBrowserSteps (this file has no imports). */
+export type StepParser = (
+  text: string,
+) => { steps: unknown[] } | { error: string };
 export type SpecDraft = {
   title: string;
   audience: string;
@@ -46,6 +61,7 @@ export type SpecDraft = {
     measure: string;
     method: Method;
     cases: CaseDraft[];
+    browser_cases: BrowserCaseDraft[];
   }[];
   risks: { risk: string; mitigation: string }[];
   maintenance: { owner: string; obligations: string; review_interval: string };
@@ -67,6 +83,7 @@ type Case = {
   exit_code: number;
   held_out: boolean;
 };
+type BrowserCase = { page: string; steps: unknown[]; held_out: boolean };
 export type SpecContentShape = {
   audience: string;
   problem_statement: string;
@@ -85,6 +102,7 @@ export type SpecContentShape = {
     measure: string;
     method: 'automated_test' | 'browser_check' | 'manual_review' | 'metric';
     cases?: Case[];
+    browser_cases?: BrowserCase[];
   }[];
   risks: { risk: string; mitigation: string }[];
   maintenance: {
@@ -171,6 +189,11 @@ export function unwrittenOptions<
   );
 }
 
+export const emptyBrowserCase = (): BrowserCaseDraft => ({
+  page: '/',
+  steps: '',
+  held_out: false,
+});
 export const emptyCase = (): CaseDraft => ({
   args: '',
   stdin: '',
@@ -203,6 +226,7 @@ export function emptySpecDraft(
         measure: '',
         method: '',
         cases: [],
+        browser_cases: [],
       },
     ],
     risks: [],
@@ -225,6 +249,8 @@ export function emptySpecDraft(
 export function draftFromContent(
   title: string,
   s: SpecContentShape,
+  /** Turns a stored browser step back into its typed line (formatBrowserStep). */
+  formatStep: (step: unknown) => string = (x) => JSON.stringify(x),
 ): SpecDraft {
   return {
     title,
@@ -253,6 +279,15 @@ export function draftFromContent(
         exit_code: String(c.exit_code),
         held_out: c.held_out,
       })),
+      browser_cases: (a.browser_cases ?? []).map((c) => {
+        const text = c.steps.map(formatStep).join('\n');
+        return {
+          page: c.page,
+          steps: text,
+          stored: { text, steps: [...c.steps] },
+          held_out: c.held_out,
+        };
+      }),
     })),
     risks: s.risks.map((r) => ({ ...r })),
     maintenance: {
@@ -283,6 +318,8 @@ const scopeOk = (p: string) =>
 /** The spec content and title, or the fields to fix (keyed like `checks.0.statement`). */
 export function draftToContent(
   d: SpecDraft,
+  /** Required for browser cases; without it any browser case is reported as an error. */
+  parseSteps?: StepParser,
 ):
   | { title: string; content: SpecContentShape; errors: null }
   | { title: null; content: null; errors: Record<string, string> } {
@@ -411,6 +448,52 @@ export function draftToContent(
         };
       });
     }
+    // ADR-0078: browser cases, kept for any method like cases are (the build needs a browser check).
+    // A draft made before ADR-0078 has no browser cases.
+    const browserCases = c.browser_cases ?? [];
+    if (browserCases.length) {
+      count(
+        `checks.${i}.browser_cases`,
+        browserCases.length,
+        0,
+        10,
+        'browser case(s)',
+      );
+      check.browser_cases = browserCases.map((x, j) => {
+        const k = `checks.${i}.browser_cases.${j}`;
+        const page = x.page.trim();
+        if (
+          !/^\/([a-z0-9][a-z0-9_-]*\/)*([a-z0-9][a-z0-9_-]*\.html)?(#[A-Za-z0-9/_.~-]{0,100})?$/.test(
+            page,
+          )
+        )
+          errors[`${k}.page`] =
+            'A page is a path such as / or /about.html, optionally with a #route.';
+        let steps: unknown[] = [];
+        if (x.stored && x.steps === x.stored.text) steps = [...x.stored.steps];
+        else if (!parseSteps)
+          errors[`${k}.steps`] = 'Browser steps cannot be read here.';
+        else {
+          const r = parseSteps(x.steps);
+          if ('error' in r) errors[`${k}.steps`] = r.error;
+          else steps = r.steps;
+        }
+        if (!errors[`${k}.steps`]) {
+          if (!steps.length)
+            errors[`${k}.steps`] = 'Write at least one step, one per line.';
+          else if (steps.length > 25)
+            errors[`${k}.steps`] = 'At most 25 steps.';
+          else if (
+            !steps.some((y) =>
+              String((y as { action?: string }).action).startsWith('expect_'),
+            )
+          )
+            errors[`${k}.steps`] =
+              'Add at least one expect step, such as expect text #id = …';
+        }
+        return { page, steps, held_out: x.held_out };
+      });
+    }
     return check;
   });
   count('risks', d.risks.length, 0, 20, 'risks');
@@ -521,9 +604,25 @@ export function buildNotes(s: SpecContentShape): string[] {
     const checks = s.acceptance_checks.filter((a) =>
       t.acceptance.includes(a.key),
     );
+    // ADR-0078: a task whose checks are all browser checks builds a static web page.
+    if (checks.length && checks.every((a) => a.method === 'browser_check')) {
+      if (checks.some((a) => !a.browser_cases?.length))
+        notes.push(
+          `${t.key} has a browser check without browser cases; a web build needs at least one for each.`,
+        );
+      else if (!checks.some((a) => a.browser_cases?.some((c) => c.held_out)))
+        notes.push(
+          `${t.key} has no held-out browser case; a build needs at least one case that neither builder nor reviewer sees.`,
+        );
+      if (!t.file_scope.some((p) => p === 'site' || p.startsWith('site/')))
+        notes.push(
+          `${t.key} builds a static web page, so its file scope must include site (where the pages live).`,
+        );
+      continue;
+    }
     if (checks.some((a) => a.method !== 'automated_test' || !a.cases?.length))
       notes.push(
-        `${t.key} delivers a check that is not an automated test with cases; the builder needs every check it delivers to be one.`,
+        `${t.key} delivers a check that is not an automated test with cases, or mixes them with browser checks; a task builds either a command-line program (automated tests) or a static web page (browser checks).`,
       );
     if (!checks.some((a) => a.cases?.some((c) => c.held_out)))
       notes.push(

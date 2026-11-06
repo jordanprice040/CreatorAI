@@ -24,7 +24,11 @@ import {
   type QaCase,
   sha,
 } from './contracts.js';
-import { RunInputSchema, type RunInput } from '@creator/contracts';
+import {
+  RunInputSchema,
+  type BuildRecipe,
+  type RunInput,
+} from '@creator/contracts';
 import {
   canonical,
   jsonWrite,
@@ -42,6 +46,20 @@ const WORKER = fileURLToPath(new URL('../worker/bridge.py', import.meta.url));
 const RECIPE = fileURLToPath(new URL('../worker/recipe.py', import.meta.url));
 const POLICY =
   'wsl2-bwrap-systemd/1;uid=1000;net=none;mem=256MiB;swap=0;pids=32;cpu=50%;time=20s;lease=5s;work=16MiB;tmp=1MiB;log=64KiB;file=8MiB';
+/**
+ * ADR-0078: the static-web/1 recipe runs the pinned headless browser in the same sandbox, so it
+ * needs more memory, threads and time. Nothing else changes: no network beyond the sandbox's
+ * own loopback, the same uid, lease and log bounds.
+ */
+const WEB_RECIPE = fileURLToPath(
+  new URL('../worker/web_recipe.py', import.meta.url),
+);
+const WEB_POLICY =
+  'wsl2-bwrap-systemd/1;recipe=static-web/1;uid=1000;net=loopback-only;mem=1GiB;swap=0;pids=512;cpu=100%;time=60s;lease=5s;work=64MiB;tmp=256MiB;log=64KiB;file=8MiB;browser=chrome-headless-shell-156.0.8078.47';
+const RECIPES = {
+  'python-build/1': { file: RECIPE, policy: POLICY, launchMs: 40000 },
+  'static-web/1': { file: WEB_RECIPE, policy: WEB_POLICY, launchMs: 90000 },
+} as const satisfies Record<BuildRecipe, unknown>;
 function wslPath(p: string): string {
   const full = resolve(p);
   if (!/^[A-Za-z]:\\/.test(full))
@@ -55,11 +73,11 @@ export class ReapUnverified extends Error {
 export class ExecutionSupervisor {
   /** Runs this process is dispatching now; any other run recorded under its PID is over. */
   private readonly active = new Set<string>();
-  async profile() {
+  async profile(recipe: BuildRecipe = 'python-build/1') {
     return {
       backend: 'wsl2-bwrap-systemd' as const,
-      recipe_hash: digest(await readFile(RECIPE)),
-      policy_hash: digest(POLICY),
+      recipe_hash: digest(await readFile(RECIPES[recipe].file)),
+      policy_hash: digest(RECIPES[recipe].policy),
       bridge_hash: digest(await readFile(WORKER)),
     };
   }
@@ -255,6 +273,16 @@ export class ExecutionSupervisor {
     job: string,
     qa?: QaCase | RunInput,
   ): Promise<Execution> {
+    const recipe =
+      (await this.products.product(productId)).recipe ?? 'python-build/1';
+    // ADR-0078: a web product runs only frozen browser cases; a CLI product never does.
+    const browser = !!qa && 'steps' in qa;
+    if (recipe === 'static-web/1' ? !browser : browser)
+      throw new Error(
+        recipe === 'static-web/1'
+          ? 'A static web package runs only frozen browser cases'
+          : 'Browser cases need the static-web/1 recipe',
+      );
     await mkdir(dir);
     await mkdir(job);
     await mkdir(join(job, 'input'));
@@ -265,21 +293,25 @@ export class ExecutionSupervisor {
       await rm(job, { recursive: true });
       throw e;
     }
-    const recipeHash = digest(await readFile(RECIPE));
-    // Generated code shares this mount. Expected answers and case labels stay on the host.
+    const recipeHash = digest(await readFile(RECIPES[recipe].file));
+    // Generated code shares this mount. Expected answers and case labels stay on the host. A
+    // browser case's steps (with their expectations) are read by the reviewed checker only;
+    // generated code runs inside the browser and cannot read the mount.
     if (qa)
-      await jsonWrite(join(job, 'acceptance.json'), {
-        args: qa.args,
-        stdin: qa.stdin,
-      });
+      await jsonWrite(
+        join(job, 'acceptance.json'),
+        'steps' in qa
+          ? { page: qa.page, steps: qa.steps }
+          : { args: qa.args, stdin: qa.stdin },
+      );
     const record: Execution = {
       id: executionId,
       product_id: productId,
       task_id: taskId,
       commit,
-      recipe: 'python-build/1',
+      recipe,
       recipe_hash: recipeHash,
-      policy_hash: digest(POLICY),
+      policy_hash: digest(RECIPES[recipe].policy),
       input_hash: inputHash,
       state: 'running',
       started_at: new Date().toISOString(),
@@ -343,14 +375,14 @@ export class ExecutionSupervisor {
           'Isolation unavailable: this reviewed backend requires Windows + WSL2',
         );
       await canonical(WORKER);
-      await canonical(RECIPE);
+      await canonical(RECIPES[recipe].file);
       await jsonWrite(join(this.products.root, 'pending-worker.json'), {
         product_id: productId,
         execution_id: executionId,
         supervisor_pid: process.pid,
       });
       dispatchIntent = true;
-      const messages = await this.launch(job, executionId);
+      const messages = await this.launch(job, executionId, false, recipe);
       let result:
         | {
             exit_code: number;
@@ -419,13 +451,14 @@ export class ExecutionSupervisor {
     job: string,
     executionId: string,
     reap = false,
+    recipe: BuildRecipe = 'python-build/1',
   ): Promise<unknown[]> {
     const executable = join(
       process.env.SystemRoot ?? 'C:\\Windows',
       'System32',
       'wsl.exe',
     );
-    const recipeHash = digest(await readFile(RECIPE));
+    const recipeHash = digest(await readFile(RECIPES[recipe].file));
     return new Promise((resolveResult, reject) => {
       const child = spawn(
         executable,
@@ -445,6 +478,7 @@ export class ExecutionSupervisor {
           executionId,
           '--recipe-hash',
           recipeHash,
+          ...(recipe === 'static-web/1' ? ['--recipe', 'static-web/1'] : []),
           ...(reap ? ['--reap'] : []),
         ],
         {
@@ -466,7 +500,7 @@ export class ExecutionSupervisor {
       child.stderr.on('data', (b: Buffer) => {
         if (err.length < 10000) err += b.toString('utf8');
       });
-      const timer = setTimeout(() => child.kill(), 40000);
+      const timer = setTimeout(() => child.kill(), RECIPES[recipe].launchMs);
       child.on('error', (e) => {
         clearTimeout(timer);
         reject(e);
@@ -558,11 +592,14 @@ export class ExecutionSupervisor {
         Date.now() - lease.heartbeat_ms < 6000
       )
         throw new Error('Lease has not expired');
-      const messages = await this.launch(job, executionId, true).catch(
-        (e: unknown) => {
-          throw new ReapUnverified(String(e));
-        },
-      );
+      const messages = await this.launch(
+        job,
+        executionId,
+        true,
+        record.recipe,
+      ).catch((e: unknown) => {
+        throw new ReapUnverified(String(e));
+      });
       const result = messages.find(
         (m) => (m as { type: string }).type === 'result',
       ) as { value: { cleaned: boolean; unit_state: string } } | undefined;

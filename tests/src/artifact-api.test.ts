@@ -1032,6 +1032,29 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
     410,
   );
   assert.equal((await beat(u1Id, cookieU1b)).status, 200);
+  // ADR-0078 review L-3: a frame request whose token does not match the current session
+  // is refused without counting as a viewer; a matching one counts.
+  const seenAt = async () =>
+    String(
+      (
+        await db.pool.query(
+          `select last_seen_at from artifact_previews where id = $1`,
+          [u1Id],
+        )
+      ).rows[0]!.last_seen_at,
+    );
+  await db.pool.query(
+    `update artifact_previews set last_seen_at = now() - interval '100 seconds' where id = $1`,
+    [u1Id],
+  );
+  const frameSeen = await seenAt();
+  await assert.rejects(
+    store.previewFrame(u1Id, () => false),
+    /no longer valid/,
+  );
+  assert.equal(await seenAt(), frameSeen);
+  await store.previewFrame(u1Id, (hash) => hash.length === 64);
+  assert.notEqual(await seenAt(), frameSeen);
 
   // Stop during a run: admission closes at once and the in-flight run is cut off.
   double.hold();

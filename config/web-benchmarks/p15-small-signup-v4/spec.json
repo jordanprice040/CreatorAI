@@ -1,0 +1,515 @@
+{
+  "format": "p15-web-benchmark-spec/1",
+  "benchmark_id": "p15-small-signup-v4",
+  "scale": "small",
+  "title": "P15 small web benchmark: sign-up form v4",
+  "content": {
+    "audience": "Synthetic benchmark operator measuring the studio's static web build path at small scale",
+    "problem_statement": "Measure whether the bounded builder and independent reviewer can deliver a single static page with a sign-up form and client-side validation, against frozen browser cases including held-out edge cases, run by the reviewed headless-browser checker. This is a synthetic benchmark, not a customer product.",
+    "user_flows": [
+      {
+        "key": "F1",
+        "name": "Sign up",
+        "steps": [
+          "Open the page",
+          "Enter a name and an email address, choose a plan and accept the terms",
+          "Press Create account (or Enter in a text field)",
+          "Read the welcome message"
+        ]
+      },
+      {
+        "key": "F2",
+        "name": "Fix mistakes",
+        "steps": [
+          "Press Create account with missing or invalid fields",
+          "Read one message per problem and the problem count",
+          "Correct the fields and submit again"
+        ]
+      }
+    ],
+    "scope": [
+      "Static files only: site/index.html, site/style.css and site/app.js. Plain HTML, CSS and JavaScript; no packages, CDNs, network requests or browser storage",
+      "Page title exactly: Sign up. One form, id signup, holding: input #name labelled Name, input #email labelled Email, select #plan labelled Plan, checkbox #terms labelled exactly I accept the terms, and submit button #submit with text Create account",
+      "Select #plan has exactly two options: value free shown as Free (the default) and value pro shown as Pro",
+      "Elements #name-error, #email-error, #terms-error, #summary and #done always exist and are hidden (the hidden attribute) until they have something to say. No message is shown before the first submit",
+      "Validate only on submit, with browser built-in validation off. Name: the trimmed value has 2 to 40 characters, else #name-error says exactly Enter your name (2 to 40 characters)",
+      "Email: the trimmed value is non-space characters except @, one @, non-space characters except @, a dot, then non-space characters except @, else #email-error says exactly Enter a valid email address",
+      "Terms: checked, else #terms-error says exactly Accept the terms to continue",
+      "On a failed submit show every failing field message at once, hide the messages of fields that now pass, keep the form visible and show #summary with exactly Fix 1 problem or Fix N problems (N the number of failing fields)",
+      "On a successful submit hide all messages and #summary, hide the form #signup, and show #done with exactly: Welcome, NAME! You chose the PLAN plan. where NAME is the trimmed name and PLAN is Free or Pro",
+      "Pressing Enter in the name or email field submits the form. No uncaught errors and no requests other than the three site files"
+    ],
+    "non_goals": [
+      "Sending data anywhere",
+      "Accounts, persistence or storage",
+      "Server code",
+      "Styling beyond readable defaults",
+      "Public release"
+    ],
+    "data_contracts": [
+      {
+        "name": "signup-form/1",
+        "description": "Synthetic names and email addresses typed into the page; nothing leaves the browser",
+        "data_class": "synthetic"
+      }
+    ],
+    "acceptance_checks": [
+      {
+        "key": "A1",
+        "flow": "F1",
+        "statement": "A valid sign-up shows the welcome message with the trimmed name and chosen plan and hides the form",
+        "measure": "Browser case steps pass in the reviewed checker",
+        "method": "browser_check",
+        "browser_cases": [
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": "Ada Lovelace"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "ada@example.com"
+              },
+              {
+                "action": "check",
+                "selector": "#terms"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#done",
+                "text": "Welcome, Ada Lovelace! You chose the Free plan."
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#signup"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#summary"
+              }
+            ],
+            "held_out": false
+          },
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": " Grace"
+              },
+              {
+                "action": "select",
+                "selector": "#plan",
+                "value": "pro"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "g@x.io"
+              },
+              {
+                "action": "check",
+                "selector": "#terms"
+              },
+              {
+                "action": "press",
+                "selector": "#email",
+                "key": "Enter"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#done",
+                "text": "Welcome, Grace! You chose the Pro plan."
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#name-error"
+              }
+            ],
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A2",
+        "flow": "F2",
+        "statement": "A failed submit shows one exact message per failing field and the problem count",
+        "measure": "Browser case steps pass in the reviewed checker",
+        "method": "browser_check",
+        "browser_cases": [
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#name-error",
+                "text": "Enter your name (2 to 40 characters)"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#email-error",
+                "text": "Enter a valid email address"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#terms-error",
+                "text": "Accept the terms to continue"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#summary",
+                "text": "Fix 3 problems"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#done"
+              },
+              {
+                "action": "expect_visible",
+                "selector": "#signup"
+              }
+            ],
+            "held_out": false
+          },
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": "Al"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "al@example"
+              },
+              {
+                "action": "check",
+                "selector": "#terms"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#name-error"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#email-error",
+                "text": "Enter a valid email address"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#terms-error"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#summary",
+                "text": "Fix 1 problem"
+              }
+            ],
+            "held_out": true
+          },
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": "  X"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "x @y.com"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_visible",
+                "selector": "#name-error"
+              },
+              {
+                "action": "expect_visible",
+                "selector": "#email-error"
+              },
+              {
+                "action": "expect_visible",
+                "selector": "#terms-error"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#summary",
+                "text": "Fix 3 problems"
+              }
+            ],
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A3",
+        "flow": "F2",
+        "statement": "Correcting the fields and submitting again clears the messages and signs up",
+        "measure": "Browser case steps pass in the reviewed checker",
+        "method": "browser_check",
+        "browser_cases": [
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": "Bo Li"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "bo@li.dev"
+              },
+              {
+                "action": "check",
+                "selector": "#terms"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#name-error"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#summary"
+              },
+              {
+                "action": "expect_contains",
+                "selector": "#done",
+                "text": "Bo Li"
+              }
+            ],
+            "held_out": false
+          },
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": "Kim"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#summary",
+                "text": "Fix 2 problems"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "kim@site.org"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#email-error"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#summary",
+                "text": "Fix 1 problem"
+              },
+              {
+                "action": "check",
+                "selector": "#terms"
+              },
+              {
+                "action": "press",
+                "selector": "#name",
+                "key": "Enter"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#done",
+                "text": "Welcome, Kim! You chose the Free plan."
+              }
+            ],
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A4",
+        "flow": null,
+        "statement": "The page starts with the stated title, fields and no messages",
+        "measure": "Browser case steps pass in the reviewed checker",
+        "method": "browser_check",
+        "browser_cases": [
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "expect_title",
+                "text": "Sign up"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#done"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#summary"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#name-error"
+              },
+              {
+                "action": "expect_count",
+                "selector": "#plan option",
+                "count": 2
+              },
+              {
+                "action": "expect_text",
+                "selector": "#submit",
+                "text": "Create account"
+              }
+            ],
+            "held_out": false
+          },
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "expect_visible",
+                "selector": "#signup"
+              },
+              {
+                "action": "expect_text",
+                "selector": "label[for=terms]",
+                "text": "I accept the terms"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#plan",
+                "text": "free"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#email-error"
+              },
+              {
+                "action": "expect_hidden",
+                "selector": "#terms-error"
+              }
+            ],
+            "held_out": true
+          }
+        ]
+      },
+      {
+        "key": "A5",
+        "flow": "F2",
+        "statement": "Name length is checked on the trimmed value: 40 characters pass, 41 fail",
+        "measure": "Browser case steps pass in the reviewed checker",
+        "method": "browser_check",
+        "browser_cases": [
+          {
+            "page": "/",
+            "steps": [
+              {
+                "action": "fill",
+                "selector": "#name",
+                "value": "Abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              },
+              {
+                "action": "fill",
+                "selector": "#email",
+                "value": "long@name.example"
+              },
+              {
+                "action": "check",
+                "selector": "#terms"
+              },
+              {
+                "action": "click",
+                "selector": "#submit"
+              },
+              {
+                "action": "expect_visible",
+                "selector": "#name-error"
+              },
+              {
+                "action": "expect_text",
+                "selector": "#summary",
+                "text": "Fix 1 problem"
+              }
+            ],
+            "held_out": true
+          }
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "Checks pin exact wording, so a reasonable paraphrase fails",
+        "mitigation": "Every exact message is stated in the scope"
+      }
+    ],
+    "maintenance": {
+      "owner": "Benchmark operator",
+      "obligations": [
+        "Never edit a frozen version; publish a new version instead"
+      ],
+      "review_interval": "Per benchmark version"
+    },
+    "tasks": [
+      {
+        "key": "T1",
+        "title": "Build the sign-up page",
+        "role": "builder",
+        "file_scope": [
+          "site"
+        ],
+        "depends_on": [],
+        "acceptance": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ],
+        "deliverable": "site/index.html, site/style.css and site/app.js meeting the scope"
+      }
+    ]
+  }
+}

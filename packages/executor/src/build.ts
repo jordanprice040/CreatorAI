@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import {
   BUILD_ROLE_PROMPTS,
   BUILD_ROLE_TASK_CLASSES,
+  frozenBrowserCases,
   frozenCases,
   taskHashes,
 } from '@creator/domain';
@@ -13,7 +14,9 @@ import {
   BrokerCallResultSchema,
   type BrokerCallRequest,
   type BrokerCallResult,
+  type BuildRecipe,
   type SpecBody,
+  taskRecipe,
 } from '@creator/contracts';
 import {
   checked,
@@ -22,6 +25,7 @@ import {
   hash,
   sha,
   changesSchema,
+  isBrowserCase,
   qaCaseSchema,
   type Binding,
   type Execution,
@@ -182,6 +186,21 @@ export const QA_RUNTIME = {
   notes:
     'python3 -I ignores PYTHON* variables and user site-packages and does not put the script directory on sys.path, so src/main.py must add its own directory to sys.path before importing local modules. No network.',
 } as const;
+/**
+ * ADR-0078: how studio QA runs each frozen browser case for static-web/1. Sent as packet data,
+ * like QA_RUNTIME, so the qualified role prompts stay unchanged.
+ */
+export const WEB_QA_RUNTIME = {
+  command: [
+    'reviewed checker: serve site/ on a loopback-only HTTP server, open <case page> in headless Chrome 156, run the case steps',
+  ],
+  working_directory: 'the product root; only files under site/ are served',
+  notes:
+    'Plain HTML, CSS and JavaScript only: site/index.html is the entry page; file types .html .css .js .mjs .json .svg .txt .md; at most 60 files under site/. No packages, CDNs, build step or network: any request outside the site (from the page or a worker, including WebSockets; WebRTC is disabled), any service or shared worker, and any uncaught page error fails the case. A case stays on one document: a dialog (alert, confirm, prompt) or loading another document (a form submitted without preventDefault, a link to another page, a location change other than the hash) fails the case, so show messages in the page and handle submit in script. Opening a popup window (window.open) fails the case. After the last step the page runs 1 more second, and anything in that second counts too. Steps: click/check use a real mouse click on the one element the selector matches (it must be visible and enabled); fill clears the field and types the text; select sets an option by value; press sends a key to the focused element; goto changes location.hash; expect text compares whitespace-collapsed innerText (or a form field value) exactly; expect contains checks a substring; expect hidden passes when nothing matches or the match is not displayed; each expectation waits up to 3 s. A selector must match exactly one element (except expect count). Page scripts cannot see or change the checker. Storage such as localStorage starts empty in every case.',
+} as const;
+/** The runtime packet entry for a recipe. */
+export const qaRuntimeOf = (recipe: BuildRecipe) =>
+  recipe === 'static-web/1' ? WEB_QA_RUNTIME : QA_RUNTIME;
 /** A refused submission's reason and contract details, bounded for the feedback packet. */
 function refusalOf(reason: string, details: readonly string[]) {
   return {
@@ -201,14 +220,53 @@ export const PLAN_ROLE_CONTEXT_MAX = 200_000;
 
 /** One QA case passed: this exact commit ran to completion with the frozen output and exit. */
 export function qaPassed(execution: Execution, commit: string, c: QaCase) {
-  return (
+  const bound =
     execution.commit === commit &&
     ['succeeded', 'failed'].includes(execution.state) &&
     execution.reason === null &&
-    execution.exit_code === c.exit_code &&
-    execution.log === c.stdout &&
-    execution.environment.acceptance_hash === digest(JSON.stringify(c))
+    execution.environment.acceptance_hash === digest(JSON.stringify(c));
+  if (!bound) return false;
+  if (!isBrowserCase(c))
+    return execution.exit_code === c.exit_code && execution.log === c.stdout;
+  // ADR-0078: the reviewed checker's one result line, for every frozen step, on the web recipe.
+  const r = browserResult(execution.log);
+  return (
+    execution.recipe === 'static-web/1' &&
+    execution.exit_code === 0 &&
+    r !== null &&
+    r.passed &&
+    r.steps.length === c.steps.length &&
+    r.steps.every((s, i) => s.passed && s.index === i) &&
+    !r.page_errors.length &&
+    !r.outbound.length &&
+    !r.unsupported.length
   );
+}
+export const browserResultSchema = z.object({
+  format: z.literal('browser-qa/1'),
+  passed: z.boolean(),
+  reason: z.string().nullable(),
+  steps: z.array(
+    z.strictObject({
+      index: z.number().int(),
+      passed: z.boolean(),
+      detail: z.string(),
+    }),
+  ),
+  page_errors: z.array(z.string()),
+  outbound: z.array(z.string()),
+  /** Review N-b: popups and service or shared workers, which static-web/1 does not support. */
+  unsupported: z.array(z.string()),
+});
+export type BrowserResult = z.infer<typeof browserResultSchema>;
+/** The checker's result from an execution log, or null when the log is not exactly one. */
+export function browserResult(log: string): BrowserResult | null {
+  try {
+    const r = browserResultSchema.safeParse(JSON.parse(log));
+    return r.success && log.trim().split('\n').length === 1 ? r.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Finite local task runner. A crash leaves immutable intent/checkpoints; never redispatch on read. */
@@ -302,15 +360,19 @@ export class BuildSupervisor {
       const acceptance = spec.acceptance_checks.filter((a) =>
         assigned.acceptance.includes(a.key),
       );
-      if (
-        !acceptance.length ||
-        acceptance.some((a) => a.method !== 'automated_test' || !a.cases)
-      )
+      const recipe: BuildRecipe = p.recipe ?? 'python-build/1';
+      // ADR-0078: the frozen checks choose the recipe, and the product was made for it.
+      if (!acceptance.length || taskRecipe(spec, assigned.key) !== recipe)
         throw new Error(
-          'QA plan must cover every assigned automated acceptance check with cases frozen in the spec; browser/manual/metric checks require another recipe',
+          recipe === 'static-web/1'
+            ? 'QA plan must cover every assigned browser check with browser cases frozen in the spec; this product was made for static-web/1'
+            : 'QA plan must cover every assigned automated acceptance check with cases frozen in the spec; browser/manual/metric checks require another recipe',
         );
       // The executable cases are part of the frozen task hash; a build cannot choose its own.
-      const frozen = frozenCases(spec, assigned.acceptance);
+      const frozen: { held_out: boolean }[] =
+        recipe === 'static-web/1'
+          ? frozenBrowserCases(spec, assigned.acceptance)
+          : frozenCases(spec, assigned.acceptance);
       if (
         JSON.stringify(frozen.map(({ held_out: _, ...c }) => c)) !==
         JSON.stringify(plan.cases)
@@ -384,7 +446,9 @@ export class BuildSupervisor {
         ),
         task: assigned,
         // Expected outputs of held-out cases never enter a role packet.
-        acceptance: acceptance.map(({ cases: _, ...a }) => a),
+        acceptance: acceptance.map(
+          ({ cases: _, browser_cases: __, ...a }) => a,
+        ),
         cases: plan.cases.filter((_, i) => !heldOut(i)),
         held_out_cases: plan.cases.filter((_, i) => heldOut(i)).length,
       };
@@ -550,7 +614,7 @@ export class BuildSupervisor {
             candidate: commit,
             files: await files(),
             patch_rules: PATCH_RULES,
-            qa_runtime: QA_RUNTIME,
+            qa_runtime: qaRuntimeOf(recipe),
             feedback,
           };
           // ADR-0076: a submission the patch contract or scoped tool refuses changes nothing; the
@@ -713,7 +777,9 @@ export class BuildSupervisor {
             });
             passed &&= ok;
             await jsonWrite(join(dir, `qa-${cycle}-${index}.json`), {
-              command: ['/usr/bin/python3', '-I', 'src/main.py', ...c.args],
+              command: isBrowserCase(c)
+                ? ['browser-qa/1', c.page]
+                : ['/usr/bin/python3', '-I', 'src/main.py', ...c.args],
               check: c,
               execution,
               passed: ok,

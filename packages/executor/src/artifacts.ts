@@ -5,6 +5,10 @@ import {
   BuildManifestSchema,
   BrokerCallResultSchema,
   ContractError,
+  UNQUALIFIED_TRIAL_NOTE,
+  unqualifiedTrial,
+  type RecipeQualification,
+  type BuildRoles,
   type BuildManifest,
   type RunInput,
 } from '@creator/contracts';
@@ -13,29 +17,75 @@ import {
   digest,
   hash,
   id,
+  isBrowserCase,
   type Execution,
   type QaCase,
 } from './contracts.js';
-import { ProductSupervisor, TEMPLATE_HASH, inputHash } from './products.js';
+import { ProductSupervisor, inputHash, templateOf } from './products.js';
 import { ExecutionSupervisor } from './execution.js';
 import {
   BuildSupervisor,
+  browserResult,
   planRoleResultSchema,
   type BuildPlan,
   type BuildPorts,
 } from './build.js';
 import { canonical, jsonWrite, readJson, event } from './files.js';
+
 import { readTar, writeTar, type PackageFile } from './tar.js';
 
+/**
+ * ADR-0078 review L-9: recorded live passes of a recipe's frozen web benchmark, each for one
+ * connection, model and pair of role prompts. None yet: the web benchmark has not run live. A pass
+ * is added as its own record with its evidence; it never qualifies other connections or prompts.
+ */
+const RECIPE_QUALIFICATIONS: readonly RecipeQualification[] = [];
+
+/**
+ * Review L-10: the roles a build actually ran with, hashed from the prompts its intent.json
+ * recorded when it started, not the prompts in the code at packaging time. A build with no plan
+ * roles, or whose recorded prompts do not match its recorded prompt hash, has none.
+ */
+export function buildRoles(intent: {
+  plan: Pick<BuildPlan, 'plan_roles'>;
+  prompts?: { builder?: unknown; reviewer?: unknown };
+  prompt_hash: string;
+}): BuildRoles | null {
+  const { builder, reviewer } = intent.prompts ?? {};
+  if (
+    !intent.plan.plan_roles ||
+    typeof builder !== 'string' ||
+    typeof reviewer !== 'string' ||
+    digest(JSON.stringify(intent.prompts)) !== intent.prompt_hash
+  )
+    return null;
+  return {
+    ...intent.plan.plan_roles,
+    builder_prompt_sha256: digest(builder),
+    reviewer_prompt_sha256: digest(reviewer),
+  };
+}
 export const REVIEWED_BACKEND = 'wsl2-bwrap-systemd';
 const mismatch = (m: string) => new ContractError('EVIDENCE_MISMATCH', m);
 /** A case passes only on the exact output and exit status, with no supervisor-side reason. */
 export function casePassed(e: Execution, c: QaCase): boolean {
+  if (!['succeeded', 'failed'].includes(e.state) || e.reason !== null)
+    return false;
+  if (!isBrowserCase(c))
+    return e.exit_code === c.exit_code && e.log === c.stdout;
+  // ADR-0078: every frozen step passed in the reviewed checker, with no page error or request
+  // outside the site.
+  const r = browserResult(e.log);
   return (
-    ['succeeded', 'failed'].includes(e.state) &&
-    e.reason === null &&
-    e.exit_code === c.exit_code &&
-    e.log === c.stdout
+    e.recipe === 'static-web/1' &&
+    e.exit_code === 0 &&
+    r !== null &&
+    r.passed &&
+    r.steps.length === c.steps.length &&
+    r.steps.every((x, i) => x.passed && x.index === i) &&
+    !r.page_errors.length &&
+    !r.outbound.length &&
+    !r.unsupported.length
   );
 }
 
@@ -76,6 +126,7 @@ export class ArtifactSupervisor {
     const buildDir = join(this.products.dir(productId), 'builds', buildId);
     const intent = (await readJson(join(buildDir, 'intent.json'))) as {
       plan: BuildPlan;
+      prompts?: { builder?: unknown; reviewer?: unknown };
       prompt_hash: string;
     };
     const buildQa: BuildManifest['tests']['build_qa'] = [];
@@ -184,6 +235,18 @@ export class ArtifactSupervisor {
         : 'failed';
     const env = qaExecution!.environment;
     const backend = String(env.backend ?? 'unknown');
+    const recipe = p.recipe ?? 'python-build/1';
+    const web = recipe === 'static-web/1';
+    const trial = unqualifiedTrial(
+      recipe,
+      buildRoles(intent),
+      RECIPE_QUALIFICATIONS,
+    );
+    const template = templateOf(p.recipe);
+    const browser =
+      env.browser && typeof env.browser === 'object'
+        ? String((env.browser as { version?: unknown }).version ?? '')
+        : '';
     const manifest: BuildManifest = {
       format: 'build-manifest/1',
       id: artifactId,
@@ -213,21 +276,35 @@ export class ArtifactSupervisor {
         initial_commit: p.initial_commit,
         git_version: p.git_version,
       },
-      template: { id: 'checklist/1', hash: TEMPLATE_HASH },
+      template: { id: template.id, hash: template.hash },
       toolchain: {
-        recipe: 'python-build/1',
+        recipe,
         recipe_hash: qaExecution!.recipe_hash,
         policy_hash: qaExecution!.policy_hash,
         bridge_hash: checked(hash, env.bridge_hash),
         backend,
         python: typeof env.python === 'string' ? env.python : null,
+        ...(trial ? { role_qualification: 'unqualified_trial' as const } : {}),
+        ...(web
+          ? {
+              browser: browser
+                ? `chrome-headless-shell ${browser}`.slice(0, 80)
+                : null,
+            }
+          : {}),
         supervisor_node: process.version,
       },
-      dependencies: {
-        kind: 'python-stdlib-only',
-        lockfile: null,
-        note: 'Reviewed template uses only the Python standard library; there is nothing to lock or install.',
-      },
+      dependencies: web
+        ? {
+            kind: 'static-files-only',
+            lockfile: null,
+            note: 'Reviewed template is plain HTML, CSS and JavaScript served as files; there are no packages to lock or install and no build step.',
+          }
+        : {
+            kind: 'python-stdlib-only',
+            lockfile: null,
+            note: 'Reviewed template uses only the Python standard library; there is nothing to lock or install.',
+          },
       package: {
         kind: 'source_archive',
         file: 'source.tar',
@@ -250,8 +327,9 @@ export class ArtifactSupervisor {
           state === 'verified'
             ? {
                 state: 'available',
-                reason:
-                  'Private preview runs this exact package in the isolated worker.',
+                reason: web
+                  ? 'Private preview serves this exact package on its own preview host.'
+                  : 'Private preview runs this exact package in the isolated worker.',
               }
             : {
                 state: 'unavailable',
@@ -259,28 +337,55 @@ export class ArtifactSupervisor {
               },
         native_installer: {
           state: 'unavailable',
-          reason:
-            'No native installer recipe exists for the Python CLI template.',
+          reason: web
+            ? 'No native installer recipe exists for static web pages.'
+            : 'No native installer recipe exists for the Python CLI template.',
         },
       },
-      startup: {
-        runtime: 'Python 3 standard library (python3 -I)',
-        command: ['python3', '-I', 'src/main.py'],
-        network: 'none',
-        requirements: [
-          'Python 3 interpreter',
-          'No packages, network or persistent files',
-        ],
-        readiness_case: intent.plan.cases[0]!.check_key,
-      },
+      startup: web
+        ? {
+            runtime:
+              'Any static file server; for example Python 3 http.server, then open http://127.0.0.1:8000/',
+            command: [
+              'python3',
+              '-m',
+              'http.server',
+              '8000',
+              '--bind',
+              '127.0.0.1',
+              '--directory',
+              'site',
+            ],
+            network: 'none',
+            requirements: [
+              'A current web browser',
+              'A static file server (Python 3 has one built in)',
+              'No packages, build step or network',
+            ],
+            readiness_case: intent.plan.cases[0]!.check_key,
+          }
+        : {
+            runtime: 'Python 3 standard library (python3 -I)',
+            command: ['python3', '-I', 'src/main.py'],
+            network: 'none',
+            requirements: [
+              'Python 3 interpreter',
+              'No packages, network or persistent files',
+            ],
+            readiness_case: intent.plan.cases[0]!.check_key,
+          },
       tests: {
-        cases: intent.plan.cases.map((c) => ({
-          check_key: c.check_key,
-          args: c.args,
-          stdin: c.stdin,
-          stdout: c.stdout,
-          exit_code: c.exit_code,
-        })),
+        cases: intent.plan.cases.map((c) =>
+          isBrowserCase(c)
+            ? { check_key: c.check_key, page: c.page, steps: c.steps }
+            : {
+                check_key: c.check_key,
+                args: c.args,
+                stdin: c.stdin,
+                stdout: c.stdout,
+                exit_code: c.exit_code,
+              },
+        ),
         build_qa: buildQa,
         package: packageChecks,
       },
@@ -300,9 +405,19 @@ export class ArtifactSupervisor {
       },
       lineage,
       limitations: [
-        'Verifies one task commit and its owner-authored exact stdout/exit cases, not a merge, the whole product or real user needs.',
-        'Python standard-library CLI only: no web UI, persistence or dependency recipe.',
-        'No native installer; the runnable demo exists only as a private preview in the isolated worker.',
+        ...(trial ? [UNQUALIFIED_TRIAL_NOTE] : []),
+        ...(web
+          ? [
+              'Verifies one task commit and its owner-authored browser cases in one pinned headless browser (Chrome 156), not other browsers, screen sizes, accessibility, the whole product or real user needs.',
+              'Static HTML, CSS and JavaScript only: no packages, build step, server code, network or storage kept between visits.',
+              'QA saw no request outside the site while its frozen cases ran (plus 1 s after each); a dynamic check cannot prove the page never makes one.',
+              'No native installer; the private preview serves the files on its own preview host.',
+            ]
+          : [
+              'Verifies one task commit and its owner-authored exact stdout/exit cases, not a merge, the whole product or real user needs.',
+              'Python standard-library CLI only: no web UI, persistence or dependency recipe.',
+              'No native installer; the runnable demo exists only as a private preview in the isolated worker.',
+            ]),
         'Local compute is bounded but not monetarily metered by the studio.',
         ...(intent.plan.plan_roles
           ? [

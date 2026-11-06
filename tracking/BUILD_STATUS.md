@@ -391,6 +391,67 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Checks (cloud container, no PostgreSQL): x10 test file 5 pass / 1 DB skip (failed 4/1 before the fix), rebased on main after #146;
   `pnpm check` 835 tests, 534 pass, 296 DB skips, 5 fail (the known no-`pwsh` wrapper tests); formatting passes.
 
+## P15 slice 1: static web recipe (November 6, branch `claude/project-thread-ja3wd1`, ADR-0078, no migration)
+
+- New recipe `static-web/1` ([design, limits and owner setup](../docs/STATIC_WEB_RECIPE.md)): a task whose frozen
+  checks are all `browser_check` with `browser_cases` builds a plain HTML/CSS/JS site from the reviewed
+  `static-site/1` template; CLI tasks keep `python-build/1`; a mix is refused. Products without the new `recipe`
+  field are unchanged. The spec form edits browser cases (one typed step per line, held-out flag).
+- QA: the reviewed checker `packages/executor/worker/web_recipe.py` runs inside the existing Bubblewrap + systemd
+  unit with a web policy, serves `site/` on loopback inside the sandbox and drives the pinned Chrome for Testing
+  headless shell 156.0.8078.47 over a pipe; steps run in an isolated world; any page error or outside request
+  fails the case. The browser is an owner-run, hash-checked install (`install_browser.py`); the studio installs
+  nothing.
+- Preview: the site is framed from its own `w<id>-<token>.localhost` origin with a session-bound HMAC token, a
+  strict CSP and per-request lease and package checks; no command runs or terminal for web previews; hosted
+  studios refuse them.
+- Frozen benchmark `config/web-benchmarks/p15-small-signup-v1` (10 cases, 6 held out, 9 known failures, checker
+  hash in `FREEZE.json`) and `scripts/p15-web-benchmark.mjs` (verify, score, mutants).
+- Checks (cloud container, Linux, PostgreSQL 16): full `pnpm test:db` 851 tests (850 in the run plus the always-on freeze test added after), 816 pass, 28 skips, 6 fail: the 5 known no-`pwsh` wrapper tests and the opt-in REAL CHECKER test, which failed only because `pnpm format` had rewritten the frozen benchmark files. The exact frozen bytes were restored (all hashes match `FREEZE.json`), `config/web-benchmarks/` is now in `.prettierignore`, an always-on test checks the freeze, and the REAL CHECKER test passes again (reference 10/10, 6/6 held out, all 9 known failures caught; about 0.8 s per case). TypeScript, web typecheck and formatting pass.
+- Not done: WSL2 worker run, exported-package start outside the studio and the live role qualification (all need
+  Jordan's typed OK; packet in the design doc). The web recipe is **unqualified**.
+
+## P15 review fixes (November 6, PR #149 review, ADR-0078 amendment, no migration)
+
+- Fixed every finding of [the review](../docs/PR149_STATIC_WEB_RECIPE_REVIEW_2026-11-06.md) (no High, M-1/M-2, L-1..L-7) before
+  any live run: worker, WebSocket and WebRTC traffic and service/shared workers now fail a case; web builds are
+  labelled unqualified trials (`QUALIFIED_RECIPES`, manifest `role_qualification`, build and Try pages); dialogs and
+  document loads fail with named reasons; the preview drops modals, removes the frame when the preview ends, checks
+  the frame token before counting a viewer and answers every refusal alike; typed steps round-trip and selectors are
+  shape-checked; the benchmark script runs the bridge's own `sandbox_args` and `verify_browser`; banner says links can
+  leave; L-7 recorded with a browser update plan ([design §10](../docs/STATIC_WEB_RECIPE.md)).
+- Benchmark v1 replaced before any run by `p15-small-signup-v2` (checker changed; same cases, spec content and
+  reference; 14 known failures incl. 5 hostile pages). Reference 10/10 (6/6 held out), all 14 caught, twice in a row.
+- Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 851 tests, 818 pass, 28 skips, 5 fail (the
+  known no-`pwsh` wrapper tests); the REAL CHECKER test passes. TypeScript, web typecheck and formatting pass.
+- Jordan gave a typed OK (11:28) for the WSL browser install and the 3 live builds; held until the re-review.
+
+## P15 re-review fixes (November 6, PR #149 re-review at `aec1dc2`, ADR-0078 amendment, no migration)
+
+- [Re-review](../docs/PR149_REREVIEW_2026-11-06.md): no High or Medium. Fixed L-8 (popups fail the case; 1 s settle after
+  the last step; docs, ADR and manifest claim only "no outside request seen during the frozen cases"), L-9 (no global
+  qualified switch: `unqualifiedTrial` lifts the label only for a recorded pass on the build's own connection, model and
+  role-prompt hashes; none recorded), N-1 (hostile known failures pin their reason), N-2, N-3, N-4 (`PINNED_BROWSER` pin
+  date, build page shows when the monthly re-check is due or overdue).
+- Benchmark v2 became `p15-small-signup-v3` before any live run (popup and late-request known failures). Reference 10/10
+  (6/6 held out); all 16 known failures caught, each for its own reason, in two consecutive runs.
+- Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 853 tests, 820 pass, 28 skips, 5 fail (known
+  no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
+- Browser install and live builds (Jordan's typed OK 11:28) still held until a clean review.
+
+## P15 third-review fixes (November 6, PR #149 third review at `e9b5a68`, ADR-0078 amendment, no migration)
+
+- [Third review](../docs/PR149_THIRD_REVIEW_2026-11-06.md): no High or Medium. Fixed L-10 (trial label hashes the
+  prompts recorded in the build's `intent.json`, and only a pass on the current benchmark version in
+  `RECIPE_BENCHMARKS` counts), L-11 (build page shows the newest package's own label; artifact summaries carry
+  `role_qualification`), N-a, N-b (checker reports popups and unsupported workers in `unsupported`, apart from
+  `outbound`), N-c (escaped backslash then a comma is refused).
+- The N-b checker change made benchmark v3 `p15-small-signup-v4` before any live run. Reference 10/10 (6/6 held out);
+  all 16 known failures caught, each for its own reason. `verify` passes and checks `RECIPE_BENCHMARKS`.
+- Checks (cloud container, PostgreSQL 16, real browser): `pnpm test:db` 854 tests, 821 pass, 28 skips, 5 fail (known
+  no-`pwsh` wrapper tests); REAL CHECKER passes. TypeScript, web typecheck and formatting pass.
+- Browser install and live builds still held until a clean review.
+
 ## P09 why this response and non-code proposals (November 6, branch `claude/project-thread-raqxjh`, ADR-0077, migration 49)
 
 - Decide shows **Why this response** for the focused problem: the chosen response (the current selection's advancing
