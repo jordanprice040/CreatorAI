@@ -1,0 +1,127 @@
+{
+  "format": "p14-benchmark-expectations/2",
+  "benchmark_id": "p14-larger-ledgercheck-v3",
+  "scale": "larger",
+  "recipe": "python-build/1",
+  "version_note": "v3 repeats the v2 task unchanged: spec content, studio cases, extended cases and reference are the v2 content except benchmark_id. v2's 0 of 3 result (RESULTS_2026-11-06.json) is final and is not replaced. v3 measures the studio after ADR-0076: the path dialect admits __init__.py and similar Python files, the builder packet states the patch and QA runtime rules, and a refused patch returns to the builder as repair feedback. No role saw a v2 QA or held-out case: every v2 attempt stopped at its first builder answer, and builder packets never hold held-out cases",
+  "studio_requirement": "The dev studio runs code that includes ADR-0076 (this benchmark's PR). The builder and reviewer role prompts are unchanged (builder/1, independent-reviewer/2), so their qualifications stand; preflight build-roles-ready must still pass",
+  "declared_scale": "Entry point plus a package of at least 3 modules with an internal API, one builder task, 6 automated checks with 10 studio cases (5 held out), plus 21 extended held-out cases and a structure check scored after the build",
+  "build_plan_caps": {
+    "max_repairs": 2,
+    "max_calls": 6,
+    "max_output_tokens": 12000,
+    "timeout_ms": 120000,
+    "data_class": "synthetic"
+  },
+  "expected_requests": {
+    "typical": 2,
+    "maximum": 6,
+    "note": "A repair round is measured, not required"
+  },
+  "expected_cost_usd": "0.00 on a plan-backed route (plan_roles). Any metered route is out of this packet",
+  "attempts": 3,
+  "one_run_per_attempt": "The plan connection caps requests per run at 10, so each attempt gets its own run, selection, spec and product. The spec typed into each run must pass compare-spec",
+  "qualified_at_declared_scale_when": "All 3 attempts meet every pass bar. Fewer is recorded as k of 3 and is not qualified; nothing is re-run to replace a failure",
+  "invalid_attempt_when": "An infrastructure fault outside the roles (worker crash, studio restart, plan outage) stops the attempt before a verdict. It is recorded with its cause, and each attempt may be replaced at most once",
+  "refused_patch_rule": "A patch the studio's patch contract or scoped tool refuses changes nothing and counts as one repair round (within max_repairs 2 and max_calls 6). Refusals are measured and recorded; an attempt that ends at the repair limit is a failed attempt, not an infrastructure fault",
+  "scorer_fault_rule": "If the studio verified the build but exporting or scoring fails for an infrastructure reason (Bubblewrap missing, a path problem, a scorer crash), the same exported package (same product_tree_sha256) may be exported or scored again. That does not re-run any role. A grader result on a package is final once it is produced",
+  "ordering_note": "The v2 case files were committed before the v2 reference solutions (commit history of PR #145); v3 copies them unchanged. That the expected outputs were derived from the spec and not from a run is the author's statement",
+  "pass_bar_per_attempt": [
+    "Studio build reaches verified_candidate: QA passes 10 of 10 frozen build cases, including 5 of 5 held out, in the WSL2 isolation worker, and the reviewer approves with no findings (the studio's own rule)",
+    "Requests used are at most the plan's max_calls (6)",
+    "compare-spec passes for the stored spec",
+    "The exported package scored by the frozen grader passes 10 of 10 build cases and 21 of 21 extended cases",
+    "Structure check passes: src/ledger has parse.py, rules.py and report.py, each defines a function, and main.py imports from ledger"
+  ],
+  "measure_and_record": [
+    "requests used and repair rounds used",
+    "patches refused at admission, with each refusal's reason (refused-N.json in the build folder)",
+    "wall time from Start to verified or failed",
+    "files changed and lines in the final diff (multi-file change count)",
+    "reviewer verdict and findings (verbatim summary)",
+    "QA pass counts, development and held out",
+    "compare-spec result for the stored spec",
+    "grader JSON (freeze_sha256, grader_sha256, product_tree_sha256, build, extended, resources)",
+    "clean export start: the exported package, extracted outside the studio, runs under the grader with no studio files present (the grader result is this check)",
+    "CPU and memory: the grader's per-case max CPU seconds and max RSS; studio QA records its limits, not usage, so studio-side usage is not measured on this route",
+    "plan daily request count before and after",
+    "dev studio schema and commit",
+    "extended suite pass count and structure check"
+  ],
+  "known_failure_cases": [
+    {
+      "id": "no-sys-path",
+      "description": "import ledger without adding src to sys.path (python3 -I): every case fails",
+      "caught_by": ["A1.1"]
+    },
+    {
+      "id": "float-money",
+      "description": "Floating-point money (0.1 + 0.2 compared with a 0.3 cap, -0.00)",
+      "caught_by": ["E16", "E17"]
+    },
+    {
+      "id": "trimmed-fields",
+      "description": "Fields trimmed of spaces",
+      "caught_by": ["E12"]
+    },
+    {
+      "id": "plus-amount",
+      "description": "+ accepted in amounts",
+      "caught_by": ["E8"]
+    },
+    {
+      "id": "month-unvalidated",
+      "description": "Rows outside --month not validated",
+      "caught_by": ["E9"]
+    },
+    {
+      "id": "errors-with-report",
+      "description": "Errors and report printed together",
+      "caught_by": ["A5.1"]
+    },
+    {
+      "id": "first-error-only",
+      "description": "Only the first invalid row reported",
+      "caught_by": ["A5.2"]
+    },
+    {
+      "id": "absent-cap-omitted",
+      "description": "Capped categories with no rows omitted",
+      "caught_by": ["A2.2"]
+    },
+    {
+      "id": "json-separators",
+      "description": "JSON separators different from json.dumps(sort_keys=True)",
+      "caught_by": ["A3.1"]
+    },
+    {
+      "id": "json-key-order",
+      "description": "JSON keys not sorted",
+      "caught_by": ["A3.1"]
+    },
+    {
+      "id": "month-repeated",
+      "description": "Repeated --month accepted",
+      "caught_by": ["E19"]
+    },
+    {
+      "id": "format-repeated",
+      "description": "Repeated --format accepted",
+      "caught_by": ["E20"]
+    },
+    {
+      "id": "cap-name-rule",
+      "description": "Cap name not checked against the category rule",
+      "caught_by": ["E15", "E21"]
+    }
+  ],
+  "deviations_from_matrix": [
+    "The matrix's larger Python CLI task said one repair round expected. Here a repair is measured but not required, so a first-try success is not penalised",
+    "The matrix said 15+ cases; the studio runs at most 10 per build, so 21 extended cases are scored after export"
+  ],
+  "limits_found_while_freezing": [
+    "A studio build runs at most 10 cases per task (MAX_BUILD_CASES)",
+    "The studio builds only builder tasks with no dependencies, so a multi-task DAG with checkpoints cannot be benchmarked yet (P15 slice 3)",
+    "--month has no development case and JSON has no held-out studio case: the 10-case limit forced the choice; the extended suite covers both"
+  ]
+}

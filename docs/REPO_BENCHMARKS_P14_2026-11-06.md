@@ -193,3 +193,29 @@ the studio (path rule not stated to the builder, no repair on a refused patch), 
 quality at that scale is even measured. Follow-ups, each needing its own change and a new
 benchmark version or run: state the path and `sys.path` rules in the builder packet, or allow
 `__init__.py`; and turn a refused patch into repair feedback instead of a checkpoint.
+
+## 8. Set v3: the larger task after ADR-0076 (frozen November 6, 2026, before any v3 run)
+
+ADR-0076 admits Python package files such as `__init__.py`, gives the builder the patch and QA
+runtime rules as packet data, and turns a refused patch into repair feedback. The v2 result
+(0 of 3) stays final. Set v3 lives in `config/repo-benchmarks/v3/` with its own copy of the
+grader (only the benchmark list differs) and its own `FREEZE.json`
+(SHA-256 `aaf369d709aba3614f8a7bf8cac6f5fb6544762a2e10219409b69259fd4c0e13`; grader
+`24d8e6b0281c736927e1da617a0ae56f68bec759f36b52d0d47c528dcc28cf4e`).
+
+`p14-larger-ledgercheck-v3` repeats the v2 larger task: the spec content, the 10 studio cases,
+the 21 extended cases, the known failures and the reference solution are the v2 ones (a test
+checks each). Reusing them is sound because no role saw a v2 QA result or held-out case: every
+v2 attempt stopped at its first builder answer, and builder packets never contain held-out
+cases. The expectations add only the v3 notes: the studio must run code with ADR-0076, a refused
+patch counts as one repair round within `max_repairs` 2 and `max_calls` 6, and refusals are
+recorded (`refused-N.json`).
+
+```text
+node scripts/p14-benchmark.mjs verify --set v3
+node scripts/p14-benchmark.mjs compare-spec p14-larger-ledgercheck-v3 stored-spec.json
+node scripts/p14-benchmark.mjs score p14-larger-ledgercheck-v3 <export-dir>
+```
+
+The live packet is the one in section 6 for the larger benchmark (3 attempts, one run each, at
+most 6 requests per attempt, $0 on `plan_roles`), on a dev studio running this branch.

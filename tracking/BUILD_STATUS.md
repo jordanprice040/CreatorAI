@@ -271,6 +271,12 @@ unsaved text; N-3 Export waits until the note's text has loaded; N-4 the migrati
   Next: a follow-up to state the path/`sys.path` rules to the builder (or allow `__init__.py`) and turn a refused
   patch into repair feedback, then a new larger-benchmark version.
 
+## ADR-0076 builder path rule and refused-patch repair; P14 larger benchmark v3 frozen (November 6, branch `claude/project-thread-q1juny`, ADR-0076, no migration)
+
+What works: the executor path dialect admits Python package files (`__init__.py`, `__main__.py`, `_x.py`) and still refuses dot, dash, `__pycache__`, device and empty segments. Builder packets carry `patch_rules` and `qa_runtime` (the QA command and the `-I` sys.path rule) as data; `builder/1` is unchanged, so both build-role qualifications stand. A submission the patch contract or scoped tool refuses changes nothing, is recorded as `refused-N.json`, and goes back to the builder as repair feedback within `max_repairs`/`max_calls`; the checkpoint names the last refusal. Set v3 (`config/repo-benchmarks/v3/`, own grader copy, `FREEZE.json` `aaf369d7…0e13`) freezes `p14-larger-ledgercheck-v3`, the v2 larger task unchanged; `scripts/p14-benchmark.mjs` takes `--set v3` and picks the set from a benchmark id.
+
+Checks: see the PR. Live v3 runs: see [the P14 doc](../docs/REPO_BENCHMARKS_P14_2026-11-06.md) section 8.
+
 ## P08 automatic assessments (November 6, branch `claude/project-thread-rbtrzm`, ADR-0074, migration 47)
 
 Compare can now assess every option of a problem automatically: an `r08_assessment` workflow
