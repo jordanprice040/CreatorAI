@@ -48,3 +48,44 @@ These come from the synthetic spec rather than the exporter, but the bundle give
 ## What worked
 
 The order of work, file scopes, exact cases, the `-I` import note in STACK.md, RECOVERY.md and the checker were enough to build the program without any outside context, and the checker's FAIL output was clear.
+
+---
+
+# Second run: regenerated bundle at `cf820c6` (bundle hash `409d0fb8…`)
+
+Same method, new empty workspace and new project folder (7 commits, final `339a06d`). Bundle changes read from a diff against the first copy: CONTRACT.md, STACK.md, `checks/run_checks.py`, and prompts 01, 04, 05, 06.
+
+## Results
+
+| Case | Expected | Observed | Result |
+| --- | --- | --- | --- |
+| A1 held-out | `3\n`, exit 0 | `3\n`, exit 0 | PASS |
+| A2 held-out | `1\n`, exit 0 | `1\n`, exit 0 | PASS |
+
+Visible cases in a fresh clone: 4 run, 0 failed, A3 skipped. `git status` stayed clean after every check run and at every gate. The held-out marker text is not in the bundle.
+
+## Earlier findings
+
+| Finding | Status | What was observed |
+| --- | --- | --- |
+| F1 A3 gate vs open judge | Resolved | Contract rule 6 now has the manual-check exception and prompt 04's gate asks for a provisional record. No stop needed. |
+| F2 `__pycache__` | Resolved | Checker runs with `-B` and setup writes `.gitignore`; no cache folder appeared and no commit needed amending. |
+| F3 README mitigation unowned | Resolved | Rule 10 names the five root files; prompt 05 checks risk mitigations and fixes README.md itself. |
+| F4 open readings | Resolved as a process | Rule 9 plus ASSUMPTIONS.md, which prompt 05 reviews and prompt 06 copies into HANDOVER.md. Four readings were recorded. The spec itself still leaves them open, which is the owner's call. |
+| F5 empty folder | Resolved | Setup step 4 asks for `.gitkeep`. |
+| F6 overlapping reviews | Resolved | T3 writes `review/t3-review.md`, limited to its own checks, with a line on whether the session wrote the code. |
+| F7 `<bundle>` and archive place | Resolved | Contract defines `<bundle>`; prompt 06 puts the archive beside the project. |
+
+## New gaps (all Low)
+
+**N1 "Narrower reading" does not always pick one answer.** For "Refuse an unknown option", the narrower reading (only arguments starting with `-`) leaves a bare word such as a file name with no defined behaviour at all, so the implementer still has to choose. For "whitespace", the narrower reading is ASCII only, which is the less useful one for writers. For "no output", it is unclear which reading is narrower. Suggested wording: "take the reading that does less and refuses more".
+
+**N2 The task gates do not mention the ASSUMPTIONS.md exception.** Prompts 02 and 03 still say "No file outside the task's scope changed (`git diff --stat` against the previous commit)". With rule 9 followed, that diff lists ASSUMPTIONS.md. Rule 10 allows it, but the gate line read alone says it fails.
+
+**N3 Leftover `.gitkeep`.** Nothing says whether `review/.gitkeep` should go once T3 adds a real file. Harmless.
+
+## Limits of the second run
+
+- Not blind: by this run the implementer had already seen the first bundle and both held-out cases. The result shows the fixes work and nothing regressed, not a second independent consumption.
+- Prompt 05 was again carried out by the session that wrote the code, and REVIEW.md says so. A separate reviewer session was not started.
+- The two runs chose opposite readings of "non-empty line" (only spaces counted in run 1, not counted in run 2) and both pass, so the held-out cases do not tell these readings apart.

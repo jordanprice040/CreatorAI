@@ -88,8 +88,9 @@ match the code and `… write` regenerates them. A test runs the verification.
   project in an empty folder from only the bundle, and both held-out cases passed
   ([record](../tracking/evidence/runbook-export/clean-room-2026-11-10.md)). One session did all six
   prompts and it was the same kind of model that built the exporter. Its seven findings about
-  missing or unclear context were fixed in the generator afterwards; the changed wording has not
-  been through a second run.
+  missing or unclear context were fixed in the generator afterwards. A second run on the fixed
+  bundle passed again and found them resolved, but it was not blind; its three small wording
+  findings are fixed too and that last wording has not been consumed again.
 - The runner covers command-line cases only. Browser cases are written out as steps; no browser
   checker is shipped.
 - A selection without a spec or a proposal has nothing to export; write one first.

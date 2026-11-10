@@ -274,6 +274,7 @@ test('a receiver with only the bundle can finish every step as written', () => {
   // A judged check does not collide with "stop on an open decision".
   assert.match(contract, /One exception: a check that a person must judge/);
   assert.match(contract, /ASSUMPTIONS\.md in the project/);
+  assert.match(contract, /the reading that does less and refuses more/);
   assert.match(contract, /Five files at the project root belong to no task/);
   const t3 = textOf(files, 'prompts/04-t3-review-against-the-scope.md');
   assert.doesNotMatch(t3, /Check A3 passes when run now/);
@@ -284,6 +285,10 @@ test('a receiver with only the bundle can finish every step as written', () => {
   assert.match(
     textOf(files, 'prompts/02-t1-count-words-from-standard-input.md'),
     /Check A1 passes when run now\./,
+  );
+  assert.match(
+    textOf(files, 'prompts/02-t1-count-words-from-standard-input.md'),
+    /A line added to `ASSUMPTIONS\.md` under the contract’s rules is allowed/,
   );
   const setup = textOf(files, 'prompts/01-setup.md');
   assert.match(

@@ -22,7 +22,7 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 
 - Check A3 is carried out as REQUIREMENTS.md describes and what was seen is recorded as provisional. This step does not decide that it passes: the owner’s judge does, even if DECISIONS.md has not named one yet.
 - Every check that passed before this task still passes.
-- No file outside the task’s scope changed (`git diff --stat` against the previous commit).
+- No file outside the task’s scope changed (`git diff --stat` against the previous commit). A line added to `ASSUMPTIONS.md` under the contract’s rules is allowed.
 
 If the gate does not pass, follow [RECOVERY.md](../RECOVERY.md).
 

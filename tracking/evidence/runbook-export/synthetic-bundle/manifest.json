@@ -104,8 +104,8 @@
   "files": [
     {
       "path": "CONTRACT.md",
-      "bytes": 3436,
-      "sha256": "13e39e7d2601b4b28ce651cd99186cbd2e5713945c1fa1e9c87d80cf09a65ffb"
+      "bytes": 3520,
+      "sha256": "6736310e70f9d88bba9a66467b69d91c723fd8779823196ec391f44d84caad7b"
     },
     {
       "path": "DECISIONS.md",
@@ -154,23 +154,23 @@
     },
     {
       "path": "prompts/01-setup.md",
-      "bytes": 1893,
-      "sha256": "20cd0fef975c0cdc2a28a8d3333e239b4303560f52633efd42e55fd82303d881"
+      "bytes": 1970,
+      "sha256": "b0b8401f7499ce39bcad245db80c73f6dfe3b685f73bf3e104a8322c98d2394c"
     },
     {
       "path": "prompts/02-t1-count-words-from-standard-input.md",
-      "bytes": 1743,
-      "sha256": "3f27376aef5e37db18c6dfcc179618376f868f53ff6e9b4af6bbbd8340041b72"
+      "bytes": 1817,
+      "sha256": "2b51d2e114e406ac0a56bdc11f7f0c6ee1d9bb8199f9c6f39aeb56b1d31fcacc"
     },
     {
       "path": "prompts/03-t2-add-the-lines-option.md",
-      "bytes": 1796,
-      "sha256": "9ed4b60a6599595cb8bae51cd0fffb30a1dff294f021b678608da8d8303a4e6e"
+      "bytes": 1870,
+      "sha256": "e22393e340831f4f6918af0f2a3f5282f27796b41289d6e29dc17b552111c008"
     },
     {
       "path": "prompts/04-t3-review-against-the-scope.md",
-      "bytes": 2348,
-      "sha256": "6fd607e8a8bf5a6c899f6704bbfb5125b7d276030bcfb78396eebd303132fcf2"
+      "bytes": 2422,
+      "sha256": "b5c7ad239930d471c3822d5996f3e5ba5bdd502ab31c5c552132c3af90e69619"
     },
     {
       "path": "prompts/05-review-and-repair.md",
@@ -188,5 +188,5 @@
       "sha256": "681f7fccb904608829081f602c21ac2544f562df35ca90753866de14d7925d4d"
     }
   ],
-  "bundle_hash": "409d0fb8670f97355d40e900d34f6f67fe37c04d05e4f8a0dfb4b3978cd08dae"
+  "bundle_hash": "d4c4dc01ce658b8c52bd6d8dcdfd1ab0c9ad4cad401cdf9472119dda3f33f321"
 }

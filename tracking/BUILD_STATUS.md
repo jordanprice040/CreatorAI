@@ -620,3 +620,8 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - **Checks.** 25 runbook and proposal tests pass (one new test for these fixes; the runner test now also proves no
   `__pycache__` is left). `pnpm typecheck` and `pnpm format:check` pass. The example bundle was regenerated
   (hash `409d0fb8…`). The regenerated bundle has **not** been through a second clean-room run.
+- **Second clean-room run (at `cf820c6`).** Both held-out cases passed again and F1 to F7 were found resolved; the run
+  was not blind (the implementer had seen the first bundle and the held-out cases). Its three Lows are fixed: N1 the
+  unclear-reading rule now says "the reading that does less and refuses more", N2 task gates say a line added to
+  `ASSUMPTIONS.md` is allowed, N3 setup says to leave `.gitkeep` in place. The bundle after these three wording changes
+  has not been consumed again.

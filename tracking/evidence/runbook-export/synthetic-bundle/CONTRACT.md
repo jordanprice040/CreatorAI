@@ -43,7 +43,8 @@ Rules for every step:
   8. 2 acceptance cases are held back by the owner. Passing the visible cases does
      not show the work is accepted. Make the behaviour right, not just the cases.
   9. Where a requirement can be read more than one way and no case settles it, take
-     the narrower reading and add one line to ASSUMPTIONS.md in the project: the
+     the reading that does less and refuses more (refuse unclear input rather than guess
+     what it means), and add one line to ASSUMPTIONS.md in the project: the
      requirement, the reading you took, and the other reading. This is not a reason
      to stop. It is for readings of a requirement only, never for an open decision.
   10. Five files at the project root belong to no task: README.md, .gitignore,

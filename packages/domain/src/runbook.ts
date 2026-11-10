@@ -1036,7 +1036,8 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
             ]
           : []),
         `  ${heldOut ? 9 : 8}. Where a requirement can be read more than one way and no case settles it, take`,
-        '     the narrower reading and add one line to ASSUMPTIONS.md in the project: the',
+        '     the reading that does less and refuses more (refuse unclear input rather than guess',
+        '     what it means), and add one line to ASSUMPTIONS.md in the project: the',
         '     requirement, the reading you took, and the other reading. This is not a reason',
         '     to stop. It is for readings of a requirement only, never for an open decision.',
         `  ${heldOut ? 10 : 9}. Five files at the project root belong to no task: README.md, .gitignore,`,
@@ -1093,7 +1094,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         stack
           ? `3. Create the layout for the proposed stack: ${stack.name}. ${recipe === 'static-web/1' ? 'Add site/index.html with only a title.' : 'Add src/main.py that exits with code 0 and prints nothing.'}`
           : '3. No stack is proposed. Read STACK.md and DECISIONS.md, propose one stack to the owner with reasons, and stop until the owner answers.',
-        '4. Create every folder that TASKS.md lets a task change. Git does not keep an empty folder, so put an empty file named .gitkeep in each folder that has no other file.',
+        '4. Create every folder that TASKS.md lets a task change. Git does not keep an empty folder, so put an empty file named .gitkeep in each folder that has no other file. Leave it there when real files arrive later; removing it is no task’s job.',
         recipe === 'python-build/1'
           ? '5. Add a README.md that names the project and says how to run the checks, and a .gitignore with the two lines __pycache__/ and *.pyc.'
           : '5. Add a README.md that names the project and says how to run the checks.',
@@ -1172,7 +1173,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         ...(needs.length > 1 || promptIndex.size > 1
           ? ['Every check that passed before this task still passes.']
           : []),
-        'No file outside the task’s scope changed (`git diff --stat` against the previous commit).',
+        'No file outside the task’s scope changed (`git diff --stat` against the previous commit). A line added to `ASSUMPTIONS.md` under the contract’s rules is allowed.',
       ],
       body: [
         `Step: task ${t.key} — ${oneLine(t.title)}`,
