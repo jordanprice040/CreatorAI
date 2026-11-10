@@ -56,11 +56,22 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]{16,}=*/g,
 ];
 /** A personal folder: the account name is the private part, so it and the rest are dropped. */
-// The account name may hold spaces ("Jordan Price") when a separator follows it. A drive
-// letter, a network share (\\host\Users\name) and the WSL view (/mnt/c/Users/name) all count.
+// The account name may hold one or two more words after a space ("Jordan Price", "José García",
+// "jordan price"), but only when what follows the separator is clearly more path: a profile
+// folder, a segment followed by another separator, or a file name with an extension. So
+// "/home/ci Linux/macOS only" keeps its words. Windows paths match in any case.
+const NAME_SEG = `[^\\\\/\\s"'\`<>|:*?]+`;
+const MORE_PATH = `(?:(?:Desktop|Documents|Downloads|AppData|OneDrive|Pictures|Music|Videos|Library|Favorites|Contacts|Links|Saved Games|Searches)(?![\\p{L}\\p{N}])|\\.[\\w-]+|${NAME_SEG}[\\\\/]|[^\\\\/\\s"'\`<>|:*?.]+\\.[A-Za-z0-9]{1,8}(?![\\p{L}\\p{N}]))`;
+const MORE_WORDS = `(?:(?: \\p{L}[\\p{L}\\p{M}'.-]*){1,2}(?=[\\\\/]+${MORE_PATH}))?`;
 const PATH_PATTERNS: readonly RegExp[] = [
-  /(?:\b[A-Za-z]:|\\\\[^\\/\s"'`<>|:*?]+)[\\/]+Users[\\/]+[^\\/\s"'`<>|:*?]+(?:(?: [A-Z][A-Za-z'.-]*){1,2}(?=[\\/]))?(?:[\\/]+[^\s"'`<>|*?]*)?/g,
-  /(?<![A-Za-z0-9_.-])\/(?:home|Users|mnt\/[A-Za-z]\/Users)\/[^/\s"'`<>]+(?:(?: [A-Z][A-Za-z'.-]*){1,2}(?=\/))?(?:\/[^\s"'`<>]*)?/g,
+  new RegExp(
+    `(?:\\b[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}${MORE_WORDS}(?:[\\\\/]+[^\\s"'\`<>|*?]*)?`,
+    'giu',
+  ),
+  new RegExp(
+    `(?<![A-Za-z0-9_.-])(?:\\/(?:home|Users)|\\/mnt\\/[A-Za-z]\\/[Uu][Ss][Ee][Rr][Ss])\\/[^/\\s"'\`<>]+${MORE_WORDS.replaceAll('[\\\\/]', '\\/')}(?:\\/[^\\s"'\`<>]*)?`,
+    'gu',
+  ),
 ];
 export const REDACTED_SECRET = '[credential removed]';
 export const REDACTED_PATH = '[private path removed]';
@@ -193,6 +204,8 @@ export interface RunbookHumility extends Ref {
   dissent: readonly string[];
   /** The studio's own pre-build gate for this review and this spec version. */
   build_admissible: boolean;
+  /** The gate's only objection is unresolved ethics: the owner's judgement is needed. */
+  needs_judgment: boolean;
   /** Why the gate says no; empty when it admits a build. */
   gate_reasons: readonly string[];
 }
@@ -759,10 +772,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
   // The only problem is unresolved ethics: the gate asks the owner for a judgement rather than
   // refusing outright.
   const ethicsOnly =
-    !!humility &&
-    !humility.build_admissible &&
-    humility.ethical_status === 'unresolved_serious' &&
-    humility.gate_reasons.length === 1;
+    !!humility && !humility.build_admissible && humility.needs_judgment;
   if (!humility)
     warnings.push(
       'No should-this-be-software (humility) review of this spec is recorded. The studio would not start a build without one.',
@@ -1517,14 +1527,19 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
           '',
         ]
       : [
-          checks.every(
-            (a) =>
-              !a.cases.length &&
-              !a.browser_cases.length &&
-              a.held_out_cases_withheld > 0,
-          )
-            ? 'Every case is held back by the owner, so there is nothing to run here: implement what each check in [REQUIREMENTS.md](REQUIREMENTS.md) states, and the owner runs the held-out cases.'
-            : 'This bundle has no command-line cases, so there is no script to run. Carry out each check as [REQUIREMENTS.md](REQUIREMENTS.md) describes.',
+          ((hidden) =>
+            hidden.length === checks.length
+              ? 'Every case is held back by the owner, so there is nothing to run here: implement what each check in [REQUIREMENTS.md](REQUIREMENTS.md) states, and the owner runs the held-out cases.'
+              : hidden.length
+                ? `This bundle has no command-line cases, so there is no script to run. Carry out each check as [REQUIREMENTS.md](REQUIREMENTS.md) describes, except ${hidden.map((a) => a.key).join(', ')}: every case of ${hidden.length === 1 ? 'that check' : 'those checks'} is held back, so implement what ${hidden.length === 1 ? 'it states' : 'they state'} and the owner runs the held-out cases.`
+                : 'This bundle has no command-line cases, so there is no script to run. Carry out each check as [REQUIREMENTS.md](REQUIREMENTS.md) describes.')(
+            checks.filter(
+              (a) =>
+                !a.cases.length &&
+                !a.browser_cases.length &&
+                a.held_out_cases_withheld > 0,
+            ),
+          ),
           '',
         ]),
     ...(checks.some((a) => !a.cases.length)

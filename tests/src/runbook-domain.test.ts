@@ -614,6 +614,7 @@ test('a spec the studio would not build says so in the bundle', () => {
   e.humility = {
     ...e.humility!,
     build_admissible: false,
+    needs_judgment: true,
     gate_reasons: ['A serious ethical problem is unresolved.'],
     ethical_status: 'unresolved_serious',
   };
@@ -693,6 +694,45 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     '[private path removed] and then stop',
   );
   assert.equal(n.paths, 4);
+  // Final review P-1: the account name continues only into more path, whatever its case.
+  for (const [raw, kept] of [
+    ['C:\\Users\\jordan price\\Documents\\a.csv', ''],
+    ['C:\\Users\\José García\\Documents\\a.csv', ''],
+    ['/home/jordan price/notes/x.md', ''],
+    ['/mnt/c/Users/Jordan Price/a.txt', ''],
+    ['Path /home/ci Linux/macOS only', ' Linux/macOS only'],
+    [
+      'Logs go to /home/app. Use Input/Output streams.',
+      ' Use Input/Output streams.',
+    ],
+    [
+      'Store in C:\\Users\\Public Read/Write access is needed.',
+      ' Read/Write access is needed.',
+    ],
+    [
+      'Save to /home/svc The Reports/Archive folder holds old runs.',
+      ' The Reports/Archive folder holds old runs.',
+    ],
+    [
+      'Keep it in /home/x or the shared drive and/or a stick',
+      ' or the shared drive and/or a stick',
+    ],
+    [
+      'Open C:\\Users\\jorda then use the Settings/Advanced tab',
+      ' then use the Settings/Advanced tab',
+    ],
+    // Final review P-2: Windows profile paths in any letter case.
+    ['c:\\users\\jordan\\notes.txt', ''],
+    ['C:\\USERS\\JORDAN\\notes.txt', ''],
+    ['/mnt/c/users/jordan/notes.txt', ''],
+  ] as const) {
+    const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt/);
+    assert.equal(
+      clean(raw),
+      `${raw.slice(0, at)}[private path removed]${kept}`,
+      raw,
+    );
+  }
   // Re-review R-1: a path followed by ordinary words keeps the words.
   assert.equal(
     clean(
@@ -752,6 +792,18 @@ test('a check with only held-out cases is the owner’s to run, and a review nev
   assert.match(
     textOf(softwareRunbook(h).files, 'README.md'),
     /Every case is held back by the owner, so there is nothing to run here/,
+  );
+  // Final review N-3: with a manual check as well, the README names the held-back ones.
+  const m = input();
+  const mc = m.spec.content;
+  mc.acceptance_checks = mc.acceptance_checks.map((a) =>
+    a.cases?.length
+      ? { ...a, cases: a.cases.map((x) => ({ ...x, held_out: true })) }
+      : a,
+  );
+  assert.match(
+    textOf(softwareRunbook(m).files, 'README.md'),
+    /Carry out each check as \[REQUIREMENTS\.md\]\(REQUIREMENTS\.md\) describes, except A1, A2: every case of those checks is held back/,
   );
   assert.doesNotMatch(
     textOf(files, 'DECISIONS.md'),

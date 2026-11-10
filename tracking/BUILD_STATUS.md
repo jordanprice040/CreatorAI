@@ -650,3 +650,8 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   needed, not that the studio would refuse; the README says the owner runs the cases when every case is held back;
   the frozen-version button ignores a superseded response. Full suite after these: 884 tests, 850 pass, 29 skipped,
   5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail; typecheck and format pass; walk rerun.
+- **Final review (at `e9bcc95`): no High or Medium.** P-1 the account name in a path continues for one or two
+  words of any case only when what follows the separator is clearly more path (a profile folder, another folder, a
+  file name with an extension); P-2 Windows profile paths match in any letter case; N-1 the ethics-only wording uses
+  the gate's own `needs_judgment`; N-2 SESSION_HANDOFF brought up to date; N-3 README names wholly held-back checks
+  when they are mixed with manual ones. Tests cover every string the review listed. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.

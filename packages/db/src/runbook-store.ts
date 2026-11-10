@@ -321,6 +321,7 @@ export class RunbookStore extends ProposalStore {
                 ethical_note: hb.data.ethical.note,
                 dissent: hb.data.dissent,
                 build_admissible: gate!.build_admissible,
+                needs_judgment: gate!.needs_judgment,
                 gate_reasons: gate!.reasons,
               }
             : null,

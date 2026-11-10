@@ -61,8 +61,9 @@ assistant never reports a step as done on its own word, and unknown sections sta
   for personal folder paths (`C:\Users\name\…`, `\\host\Users\name\…`, `/home/name/…`,
   `/Users/name/…`, `/mnt/c/Users/name/…`). Matches are
   replaced and counted in the manifest and the README. The scan is a pattern list, not a guarantee:
-  read a bundle before sending it outside. An account name with spaces is caught only when more of
-  the path follows it. A spec with approved private data exports its visible cases as written and
+  read a bundle before sending it outside. Windows profile paths match in any letter case. An account
+  name with spaces (at most three words) is caught only when what follows it is clearly more path: a
+  profile folder such as `Documents`, another folder and separator, or a file name with an extension. A spec with approved private data exports its visible cases as written and
   says so in a warning.
 - **Only cited records.** The bundle holds the spec or proposal, the selection's decision for that
   option, the option's rationale, trade-offs and uncertainty, a humility review of the spec, and the

@@ -208,6 +208,7 @@ export const RUNBOOK_FIXTURE_INPUT: SoftwareRunbookInput = {
     ethical_note: '',
     dissent: [],
     build_admissible: true,
+    needs_judgment: false,
     gate_reasons: [],
   },
   references: [

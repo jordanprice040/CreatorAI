@@ -622,3 +622,12 @@ All 10 findings of the independent review (2 Medium, 8 Low) are fixed; see the B
 `ActionRunbookInput.proposal` now takes `checks`, `problem_title` and `option_title` instead of pre-rendered
 Markdown; `RunbookHumility` carries the ethics status, dissent and the result of `humilityGate`. Next eligible
 prompts unchanged.
+
+## P16 follow-up: re-review and final review fixes (November 10, PR #152)
+
+The independent-consumption gate is no longer open: it ran twice (the second run not blind) and passed both
+held-out cases each time; the N1 to N3 wording fixes from the second run are in `ff29f25`. The re-review's R-1, R-2
+and two nits are in `24a1555`. The final review's P-1 (the account-name rule continues only into more path, any case
+of letters), P-2 (Windows profile paths in any letter case) and nits N-1 (`needs_judgment` carried from
+`humilityGate`), N-2 (this entry) and N-3 (README wording when held-out and manual checks are mixed) are in the next
+commit. The last wording has not been consumed in a clean-room run. Next eligible prompts unchanged.
