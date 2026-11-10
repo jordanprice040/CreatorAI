@@ -1,6 +1,6 @@
 {
   "schema": "owner-pilot/1",
-  "status": "running",
+  "status": "completed",
   "decided_by": "Jordan Price (thread reply, 2026-10-30)",
   "decided_at": "2026-10-30T07:13:26Z",
   "budget_nano_usd": "0",
@@ -17,5 +17,7 @@
     "max_owner_minutes": 120,
     "stop_on_unknown_cost": true
   },
-  "evidence": []
+  "finished_by": "Jordan Price (project thread, 2026-11-10)",
+  "finished_at": "2026-11-10T08:37:47Z",
+  "evidence": ["docs/OWNER_PILOT_LOG.md"]
 }

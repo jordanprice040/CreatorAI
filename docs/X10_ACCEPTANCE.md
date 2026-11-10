@@ -48,20 +48,26 @@ whenever a milestone changes a state.
 
 ## Owner pilot
 
-The pilot has **not been run**. `config/owner-pilot.json` starts with every owner choice
-empty, and the gate refuses to start until Jordan records:
+The owner pilot **ran and is completed**. Jordan recorded its plan on 2026-10-30 (window
+2026-10-30 03:15 EDT to 2026-11-06 03:15 EST, $0 budget, manual runs on the ChatGPT plan and
+Claude Code, Windows desktop and WSL2 worker) and marked it finished on 2026-11-10;
+`config/owner-pilot.json` lists `docs/OWNER_PILOT_LOG.md` as its evidence.
+
+Before a pilot runs, the gate refuses until the owner records:
 
 - who decided it, and when
 - an exact budget in nano-USD, with a spend stop at or under it
 - a stop after N consecutive failures, a cap on owner minutes, and a stop on unknown cost
   (unknown billing is not zero)
-- a window that ends in the future, plus schedules
+- a window that ends in the future, plus schedules (`[]` means manual runs only)
 - platforms: `local-web`, `windows-desktop`, `wsl2-worker` or `hosted`. Each one needs its
   backing integration to be ready, and `hosted` is not.
-- accounts: integration ids that are both live-verified and activated. None qualifies today.
+- accounts: integration ids that are both live-verified and activated.
 
 When the pilot has run, set `status` to `completed` and list its evidence (costs, failures,
-cleanup, owner time). Only then can the verdict become READY.
+cleanup, owner time). A completed pilot is judged by that evidence, not by its window, which
+has passed. The verdict becomes READY only when the pilot is completed and every readiness
+row is ready too, which is not the case yet.
 
 ## Declared-workload benchmark
 

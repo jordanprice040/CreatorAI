@@ -41,8 +41,8 @@ for PRs #132–#150.
 
 Open items:
 
-- **Web recipe record (PR #150 review M-1):** the frozen per-attempt bar includes the owner seeing the
-  preview; only attempt 1's was opened. Waiting on Jordan (open attempts 2 and 3, or decide explicitly).
+- **Web recipe record (PR #150 review M-1):** resolved November 10. Jordan opened the previews of attempts
+  2 and 3 and both showed the page, so the frozen per-attempt bar is met for 3 of 3.
 - **Installed app** is eight schema versions behind main; migrations 43–49 are not rehearsed on a copy of
   the installed database, and the web preview frame is not observed in the desktop window.
 - **Windows verification:** no full Windows run of main since CI stopped.
@@ -588,6 +588,35 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
   29 skips, 5 fail (the known no-`pwsh` wrapper tests); standalone safety 22 tests, 19 pass, 3 skips, 0 fail. GitHub CI
   cannot run (no Actions minutes). The #90 N-4 change was not walked in a browser. Not independently reviewed yet.
 - Next eligible: P10 and P16 (in progress in their own threads).
+
+## Web recipe owner observations, attempts 2 and 3 (November 10, no migration or ADR)
+
+- Resolves PR #150 review M-1. With Jordan's request, the dev studio was restarted on his PC from
+  `C:\dev\creator_agent_p15` (`b73bd95`, `start-dev-p15.ps1`; the stopped `creator-agent-local-db-1` container was
+  started; no migration). Jordan opened the private previews of attempt 2 (artifact `68654f2d`, commit `bf373f5752`,
+  manifest `b49c9fec…`) and attempt 3 (`c9a519b5`, `d81a8cc8c6`, `419e6fd0…`) in Chrome; both showed the sign-up page in
+  its frame. Recorded in `RESULTS_P15_V4_2026-11-06.json` (`owner_observation.later_observations`) with his four
+  screenshots in `evidence/p15-benchmarks/owner-previews-2026-11-10/` and their hashes. The frozen per-attempt pass bar
+  is now met for 3 of 3; `RECIPE_QUALIFICATIONS` is unchanged. Observed four days after the runs, on the same packages.
+- The Try list names packages by commit, not by artifact id; the guide's "find artifact X" steps should say so (UX note).
+- The dev studio is still running on Jordan's PC and holds the installed app's ports until it is stopped.
+
+
+## Owner pilot recorded as finished (November 10, no migration or ADR)
+
+- Jordan's decision in the project thread (2026-11-10 08:37 UTC): the owner pilot is finished, not extended.
+  `config/owner-pilot.json` now says `status: completed` with `finished_by`, `finished_at` and
+  `docs/OWNER_PILOT_LOG.md` as evidence; the log has a "Pilot finished" section stating what it holds and what it
+  does not (per-run owner minutes stay unknown). This supersedes the "Owner pilot ... still says `running`" open
+  item above.
+- Readiness gate (`packages/orchestrator/src/readiness.ts`): a completed pilot is judged by its evidence, so its
+  past window no longer refuses it; a pilot that has not finished is still refused after its window. X10 stays NOT
+  READY (readiness rows still need owner inputs). `docs/X10_ACCEPTANCE.md` no longer says the pilot was not run.
+- Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
+  `owner-pilot.json`), so no app or database step is needed.
+- Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
+  pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+  P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
 
 ## P16 runbook export (November 10, branch `claude/project-thread-tq4rcm`, PR #152, ADR-0080, no migration)
 
