@@ -533,6 +533,9 @@ export function BuildView({
                               subject="specs"
                               id={s.spec.id}
                               version={s.spec.version}
+                              frozenVersion={
+                                s.latest_freeze?.spec.version ?? null
+                              }
                               writer={writer}
                             />
                           </div>

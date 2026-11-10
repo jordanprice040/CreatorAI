@@ -615,3 +615,10 @@ The independent-consumption gate ran in a separate session and passed both held-
 `packages/domain/src/runbook.ts` (contract rules 6, 9 and 10, setup prompt, task gates for judged checks, reviewer
 task wording, review and hand-over prompts, runner `-B`) and the example bundle was regenerated. The new wording has
 not been consumed in a second clean-room run. Next eligible prompts are unchanged.
+
+## P16 follow-up: code review fixes (November 10, PR #152)
+
+All 10 findings of the independent review (2 Medium, 8 Low) are fixed; see the BUILD_STATUS entry of the same name.
+`ActionRunbookInput.proposal` now takes `checks`, `problem_title` and `option_title` instead of pre-rendered
+Markdown; `RunbookHumility` carries the ethics status, dissent and the result of `humilityGate`. Next eligible
+prompts unchanged.

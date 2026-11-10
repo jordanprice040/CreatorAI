@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  ContractError,
   PROPOSAL_SECTIONS,
   RunbookManifestSchema,
   type ProposalBody,
@@ -15,7 +16,6 @@ import {
 import {
   RUNBOOK_FIXTURE_INPUT,
   actionRunbook,
-  proposalMarkdown,
   readZip,
   redactText,
   softwareRunbook,
@@ -470,7 +470,7 @@ test('an action runbook is for people, keeps unknowns unknown and claims nothing
     references: RUNBOOK_FIXTURE_INPUT.references.slice(0, 1),
   };
   const id = randomUUID();
-  const make = (b: ProposalBody) =>
+  const make = (b: ProposalBody, c: typeof checks = checks) =>
     actionRunbook({
       proposal: {
         id,
@@ -479,19 +479,9 @@ test('an action runbook is for people, keeps unknowns unknown and claims nothing
         content_hash: 'b'.repeat(64),
         saved_at: '2026-11-10T09:00:00.000Z',
         body: b,
-        markdown: proposalMarkdown({
-          id,
-          version: 3,
-          title: 'Proposal: desk hand-over',
-          content_hash: 'b'.repeat(64),
-          body: b,
-          checks,
-          problem_title: 'Hand-offs are missed',
-          option_title: 'Desk hand-over',
-          saved_at: '2026-11-10T09:00:00.000Z',
-        }),
-        blockers: 0,
-        warnings: 2,
+        checks: c,
+        problem_title: 'Hand-offs are missed',
+        option_title: 'Desk hand-over',
       },
       problem: null,
       option: { ...RUNBOOK_FIXTURE_INPUT.option, kind: 'change_process' },
@@ -499,7 +489,6 @@ test('an action runbook is for people, keeps unknowns unknown and claims nothing
         ...RUNBOOK_FIXTURE_INPUT.selection,
         disposition: 'recommend_alternative',
       },
-      references: checks.references,
     });
   const { files, manifest } = make(body);
   assert.deepEqual(validateRunbook(files), []);
@@ -540,6 +529,197 @@ test('an action runbook is for people, keeps unknowns unknown and claims nothing
   for (const k of PROPOSAL_SECTIONS)
     full.sections[k] = { state: 'written', text: `Written ${k}.`, claims: [] };
   assert.equal(make(full).manifest.prompts.length, 4);
+
+  // Review M-1: record text is escaped in PLAN.md ("ghp\_…", "postgres\://…"). It must be
+  // redacted before it is escaped, in the summary, a claim statement and a source quote.
+  const leaky = structuredClone(body);
+  leaky.summary = `Use token ghp_${'a1B2c3D4e5'.repeat(3)} and db postgres://admin:hunter2pw@db.internal/x`;
+  const leakyChecks = structuredClone(checks);
+  const ref = leakyChecks.references[0]!;
+  leaky.sections.methods = {
+    state: 'written',
+    text: 'Written methods.',
+    claims: [ref.claim],
+  };
+  ref.statement = `Leaked key sk_live_${'abcd1234'.repeat(3)} in a statement`;
+  (ref.sources[0] as { quote: string }).quote =
+    `quote has github_pat_${'abcd1234'.repeat(4)}`;
+  const out = make(leaky, leakyChecks);
+  assert.doesNotMatch(
+    all(out.files).replaceAll('\\', ''),
+    /a1B2c3D4e5|hunter2pw|abcd1234abcd1234/,
+  );
+  assert.match(
+    textOf(out.files, 'PLAN.md'),
+    /Use token \\\[credential removed\\\] and db/,
+  );
+  assert.equal(out.manifest.withheld.redacted_secrets, 4);
+  assert.deepEqual(validateRunbook(out.files), []);
+  // The self-check sees through Markdown escapes, so this class cannot return unnoticed.
+  const planted = out.files.map((f) =>
+    f.path === 'PLAN.md'
+      ? {
+          path: f.path,
+          content: Buffer.from(
+            `${f.content.toString('utf8')}\nghp\\_${'a1B2c3D4e5'.repeat(3)}\n`,
+          ),
+        }
+      : f,
+  );
+  assert.ok(
+    validateRunbook(planted).some((p) =>
+      /PLAN\.md contains a credential-like value/.test(p),
+    ),
+  );
+});
+
+test('a spec the studio would not build says so in the bundle', () => {
+  // Review M-2: no review, a review that says not to build, and unresolved ethics.
+  const none = softwareRunbook(input({ humility: null }));
+  assert.match(
+    none.manifest.warnings.join(' '),
+    /No should-this-be-software \(humility\) review of this spec is recorded/,
+  );
+  const noneDec = textOf(none.files, 'DECISIONS.md');
+  assert.match(noneDec, /\*\*No should-this-be-software review\*\*/);
+  assert.match(noneDec, /- Carry out the should-this-be-software/);
+  assert.match(textOf(none.files, 'README.md'), /No should-this-be-software/);
+
+  const i = input();
+  i.humility = {
+    ...i.humility!,
+    disposition: 'decline',
+    build_admissible: false,
+    gate_reasons: ['The review recommends decline, not building.'],
+    ethical_status: 'unresolved_serious',
+    ethical_note: 'Counts could be used to rank writers.',
+    dissent: ['One reviewer would still build it.'],
+  };
+  const no = softwareRunbook(i);
+  assert.match(
+    no.manifest.warnings.join(' '),
+    /does not clear a build: The review recommends decline, not building\./,
+  );
+  const dec = textOf(no.files, 'DECISIONS.md');
+  assert.match(dec, /a serious ethical problem is unresolved/);
+  assert.match(dec, /Counts could be used to rank writers/);
+  assert.match(dec, /Dissent: One reviewer would still build it/);
+  assert.match(dec, /pre-build gate does not accept this review/);
+  assert.match(dec, /- Decide whether the work should go ahead although/);
+  // An admitted review adds no warning.
+  assert.doesNotMatch(
+    softwareRunbook(input()).manifest.warnings.join(' '),
+    /humility/,
+  );
+  // Approved private data in the spec is called out: cases are exported as written.
+  const p = input();
+  p.spec.content.data_contracts[0]!.data_class = 'private_approved';
+  assert.match(
+    softwareRunbook(p).manifest.warnings.join(' '),
+    /approved private data/,
+  );
+});
+
+test('valid specs are not refused by the self-check, and a refusal says why', () => {
+  // Review L-1.
+  const i = input();
+  i.spec.content.tasks[0]!.title =
+    'Sk-learn pipeline for cleaning the data set';
+  i.spec.content.scope[0] = 'Read config from /home/<user>/.config/app';
+  i.spec.content.acceptance_checks[0]!.cases![0]!.stdout =
+    '{"held_out": true}\n';
+  const { files, manifest } = softwareRunbook(i);
+  assert.deepEqual(validateRunbook(files), []);
+  assert.equal(manifest.withheld.redacted_secrets, 0);
+  assert.equal(manifest.withheld.redacted_paths, 0);
+  assert.ok(
+    manifest.prompts.some((p) => /02-t1-sklearn-pipeline/.test(p.path)),
+    manifest.prompts.map((p) => p.path).join(' '),
+  );
+  // Too large is a stated refusal, not an unexplained failure.
+  const big = input();
+  big.spec.content.scope = Array.from({ length: 8 }, () => 'x'.repeat(300));
+  big.option.rationale = 'y'.repeat(3_000_000);
+  assert.throws(
+    () => softwareRunbook(big),
+    (e: unknown) =>
+      e instanceof ContractError &&
+      e.code === 'INVALID_CONTRACT' &&
+      /larger than the export limit/.test(e.message),
+  );
+});
+
+test('personal folders are removed in their Windows, network and WSL forms', () => {
+  // Review L-2.
+  const n = { secrets: 0, paths: 0 };
+  const clean = (t: string) => redactText(t, n);
+  assert.equal(
+    clean('see /mnt/c/Users/jorda/notes.txt now'),
+    'see [private path removed] now',
+  );
+  assert.equal(
+    clean('see C:\\Users\\Jordan Price\\Documents\\x.txt now'),
+    'see [private path removed] now',
+  );
+  assert.equal(
+    clean('see \\\\NAS\\Users\\jorda\\x now'),
+    'see [private path removed] now',
+  );
+  // Words after a plain account name are not swallowed.
+  assert.equal(
+    clean('C:\\Users\\jorda and then stop'),
+    '[private path removed] and then stop',
+  );
+  assert.equal(n.paths, 4);
+  for (const t of [
+    `glpat-${'a1b2'.repeat(6)}`,
+    `hf_${'a1B2'.repeat(9)}`,
+    `npm_${'a1B2'.repeat(9)}`,
+    'Authorization: Basic dXNlcjpwYXNzd29yZDEyMw==',
+  ])
+    assert.match(clean(t), /\[credential removed\]/, t);
+  assert.equal(
+    clean('Basic internationalization'),
+    'Basic internationalization',
+  );
+});
+
+test('a check with only held-out cases is the owner’s to run, and a review never lands in code', () => {
+  // Review L-3.
+  const i = input();
+  const c = i.spec.content;
+  const a2 = c.acceptance_checks.find((a) => a.key === 'A2')!;
+  a2.cases = a2.cases!.map((x) => ({ ...x, held_out: true }));
+  c.tasks.find((t) => t.key === 'T3')!.file_scope = ['src/main.py', 'review'];
+  const { files } = softwareRunbook(i);
+  assert.deepEqual(validateRunbook(files), []);
+  const t2 = textOf(files, 'prompts/03-t2-add-the-lines-option.md');
+  assert.match(
+    t2,
+    /Check A2 has no case in this bundle: the owner holds its cases back/,
+  );
+  assert.doesNotMatch(t2, /owner’s judge/);
+  assert.match(
+    t2,
+    /No case is shown for A2: implement what the statement says/,
+  );
+  assert.doesNotMatch(
+    textOf(files, 'DECISIONS.md'),
+    /no executable case here \(A2/,
+  );
+  assert.match(
+    textOf(files, 'prompts/04-t3-review-against-the-scope.md'),
+    /Write the review to review\/t3-review\.md/,
+  );
+  // With only code files in scope, the review goes in the report.
+  c.tasks.find((t) => t.key === 'T3')!.file_scope = ['src/main.py'];
+  assert.match(
+    textOf(
+      softwareRunbook(i).files,
+      'prompts/04-t3-review-against-the-scope.md',
+    ),
+    /Write the review to your report/,
+  );
 });
 
 test('the committed synthetic bundle is exactly what the code exports', () => {

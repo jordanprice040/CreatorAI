@@ -154,6 +154,11 @@ test('a spec runbook is exported by version from the records, frozen or not', as
   assert.ok(evidence.some((e) => ev.includes(e.id.slice(0, 8))));
   // No humility review of the spec yet: none is claimed.
   assert.doesNotMatch(dec, /Should-this-be-software review/);
+  // Review M-2: and the bundle says the studio would not build without one.
+  assert.match(
+    out.manifest.warnings.join(' '),
+    /No should-this-be-software \(humility\) review of this spec is recorded/,
+  );
   // The same version exports the same bytes.
   const again = await s.store.specRunbook(owner, s.ws.id, specId, 1);
   assert.ok(again.archive.equals(out.archive));
@@ -169,6 +174,11 @@ test('a spec runbook is exported by version from the records, frozen or not', as
     text(readZip(reviewed.archive), 'DECISIONS.md'),
     /Should-this-be-software review\*\* \(review [0-9a-f]{8}, of spec version 1\)/,
   );
+  assert.match(
+    text(readZip(reviewed.archive), 'DECISIONS.md'),
+    /pre-build gate accepts this review for this spec version/,
+  );
+  assert.doesNotMatch(reviewed.manifest.warnings.join(' '), /humility/);
 
   // A revision is a new, unfrozen version; version 1 still exports as frozen.
   const content = structuredClone(RUNBOOK_FIXTURE_SPEC);
@@ -185,6 +195,11 @@ test('a spec runbook is exported by version from the records, frozen or not', as
   assert.match(
     v2.manifest.warnings.join(' '),
     /version 2 of the spec, which is not frozen \(version 1 is\)/,
+  );
+  // The review judged version 1, so the build gate does not accept it for version 2.
+  assert.match(
+    v2.manifest.warnings.join(' '),
+    /does not clear a build: The review assesses a different subject or version\./,
   );
   assert.match(
     text(readZip(v2.archive), 'REQUIREMENTS.md'),

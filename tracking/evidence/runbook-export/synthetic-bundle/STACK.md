@@ -9,6 +9,7 @@ This is a proposal, not an owner decision. It is the stack the frozen acceptance
 - `python3 -I` ignores `PYTHON*` variables and does not put the script’s folder on the import path, so `src/main.py` must add its own folder to `sys.path` before importing local modules.
 - A case passes when standard output matches byte for byte (including line ends) and the exit code matches.
 - Each run starts fresh: do not rely on files or state left by an earlier run.
+- The cases were written for Linux, where the owner’s own check runs: line ends are a single `\n` and the command is `python3`. On Windows the command is usually `python` or `py -3`, and a program must write `\n` itself (for example `sys.stdout.reconfigure(newline="\n")`), or every case fails on the line end.
 - Running Python can leave `__pycache__` folders behind. The bundled script adds `-B` so its runs write none, and the setup step adds a `.gitignore` for them; never commit one.
 
 Creator Agent calls this recipe `python-build/1`. That name only says the checks fit the recipe; it does not say any model or tool is qualified to build it.

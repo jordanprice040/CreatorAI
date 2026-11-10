@@ -109,8 +109,8 @@
     },
     {
       "path": "DECISIONS.md",
-      "bytes": 1979,
-      "sha256": "6bfef497e2cc3dff58eac2f13b845a9bf0d130963f85fc07ad22af25353b5597"
+      "bytes": 2084,
+      "sha256": "63b9cf9563647581294661cad19118329e3dfd23a2ab5ff8f5b626fa4fb67f98"
     },
     {
       "path": "EVIDENCE.md",
@@ -119,8 +119,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4066,
-      "sha256": "39141e2411c887c3d7456c99e512c3ac90aa3328f7a51bf733e537d62c2612b3"
+      "bytes": 4302,
+      "sha256": "dfc9d9a9b118c85512a18dff7c8310a134df3e09c8988ffce05bd523ad1cb488"
     },
     {
       "path": "RECOVERY.md",
@@ -134,8 +134,8 @@
     },
     {
       "path": "STACK.md",
-      "bytes": 1608,
-      "sha256": "a4e8d26e14cfe839adfb139c5d0b60474393a38dd1fed7134aa5ffbd479c1771"
+      "bytes": 1921,
+      "sha256": "3b2ec4be6b969a1fe95a88a2d6d8862e684df97459159ca746b0e472ff5507e6"
     },
     {
       "path": "TASKS.md",
@@ -154,8 +154,8 @@
     },
     {
       "path": "prompts/01-setup.md",
-      "bytes": 1970,
-      "sha256": "b0b8401f7499ce39bcad245db80c73f6dfe3b685f73bf3e104a8322c98d2394c"
+      "bytes": 2037,
+      "sha256": "b68a8adf2a5b9a8bf0677e665b1b22d48c37ef3f3929f56293dea4bbb3b9e97e"
     },
     {
       "path": "prompts/02-t1-count-words-from-standard-input.md",
@@ -188,5 +188,5 @@
       "sha256": "681f7fccb904608829081f602c21ac2544f562df35ca90753866de14d7925d4d"
     }
   ],
-  "bundle_hash": "d4c4dc01ce658b8c52bd6d8dcdfd1ab0c9ad4cad401cdf9472119dda3f33f321"
+  "bundle_hash": "b572ed29f6354132e31eef95653c245f572ed7fb2ae6464545cf4ec64210ee80"
 }

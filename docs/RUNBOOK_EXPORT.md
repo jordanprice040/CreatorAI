@@ -58,9 +58,12 @@ assistant never reports a step as done on its own word, and unknown sections sta
   count is reported. The prompts say that passing the visible cases does not show acceptance.
 - **Redaction.** Before anything is written, every text field is scanned for well-known credential
   formats (provider keys, tokens, private key blocks, bearer values, passwords inside addresses) and
-  for personal folder paths (`C:\Users\name\…`, `/home/name/…`, `/Users/name/…`). Matches are
+  for personal folder paths (`C:\Users\name\…`, `\\host\Users\name\…`, `/home/name/…`,
+  `/Users/name/…`, `/mnt/c/Users/name/…`). Matches are
   replaced and counted in the manifest and the README. The scan is a pattern list, not a guarantee:
-  read a bundle before sending it outside.
+  read a bundle before sending it outside. An account name with spaces is caught only when more of
+  the path follows it. A spec with approved private data exports its visible cases as written and
+  says so in a warning.
 - **Only cited records.** The bundle holds the spec or proposal, the selection's decision for that
   option, the option's rationale, trade-offs and uncertainty, a humility review of the spec, and the
   problem's active linked claims with their non-retracted sources (at most 60 claims, 10 sources
@@ -69,11 +72,20 @@ assistant never reports a step as done on its own word, and unknown sections sta
 - **Text cannot forge structure.** Record text is flattened and escaped; multi-line text sits in a
   fenced block longer than any backtick run inside it.
 - **Self-check.** `validateRunbook` runs on every export and refuses a bundle whose manifest, hashes,
-  prompt order, internal links or exclusions do not hold. A receiver can run the same checks from the
-  files alone.
+  prompt order, internal links or exclusions do not hold, and the app shows the reason. No checker
+  ships in the bundle; its README says how to check the file hashes and the bundle hash with any
+  tool (each file's SHA-256, and a SHA-256 over one "path, space, hash, line feed" line per file).
+  The other checks need Creator Agent's code.
 - **A recipe name is not a qualification.** `recipe` says which studio recipe the spec's checks fit
   (`python-build/1`, `static-web/1`, `mixed`, `none`). It does not say any model can build it.
 - **An invalid task plan is refused**, with the reason, instead of exported.
+- **The studio's own build gate is reported.** A spec with no should-this-be-software (humility)
+  review, a review the pre-build gate would not accept (it recommends something other than
+  building, judged another version, or found the approach not viable) or an unresolved serious
+  ethical problem still exports, with a warning in the manifest, the README and the app, the
+  review's ethics note and dissent in `DECISIONS.md`, and an open decision for the owner.
+- **The frozen version stays reachable.** When the current spec version is a draft and an older
+  one is frozen, the panel offers the frozen version as well.
 
 ## The synthetic example
 

@@ -36,6 +36,6 @@ Step: set up the workspace. Write no feature code in this step.
 3. Create the layout for the proposed stack: Python command-line program (standard library only). Add src/main.py that exits with code 0 and prints nothing.
 4. Create every folder that TASKS.md lets a task change. Git does not keep an empty folder, so put an empty file named .gitkeep in each folder that has no other file. Leave it there when real files arrive later; removing it is no task’s job.
 5. Add a README.md that names the project and says how to run the checks, and a .gitignore with the two lines __pycache__/ and *.pyc.
-6. Run: python3 <bundle>/checks/run_checks.py   (from the project folder). Failures are expected; the script must start.
+6. Run: python3 <bundle>/checks/run_checks.py   (from the project folder). Failures are expected; the script must start. On Windows use python or py -3 in place of python3 (see STACK.md).
 7. Commit. Then report, including each open decision in DECISIONS.md that would block a later step.
 ```

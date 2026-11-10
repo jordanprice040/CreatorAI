@@ -625,3 +625,22 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   unclear-reading rule now says "the reading that does less and refuses more", N2 task gates say a line added to
   `ASSUMPTIONS.md` is allowed, N3 setup says to leave `.gitkeep` in place. The bundle after these three wording changes
   has not been consumed again.
+
+## P16 runbook export: independent code review fixes (November 10, PR #152)
+
+- **Review** of `ff29f25` by a separate thread: no High, 2 Medium, 8 Low
+  (`/mnt/project-files/reviews/PR152_RUNBOOK_EXPORT_REVIEW_2026-11-10.md`). All fixed:
+  M-1 an action runbook's `PLAN.md` is rendered inside the export from the redacted proposal, and the self-check reads
+  Markdown with escapes removed; M-2 a missing humility review, one the pre-build gate would not accept, or unresolved
+  ethics is a warning and an open decision, with ethics and dissent in `DECISIONS.md`; L-1 a failed self-check or an
+  oversize bundle is `INVALID_CONTRACT` with its reason, slugs cannot look like credentials, the held-out check reads
+  JSON; L-2 WSL, network-share and spaced Windows profile paths plus `glpat-`, `hf_`, `npm_` and `Basic` values; L-3
+  held-out-only checks get their own gate wording and a review never lands in a code file; L-4 one proposal read per
+  export; L-5 `STACK.md` and setup state the Linux `\n` and `python3` assumptions; L-6 the panel offers the frozen
+  version when a draft is current; L-7 README states the hash rule, guide and ADR updated, walk records its commit;
+  L-8 `evidenceFile` uses the escaped title test.
+- **Checks at the fix commit (cloud container, PostgreSQL 16).** `pnpm typecheck` and `pnpm format:check` pass. Full
+  suite `node --test tests/dist/*.test.js`: 884 tests, 850 pass, 29 skipped, 5 fail (the 5 known no-`pwsh` wrapper
+  tests). `pnpm test:dev-safety`: 22 tests, 19 pass, 3 skipped, 0 fail. Browser walk rerun with a new step for the
+  frozen-version offer (`screens/04-frozen-version-offered.png`); `walk.json` records the commit it ran on. CI did
+  not run (no Actions minutes). The bundle after these changes has not been through another clean-room run.

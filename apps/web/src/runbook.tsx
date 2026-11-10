@@ -39,7 +39,8 @@ export function RunbookExport({
   session,
   subject,
   id,
-  version,
+  version: current,
+  frozenVersion,
   writer,
 }: {
   base: string;
@@ -48,21 +49,31 @@ export function RunbookExport({
   subject: 'specs' | 'proposals';
   id: string;
   version: number;
+  /** The newest frozen version of a spec, offered when it is not the current one. */
+  frozenVersion?: number | null;
   writer: boolean;
 }) {
+  const [version, setVersion] = useState(current);
+  const other =
+    frozenVersion && frozenVersion !== current
+      ? version === current
+        ? frozenVersion
+        : current
+      : null;
   const [open, setOpen] = useState(false);
   const [summary, setSummary] = useState<RunbookSummary | null>(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const path = `${base}/${subject}/${id}/runbook`;
-  async function show() {
+  async function show(v = version) {
     setOpen(true);
+    setVersion(v);
     setNote('');
     setError('');
     setSummary(null);
     try {
-      setSummary(await api(RunbookSummarySchema, `${path}?version=${version}`));
+      setSummary(await api(RunbookSummarySchema, `${path}?version=${v}`));
     } catch (err) {
       setError(message(err));
     }
@@ -106,6 +117,20 @@ export function RunbookExport({
           ? 'the requirements, checks, task order and one prompt per step.'
           : 'the plan, its evidence and one prompt per step.'}
       </p>
+      {other !== null && (
+        <p>
+          {version === current
+            ? `v${version} is not frozen; v${other} is the frozen version.`
+            : `This is the frozen version; v${other} is the current draft.`}{' '}
+          <button
+            className="text"
+            type="button"
+            onClick={() => void show(other)}
+          >
+            Use v{other} instead
+          </button>
+        </p>
+      )}
       {!summary && !error && <p role="status">Preparing the runbook…</p>}
       {summary && (
         <>

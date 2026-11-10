@@ -2,13 +2,13 @@ import type { PoolClient } from 'pg';
 import {
   HumilityBodySchema,
   PROPOSAL_MAX_CITED_CLAIMS,
-  RUNBOOK_MAX_BYTES,
   SpecBodySchema,
   type ProposalReference,
   type RunbookManifest,
 } from '@creator/contracts';
 import {
   actionRunbook,
+  humilityGate,
   runbookFileName,
   softwareRunbook,
   validateSpec,
@@ -192,13 +192,6 @@ export class RunbookStore extends ProposalStore {
     built: ReturnType<typeof softwareRunbook>,
     version: number,
   ): RunbookExport {
-    if (
-      built.files.reduce((n, f) => n + f.content.length, 0) > RUNBOOK_MAX_BYTES
-    )
-      throw fail(
-        'INVALID_CONTRACT',
-        'The runbook would be larger than the export limit.',
-      );
     return {
       name: runbookFileName(built.manifest.title, version),
       version,
@@ -277,6 +270,20 @@ export class RunbookStore extends ProposalStore {
         )
       ).rows[0] as Row | undefined;
       const hb = h ? HumilityBodySchema.safeParse(h.body) : null;
+      // The same gate a build goes through, for this spec version (ADR-0077 for a hybrid).
+      const gate =
+        h && hb?.success
+          ? humilityGate(
+              {
+                id: String(h.id),
+                version: Number(h.version),
+                status: String(h.status),
+                body: h.body,
+              },
+              { id: e.id, version: want },
+              option.kind === 'hybrid' ? 'hybrid' : 'software',
+            )
+          : null;
       return {
         spec: {
           id: e.id,
@@ -310,6 +317,11 @@ export class RunbookStore extends ProposalStore {
                 disconfirming_test: hb.data.disconfirming_test,
                 change_course_trigger: hb.data.change_course_trigger,
                 rationale: hb.data.rationale,
+                ethical_status: hb.data.ethical.status,
+                ethical_note: hb.data.ethical.note,
+                dissent: hb.data.dissent,
+                build_admissible: gate!.build_admissible,
+                gate_reasons: gate!.reasons,
               }
             : null,
         references,
@@ -326,8 +338,8 @@ export class RunbookStore extends ProposalStore {
     proposalId: string,
     version?: number,
   ): Promise<RunbookExport> {
+    // One read of one version: the plan text is rendered from it inside actionRunbook.
     const d = await this.proposalDetail(ctx, ws, proposalId, version);
-    const exported = await this.proposalExport(ctx, ws, proposalId, version);
     ctx = normalize(ctx);
     ws = uuid(ws);
     const body = d.proposal.body;
@@ -357,12 +369,11 @@ export class RunbookStore extends ProposalStore {
             d.versions.find((x) => x.version === d.shown_version)?.created_at ??
             d.proposal.updated_at,
           body,
-          markdown: exported.markdown,
-          blockers: d.checks.blockers,
-          warnings: d.checks.warnings,
+          checks: d.checks,
+          problem_title: d.problem_title,
+          option_title: d.option_title,
         },
         ...rest,
-        references: d.checks.references,
       }),
       d.shown_version,
     );

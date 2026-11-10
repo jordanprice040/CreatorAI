@@ -48,7 +48,7 @@ _This is a plan to implement. Nothing in it shows the software exists, works, or
 - [spec.json](spec.json): the requirements as data.
 - [checks/acceptance.json](checks/acceptance.json): the acceptance checks and visible cases as data.
 - [checks/run_checks.py](checks/run_checks.py): runs the command-line cases (Python 3, no packages).
-- [manifest.json](manifest.json): versions and a SHA-256 hash of every file.
+- [manifest.json](manifest.json): versions and a SHA-256 hash of every file. To check the bundle with any tool: each listed file’s SHA-256 must equal its `sha256`, and `bundle_hash` is the SHA-256 of one line per listed file, in the listed order, made of the path, one space, the file’s hash and a line feed.
 
 ## Validation commands
 

@@ -204,6 +204,11 @@ export const RUNBOOK_FIXTURE_INPUT: SoftwareRunbookInput = {
       'Three writers try it for a week and go back to the web page.',
     change_course_trigger: 'The writing app gains a built-in private counter.',
     rationale: 'Small, local and reversible (synthetic review).',
+    ethical_status: 'none_identified',
+    ethical_note: '',
+    dissent: [],
+    build_admissible: true,
+    gate_reasons: [],
   },
   references: [
     {

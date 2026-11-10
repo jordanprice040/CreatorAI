@@ -13,6 +13,8 @@ This file separates what people recorded as decided from what this bundle only p
   - The software part: Counting words and lines.
   - The part people keep: Deciding what the count means for the draft.
   - Rationale: Small, local and reversible (synthetic review).
+  - Ethics: none identified
+  - The studio’s pre-build gate accepts this review for this spec version.
 
 ## Proposed by this bundle (not decided)
 

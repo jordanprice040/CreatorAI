@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import {
+  ContractError,
   PROPOSAL_SECTIONS,
   PROPOSAL_SECTION_LABELS,
   RUNBOOK_FORMAT,
@@ -9,12 +10,18 @@ import {
   RunbookManifestSchema,
   specRecipe,
   type ProposalBody,
+  type ProposalChecks,
   type ProposalReference,
   type RunbookManifest,
   type RunbookPrompt,
   type SpecContent,
 } from '@creator/contracts';
-import { RESPONSE_WORDS, inlineText, urlText } from './proposal.js';
+import {
+  RESPONSE_WORDS,
+  inlineText,
+  proposalMarkdown,
+  urlText,
+} from './proposal.js';
 import { validateSpec } from './selection.js';
 
 // ADR-0080 (P16). An implementation runbook for a separate coding model or person, built by
@@ -43,11 +50,17 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\bwhsec_[A-Za-z0-9]{16,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/-]{20,}=*/g,
   /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/gi,
+  /\bglpat-[A-Za-z0-9_-]{20,}/g,
+  /\bhf_[A-Za-z0-9]{30,}/g,
+  /\bnpm_[A-Za-z0-9]{36,}/g,
+  /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]{16,}=*/g,
 ];
 /** A personal folder: the account name is the private part, so it and the rest are dropped. */
+// The account name may hold spaces ("Jordan Price") when a separator follows it. A drive
+// letter, a network share (\\host\Users\name) and the WSL view (/mnt/c/Users/name) all count.
 const PATH_PATTERNS: readonly RegExp[] = [
-  /\b[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s"'`<>|:*?]+(?:[\\/]+[^\s"'`<>|*?]*)?/g,
-  /(?<![A-Za-z0-9_.-])\/(?:home|Users)\/[^/\s"'`<>]+(?:\/[^\s"'`<>]*)?/g,
+  /(?:\b[A-Za-z]:|\\\\[^\\/\s"'`<>|:*?]+)[\\/]+Users[\\/]+[^\\/\s"'`<>|:*?]+(?:(?: [^\\/\s"'`<>|:*?]+)+(?=[\\/]))?(?:[\\/]+[^\s"'`<>|*?]*)?/g,
+  /(?<![A-Za-z0-9_.-])\/(?:home|Users|mnt\/[A-Za-z]\/Users)\/[^/\s"'`<>]+(?:(?: [^/\s"'`<>]+)+(?=\/))?(?:\/[^\s"'`<>]*)?/g,
 ];
 export const REDACTED_SECRET = '[credential removed]';
 export const REDACTED_PATH = '[private path removed]';
@@ -111,16 +124,20 @@ function code(text: string): string {
   return longest ? `${tick} ${body} ${tick}` : `${tick}${body}${tick}`;
 }
 function slug(title: string, fallback: string): string {
-  return (
-    title
-      .normalize('NFKD')
-      .replace(/\p{M}+/gu, '')
-      .replace(/[^A-Za-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 40)
-      .replace(/-+$/, '')
-      .toLowerCase() || fallback
-  );
+  const out = title
+    .normalize('NFKD')
+    .replace(/\p{M}+/gu, '')
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '')
+    .toLowerCase();
+  // A file name must never look like a credential ("sk-learn-pipeline-for-cleaning"): the
+  // bundle's own scan would refuse it. Words stay readable with the prefix joined on.
+  const safe = out.replace(/\b(sk|xox[abeoprs]|glpat)-/g, '$1');
+  const n: Redactions = { secrets: 0, paths: 0 };
+  redactText(safe, n);
+  return n.secrets || n.paths ? fallback : safe || fallback;
 }
 /** A safe archive name; the subject's version is in it. */
 export function runbookFileName(title: string, version: number): string {
@@ -170,6 +187,14 @@ export interface RunbookHumility extends Ref {
   disconfirming_test: string;
   change_course_trigger: string;
   rationale: string;
+  /** none_identified, resolved or unresolved_serious. */
+  ethical_status: string;
+  ethical_note: string;
+  dissent: readonly string[];
+  /** The studio's own pre-build gate for this review and this spec version. */
+  build_admissible: boolean;
+  /** Why the gate says no; empty when it admits a build. */
+  gate_reasons: readonly string[];
 }
 export interface SoftwareRunbookInput {
   spec: Ref & {
@@ -197,15 +222,15 @@ export interface ActionRunbookInput {
     content_hash: string;
     saved_at: string;
     body: ProposalBody;
-    /** The canonical Markdown export of this version (proposalMarkdown). */
-    markdown: string;
-    blockers: number;
-    warnings: number;
+    /** The document checks of this version, with the claims it cites. */
+    checks: ProposalChecks;
+    /** Titles as the proposal's own Markdown export shows them. */
+    problem_title: string;
+    option_title: string;
   };
   problem: RunbookProblem | null;
   option: RunbookOption;
   selection: RunbookSelection;
-  references: readonly ProposalReference[];
 }
 
 // ---- Shared sections ---------------------------------------------------------------------
@@ -239,7 +264,7 @@ function evidenceFile(
       );
       for (const s of r.sources)
         out.push(
-          `  - ${s.title.trim() ? `${inlineText(s.title)}: ` : ''}${urlText(s.url)} (${inlineText(s.stance)}, ${inlineText(s.freshness)})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
+          `  - ${inlineText(s.title).trim() ? `${inlineText(s.title)}: ` : ''}${urlText(s.url)} (${inlineText(s.stance)}, ${inlineText(s.freshness)})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
         );
       if (!r.sources.length) out.push('  - No source is attached.');
     }
@@ -415,11 +440,24 @@ function finish(
       content: Buffer.from(`${JSON.stringify(full, null, 2)}\n`),
     },
   ];
+  if (all.reduce((n, f) => n + f.content.length, 0) > RUNBOOK_MAX_BYTES)
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      'The runbook would be larger than the export limit.',
+    );
   const problems = validateRunbook(all);
   if (problems.length)
-    throw new Error(`Runbook failed its own checks: ${problems.join(' ')}`);
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      `The runbook was not exported because it failed its own checks: ${problems.join(' ')}`.slice(
+        0,
+        900,
+      ),
+    );
   return { files: all, manifest: full };
 }
+const HASH_NOTE =
+  '- [manifest.json](manifest.json): versions and a SHA-256 hash of every file. To check the bundle with any tool: each listed file’s SHA-256 must equal its `sha256`, and `bundle_hash` is the SHA-256 of one line per listed file, in the listed order, made of the path, one space, the file’s hash and a line feed.';
 const bundleHash = (files: readonly { path: string; sha256: string }[]) =>
   sha256(files.map((f) => `${f.path} ${f.sha256}\n`).join(''));
 
@@ -437,6 +475,7 @@ const STACKS: Record<
       '`python3 -I` ignores `PYTHON*` variables and does not put the script’s folder on the import path, so `src/main.py` must add its own folder to `sys.path` before importing local modules.',
       'A case passes when standard output matches byte for byte (including line ends) and the exit code matches.',
       'Each run starts fresh: do not rely on files or state left by an earlier run.',
+      'The cases were written for Linux, where the owner’s own check runs: line ends are a single `\\n` and the command is `python3`. On Windows the command is usually `python` or `py -3`, and a program must write `\\n` itself (for example `sys.stdout.reconfigure(newline="\\n")`), or every case fails on the line end.',
       'Running Python can leave `__pycache__` folders behind. The bundled script adds `-B` so its runs write none, and the setup step adds a `.gitignore` for them; never commit one.',
     ],
     run: 'python3 checks/run_checks.py',
@@ -633,8 +672,12 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
   const c = spec.content;
   const graph = validateSpec(c);
   if (graph.length)
-    throw new Error(
-      `The spec’s task plan has problems: ${graph.map((p) => p.detail).join(' ')}`,
+    throw new ContractError(
+      'INVALID_CONTRACT',
+      `The spec’s task plan has problems: ${graph.map((p) => p.detail).join(' ')}`.slice(
+        0,
+        900,
+      ),
     );
   const tasks = taskOrder(c);
   const recipeRaw = specRecipe(c);
@@ -711,9 +754,19 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     warnings.push(
       `${plural(count.secrets, 'credential-like value')} and ${plural(count.paths, 'personal folder path')} were removed. A check whose case contained one will not reproduce.`,
     );
-  if (humility && humility.subject_version !== spec.version)
+  // The studio starts no build without a review that admits one; the bundle must not look
+  // readier than the studio's own gate says.
+  if (!humility)
     warnings.push(
-      `The humility review judged version ${humility.subject_version} of the spec, not this version.`,
+      'No should-this-be-software (humility) review of this spec is recorded. The studio would not start a build without one.',
+    );
+  else if (!humility.build_admissible)
+    warnings.push(
+      `The should-this-be-software (humility) review does not clear a build: ${humility.gate_reasons.map(oneLine).join(' ') || 'it is not admissible.'} The studio would not start one.`,
+    );
+  if (c.data_contracts.some((d) => d.data_class === 'private_approved'))
+    warnings.push(
+      'The spec names approved private data. The visible case inputs and outputs are exported as written and were not checked for it; read them before the bundle leaves your hands.',
     );
 
   const frozenWords = input.freeze
@@ -871,6 +924,12 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       '',
       ...stack.lines.map((l) => `- ${l}`),
       '',
+      ...(recipe === 'python-build/1' && !hasCli
+        ? [
+            'No command-line case is visible in this bundle (the owner holds them back), so no check script is shipped. The lines above say how the owner will run the hidden cases.',
+            '',
+          ]
+        : []),
       `Creator Agent calls this recipe \`${recipe}\`. That name only says the checks fit the recipe; it does not say any model or tool is qualified to build it.`,
       '',
     );
@@ -896,8 +955,17 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       'Freeze the requirements, or confirm this draft version is the one to build.',
     );
   if (!stack) open.push('Choose the stack (see STACK.md).');
+  if (!humility)
+    open.push(
+      'Carry out the should-this-be-software (humility) review of this spec version, or confirm the work should go ahead without one.',
+    );
+  else if (!humility.build_admissible)
+    open.push(
+      'Decide whether the work should go ahead although the should-this-be-software review does not clear a build (see above).',
+    );
   const judged = checks.filter(
-    (a) => !a.cases.length && !a.browser_cases.length,
+    (a) =>
+      !a.cases.length && !a.browser_cases.length && !a.held_out_cases_withheld,
   );
   if (judged.length)
     open.push(
@@ -939,6 +1007,15 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       `  - The software part: ${inlineText(humility.software_part)}`,
       `  - The part people keep: ${inlineText(humility.human_part)}`,
       `  - Rationale: ${inlineText(humility.rationale)}`,
+      `  - Ethics: ${humility.ethical_status === 'unresolved_serious' ? '**a serious ethical problem is unresolved**' : humility.ethical_status === 'resolved' ? 'a problem was raised and recorded as resolved' : 'none identified'}${humility.ethical_note ? `. ${inlineText(humility.ethical_note)}` : ''}`,
+      ...humility.dissent.map((d) => `  - Dissent: ${inlineText(d)}`),
+      humility.build_admissible
+        ? '  - The studio’s pre-build gate accepts this review for this spec version.'
+        : `  - **The studio’s pre-build gate does not accept this review for a build:** ${humility.gate_reasons.map((r) => inlineText(r)).join(' ') || 'not admissible.'}`,
+    );
+  else
+    dec.push(
+      '- **No should-this-be-software review** of this spec is recorded. Whether this should be software at all has not been reviewed.',
     );
   dec.push(
     '',
@@ -1100,7 +1177,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
           : '5. Add a README.md that names the project and says how to run the checks.',
         ...(runner
           ? [
-              `6. Run: ${runner}   (from the project folder). Failures are expected; the script must start.`,
+              `6. Run: ${runner}   (from the project folder). Failures are expected; the script must start. On Windows use python or py -3 in place of python3 (see STACK.md).`,
             ]
           : []),
         `${runner ? 7 : 6}. Commit. Then report, including each open decision in DECISIONS.md that would block a later step.`,
@@ -1114,20 +1191,36 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       .filter((a): a is (typeof checks)[number] => !!a);
     const cli = mine.some((a) => a.cases.length > 0);
     // A check a person must judge cannot "pass" inside a step: its judge may be an open decision.
+    const person_judged = (a: (typeof mine)[number]) =>
+      a.method === 'manual_review' || a.method === 'metric';
+    // Every case of the check is held back: nothing to run here and nobody to judge it. The
+    // owner runs the hidden cases.
+    const hidden = mine.filter(
+      (a) =>
+        !person_judged(a) &&
+        !a.cases.length &&
+        !a.browser_cases.length &&
+        a.held_out_cases_withheld > 0,
+    );
     const judged = mine.filter(
       (a) =>
-        a.method === 'manual_review' ||
-        a.method === 'metric' ||
-        (!a.cases.length && !a.browser_cases.length),
+        !hidden.includes(a) &&
+        (person_judged(a) || (!a.cases.length && !a.browser_cases.length)),
     );
-    const runnable = mine.filter((a) => !judged.includes(a));
+    const runnable = mine.filter(
+      (a) => !judged.includes(a) && !hidden.includes(a),
+    );
     const keys = (list: typeof mine) => list.map((a) => a.key).join(', ');
-    const firstScope = t.file_scope[0]?.replace(/\/+$/, '');
-    const reviewFile = !firstScope
-      ? 'your report (this task may change no file)'
-      : /\.[a-z0-9]+$/i.test(firstScope)
-        ? firstScope
-        : `${firstScope}/${t.key.toLowerCase()}-review.md`;
+    // A review is written into a folder the task may change, or a Markdown file it names;
+    // never into a code file that happens to be first in its scope.
+    const scopes = t.file_scope.map((p) => p.replace(/\/+$/, ''));
+    const reviewDoc = scopes.find((p) => /\.(?:md|markdown|txt)$/i.test(p));
+    const reviewDir = scopes.find((p) => !/\.[a-z0-9]+$/i.test(p));
+    const reviewFile =
+      reviewDoc ??
+      (reviewDir
+        ? `${reviewDir}/${t.key.toLowerCase()}-review.md`
+        : 'your report (this task may change no file that can hold a review)');
     const person = t.role === 'owner';
     const needs = [0, ...t.depends_on.map((d) => promptIndex.get(d)!)];
     const scopePaths = t.file_scope.length
@@ -1166,6 +1259,11 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
               `${judged.length === 1 ? `Check ${judged[0]!.key} is` : `Checks ${keys(judged)} are`} carried out as REQUIREMENTS.md describes and what was seen is recorded as provisional. This step does not decide that ${judged.length === 1 ? 'it passes' : 'they pass'}: the owner’s judge does, even if DECISIONS.md has not named one yet.`,
             ]
           : []),
+        ...(hidden.length
+          ? [
+              `${hidden.length === 1 ? `Check ${hidden[0]!.key} has` : `Checks ${keys(hidden)} have`} no case in this bundle: the owner holds ${hidden.length === 1 ? 'its cases' : 'their cases'} back. The behaviour ${hidden.length === 1 ? 'its statement describes' : 'their statements describe'} is implemented; this step cannot show that ${hidden.length === 1 ? 'it passes' : 'they pass'}, and the owner runs the held-out cases.`,
+            ]
+          : []),
         ...(mine.length
           ? []
           : ['The deliverable exists and matches its description.']),
@@ -1200,9 +1298,24 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         ...(cli
           ? [`4. Run: ${runner} --task ${t.key}   and read every FAIL line.`]
           : [
-              judged.length
-                ? '4. Carry out each check as REQUIREMENTS.md describes and record what you saw. For a check a person must judge, record your result as provisional and do not stop because its judge is not named.'
-                : '4. Carry out each check as REQUIREMENTS.md describes and record what you saw.',
+              [
+                '4.',
+                ...(mine.length > hidden.length || !mine.length
+                  ? [
+                      'Carry out each check as REQUIREMENTS.md describes and record what you saw.',
+                    ]
+                  : []),
+                ...(judged.length
+                  ? [
+                      'For a check a person must judge, record your result as provisional and do not stop because its judge is not named.',
+                    ]
+                  : []),
+                ...(hidden.length
+                  ? [
+                      `No case is shown for ${keys(hidden)}: implement what the statement says and report that only the owner can run ${hidden.length === 1 ? 'its' : 'their'} cases.`,
+                    ]
+                  : []),
+              ].join(' '),
             ]),
         '5. Run the checks of the earlier tasks again. Nothing that passed may now fail.',
         '6. Commit only this task’s changes, then report against the completion gate.',
@@ -1370,7 +1483,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
           '- [checks/run_checks.py](checks/run_checks.py): runs the command-line cases (Python 3, no packages).',
         ]
       : []),
-    '- [manifest.json](manifest.json): versions and a SHA-256 hash of every file.',
+    HASH_NOTE,
     '',
     '## Validation commands',
     '',
@@ -1530,9 +1643,23 @@ export function actionRunbook(raw: ActionRunbookInput): {
     warnings.push(
       `${plural(unknown.length, 'section')} of the plan ${unknown.length === 1 ? 'is' : 'are'} still unknown: ${unknown.map(label).join('; ')}.`,
     );
-  if (proposal.blockers)
+  // PLAN.md is rendered here, from the text that was just redacted: a copy rendered earlier
+  // would carry escaped record text the patterns can no longer see.
+  const references = proposal.checks.references;
+  const plan = proposalMarkdown({
+    id: proposal.id,
+    version: proposal.version,
+    title: proposal.title,
+    content_hash: proposal.content_hash,
+    body,
+    checks: proposal.checks,
+    problem_title: proposal.problem_title,
+    option_title: proposal.option_title,
+    saved_at: proposal.saved_at,
+  });
+  if (proposal.checks.blockers)
     warnings.push(
-      `The plan has ${plural(proposal.blockers, 'open blocker')} (listed at the end of PLAN.md).`,
+      `The plan has ${plural(proposal.checks.blockers, 'open blocker')} (listed at the end of PLAN.md).`,
     );
   if (!selection.current)
     warnings.push(
@@ -1852,7 +1979,7 @@ export function actionRunbook(raw: ActionRunbookInput): {
     '- [DECISIONS.md](DECISIONS.md): decided, assumed and still open.',
     '- [EVIDENCE.md](EVIDENCE.md): the claims and sources the plan cites.',
     '- [RECOVERY.md](RECOVERY.md): what to do when a step fails.',
-    '- [manifest.json](manifest.json): versions and a SHA-256 hash of every file.',
+    HASH_NOTE,
     '',
     '## How to check the work',
     '',
@@ -1878,9 +2005,9 @@ export function actionRunbook(raw: ActionRunbookInput): {
     [
       { path: 'README.md', text: readme },
       { path: 'CONTRACT.md', text: contract },
-      { path: 'PLAN.md', text: proposal.markdown },
+      { path: 'PLAN.md', text: plan },
       { path: 'DECISIONS.md', text: dec },
-      { path: 'EVIDENCE.md', text: evidenceFile(input.references, 0) },
+      { path: 'EVIDENCE.md', text: evidenceFile(references, 0) },
       { path: 'RECOVERY.md', text: RECOVERY('action') },
       ...promptDrafts,
     ],
@@ -1911,6 +2038,15 @@ export function actionRunbook(raw: ActionRunbookInput): {
 }
 
 // ---- Validation --------------------------------------------------------------------------
+
+const hasHeldOut = (v: unknown): boolean =>
+  Array.isArray(v)
+    ? v.some(hasHeldOut)
+    : v !== null && typeof v === 'object'
+      ? Object.entries(v).some(
+          ([k, x]) => (k === 'held_out' && x === true) || hasHeldOut(x),
+        )
+      : false;
 
 /**
  * Checks a bundle from its files alone, the way a receiver could: the manifest parses and
@@ -2005,12 +2141,26 @@ export function validateRunbook(files: readonly RunbookFile[]): string[] {
           out.push(`${path} links to ${target}, which is not in the bundle.`);
       }
     }
+    // Markdown is scanned as a reader sees it, with escapes removed: record text is escaped
+    // after it is redacted ("ghp\_…", "postgres\://…"), and an escape must neither hide a
+    // credential nor make harmless text ("/home/\<user\>/") look like a personal path.
+    const seen = path.endsWith('.md')
+      ? text.replace(/\\([!-/:-@[-`{-~])/g, '$1')
+      : text;
     const count: Redactions = { secrets: 0, paths: 0 };
-    redactText(text, count);
+    redactText(seen, count);
     if (count.secrets) out.push(`${path} contains a credential-like value.`);
     if (count.paths) out.push(`${path} contains a personal folder path.`);
-    if (/"held_out"\s*:\s*true/.test(text))
-      out.push(`${path} contains a held-out case.`);
+    // A held-out case is data, so it is looked for in the data, not as a phrase in any text
+    // (an expected output may legitimately contain the words).
+    if (path.endsWith('.json')) {
+      try {
+        if (hasHeldOut(JSON.parse(text)))
+          out.push(`${path} contains a held-out case.`);
+      } catch {
+        out.push(`${path} is not valid JSON.`);
+      }
+    }
   }
   return out;
 }

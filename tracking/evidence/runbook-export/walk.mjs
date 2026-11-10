@@ -6,6 +6,7 @@
 // archive is unpacked and checked with validateRunbook. Nothing here is a live provider call.
 // Usage (after `pnpm build`, with a loopback test server whose role may CREATE DATABASE):
 //   CREATOR_TEST_DATABASE_URL=postgres://... node tracking/evidence/runbook-export/walk.mjs
+import { execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -46,6 +47,10 @@ const t = {
     throw new Error(m);
   },
 };
+// The commit the walked code was built from; "+changes" when the tree was not clean.
+const git = (...a) =>
+  execFileSync('git', a, { cwd: here, encoding: 'utf8' }).trim();
+const commit = `${git('rev-parse', '--short', 'HEAD')}${git('status', '--porcelain', '--', ':/apps', ':/packages') ? '+changes' : ''}`;
 const log = [];
 const step = (s) => {
   log.push(s);
@@ -247,13 +252,46 @@ try {
   await panel2.scrollIntoViewIfNeeded();
   await shot('03-phone');
   if (wide) throw new Error('the page scrolls sideways at phone width');
+
+  // A draft version after the frozen one: the panel still offers the frozen version.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const content = structuredClone(RUNBOOK_FIXTURE_SPEC);
+  content.scope.push('Print a usage line with --help');
+  await s.store.reviseSpec(owner, s.ws.id, spec.spec.id, {
+    expected_version: 1,
+    title: 'Word tally (synthetic)',
+    content,
+    reason: 'Help text requested (walk).',
+  });
+  await page.goto(`${BASE}/#/projects/build?ws=${s.ws.id}`);
+  await page.reload();
+  await page.getByRole('heading', { name: 'Build and package' }).waitFor();
+  const row2 = page.locator('ul.rows > li', {
+    hasText: 'Word tally (synthetic)',
+  });
+  await row2
+    .getByRole('button', { name: 'Export a runbook for another model' })
+    .click();
+  const panel3 = row2.getByRole('group', { name: 'Runbook' });
+  await panel3
+    .getByText('v2 is not frozen; v1 is the frozen version.')
+    .waitFor();
+  await panel3.getByText(/from requirements that are not frozen/).waitFor();
+  await panel3.getByRole('button', { name: 'Use v1 instead' }).click();
+  await panel3.getByText(/from the frozen requirements/).waitFor();
+  await panel3
+    .getByRole('link', { name: /^Download .*-runbook-v1\.zip$/ })
+    .waitFor();
+  await row2.scrollIntoViewIfNeeded();
+  await shot('04-frozen-version-offered', row2);
+  step('with a v2 draft, the panel offers and exports the frozen v1');
 } catch (e) {
   await page?.screenshot({ path: join(shots, 'failure.png'), fullPage: true });
   throw e;
 } finally {
   await writeFile(
     join(here, 'walk.json'),
-    `${JSON.stringify({ when: new Date().toISOString(), steps: log }, null, 2)}\n`,
+    `${JSON.stringify({ when: new Date().toISOString(), commit, steps: log }, null, 2)}\n`,
   );
   await browser.close();
   await new Promise((r) => web.httpServer.close(r));
