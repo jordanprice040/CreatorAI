@@ -57,7 +57,7 @@ assistant never reports a step as done on its own word, and unknown sections sta
 - **Held-out cases never leave.** Their arguments, input and expected output are dropped; only the
   count is reported. The prompts say that passing the visible cases does not show acceptance.
 - **Redaction.** Before anything is written, every text field is scanned for well-known credential
-  formats (provider keys, tokens, private key blocks, bearer values, passwords inside addresses, also with an empty user name as in `redis://:password@host`; a raw `,` or `?` in a password is allowed, so text joined to such an address by one of them may be removed with it; a password holding a raw `@` and later a `|`, `<` or `>` is only removed up to that `@`, because it cannot be told apart from a table or tag) and
+  formats (provider keys, tokens, private key blocks, bearer values, passwords inside addresses, also with an empty user name as in `redis://:password@host`; a raw `,` or `?` in a password is allowed, so text joined to such an address by one of them may be removed with it; a password holding a raw `@` together with a `|`, `<`, `>`, or a quote followed by punctuation, may be only partly removed, because it cannot be told apart from a table, tag or quoted list) and
   for personal folder paths (`C:\Users\name\…`, `\\host\Users\name\…`, `/home/name/…`,
   `/Users/name/…`, `/mnt/c/Users/name/…`). Matches are
   replaced and counted in the manifest and the README. The scan is a pattern list, not a guarantee:

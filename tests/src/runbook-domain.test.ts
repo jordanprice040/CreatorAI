@@ -786,6 +786,15 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['/home/jordan.smith/x', ''],
     ['C:\\Users\\jordan\\', ''],
     ['C:\\Users\\jordan.\\Documents', ''],
+    // Re-review 8 R8-1: a first name word that ends in "." or "," still joins.
+    ['C:\\Users\\J. Price\\Documents\\cv.docx', ''],
+    ['/home/J. Price/Documents/cv.txt', ''],
+    ['/Users/Dr. Who/Projects/app', ''],
+    ['C:\\Users\\Mr. Smith\\Projects\\x', ''],
+    ['\\\\srv\\Users\\St. John Smith\\Documents', ''],
+    ['C:\\Users\\Smith, John\\Desktop\\a.txt', ''],
+    ['/home/Smith, John/notes.md', ''],
+    ['(see C:\\Users\\J. Price\\Documents).', ').'],
     // Re-review 6 R6-N1: a snake_case last folder inside "_" emphasis.
     ['_C:\\Users\\Jordan Price\\my_file_ next', ' next'],
     ['_/home/Jordan Price/my_notes_ next', ' next'],
@@ -794,7 +803,7 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['C:\\USERS\\JORDAN\\notes.txt', ''],
     ['/mnt/c/users/jordan/notes.txt', ''],
   ] as const) {
-    const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt|\/users|\/Users/);
+    const at = raw.search(/[A-Za-z]:\\|\\\\|\/home|\/mnt|\/users|\/Users/);
     // (Trailing "_" of an emphasis is part of the path text and goes with it.)
     // The bracket or quote before the path stays.
     assert.equal(

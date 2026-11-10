@@ -749,3 +749,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   space is removed whole. R7-N1 a path that ends at the account name keeps a closer or sentence mark after it, and the
   Unix tails also refuse a final `?`. One older row now keeps its full stop. Every reported string is a test row,
   with timing loops for the new shapes; worst probe 13 ms at 100k characters.
+- **Eighth re-review (at `e37eaed`): 1 Medium and 1 nit fixed.** R8-1 (regression from R7-N1) a spaced name whose first
+  word ends in `.` or `,` (`J. Price`, `Dr. Who`, `Smith, John`) leaked every later word; extra name words are now
+  tried before the ending check, so these names are removed whole again and the R7-N1 rows still keep their marks.
+  R8-N1 the guide's raw-`@` sentence is reworded. Test rows for each shape; worst probe 13 ms at 100k characters.

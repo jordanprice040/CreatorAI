@@ -120,15 +120,19 @@ const MORE_PATH = [
 ].join('|');
 const MORE_WORDS = `(?:(?:[ \\t]+[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'.-]*){1,3}(?=[\\\\/]+(?:${MORE_PATH})))?`;
 const UNIX_MORE_WORDS = MORE_WORDS.replaceAll('[\\\\/]', '\\/');
+// The same, but at least one extra word (MORE_WORDS without its final "?").
+const SOME_WORDS = MORE_WORDS.slice(0, -1);
+const UNIX_SOME_WORDS = UNIX_MORE_WORDS.slice(0, -1);
 // The account name ends on a closer or sentence mark only when a separator follows, so
-// "(see /home/jordan)." keeps its ")." (re-review 7, R7-N1).
+// "(see /home/jordan)." keeps its ")." (re-review 7, R7-N1). Extra name words are tried
+// first, so "J. Price" and "Smith, John" still join (re-review 8, R8-1).
 const PATH_PATTERNS: readonly RegExp[] = [
   new RegExp(
-    `(?:(?<![A-Za-z0-9])[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}(?:(?<![).\\]}~”’».,;!])|(?=[\\\\/]))${MORE_WORDS}(?:[\\\\/]+(?:[^\\s"'\`<>|*?]*[^\\s"'\`<>|*?)\\]}~”’».,;:!])?)?`,
+    `(?:(?<![A-Za-z0-9])[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}(?:${SOME_WORDS}|(?<![).\\]}~”’».,;!])|(?=[\\\\/]))(?:[\\\\/]+(?:[^\\s"'\`<>|*?]*[^\\s"'\`<>|*?)\\]}~”’».,;:!])?)?`,
     'giu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}(?:(?<![)\\]}~”’».,;:!*|])|(?=\\/))${UNIX_MORE_WORDS}(?:\\/(?:[^\\s"'\`<>]*[^\\s"'\`<>)\\]}~”’»*|.,;:!?])?)?`,
+    `(?<![A-Za-z0-9.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}(?:${UNIX_SOME_WORDS}|(?<![)\\]}~”’».,;:!*|])|(?=\\/))(?:\\/(?:[^\\s"'\`<>]*[^\\s"'\`<>)\\]}~”’»*|.,;:!?])?)?`,
     'gu',
   ),
   new RegExp(
