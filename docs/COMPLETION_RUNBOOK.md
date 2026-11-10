@@ -1,5 +1,12 @@
 # Creator Agent completion runbook — November 4, 2026
 
+**Updated November 10:** the current sequence is the
+[November 5 plan](CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md); its package-by-package state
+and the next eligible work are in [build status](../tracking/BUILD_STATUS.md). Steps 1 and 2 below
+are complete (the repairs merged as PR #132 and the F1/F2 recheck passed). The file library, named
+notes and non-code proposals listed under "Remaining additions" are implemented (P05, P06, P09), and
+a first generated web recipe (`static-web/1`) exists beside the Python CLI recipe.
+
 Current source state and evidence are in [CURRENT_STATUS](CURRENT_STATUS.md). The October
 plan, its completed steps and original owner requests are preserved in
 [the pre-repair runbook](COMPLETION_RUNBOOK_HISTORY_2026-11-04.md).
@@ -55,4 +62,4 @@ Jordan's 19 revisions and the retained project backlog are mapped in
 This adds a proposed delivery sequence, including committee staging, broader online
 exploration, bounded unattended workflows, file library and expanded build qualification.
 It changes no implementation, grants, study conditions, installation or activation.
-The current focused independent authentication recheck remains the first gate.
+The focused independent authentication recheck that was the first gate has since passed.

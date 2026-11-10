@@ -1,10 +1,81 @@
-# Build status — November 4, 2026
+# Build status — November 10, 2026
+
+Current source: main `e08e0a4` (PR #150, November 6). Schema **49** (migration 42 is intentionally
+unused, see ADR-0070). No open pull requests on November 10. The installed app is still `f6e2ba0`,
+schema **41** (upgraded November 4); the dev studio on Jordan's PC runs from the worktree
+`C:\dev\creator_agent_p15` at `b73bd95`. This top section was rewritten on November 10 by the state
+review ([report](https://claude.ai/artifact/7KiojJQSaz5Mf1p3DTpFcA)); the November 4 text it replaced
+is kept verbatim below under "November 4 top section (superseded)". Dated sections further down are
+the record of each package and are appended to, not rewritten.
+
+## Current state (November 10, 2026)
+
+[November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) packages:
+
+| Package | State on main |
+| --- | --- |
+| P00 candidate and repair closure | Done (PR #135; F1/F2 recheck passed) |
+| P01 activity links, P02 sorting and paging | Merged (PR #138) |
+| P03 chat context | Merged (PR #136, fixes #139; ADR-0070, migration 43) |
+| P04 guided Discover | Merged (PR #140; ADR-0071) |
+| P05 workspace files | Merged (PR #141; ADR-0072, migration 45) |
+| P06 named notes | Merged (PR #142; ADR-0073, migration 46) |
+| P07 previews until stopped | Merged (PR #137; ADR-0069, migration 44) |
+| P08 automatic assessments | Merged (PR #144; ADR-0074, migration 47) |
+| P09 why this response, proposals | Merged (PR #148; ADR-0077, migration 49) |
+| P10 scoped routine approvals | Not on main; started November 10 in its own thread |
+| P11 committee staging | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9 |
+| P12 online discovery | Not started; needs Jordan's search provider choice |
+| P13 unattended workflow | Not started; needs P10 and P12 |
+| P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
+| P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
+| P16 external runbook export | Not on main; started November 10 in its own thread |
+| P17 integrated acceptance | Not started |
+
+Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
+formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
+`pwsh`); standalone safety 22 tests, 19 pass, 2 skips, 1 fail (a Windows-only test that did not skip on
+Linux; fixed in the November 10 cleanup). `pnpm audit` reports no known vulnerabilities. GitHub Actions
+is out of minutes (every run since about November 3 fails in seconds), so the Windows CI job has not run
+for PRs #132–#150.
+
+Open items:
+
+- **Web recipe record (PR #150 review M-1):** the frozen per-attempt bar includes the owner seeing the
+  preview; only attempt 1's was opened. Waiting on Jordan (open attempts 2 and 3, or decide explicitly).
+- **Installed app** is eight schema versions behind main; migrations 43–49 are not rehearsed on a copy of
+  the installed database, and the web preview frame is not observed in the desktop window.
+- **Windows verification:** no full Windows run of main since CI stopped.
+- **Owner pilot:** `config/owner-pilot.json` still says `running`; its window ended November 6. Jordan
+  decides finished or extended.
+- **Older review items still open:** #128 N-6, #129 N-4, PR #150 N-1..N-3. Health reports configuration,
+  not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, #90 N-4
+  and PR #148 N-I are fixed by the November 10 cleanup.)
+- **The web qualification record** lives in source against the dev studio's connection id, so it does not
+  apply to the installed app's connection.
+
+## Next eligible prompt
+
+P10 and P16 are in progress in their own threads (suggested numbers: P10 migration 50 and ADR-0079; P16
+migration 51 and ADR-0080 if needed; recheck main). After them: the installed-app upgrade when Jordan
+approves it (rehearse 41 to current on a copy first), P12 once the search provider is chosen, then P13,
+later P15 slices, the final design pass and P17. Do not automatically install, publish, run a live
+provider or advance the pilot or thesis. Accepted owner decisions and existing scoped grants remain
+authoritative.
+
+## Previous sessions
+
+All prior content is preserved byte-for-byte in [the historical record](BUILD_STATUS_HISTORY_2026-11-04.md); hashes
+are in [the archive receipt](evidence/codebase-repairs-2026-11-04/document-archives.json).
+The [previous section index](BUILD_STATUS_HISTORY_INDEX_2026-11-04.md) retains section names and archived targets without loading the historical narrative at startup.
+
+## November 4 top section (superseded)
 
 Current source: main `171430b` plus authorized audit and authentication review repairs (uncommitted). Schema 41;
 no installed-app change, live provider call or new milestone activation. Preserve the existing
 `.codex/config.toml` user change and the audit report/evidence from the previous turn.
 
-## Current work
+### Current work (November 4)
 
 Repaired the nine findings from [the audit](../docs/CODEBASE_AUDIT_2026-11-04.md): patched
 Node baseline and bundle guard; version-bound sign-in/refresh and early disconnect; truthful
@@ -30,19 +101,13 @@ checks pass.
 Open older review items: **#77 L-1, #90 N-4, #128 N-6, #129 N-4**; descriptions and remaining
 source-detail gaps are retained in [the current handoff](SESSION_HANDOFF.md).
 
-## Next eligible prompt
+### Next eligible prompt (November 4, superseded)
 
 Next: **U02 focused independent recheck of the F1/F2 repairs** (`#settlePlanRequest` and the
 three new tests), then owner-authorized acceptance work, including a migration-41 rehearsal on a
 copy of a real schema-40 database.
 Do not automatically install, publish, run a live provider, start new additions or advance the
 pilot/thesis. Accepted owner decisions and the existing scoped grants remain authoritative.
-
-## Previous sessions
-
-All prior content is preserved byte-for-byte in [the historical record](BUILD_STATUS_HISTORY_2026-11-04.md); hashes
-are in [the archive receipt](evidence/codebase-repairs-2026-11-04/document-archives.json).
-The [previous section index](BUILD_STATUS_HISTORY_INDEX_2026-11-04.md) retains section names and archived targets without loading the historical narrative at startup.
 
 ## November 5 revision planning (documentation only)
 
@@ -494,3 +559,21 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   escaped record text, N-A–N-C): same totals, 850 tests, 817 pass, 28 skip, 5 known `pwsh` fails; walk passes.
 - Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
   unverified.
+
+## State review cleanup (November 10, branch `claude/project-thread-7r0ehf`, PR #151, no migration or ADR)
+
+- From the [November 10 state review](https://claude.ai/artifact/7KiojJQSaz5Mf1p3DTpFcA) (no High; four Medium, eight Low).
+  Rewrote the top of this file, `BUILD_STATUS.md`/`SESSION_HANDOFF.md`, `docs/CURRENT_STATUS.md`, the runbook note,
+  `README.md` and `docs/LOCAL_DEVELOPMENT.md` to main `e08e0a4`, schema 49 (M4). The November 4 tops are kept.
+- Web recipe record (M1): the two stale "`RECIPE_QUALIFICATIONS` is empty" lines are corrected (a dated note is appended to
+  the results file; nothing removed). PR #150 review M-1 is restated as open for Jordan; the record is unchanged.
+- Fixes: `CREATOR_SESSION_FILE` is no longer read as a secret file by the API and migrations (L2, with a test);
+  `pnpm cli help` prints plain usage and exits 0 (L7); the Windows-only foreign-listener safety test skips elsewhere (L8);
+  a failed Revoke or Stop keeps its message (#90 N-4); the comparison's call counts are tested (#77 L-1, `manifestCalls`);
+  no bare `: ` label for a control-character source title (PR #148 N-I).
+- Left open: `config/owner-pilot.json` status, the installed-app upgrade and the web record decision (Jordan); #128 N-6,
+  #129 N-4, PR #150 N-1..N-3; the qualification record living in source (L1). `t17-test.log` stays (the X10 manifest lists it).
+- Checks (cloud container, PostgreSQL 16): TypeScript, web typecheck and formatting pass; full suite 867 tests, 833 pass,
+  29 skips, 5 fail (the known no-`pwsh` wrapper tests); standalone safety 22 tests, 19 pass, 3 skips, 0 fail. GitHub CI
+  cannot run (no Actions minutes). The #90 N-4 change was not walked in a browser. Not independently reviewed yet.
+- Next eligible: P10 and P16 (in progress in their own threads).

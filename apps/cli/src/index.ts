@@ -406,6 +406,11 @@ export async function runCli(
   base = 'http://127.0.0.1:4310',
   write: (value: string) => void = console.log,
 ): Promise<number> {
+  // Asking for help is not an error: print the usage as plain text and succeed.
+  if (['help', '--help', '-h'].includes(args[0] ?? '')) {
+    write(USAGE);
+    return 0;
+  }
   try {
     const url = new URL(base);
     if (
