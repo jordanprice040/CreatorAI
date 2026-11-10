@@ -59,8 +59,8 @@ const SECRET_PATTERNS: readonly RegExp[] = [
 // The account name may hold spaces ("Jordan Price") when a separator follows it. A drive
 // letter, a network share (\\host\Users\name) and the WSL view (/mnt/c/Users/name) all count.
 const PATH_PATTERNS: readonly RegExp[] = [
-  /(?:\b[A-Za-z]:|\\\\[^\\/\s"'`<>|:*?]+)[\\/]+Users[\\/]+[^\\/\s"'`<>|:*?]+(?:(?: [^\\/\s"'`<>|:*?]+)+(?=[\\/]))?(?:[\\/]+[^\s"'`<>|*?]*)?/g,
-  /(?<![A-Za-z0-9_.-])\/(?:home|Users|mnt\/[A-Za-z]\/Users)\/[^/\s"'`<>]+(?:(?: [^/\s"'`<>]+)+(?=\/))?(?:\/[^\s"'`<>]*)?/g,
+  /(?:\b[A-Za-z]:|\\\\[^\\/\s"'`<>|:*?]+)[\\/]+Users[\\/]+[^\\/\s"'`<>|:*?]+(?:(?: [A-Z][A-Za-z'.-]*){1,2}(?=[\\/]))?(?:[\\/]+[^\s"'`<>|*?]*)?/g,
+  /(?<![A-Za-z0-9_.-])\/(?:home|Users|mnt\/[A-Za-z]\/Users)\/[^/\s"'`<>]+(?:(?: [A-Z][A-Za-z'.-]*){1,2}(?=\/))?(?:\/[^\s"'`<>]*)?/g,
 ];
 export const REDACTED_SECRET = '[credential removed]';
 export const REDACTED_PATH = '[private path removed]';
@@ -756,13 +756,22 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     );
   // The studio starts no build without a review that admits one; the bundle must not look
   // readier than the studio's own gate says.
+  // The only problem is unresolved ethics: the gate asks the owner for a judgement rather than
+  // refusing outright.
+  const ethicsOnly =
+    !!humility &&
+    !humility.build_admissible &&
+    humility.ethical_status === 'unresolved_serious' &&
+    humility.gate_reasons.length === 1;
   if (!humility)
     warnings.push(
       'No should-this-be-software (humility) review of this spec is recorded. The studio would not start a build without one.',
     );
   else if (!humility.build_admissible)
     warnings.push(
-      `The should-this-be-software (humility) review does not clear a build: ${humility.gate_reasons.map(oneLine).join(' ') || 'it is not admissible.'} The studio would not start one.`,
+      ethicsOnly
+        ? 'The should-this-be-software (humility) review records a serious ethical problem as unresolved. The studio starts a build only after the owner gives an ethical judgement.'
+        : `The should-this-be-software (humility) review does not clear a build: ${humility.gate_reasons.map(oneLine).join(' ') || 'it is not admissible.'} The studio would not start one.`,
     );
   if (c.data_contracts.some((d) => d.data_class === 'private_approved'))
     warnings.push(
@@ -961,7 +970,9 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     );
   else if (!humility.build_admissible)
     open.push(
-      'Decide whether the work should go ahead although the should-this-be-software review does not clear a build (see above).',
+      ethicsOnly
+        ? 'Give the ethical judgement the should-this-be-software review asks for (see above) before any build.'
+        : 'Decide whether the work should go ahead although the should-this-be-software review does not clear a build (see above).',
     );
   const judged = checks.filter(
     (a) =>
@@ -1011,7 +1022,9 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       ...humility.dissent.map((d) => `  - Dissent: ${inlineText(d)}`),
       humility.build_admissible
         ? '  - The studio’s pre-build gate accepts this review for this spec version.'
-        : `  - **The studio’s pre-build gate does not accept this review for a build:** ${humility.gate_reasons.map((r) => inlineText(r)).join(' ') || 'not admissible.'}`,
+        : ethicsOnly
+          ? '  - **The studio’s pre-build gate needs the owner’s ethical judgement** before it accepts this review for a build.'
+          : `  - **The studio’s pre-build gate does not accept this review for a build:** ${humility.gate_reasons.map((r) => inlineText(r)).join(' ') || 'not admissible.'}`,
     );
   else
     dec.push(
@@ -1504,7 +1517,14 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
           '',
         ]
       : [
-          'This bundle has no command-line cases, so there is no script to run. Carry out each check as [REQUIREMENTS.md](REQUIREMENTS.md) describes.',
+          checks.every(
+            (a) =>
+              !a.cases.length &&
+              !a.browser_cases.length &&
+              a.held_out_cases_withheld > 0,
+          )
+            ? 'Every case is held back by the owner, so there is nothing to run here: implement what each check in [REQUIREMENTS.md](REQUIREMENTS.md) states, and the owner runs the held-out cases.'
+            : 'This bundle has no command-line cases, so there is no script to run. Carry out each check as [REQUIREMENTS.md](REQUIREMENTS.md) describes.',
           '',
         ]),
     ...(checks.some((a) => !a.cases.length)

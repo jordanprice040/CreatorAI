@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   RunbookSummarySchema,
   WorkspaceFileSchema,
@@ -66,16 +66,21 @@ export function RunbookExport({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const path = `${base}/${subject}/${id}/runbook`;
+  // Only the newest request may fill the panel: a quick second click must not show one
+  // version's summary under the other version's heading (re-review N-b).
+  const latest = useRef(0);
   async function show(v = version) {
+    const ticket = ++latest.current;
     setOpen(true);
     setVersion(v);
     setNote('');
     setError('');
     setSummary(null);
     try {
-      setSummary(await api(RunbookSummarySchema, `${path}?version=${v}`));
+      const got = await api(RunbookSummarySchema, `${path}?version=${v}`);
+      if (ticket === latest.current) setSummary(got);
     } catch (err) {
-      setError(message(err));
+      if (ticket === latest.current) setError(message(err));
     }
   }
   async function toFiles() {

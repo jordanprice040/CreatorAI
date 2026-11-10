@@ -590,7 +590,10 @@ test('a spec the studio would not build says so in the bundle', () => {
     ...i.humility!,
     disposition: 'decline',
     build_admissible: false,
-    gate_reasons: ['The review recommends decline, not building.'],
+    gate_reasons: [
+      'The review recommends decline, not building.',
+      'A serious ethical problem is unresolved.',
+    ],
     ethical_status: 'unresolved_serious',
     ethical_note: 'Counts could be used to rank writers.',
     dissent: ['One reviewer would still build it.'],
@@ -606,6 +609,25 @@ test('a spec the studio would not build says so in the bundle', () => {
   assert.match(dec, /Dissent: One reviewer would still build it/);
   assert.match(dec, /pre-build gate does not accept this review/);
   assert.match(dec, /- Decide whether the work should go ahead although/);
+  // Re-review R-2: unresolved ethics alone asks for the owner's judgement, not a refusal.
+  const e = input();
+  e.humility = {
+    ...e.humility!,
+    build_admissible: false,
+    gate_reasons: ['A serious ethical problem is unresolved.'],
+    ethical_status: 'unresolved_serious',
+  };
+  const eth = softwareRunbook(e);
+  const ew = eth.manifest.warnings.join(' ');
+  assert.match(
+    ew,
+    /starts a build only after the owner gives an ethical judgement/,
+  );
+  assert.doesNotMatch(ew, /would not start/);
+  assert.match(
+    textOf(eth.files, 'DECISIONS.md'),
+    /- Give the ethical judgement the should-this-be-software review asks for/,
+  );
   // An admitted review adds no warning.
   assert.doesNotMatch(
     softwareRunbook(input()).manifest.warnings.join(' '),
@@ -671,6 +693,17 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     '[private path removed] and then stop',
   );
   assert.equal(n.paths, 4);
+  // Re-review R-1: a path followed by ordinary words keeps the words.
+  assert.equal(
+    clean(
+      'Keep logs in /home/svc and rotate them weekly; read input/output from stdin',
+    ),
+    'Keep logs in [private path removed] and rotate them weekly; read input/output from stdin',
+  );
+  assert.equal(
+    clean('Put it in C:\\Users\\jorda and copy C:\\Temp\\x to it'),
+    'Put it in [private path removed] and copy C:\\Temp\\x to it',
+  );
   for (const t of [
     `glpat-${'a1b2'.repeat(6)}`,
     `hf_${'a1B2'.repeat(9)}`,
@@ -702,6 +735,23 @@ test('a check with only held-out cases is the owner’s to run, and a review nev
   assert.match(
     t2,
     /No case is shown for A2: implement what the statement says/,
+  );
+  // Re-review N-a: when every case is held back the README says the owner runs them.
+  const h = input();
+  const hc = h.spec.content;
+  hc.acceptance_checks = hc.acceptance_checks
+    .filter((a) => a.cases?.length)
+    .map((a) => ({
+      ...a,
+      cases: a.cases!.map((x) => ({ ...x, held_out: true })),
+    }));
+  for (const t of hc.tasks)
+    t.acceptance = t.acceptance.filter((k) =>
+      hc.acceptance_checks.some((a) => a.key === k),
+    );
+  assert.match(
+    textOf(softwareRunbook(h).files, 'README.md'),
+    /Every case is held back by the owner, so there is nothing to run here/,
   );
   assert.doesNotMatch(
     textOf(files, 'DECISIONS.md'),

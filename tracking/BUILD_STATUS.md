@@ -644,3 +644,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   tests). `pnpm test:dev-safety`: 22 tests, 19 pass, 3 skipped, 0 fail. Browser walk rerun with a new step for the
   frozen-version offer (`screens/04-frozen-version-offered.png`); `walk.json` records the commit it ran on. CI did
   not run (no Actions minutes). The bundle after these changes has not been through another clean-room run.
+- **Re-review (at `08069db`): no High or Medium; all earlier findings fixed.** Its two Lows and two nits are fixed:
+  R-1 a spaced account name in a path continues for at most two capitalised words, so ordinary text after a path is
+  kept; R-2 when unresolved ethics is the gate's only objection the bundle says the owner's ethical judgement is
+  needed, not that the studio would refuse; the README says the owner runs the cases when every case is held back;
+  the frozen-version button ignores a superseded response. Full suite after these: 884 tests, 850 pass, 29 skipped,
+  5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail; typecheck and format pass; walk rerun.
