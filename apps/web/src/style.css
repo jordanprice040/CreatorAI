@@ -3202,3 +3202,11 @@ details.fold > summary:hover .fold-title {
 details.fold > summary .kind {
   margin-right: 6px;
 }
+details.fold > summary h3.fold-title {
+  display: inline;
+  font-size: inherit;
+  margin: 0;
+}
+.decision details.fold > summary h3.fold-title {
+  font-size: 15px;
+}

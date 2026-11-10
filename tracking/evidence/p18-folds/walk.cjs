@@ -141,6 +141,16 @@ const log = (...a) => console.log(...a);
     await opens('article.decision > details.fold'),
   );
   log(
+    'L-5 heading inside each summary, once',
+    await p.evaluate(() =>
+      [...document.querySelectorAll('article.decision')].map(
+        (a) =>
+          !!a.querySelector('summary h3') &&
+          a.querySelectorAll('h3.question').length === 1,
+      ),
+    ),
+  );
+  log(
     'APPROVALS decision summary',
     (
       await p
@@ -180,6 +190,21 @@ const log = (...a) => console.log(...a);
   await p.getByRole('button', { name: 'Show answered and closed' }).click();
   await p.waitForTimeout(1500);
   log('ALL decisions open', await opens('article.decision > details.fold'));
+  // Review L-7: collapse everything, then follow a link to one decision: it opens.
+  await p.getByRole('button', { name: 'Collapse all' }).first().click();
+  const decId = await p.evaluate(
+    async (w) =>
+      (await (await fetch(`/api/workspaces/${w}/decisions`)).json())[0]?.id,
+    sel,
+  );
+  await p.goto(`${WEB}/#/monitor/approvals?ws=${sel}&id=${decId}`);
+  await p.waitForTimeout(2000);
+  log(
+    'L-7 linked decision open after Collapse all',
+    await p.evaluate(
+      () => document.querySelector('article.decision > details')?.open,
+    ),
+  );
 
   // --- Proposals: start one from the recorded selection ---
   await go('projects/proposals', sel);
@@ -207,6 +232,17 @@ const log = (...a) => console.log(...a);
       await height(),
     );
     await p.getByRole('button', { name: 'Collapse all' }).first().click();
+    // Review L-6: open a section, save, and it is still open after the editor remounts.
+    await p.locator('details.proposal-fold > summary').nth(5).click();
+    await p.getByRole('button', { name: 'Save proposal' }).click();
+    await p.waitForTimeout(2500);
+    const after = await opens('details.proposal-fold');
+    log(
+      'L-6 after save: section 6 open',
+      after[5],
+      'open count',
+      after.filter(Boolean).length,
+    );
     await p.screenshot({ path: shot('proposal-new.png'), fullPage: true });
   } else log('PROPOSAL none eligible');
 

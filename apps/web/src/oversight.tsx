@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
 import { RoutinePolicies } from './routine-policy.js';
-import { clipText, runLabel } from './labels.js';
+import { runLabel } from './labels.js';
 import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
 import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
@@ -371,10 +371,12 @@ function DecisionCard({
             <span className={`badge kind-${d.kind}`}>
               {d.kind.toUpperCase()}
             </span>{' '}
-            <span className="fold-title">
+            {/* Review L-5: the card's heading is in the summary, so it is read once and a
+                closed card still has a heading. */}
+            <h3 className="question fold-title">
               {d.status === 'pending' ? 'Decision needed' : 'Decision'}:{' '}
-              {clipText(d.question, 140)}
-            </span>
+              {d.question}
+            </h3>
             <span className="fold-line small">
               {words(d.reason)} · {d.status}
               {d.closed_reason ? ` (${words(d.closed_reason)})` : ''}
@@ -392,14 +394,9 @@ function DecisionCard({
           </>
         }
       >
-        <h3 className="question sr-only">
-          {d.status === 'pending' ? 'Decision needed' : 'Decision'}:{' '}
-          {d.question}
-        </h3>
         <p className="small">
           Asked by {names(d.requested_by)} on {when(d.created_at)} for run{' '}
           {d.run_id.slice(0, 8)}
-          {d.status === 'pending' ? ` · expires ${when(d.expires_at)}` : ''}
         </p>
         <dl>
           <div>
@@ -735,6 +732,10 @@ export function Oversight({
       .filter((d) => d.status === 'pending' || d.id === focus)
       .map((d) => d.id),
   );
+  // Review L-7: a decision someone was sent to opens, even if they had collapsed it.
+  useEffect(() => {
+    if (focus) decisionFolds.set(focus, true);
+  }, [focus]);
   const policyRun = (runId: string) => {
     const r = runs.find((x) => x.run_id === runId);
     return r ? runLabel(r, runNames) : `run ${runId.slice(0, 8)}`;

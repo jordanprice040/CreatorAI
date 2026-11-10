@@ -29,7 +29,13 @@ import { Empty, Status, clip, useLoad, type View } from './ui.js';
 import { Markdown } from './markdown-view.js';
 import { newestFirst } from './versions.js';
 import { RunbookExport } from './runbook.js';
-import { Fold, FoldAll, useFolds } from './fold.js';
+import {
+  Fold,
+  FoldAll,
+  useFoldChoices,
+  useFolds,
+  type FoldChoices,
+} from './fold.js';
 import { firstNeeding } from './fold-state.js';
 
 // ADR-0077 (P09): why a response was chosen (shown on Decide), and the Proposals tab, where a
@@ -301,6 +307,9 @@ export function Proposals({
   useEffect(() => {
     if (focus) setDraft(null);
   }, [focus]);
+  // Review L-6: the sections the person opened stay open across saves, which remount the
+  // editor; picking another proposal or starting a new one starts afresh.
+  const [sectionChoices, setSectionChoices] = useFoldChoices();
 
   async function start(e: Eligible) {
     setError('');
@@ -310,6 +319,7 @@ export function Proposals({
         `${base}/proposals/draft?alternative=${e.option.id}`,
       );
       setDraft({ draft: d, eligible: e });
+      setSectionChoices({});
       onFocus('');
     } catch (err) {
       setError(message(err));
@@ -360,7 +370,10 @@ export function Proposals({
                   <button
                     className={`text${p.id === focus ? ' current' : ''}`}
                     aria-current={p.id === focus ? 'true' : undefined}
-                    onClick={() => onFocus(p.id)}
+                    onClick={() => {
+                      if (p.id !== focus) setSectionChoices({});
+                      onFocus(p.id);
+                    }}
                   >
                     {p.title}
                   </button>{' '}
@@ -383,6 +396,7 @@ export function Proposals({
           writer={writer}
           start={draft.draft}
           detail={null}
+          foldChoices={[sectionChoices, setSectionChoices]}
           saved={(id) => {
             setDraft(null);
             list.reload();
@@ -398,6 +412,7 @@ export function Proposals({
           writer={writer}
           id={focus}
           changed={list.refresh}
+          foldChoices={[sectionChoices, setSectionChoices]}
         />
       )}
     </div>
@@ -410,12 +425,14 @@ function ProposalView({
   writer,
   id,
   changed,
+  foldChoices,
 }: {
   base: string;
   session: SessionInfo;
   writer: boolean;
   id: string;
   changed: () => void;
+  foldChoices: FoldChoices;
 }) {
   const [version, setVersion] = useState<number | null>(null);
   const d = useLoad(
@@ -436,6 +453,7 @@ function ProposalView({
           writer={writer}
           start={null}
           detail={d.data}
+          foldChoices={foldChoices}
           pickVersion={(v) =>
             setVersion(v === d.data!.proposal.version ? null : v)
           }
@@ -508,6 +526,7 @@ function ProposalEditor({
   detail,
   pickVersion,
   saved,
+  foldChoices,
 }: {
   base: string;
   session: SessionInfo;
@@ -517,6 +536,7 @@ function ProposalEditor({
   detail: ProposalDetail | null;
   pickVersion?: (v: number) => void;
   saved: (id: string) => void;
+  foldChoices: FoldChoices;
 }) {
   const initial = start
     ? { title: start.title, body: start.body }
@@ -619,15 +639,17 @@ function ProposalEditor({
   const v = detail?.shown_version;
   // P18: sections fold to one line; the first required section not written yet opens.
   // The checks (blockers included) stay above the sections, never inside one.
+  // Review L-3: a section a check blocks (no claim cited, a cited claim missing or stale)
+  // needs the person too, not only a required section that is not written.
+  const sectionBlocker = (k: ProposalSection) =>
+    checks?.checks.find((c) => c.level === 'blocker' && c.section === k);
+  const sectionNeeds = (k: ProposalSection) =>
+    (CORE_PROPOSAL_SECTIONS.includes(k) &&
+      body.sections[k].state !== 'written') ||
+    !!sectionBlocker(k);
   const sectionFolds = useFolds(
-    editable
-      ? firstNeeding(
-          PROPOSAL_SECTIONS,
-          (k) =>
-            CORE_PROPOSAL_SECTIONS.includes(k) &&
-            body.sections[k].state !== 'written',
-        )
-      : [],
+    editable ? firstNeeding(PROPOSAL_SECTIONS, sectionNeeds) : [],
+    foldChoices,
   );
   return (
     <section className="panel proposal" aria-labelledby="proposal-head">
@@ -798,12 +820,13 @@ function ProposalEditor({
                       {core ? ' · required' : ''} ·{' '}
                       <span
                         className={
-                          core && s.state !== 'written'
-                            ? 'fold-attention'
-                            : undefined
+                          sectionNeeds(k) ? 'fold-attention' : undefined
                         }
                       >
                         {STATE_TEXT[s.state]}
+                        {sectionBlocker(k) && s.state === 'written'
+                          ? `, blocked: ${clip(sectionBlocker(k)!.message, 100)}`
+                          : ''}
                       </span>
                       {s.claims.length > 0
                         ? ` · ${s.claims.length} cited claim${s.claims.length === 1 ? '' : 's'}`

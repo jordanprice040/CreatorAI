@@ -59,6 +59,8 @@ function pendingReviews(
     out.push(
       `keep or change ${n} flagged option${n === 1 ? '' : 's'} (${nameList(g.unreviewed.map(name))})`,
     );
+  // Review L-4: a new, untouched option is already named as flagged above.
+  incomplete = incomplete.filter((id) => !g.unreviewed.includes(id));
   if (incomplete.length)
     out.push(
       `give a disposition, reason and “would reverse if” for ${incomplete.length} option${incomplete.length === 1 ? '' : 's'} (${nameList(incomplete.map(name))})`,
@@ -452,9 +454,10 @@ export function Compare({
   });
   const changedSince = (id: string) =>
     !!carried?.from && carried.options[id]?.status !== 'kept';
+  // Review L-1: "changed since" stays true after the person reviews an option, so the
+  // default follows what is still unreviewed and moves on to the next one.
   const needsYou = (id: string) =>
     unreviewed.includes(id) ||
-    changedSince(id) ||
     !!gate?.stale_reasons.includes(id) ||
     incomplete.includes(id);
   const claimFolds = useFolds([]);
@@ -464,6 +467,16 @@ export function Compare({
   const blockedCount = (id: string) =>
     Object.values(suit.get(id)?.gates.blocked ?? {}).filter((x) => x?.length)
       .length;
+  // Review L-2: which choices gates block, and the first reason for each.
+  const blockedText = (id: string) =>
+    SelectionDispositionSchema.options
+      .flatMap((o) => {
+        const why = suit.get(id)?.gates.blocked[o];
+        return why?.length
+          ? [`${DISPOSITION_NOTE[o]} (${clip(why[0]!, 90)})`]
+          : [];
+      })
+      .join('; ');
   return (
     <section className="panel" aria-labelledby="cmp-title">
       <h2 id="cmp-title">Compare and decide</h2>
@@ -970,9 +983,12 @@ export function Compare({
                                 </span>
                               </>
                             )}
-                            {blockedCount(id) > 0 &&
-                              ` · ${blockedCount(id)} choice${blockedCount(id) === 1 ? '' : 's'} blocked by gates`}
                           </span>
+                          {blockedCount(id) > 0 && (
+                            <span className="fold-line small">
+                              Blocked by gates: {blockedText(id)}
+                            </span>
+                          )}
                         </>
                       }
                     >

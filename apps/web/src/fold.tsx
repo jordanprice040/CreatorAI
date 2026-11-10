@@ -1,4 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import {
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
 import { chooseAll, foldIsOpen } from './fold-state.js';
 
 /**
@@ -12,8 +17,22 @@ export type Folds = {
   setAll: (ids: readonly string[], open: boolean) => void;
 };
 
-export function useFolds(attention: readonly string[]): Folds {
-  const [chosen, setChosen] = useState<Record<string, boolean>>({});
+/** The person's open/closed choices, for a parent that outlives the list's component. */
+export type FoldChoices = [
+  Record<string, boolean>,
+  Dispatch<SetStateAction<Record<string, boolean>>>,
+];
+export function useFoldChoices(): FoldChoices {
+  return useState<Record<string, boolean>>({});
+}
+
+export function useFolds(
+  attention: readonly string[],
+  /** Kept by a parent, so a remount (e.g. after a save) keeps what the person opened. */
+  held?: FoldChoices,
+): Folds {
+  const own = useFoldChoices();
+  const [chosen, setChosen] = held ?? own;
   return {
     isOpen: (id) => foldIsOpen(chosen, id, attention),
     set: (id, open) =>

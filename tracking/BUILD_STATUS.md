@@ -871,3 +871,24 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
   pass; `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm
   test:dev-safety` 22 tests, 19 pass, 3 skip. New `tests/src/web-folds.test.ts` (4 tests); `web-session.test.ts`
   stubs the new `./fold.js` import of `oversight.tsx`. The Windows CI job did not run.
+
+### P18 review fixes (November 10, same PR #162; review `reviews/P18_PR162_REVIEW_2026-11-10.md`, no High or Medium, 7 Lows)
+
+- L-1 Decide: the option that opens by default follows what is still unreviewed (`unreviewed`, stale reasons,
+  incomplete), not "changed since your decision", so after one changed option is reviewed the next one opens.
+- L-2 Decide: an option's summary names each choice gates block and its first reason ("Blocked by gates: Select for
+  a bounded build (…)") instead of only a count.
+- L-3 Proposals: a section a check blocks (`level: blocker` for that section, e.g. no cited claim, a cited claim
+  missing or stale) gets the attention style, shows "Written, blocked: …" and can be the section that opens.
+- L-4 Decide: "Before you can record" no longer names a new, untouched option twice.
+- L-5 Approvals: the question heading is inside the summary (read once; closed cards keep a heading); "expires"
+  shows once.
+- L-6 Proposals: section open/closed choices are held by the Proposals page (`useFoldChoices`, a new optional
+  argument of `useFolds`), so a save that remounts the editor keeps them; another proposal or a new draft starts
+  afresh.
+- L-7 Approvals: following a link to a decision opens its card even after Collapse all.
+- Evidence: `walk.cjs` re-run (output replaced): L-5 heading once inside the summary, L-7 linked card open after
+  Collapse all, L-6 the opened section still open after "Save proposal"; L-2 shows in the blocked summary line.
+  L-1 and L-4 need a revised alternative after a recorded selection and were checked from the code, not walked.
+- Checks after the fixes (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass;
+  `pnpm test:db` 910 tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Not re-reviewed yet.
