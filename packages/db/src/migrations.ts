@@ -2913,7 +2913,7 @@ create trigger proposal_reviews_append_only before update or delete on proposal_
 `,
   },
   {
-    // ADR-0079 (P10): routine approvals. One policy per run, chosen when the run is set up.
+    // ADR-0079 (P10): routine approvals. One active policy per run, set by its owner.
     // The policy owns one run-scoped standing grant that only the policy path of admission
     // uses; its limits and stop conditions live here. Every version is kept unchanged.
     version: 50,
@@ -2942,10 +2942,12 @@ create table routine_policies (
  confirmed_at timestamptz not null default clock_timestamp(),
  revoked_at timestamptz,
  revoke_reason text,
- unique (workspace_id, run_id),
  foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
  check ((status = 'revoked') = (revoked_at is not null))
 );
+-- A run has at most one active policy; revoked ones stay as history.
+create unique index routine_policies_one_active on routine_policies (workspace_id, run_id)
+  where status = 'active';
 create table routine_policy_versions (
  policy_id uuid not null references routine_policies(id),
  version integer not null,

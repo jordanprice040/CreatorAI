@@ -209,8 +209,8 @@ export function RoutineFields({
       )}
       {!editing && !draft.enabled && (
         <p className="small">
-          Off: the run asks you as its oversight setting says. This can only be
-          chosen now, when the run is set up.
+          Off: the run asks you as its oversight setting says. You can also turn
+          this on later under Monitor › Approvals.
         </p>
       )}
       {draft.enabled && (
@@ -464,8 +464,8 @@ function PolicyCard({
       )}
       {p.status === 'revoked' && (
         <p className="small">
-          A revoked policy stays revoked. Set up a new run to use routine
-          approvals again.
+          Revoked. You can turn routine approvals on again for this run below,
+          with a new summary.
         </p>
       )}
       {draft && (
@@ -519,21 +519,104 @@ export function RoutinePolicies({
   runName,
   session,
   workspace,
+  eligibleRuns,
   onDone,
 }: {
   policies: RoutinePolicyView[];
   runName: (runId: string) => string;
   session: SessionInfo;
   workspace: string;
+  /** Active supervised or human-in-the-loop runs with no active policy. */
+  eligibleRuns: string[];
   onDone: () => void;
 }) {
+  const [runId, setRunId] = useState('');
+  const [draft, setDraft] = useState<RoutineDraft | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const chosen = eligibleRuns.includes(runId) ? runId : '';
+  const request = draft && chosen ? routineRequest(draft) : null;
+  async function turnOn() {
+    if (!request) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(
+        RoutinePolicySchema,
+        `workspaces/${workspace}/runs/${chosen}/routine-policy`,
+        { csrf: session.csrf_token, body: request },
+      );
+      setDraft(null);
+      setRunId('');
+      onDone();
+    } catch (e) {
+      setError(message(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <h3>Routine approvals</h3>
+      {eligibleRuns.length > 0 && (
+        <div className="routine-edit">
+          <label htmlFor="rp-run">
+            Turn on routine approvals for a run that is already going
+          </label>
+          <select
+            id="rp-run"
+            value={chosen}
+            onChange={(e) => {
+              setRunId(e.target.value);
+              setDraft(
+                e.target.value
+                  ? { ...routineStart('synthetic'), enabled: true }
+                  : null,
+              );
+            }}
+          >
+            <option value="">Choose a run…</option>
+            {eligibleRuns.map((id) => (
+              <option key={id} value={id}>
+                {runName(id)}
+              </option>
+            ))}
+          </select>
+          {draft && chosen && (
+            <>
+              <p className="small">
+                The run keeps its oversight setting. From now on it stops asking
+                you about the steps you choose here, within these limits.
+              </p>
+              <RoutineFields
+                draft={draft}
+                onChange={setDraft}
+                idPrefix="rp-new"
+                editing
+              />
+              <div className="actions">
+                <button
+                  className="secondary strong"
+                  disabled={busy || !request}
+                  onClick={() => void turnOn()}
+                >
+                  Turn on routine approvals for this run
+                </button>
+              </div>
+            </>
+          )}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
       {policies.length === 0 ? (
         <p className="small">
-          No run has routine approvals. You can choose them when you set up a
-          new run on the Discover page.
+          No run has routine approvals yet. You can choose them when you set up
+          a new run on the Discover page, or turn them on above for a run that
+          is already going.
         </p>
       ) : (
         <ul>

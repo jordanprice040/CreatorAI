@@ -514,9 +514,12 @@ contracts in `packages/contracts/src/oversight.ts` (`RoutinePolicy*`, `routinePo
 `evaluateAction` (`routine` input); store methods in `OversightStore` (`reviseRoutinePolicy`, `revokeRoutinePolicy`,
 `listRoutinePolicies`); web `apps/web/src/routine-policy.tsx`, used by the Discover form and Monitor › Approvals.
 
-Choices made in this session that the owner has not yet confirmed: a policy can be chosen only when a run is set
-up, and revocation is final for that run; the stop conditions are a rejection in the run and an unknown paid
-outcome; the end time is at most 90 days, as for grants.
+Owner decision (Jordan, November 10): routine approvals can be changed mid run. `POST runs/{id}/routine-policy`
+(`setRoutinePolicy`) turns them on for a run that is already going or whose policy was revoked; migration 50 was
+changed in place before merge (one active policy per run instead of one policy per run), so a throwaway database
+that ran the earlier text fails the checksum check and must be recreated (no lasting database ran 50). Choices the
+owner has not yet confirmed: the stop conditions are a rejection in the run and an unknown paid outcome; the end
+time is at most 90 days, as for grants.
 
 For P12: add an action type for claim admission and a routine stage for it before any unattended claim admission.
 Do not run prettier on `tracking/` or `context/`; the repository's format script does not cover them.

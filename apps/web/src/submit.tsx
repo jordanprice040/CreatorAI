@@ -1308,8 +1308,8 @@ export function Submit({
                 )}
                 {runChoice !== 'new' && (
                   <p className="small">
-                    Routine approvals are chosen when a run is set up. This run
-                    keeps what it was set up with; see Monitor › Approvals.
+                    This run keeps its own routine approvals. To turn them on,
+                    change or revoke them for it, open Monitor › Approvals.
                   </p>
                 )}
                 <button

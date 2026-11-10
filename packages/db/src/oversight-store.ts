@@ -19,6 +19,7 @@ import {
   AssumptionBodySchema,
   ROUTINE_POLICY_VERSION,
   ROUTINE_STAGE_ACTIONS,
+  RoutinePolicyRequestSchema,
   ReviseRoutinePolicyRequestSchema,
   RevokeRoutinePolicyRequestSchema,
   routinePolicySummary,
@@ -402,22 +403,8 @@ export class OversightStore extends Store {
       const routine = req.routine_policy
         ? this.checkRoutineInput(req.routine_policy)
         : null;
-      if (routine) {
-        if (
-          req.autonomy_mode !== 'supervised' &&
-          req.autonomy_mode !== 'human_in_loop'
-        )
-          throw fail(
-            'INVALID_CONTRACT',
-            'Routine approvals are for supervised and human-in-the-loop runs. An autonomous run has only its initial grants, and a human-only run makes every decision by hand.',
-          );
-        // A run configured by a study keeps its frozen condition exactly.
-        if ((run.body?.config_hash ?? null) !== null)
-          throw fail(
-            'INVALID_CONTRACT',
-            'A study run keeps its frozen conditions; routine approvals cannot be added to it.',
-          );
-      }
+      if (routine)
+        this.checkRoutineRun(req.autonomy_mode, run.body?.config_hash ?? null);
       const gates = req.stage_gates ?? DEFAULT_STAGE_GATES[req.autonomy_mode];
       const initial = req.initial_grants.map((g) => ({
         id: g.id.toLowerCase(),
@@ -788,6 +775,69 @@ export class OversightStore extends Store {
 
   // ---- Routine approval policies (ADR-0079) ---------------------------------------------
 
+  /** Which runs may have routine approvals at all, at setup or later. */
+  private checkRoutineRun(mode: AutonomyMode, configHash: unknown) {
+    if (mode !== 'supervised' && mode !== 'human_in_loop')
+      throw fail(
+        'INVALID_CONTRACT',
+        'Routine approvals are for supervised and human-in-the-loop runs. An autonomous run has only its initial grants, and a human-only run makes every decision by hand.',
+      );
+    // A run configured by a study keeps its frozen condition exactly.
+    if (configHash !== null)
+      throw fail(
+        'INVALID_CONTRACT',
+        'A study run keeps its frozen conditions; routine approvals cannot be added to it.',
+      );
+  }
+  /**
+   * Turns routine approvals on for a run that is already going (owner decision, November 10):
+   * a run set up without a policy, or one whose policy was revoked. It is the same owner
+   * action as at setup, with the summary confirmed; the run's mode, condition and stage gates
+   * do not change. A run with an active policy is changed through its revisions instead.
+   */
+  async setRoutinePolicy(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    raw: unknown,
+  ): Promise<RoutinePolicy> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    runId = uuid(runId);
+    const input = this.checkRoutineInput(
+      parse(RoutinePolicyRequestSchema, raw),
+    );
+    return this.idempotent(
+      ws,
+      ctx,
+      { op: 'routine_policy.set', runId, input },
+      async (c) => {
+        await this.requireOwner(c, ws, ctx.actorId);
+        const run = await this.lockRun(c, ws, runId);
+        if (run.state !== 'active')
+          throw fail('INVALID_TRANSITION', 'The run was cancelled.');
+        const entity = await c.query(
+          `select body from entities where workspace_id = $1 and id = $2 and kind = 'run'`,
+          [ws, runId],
+        );
+        this.checkRoutineRun(
+          run.autonomy_mode,
+          (entity.rows[0]?.body as Row | undefined)?.config_hash ?? null,
+        );
+        const active = await c.query(
+          `select 1 from routine_policies where workspace_id = $1 and run_id = $2
+             and status = 'active'`,
+          [ws, runId],
+        );
+        if (active.rowCount)
+          throw fail(
+            'INVALID_TRANSITION',
+            'This run already has routine approvals. Change that policy instead.',
+          );
+        return this.insertRoutinePolicy(c, ctx, ws, runId, input);
+      },
+    );
+  }
   /** Normalises the chosen values and refuses a summary that is not the one they produce. */
   private checkRoutineInput(
     req: RoutinePolicyInput & { summary_seen: string[] },
@@ -1013,7 +1063,7 @@ export class OversightStore extends Store {
     if (policy.status !== 'active')
       throw fail(
         'INVALID_TRANSITION',
-        'This routine approval policy was revoked. A revoked policy stays revoked; set up a new run to use routine approvals again.',
+        'This routine approval policy was revoked. Turn routine approvals on again for the run to set a new one.',
       );
     return { run, policy };
   }

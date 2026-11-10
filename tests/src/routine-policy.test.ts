@@ -230,7 +230,7 @@ test('a supervised run with a routine policy goes through model work, selection,
   assert.equal((await s.store.verifyAuditChain()).ok, true);
 });
 
-test('without a policy the same supervised steps still ask, and a run set up without one cannot gain one', async (t) => {
+test('without a policy the same supervised steps still ask; the owner can turn one on mid run, and again after a revoke', async (t) => {
   const s = await setup(t);
   if (!s) return;
   const run = await s.run('supervised', null);
@@ -238,18 +238,67 @@ test('without a policy the same supervised steps still ask, and a run set up wit
   assert.equal(a.verdict, 'request_human');
   assert.equal(a.reason_code, 'stage_gate');
   assert.deepEqual(await s.store.listRoutinePolicies(owner, s.ws.id), []);
-  // Registering the same run again (the only way a policy is created) is refused.
-  const entity = (await s.store.listRuns(owner, s.ws.id))[0]!;
-  await assert.rejects(
-    s.store.registerRun(owner, s.ws.id, {
-      run: { id: entity.run_id, version: 1 },
-      autonomy_mode: 'supervised',
-      stage_gates: null,
-      initial_grants: [],
-      routine_policy: policy(),
-    }),
+  const set = (by: CommandContext, p = policy()) =>
+    s.store.setRoutinePolicy(by, s.ws.id, run.run_id, p);
+  // Only the owner, with the summary those settings produce.
+  await rejects('ACCESS_DENIED', set(agent));
+  await rejects(
+    'VERSION_CONFLICT',
+    set(owner, { ...policy(), max_actions: 9 }),
   );
-  assert.deepEqual(await s.store.listRoutinePolicies(owner, s.ws.id), []);
+  const first = await set(owner);
+  assert.equal(first.version, 1);
+  // The run keeps its mode, condition and gates; covered steps stop asking.
+  const listed = (await s.store.listRuns(owner, s.ws.id))[0]!;
+  assert.equal(listed.autonomy_mode, 'supervised');
+  assert.equal(listed.experiment_condition, 'human_in_loop');
+  assert.ok(listed.stage_gates.includes('candidate.select'));
+  assert.equal(
+    (await s.admit(run.run_id, s.action())).reason_code,
+    'covered_by_routine_policy',
+  );
+  // One active policy per run: a second is refused, and changed through revisions instead.
+  await rejects('INVALID_TRANSITION', set(owner));
+  await s.store.revokeRoutinePolicy(owner, s.ws.id, first.id, {
+    expected_version: 1,
+    reason: 'Pause routine approvals.',
+  });
+  assert.equal(
+    (await s.admit(run.run_id, s.action())).verdict,
+    'request_human',
+  );
+  // After a revoke the owner can turn them on again; it is a new policy with its own limit.
+  const second = await set(owner, policy({ max_actions: 1 }));
+  assert.notEqual(second.id, first.id);
+  assert.equal(
+    (await s.admit(run.run_id, s.action())).reason_code,
+    'covered_by_routine_policy',
+  );
+  assert.equal(
+    (await s.admit(run.run_id, s.action())).verdict,
+    'request_human',
+  );
+  const views = (await s.store.listRoutinePolicies(owner, s.ws.id)).filter(
+    (v) => v.policy.run_id === run.run_id,
+  );
+  assert.deepEqual(views.map((v) => v.state).sort(), ['paused', 'revoked']);
+  assert.deepEqual(views.map((v) => v.used_actions).sort(), [1, 1]);
+
+  // Still refused for autonomous, human-only, study and stopped runs.
+  for (const [mode, hash] of [
+    ['autonomous_within_scope', null],
+    ['human_only', null],
+    ['human_in_loop', 'a'.repeat(64)],
+  ] as const) {
+    const other = await s.run(mode, null, hash);
+    await rejects(
+      'INVALID_CONTRACT',
+      s.store.setRoutinePolicy(owner, s.ws.id, other.run_id, policy()),
+    );
+  }
+  await s.store.cancelRun(owner, s.ws.id, run.run_id, { reason: 'Stop.' });
+  await rejects('INVALID_TRANSITION', set(owner));
+  assert.equal((await s.store.verifyAuditChain()).ok, true);
 });
 
 test('steps outside the policy stop and ask; publishing, payments and other data are never covered', async (t) => {
@@ -581,7 +630,7 @@ test('stopping the run revokes the policy, and a stop racing with steps leaves n
   );
 });
 
-test('revoking stops routine admission at once and is final; the policy grant cannot be edited as a grant', async (t) => {
+test('revoking stops routine admission at once, and a revoked policy cannot be changed; the policy grant cannot be edited as a grant', async (t) => {
   const s = await setup(t);
   if (!s) return;
   const run = await s.run('supervised', policy());

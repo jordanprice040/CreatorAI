@@ -502,8 +502,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   time and two stop conditions, confirmed as one summary. Code admits covered steps through the policy's own grant
   and records each as `covered_by_routine_policy`; a step outside the policy pauses and raises a decision that says
   why. Monitor › Approvals lists each policy with its state, use, confirmed summary and admitted steps, and offers
-  Change (new summary confirmed, versioned as widened or narrowed) and Revoke (final for that run). A run set up
-  without a policy cannot gain one; autonomous, human-only and study runs are refused.
+  Change (new summary confirmed, versioned as widened or narrowed) and Revoke. After Jordan's November 10 request,
+  the owner can also turn routine approvals on for a run that is already going, and again after a revoke
+  (`POST runs/{id}/routine-policy`, on Monitor › Approvals); autonomous, human-only and study runs are refused.
 - Checks run (cloud container, PostgreSQL 16, no CI: no Actions minutes): `pnpm typecheck` passes; `pnpm test:db`
   879 tests, 845 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 12 new
   PostgreSQL tests in `tests/src/routine-policy.test.ts`. Browser walk on a throwaway database

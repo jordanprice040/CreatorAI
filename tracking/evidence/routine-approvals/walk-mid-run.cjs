@@ -1,0 +1,37 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 2 });
+  p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
+  const ws = 'bd185fb1-5344-4976-865e-f173d18f9f07';
+  await p.goto('http://127.0.0.1:5183/#login=walk-login-code-0123456789abcdefghijkl');
+  await p.waitForTimeout(2000);
+  await p.goto(`http://127.0.0.1:5183/#/monitor/approvals?ws=${ws}`);
+  await p.waitForTimeout(2500);
+  const options = await p.locator('#rp-run option').count();
+  console.log('RUN OPTIONS', options);
+  await p.selectOption('#rp-run', { index: 1 });
+  await p.waitForTimeout(300);
+  const on = p.locator('button:has-text("Turn on routine approvals for this run")');
+  console.log('disabled before confirm', await on.isDisabled());
+  await p.check('#rp-new-confirm');
+  await p.locator('.routine-edit').first().screenshot({ path: 'midrun-turn-on.png' });
+  await on.click();
+  await p.waitForTimeout(1500);
+  console.log('CARD', (await p.locator('.routine-card').first().textContent()).slice(0, 160));
+  console.log('RUN OPTIONS AFTER', await p.locator('#rp-run option').count());
+  await p.locator('.routine-card button:has-text("Revoke")').click();
+  await p.waitForTimeout(1500);
+  console.log('AFTER REVOKE', (await p.locator('.routine-card').first().textContent()).slice(0, 120), '| options', await p.locator('#rp-run option').count());
+  // Turn on again for the same run.
+  await p.selectOption('#rp-run', { index: 1 });
+  await p.check('#rp-new-confirm');
+  await on.click();
+  await p.waitForTimeout(1500);
+  console.log('CARDS', await p.locator('.routine-card').count(), (await p.locator('.routine-card').allTextContents()).map(t => t.slice(0, 70)).join(' || '));
+  console.log('ERR', await p.evaluate(() => [...document.querySelectorAll('.error')].map(l=>l.textContent).join(' || ')));
+  await p.setViewportSize({ width: 390, height: 844 });
+  await p.waitForTimeout(400);
+  console.log('PHONE overflow', await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth));
+  await b.close();
+})();

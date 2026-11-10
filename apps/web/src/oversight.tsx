@@ -761,6 +761,19 @@ export function Oversight({
             runName={policyRun}
             session={session}
             workspace={workspace}
+            eligibleRuns={runs
+              .filter(
+                (r) =>
+                  r.state === 'active' &&
+                  (r.autonomy_mode === 'supervised' ||
+                    r.autonomy_mode === 'human_in_loop') &&
+                  !policies.some(
+                    (v) =>
+                      v.policy.run_id === r.run_id &&
+                      v.policy.status === 'active',
+                  ),
+              )
+              .map((r) => r.run_id)}
             onDone={() => void load()}
           />
           <h3>Standing policies</h3>

@@ -73,8 +73,8 @@ export const DataClassSchema = z.enum([
 export const TargetRefSchema = z.strictObject({ id, version });
 
 /**
- * ADR-0079 (P10): routine approvals. An owner sets one policy for a run when the run is set
- * up; code then admits the covered routine steps without asking again. A policy is realised
+ * ADR-0079 (P10): routine approvals. An owner sets one policy for a run, at setup or while
+ * it is going; code then admits the covered routine steps without asking again. A policy is realised
  * as one run-scoped standing grant that only the policy path may use, plus the limits and
  * stop conditions below. It never covers an action with an external effect.
  */
@@ -274,8 +274,8 @@ export const RegisterRunRequestSchema = z.strictObject({
   /** Autonomous runs may use only grants listed here, at these versions. */
   initial_grants: z.array(TargetRefSchema).max(50),
   /**
-   * ADR-0079: routine approvals are chosen here, when the run is set up, or never for this
-   * run. Supervised and human-in-the-loop runs only.
+   * ADR-0079: routine approvals chosen when the run is set up (they can also be turned on
+   * later with `runs/{id}/routine-policy`). Supervised and human-in-the-loop runs only.
    */
   routine_policy: RoutinePolicyRequestSchema.nullable().optional(),
 });
