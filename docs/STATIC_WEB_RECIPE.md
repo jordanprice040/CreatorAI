@@ -285,7 +285,7 @@ Run on Jordan's PC under his typed OKs (11:28 and 20:24 UTC). Raw summary:
   `benchmark_id` `p15-small-signup-v4`; a test checks the record against the results file, the current
   role prompts, `RECIPE_BENCHMARKS` and the freeze hash. The three packages made during the run were
   labelled unqualified trials when packaged, and keep that label: a manifest is not rewritten.
-- Open for Jordan (PR #150 review M-1, restated November 10): the frozen per-attempt pass bar includes the
-  owner seeing the preview, and only attempt 1's preview was opened. Every machine-checked line is met for
-  3 of 3 attempts; the preview line is met for 1 of 3 until Jordan opens the previews of attempts 2 and 3
-  or decides explicitly that one observed preview is enough. The record above is unchanged meanwhile.
+- Owner observation of attempts 2 and 3 (PR #150 review M-1, resolved November 10): Jordan opened their
+  private previews in Chrome and both showed the sign-up page in its frame (screenshots and hashes in the
+  results file). Every line of the frozen per-attempt pass bar is now met for 3 of 3 attempts. These two
+  were observed four days after the runs, on the same packages and dev studio code.

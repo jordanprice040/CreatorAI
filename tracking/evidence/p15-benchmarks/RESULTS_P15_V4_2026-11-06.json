@@ -80,9 +80,52 @@
   "earlier_link": "The first link (21:44 UTC) was opened after its 10-minute one-time window and showed \"This preview link has expired\"; a fresh link from the same preview was issued at 22:17 UTC",
   "preview_shows_page_for_attempt": {
    "1": true,
-   "2": "not opened (the packet asks for one verified product)",
-   "3": "not opened (the packet asks for one verified product)"
-  }
+   "2": true,
+   "3": true
+  },
+  "preview_observation_dates": {
+   "1": "2026-11-06T22:21:06Z",
+   "2": "2026-11-10T08:00:19Z",
+   "3": "2026-11-10T08:00:19Z"
+  },
+  "later_observations": [
+   {
+    "attempt": 2,
+    "kind": "owner observation (recorded as Jordan reported it; not a check run by Claude)",
+    "observed_by": "Jordan",
+    "reported_at": "2026-11-10T08:00:19Z",
+    "words": "Here is how they look",
+    "artifact_id": "68654f2d-c9e3-461f-92f5-a455b0f6a126",
+    "commit": "bf373f57521006d5a20da8ef68b7fbeeb28db5da",
+    "manifest_sha256": "b49c9fec0eec00bfc863aca0d0f9dd12eb10d0b8f2b9488e7482a736d7fd2de4",
+    "preview_lasts_until": "2026-11-10T08:14:21.915Z",
+    "site_origin": "http://w3de685a922674abdb54ace742306356b-fcb4fa23a6216fd0767b37e4.localhost:4320",
+    "normal_browser": "Chrome on Windows; dev studio from C:\\dev\\creator_agent_p15 (b73bd95), restarted 2026-11-10 ~07:55 UTC",
+    "shown": "Private preview page naming this artifact, commit and manifest; in the frame, the Sign up page with Name, Email, Plan (Free), I accept the terms and Create account",
+    "screenshots_sha256": {
+     "attempt2-preview-frame.png": "8c03277998336aa15c28e417d5f96a4a4be652c6f0c0db21c24e035c414b3fd0",
+     "attempt2-preview-top.png": "cdf81dd64896b2eaef87291fe2114ede5faacee4d7b53236a7269ce261a6a5db"
+    }
+   },
+   {
+    "attempt": 3,
+    "kind": "owner observation (recorded as Jordan reported it; not a check run by Claude)",
+    "observed_by": "Jordan",
+    "reported_at": "2026-11-10T08:00:19Z",
+    "words": "Here is how they look",
+    "artifact_id": "c9a519b5-ded6-4256-864c-705d45426b52",
+    "commit": "d81a8cc8c66416f2b7ae9573a699de3ab50fd128",
+    "manifest_sha256": "419e6fd0c2b422c6c85621d470d4474906b86d2d0c8912782ce1c39da714b4fd",
+    "preview_lasts_until": "2026-11-10T08:13:22.426Z",
+    "site_origin": "http://wcb7990529db74e5bbcf352f113f77a9e-189ffce03fcc700e8c2e0ffb.localhost:4320",
+    "normal_browser": "Chrome on Windows; dev studio from C:\\dev\\creator_agent_p15 (b73bd95), restarted 2026-11-10 ~07:55 UTC",
+    "shown": "Private preview page naming this artifact, commit and manifest; in the frame, the Sign up page with Name, Email, Plan (Free), I accept the terms and Create account",
+    "screenshots_sha256": {
+     "attempt3-preview-frame.png": "1f2e9095eef5c1875a512f07c0d9f67c2b9e836f75bf59b9261ae66ef990ecb0",
+     "attempt3-preview-top.png": "c0e0aeb5b5b7b48076292fa9c88eee0cc7b8a5d8f5b88f4e9beb33624b91e6a1"
+    }
+   }
+  ]
  },
  "outcome": "3 of 3: qualified at declared scale on this connection, model and prompt pair. Every automated bar met in all three attempts; the private preview bar was observed by the owner on one verified product (attempt 1, Chrome) as the packet instructs; desktop WebView2 not observed",
  "attempts": [
@@ -544,6 +587,7 @@
   "No patch was refused and no repair round was used, so the repair path was not exercised live.",
   "Attempt 1 preparation first stopped at the driver's spec comparison, which wrongly included the stored record envelope (format, alternative, selection_id); fixed and re-compared before any build. Not a replacement attempt; no model request was made in between.",
   "RECIPE_QUALIFICATIONS in packages/executor/src/artifacts.ts is still empty, so the manifests say unqualified_trial; adding a record for this connection, model and prompt pair is a reviewed code change, not done here.",
-  "Correction, 2026-11-10 (state review; PR #150 review L-1 and M-1): the note above described the moment of the runs. The record was added to RECIPE_QUALIFICATIONS in PR #150, so builds made after that code is running are no longer labelled unqualified trials on this connection, model and prompt pair. Still open for Jordan: the frozen per-attempt pass bar includes the owner seeing the preview, and only attempt 1's preview was opened (see owner_observation.preview_shows_page_for_attempt). Until Jordan opens the previews of attempts 2 and 3, or decides explicitly that one observed preview is enough, the preview line of the bar is met for 1 of 3 attempts; every machine-checked line is met for 3 of 3."
+  "Correction, 2026-11-10 (state review; PR #150 review L-1 and M-1): the note above described the moment of the runs. The record was added to RECIPE_QUALIFICATIONS in PR #150, so builds made after that code is running are no longer labelled unqualified trials on this connection, model and prompt pair. Still open for Jordan: the frozen per-attempt pass bar includes the owner seeing the preview, and only attempt 1's preview was opened (see owner_observation.preview_shows_page_for_attempt). Until Jordan opens the previews of attempts 2 and 3, or decides explicitly that one observed preview is enough, the preview line of the bar is met for 1 of 3 attempts; every machine-checked line is met for 3 of 3.",
+  "Resolution, 2026-11-10 (PR #150 review M-1): Jordan opened the private previews of attempts 2 and 3 in Chrome, and both showed the sign-up page in its frame (owner_observation.later_observations, with screenshot hashes; screenshots in owner-previews-2026-11-10/). Every line of the frozen per-attempt pass bar is now met for 3 of 3 attempts. RECIPE_QUALIFICATIONS is unchanged. These two observations were made four days after the runs, on the same packages (artifact ids and manifest hashes match) served by the same dev studio code (b73bd95)."
  ]
 }
