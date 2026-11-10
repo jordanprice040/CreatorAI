@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,6 +29,13 @@ import { TEST_DB_ENV } from './pg-harness.js';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
 const exists = (p: string) => existsSync(join(root, p));
+const isFile = (p: string) => {
+  try {
+    return statSync(join(root, p)).isFile();
+  } catch {
+    return false;
+  }
+};
 const requirements = read('context/REQUIREMENTS.md');
 const registerBytes = read('config/readiness.json');
 const register = () => JSON.parse(registerBytes) as Register;
@@ -44,7 +52,8 @@ const evaluate = (
   r: Register,
   p: OwnerPilot = pilot(),
   now: Date = IN_WINDOW,
-) => evaluateReadiness(r, p, requirements, exists, JSON.stringify(r), now);
+) =>
+  evaluateReadiness(r, p, requirements, exists, isFile, JSON.stringify(r), now);
 const verifiedRow = (id: string): ReadinessRow => ({
   id,
   states: Object.fromEntries(
@@ -114,7 +123,7 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
       { ...pilot(), evidence: ['docs/NEVER_WRITTEN.md'] },
       new Date(finishedAt),
     ).pilot.refusals,
-    ['Pilot evidence "docs/NEVER_WRITTEN.md" does not exist.'],
+    ['Pilot evidence "docs/NEVER_WRITTEN.md" is not a file in the repository.'],
   );
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(
@@ -209,14 +218,14 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
       stop_on_unknown_cost: true,
     },
   };
-  assert.ok(checkPilot(undecided, base, exists).refusals.length >= 8);
+  assert.ok(checkPilot(undecided, base, isFile).refusals.length >= 8);
   // An account the owner has not activated is refused even though its live path is verified.
   const unactivated = register();
   unactivated.integrations.find(
     (i) => i.id === 'claude-code',
   )!.states.activated = 'not_verified';
   assert.match(
-    checkPilot(pilot(), unactivated, exists, IN_WINDOW).refusals.join('\n'),
+    checkPilot(pilot(), unactivated, isFile, IN_WINDOW).refusals.join('\n'),
     /"claude-code" has not been activated/,
   );
   // A register in which everything is verified, with a complete owner plan, may start.
@@ -224,9 +233,9 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
   all.requirements = all.requirements.map((r) => verifiedRow(r.id));
   all.integrations = all.integrations.map((r) => verifiedRow(r.id));
   const plan = filledPilot(all);
-  assert.deepEqual(checkPilot(plan, all, exists).refusals, []);
+  assert.deepEqual(checkPilot(plan, all, isFile).refusals, []);
   const refusals = (p: Partial<OwnerPilot>, reg = all) =>
-    checkPilot({ ...plan, ...p }, reg, exists).refusals.join('\n');
+    checkPilot({ ...plan, ...p }, reg, isFile).refusals.join('\n');
   assert.match(
     refusals({
       stop_rules: { ...plan.stop_rules, max_spend_nano_usd: '6000000000' },
@@ -242,7 +251,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
   assert.match(refusals({ budget_nano_usd: '1.5' }), /pilot budget/);
   // Manual runs only (decision #29) is an explicit empty schedule list; null is no choice.
   assert.deepEqual(
-    checkPilot({ ...plan, schedules: [] }, all, exists).refusals,
+    checkPilot({ ...plan, schedules: [] }, all, isFile).refusals,
     [],
   );
   assert.match(refusals({ schedules: null }), /not chosen pilot schedules/);
@@ -276,7 +285,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     /completed without evidence/,
   );
   // Even a passing plan does not make the product ready until the pilot is completed.
-  const r = evaluateReadiness(all, plan, requirements, exists, '{}');
+  const r = evaluateReadiness(all, plan, requirements, exists, isFile, '{}');
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
   const finished: OwnerPilot = {
@@ -292,6 +301,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     finished,
     requirements,
     exists,
+    isFile,
     '{}',
     LATER,
   );
@@ -299,7 +309,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
   // A completed record must say who finished it and when, inside or after its window and
   // not in the future, with repository-relative evidence other than the pilot config.
   const completedRefusals = (p: Partial<OwnerPilot>) =>
-    checkPilot({ ...finished, ...p }, all, exists, LATER).refusals.join('\n');
+    checkPilot({ ...finished, ...p }, all, isFile, LATER).refusals.join('\n');
   assert.equal(completedRefusals({}), '');
   assert.match(completedRefusals({ finished_by: null }), /finished_by/);
   assert.match(completedRefusals({ finished_at: null }), /finished_at/);
@@ -326,6 +336,44 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     completedRefusals({ evidence: [PILOT_CONFIG] }),
     /cannot be the pilot config itself/,
   );
+  // Other spellings of the config path are still the config.
+  for (const same of [
+    './config/owner-pilot.json',
+    'config//owner-pilot.json',
+    'config/./owner-pilot.json',
+    'docs/../config/owner-pilot.json',
+  ])
+    assert.match(
+      completedRefusals({ evidence: [same] }),
+      /cannot be the pilot config itself/,
+    );
+  // Evidence must be a file: not empty, the repository root or a folder.
+  for (const notFile of ['', ' ', '.', './', 'docs', 'docs/'])
+    assert.match(
+      completedRefusals({ evidence: [notFile] }),
+      /repository-relative file path|is not a file/,
+    );
+  // Impossible dates are not times: no month 13, no February 30, no hour 25.
+  for (const bad of [
+    '2026-13-01T00:00:00Z',
+    '2026-02-30T00:00:00Z',
+    '2026-11-01T25:00:00Z',
+  ])
+    assert.match(completedRefusals({ finished_at: bad }), /finished_at/);
+  // finished_by must be non-blank text.
+  for (const who of ['', '   ', 42 as unknown as string])
+    assert.match(completedRefusals({ finished_by: who }), /finished_by/);
+  // A running pilot with an impossible window end is refused, not left unbounded.
+  for (const end of ['2026-13-01T00:00:00Z', '2099-02-30T00:00:00Z'])
+    assert.match(
+      checkPilot(
+        { ...plan, window: { starts_at: plan.window.starts_at, ends_at: end } },
+        all,
+        isFile,
+        LATER,
+      ).refusals.join('\n'),
+      /has not chosen the pilot window/,
+    );
   for (const bad of [
     '/etc/passwd',
     '../outside.md',
@@ -333,7 +381,7 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
   ])
     assert.match(
       completedRefusals({ evidence: [bad] }),
-      /must be repository-relative/,
+      /must be a repository-relative file path/,
     );
 });
 

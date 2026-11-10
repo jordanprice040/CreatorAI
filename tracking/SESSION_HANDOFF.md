@@ -628,3 +628,14 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
   `config/owner-pilot.json`. Negative tests cover each.
 - L-3: the "Owner pilot" open item at the top of both tracking files, runbook step 4 and the `checkPilot` doc comment
   are current. The double blank line before the previous section is removed.
+
+## PR #156 re-review fixes (November 10, no migration or ADR)
+
+- Re-review of PR #156: no High or Medium; L-1..L-3 and a nit, all fixed in the same PR with negative tests.
+- L-1: pilot evidence paths are normalised before the "not the pilot config itself" check, so `./config/owner-pilot.json`,
+  `config//owner-pilot.json` and `docs/../config/owner-pilot.json` are refused too.
+- L-2: pilot evidence must be a file. Empty, blank, `.`, and folders such as `docs` are refused. `checkPilot` and
+  `evaluateReadiness` now take an `isFile` check for this; readiness rows keep `exists`, since they cite evidence folders.
+- L-3: times must name a real calendar date and clock time (no month 13, February 30 or hour 25), both for
+  `finished_at` and for the window, so a running pilot with an impossible end date is refused.
+- Nit: `finished_by` must be non-blank text.

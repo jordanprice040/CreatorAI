@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 
 /**
@@ -95,6 +96,35 @@ const NANO = /^(0|[1-9][0-9]{0,24})$/;
 const ISO =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
+/** An ISO time that names a real calendar date and clock time (no month 13, no Feb 30). */
+function validTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !ISO.test(value)) return false;
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const day = new Date(Date.UTC(y, m - 1, d));
+  return (
+    day.getUTCFullYear() === y &&
+    day.getUTCMonth() === m - 1 &&
+    day.getUTCDate() === d &&
+    !Number.isNaN(Date.parse(value))
+  );
+}
+
+/**
+ * A pilot evidence path in canonical repository-relative form, or null. Equivalent
+ * spellings (`./x`, `a//b`, `a/./b`) normalise to one form so they compare equal.
+ */
+function pilotEvidencePath(p: unknown): string | null {
+  if (typeof p !== 'string' || p.trim() === '' || p.includes('\\')) return null;
+  if (p.startsWith('/')) return null;
+  const n = posix.normalize(p).replace(/\/+$/, '');
+  if (n === '.' || n === '' || n === '..' || n.startsWith('../')) return null;
+  return n;
+}
+
 /** Requirement ids in the traceability table (context/REQUIREMENTS.md), in order. */
 export function requirementIds(markdown: string): string[] {
   return [...markdown.matchAll(/^\| (C\d{2}) \|/gm)].map((m) => m[1]!);
@@ -176,7 +206,7 @@ function checkRow(
 export function checkPilot(
   pilot: OwnerPilot,
   register: Register,
-  exists: (path: string) => boolean,
+  isFile: (path: string) => boolean,
   now = new Date(),
 ): { ready: boolean; refusals: string[] } {
   const r: string[] = [];
@@ -208,7 +238,7 @@ export function checkPilot(
     );
   const start = pilot.window?.starts_at;
   const end = pilot.window?.ends_at;
-  if (!start || !end || !ISO.test(start) || !ISO.test(end))
+  if (!validTime(start) || !validTime(end))
     r.push('Owner has not chosen the pilot window (starts_at, ends_at).');
   else if (Date.parse(end) <= Date.parse(start))
     r.push('Pilot window ends before it starts.');
@@ -251,30 +281,30 @@ export function checkPilot(
       r.push(`Account "${a}" has not been activated by the owner.`);
   }
   if (pilot.status === 'completed') {
-    if (!pilot.finished_by)
+    if (
+      typeof pilot.finished_by !== 'string' ||
+      pilot.finished_by.trim() === ''
+    )
       r.push('Pilot marked completed without who finished it (finished_by).');
     const fin = pilot.finished_at;
-    if (!fin || !ISO.test(fin))
+    if (!validTime(fin))
       r.push('Pilot marked completed without a finish time (finished_at).');
-    else if (start && ISO.test(start) && Date.parse(fin) < Date.parse(start))
+    else if (validTime(start) && Date.parse(fin) < Date.parse(start))
       r.push('Pilot finished before its window started.');
     else if (Date.parse(fin) > now.getTime())
       r.push('Pilot finish time is in the future.');
     if (!Array.isArray(pilot.evidence) || pilot.evidence.length === 0)
       r.push('Pilot marked completed without evidence.');
-    for (const p of pilot.evidence ?? []) {
-      if (
-        typeof p !== 'string' ||
-        p.startsWith('/') ||
-        p.includes('..') ||
-        p.includes('\\')
-      )
+    for (const p of Array.isArray(pilot.evidence) ? pilot.evidence : []) {
+      const path = pilotEvidencePath(p);
+      if (path === null)
         r.push(
-          `Pilot evidence path "${String(p)}" must be repository-relative.`,
+          `Pilot evidence path "${String(p)}" must be a repository-relative file path.`,
         );
-      else if (p === PILOT_CONFIG)
+      else if (path === PILOT_CONFIG)
         r.push(`Pilot evidence cannot be the pilot config itself (${p}).`);
-      else if (!exists(p)) r.push(`Pilot evidence "${p}" does not exist.`);
+      else if (!isFile(path))
+        r.push(`Pilot evidence "${p}" is not a file in the repository.`);
     }
   }
   return { ready: r.length === 0, refusals: r };
@@ -285,6 +315,7 @@ export function evaluateReadiness(
   pilot: OwnerPilot,
   requirementsMarkdown: string,
   exists: (path: string) => boolean,
+  isFile: (path: string) => boolean,
   registerBytes: string,
   now = new Date(),
 ): ReadinessResult {
@@ -310,7 +341,7 @@ export function evaluateReadiness(
   const integrations = register.integrations.map((r) =>
     checkRow('integration', r, exists, problems),
   );
-  const pilotResult = checkPilot(pilot, register, exists, now);
+  const pilotResult = checkPilot(pilot, register, isFile, now);
   const counts = Object.fromEntries(
     DIMENSIONS.map((d) => [
       d,
