@@ -22,6 +22,7 @@ import {
   NOTE_MAX,
   PROPOSAL_MAX_BODY_BYTES,
   SaveProposalFileRequestSchema,
+  SaveRunbookFileRequestSchema,
 } from '@creator/contracts';
 import {
   allowedHosts,
@@ -50,6 +51,7 @@ import {
   ORCHESTRATOR_ACTOR_ID,
   pageQuery,
   type CommandContext,
+  type RunbookExport,
 } from '@creator/db';
 import {
   ContextService,
@@ -242,7 +244,7 @@ const statusFor: Partial<Record<ContractError['code'], number>> = {
   STORAGE_UNAVAILABLE: 503,
 };
 const RECORD_ROUTE =
-  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files))?)?)?)?$/;
+  /^\/api\/workspaces(?:\/([^/]+)(?:\/(entities|links|history|runs|grants|routine-policies|decisions|pricing|budgets|reservations|workflows|sources|retrievals|claims|claim-support|problems|scorecards|proposals|specs|search|library|destination|activity|overview|actors|studies|study-attempts|protocol-freezes|artifacts|previews|feedback|terminals|route-registries|route-policies|route-benchmarks|route-promotions|route-decisions|context-capabilities|context-index|context-packs|context-handoffs|context-calls|context-cache|context-batches|context-evaluations|context-usage|saved-queries|semantic-search|audit-questions|audit-plans|lineage-verify|members|exploration-preview)(?:\/([^/]+)(?:\/(revisions|archive|redact|lineage|retract|humility-gate|cancel|actions|admissions|build-approvals|routine-policy|decisions|revoke|answer|model-calls|close|reconcile|workflows|pause|resume|source-fetches|source-searches|support|evidence|discoveries|explorations|exploration-packet|assessments|assessment-packet|assessment-preview|explored-briefs|packet|selections|spec-freezes|report|comparison|assign|export|context|entries|artifacts|tests|interventions|finish|deviations|helpers|graders|grader-material|execute|build|build-record|binding|code-check|download|manifest|compare|feedback|previews|terminals|guide|stop|decide|revision|benchmark|benchmark-results|advance|rollback|call|outcomes|escalate|compact|compactions|invalidate|poll|run|link|lineage-graph|lineage-export|research-plan|remove|explanation|reviews|files|runbook))?)?)?)?$/;
 
 export function createApi(
   env: Record<string, string | undefined> = {},
@@ -710,6 +712,60 @@ export function createApi(
           .catch(() => undefined);
       respond(res, status, value);
       return true;
+    };
+    // ADR-0080 (P16): the runbook of a spec or proposal version. GET returns the manifest, or
+    // the archive with ?format=zip; POST saves the archive into Files, linked to its subject.
+    const runbook = async (
+      make: (version?: number) => Promise<RunbookExport>,
+      subject: string,
+    ) => {
+      const v = url.searchParams.get('version');
+      if (v !== null && !/^[1-9][0-9]{0,8}$/.test(v))
+        throw new ContractError(
+          'INVALID_CONTRACT',
+          'version must be a positive integer.',
+        );
+      if (method === 'GET') {
+        const out = await make(v === null ? undefined : Number(v));
+        if (url.searchParams.get('format') !== 'zip')
+          return send(
+            200,
+            {
+              name: out.name,
+              archive_bytes: out.archive.length,
+              manifest: out.manifest,
+            },
+            false,
+          );
+        res.writeHead(200, {
+          ...INERT,
+          'Content-Type': 'application/zip',
+          'Content-Length': String(out.archive.length),
+          'Content-Disposition': disposition('attachment', out.name),
+        });
+        res.end(out.archive);
+        return true;
+      }
+      if (method !== 'POST') return false;
+      if (!fileStore)
+        throw new ContractError(
+          'STORAGE_UNAVAILABLE',
+          'Files are not available.',
+        );
+      const body = parse(SaveRunbookFileRequestSchema, await readJson(req));
+      const out = await make(body.version);
+      return send(
+        201,
+        await fileStore.uploadFile(ctx, ws!, {
+          bytes: out.archive,
+          name: out.name,
+          declaredType: 'application/zip',
+          uploadKey: body.upload_key,
+          linkEntityId: subject,
+          keepDuplicate: false,
+        }),
+        true,
+      );
     };
     // The owner's overall runtime ceiling: a deployment setting, changed only by a signed-in
     // person (ADR-0043). The store checks who may see or change it.
@@ -1790,6 +1846,8 @@ export function createApi(
           await store.reviewProposal(ctx, ws, item, await readJson(req)),
           true,
         );
+      if (item && action === 'runbook')
+        return runbook((v) => store.proposalRunbook(ctx, ws, item, v), item);
       if (item && action === 'export' && method === 'GET') {
         const out = await store.proposalExport(ctx, ws, item, versionOf());
         const bytes = Buffer.from(out.markdown, 'utf8');
@@ -1838,6 +1896,8 @@ export function createApi(
           true,
         );
     } else if (collection === 'specs') {
+      if (item && action === 'runbook')
+        return runbook((v) => store.specRunbook(ctx, ws, item, v), item);
       if (!item && method === 'POST')
         return send(
           201,

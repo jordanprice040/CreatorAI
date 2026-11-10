@@ -644,6 +644,49 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
   typecheck and format check pass; `pnpm test:db` 867 tests, 833 pass, 29 skipped, 5 fail (the known no-`pwsh`
   wrapper tests), the same counts as main.
 
+## P16 runbook export (November 10, branch `claude/project-thread-tq4rcm`, PR #152, ADR-0080, no migration)
+
+What works: see ADR-0080, [docs/RUNBOOK_EXPORT.md](../docs/RUNBOOK_EXPORT.md) and the BUILD_STATUS entry. New routes:
+`specs/{id}/runbook` and `proposals/{id}/runbook` (`GET` manifest, `?format=zip` archive, `?version=`; `POST` saves to
+Files). New files: `packages/contracts/src/runbook.ts`, `packages/domain/src/runbook.ts` (builder, redaction,
+`validateRunbook`, `writeZip`/`readZip`), `packages/domain/src/runbook-fixture.ts` (synthetic project),
+`packages/db/src/runbook-store.ts`, `apps/web/src/runbook.tsx`, `scripts/p16-runbook-example.mjs`. `RunbookStore`
+sits between `ProposalStore` and `StudyStore`; `ProposalStore.problemClaims` is now protected and `toFreeze` and
+`contentOf` are exported from the selection store. The test harness builds a `RunbookStore`.
+
+Changing any bundle wording changes the committed example: run `node scripts/p16-runbook-example.mjs write` after
+`pnpm build:code`, or the pin test fails.
+
+Open: the independent-consumption gate (give a fresh session only
+`tracking/evidence/runbook-export/synthetic-bundle/`, have it follow the prompts in a clean workspace, then the owner
+side runs the two held-out cases from `RUNBOOK_FIXTURE_SPEC`). No live run or device step was needed or done. Schema
+stays 49; this change used ADR-0080 and no migration number. Next eligible prompts: P10 (in progress in its own
+thread), then P12 (needs the search provider choice), P13, P17.
+
+## P16 follow-up: clean-room findings fixed (November 10, PR #152)
+
+The independent-consumption gate ran in a separate session and passed both held-out cases; its record is
+`tracking/evidence/runbook-export/clean-room-2026-11-10.md`. Its seven findings (2 Medium, 5 Low) are fixed in
+`packages/domain/src/runbook.ts` (contract rules 6, 9 and 10, setup prompt, task gates for judged checks, reviewer
+task wording, review and hand-over prompts, runner `-B`) and the example bundle was regenerated. The new wording has
+not been consumed in a second clean-room run. Next eligible prompts are unchanged.
+
+## P16 follow-up: code review fixes (November 10, PR #152)
+
+All 10 findings of the independent review (2 Medium, 8 Low) are fixed; see the BUILD_STATUS entry of the same name.
+`ActionRunbookInput.proposal` now takes `checks`, `problem_title` and `option_title` instead of pre-rendered
+Markdown; `RunbookHumility` carries the ethics status, dissent and the result of `humilityGate`. Next eligible
+prompts unchanged.
+
+## P16 follow-up: re-review and final review fixes (November 10, PR #152)
+
+The independent-consumption gate is no longer open: it ran twice (the second run not blind) and passed both
+held-out cases each time; the N1 to N3 wording fixes from the second run are in `ff29f25`. The re-review's R-1, R-2
+and two nits are in `24a1555`. The final review's P-1 (the account-name rule continues only into more path, any case
+of letters), P-2 (Windows profile paths in any letter case) and nits N-1 (`needs_judgment` carried from
+`humilityGate`), N-2 (this entry) and N-3 (README wording when held-out and manual checks are mixed) are in the next
+commit. The last wording has not been consumed in a clean-room run. Next eligible prompts unchanged.
+
 ## P10 routine approvals (November 10, branch `claude/project-thread-q4lf7q`, PR #153, ADR-0079, migration 50)
 
 What works and what was checked: see ADR-0079 and the BUILD_STATUS entry. New in code: `routine_policy` on
