@@ -30,7 +30,7 @@ from the documented price (retrieved 2026-10-18), not read from an OpenAI invoic
 | API key route, Test connection | 2026-11-10 23:16 | openai/gpt-6-astra (dev studio, real workspace) | $0.00036 charged ($0.014275 reserved), documented price | **Connected**: replied “ok”; reservation settled ([screenshot](evidence/p22/api-key-test-connection-2026-11-10.png)) |
 | ChatGPT plan route, one approved model check | — | gpt-6-astra | $0 | not run in P22 |
 | Claude Code route, one approved model check | — | claude-sonnet-5-5 | $0 | not run in P22 |
-| GitHub verify, branch, push, PR, read checks | — | creator-agent-p22-trial | $0 | not run |
+| GitHub verify, branch, push, PR, read checks | 2026-11-10 23:18–23:21 | jordanprice040/creator-agent-p22-trial (id 1453277093), fine-grained token | $0 | **All succeeded**: verify matched the owner; 2 pushes, 1 branch, PR #1 opened (not merged); checks read: none, check runs not readable with this token ([record](evidence/p22/github-trial-2026-11-10.md)) |
 
 ## Search route investigation and live test — November 10, 2026
 
