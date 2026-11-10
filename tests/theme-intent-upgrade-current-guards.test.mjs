@@ -152,35 +152,46 @@ test('stale release refuses a still-live lock owner without side effects', async
     await unlock();
   }
 });
-test('a foreign loopback listener is refused and remains untouched', async () => {
-  const home = join(root, 'foreign-home'),
-    e = join(root, 'foreign-evidence');
-  await mkdir(join(home, 'postgres', 'data'), { recursive: true });
-  await mkdir(e);
-  await writeFile(join(home, 'postgres/data/PG_VERSION'), '18\n');
-  const server = net.createServer((s) => s.end());
-  await new Promise((ok, fail) => {
-    server.once('error', fail);
-    server.listen(0, '127.0.0.1', ok);
-  });
-  const port = server.address().port;
-  try {
-    await assert.rejects(
-      managed(
-        { pg_bin: 'C:/Program Files/PostgreSQL/18/bin', database: { port } },
-        home,
-        e,
-        () => {
-          throw new Error('Must not start body');
-        },
-      ),
-      /Foreign listener/,
-    );
-    assert.ok(await listening(port));
-  } finally {
-    await new Promise((ok) => server.close(ok));
-  }
-});
+test(
+  'a foreign loopback listener is refused and remains untouched',
+  {
+    // The helper asks the Windows PostgreSQL tools about the data folder before it looks at
+    // the port, so on other systems it stops at the missing program, not at the listener.
+    skip:
+      process.platform !== 'win32'
+        ? 'Needs the native Windows PostgreSQL tools; exercised by Windows CI'
+        : false,
+  },
+  async () => {
+    const home = join(root, 'foreign-home'),
+      e = join(root, 'foreign-evidence');
+    await mkdir(join(home, 'postgres', 'data'), { recursive: true });
+    await mkdir(e);
+    await writeFile(join(home, 'postgres/data/PG_VERSION'), '18\n');
+    const server = net.createServer((s) => s.end());
+    await new Promise((ok, fail) => {
+      server.once('error', fail);
+      server.listen(0, '127.0.0.1', ok);
+    });
+    const port = server.address().port;
+    try {
+      await assert.rejects(
+        managed(
+          { pg_bin: 'C:/Program Files/PostgreSQL/18/bin', database: { port } },
+          home,
+          e,
+          () => {
+            throw new Error('Must not start body');
+          },
+        ),
+        /Foreign listener/,
+      );
+      assert.ok(await listening(port));
+    } finally {
+      await new Promise((ok) => server.close(ok));
+    }
+  },
+);
 test(
   'install and recovery wrappers deny missing explicit switches before reading files',
   {

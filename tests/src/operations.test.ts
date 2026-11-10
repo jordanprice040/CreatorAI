@@ -123,6 +123,15 @@ test('secret files load into the environment without exposing values', () => {
   assert.equal(out.env.CREATOR_DATABASE_URL_FILE, undefined);
   assert.equal(out.env.OTHER_FILE, '/x');
   assert.deepEqual(out.from_files, ['CREATOR_DATABASE_URL']);
+  // The CLI's sign-in state file is a path the CLI reads and writes, not a secret to load:
+  // setting it beside the API or the migrations must not stop them when it does not exist yet.
+  const session = resolveSecretFiles(
+    { CREATOR_SESSION_FILE: '/not/there/cli-session.json' },
+    read,
+  );
+  assert.equal(session.env.CREATOR_SESSION_FILE, '/not/there/cli-session.json');
+  assert.equal(session.env.CREATOR_SESSION, undefined);
+  assert.deepEqual(session.from_files, []);
   for (const env of [
     {
       CREATOR_DATABASE_URL: 'postgresql://127.0.0.1/x',

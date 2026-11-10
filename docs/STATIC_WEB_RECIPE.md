@@ -166,7 +166,7 @@ the web recipe is **not qualified** until this benchmark passes live.
   pages show it. There is no global switch (review L-9): `unqualifiedTrial` in
   `packages/contracts/src/web-recipe.ts` lifts the label only for a build whose own connection, model
   and both role-prompt hashes match a recorded pass (`RECIPE_QUALIFICATIONS` in
-  `packages/executor/src/artifacts.ts`, empty today). A pass on one connection, model or prompt version
+  `packages/executor/src/artifacts.ts`; it holds one pass since November 6, see the live result below). A pass on one connection, model or prompt version
   never qualifies another. The prompt hashes come from the prompts the build recorded in its
   `intent.json` when it started, not from the code at packaging time, and only a pass on the recipe's
   current benchmark version (`RECIPE_BENCHMARKS`, checked by `verify`) counts (third review L-10). The
@@ -285,3 +285,7 @@ Run on Jordan's PC under his typed OKs (11:28 and 20:24 UTC). Raw summary:
   `benchmark_id` `p15-small-signup-v4`; a test checks the record against the results file, the current
   role prompts, `RECIPE_BENCHMARKS` and the freeze hash. The three packages made during the run were
   labelled unqualified trials when packaged, and keep that label: a manifest is not rewritten.
+- Open for Jordan (PR #150 review M-1, restated November 10): the frozen per-attempt pass bar includes the
+  owner seeing the preview, and only attempt 1's preview was opened. Every machine-checked line is met for
+  3 of 3 attempts; the preview line is met for 1 of 3 until Jordan opens the previews of attempts 2 and 3
+  or decides explicitly that one observed preview is enough. The record above is unchanged meanwhile.

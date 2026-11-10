@@ -646,7 +646,11 @@ export function Oversight({
     }, 15_000);
     return () => clearInterval(t);
   }, [active]);
+  // A failed Revoke or Stop keeps its message on screen (PR #90 re-review N-4): the error is
+  // cleared when the action starts, and the reload afterwards is a background one, which
+  // never clears it.
   async function revoke(g: Grant) {
+    setError('');
     try {
       await api(GrantSchema, `workspaces/${workspace}/grants/${g.id}/revoke`, {
         csrf: session.csrf_token,
@@ -658,9 +662,10 @@ export function Oversight({
     } catch (e) {
       setError(message(e));
     }
-    await load();
+    await load(true);
   }
   async function cancel(r: RunControl) {
+    setError('');
     try {
       await api(
         RunControlSchema,
@@ -673,7 +678,7 @@ export function Oversight({
     } catch (e) {
       setError(message(e));
     }
-    await load();
+    await load(true);
   }
   const standing = grants.filter(
     (g) => g.scope === 'standing' && g.status === 'active',

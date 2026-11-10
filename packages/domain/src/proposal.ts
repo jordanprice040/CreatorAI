@@ -803,7 +803,7 @@ export function proposalMarkdown(m: MarkdownInput): string {
     );
     for (const s of r.sources)
       out.push(
-        `  - ${s.title.trim() ? `${inlineText(s.title)}: ` : ''}${urlText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
+        `  - ${inlineText(s.title).trim() ? `${inlineText(s.title)}: ` : ''}${urlText(s.url)} (${s.stance}, ${s.freshness})${s.quote ? ` — “${inlineText(s.quote)}”` : ''}`,
       );
   }
   if (m.checks.checks.length) {
