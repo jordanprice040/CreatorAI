@@ -751,6 +751,20 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['C:\\Users\\Jordan Price\\Projects| x', '| x'],
     ['[link](/home/jordan/x.md) y', ') y'],
     ['C:\\Users\\Jordan Price\\Projects, then run it', ' then run it'],
+    // Re-review 5 R5-1: a closing mark inside the path does not end it.
+    ['C:\\Users\\jordan\\Documents\\DOCUME~1\\Jordan_Price_W2.pdf', ''],
+    ['C:\\Users\\jordan\\Downloads\\scans(old)\\jordan_passport.pdf', ''],
+    ['/home/jordan/backups[2025]/jordan_price_taxes.pdf', ''],
+    ['/home/jordan/.cache/~jordan/x', ''],
+    ['/home/jordan/notes}/jordan.txt', ''],
+    ['C:\\Users\\jordan\\AppData\\Local\\Temp\\~DF12.tmp', ''],
+    ['/users/jordan/Documents/a(b)/c) x', ') x'],
+    // Re-review 5 R5-N1: a spaced name inside "_" emphasis before more text.
+    ['_C:\\Users\\Jordan Price\\Projects_ next', ' next'],
+    ['__/home/Jordan Price/projects__, then', ' then'],
+    // Re-review 5 R5-N2: Unix paths keep a closing "**" or "|".
+    ['**/home/jordan/x** bold', '** bold'],
+    ['/home/jordan/x| y', '| y'],
     // Final review P-2: Windows profile paths in any letter case.
     ['c:\\users\\jordan\\notes.txt', ''],
     ['C:\\USERS\\JORDAN\\notes.txt', ''],
@@ -799,6 +813,34 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
   ])
     assert.match(clean(t), /\[credential removed\]/, t);
   assert.equal(clean('http://example.com/a'), 'http://example.com/a');
+  // Re-review 5 R5-2: an empty user name, and a raw "@" in the password.
+  for (const [raw, out] of [
+    ['redis://:pw123@localhost:6379/0', '[credential removed]localhost:6379/0'],
+    [
+      'CELERY_BROKER_URL=redis://:s3cret@cache:6379/0',
+      'CELERY_BROKER_URL=[credential removed]cache:6379/0',
+    ],
+    [
+      'mongodb+srv://admin:p@ss@cluster0.x.net/db',
+      '[credential removed]cluster0.x.net/db',
+    ],
+  ] as const)
+    assert.equal(clean(raw), out, raw);
+  for (const kept of [
+    'http://example.com/a:b@c',
+    'https://example.com:8080/x',
+    'ssh://git@github.com/x',
+    'mailto:a@b.c',
+  ])
+    assert.equal(clean(kept), kept);
+  for (const run of ['x://a:', 'x://:', '@', ':@', 'a:@']) {
+    const started = performance.now();
+    clean(`x://u:${run.repeat(20_000)}`);
+    assert.ok(
+      performance.now() - started < 500,
+      `${run} x 20000 took too long`,
+    );
+  }
   for (const tail of [')', ']', '")'])
     for (const head of ['C:\\Users\\a b\\x', '/home/a b/x']) {
       const started = performance.now();

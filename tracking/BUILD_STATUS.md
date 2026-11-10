@@ -702,3 +702,11 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   folder in its real spelling and refuses route placeholders (`{id}`, `:id`, digits, `me`), so routes such as
   `/users/{id}/links` stay; R4-3 a path right after `_` is caught; R4-N1 `*`, `~`, `}`, `|`, curly quotes and `»` also
   close a path; R4-N2 a closing bracket after a path is kept. R4-N3 needed no change. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Fifth re-review (at `0c8b2f3`): no High or Medium; 2 Lows and 2 nits fixed.** R5-1 a closing mark inside a
+  removed path (`DOCUME~1`, `scans(old)`, `backups[2025]`) no longer cuts the path short: the tail may hold any path
+  character and only refuses one as its last, so a bracket that closes the path still stays. R5-2 the
+  address-with-password pattern allows an empty user name (`redis://:password@host`) and takes the password up to the
+  last `@` before a `/` or space; ordinary URLs (`https://example.com:8080/x`, `ssh://git@github.com/x`) stay. R5-N1 a
+  last folder closed by `_` before a space or the end is removed whole; R5-N2 the Unix forms keep a closing `**` or
+  `|`. R5-N3 needed no change. Every reported string is a test row, with new timing loops; worst probe 2 ms at 20k
+  characters.
