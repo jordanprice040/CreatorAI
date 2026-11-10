@@ -46,6 +46,7 @@ import {
   ChatCreateRequestSchema,
   ChatMessageRequestSchema,
   ChatSettingsRequestSchema,
+  SetModelChoiceRequestSchema,
   WorkspaceNoteRequestSchema,
   NoteArchiveRequestSchema,
   NoteCreateRequestSchema,
@@ -64,6 +65,8 @@ import {
   type ChatDeleted,
   type ChatDetail,
   type ChatSettings,
+  type ModelChoice,
+  type ModelChoiceResult,
   type ChatMessage,
   usageOffStatement,
   CLAUDE_CODE_MIN_VERSION,
@@ -429,6 +432,27 @@ export const promptHash = (cases: readonly ManifestCase[]) =>
     ].sort(),
   );
 const HELD_OUT_VIEWED = 'qualification_held_out_viewed';
+
+/** ADR-0081: one person's model choice in a workspace; version 0 when never chosen. */
+async function modelChoice(
+  c: PoolClient,
+  ws: string,
+  actor: string,
+  lock = false,
+): Promise<ModelChoice> {
+  const { rows } = await c.query(
+    `select * from model_choices where workspace_id = $1 and actor_id = $2${lock ? ' for update' : ''}`,
+    [ws, actor],
+  );
+  const r = rows[0] as Row | undefined;
+  return {
+    workspace_id: ws,
+    connection_id: r ? String(r.connection_id) : null,
+    model_id: r ? String(r.model_id) : null,
+    version: Number(r?.version ?? 0),
+    updated_at: r ? iso(r.updated_at) : null,
+  };
+}
 
 export class ConnectionStore extends PortfolioStore {
   /**
@@ -1078,6 +1102,121 @@ export class ConnectionStore extends PortfolioStore {
         payload: next,
       });
       return chatSettings(c, uuid(ws));
+    });
+  }
+
+  /** ADR-0081: the caller's current connection and model in this workspace (version 0: none). */
+  async modelChoice(ctxIn: CommandContext, ws: string): Promise<ModelChoice> {
+    const ctx = normalize(ctxIn);
+    return this.tx(async (c) => {
+      await this.role(c, uuid(ws), ctx.actorId, false);
+      return modelChoice(c, uuid(ws), ctx.actorId);
+    });
+  }
+
+  /**
+   * ADR-0081: the owner switches their current connection and model. Only a model with
+   * verified Responses access on a connection of this workspace can be chosen; qualification
+   * is checked by each task where it is used, never assumed here. A saved chat-answer setting
+   * follows the switch in the same transaction (audited as a chat setting change); a started
+   * run is never touched, because its route is recorded on the run.
+   */
+  async setModelChoice(
+    ctxIn: CommandContext,
+    ws: string,
+    raw: unknown,
+  ): Promise<ModelChoiceResult> {
+    const ctx = normalize(ctxIn);
+    const req = parse(SetModelChoiceRequestSchema, raw);
+    return this.tx(async (c) => {
+      const w = uuid(ws);
+      await this.requireOwner(c, w, ctx.actorId);
+      const current = await modelChoice(c, w, ctx.actorId, true);
+      if (current.version !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'Your model choice changed since you opened it; reload and try again.',
+        );
+      const connection = await this.#connection(c, w, req.connection_id);
+      const access = await this.#access(c, connection.id);
+      if (
+        !access.some(
+          (a) =>
+            a.model_id === req.model_id &&
+            a.path === 'responses' &&
+            a.access === 'verified',
+        )
+      )
+        throw fail(
+          'INVALID_CONTRACT',
+          `${req.model_id} is not verified on ${connection.label}. Verify it under Models and connections first.`,
+        );
+      const next = {
+        connection_id: connection.id,
+        model_id: req.model_id,
+      };
+      await c.query(
+        `insert into model_choices (workspace_id, actor_id, connection_id, model_id, version)
+         values ($1,$2,$3,$4,1)
+         on conflict (workspace_id, actor_id) do update set
+           connection_id = excluded.connection_id, model_id = excluded.model_id,
+           version = model_choices.version + 1, updated_at = clock_timestamp()`,
+        [w, ctx.actorId, next.connection_id, next.model_id],
+      );
+      await this.append(c, ctx, {
+        workspaceId: w,
+        action: 'model_choice.changed',
+        subjectKind: 'model_choice',
+        subjectId: ctx.actorId,
+        subjectVersion: current.version + 1,
+        contentHash: canonicalHash(next),
+        payload: {
+          ...next,
+          previous: current.connection_id
+            ? {
+                connection_id: current.connection_id,
+                model_id: current.model_id,
+              }
+            : null,
+        },
+      });
+      // Chat follows only a setting the owner has saved; an unsaved one already starts from
+      // the choice on its form. Enabled, snapshot and daily limit stay as they are.
+      const chat = await chatSettings(c, w, true);
+      let chatUpdated = false;
+      if (
+        chat.version > 0 &&
+        (chat.connection_id !== next.connection_id ||
+          chat.model_id !== next.model_id)
+      ) {
+        await c.query(
+          `update chat_settings set connection_id = $2, model_id = $3,
+             version = version + 1, updated_by = $4, updated_at = clock_timestamp()
+           where workspace_id = $1`,
+          [w, next.connection_id, next.model_id, ctx.actorId],
+        );
+        const payload = {
+          enabled: chat.enabled,
+          connection_id: next.connection_id,
+          model_id: next.model_id,
+          include_snapshot: chat.include_snapshot,
+          daily_limit: chat.daily_limit,
+        };
+        await this.append(c, ctx, {
+          workspaceId: w,
+          action: 'chat.settings_changed',
+          subjectKind: 'chat_settings',
+          subjectId: w,
+          subjectVersion: chat.version + 1,
+          contentHash: canonicalHash(payload),
+          payload: { ...payload, via: 'model_switch' },
+        });
+        chatUpdated = true;
+      }
+      return {
+        choice: await modelChoice(c, w, ctx.actorId),
+        chat_updated: chatUpdated,
+      };
     });
   }
 

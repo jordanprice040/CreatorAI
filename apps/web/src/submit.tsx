@@ -41,6 +41,8 @@ import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
+import { preferredRoute } from './model-choice.js';
+import { ChoiceNote, routePlans, useModelChoice } from './model-switch.js';
 import {
   RoutineFields,
   routineIssues,
@@ -465,15 +467,22 @@ export function Submit({
     dataClass,
     DISCOVERY_CLASSES,
   );
+  // ADR-0081: with nothing picked here, the current model from the top bar comes before the
+  // P04 default; when it is not qualified for every step the form says so (ChoiceNote).
+  const choice = useModelChoice(workspace);
+  const route = preferredRoute(
+    routePlans(c?.planDetails ?? [], DISCOVERY_CLASSES, dataClass),
+    choice,
+    DISCOVERY_CLASSES,
+    planDefault,
+  );
   const plan = c?.planDetails.find(
-    (p) => p.connection.id === (connectionId || planDefault.connection),
+    (p) => p.connection.id === (connectionId || route.connection),
   );
   // Review L-1: a picked model counts only while it belongs to the connection in use.
   const model =
     (plan && verifiedModels(plan).includes(planModel) ? planModel : '') ||
-    (plan && plan.connection.id === planDefault.connection
-      ? planDefault.model
-      : '') ||
+    (plan && plan.connection.id === route.connection ? route.model : '') ||
     (plan ? verifiedModels(plan)[0] : '') ||
     '';
   const setup: BlockedReason[] = discoverSetupBlockers({
@@ -1391,6 +1400,27 @@ export function Submit({
                           </option>
                         ))}
                     </select>
+                    <ChoiceNote
+                      route={
+                        !connectionId && !planModel
+                          ? route
+                          : {
+                              ...route,
+                              fromChoice: false,
+                              choiceUnavailable: false,
+                            }
+                      }
+                      choice={choice}
+                      task="Discover"
+                      labelOf={(id) =>
+                        c.planDetails.find((p) => p.connection.id === id)
+                          ?.connection.label ?? id
+                      }
+                      onUse={(conn, m) => {
+                        setConnectionId(conn);
+                        setPlanModel(m);
+                      }}
+                    />
                     <p className="small">
                       Subscription quota; no API pricing or money envelope. One
                       model job, at most {limits.max_calls} requests,{' '}

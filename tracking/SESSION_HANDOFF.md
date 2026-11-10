@@ -713,3 +713,13 @@ routine-stops.ts` (`routineStopReason`), `routineMissNote` in `packages/domain/s
 `reconfirmed`, `runDataClasses` on `RoutinePolicies`. Migration 50 was edited in place a second time (the `change`
 check gained `reconfirmed`); recreate any throwaway database that ran an earlier text. Not built: domain and output
 scope in a policy; claim admission (P12).
+
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51)
+
+Branch `claude/project-thread-6af37w`. The owner picks a current model beside the usage indicator; forms
+start from it and say so when it is not qualified for their task (offering a qualified one); a saved chat
+setting follows the switch; started work keeps its route. Details, evidence and limits: BUILD_STATUS.md
+"P21 current-model switch" and ADR-0081. Migration 51 and ADR-0081 were reserved with the parallel P18 and
+P22 threads (they were told to take 52/0082 and 53/0083 if they need numbers). Next free after this PR:
+migration 52, ADR-0082 (recheck main). Next eligible: independent review of this PR in a separate thread;
+then P19 per the November 10 order.

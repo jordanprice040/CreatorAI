@@ -791,3 +791,25 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   no plan-role build was run end to end with a policy.
 - Checks at `dc29506` (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` passes; `pnpm test:db` 882 tests, 848 pass,
   29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 15 tests in `routine-policy.test.ts`.
+
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51; branch `claude/project-thread-6af37w`)
+
+- What works: a "Model" button beside the usage indicator (owners only) lists every verified model on the
+  workspace's plan connections, says which tasks each is qualified for (Chat, Explore, Discover, Assess, Build),
+  and switches the owner's current model. The choice is stored server-side per person and workspace
+  (`model_choices`, `GET/POST /api/workspaces/:ws/model-choice`), versioned and audited; only verified models
+  are accepted. Explore, Discover, Assess, Build (plan-role builder), the Chat answers setting and Qualify start
+  from it unless changed on the form. A form whose task the current model is not qualified for keeps it, shows
+  the reason and offers a qualified alternative as a button; it never switches quietly. A saved chat setting
+  follows the switch (audited, `via: model_switch`). Runs, builds, qualifications and chat answers already
+  started keep their recorded route.
+- Evidence: `tests/src/model-choice.test.ts` (form rules, Build default, store: owner only, verified only,
+  version conflict, audit, chat follows, earlier answer keeps its model, API route with CSRF and strict body).
+  Browser walk on a throwaway database: `tracking/evidence/p21-model-switch/` (two switches move Explore,
+  Discover, Assess and chat; a form pick wins locally; no page errors). The walk found and fixed a duplicate
+  React key that rendered the picker many times.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known
+  no-`pwsh` wrapper tests); after the last web edits, `pnpm typecheck`, `pnpm format:check`, `pnpm test:dev-safety`
+  (19 pass, 3 skip) and the model-choice, storage and chat-answers suites (22 pass) were rerun and pass.
+- Not done: Build and Qualify not walked in a browser (fixture workspaces have no plan builders and fixture
+  connections cannot be qualified; Build's default is unit-tested); no CLI command; not independently reviewed.

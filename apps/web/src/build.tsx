@@ -8,6 +8,8 @@ import {
   GrantSchema,
   PlanConnectionSchema,
   PlanModelAccessSchema,
+  PlanQualificationSchema,
+  isQualified,
   PricingSnapshotSchema,
   RunControlSchema,
   SelectionSchema,
@@ -41,6 +43,14 @@ import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
 import { recordLabel, runLabel } from './labels.js';
 import { RunbookExport } from './runbook.js';
+import {
+  BUILD_ROLE_CLASSES,
+  MODEL_CHOICE_CHANGED,
+  planBuilderDefault,
+  taskWords,
+  type Choice,
+} from './model-choice.js';
+import { useModelChoice } from './model-switch.js';
 import {
   artifactForBuild,
   envelopeFor,
@@ -191,7 +201,10 @@ export function BuildView({
     const access = await Promise.all(
       connections.map((c) =>
         api(
-          z.object({ model_access: z.array(PlanModelAccessSchema) }),
+          z.object({
+            model_access: z.array(PlanModelAccessSchema),
+            qualifications: z.array(PlanQualificationSchema),
+          }),
           `${base}/plan-connections/${c.id}`,
         ),
       ),
@@ -212,6 +225,13 @@ export function BuildView({
         connection_label: c.label,
         data_classes: c.settings.allowed_data_classes,
         build_timeout_ms: c.settings.caps.codex.build_timeout_ms,
+        // ADR-0081: whether the plan roles can run on this model (both roles qualified).
+        unqualified:
+          m.path === 'responses'
+            ? BUILD_ROLE_CLASSES.filter(
+                (tc) => !isQualified(access[i]!.qualifications, m.model_id, tc),
+              )
+            : [],
       })),
     );
     const now = Date.now();
@@ -255,7 +275,9 @@ export function BuildView({
       artifacts,
     };
   }, [workspace.id]);
-  const d = data.data;
+  // ADR-0081: the current model from the top bar; Build starts from it (StartBuild).
+  const choice = useModelChoice(workspace);
+  const d = data.data ? { ...data.data, choice } : null;
   const writer = workspace.role !== 'viewer';
   const [specForm, setSpecForm] = useState<SpecFormMode | null>(null);
   /** The stored current version of a spec/1 spec: what a revision starts from. */
@@ -857,7 +879,11 @@ type Data = {
     data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
     /** The connection's Codex build timeout (ADR-0062: no 30-minute maximum). */
     build_timeout_ms: number;
+    /** Plan-role task classes this model is not qualified for (empty for Codex). */
+    unqualified: readonly string[];
   }[];
+  /** ADR-0081: the owner's current model from the top bar, if any. */
+  choice: Choice | null;
   /** Run ids whose standing grants admit plan-role model requests. */
   modelRuns: ReadonlySet<string>;
   artifacts: z.infer<typeof ArtifactSummarySchema>[];
@@ -1176,6 +1202,39 @@ function unbuildable(
   return why.every((w) => w.length) ? why[0]![0]! : null;
 }
 
+/** ADR-0081: offers a plan-role builder qualified for both roles when the shown one is not. */
+function BuilderAlternative({
+  current,
+  builders,
+  fromChoice,
+  use,
+}: {
+  current: Data['builders'][number];
+  builders: Data['builders'];
+  fromChoice: boolean;
+  use: (key: string) => void;
+}) {
+  const ok = builders.filter(
+    (b) => b.kind === 'roles' && b.unqualified.length === 0,
+  );
+  const alt =
+    ok.find((b) => b.connection_id === current.connection_id) ?? ok[0];
+  return (
+    <p className="small model-note model-note-warn" role="note">
+      {current.model_id}
+      {fromChoice ? ' (your current model)' : ''} is not qualified for{' '}
+      {current.unqualified.map(taskWords).join(' and ')}.{' '}
+      {alt ? (
+        <button type="button" className="text" onClick={() => use(alt.key)}>
+          Use {alt.model_id} on {alt.connection_label} instead
+        </button>
+      ) : (
+        `No plan model here is qualified for both ${BUILD_ROLE_CLASSES.map(taskWords).join(' and ')} yet.`
+      )}
+    </p>
+  );
+}
+
 /** The build plan: which run, budget, pricing, humility review and builder; limits in range. */
 function StartBuild({
   taskKey,
@@ -1209,13 +1268,27 @@ function StartBuild({
   const [review, setReview] = useState('');
   // '' until chosen: the $0 plan route when one is verified, else the broker.
   const [builder, setBuilder] = useState('');
+  /** The person picked a builder on this form, so a switch in the top bar leaves it alone. */
+  const [picked, setPicked] = useState(false);
   const [repairs, setRepairs] = useState(1);
-  const planDefault = data.builders.find((b) => b.kind === 'roles');
+  // ADR-0081: the current model's plan-role builder comes first, even when it is not
+  // qualified: the form then says so and offers a qualified one, never switching quietly.
+  const preferred = planBuilderDefault(data.builders, data.choice);
+  const planDefault = preferred.builder;
+  const chosenRoles = preferred.fromChoice ? preferred.builder : undefined;
   // Once the plan route is shown as the default, it counts as chosen: if it later stops being
   // verified, the form says so instead of quietly switching to the metered broker.
   useEffect(() => {
     if (!builder && planDefault) setBuilder(planDefault.key);
   }, [builder, planDefault?.key]);
+  // A switch in the top bar re-defaults a builder the person did not pick here.
+  useEffect(() => {
+    const changed = () => {
+      if (!picked) setBuilder('');
+    };
+    window.addEventListener(MODEL_CHOICE_CHANGED, changed);
+    return () => window.removeEventListener(MODEL_CHOICE_CHANGED, changed);
+  }, [picked]);
   const connection =
     builder && builder !== 'broker'
       ? data.builders.find((b) => b.key === builder)
@@ -1296,6 +1369,19 @@ function StartBuild({
           {
             text: 'Needs a humility review of this exact spec version.',
             fix: { view: 'scores' as View, label: 'Open Scores and specs' },
+          },
+        ]
+      : []),
+    // ADR-0081: a plan-role builder whose model is not qualified for both roles is refused
+    // here with the reason, and a qualified one is offered below the builder choice.
+    ...(connection?.kind === 'roles' && connection.unqualified.length
+      ? [
+          {
+            text: `${connection.model_id} is not qualified for ${connection.unqualified.map(taskWords).join(' and ')}, so the plan builder and reviewer can't run on it.`,
+            fix: {
+              view: 'models' as View,
+              label: 'Open Models and connections',
+            },
           },
         ]
       : []),
@@ -1413,7 +1499,10 @@ function StartBuild({
       <select
         id="bp-builder"
         value={connection ? connection.key : lostBuilder || 'broker'}
-        onChange={(e) => setBuilder(e.target.value)}
+        onChange={(e) => {
+          setBuilder(e.target.value);
+          setPicked(true);
+        }}
       >
         {lostBuilder && (
           <option value={lostBuilder} disabled>
@@ -1432,6 +1521,26 @@ function StartBuild({
           </option>
         ))}
       </select>
+      {connection?.kind === 'roles' && connection.unqualified.length > 0 && (
+        <BuilderAlternative
+          current={connection}
+          builders={data.builders}
+          fromChoice={connection === chosenRoles && !picked}
+          use={(key) => {
+            setBuilder(key);
+            setPicked(true);
+          }}
+        />
+      )}
+      {connection?.kind === 'roles' &&
+        connection === chosenRoles &&
+        !picked &&
+        connection.unqualified.length === 0 && (
+          <p className="small model-note">
+            Your current model, from the top bar. Change the builder here for
+            this build only.
+          </p>
+        )}
       {connection?.kind === 'codex' && (
         <p className="small">
           This is a live call on your ChatGPT plan. It runs only if a grant you

@@ -19,6 +19,8 @@ import { Markdown } from './markdown-view.js';
 import { CONTEXT_LABEL } from './chat-context.js';
 import { api, message, when } from './oversight.js';
 import { withFreshCount } from './usage-refresh.js';
+import { MODEL_CHOICE_CHANGED } from './model-choice.js';
+import { useModelChoice } from './model-switch.js';
 
 // ADR-0057: chat answers from a connected plan. The answer view labels every answer as a model
 // answer that nobody checked and shows exactly what was sent; the settings card is the owner's
@@ -181,6 +183,36 @@ export function ChatAnswersCard({
   useEffect(() => {
     if (!session) return;
     load().catch((e) => setError(message(e)));
+  }, [workspace.id, session?.actor_id]);
+  // ADR-0081: a setting never saved starts from the current model in the top bar; a switch
+  // there may move a saved setting too, so the form is read again after one.
+  const choice = useModelChoice(workspace);
+  // Applied once per choice, so a pick made on this form afterwards stays put.
+  const appliedChoice = useRef('');
+  useEffect(() => {
+    if (!choice || !settings || settings.version > 0) return;
+    const key = `${choice.connection_id}:${choice.model_id}`;
+    if (appliedChoice.current === key) return;
+    if (
+      !verifiedModels(details, choice.connection_id).includes(choice.model_id)
+    )
+      return;
+    appliedChoice.current = key;
+    setForm((f) =>
+      f.enabled
+        ? f
+        : {
+            ...f,
+            connection_id: choice.connection_id,
+            model_id: choice.model_id,
+          },
+    );
+  }, [choice?.connection_id, choice?.model_id, settings?.version, details]);
+  useEffect(() => {
+    if (!session) return;
+    const changed = () => void load().catch((e) => setError(message(e)));
+    window.addEventListener(MODEL_CHOICE_CHANGED, changed);
+    return () => window.removeEventListener(MODEL_CHOICE_CHANGED, changed);
   }, [workspace.id, session?.actor_id]);
   /**
    * Reads the connections and the chat count again without touching the form, so what the
