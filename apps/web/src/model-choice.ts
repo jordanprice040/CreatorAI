@@ -92,10 +92,16 @@ export function taskWords(taskClass: string): string {
 
 /**
  * Build's default builder: the plan-role builder on the current model when there is one (even
- * if it is not qualified, so Build can say so), else the first plan-role builder.
+ * if it is not qualified, so Build can say so), else the first plan-role builder qualified for
+ * both roles, else the first plan-role builder (review L-3).
  */
 export function planBuilderDefault<
-  B extends { kind: string; connection_id: string; model_id: string },
+  B extends {
+    kind: string;
+    connection_id: string;
+    model_id: string;
+    unqualified?: readonly string[];
+  },
 >(
   builders: readonly B[],
   choice: Choice | null,
@@ -110,5 +116,11 @@ export function planBuilderDefault<
     : undefined;
   return chosen
     ? { builder: chosen, fromChoice: true }
-    : { builder: builders.find((b) => b.kind === 'roles'), fromChoice: false };
+    : {
+        builder:
+          builders.find(
+            (b) => b.kind === 'roles' && (b.unqualified?.length ?? 0) === 0,
+          ) ?? builders.find((b) => b.kind === 'roles'),
+        fromChoice: false,
+      };
 }

@@ -268,6 +268,48 @@ test('subscription discovery needs role qualifications, no envelope/pricing, and
   );
 });
 
+// ADR-0081 (P21 review L-4): switching the current model after a discovery started does not
+// change the route it recorded; every plan request it makes stays on its own model.
+test('a discovery started before a model switch keeps its recorded model', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  await s.qualify();
+  const started = await s.store.startDiscovery(owner, s.ws.id, s.runId, s.req);
+  let c = (await s.store.planConnectionDetail(owner, s.ws.id, s.conn.id))
+    .connection;
+  const g = await s.store.createPlanVerificationGrant(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    model_id: 'm2',
+    path: 'responses',
+    expires_in_minutes: 5,
+  });
+  await s.service.verifyModel(owner, s.ws.id, c.id, {
+    id: g.id,
+    model_id: 'm2',
+  });
+  const switched = await s.store.setModelChoice(owner, s.ws.id, {
+    expected_version: 0,
+    connection_id: s.conn.id,
+    model_id: 'm2',
+  });
+  assert.equal(switched.choice.model_id, 'm2');
+  await s.worker().settle();
+  const result = await s.store.getWorkflow(owner, s.ws.id, started.workflow.id);
+  assert.equal(result.workflow.state, 'succeeded');
+  assert.equal(
+    (result.workflow.resource_setup as { model_id?: string }).model_id,
+    'm',
+  );
+  const models = await s.db.pool.query(
+    `select distinct model_id from plan_requests where run_id = $1 and purpose = 'task'`,
+    [s.runId],
+  );
+  assert.deepEqual(
+    models.rows.map((r) => r.model_id),
+    ['m'],
+  );
+});
+
 test('exploration on a plan needs only the locator qualification and spends nothing metered (ADR-0065)', async (t) => {
   const s = await setup(t);
   if (!s) return;

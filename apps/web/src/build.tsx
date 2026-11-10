@@ -45,7 +45,6 @@ import { recordLabel, runLabel } from './labels.js';
 import { RunbookExport } from './runbook.js';
 import {
   BUILD_ROLE_CLASSES,
-  MODEL_CHOICE_CHANGED,
   planBuilderDefault,
   taskWords,
   type Choice,
@@ -223,6 +222,7 @@ export function BuildView({
         model_id: m.model_id,
         label: `${c.label} · ${m.model_id}`,
         connection_label: c.label,
+        plan: c.kind,
         data_classes: c.settings.allowed_data_classes,
         build_timeout_ms: c.settings.caps.codex.build_timeout_ms,
         // ADR-0081: whether the plan roles can run on this model (both roles qualified).
@@ -875,6 +875,8 @@ type Data = {
     model_id: string;
     label: string;
     connection_label: string;
+    /** Which plan the connection uses, so the option names it (ChatGPT or Claude). */
+    plan: 'chatgpt_plan' | 'claude_code';
     /** What the connection's settings allow; a build of another class is refused. */
     data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
     /** The connection's Codex build timeout (ADR-0062: no 30-minute maximum). */
@@ -1281,14 +1283,14 @@ function StartBuild({
   useEffect(() => {
     if (!builder && planDefault) setBuilder(planDefault.key);
   }, [builder, planDefault?.key]);
-  // A switch in the top bar re-defaults a builder the person did not pick here.
+  // The current model arriving (it may load after this form, review L-1) or a switch in the
+  // top bar re-defaults a builder the person did not pick here.
+  const choiceKey = data.choice
+    ? `${data.choice.connection_id}:${data.choice.model_id}`
+    : '';
   useEffect(() => {
-    const changed = () => {
-      if (!picked) setBuilder('');
-    };
-    window.addEventListener(MODEL_CHOICE_CHANGED, changed);
-    return () => window.removeEventListener(MODEL_CHOICE_CHANGED, changed);
-  }, [picked]);
+    if (!picked) setBuilder('');
+  }, [choiceKey]);
   const connection =
     builder && builder !== 'broker'
       ? data.builders.find((b) => b.key === builder)
@@ -1515,7 +1517,7 @@ function StartBuild({
         {data.builders.map((b) => (
           <option key={b.key} value={b.key}>
             {b.kind === 'roles'
-              ? 'Builder and reviewer on ChatGPT plan'
+              ? `Builder and reviewer on ${b.plan === 'claude_code' ? 'Claude' : 'ChatGPT'} plan`
               : 'Codex on ChatGPT plan'}{' '}
             · {b.label}
           </option>

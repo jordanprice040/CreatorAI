@@ -1155,14 +1155,28 @@ export class ConnectionStore extends PortfolioStore {
         connection_id: connection.id,
         model_id: req.model_id,
       };
-      await c.query(
+      // Review L-2: a first switch has no row to lock, so the write itself checks the version:
+      // a concurrent first switch updates nothing and is refused as out of date.
+      const written = await c.query(
         `insert into model_choices (workspace_id, actor_id, connection_id, model_id, version)
          values ($1,$2,$3,$4,1)
          on conflict (workspace_id, actor_id) do update set
            connection_id = excluded.connection_id, model_id = excluded.model_id,
-           version = model_choices.version + 1, updated_at = clock_timestamp()`,
-        [w, ctx.actorId, next.connection_id, next.model_id],
+           version = model_choices.version + 1, updated_at = clock_timestamp()
+         where model_choices.version = $5`,
+        [
+          w,
+          ctx.actorId,
+          next.connection_id,
+          next.model_id,
+          req.expected_version,
+        ],
       );
+      if (written.rowCount !== 1)
+        throw fail(
+          'VERSION_CONFLICT',
+          'Your model choice changed since you opened it; reload and try again.',
+        );
       await this.append(c, ctx, {
         workspaceId: w,
         action: 'model_choice.changed',

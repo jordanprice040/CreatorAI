@@ -61,7 +61,12 @@ type Mod = {
     fallback: { connection: string; model: string },
   ): Route;
   planBuilderDefault<
-    B extends { kind: string; connection_id: string; model_id: string },
+    B extends {
+      kind: string;
+      connection_id: string;
+      model_id: string;
+      unqualified?: string[];
+    },
   >(
     builders: B[],
     choice: { connection_id: string; model_id: string } | null,
@@ -192,6 +197,23 @@ test("Build's builder starts from the current model's plan roles, else the first
       builder: undefined,
       fromChoice: false,
     },
+  );
+  // Review L-3: with no choice, a builder qualified for both roles comes before an
+  // unqualified one listed earlier; with none qualified, the first plan-role builder.
+  const weak = {
+    ...b('w', 'roles', 'a', 'weak'),
+    unqualified: ['patch_build'],
+  };
+  const strong = { ...b('s', 'roles', 'b', 'strong'), unqualified: [] };
+  assert.equal(m.planBuilderDefault([weak, strong], null).builder, strong);
+  assert.equal(m.planBuilderDefault([weak], null).builder, weak);
+  // The choice still wins even when it is the unqualified one (the form then says so).
+  assert.deepEqual(
+    m.planBuilderDefault([weak, strong], {
+      connection_id: 'a',
+      model_id: 'weak',
+    }),
+    { builder: weak, fromChoice: true },
   );
 });
 
@@ -332,12 +354,39 @@ test('model choice: owner only, verified models only, versioned and audited', as
   assert.equal((await store.modelChoice(editor, ws.id)).version, 0);
   assert.equal((await store.modelChoice(owner, ws.id)).model_id, M1);
 
+  // Review L-2: two first switches at once cannot both win. The row is removed here to get
+  // back to "never chosen"; both requests then race at expected_version 0.
+  await s.db.pool.query(
+    'delete from model_choices where workspace_id = $1 and actor_id = $2',
+    [ws.id, owner.actorId],
+  );
+  const raced = await Promise.allSettled(
+    [M1, M2].map((model_id) =>
+      store.setModelChoice(owner, ws.id, {
+        expected_version: 0,
+        connection_id: conn.id,
+        model_id,
+      }),
+    ),
+  );
+  assert.deepEqual(raced.map((r) => r.status).sort(), [
+    'fulfilled',
+    'rejected',
+  ]);
+  const lost = raced.find(
+    (r) => r.status === 'rejected',
+  ) as PromiseRejectedResult;
+  assert.ok(lost.reason instanceof ContractError);
+  assert.equal(lost.reason.code, 'VERSION_CONFLICT');
+  assert.equal((await store.modelChoice(owner, ws.id)).version, 1);
+
   const audit = await s.db.pool.query(
     `select action, payload from audit_events
-     where workspace_id = $1 and action = 'model_choice.changed'`,
+     where workspace_id = $1 and action = 'model_choice.changed' order by sequence`,
     [ws.id],
   );
-  assert.equal(audit.rows.length, 1);
+  // The first switch, then only the race's winner: the refused one left no audit row.
+  assert.equal(audit.rows.length, 2);
   assert.equal(audit.rows[0].payload.model_id, M1);
   assert.equal(audit.rows[0].payload.previous, null);
 });

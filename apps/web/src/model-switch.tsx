@@ -307,9 +307,9 @@ export function ModelSwitch({
       <div className="usage-panel" role="region" aria-label="Current model">
         <h2>Current model</h2>
         <p className="small">
-          Chat, Explore, Discover, Assess and Build start from this model. You
-          can still choose another on a form. Runs already started keep the
-          model they started with.
+          Chat, Explore, Discover, Assess, Build and Qualify start from this
+          model. You can still choose another on a form. Runs already started
+          keep the model they started with.
         </p>
         {error && <p className="error small">{error}</p>}
         {saved && (

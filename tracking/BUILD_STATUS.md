@@ -850,3 +850,15 @@ new plan. No application code, migration, ADR, configuration, grant or live call
   (19 pass, 3 skip) and the model-choice, storage and chat-answers suites (22 pass) were rerun and pass.
 - Not done: Build and Qualify not walked in a browser (fixture workspaces have no plan builders and fixture
   connections cannot be qualified; Build's default is unit-tested); no CLI command; not independently reviewed.
+
+### P21 review fixes (November 10, same PR #161; review `/mnt/project-files/reviews/P21_MODEL_SWITCH_REVIEW_2026-11-10.md`, 0 High/Medium, 6 Low)
+
+- L-1: Build re-defaults its builder whenever the current model arrives or changes and nothing was picked on the
+  form, so a choice that loads after Build's data is still used. L-2: the first-ever switch checks the version in the
+  write itself (`on conflict … where version = expected`), so of two concurrent first switches one is refused as
+  `VERSION_CONFLICT` and leaves no audit row. L-3: with no current model, Build defaults to a builder qualified for
+  both roles before an unqualified one. L-4: tests that a tester is refused on `/model-choice` (read and switch) and
+  that a discovery started before a switch finishes on its recorded model. L-5: `model_choice` activity rows open
+  Models. L-6: the picker text names Qualify. Also (on main before this PR): the Build option names the Claude plan for
+  a Claude Code connection instead of always "ChatGPT plan".
+- L-1 is fixed in the form's effect and was not re-walked in a browser (fixture workspaces list no plan builders).
