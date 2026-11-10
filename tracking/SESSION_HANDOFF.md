@@ -505,3 +505,21 @@ reads one claim's evidence inside a caller's transaction. After the re-review, s
 
 F9: Jordan confirmed "Judge the hybrid row" on November 6, as implemented. No live run or device step was needed or done. Main becomes schema 49; next free numbers
 are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
+
+## P10 routine approvals (November 10, branch `claude/project-thread-q4lf7q`, PR #153, ADR-0079, migration 50)
+
+What works and what was checked: see ADR-0079 and the BUILD_STATUS entry. New in code: `routine_policy` on
+`POST runs`; routes `routine-policies` (list), `routine-policies/{id}/revisions`, `routine-policies/{id}/revoke`;
+contracts in `packages/contracts/src/oversight.ts` (`RoutinePolicy*`, `routinePolicySummary`); the policy path in
+`evaluateAction` (`routine` input); store methods in `OversightStore` (`reviseRoutinePolicy`, `revokeRoutinePolicy`,
+`listRoutinePolicies`); web `apps/web/src/routine-policy.tsx`, used by the Discover form and Monitor › Approvals.
+
+Choices made in this session that the owner has not yet confirmed: a policy can be chosen only when a run is set
+up, and revocation is final for that run; the stop conditions are a rejection in the run and an unknown paid
+outcome; the end time is at most 90 days, as for grants.
+
+For P12: add an action type for claim admission and a routine stage for it before any unattended claim admission.
+Do not run prettier on `tracking/` or `context/`; the repository's format script does not cover them.
+
+Main becomes schema 50 when this merges. Next free numbers: migration 51 and ADR-0081 (P16, PR #152, took
+ADR-0080). Next eligible prompts: P12 (needs the search provider choice) and P13.

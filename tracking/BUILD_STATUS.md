@@ -494,3 +494,22 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   escaped record text, N-A–N-C): same totals, 850 tests, 817 pass, 28 skip, 5 known `pwsh` fails; walk passes.
 - Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
   unverified.
+
+## P10 routine approvals (November 10, branch `claude/project-thread-q4lf7q`, PR #153, ADR-0079, migration 50)
+
+- What works: an owner can choose "Approve routine steps for me" when a run is set up on the Discover form: stages
+  (research, model work, selection, specification freeze, build), data classes, a step limit, a money total, an end
+  time and two stop conditions, confirmed as one summary. Code admits covered steps through the policy's own grant
+  and records each as `covered_by_routine_policy`; a step outside the policy pauses and raises a decision that says
+  why. Monitor › Approvals lists each policy with its state, use, confirmed summary and admitted steps, and offers
+  Change (new summary confirmed, versioned as widened or narrowed) and Revoke (final for that run). A run set up
+  without a policy cannot gain one; autonomous, human-only and study runs are refused.
+- Checks run (cloud container, PostgreSQL 16, no CI: no Actions minutes): `pnpm typecheck` passes; `pnpm test:db`
+  879 tests, 845 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 12 new
+  PostgreSQL tests in `tests/src/routine-policy.test.ts`. Browser walk on a throwaway database
+  (`tracking/evidence/routine-approvals/`): the form refused to send until the summary was confirmed, a discovery's
+  model call was admitted by the policy with no decision raised, then the policy was changed and revoked on the
+  Approvals page. The Windows CI job has no local substitute and did not run.
+- Not done: no stage covers claim (evidence) admission, which has no action type yet (P12); the money total sums
+  stated maximum amounts, not actual spend; the Evidence, Assess and Explore pages register runs without the policy
+  fields; no CLI command; no live provider call; not independently reviewed.
