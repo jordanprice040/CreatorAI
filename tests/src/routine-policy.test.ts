@@ -10,7 +10,11 @@ import {
   type ErrorCode,
   type RoutinePolicyInput,
 } from '@creator/contracts';
-import { OversightStore, type CommandContext } from '@creator/db';
+import {
+  OversightStore,
+  buildApprovalBlockers,
+  type CommandContext,
+} from '@creator/db';
 import { freshDatabase } from './pg-harness.js';
 
 // ADR-0079 (P10): routine approvals. These run against PostgreSQL through the store, the
@@ -727,6 +731,15 @@ test('the chosen stop conditions pause the policy: a rejection until it is confi
     expected_version: 1,
   });
   assert.equal(again.version, 2);
+  // Review L-2: the same settings confirmed again are recorded as that, not as a narrowing.
+  const changes = await s.db.pool.query(
+    'select change from routine_policy_versions where policy_id = $1 order by version',
+    [v.policy.id],
+  );
+  assert.deepEqual(
+    changes.rows.map((r) => r.change),
+    ['created', 'reconfirmed'],
+  );
   assert.equal((await s.admit(run.run_id, s.model())).verdict, 'allow');
 
   // A paid call whose outcome is unknown pauses the policy until it is reconciled.
@@ -763,4 +776,170 @@ test('the chosen stop conditions pause the policy: a rejection until it is confi
     [reservation],
   );
   assert.equal((await s.admit(run.run_id, s.model())).verdict, 'allow');
+});
+
+test('a study run cannot gain routine approvals mid run, even after an editor clears the config hash on its record', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // Review M-1. The run is registered as a study run, without a policy.
+  const run = await s.run('human_in_loop', null, 'a'.repeat(64));
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.setRoutinePolicy(owner, s.ws.id, run.run_id, policy()),
+  );
+  // An agent with editor access revises the run record so it no longer carries the hash.
+  const record = (await s.store.getEntity(agent, s.ws.id, run.run_id)).entity;
+  const { config_hash: _hash, ...body } = record.body as Record<
+    string,
+    unknown
+  >;
+  const revised = await s.store.reviseEntity(agent, s.ws.id, run.run_id, {
+    expected_version: record.version,
+    title: record.title,
+    body: { ...body, config_hash: null },
+    reason: 'Cleared by an agent.',
+    corrects_version: null,
+  });
+  assert.equal((revised.body as Record<string, unknown>).config_hash, null);
+  // The registered version still says study run, so the owner's turn-on is refused.
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.setRoutinePolicy(owner, s.ws.id, run.run_id, policy()),
+  );
+  assert.deepEqual(await s.store.listRoutinePolicies(owner, s.ws.id), []);
+
+  // A run that has a study attempt is a study run whatever its record says.
+  const plain = await s.run('human_in_loop', null);
+  const c = await s.db.pool.connect();
+  try {
+    // The attempt's study row is not needed for this check, so its reference is not enforced.
+    await c.query(`set session_replication_role = replica`);
+    await c.query(
+      `insert into study_attempts (id, study_id, workspace_id, run_id, assignment, context,
+         context_hash, ordinal) values ($1, $2, $3, $4, '{}', '{}', $5, 1)`,
+      [randomUUID(), randomUUID(), s.ws.id, plain.run_id, 'c'.repeat(64)],
+    );
+    await c.query(`set session_replication_role = origin`);
+  } finally {
+    c.release();
+  }
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.setRoutinePolicy(owner, s.ws.id, plain.run_id, policy()),
+  );
+});
+
+test('a step the policy names but does not cover says why: end time passed, other data, no money total', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // Review L-3.
+  const run = await s.run(
+    'supervised',
+    policy({ expires_at: new Date(Date.now() + 1500).toISOString() }),
+  );
+  const other = await s.admit(run.run_id, s.model({ data_class: 'public' }));
+  assert.equal(other.verdict, 'request_human');
+  assert.match(
+    other.explanation,
+    /Routine approvals did not cover it: It does not cover public data\./,
+  );
+  const paid = await s.admit(run.run_id, s.model({ amount_nano_usd: '5' }));
+  assert.match(paid.explanation, /the policy has no money total/);
+  // A kind of step the policy does not name gets no routine note.
+  const unnamed = await s.admit(
+    run.run_id,
+    s.action({ action_type: 'source.fetch', target: null }),
+  );
+  assert.doesNotMatch(unnamed.explanation, /Routine approvals/);
+  await new Promise((r) => setTimeout(r, 1600));
+  const late = await s.admit(run.run_id, s.action());
+  assert.equal(late.verdict, 'request_human');
+  assert.match(
+    late.explanation,
+    /Routine approvals did not cover it: Its end time has passed\./,
+  );
+  const d = await s.store.getDecision(owner, s.ws.id, late.decision_id!);
+  assert.match(JSON.stringify(d), /Its end time has passed/);
+  assert.equal((await s.view(run.run_id)).state, 'expired');
+});
+
+test('a build the policy admitted sends nothing more while a stop condition holds', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  // Review L-1. The build step is admitted by the policy, and its approval record names the
+  // policy's grant, as a plan-role build's does.
+  const run = await s.run(
+    'supervised',
+    policy({ stop_on: ['person_rejects'], max_actions: 1 }),
+  );
+  const step = await reviewed(s, 'build', 'none_identified');
+  assert.equal((await s.admit(run.run_id, step)).verdict, 'allow');
+  const v = await s.view(run.run_id);
+  const admission = await s.db.pool.query(
+    `select id from action_admissions where grant_id = $1 and verdict = 'allow'`,
+    [v.policy.grant_id],
+  );
+  const buildId = randomUUID();
+  const connection = randomUUID();
+  await s.db.pool.query(
+    `insert into build_approvals (id, workspace_id, run_id, product_id, task_id, spec_id,
+       spec_version, spec_hash, plan_hash, route, connection_id, model_id, data_class,
+       request_limit, max_repairs, humility_review_id, humility_review_version, admission_id,
+       grant_id, grant_version, expires_at, created_by)
+     values ($1,$2,$3,$4,$5,$6,1,$7,$8,'plan_roles',$9,'test-model','synthetic',4,1,$10,$11,
+       $12,$13,$14,$15,$16)`,
+    [
+      buildId,
+      s.ws.id,
+      run.run_id,
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+      'd'.repeat(64),
+      'e'.repeat(64),
+      connection,
+      step.humility_review!.id,
+      step.humility_review!.version,
+      admission.rows[0].id,
+      v.policy.grant_id,
+      v.policy.grant_version,
+      until,
+      owner.actorId,
+    ],
+  );
+  const blockers = async () => {
+    const c = await s.db.pool.connect();
+    try {
+      return await buildApprovalBlockers(
+        c,
+        s.ws.id,
+        owner.actorId,
+        {
+          build_id: buildId,
+          run_id: run.run_id,
+          model_id: 'test-model',
+          data_class: 'synthetic',
+        },
+        connection,
+        Date.now(),
+      );
+    } finally {
+      c.release();
+    }
+  };
+  // The step limit (1) is used up by the build itself; that does not stop the build.
+  assert.equal((await s.view(run.run_id)).state, 'paused');
+  assert.deepEqual(await blockers(), []);
+  // Another step asks, and the owner rejects it: the policy stops, and so does the build.
+  const asked = await s.admit(run.run_id, s.action());
+  await s.answer(
+    await s.store.getDecision(owner, s.ws.id, asked.decision_id!),
+    'reject',
+  );
+  const stopped = await blockers();
+  assert.equal(stopped.length, 1);
+  assert.match(
+    stopped[0]!,
+    /routine approvals that admitted this build have stopped.*rejected a decision/,
+  );
 });

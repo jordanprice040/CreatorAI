@@ -1,0 +1,25 @@
+== walk-discover-form.cjs
+role chips 19
+ISSUES 
+ERR 
+URL http://127.0.0.1:5183/#/monitor/runs?ws=d78cb12a-d16b-4929-8d5a-f939967022fb&id=b417894a-1334-4c8f-8aaf-50d5294af945
+CACreator Agent→#/monitor/overview?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Monitor→#/monitor/runs?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Overview→#/monitor/overview?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Approvals→#/monitor/approvals?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Runs→#/monitor/runs?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Activity→#/monitor/activity?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Budgets→#/monitor/budgets?ws=d78cb12a-d16b-4929-8d5a-f939967022fb | Workers→#/monitor/workers?ws=d78cb12a-d16b-4929-8d5a-f939967022fb
+== walk-approvals-page.cjs
+CARD v1 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Admitting covered steps Model work, Research · 1 of 40 steps used · $0.385825 of $20 in stated amounts admitted · ends Nov 11, 2026, 8:23 AMSummary you confirmed on Nov 10, 2026, 8:22 AMFor this run only, the studio admits the steps below without asking you each time. Its own fixed rules check every step against this policy; no model
+WAITING 0
+STANDING v1 model · generate, model · summarize · run 280edaee · until Nov 11, 2026, 8:20 AM Revokev1 source · fetch · run 280edaee · until Nov 11, 2026, 8:20 AM Revokev1 model · generate, model · summarize · 
+SAVE disabled before confirm true
+AFTER CHANGE v2 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Admitting covered steps Model work, Research · 1 of 60 steps used · $0.385825 of $20 in stated amounts admitted · ends Nov 11, 2026, 8:
+AFTER KEEP v2 Shift reminders for volunteers · Nov 10, 8:22 AM · 331281
+AFTER REVOKE v3 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Revoked: Revoked from the Approvals page Model work, Research · 1 of 60 steps used · $0.385825 of $20 in stated amounts admitted · ends Nov 11, 2026, 8:23 AMSummary you confirmed on Nov 10, 2026,
+ERR 
+== walk-mid-run.cjs
+RUN OPTIONS 5
+DATA NOTE The studio cannot tell from this page which kind of data this run uses. A step is covered only when its kind of data is ticked below; a step on any other kind still asks you.
+disabled before confirm true
+CARD v1 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Admitting covered steps Model work, Research · 0 of 40 steps used · ends Nov 11, 2026, 8:24 AMS
+RUN OPTIONS AFTER 4
+AFTER REVOKE v2 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Revoked: Revoked from the Approvals page Model work, Re | options 5
+CARDS 3 v1 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Admit || v2 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Revok || v3 Shift reminders for volunteers · Nov 10, 8:22 AM · 3312815c · Revok
+ERR 
+PHONE overflow 0

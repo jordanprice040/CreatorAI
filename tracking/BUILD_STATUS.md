@@ -597,3 +597,20 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Not done: no stage covers claim (evidence) admission, which has no action type yet (P12); the money total sums
   stated maximum amounts, not actual spend; the Evidence, Assess and Explore pages register runs without the policy
   fields; no CLI command; no live provider call; not independently reviewed.
+
+### P10 review fixes (November 10, same PR #153; review `reviews/PR153_P10_ROUTINE_APPROVALS_REVIEW_2026-11-10.md`, 1 Medium, 6 Low)
+
+- M-1: mid-run turn-on decides "study run" from a `study_attempts` row or the registered run version's `config_hash`
+  (plus the current record), so an editor clearing the hash on the run record no longer opens it. L-1: a build the
+  policy admitted stops at its next plan request while a stop condition holds (`routineStopReason`, used by
+  `buildApprovalBlockers`); the step limit does not stop an admitted build. L-2: confirming the same settings is
+  recorded as `reconfirmed` (migration 50 edited in place again, still unmerged). L-3: a step the policy names but
+  does not cover says why (end time passed, data class, money total). L-4: the mid-run form starts from the kinds
+  of data the page has seen for the run and says other kinds still ask. L-5: Revoke asks for confirmation.
+- Not done (L-6, added so P10 is not read as complete): domain scope and output scope are not part of a policy
+  (website scope still comes from the evidence-site settings); evidence admission as before (P12).
+- Evidence: `tracking/evidence/routine-approvals/walk-output-2026-11-10.txt` and `screens/` are the captured output
+  and screenshots of the three walk scripts, run after these fixes on a throwaway database (`WALK_WS` names the
+  seeded discovery workspace). L-1 is tested at `buildApprovalBlockers` with an approval record inserted by the test;
+  no plan-role build was run end to end with a policy.
+- Checks: FULL_SUITE_LINE

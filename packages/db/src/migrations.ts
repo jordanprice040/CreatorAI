@@ -2952,7 +2952,7 @@ create table routine_policy_versions (
  policy_id uuid not null references routine_policies(id),
  version integer not null,
  snapshot jsonb not null,
- change text not null check (change in ('created', 'widened', 'narrowed', 'revoked')),
+ change text not null check (change in ('created', 'widened', 'narrowed', 'reconfirmed', 'revoked')),
  actor_id uuid not null references actors(id),
  event_id uuid not null references audit_events(id),
  created_at timestamptz not null default clock_timestamp(),

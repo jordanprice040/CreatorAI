@@ -3,7 +3,8 @@ const { chromium } = require('playwright');
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
   p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
-  const ws = 'b24dc1db-9f63-492b-8f01-30d049b633ce';
+  const ws = process.env.WALK_WS; // the walk workspace on the throwaway database
+  const shot = (name) => require('node:path').join(__dirname, 'screens', name);
   await p.goto('http://127.0.0.1:5183/#login=walk-login-code-0123456789abcdefghijkl');
   await p.waitForTimeout(2000);
   await p.goto(`http://127.0.0.1:5183/#/projects/discover?ws=${ws}`);
@@ -25,7 +26,7 @@ const { chromium } = require('playwright');
   await p.fill('#b-routine-usd', '20');
   await p.locator('.claims-pick input[type=checkbox]').nth(1).check();
   await p.check('#b-routine-confirm');
-  await p.locator('.routine-policy').screenshot({ path: 'routine-confirmed.png' });
+  await p.locator('.routine-policy').screenshot({ path: shot('routine-confirmed.png') });
   await p.click('button:has-text("Save brief and start discovery")');
   await p.waitForTimeout(6000);
   console.log('ISSUES', await p.evaluate(() => [...document.querySelectorAll('#sub-issues li')].map(l=>l.textContent).join(' || ')));

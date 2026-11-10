@@ -766,6 +766,21 @@ export function Oversight({
             runName={policyRun}
             session={session}
             workspace={workspace}
+            runDataClasses={(runId) => [
+              ...new Set([
+                ...decisions
+                  .filter((d) => d.run_id === runId && d.binding)
+                  .map((d) => d.binding!.data_class),
+                ...grants
+                  .filter(
+                    (g) =>
+                      g.run_id === runId &&
+                      g.status === 'active' &&
+                      !policies.some((v) => v.policy.grant_id === g.id),
+                  )
+                  .flatMap((g) => g.data_classes),
+              ]),
+            ]}
             eligibleRuns={runs
               .filter(
                 (r) =>

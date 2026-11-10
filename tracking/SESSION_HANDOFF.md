@@ -609,3 +609,9 @@ Do not run prettier on `tracking/` or `context/`; the repository's format script
 
 Main becomes schema 50 when this merges. Next free numbers: migration 51 and ADR-0081 (P16, PR #152, took
 ADR-0080). Next eligible prompts: P12 (needs the search provider choice) and P13.
+
+P10 review fixes (November 10, same PR): see the BUILD_STATUS entry "P10 review fixes". New code: `packages/db/src/
+routine-stops.ts` (`routineStopReason`), `routineMissNote` in `packages/domain/src/oversight.ts`, version change
+`reconfirmed`, `runDataClasses` on `RoutinePolicies`. Migration 50 was edited in place a second time (the `change`
+check gained `reconfirmed`); recreate any throwaway database that ran an earlier text. Not built: domain and output
+scope in a policy; claim admission (P12).

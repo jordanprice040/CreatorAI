@@ -148,6 +148,29 @@ export function grantCovers(g: Grant, b: Binding, ctx: GrantContext): boolean {
   return true;
 }
 
+/**
+ * ADR-0079: why a routine policy that names this kind of step does not cover this one, for
+ * the person who is asked instead. Null when the policy does not name the step at all.
+ */
+export function routineMissNote(
+  g: Grant,
+  b: Binding,
+  now: number,
+): string | null {
+  if (g.status !== 'active' || g.run_id !== b.run_id) return null;
+  if (!g.action_types.includes(b.action_type)) return null;
+  if (Date.parse(g.expires_at) <= now) return 'Its end time has passed.';
+  if (!g.data_classes.includes(b.data_class))
+    return `It does not cover ${b.data_class.replaceAll('_', ' ')} data.`;
+  if (b.amount_nano_usd !== null) {
+    if (g.max_amount_nano_usd === null)
+      return 'This step states an amount and the policy has no money total.';
+    if (BigInt(b.amount_nano_usd) > BigInt(g.max_amount_nano_usd))
+      return "This step's amount is more than the policy's money total.";
+  }
+  return null;
+}
+
 export interface HumilityInput {
   id: string;
   version: number;
@@ -341,7 +364,12 @@ export function evaluateAction(input: AdmissionInput): AdmissionVerdict {
       covering = routine.grant;
       viaRoutine = true;
     } else routineNote = routine.blocked;
-  }
+  } else if (
+    !covering &&
+    routine &&
+    (input.mode === 'supervised' || input.mode === 'human_in_loop')
+  )
+    routineNote = routineMissNote(routine.grant, b, input.now);
   if (!covering) reasons.push(gated ? 'stage_gate' : 'outside_grant');
   const provisional: string[] = [];
   for (const a of input.assumptions) {

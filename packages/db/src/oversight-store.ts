@@ -54,6 +54,7 @@ import {
   standingDraft,
   type HumilityVerdict,
 } from '@creator/domain';
+import { routineStopReason } from './routine-stops.js';
 import {
   Store,
   fail,
@@ -816,13 +817,24 @@ export class OversightStore extends Store {
         const run = await this.lockRun(c, ws, runId);
         if (run.state !== 'active')
           throw fail('INVALID_TRANSITION', 'The run was cancelled.');
-        const entity = await c.query(
-          `select body from entities where workspace_id = $1 and id = $2 and kind = 'run'`,
+        // Review M-1: the run record can be revised by any editor, so "is this a study run"
+        // is read from records nobody can change: a study attempt for the run, or the
+        // config hash of the run version that was registered. The current record counts too.
+        const study = await c.query(
+          `select (select v.body->>'config_hash' from run_controls r
+                     join entity_versions v
+                       on v.entity_id = r.run_id and v.version = r.run_version
+                    where r.workspace_id = $1 and r.run_id = $2) as registered,
+                  (select body->>'config_hash' from entities
+                    where workspace_id = $1 and id = $2 and kind = 'run') as current,
+                  exists (select 1 from study_attempts
+                           where workspace_id = $1 and run_id = $2) as attempt`,
           [ws, runId],
         );
+        const sr = study.rows[0] as Row;
         this.checkRoutineRun(
           run.autonomy_mode,
-          (entity.rows[0]?.body as Row | undefined)?.config_hash ?? null,
+          sr.attempt ? 'study_attempt' : (sr.registered ?? sr.current ?? null),
         );
         const active = await c.query(
           `select 1 from routine_policies where workspace_id = $1 and run_id = $2
@@ -886,7 +898,7 @@ export class OversightStore extends Store {
     c: PoolClient,
     ctx: CommandContext,
     policy: RoutinePolicy,
-    change: 'created' | 'widened' | 'narrowed' | 'revoked',
+    change: 'created' | 'widened' | 'narrowed' | 'reconfirmed' | 'revoked',
   ) {
     const eventId = await this.append(c, ctx, {
       workspaceId: policy.workspace_id,
@@ -988,26 +1000,7 @@ export class OversightStore extends Store {
       used.nano + BigInt(amount) > BigInt(p.max_total_nano_usd)
     )
       return `This step would take its admitted amounts past the policy's total of ${p.max_total_nano_usd} nano-USD.`;
-    if (p.stop_on.includes('person_rejects')) {
-      const { rowCount } = await c.query(
-        `select 1 from decision_requests where workspace_id = $1 and run_id = $2
-           and status = 'answered' and response->>'choice' = 'reject'
-           and (response->>'responded_at')::timestamptz > $3 limit 1`,
-        [p.workspace_id, p.run_id, p.confirmed_at],
-      );
-      if (rowCount)
-        return 'A person rejected a decision in this run after the policy was confirmed, so it stopped. Confirm the policy again to continue.';
-    }
-    if (p.stop_on.includes('unknown_outcome')) {
-      const { rowCount } = await c.query(
-        `select 1 from budget_reservations where workspace_id = $1 and run_id = $2
-           and status = 'unknown' limit 1`,
-        [p.workspace_id, p.run_id],
-      );
-      if (rowCount)
-        return 'A paid call in this run has an unknown outcome that is not reconciled yet.';
-    }
-    return null;
+    return routineStopReason(c, p);
   }
   /**
    * The run's policy for admission: its grant (left out of ordinary grant matching) and why
@@ -1128,13 +1121,17 @@ export class OversightStore extends Store {
         ],
       );
       const revised = toRoutinePolicy(rows[0] as Row);
+      const prev = policyInput(policy);
       await this.recordRoutineVersion(
         c,
         ctx,
         revised,
-        routinePolicyWidens(policyInput(policy), input)
+        routinePolicyWidens(prev, input)
           ? 'widened'
-          : 'narrowed',
+          : canonicalHash({ ...prev, rationale: '' }) ===
+              canonicalHash({ ...input, rationale: '' })
+            ? 'reconfirmed'
+            : 'narrowed',
       );
       return revised;
     });

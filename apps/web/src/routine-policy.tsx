@@ -374,6 +374,7 @@ function PolicyCard({
   onDone: () => void;
 }) {
   const p = v.policy;
+  const [revoking, setRevoking] = useState(false);
   const [draft, setDraft] = useState<RoutineDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -451,16 +452,43 @@ function PolicyCard({
           <button
             className="text"
             disabled={busy}
-            onClick={() =>
-              void send('revoke', {
-                expected_version: p.version,
-                reason: 'Revoked from the Approvals page',
-              })
-            }
+            onClick={() => setRevoking(true)}
           >
-            Revoke
+            Revoke…
           </button>
         </span>
+      )}
+      {p.status === 'active' && !draft && revoking && (
+        <div className="routine-edit" role="group" aria-label="Confirm revoke">
+          <p className="small">
+            Revoke routine approvals for this run? The run asks you again from
+            its next step, and a build admitted under this policy stops at its
+            next request. If you turn routine approvals on again later, that is
+            a new policy whose step and money counts start at zero.
+          </p>
+          <div className="actions">
+            <button
+              className="secondary strong"
+              disabled={busy}
+              onClick={() => {
+                setRevoking(false);
+                void send('revoke', {
+                  expected_version: p.version,
+                  reason: 'Revoked from the Approvals page',
+                });
+              }}
+            >
+              Revoke routine approvals
+            </button>{' '}
+            <button
+              className="text"
+              disabled={busy}
+              onClick={() => setRevoking(false)}
+            >
+              Keep them
+            </button>
+          </div>
+        </div>
       )}
       {p.status === 'revoked' && (
         <p className="small">
@@ -520,6 +548,7 @@ export function RoutinePolicies({
   session,
   workspace,
   eligibleRuns,
+  runDataClasses,
   onDone,
 }: {
   policies: RoutinePolicyView[];
@@ -528,6 +557,8 @@ export function RoutinePolicies({
   workspace: string;
   /** Active supervised or human-in-the-loop runs with no active policy. */
   eligibleRuns: string[];
+  /** Kinds of data seen in a run's waiting decisions and its own grants (may be empty). */
+  runDataClasses: (runId: string) => DataClass[];
   onDone: () => void;
 }) {
   const [runId, setRunId] = useState('');
@@ -536,6 +567,10 @@ export function RoutinePolicies({
   const [error, setError] = useState('');
   const chosen = eligibleRuns.includes(runId) ? runId : '';
   const request = draft && chosen ? routineRequest(draft) : null;
+  const seenData = chosen ? runDataClasses(chosen) : [];
+  const missing = draft
+    ? seenData.filter((d) => !draft.dataClasses.includes(d))
+    : [];
   async function turnOn() {
     if (!request) return;
     setBusy(true);
@@ -568,9 +603,15 @@ export function RoutinePolicies({
             value={chosen}
             onChange={(e) => {
               setRunId(e.target.value);
+              // Review L-4: start from the kinds of data this run is known to use.
+              const seen = e.target.value ? runDataClasses(e.target.value) : [];
               setDraft(
                 e.target.value
-                  ? { ...routineStart('synthetic'), enabled: true }
+                  ? {
+                      ...routineStart(seen[0] ?? 'synthetic'),
+                      dataClasses: seen.length ? seen : ['synthetic'],
+                      enabled: true,
+                    }
                   : null,
               );
             }}
@@ -587,6 +628,15 @@ export function RoutinePolicies({
               <p className="small">
                 The run keeps its oversight setting. From now on it stops asking
                 you about the steps you choose here, within these limits.
+              </p>
+              <p className="small" id="rp-data-note">
+                {seenData.length
+                  ? `This run's waiting decisions and grants use ${seenData.map((d) => dataClassName(d)).join(' and ')}. `
+                  : 'The studio cannot tell from this page which kind of data this run uses. '}
+                A step is covered only when its kind of data is ticked below; a
+                step on any other kind still asks you.
+                {missing.length > 0 &&
+                  ` Not ticked now: ${missing.map((d) => dataClassName(d)).join(' and ')}.`}
               </p>
               <RoutineFields
                 draft={draft}
