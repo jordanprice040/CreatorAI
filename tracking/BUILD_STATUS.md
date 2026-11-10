@@ -494,3 +494,28 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   escaped record text, N-A–N-C): same totals, 850 tests, 817 pass, 28 skip, 5 known `pwsh` fails; walk passes.
 - Not done: model-assisted drafting, richer export formats; real-world execution and efficacy of any proposal stay
   unverified.
+
+## P16 runbook export (November 10, branch `claude/project-thread-tq4rcm`, PR #152, ADR-0080, no migration)
+
+- **What works.** A spec (Projects › Build) or a non-code proposal (Projects › Proposals) can be exported as a
+  standalone runbook: a ZIP with a README, the shared project contract, requirements and visible acceptance cases,
+  the task plan in dependency order, the proposed stack and limits, decisions (decided / proposed / assumptions /
+  still open), evidence, recovery steps, one prompt per step with prerequisites, scope, expected artifacts and a
+  completion gate, a standard-library Python runner for command-line cases and a `runbook/1` manifest with a
+  SHA-256 per file. Download or "Save to Files". Guide: [docs/RUNBOOK_EXPORT.md](../docs/RUNBOOK_EXPORT.md).
+- **Rules.** Computed on read by code from one saved version (no model, nothing stored, nothing granted); held-out
+  cases are dropped and only counted; well-known credential formats and personal folder paths are replaced and
+  counted; the same version gives the same bytes; an unfrozen spec, replaced selection, changed option, missing
+  evidence or a spec without executable cases is stated in the bundle; an invalid task plan is refused; every export
+  passes `validateRunbook` or fails.
+- **Checks (cloud container, local PostgreSQL 16).** `tests/src/runbook-domain.test.ts` (10 pure tests, including the
+  shipped runner executed with Python against a reference program and a wrong one) and `tests/src/runbook.test.ts`
+  (2 PostgreSQL/API tests). Browser walk `tracking/evidence/runbook-export/walk.mjs` in fixture mode: both panels,
+  both downloads validated from their bytes, save to Files twice keeps one copy, no horizontal scroll at phone
+  width. `pnpm typecheck` and `pnpm format:check` pass. Full database suite: see the PR description for the totals of
+  the final run; the only failures are the 5 known no-`pwsh` wrapper tests, plus one `test:dev-safety` test that
+  needs `pg_ctl.exe` (Windows only; it fails the same way on main in this container). CI did not run (no Actions
+  minutes), so the Windows job is unverified.
+- **Not done.** The plan's independent-consumption gate: a separately scoped implementer building the synthetic
+  project from only `tracking/evidence/runbook-export/synthetic-bundle/` in a clean workspace. Not run here, so
+  "no missing context" is unverified. Also no browser-case runner, no CLI command, Markdown and ZIP only.

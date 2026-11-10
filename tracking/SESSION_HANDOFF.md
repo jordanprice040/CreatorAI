@@ -505,3 +505,22 @@ reads one claim's evidence inside a caller's transaction. After the re-review, s
 
 F9: Jordan confirmed "Judge the hybrid row" on November 6, as implemented. No live run or device step was needed or done. Main becomes schema 49; next free numbers
 are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
+
+## P16 runbook export (November 10, branch `claude/project-thread-tq4rcm`, PR #152, ADR-0080, no migration)
+
+What works: see ADR-0080, [docs/RUNBOOK_EXPORT.md](../docs/RUNBOOK_EXPORT.md) and the BUILD_STATUS entry. New routes:
+`specs/{id}/runbook` and `proposals/{id}/runbook` (`GET` manifest, `?format=zip` archive, `?version=`; `POST` saves to
+Files). New files: `packages/contracts/src/runbook.ts`, `packages/domain/src/runbook.ts` (builder, redaction,
+`validateRunbook`, `writeZip`/`readZip`), `packages/domain/src/runbook-fixture.ts` (synthetic project),
+`packages/db/src/runbook-store.ts`, `apps/web/src/runbook.tsx`, `scripts/p16-runbook-example.mjs`. `RunbookStore`
+sits between `ProposalStore` and `StudyStore`; `ProposalStore.problemClaims` is now protected and `toFreeze` and
+`contentOf` are exported from the selection store. The test harness builds a `RunbookStore`.
+
+Changing any bundle wording changes the committed example: run `node scripts/p16-runbook-example.mjs write` after
+`pnpm build:code`, or the pin test fails.
+
+Open: the independent-consumption gate (give a fresh session only
+`tracking/evidence/runbook-export/synthetic-bundle/`, have it follow the prompts in a clean workspace, then the owner
+side runs the two held-out cases from `RUNBOOK_FIXTURE_SPEC`). No live run or device step was needed or done. Schema
+stays 49; this change used ADR-0080 and no migration number. Next eligible prompts: P10 (in progress in its own
+thread), then P12 (needs the search provider choice), P13, P17.

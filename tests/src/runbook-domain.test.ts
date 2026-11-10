@@ -200,7 +200,9 @@ test('record text cannot forge links, headings or prompt structure', () => {
     .map((f) =>
       f.content
         .toString('utf8')
-        .replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1\s*$/gm, ''),
+        .replace(/^(`{3,})[^\n]*\n[\s\S]*?^\1\s*$/gm, '')
+        // Code spans show text as typed too.
+        .replace(/(?<!`)(`+)(?!`)[^\n]*?(?<!`)\1(?!`)/g, ''),
     )
     .join('\n');
   assert.doesNotMatch(
@@ -499,7 +501,11 @@ test('a browser spec proposes the static web stack, writes the steps out and shi
           page: '/',
           steps: [
             // A selector cannot be made into a link or a heading in the bundle.
-            { action: 'fill', selector: '#text`[x](https://evil.example/)', value: 'one two' },
+            {
+              action: 'fill',
+              selector: '#text`[x](https://evil.example/)',
+              value: 'one two',
+            },
             { action: 'click', selector: 'button[type="submit"]' },
             { action: 'expect_text', selector: '#count', text: '2' },
           ],
@@ -508,7 +514,11 @@ test('a browser spec proposes the static web stack, writes the steps out and shi
         {
           page: '/',
           steps: [
-            { action: 'fill', selector: '#text', value: 'held-out-browser-zq8' },
+            {
+              action: 'fill',
+              selector: '#text',
+              value: 'held-out-browser-zq8',
+            },
             { action: 'expect_text', selector: '#count', text: '1' },
           ],
           held_out: true,
@@ -539,6 +549,12 @@ test('a browser spec proposes the static web stack, writes the steps out and shi
     /Browser case 1: open `\/`, then do these steps in order \(selectors are CSS\):\n\n```text\n1\. clear #text`\[x\]\(https:\/\/evil\.example\/\) and type "one two"\n2\. click button\[type="submit"\]\n3\. expect #count to show exactly "2"\n```/,
   );
   assert.match(textOf(files, 'STACK.md'), /Proposed stack: Static web page/);
-  assert.match(textOf(files, 'README.md'), /no command-line cases, so there is no script to run/);
-  assert.match(textOf(files, 'prompts/01-setup.md'), /Add site\/index\.html with only a title/);
+  assert.match(
+    textOf(files, 'README.md'),
+    /no command-line cases, so there is no script to run/,
+  );
+  assert.match(
+    textOf(files, 'prompts/01-setup.md'),
+    /Add site\/index\.html with only a title/,
+  );
 });
