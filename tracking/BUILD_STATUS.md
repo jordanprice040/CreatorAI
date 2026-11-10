@@ -862,3 +862,5 @@ new plan. No application code, migration, ADR, configuration, grant or live call
   Models. L-6: the picker text names Qualify. Also (on main before this PR): the Build option names the Claude plan for
   a Claude Code connection instead of always "ChatGPT plan".
 - L-1 is fixed in the form's effect and was not re-walked in a browser (fixture workspaces list no plan builders).
+- Checks (cloud container, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 912 tests, 878 pass, 29 skip,
+  5 fail (the known no-`pwsh` wrapper tests); dev-safety 19 pass, 3 skip.
