@@ -628,3 +628,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - L-3: times must name a real calendar date and clock time (no month 13, February 30 or hour 25), both for
   `finished_at` and for the window, so a running pilot with an impossible end date is refused.
 - Nit: `finished_by` must be non-blank text.
+- Final review Low (at 1b79084): the "not the pilot config itself" check is now case-insensitive, so
+  `Config/Owner-Pilot.json` (the same file on Windows) is refused; test added. Checks (cloud container, PostgreSQL 16):
+  typecheck and format check pass; `pnpm test:db` 867 tests, 833 pass, 29 skipped, 5 fail (the known no-`pwsh`
+  wrapper tests), the same counts as main.

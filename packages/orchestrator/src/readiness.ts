@@ -301,7 +301,8 @@ export function checkPilot(
         r.push(
           `Pilot evidence path "${String(p)}" must be a repository-relative file path.`,
         );
-      else if (path === PILOT_CONFIG)
+      // Case-insensitive: Windows and macOS file systems treat these spellings as one file.
+      else if (path.toLowerCase() === PILOT_CONFIG.toLowerCase())
         r.push(`Pilot evidence cannot be the pilot config itself (${p}).`);
       else if (!isFile(path))
         r.push(`Pilot evidence "${p}" is not a file in the repository.`);

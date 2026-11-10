@@ -342,6 +342,9 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
     'config//owner-pilot.json',
     'config/./owner-pilot.json',
     'docs/../config/owner-pilot.json',
+    // Case-insensitive file systems (Windows, macOS) open this as the same file.
+    'Config/Owner-Pilot.json',
+    'CONFIG/OWNER-PILOT.JSON',
   ])
     assert.match(
       completedRefusals({ evidence: [same] }),
