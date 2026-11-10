@@ -1,0 +1,299 @@
+[
+  {
+    "id": "q1-broad",
+    "query": "Recurring problems that small community organisations report with volunteer scheduling",
+    "elapsed_ms": 63066,
+    "exit_code": 0,
+    "model": "claude-opus-5[1m]",
+    "tool_calls": 3,
+    "search_queries": [
+      "common volunteer scheduling problems small nonprofits challenges",
+      "volunteer coordinator pain points no-shows last-minute cancellations scheduling community organisations",
+      "small grassroots community groups volunteer rota scheduling difficulties survey report rely on same few people"
+    ],
+    "web_search_requests_reported": 0,
+    "usage": {
+      "input": 6,
+      "output": 2077,
+      "cache_read": 11911,
+      "cache_create": 10611
+    },
+    "total_cost_usd_reported": 0.5709705,
+    "num_turns": 4,
+    "terminal_reason": "completed",
+    "distinct_result_urls": 32,
+    "candidates": [
+      {
+        "url": "https://www.crs.studio/post/challenges-in-managing-volunteers-how-to-overcome-them",
+        "title": "Challenges in Managing Volunteers & How to Overcome Them",
+        "why": "Directly enumerates recurring volunteer management problems including last-minute cancellations, inconsistent attendance and communication breakdowns.",
+        "in_search_results": true,
+        "host": "crs.studio"
+      },
+      {
+        "url": "https://volunteermatrix.com/guides/volunteer-scheduling-best-practices",
+        "title": "Volunteer Scheduling Best Practices for Nonprofits",
+        "why": "Names year-after-year scheduling failures: no-shows, vague role names, badly designed shift lengths, no single source of truth.",
+        "in_search_results": true,
+        "host": "volunteermatrix.com"
+      },
+      {
+        "url": "https://volunteerhub.com/blog/how-to-create-a-fair-volunteer-attendance-and-cancellation-policy",
+        "title": "How to Create a Fair Volunteer Attendance and Cancellation Policy",
+        "why": "Distinguishes no-shows from cancellations and discusses overbooking and attendance tracking as recurring coordinator issues.",
+        "in_search_results": true,
+        "host": "volunteerhub.com"
+      },
+      {
+        "url": "https://www.nonprofitlearninglab.org/post/how-to-address-volunteer-management-challenges-and-improve-retention",
+        "title": "How to Address Volunteer Management Challenges and Improve Retention",
+        "why": "Non-vendor training-org overview of scheduling conflicts, complicated sign-up and retention problems.",
+        "in_search_results": true,
+        "host": "nonprofitlearninglab.org"
+      },
+      {
+        "url": "https://rmalberta.com/wp-content/uploads/2024/10/RuralVolunteerismReport-1.0.pdf",
+        "title": "Rural Volunteerism Report (Rural Municipalities of Alberta)",
+        "why": "Interview-based report documenting the 'same ten people' problem, clashing event scheduling and lack of coordination between small community groups.",
+        "in_search_results": true,
+        "host": "rmalberta.com"
+      },
+      {
+        "url": "https://cdn.ymaws.com/www.volunteertoronto.ca/resource/resmgr/Files/From_The_Bottom_Up_Report_-_.pdf",
+        "title": "From the Bottom Up: A Growth Strategy for Grassroots Groups in Ontario",
+        "why": "Survey of 100+ volunteer-run grassroots groups on their operating and capacity challenges.",
+        "in_search_results": true,
+        "host": "cdn.ymaws.com"
+      },
+      {
+        "url": "https://vast.org.uk/present-struggles-past-origins-current-challenges-in-volunteering-amidst-two-decades-of-decline/",
+        "title": "Present Struggles, Past Origins: Current Challenges in Volunteering — VAST",
+        "why": "Cites VCSE Barometer survey data (61% struggle to recruit; remaining volunteers doing more) for UK community organisations.",
+        "in_search_results": true,
+        "host": "vast.org.uk"
+      },
+      {
+        "url": "https://www.urban.org/sites/default/files/publication/58191/411125-Balancing-Act.PDF",
+        "title": "The Challenges and Benefits of Volunteers (Urban Institute)",
+        "why": "Independent research on capacity constraints charities face managing volunteers, useful counterweight to vendor blogs.",
+        "in_search_results": true,
+        "host": "urban.org"
+      },
+      {
+        "url": "https://affnetz.com/volunteer-management-challenges/",
+        "title": "Top Volunteer Management Challenges Facing Nonprofits Today",
+        "why": "Lists shift-filling difficulty, substitute-finding, overloading reliable volunteers and poor staff visibility.",
+        "in_search_results": true,
+        "host": "affnetz.com"
+      },
+      {
+        "url": "https://engagejournal.org/free-article",
+        "title": "The Sky Is Not Falling... Yet! Ten Strategies for Shorter-Term Volunteers",
+        "why": "Practitioner-journal piece on episodic/short-commitment volunteering and the scheduling pressure it puts on small programs.",
+        "in_search_results": true,
+        "host": "engagejournal.org"
+      }
+    ],
+    "candidate_count": 10,
+    "candidates_not_in_results": [],
+    "distinct_hosts": 10
+  },
+  {
+    "id": "q2-crossfield",
+    "query": "Methods from aviation checklists applied to home medication management",
+    "elapsed_ms": 67374,
+    "exit_code": 0,
+    "model": "claude-opus-5[1m]",
+    "tool_calls": 3,
+    "search_queries": [
+      "aviation checklist methods applied to home medication management",
+      "aviation-style checklist medication safety patients home self-management",
+      "crew resource management \"sterile cockpit\" read-back human factors applied to medication administration safety"
+    ],
+    "web_search_requests_reported": 0,
+    "usage": {
+      "input": 6,
+      "output": 2128,
+      "cache_read": 14909,
+      "cache_create": 6623
+    },
+    "total_cost_usd_reported": 0.4750895,
+    "num_turns": 4,
+    "terminal_reason": "completed",
+    "distinct_result_urls": 27,
+    "candidates": [
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10732188/",
+        "title": "Medication risk checklist for older adults (LOTTA) – development and validation of a self-assessment tool",
+        "why": "Validated 8-item self-administered medication risk checklist for home-dwelling older adults — closest patient-facing analogue to a pilot self-check.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1365-2834.2012.01410.x",
+        "title": "Improving patient safety using the sterile cockpit principle during medication administration (Fore et al., J Nurs Manag 2013)",
+        "why": "Flagship study importing an aviation rule into medication administration; 42.78% error-rate reduction.",
+        "in_search_results": true,
+        "host": "onlinelibrary.wiley.com"
+      },
+      {
+        "url": "https://patientsafetyj.com/api/v1/articles/73578-medication-safety-during-transitions-of-care-the-importance-of-checklists-in-preventing-patient-harm.pdf",
+        "title": "Medication Safety During Transitions of Care: The Importance of Checklists in Preventing Patient Harm",
+        "why": "Explicitly argues for adopting aviation checklists, including a hospital-to-home discharge medication checklist.",
+        "in_search_results": true,
+        "host": "patientsafetyj.com"
+      },
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10311124/",
+        "title": "The medication self-management work system of patients and informal carers: a human factors & ergonomics scoping review protocol",
+        "why": "Human factors/SEIPS framing of the home medication work system — the design theory behind any home checklist.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4469723",
+        "title": "High-reliability organizations and medication safety (PMC review)",
+        "why": "Reviews adapting CRM, checklists, and sterile cockpit from aviation specifically to reduce medication errors.",
+        "in_search_results": true,
+        "host": "pmc.ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://studentpilot.com/learn-to-fly/memory-aids/imsafe/",
+        "title": "IMSAFE Checklist: Are You Fit to Fly? A Pilot's Self-Check",
+        "why": "Canonical aviation self-assessment mnemonic (incl. a Medication item) that maps directly onto patient self-checks.",
+        "in_search_results": true,
+        "host": "studentpilot.com"
+      },
+      {
+        "url": "https://www.researchgate.net/publication/399689669_Checklist_Application_in_Aviation_an_Healthcare",
+        "title": "Checklist Application in Aviation and Healthcare (PDF)",
+        "why": "Direct comparison of checklist design across both domains; covers acronym mnemonics like TRAMP and IMSAFE.",
+        "in_search_results": true,
+        "host": "researchgate.net"
+      },
+      {
+        "url": "https://www.researchgate.net/publication/256201142_Using_Crew_Resource_Management_and_a_'Read-and-Do_Checklist'_to_Reduce_Failure-to-Rescue_Events_on_a_Step-Down_Unit",
+        "title": "Using Crew Resource Management and a 'Read-and-Do Checklist' to Reduce Failure-to-Rescue Events",
+        "why": "Demonstrates the aviation read-and-do checklist format transferred to clinical nursing routines.",
+        "in_search_results": true,
+        "host": "researchgate.net"
+      },
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3009978/",
+        "title": "Checklists in the operating room: Help or hurdle? A qualitative study on health workers' experiences",
+        "why": "Counterweight evidence on checklist friction — redundant checks, workflow disruption, attention diverted from patient.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://clinicaltrials.gov/study/NCT03117088",
+        "title": "Safe-SCOPE Pilot Study (ClinicalTrials.gov)",
+        "why": "Trial protocol justifying a medication-safety checklist on aviation grounds of objective, reproducible processes.",
+        "in_search_results": true,
+        "host": "clinicaltrials.gov"
+      }
+    ],
+    "candidate_count": 10,
+    "candidates_not_in_results": [],
+    "distinct_hosts": 7
+  },
+  {
+    "id": "q3-gap",
+    "query": "Independent evidence on whether shared volunteer calendars or scheduling tools reduce volunteer no-shows",
+    "elapsed_ms": 67968,
+    "exit_code": 0,
+    "model": "claude-opus-5[1m]",
+    "tool_calls": 3,
+    "search_queries": [
+      "volunteer no-show rates scheduling software reminders evidence study",
+      "research volunteer attendance reminders text message randomized trial no-show reduction",
+      "volunteer management technology shift scheduling retention reliability nonprofit academic research"
+    ],
+    "web_search_requests_reported": 0,
+    "usage": {
+      "input": 6,
+      "output": 2206,
+      "cache_read": 15285,
+      "cache_create": 6844
+    },
+    "total_cost_usd_reported": 0.4857075,
+    "num_turns": 4,
+    "terminal_reason": "completed",
+    "distinct_result_urls": 29,
+    "candidates": [
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5227159/",
+        "title": "Text Message Reminders Increase Appointment Adherence in a Pediatric Clinic: A Randomized Controlled Trial",
+        "why": "RCT showing reminder no-show drop 38.1%→23.5%; closest causal evidence on scheduling-tool reminders, though clinical not volunteer.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S0038012122001872",
+        "title": "Optimization of volunteer task assignments to improve volunteer retention and nonprofit organizational performance",
+        "why": "Peer-reviewed volunteer-sector paper that explicitly discusses online scheduling platforms and volunteer scheduling autonomy.",
+        "in_search_results": true,
+        "host": "sciencedirect.com"
+      },
+      {
+        "url": "https://carlsonschool.umn.edu/news/low-cost-way-improve-volunteer-retention",
+        "title": "A Low-Cost Way to Improve Volunteer Retention (Carlson School, Tipnis)",
+        "why": "University summary of 49,378-volunteer food bank study where shift composition/'soft scheduling' drove retention — independent, volunteer-specific.",
+        "in_search_results": true,
+        "host": "carlsonschool.umn.edu"
+      },
+      {
+        "url": "https://www.amjmed.com/article/S0002-9343(10)00108-7/fulltext",
+        "title": "The Effectiveness of Outpatient Appointment Reminder Systems in Reducing No-Show Rates",
+        "why": "Prospective randomized comparison of automated vs. live-staff reminders — key caveat that automation underperforms human contact.",
+        "in_search_results": true,
+        "host": "amjmed.com"
+      },
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3623700/",
+        "title": "Text-messaging versus telephone reminders to reduce missed appointments: a randomized controlled trial",
+        "why": "Non-inferiority RCT establishing automated reminders as equivalent to calls and cheaper per attendance gained.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://www.ajmc.com/view/optimizing-number-and-timing-of-appointment-reminders-a-randomized-trial",
+        "title": "Optimizing Number and Timing of Appointment Reminders: A Randomized Trial",
+        "why": "Tests reminder dosage/timing (3-day + 1-day vs single) — directly informs scheduling-tool configuration.",
+        "in_search_results": true,
+        "host": "ajmc.com"
+      },
+      {
+        "url": "https://www.thepermanentejournal.org/doi/10.7812/TPP/21.078",
+        "title": "Pragmatic Randomized Study of Targeted Text Message Reminders to Reduce Missed Clinic Visits",
+        "why": "Large pragmatic trial (158k visits) on risk-model-targeted reminders; relevant to targeting unreliable shift sign-ups.",
+        "in_search_results": true,
+        "host": "thepermanentejournal.org"
+      },
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4569397/",
+        "title": "Stating Appointment Costs in SMS Reminders Reduces Missed Hospital Appointments: Two RCTs",
+        "why": "Two RCTs (~20k) on message framing and social norms — evidence that reminder content, not just existence, matters.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4714455/",
+        "title": "Prevalence, predictors and economic consequences of no-shows",
+        "why": "Baseline evidence on why people miss commitments, showing forgetting is only one cause reminders can address.",
+        "in_search_results": true,
+        "host": "ncbi.nlm.nih.gov"
+      },
+      {
+        "url": "https://hsrc.himmelfarb.gwu.edu/cgi/viewcontent.cgi?article=1208&context=son_dnp",
+        "title": "The Effectiveness of Text Message Reminders on Improving Attendance (GWU DNP project)",
+        "why": "Open-access academic review/implementation project summarizing reminder-effect sizes; useful for citation chaining.",
+        "in_search_results": true,
+        "host": "hsrc.himmelfarb.gwu.edu"
+      }
+    ],
+    "candidate_count": 10,
+    "candidates_not_in_results": [],
+    "distinct_hosts": 7
+  }
+]
