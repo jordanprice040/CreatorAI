@@ -15,6 +15,8 @@ export * from './selection.js';
 export * from './selection-fixture.js';
 export * from './assessment.js';
 export * from './proposal.js';
+export * from './runbook.js';
+export * from './runbook-fixture.js';
 export * from './assessment-fixture.js';
 
 export * from './study.js';

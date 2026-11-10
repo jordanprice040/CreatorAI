@@ -1,0 +1,192 @@
+{
+  "format": "runbook/1",
+  "kind": "software",
+  "title": "Word tally (synthetic)",
+  "subject": {
+    "type": "specification",
+    "id": "00000000-0000-4000-8000-000000000001",
+    "version": 2,
+    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "saved_at": "2026-11-10T08:00:00.000Z"
+  },
+  "freeze": {
+    "id": "00000000-0000-4000-8000-000000000002",
+    "frozen_at": "2026-11-10T08:05:00.000Z",
+    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "problem": {
+    "id": "00000000-0000-4000-8000-000000000003",
+    "version": 1
+  },
+  "option": {
+    "id": "00000000-0000-4000-8000-000000000004",
+    "version": 1
+  },
+  "selection": {
+    "id": "00000000-0000-4000-8000-000000000005",
+    "current": true
+  },
+  "recipe": "python-build/1",
+  "prompts": [
+    {
+      "order": 1,
+      "path": "prompts/01-setup.md",
+      "step": "setup",
+      "title": "Set up the workspace",
+      "task": null,
+      "prerequisites": []
+    },
+    {
+      "order": 2,
+      "path": "prompts/02-t1-count-words-from-standard-input.md",
+      "step": "slice",
+      "title": "T1: Count words from standard input",
+      "task": "T1",
+      "prerequisites": [
+        "prompts/01-setup.md"
+      ]
+    },
+    {
+      "order": 3,
+      "path": "prompts/03-t2-add-the-lines-option.md",
+      "step": "slice",
+      "title": "T2: Add the --lines option",
+      "task": "T2",
+      "prerequisites": [
+        "prompts/01-setup.md",
+        "prompts/02-t1-count-words-from-standard-input.md"
+      ]
+    },
+    {
+      "order": 4,
+      "path": "prompts/04-t3-review-against-the-scope.md",
+      "step": "slice",
+      "title": "T3: Review against the scope",
+      "task": "T3",
+      "prerequisites": [
+        "prompts/01-setup.md",
+        "prompts/02-t1-count-words-from-standard-input.md",
+        "prompts/03-t2-add-the-lines-option.md"
+      ]
+    },
+    {
+      "order": 5,
+      "path": "prompts/05-review-and-repair.md",
+      "step": "review_repair",
+      "title": "Independent review and repair",
+      "task": null,
+      "prerequisites": [
+        "prompts/01-setup.md",
+        "prompts/02-t1-count-words-from-standard-input.md",
+        "prompts/03-t2-add-the-lines-option.md",
+        "prompts/04-t3-review-against-the-scope.md"
+      ]
+    },
+    {
+      "order": 6,
+      "path": "prompts/06-verify-and-hand-over.md",
+      "step": "verify_export",
+      "title": "Verify and hand over",
+      "task": null,
+      "prerequisites": [
+        "prompts/05-review-and-repair.md"
+      ]
+    }
+  ],
+  "withheld": {
+    "held_out_cases": 2,
+    "redacted_secrets": 0,
+    "redacted_paths": 0
+  },
+  "warnings": [
+    "2 held-out acceptance cases are not in this bundle; the owner keeps them to test the result."
+  ],
+  "files": [
+    {
+      "path": "CONTRACT.md",
+      "bytes": 3520,
+      "sha256": "6736310e70f9d88bba9a66467b69d91c723fd8779823196ec391f44d84caad7b"
+    },
+    {
+      "path": "DECISIONS.md",
+      "bytes": 2084,
+      "sha256": "63b9cf9563647581294661cad19118329e3dfd23a2ab5ff8f5b626fa4fb67f98"
+    },
+    {
+      "path": "EVIDENCE.md",
+      "bytes": 771,
+      "sha256": "ef05345876986a54396f736ee748caa4dbf750c7b8510b06df2d884be5ec57d7"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4302,
+      "sha256": "dfc9d9a9b118c85512a18dff7c8310a134df3e09c8988ffce05bd523ad1cb488"
+    },
+    {
+      "path": "RECOVERY.md",
+      "bytes": 1346,
+      "sha256": "565ae399eb77c12128fec0874a15d1e8ebfec56ea4a4709c50a10a80f8c1bbb8"
+    },
+    {
+      "path": "REQUIREMENTS.md",
+      "bytes": 2851,
+      "sha256": "5c1c9bd9a23222e33da49688a666924417b3d55114c096eeefb3faec0fc3d5c1"
+    },
+    {
+      "path": "STACK.md",
+      "bytes": 1921,
+      "sha256": "3b2ec4be6b969a1fe95a88a2d6d8862e684df97459159ca746b0e472ff5507e6"
+    },
+    {
+      "path": "TASKS.md",
+      "bytes": 769,
+      "sha256": "3e374f64a465d994b14d609ec20036598d762db3910f0aa4aebd3807a7af2fb4"
+    },
+    {
+      "path": "checks/acceptance.json",
+      "bytes": 1963,
+      "sha256": "1319ae56f91aa69b4ef5d8aa7129ace4438681edf023c8bb3439739e387ceb66"
+    },
+    {
+      "path": "checks/run_checks.py",
+      "bytes": 3896,
+      "sha256": "9a2354cf971edf530932a3773a7a2395523f0e94ae2187b60ff5d8946c4fb2f5"
+    },
+    {
+      "path": "prompts/01-setup.md",
+      "bytes": 2037,
+      "sha256": "b68a8adf2a5b9a8bf0677e665b1b22d48c37ef3f3929f56293dea4bbb3b9e97e"
+    },
+    {
+      "path": "prompts/02-t1-count-words-from-standard-input.md",
+      "bytes": 1817,
+      "sha256": "2b51d2e114e406ac0a56bdc11f7f0c6ee1d9bb8199f9c6f39aeb56b1d31fcacc"
+    },
+    {
+      "path": "prompts/03-t2-add-the-lines-option.md",
+      "bytes": 1870,
+      "sha256": "e22393e340831f4f6918af0f2a3f5282f27796b41289d6e29dc17b552111c008"
+    },
+    {
+      "path": "prompts/04-t3-review-against-the-scope.md",
+      "bytes": 2422,
+      "sha256": "b5c7ad239930d471c3822d5996f3e5ba5bdd502ab31c5c552132c3af90e69619"
+    },
+    {
+      "path": "prompts/05-review-and-repair.md",
+      "bytes": 2593,
+      "sha256": "0ace1458cb5dcee87595f9dd0e32a6e65949dafd8cab8ae4e35d275228b272de"
+    },
+    {
+      "path": "prompts/06-verify-and-hand-over.md",
+      "bytes": 2039,
+      "sha256": "da1d40f2c92cca2d049742f49f982e00f5e40247acc96e8085d6d87b18a4a7a1"
+    },
+    {
+      "path": "spec.json",
+      "bytes": 4329,
+      "sha256": "681f7fccb904608829081f602c21ac2544f562df35ca90753866de14d7925d4d"
+    }
+  ],
+  "bundle_hash": "b572ed29f6354132e31eef95653c245f572ed7fb2ae6464545cf4ec64210ee80"
+}
