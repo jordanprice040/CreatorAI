@@ -1,9 +1,18 @@
-# Current implementation and verification — November 4, 2026
+# Current implementation and verification — November 10, 2026
 
 Creator Agent is an implemented local web/Windows evidence and product studio. This page
-describes the source candidate based on main `171430b` plus the uncommitted audit and authentication review repairs;
-it does not describe a freshly installed release. Database schema: **41**. Runtime baseline:
-Node **22.23.4+ within 22.x**, or **24.22.2+ within 24.x**; pnpm **11.25.0**.
+describes main `e08e0a4` (PR #150, November 6); it does not describe a freshly installed release.
+Database schema: **49**. Runtime baseline: Node **22.23.4+ within 22.x**, or **24.22.2+ within
+24.x**; pnpm **11.25.0**. The installed app on Jordan's PC is still `f6e2ba0`, schema 41.
+
+Since the November 4 repairs, the [November 5 plan](CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md)
+packages P00–P09, P11 preparation, P14 and the first P15 slice have merged: activity links and
+newest-first lists, chat context choices, guided Discover, workspace files, named notes, previews
+until stopped, automatic assessments, "Why this response" and non-code proposals, tester accounts,
+frozen repository benchmarks and the `static-web/1` recipe. Package-by-package state, the latest
+checks and the open items are in [build status](../tracking/BUILD_STATUS.md). The matrix below was
+written on November 4 and predates those packages; the
+[capability matrix](CAPABILITY_MATRIX_2026-11-05.md) lists what kinds of product can be built.
 
 ## Capability and evidence matrix
 
@@ -20,7 +29,7 @@ Node **22.23.4+ within 22.x**, or **24.22.2+ within 24.x**; pnpm **11.25.0**.
 | Hosted, commerce and marketing | Deployment/OIDC, payment/entitlement/reinvestment and campaign adapters with test/fixture paths                               | Not activated by this candidate; separate owner decisions still apply                                                           |
 | Studies and thesis             | Frozen-condition machinery, exports and reproducible analysis                                                                 | Final participants, independent ratings, empirical conclusions and committee acceptance remain incomplete                       |
 
-## Current repair and acceptance state
+## Repair and acceptance state as of November 4
 
 The [November 4 audit](CODEBASE_AUDIT_2026-11-04.md) is preserved as its original diagnosis.
 The [repair report](CODEBASE_REPAIRS_2026-11-04.md) records the changed candidate and executed
@@ -50,8 +59,9 @@ Follow [local development](LOCAL_DEVELOPMENT.md), then use [the product guide](C
 establish database or real-isolation acceptance. Frozen helper replay is a separate
 `pnpm test:historical-upgrade` gate requiring its original candidate/package.
 
-Next eligible: **U02 focused independent recheck of the F1/F2 repairs**, then the remaining
-exact-candidate UX/native acceptance under its existing owner-decision boundaries.
+Next eligible (November 10): P10 and P16 are in progress; see
+[build status](../tracking/BUILD_STATUS.md) for the order after them. The November 4 line here
+("U02 focused independent recheck of the F1/F2 repairs") is superseded: that recheck passed.
 Do not automatically begin additions, a pilot, installation or release.
 
 ## Historical status

@@ -170,6 +170,12 @@ export function allowedHosts(d: DeploymentConfig, port: number): string[] {
 
 const SECRET_FILE = /^((?:CREATOR|OPENAI)_[A-Z0-9_]+)_FILE$/;
 /**
+ * Settings whose name ends in `_FILE` but name a path the program itself reads and writes,
+ * not a secret to load: the CLI's sign-in state. Without this, setting it in the terminal
+ * that starts the API or the migrations stopped them with "could not be read".
+ */
+const PATH_SETTINGS = new Set(['CREATOR_SESSION_FILE']);
+/**
  * Secrets management: `NAME_FILE=/run/secrets/x` loads NAME from that file (the Docker and
  * systemd credentials convention), so secrets need not sit in the environment or in an env
  * file. Setting both forms is refused. Returns the merged environment and which names came
@@ -183,7 +189,8 @@ export function resolveSecretFiles(
   const from: string[] = [];
   for (const [key, path] of Object.entries(env)) {
     const m = SECRET_FILE.exec(key);
-    if (!m || path === undefined || path === '') continue;
+    if (!m || PATH_SETTINGS.has(key) || path === undefined || path === '')
+      continue;
     const name = m[1]!;
     if (env[name] !== undefined && env[name] !== '')
       throw new ContractError(

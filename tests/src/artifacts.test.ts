@@ -24,6 +24,7 @@ import {
   taskHashes,
 } from '@creator/domain';
 import type { BrokerCallResult, SpecBody } from '@creator/contracts';
+import { manifestCalls } from '@creator/db';
 import { TestDoubleExecutor } from './artifact-double.js';
 
 test('source archives are deterministic and the reader refuses anything it did not write', () => {
@@ -223,6 +224,10 @@ test('a plan-route build packages with its plan requests and no dollar broker ca
   ).package(broker.product.id, broker.build.id, broker.ports);
   assert.equal(b.manifest.costs.broker_calls, 2);
   assert.equal('plan_requests' in b.manifest.costs, false);
+  // The comparison's call counts (PR #77 review L-1): a plan-route package counts its plan
+  // requests, a broker package its broker calls. Counting broker calls alone would say 0 here.
+  assert.equal(manifestCalls(manifest), 2);
+  assert.equal(manifestCalls(b.manifest), 2);
 });
 
 test('a verified candidate packages to a manifest bound to its commit, spec, task, QA and package checks', async (t) => {
