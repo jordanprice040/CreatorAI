@@ -12,7 +12,8 @@ import {
 // `pnpm readiness [--out report.md]` checks config/readiness.json and config/owner-pilot.json
 // against context/REQUIREMENTS.md and the evidence on disk. Exit 0 = ready, 3 = not ready
 // (honest, expected today), 2 = the register itself is inconsistent.
-// `pnpm readiness pilot-check` checks only whether the owner pilot may start.
+// `pnpm readiness pilot-check` checks only the owner pilot's gate: its plan while it has not finished,
+// and its evidence once it is completed.
 const root = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const args = process.argv.slice(2);
 const read = (p: string) => readFileSync(join(root, p), 'utf8');

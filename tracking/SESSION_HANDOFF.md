@@ -601,3 +601,19 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
 - The Try list names packages by commit, not by artifact id; the guide's "find artifact X" steps should say so (UX note).
 - The dev studio is still running on Jordan's PC and holds the installed app's ports until it is stopped.
 
+
+## Owner pilot recorded as finished (November 10, no migration or ADR)
+
+- Jordan's decision in the project thread (2026-11-10 08:37 UTC): the owner pilot is finished, not extended.
+  `config/owner-pilot.json` now says `status: completed` with `finished_by`, `finished_at` and
+  `docs/OWNER_PILOT_LOG.md` as evidence; the log has a "Pilot finished" section stating what it holds and what it
+  does not (per-run owner minutes stay unknown). This supersedes the "Owner pilot ... still says `running`" open
+  item above.
+- Readiness gate (`packages/orchestrator/src/readiness.ts`): a completed pilot is judged by its evidence, so its
+  past window no longer refuses it; a pilot that has not finished is still refused after its window. X10 stays NOT
+  READY (readiness rows still need owner inputs). `docs/X10_ACCEPTANCE.md` no longer says the pilot was not run.
+- Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
+  `owner-pilot.json`), so no app or database step is needed.
+- Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
+  pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+  P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
