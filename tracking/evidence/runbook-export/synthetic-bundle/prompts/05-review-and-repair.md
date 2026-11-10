@@ -13,6 +13,7 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 
 - Review the whole project against REQUIREMENTS.md in a fresh session that did not write the code.
 - Then repair only what the review found, each fix inside the scope of the task that owns the file.
+- May also change `README.md` and `REVIEW.md` at the project root, which no task owns.
 
 ## Expected artifacts
 
@@ -39,10 +40,15 @@ Part 1, review (change nothing):
 3. Look for: behaviour outside the scope, a non-goal that was built, a changed check,
    input that crashes it, data the spec does not allow, anything a risk in
    REQUIREMENTS.md warned about.
+   Also check that each mitigation REQUIREMENTS.md gives for a risk is in place. One
+   that belongs in the documentation (for example a rule the README must state) is
+   a finding if it is missing.
+   Read ASSUMPTIONS.md if it exists: a reading there that looks wrong is a finding.
 4. Write REVIEW.md: findings, most serious first, each with file and line.
 
 Part 2, repair:
 5. Fix each finding inside the scope of the task that owns the file. One commit each.
+   A finding about README.md is fixed in README.md in this step; no task owns it.
 6. After each fix run: python3 <bundle>/checks/run_checks.py
 7. Mark each finding fixed, or say why it stays and what the owner must decide.
 

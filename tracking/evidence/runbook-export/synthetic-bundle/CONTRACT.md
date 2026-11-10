@@ -7,6 +7,13 @@ You are implementing one step of a project called "Word tally (synthetic)".
 You have a folder of files called the runbook bundle. It is your only source of
 requirements. You have no access to the system that produced it, and you do not need any.
 
+Where things are:
+  <bundle>   stands for the path of the bundle folder: the one that holds README.md,
+             manifest.json and this file. Replace it with the real path in every command.
+             Keep the bundle outside the project folder and never commit it.
+  Every file named in capitals below (REQUIREMENTS.md and so on) is in <bundle>.
+  The project is the separate folder that the setup step creates. Commands run from it.
+
 What the project is for:
   Problem: Writers paste unpublished drafts into web word counters several times a day.
   Who it affects: Writers working on unpublished drafts (synthetic).
@@ -29,9 +36,20 @@ Rules for every step:
   5. Do not use credentials, accounts, payments, real personal data or the network
      unless the step says the owner has provided it. The bundle grants no access.
   6. If you need a decision that DECISIONS.md lists as open, stop and ask. Do not guess.
+     One exception: a check that a person must judge (manual review or metric). Who
+     judges it may still be open. Carry the check out as REQUIREMENTS.md describes,
+     record what you saw as provisional, and go on. Only the owner’s judge can pass it.
   7. Report only what you ran and saw. Say "not run" for anything you did not run.
   8. 2 acceptance cases are held back by the owner. Passing the visible cases does
      not show the work is accepted. Make the behaviour right, not just the cases.
+  9. Where a requirement can be read more than one way and no case settles it, take
+     the narrower reading and add one line to ASSUMPTIONS.md in the project: the
+     requirement, the reading you took, and the other reading. This is not a reason
+     to stop. It is for readings of a requirement only, never for an open decision.
+  10. Five files at the project root belong to no task: README.md, .gitignore,
+     ASSUMPTIONS.md, REVIEW.md and HANDOVER.md. A step may change one of them only
+     where its prompt says so, except that any step may add a line to ASSUMPTIONS.md.
+     Such a change does not count as a change outside the task’s scope.
 
 End every step with a short report: what changed (files), what you ran and its
 result, whether the completion gate passed, and anything the owner must decide.

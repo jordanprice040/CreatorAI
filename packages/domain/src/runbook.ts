@@ -437,6 +437,7 @@ const STACKS: Record<
       '`python3 -I` ignores `PYTHON*` variables and does not put the script’s folder on the import path, so `src/main.py` must add its own folder to `sys.path` before importing local modules.',
       'A case passes when standard output matches byte for byte (including line ends) and the exit code matches.',
       'Each run starts fresh: do not rely on files or state left by an earlier run.',
+      'Running Python can leave `__pycache__` folders behind. The bundled script adds `-B` so its runs write none, and the setup step adds a `.gitignore` for them; never commit one.',
     ],
     run: 'python3 checks/run_checks.py',
   },
@@ -549,7 +550,7 @@ def main():
     args = ap.parse_args()
     with open(os.path.join(HERE, "acceptance.json"), encoding="utf-8") as f:
         data = json.load(f)
-    cmd = shlex.split(args.cmd) if args.cmd else [sys.executable, "-I", "src/main.py"]
+    cmd = shlex.split(args.cmd) if args.cmd else [sys.executable, "-I", "-B", "src/main.py"]
     wanted = None
     if args.task:
         tasks = [t for t in data["tasks"] if t["key"] == args.task]
@@ -991,6 +992,13 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         'You have a folder of files called the runbook bundle. It is your only source of',
         'requirements. You have no access to the system that produced it, and you do not need any.',
         '',
+        'Where things are:',
+        '  <bundle>   stands for the path of the bundle folder: the one that holds README.md,',
+        '             manifest.json and this file. Replace it with the real path in every command.',
+        '             Keep the bundle outside the project folder and never commit it.',
+        '  Every file named in capitals below (REQUIREMENTS.md and so on) is in <bundle>.',
+        '  The project is the separate folder that the setup step creates. Commands run from it.',
+        '',
         'What the project is for:',
         problem
           ? `  Problem: ${oneLine(problem.statement || problem.title)}`
@@ -1017,6 +1025,9 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         '  5. Do not use credentials, accounts, payments, real personal data or the network',
         '     unless the step says the owner has provided it. The bundle grants no access.',
         '  6. If you need a decision that DECISIONS.md lists as open, stop and ask. Do not guess.',
+        '     One exception: a check that a person must judge (manual review or metric). Who',
+        '     judges it may still be open. Carry the check out as REQUIREMENTS.md describes,',
+        '     record what you saw as provisional, and go on. Only the owner’s judge can pass it.',
         '  7. Report only what you ran and saw. Say "not run" for anything you did not run.',
         ...(heldOut
           ? [
@@ -1024,6 +1035,14 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
               '     not show the work is accepted. Make the behaviour right, not just the cases.',
             ]
           : []),
+        `  ${heldOut ? 9 : 8}. Where a requirement can be read more than one way and no case settles it, take`,
+        '     the narrower reading and add one line to ASSUMPTIONS.md in the project: the',
+        '     requirement, the reading you took, and the other reading. This is not a reason',
+        '     to stop. It is for readings of a requirement only, never for an open decision.',
+        `  ${heldOut ? 10 : 9}. Five files at the project root belong to no task: README.md, .gitignore,`,
+        '     ASSUMPTIONS.md, REVIEW.md and HANDOVER.md. A step may change one of them only',
+        '     where its prompt says so, except that any step may add a line to ASSUMPTIONS.md.',
+        '     Such a change does not count as a change outside the task’s scope.',
         '',
         'End every step with a short report: what changed (files), what you ran and its',
         'result, whether the completion gate passed, and anything the owner must decide.',
@@ -1048,6 +1067,11 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       artifacts: [
         'A new Git repository with one commit.',
         'A short `README.md` in the project that names the project and says how to run the checks.',
+        ...(recipe === 'python-build/1'
+          ? [
+              'A `.gitignore` that lists `__pycache__/` and `*.pyc`, so running the checks leaves `git status` clean.',
+            ]
+          : []),
         stack
           ? `The empty entry point for the proposed stack (${recipe === 'static-web/1' ? '`site/index.html`' : '`src/main.py`'}).`
           : 'A note to the owner proposing a stack, and no entry point yet.',
@@ -1069,8 +1093,10 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         stack
           ? `3. Create the layout for the proposed stack: ${stack.name}. ${recipe === 'static-web/1' ? 'Add site/index.html with only a title.' : 'Add src/main.py that exits with code 0 and prints nothing.'}`
           : '3. No stack is proposed. Read STACK.md and DECISIONS.md, propose one stack to the owner with reasons, and stop until the owner answers.',
-        '4. Create every folder that TASKS.md lets a task change.',
-        '5. Add a README.md that names the project and says how to run the checks.',
+        '4. Create every folder that TASKS.md lets a task change. Git does not keep an empty folder, so put an empty file named .gitkeep in each folder that has no other file.',
+        recipe === 'python-build/1'
+          ? '5. Add a README.md that names the project and says how to run the checks, and a .gitignore with the two lines __pycache__/ and *.pyc.'
+          : '5. Add a README.md that names the project and says how to run the checks.',
         ...(runner
           ? [
               `6. Run: ${runner}   (from the project folder). Failures are expected; the script must start.`,
@@ -1086,6 +1112,21 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       .map((k) => checkOf.get(k))
       .filter((a): a is (typeof checks)[number] => !!a);
     const cli = mine.some((a) => a.cases.length > 0);
+    // A check a person must judge cannot "pass" inside a step: its judge may be an open decision.
+    const judged = mine.filter(
+      (a) =>
+        a.method === 'manual_review' ||
+        a.method === 'metric' ||
+        (!a.cases.length && !a.browser_cases.length),
+    );
+    const runnable = mine.filter((a) => !judged.includes(a));
+    const keys = (list: typeof mine) => list.map((a) => a.key).join(', ');
+    const firstScope = t.file_scope[0]?.replace(/\/+$/, '');
+    const reviewFile = !firstScope
+      ? 'your report (this task may change no file)'
+      : /\.[a-z0-9]+$/i.test(firstScope)
+        ? firstScope
+        : `${firstScope}/${t.key.toLowerCase()}-review.md`;
     const person = t.role === 'owner';
     const needs = [0, ...t.depends_on.map((d) => promptIndex.get(d)!)];
     const scopePaths = t.file_scope.length
@@ -1112,12 +1153,20 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         'One commit that contains only this task’s changes.',
       ],
       gate: [
-        ...(mine.length
+        ...(runnable.length
           ? [
-              mine.length === 1
-                ? `Check ${mine[0]!.key} passes when run now.`
-                : `Checks ${mine.map((a) => a.key).join(', ')} pass when run now.`,
+              runnable.length === 1
+                ? `Check ${runnable[0]!.key} passes when run now.`
+                : `Checks ${keys(runnable)} pass when run now.`,
             ]
+          : []),
+        ...(judged.length
+          ? [
+              `${judged.length === 1 ? `Check ${judged[0]!.key} is` : `Checks ${keys(judged)} are`} carried out as REQUIREMENTS.md describes and what was seen is recorded as provisional. This step does not decide that ${judged.length === 1 ? 'it passes' : 'they pass'}: the owner’s judge does, even if DECISIONS.md has not named one yet.`,
+            ]
+          : []),
+        ...(mine.length
+          ? []
           : ['The deliverable exists and matches its description.']),
         ...(cli ? [`\`${runner} --task ${t.key}\` ends with 0 failed.`] : []),
         ...(needs.length > 1 || promptIndex.size > 1
@@ -1143,14 +1192,16 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
         '1. Read the checks named above in REQUIREMENTS.md, with every case shown for them.',
         '2. Check that the tasks this one depends on are committed and their checks pass.',
         t.role === 'reviewer'
-          ? '3. Review the work those tasks produced against REQUIREMENTS.md. Change no code. Write findings with file and line, most serious first.'
+          ? `3. Review the work those tasks produced against the checks named above only (the review of the whole project is a later step). Change no code. Write the review to ${reviewFile}: findings with file and line, most serious first, and one line saying whether this session wrote any of the code it reviewed.`
           : t.role === 'qa'
             ? '3. Run the checks exactly as written and record each result. Do not fix code in this task; report failures.'
             : '3. Make the smallest change that satisfies the checks, inside the allowed files only.',
         ...(cli
           ? [`4. Run: ${runner} --task ${t.key}   and read every FAIL line.`]
           : [
-              '4. Carry out each check as REQUIREMENTS.md describes and record what you saw.',
+              judged.length
+                ? '4. Carry out each check as REQUIREMENTS.md describes and record what you saw. For a check a person must judge, record your result as provisional and do not stop because its judge is not named.'
+                : '4. Carry out each check as REQUIREMENTS.md describes and record what you saw.',
             ]),
         '5. Run the checks of the earlier tasks again. Nothing that passed may now fail.',
         '6. Commit only this task’s changes, then report against the completion gate.',
@@ -1171,6 +1222,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     scope: [
       'Review the whole project against REQUIREMENTS.md in a fresh session that did not write the code.',
       'Then repair only what the review found, each fix inside the scope of the task that owns the file.',
+      'May also change `README.md` and `REVIEW.md` at the project root, which no task owns.',
     ],
     artifacts: [
       'A `REVIEW.md` in the project: findings by severity with file and line, and for each the fix or the reason it stays.',
@@ -1191,10 +1243,15 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       '3. Look for: behaviour outside the scope, a non-goal that was built, a changed check,',
       '   input that crashes it, data the spec does not allow, anything a risk in',
       '   REQUIREMENTS.md warned about.',
+      '   Also check that each mitigation REQUIREMENTS.md gives for a risk is in place. One',
+      '   that belongs in the documentation (for example a rule the README must state) is',
+      '   a finding if it is missing.',
+      '   Read ASSUMPTIONS.md if it exists: a reading there that looks wrong is a finding.',
       '4. Write REVIEW.md: findings, most serious first, each with file and line.',
       '',
       'Part 2, repair:',
       '5. Fix each finding inside the scope of the task that owns the file. One commit each.',
+      '   A finding about README.md is fixed in README.md in this step; no task owns it.',
       ...(runner
         ? [`6. After each fix run: ${runner}`]
         : ['6. After each fix, repeat every check.']),
@@ -1216,7 +1273,7 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
     ],
     artifacts: [
       'A `HANDOVER.md` in the project: how to run it, each check with its observed result, what was not run, known limits and open decisions.',
-      'A source archive made from the final commit (for example `git archive`).',
+      'A source archive made from the final commit (for example `git archive`), written outside the project folder, beside it.',
     ],
     gate: [
       'From a fresh clone, the checks give the results `HANDOVER.md` records.',
@@ -1240,7 +1297,10 @@ export function softwareRunbook(raw: SoftwareRunbookInput): {
       '   REQUIREMENTS.md describes, or mark it "not run" and say who must do it.',
       '4. Write HANDOVER.md: how to run the project, each check key with its observed',
       '   result, what was not run, known limits, and the decisions DECISIONS.md leaves open.',
-      '5. Make a source archive from the final commit.',
+      '   Copy in every line of ASSUMPTIONS.md, if it exists, for the owner to confirm.',
+      '   Commit HANDOVER.md; this step may change no other file.',
+      '5. Make a source archive from the final commit. Write it outside the project folder',
+      '   (beside it), so the project stays clean, and give its path in the report.',
       '6. Report. Do not publish, deploy, release, or say the owner has accepted the work.',
       ...(heldOut
         ? [
@@ -1507,6 +1567,8 @@ export function actionRunbook(raw: ActionRunbookInput): {
         'This is not a software project. Nothing here asks you to write a program, and',
         'you must not turn the plan into one. People do the work; you help them prepare,',
         'keep track, and check.',
+        'The files named below are in the runbook bundle: the folder that holds README.md,',
+        'manifest.json and this file. It is your only source for the plan.',
         '',
         `Problem: ${oneLine(problem?.statement || problem?.title || body.summary)}`,
         ...(problem?.affected_group

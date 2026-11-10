@@ -20,7 +20,7 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 
 ## Completion gate
 
-- Check A3 passes when run now.
+- Check A3 is carried out as REQUIREMENTS.md describes and what was seen is recorded as provisional. This step does not decide that it passes: the owner’s judge does, even if DECISIONS.md has not named one yet.
 - Every check that passed before this task still passes.
 - No file outside the task’s scope changed (`git diff --stat` against the previous commit).
 
@@ -38,8 +38,8 @@ Acceptance checks to satisfy: A3
 
 1. Read the checks named above in REQUIREMENTS.md, with every case shown for them.
 2. Check that the tasks this one depends on are committed and their checks pass.
-3. Review the work those tasks produced against REQUIREMENTS.md. Change no code. Write findings with file and line, most serious first.
-4. Carry out each check as REQUIREMENTS.md describes and record what you saw.
+3. Review the work those tasks produced against the checks named above only (the review of the whole project is a later step). Change no code. Write the review to review/t3-review.md: findings with file and line, most serious first, and one line saying whether this session wrote any of the code it reviewed.
+4. Carry out each check as REQUIREMENTS.md describes and record what you saw. For a check a person must judge, record your result as provisional and do not stop because its judge is not named.
 5. Run the checks of the earlier tasks again. Nothing that passed may now fail.
 6. Commit only this task’s changes, then report against the completion gate.
 

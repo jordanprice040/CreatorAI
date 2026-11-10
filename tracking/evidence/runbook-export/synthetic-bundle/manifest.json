@@ -104,8 +104,8 @@
   "files": [
     {
       "path": "CONTRACT.md",
-      "bytes": 2083,
-      "sha256": "86bb0a35d9f7ac79301413288396a1a78b949d0c9121e6c023ad1544763d72cd"
+      "bytes": 3436,
+      "sha256": "13e39e7d2601b4b28ce651cd99186cbd2e5713945c1fa1e9c87d80cf09a65ffb"
     },
     {
       "path": "DECISIONS.md",
@@ -134,8 +134,8 @@
     },
     {
       "path": "STACK.md",
-      "bytes": 1431,
-      "sha256": "b1369fde2534020fd89126c078281f56dccbb9e970611f80baaaac199f8bce1e"
+      "bytes": 1608,
+      "sha256": "a4e8d26e14cfe839adfb139c5d0b60474393a38dd1fed7134aa5ffbd479c1771"
     },
     {
       "path": "TASKS.md",
@@ -149,13 +149,13 @@
     },
     {
       "path": "checks/run_checks.py",
-      "bytes": 3890,
-      "sha256": "535d776937684a595618e26f66df1e1f7943eec87878f32f874f33e3ddba02c5"
+      "bytes": 3896,
+      "sha256": "9a2354cf971edf530932a3773a7a2395523f0e94ae2187b60ff5d8946c4fb2f5"
     },
     {
       "path": "prompts/01-setup.md",
-      "bytes": 1618,
-      "sha256": "91afd878c186c00022583f1f55ddd2266c8c86b158a2957ebcc3af1556177dd8"
+      "bytes": 1893,
+      "sha256": "20cd0fef975c0cdc2a28a8d3333e239b4303560f52633efd42e55fd82303d881"
     },
     {
       "path": "prompts/02-t1-count-words-from-standard-input.md",
@@ -169,18 +169,18 @@
     },
     {
       "path": "prompts/04-t3-review-against-the-scope.md",
-      "bytes": 1879,
-      "sha256": "e8e4156fc012f15580b93f1e0fa1d43d05b0624a72adbdbe759b25c45005763b"
+      "bytes": 2348,
+      "sha256": "6fd607e8a8bf5a6c899f6704bbfb5125b7d276030bcfb78396eebd303132fcf2"
     },
     {
       "path": "prompts/05-review-and-repair.md",
-      "bytes": 2141,
-      "sha256": "ef7aa8dc98e6b0942b5ce73c702c53672b74e170c08c5b9bd883b1ceea8afbb9"
+      "bytes": 2593,
+      "sha256": "0ace1458cb5dcee87595f9dd0e32a6e65949dafd8cab8ae4e35d275228b272de"
     },
     {
       "path": "prompts/06-verify-and-hand-over.md",
-      "bytes": 1739,
-      "sha256": "bc7dcb5baa466b353506cd8a91656e75bfb02e04fe21f46bff49ce00875317f5"
+      "bytes": 2039,
+      "sha256": "da1d40f2c92cca2d049742f49f982e00f5e40247acc96e8085d6d87b18a4a7a1"
     },
     {
       "path": "spec.json",
@@ -188,5 +188,5 @@
       "sha256": "681f7fccb904608829081f602c21ac2544f562df35ca90753866de14d7925d4d"
     }
   ],
-  "bundle_hash": "00628774d10be3aa6bf49470473617775adfdcb603ce8e6ab521be4b0d6d0d6b"
+  "bundle_hash": "409d0fb8670f97355d40e900d34f6f67fe37c04d05e4f8a0dfb4b3978cd08dae"
 }

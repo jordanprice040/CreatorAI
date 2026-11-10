@@ -14,7 +14,7 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 ## Expected artifacts
 
 - A `HANDOVER.md` in the project: how to run it, each check with its observed result, what was not run, known limits and open decisions.
-- A source archive made from the final commit (for example `git archive`).
+- A source archive made from the final commit (for example `git archive`), written outside the project folder, beside it.
 
 ## Completion gate
 
@@ -35,7 +35,10 @@ Step: verify and hand over. Change no feature code.
    REQUIREMENTS.md describes, or mark it "not run" and say who must do it.
 4. Write HANDOVER.md: how to run the project, each check key with its observed
    result, what was not run, known limits, and the decisions DECISIONS.md leaves open.
-5. Make a source archive from the final commit.
+   Copy in every line of ASSUMPTIONS.md, if it exists, for the owner to confirm.
+   Commit HANDOVER.md; this step may change no other file.
+5. Make a source archive from the final commit. Write it outside the project folder
+   (beside it), so the project stays clean, and give its path in the report.
 6. Report. Do not publish, deploy, release, or say the owner has accepted the work.
 
 The owner still has 2 held-out cases. The work is not accepted until the owner runs them.

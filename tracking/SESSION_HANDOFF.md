@@ -607,3 +607,11 @@ Open: the independent-consumption gate (give a fresh session only
 side runs the two held-out cases from `RUNBOOK_FIXTURE_SPEC`). No live run or device step was needed or done. Schema
 stays 49; this change used ADR-0080 and no migration number. Next eligible prompts: P10 (in progress in its own
 thread), then P12 (needs the search provider choice), P13, P17.
+
+## P16 follow-up: clean-room findings fixed (November 10, PR #152)
+
+The independent-consumption gate ran in a separate session and passed both held-out cases; its record is
+`tracking/evidence/runbook-export/clean-room-2026-11-10.md`. Its seven findings (2 Medium, 5 Low) are fixed in
+`packages/domain/src/runbook.ts` (contract rules 6, 9 and 10, setup prompt, task gates for judged checks, reviewer
+task wording, review and hand-over prompts, runner `-B`) and the example bundle was regenerated. The new wording has
+not been consumed in a second clean-room run. Next eligible prompts are unchanged.

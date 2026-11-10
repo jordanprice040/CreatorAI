@@ -15,6 +15,7 @@ Paste the whole of [CONTRACT.md](../CONTRACT.md) first, then the block under “
 
 - A new Git repository with one commit.
 - A short `README.md` in the project that names the project and says how to run the checks.
+- A `.gitignore` that lists `__pycache__/` and `*.pyc`, so running the checks leaves `git status` clean.
 - The empty entry point for the proposed stack (`src/main.py`).
 
 ## Completion gate
@@ -33,8 +34,8 @@ Step: set up the workspace. Write no feature code in this step.
 1. Read every file named in the project contract.
 2. Create a new, empty project folder outside the bundle and run `git init` in it.
 3. Create the layout for the proposed stack: Python command-line program (standard library only). Add src/main.py that exits with code 0 and prints nothing.
-4. Create every folder that TASKS.md lets a task change.
-5. Add a README.md that names the project and says how to run the checks.
+4. Create every folder that TASKS.md lets a task change. Git does not keep an empty folder, so put an empty file named .gitkeep in each folder that has no other file.
+5. Add a README.md that names the project and says how to run the checks, and a .gitignore with the two lines __pycache__/ and *.pyc.
 6. Run: python3 <bundle>/checks/run_checks.py   (from the project folder). Failures are expected; the script must start.
 7. Commit. Then report, including each open decision in DECISIONS.md that would block a later step.
 ```

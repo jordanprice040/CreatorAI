@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -262,6 +263,47 @@ test('an unfrozen, replaced or stack-less spec says so instead of looking ready'
   assert.throws(() => taskOrder(k.spec.content), /circle/);
 });
 
+test('a receiver with only the bundle can finish every step as written', () => {
+  const { files } = softwareRunbook(input());
+  const contract = textOf(files, 'CONTRACT.md');
+  // The bundle placeholder is defined where it is pasted, not only in the README.
+  assert.match(
+    contract,
+    /<bundle> {3}stands for the path of the bundle folder/,
+  );
+  // A judged check does not collide with "stop on an open decision".
+  assert.match(contract, /One exception: a check that a person must judge/);
+  assert.match(contract, /ASSUMPTIONS\.md in the project/);
+  assert.match(contract, /Five files at the project root belong to no task/);
+  const t3 = textOf(files, 'prompts/04-t3-review-against-the-scope.md');
+  assert.doesNotMatch(t3, /Check A3 passes when run now/);
+  assert.match(t3, /Check A3 is carried out .* recorded as provisional/);
+  assert.match(t3, /Write the review to review\/t3-review\.md/);
+  assert.match(t3, /whether this session wrote any of the code/);
+  // A check with executable cases still has to pass.
+  assert.match(
+    textOf(files, 'prompts/02-t1-count-words-from-standard-input.md'),
+    /Check A1 passes when run now\./,
+  );
+  const setup = textOf(files, 'prompts/01-setup.md');
+  assert.match(
+    setup,
+    /\.gitignore with the two lines __pycache__\/ and \*\.pyc/,
+  );
+  assert.match(setup, /empty file named \.gitkeep/);
+  assert.match(
+    textOf(files, 'checks/run_checks.py'),
+    /"-I", "-B", "src\/main\.py"/,
+  );
+  const review = textOf(files, 'prompts/05-review-and-repair.md');
+  assert.match(review, /each mitigation REQUIREMENTS\.md gives for a risk/);
+  assert.match(review, /A finding about README\.md is fixed in README\.md/);
+  assert.match(
+    textOf(files, 'prompts/06-verify-and-hand-over.md'),
+    /Write it outside the project folder/,
+  );
+});
+
 test('validation catches a changed, missing, extra or mislinked file', () => {
   const { files } = softwareRunbook(input());
   const swap = (path: string, text: string) =>
@@ -361,6 +403,25 @@ test('the shipped runner reproduces the visible cases from the bundle alone', as
   assert.match(pass.stdout, /SKIP A3 \(manual_review\)/);
   assert.match(pass.stdout, /2 held-out case\(s\) are not in this bundle/);
   assert.equal(run('--task', 'T2').stdout.match(/^PASS/gm)?.length, 1);
+  // A program split over local modules leaves no cache files behind, so the project
+  // stays clean for the "nothing outside the task's scope changed" gate.
+  await write(
+    'src/tally.py',
+    'def words(text):\n    return len(text.split())\n',
+  );
+  await write(
+    'src/main.py',
+    [
+      'import os, sys',
+      'sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))',
+      'import tally',
+      good
+        .replace('import sys\n', '')
+        .replace('len(text.split())', 'tally.words(text)'),
+    ].join('\n'),
+  );
+  assert.equal(run().status, 0);
+  assert.equal(existsSync(join(project, 'src', '__pycache__')), false);
   // A wrong program fails, with the failing check named and the difference shown.
   await write(
     'src/main.py',
@@ -543,6 +604,8 @@ test('a browser spec proposes the static web stack, writes the steps out and shi
   assert.equal(manifest.withheld.held_out_cases, 1);
   assert.ok(!files.some((f) => f.path === 'checks/run_checks.py'));
   assert.doesNotMatch(all(files), /held-out-browser-zq8/);
+  // No Python ignore file is asked for on a web project.
+  assert.doesNotMatch(textOf(files, 'prompts/01-setup.md'), /gitignore/);
   const req = textOf(files, 'REQUIREMENTS.md');
   assert.match(
     req,

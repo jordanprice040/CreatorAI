@@ -84,11 +84,12 @@ match the code and `… write` regenerates them. A test runs the verification.
 
 ## Limits
 
-- **Independent consumption is not done yet.** The plan's gate asks a separately scoped implementer
-  to build the synthetic project in a clean workspace from only the bundle. This change did not run
-  one. The repository test builds a reference program against the shipped runner, which shows the
-  runner and cases work but is not independent. Until a separate session does it, "no missing
-  context" is unverified.
+- **Independent consumption was run once.** On November 10 a separate session built the synthetic
+  project in an empty folder from only the bundle, and both held-out cases passed
+  ([record](../tracking/evidence/runbook-export/clean-room-2026-11-10.md)). One session did all six
+  prompts and it was the same kind of model that built the exporter. Its seven findings about
+  missing or unclear context were fixed in the generator afterwards; the changed wording has not
+  been through a second run.
 - The runner covers command-line cases only. Browser cases are written out as steps; no browser
   checker is shipped.
 - A selection without a spec or a proposal has nothing to export; write one first.

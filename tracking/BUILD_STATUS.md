@@ -602,3 +602,21 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - **Not done.** The plan's independent-consumption gate: a separately scoped implementer building the synthetic
   project from only `tracking/evidence/runbook-export/synthetic-bundle/` in a clean workspace. Not run here, so
   "no missing context" is unverified. Also no browser-case runner, no CLI command, Markdown and ZIP only.
+
+## P16 runbook export: clean-room gate and fixes (November 10, PR #152)
+
+- **Gate result.** A separate session built the synthetic project from only the committed bundle (at `c97bff3`) in an
+  empty folder and froze it before the fixture was opened. Both held-out cases then passed on a fresh clone. Record:
+  [tracking/evidence/runbook-export/clean-room-2026-11-10.md](evidence/runbook-export/clean-room-2026-11-10.md).
+  Limits of that run: one session did all six prompts, the implementer was the same kind of model that built the
+  exporter, and A3 was judged only by the implementer.
+- **Its findings, fixed in the generator.** F1: a check a person must judge is now "carried out and recorded as
+  provisional" in a task's gate, and the contract says an unnamed judge is not a reason to stop. F2: the runner adds
+  `-B` and setup adds a `.gitignore` for the Python stack. F3: the contract names the root files no task owns, and the
+  review step checks risk mitigations and may fix `README.md`. F4: unclear readings go in `ASSUMPTIONS.md` and are
+  copied into the hand-over. F5: `.gitkeep` in empty folders. F6: a reviewer task reviews only its own checks, writes
+  to a named file and says whether it wrote the code. F7: the contract defines `<bundle>` and the source archive goes
+  outside the project.
+- **Checks.** 25 runbook and proposal tests pass (one new test for these fixes; the runner test now also proves no
+  `__pycache__` is left). `pnpm typecheck` and `pnpm format:check` pass. The example bundle was regenerated
+  (hash `409d0fb8…`). The regenerated bundle has **not** been through a second clean-room run.

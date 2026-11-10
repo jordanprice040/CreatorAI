@@ -30,7 +30,7 @@ def main():
     args = ap.parse_args()
     with open(os.path.join(HERE, "acceptance.json"), encoding="utf-8") as f:
         data = json.load(f)
-    cmd = shlex.split(args.cmd) if args.cmd else [sys.executable, "-I", "src/main.py"]
+    cmd = shlex.split(args.cmd) if args.cmd else [sys.executable, "-I", "-B", "src/main.py"]
     wanted = None
     if args.task:
         tasks = [t for t in data["tasks"] if t["key"] == args.task]
