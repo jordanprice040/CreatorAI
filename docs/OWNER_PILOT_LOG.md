@@ -23,11 +23,17 @@ rather than extend it. `config/owner-pilot.json` now has `status: completed`, `f
 03:15 EST) had already ended; the last pilot work was the v4 build and Jordan's verdict on
 2026-10-31 (Day 2 below). No pilot activity was run after the window.
 
-What the record holds: two verified $0 builds (v2 analyzer, v4 practice mode), no new metered
-spend, at most 1 consecutive failure (stop rule 3), findings F2–F21 (since fixed in the friction
-and flow pass), and Jordan's owner feedback. Not recorded: the per-run intervention and voluntary
-minutes marked _ask Jordan_ stay unknown (only the day-1 estimate of about 60 of 120 minutes
-exists), and free RAM was checked only at setup. These gaps are left as they are, not filled in.
+What the record holds: two verified $0 builds (v2 analyzer, v4 practice mode) and no new metered
+spend. The 3-in-a-row failure stop rule never fired: the run table's counter peaked at 1 for
+runs 1–8, and counting qualifications and builds there were at most 2 failures in a row (the two
+failed builder qualifications on day 1, 37752d2f and 31aae6c9; two failed builds on day 2,
+13c597f4 then 5525feed). Findings F2–F21 and Jordan's owner feedback are recorded here; this log
+does not say they are fixed. Their status is in the "Pilot findings" table of
+[the P00 reconciliation](P00_RECONCILIATION_2026-11-05.md): as of November 5, F2 was open, F5,
+F7, F15, F17 (web) and F18 (approve in place) were partly open, and F9 has since been addressed
+by P09 (PR #148). Not recorded: the per-run intervention and voluntary minutes marked
+_ask Jordan_ stay unknown (only the day-1 estimate of about 60 of 120 minutes exists), and free
+RAM was checked only at setup. These gaps are left as they are, not filled in.
 
 Finishing the pilot does not make X10 ready: its readiness rows still need owner inputs.
 

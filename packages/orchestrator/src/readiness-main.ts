@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -25,6 +25,13 @@ const result = evaluateReadiness(
   pilot,
   read('context/REQUIREMENTS.md'),
   (p) => existsSync(join(root, p)),
+  (p) => {
+    try {
+      return statSync(join(root, p)).isFile();
+    } catch {
+      return false;
+    }
+  },
   registerBytes,
 );
 if (args[0] === 'pilot-check') {
