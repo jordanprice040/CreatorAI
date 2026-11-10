@@ -717,3 +717,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   rows now keep their comma. R6-N1 a snake_case last folder inside `_…_` emphasis is removed whole, with a linear
   form. Every reported string is a test row, with timing loops for the new shapes; worst probe 12 ms at 50k
   characters.
+- **Seventh re-review (at `de9bb58`): no High or Medium; 2 Lows and 1 nit fixed.** R7-1 a quote or backtick stays
+  inside an address password unless structure follows it, so `P@ss'w0rd@db` is removed whole; a raw `@` before `|`,
+  `<` or `>` is named in the guide as a limit. R7-2 a spaced name before one folder and a `.`, `:`, `!` or `?` and a
+  space is removed whole. R7-N1 a path that ends at the account name keeps a closer or sentence mark after it, and the
+  Unix tails also refuse a final `?`. One older row now keeps its full stop. Every reported string is a test row,
+  with timing loops for the new shapes; worst probe 13 ms at 100k characters.

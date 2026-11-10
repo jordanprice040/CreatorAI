@@ -703,7 +703,7 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['Path /home/ci Linux/macOS only', ' Linux/macOS only'],
     [
       'Logs go to /home/app. Use Input/Output streams.',
-      ' Use Input/Output streams.',
+      '. Use Input/Output streams.',
     ],
     [
       'Store in C:\\Users\\Public Read/Write access is needed.',
@@ -772,6 +772,20 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['see /home/jordan/x.md). Then', '). Then'],
     ['“/home/jordan/x”.', '”.'],
     ['Saved to /home/jordan/x.txt.', '.'],
+    // Re-review 7 R7-2: one last folder, then a sentence mark and a space.
+    ['C:\\Users\\Jordan Price\\Projects. Then run it', '. Then run it'],
+    ['C:\\Users\\Jordan Price\\Projects: the app', ': the app'],
+    ['/home/Jordan Price/Projects. Next', '. Next'],
+    ['/home/Jordan Price/Projects? Yes', '? Yes'],
+    // Re-review 7 R7-N1: a path that ends at the account name keeps what closes it.
+    ['(see /home/jordan).', ').'],
+    ['[home](/home/jordan).', ').'],
+    ['“C:\\Users\\jordan”.', '”.'],
+    ['see /home/jordan, then', ', then'],
+    ['/Users/jordan!', '!'],
+    ['/home/jordan.smith/x', ''],
+    ['C:\\Users\\jordan\\', ''],
+    ['C:\\Users\\jordan.\\Documents', ''],
     // Re-review 6 R6-N1: a snake_case last folder inside "_" emphasis.
     ['_C:\\Users\\Jordan Price\\my_file_ next', ' next'],
     ['_/home/Jordan Price/my_notes_ next', ' next'],
@@ -780,7 +794,7 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['C:\\USERS\\JORDAN\\notes.txt', ''],
     ['/mnt/c/users/jordan/notes.txt', ''],
   ] as const) {
-    const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt|\/users/);
+    const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt|\/users|\/Users/);
     // (Trailing "_" of an emphasis is part of the path text and goes with it.)
     // The bracket or quote before the path stays.
     assert.equal(
@@ -855,6 +869,15 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
       '<postgres://u:p@h>(jordan@example.com)',
       '<[credential removed]h>(jordan@example.com)',
     ],
+    // Re-review 7 R7-1: a raw "@" and a later quote or backtick in the password.
+    [
+      '"postgres://admin:P@ss\'w0rd@db.internal:5432/app"',
+      '"[credential removed]db.internal:5432/app"',
+    ],
+    ['postgres://u:p@ss"word@h/db', '[credential removed]h/db'],
+    ['postgres://u:p@ss`w@h', '[credential removed]h'],
+    ["x='postgres://u:p@h' y='a@b'", "x='[credential removed]h' y='a@b'"],
+    ["['postgres://u:p@h','a@b']", "['[credential removed]h','a@b']"],
     ['postgres://u:p|ss@h', '[credential removed]h'],
     ['postgres://u:p"ss@h', '[credential removed]h'],
   ] as const)
@@ -866,7 +889,19 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     'mailto:a@b.c',
   ])
     assert.equal(clean(kept), kept);
-  for (const run of ['x://a:', 'x://:', '@', ':@', 'a:@', '"@', 'a,@', '|@'])
+  for (const run of [
+    'x://a:',
+    'x://:',
+    '@',
+    ':@',
+    'a:@',
+    '"@',
+    'a,@',
+    '|@',
+    "'a@",
+    '"',
+    '`@',
+  ])
     for (const head of ['x://u:', 'x://u:"']) {
       const started = performance.now();
       clean(`${head}${run.repeat(20_000)}`);

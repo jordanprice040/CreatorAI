@@ -57,7 +57,7 @@ assistant never reports a step as done on its own word, and unknown sections sta
 - **Held-out cases never leave.** Their arguments, input and expected output are dropped; only the
   count is reported. The prompts say that passing the visible cases does not show acceptance.
 - **Redaction.** Before anything is written, every text field is scanned for well-known credential
-  formats (provider keys, tokens, private key blocks, bearer values, passwords inside addresses, also with an empty user name as in `redis://:password@host`; a raw `,` or `?` in a password is allowed, so text joined to such an address by one of them may be removed with it) and
+  formats (provider keys, tokens, private key blocks, bearer values, passwords inside addresses, also with an empty user name as in `redis://:password@host`; a raw `,` or `?` in a password is allowed, so text joined to such an address by one of them may be removed with it; a password holding a raw `@` and later a `|`, `<` or `>` is only removed up to that `@`, because it cannot be told apart from a table or tag) and
   for personal folder paths (`C:\Users\name\…`, `\\host\Users\name\…`, `/home/name/…`,
   `/Users/name/…`, `/mnt/c/Users/name/…`). Matches are
   replaced and counted in the manifest and the README. The scan is a pattern list, not a guarantee:
@@ -66,7 +66,7 @@ assistant never reports a step as done on its own word, and unknown sections sta
   kept. An account name of up to four words joined by ordinary spaces is caught only when what
   follows it is clearly more path: a profile folder such as `Documents`, another folder and
   separator, a file name with an extension, a last folder that ends the text or line, is closed by
-  a straight or curly quote, backtick, bracket, brace, `*`, `~`, `|` or `»`, or by `_` before a space or the end, or is followed by a comma, or a bare separator. A closing mark inside a path (`DOCUME~1`, `scans(old)`) does not end it; only one at its end stays outside, as does a sentence mark (`.`, `,`, `;`, `:`, `!`) after the path. Otherwise only the
+  a straight or curly quote, backtick, bracket, brace, `*`, `~`, `|` or `»`, or by `_` before a space or the end, or is followed by a sentence mark (`.`, `,`, `;`, `:`, `!`, `?`) and a space, or a bare separator. A closing mark inside a path (`DOCUME~1`, `scans(old)`) does not end it; only one at its end stays outside, as does a sentence mark (`.`, `,`, `;`, `:`, `!`, `?`) after the path, also when the path ends at the account name. Otherwise only the
   first word is caught ("…\Jordan Price\Projects - see", or "C:\Users\Jordan Price" with nothing
   after it). The rule can also remove up to three words of prose after a path when a slash follows
   them ("/home/ci and Linux/macOS."), which errs on the safe side. Forms such as

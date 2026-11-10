@@ -54,8 +54,9 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   // The user name may be empty ("redis://:pw@host") (re-review 5, R5-2). The password first
   // stops at quotes, backticks, "<>" and "|", so JSON or a table after the address stays; only
   // when that finds no "@" does it run to the last "@" before a "/" or a space, which also
-  // catches a raw "@" in it (re-review 6, R6-1).
-  /(?<![a-z0-9+.-])[a-z0-9+.-]+:\/\/[^\s/:@]*:(?:[^\s/"'`<>|]+@|[^\s/@]+@)/gi,
+  // catches a raw "@" in it (re-review 6, R6-1). A quote or backtick stays inside the first
+  // run unless structure follows it, so "P@ss'w0rd@db" is removed whole (re-review 7, R7-1).
+  /(?<![a-z0-9+.-])[a-z0-9+.-]+:\/\/[^\s/:@]*:(?:(?:[^\s/"'`<>|]|["'`](?![\s,;:)\]}>|]|$))+@|[^\s/@]+@)/gi,
   /\bglpat-[A-Za-z0-9_-]{20,}/g,
   /\bhf_[A-Za-z0-9]{30,}/g,
   /\bnpm_[A-Za-z0-9]{36,}/g,
@@ -110,8 +111,8 @@ const MORE_PATH = [
   // brackets and one sentence mark.
   `${LAST_SEG}${CLOSE}*(?:[.,;:!?]${CLOSE}*)?(?:$|\\r?\\n)`,
   // One last segment closed by a quote, backtick or bracket (a code span), or followed by a
-  // comma or semicolon and a space.
-  `${LAST_SEG}(?:${CLOSE}|[,;](?=\\s))`,
+  // sentence mark and a space (re-review 7, R7-2).
+  `${LAST_SEG}(?:${CLOSE}|[.,;:!?](?=\\s))`,
   // ...or ended by Markdown emphasis "_" before a space, a sentence mark or the end.
   `[^\\\\/\\s"'\`<>|:*?)\\]}~”’»_]+(?:_+[^\\\\/\\s"'\`<>|:*?)\\]}~”’»_]+)*_+(?=[\\s.,;:!?]|$)`,
   // Nothing but a separator: "…\Jordan Price\ in Explorer", "…\Jordan Price\".
@@ -119,17 +120,19 @@ const MORE_PATH = [
 ].join('|');
 const MORE_WORDS = `(?:(?:[ \\t]+[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'.-]*){1,3}(?=[\\\\/]+(?:${MORE_PATH})))?`;
 const UNIX_MORE_WORDS = MORE_WORDS.replaceAll('[\\\\/]', '\\/');
+// The account name ends on a closer or sentence mark only when a separator follows, so
+// "(see /home/jordan)." keeps its ")." (re-review 7, R7-N1).
 const PATH_PATTERNS: readonly RegExp[] = [
   new RegExp(
-    `(?:(?<![A-Za-z0-9])[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}${MORE_WORDS}(?:[\\\\/]+(?:[^\\s"'\`<>|*?]*[^\\s"'\`<>|*?)\\]}~”’».,;:!])?)?`,
+    `(?:(?<![A-Za-z0-9])[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}(?:(?<![).\\]}~”’».,;!])|(?=[\\\\/]))${MORE_WORDS}(?:[\\\\/]+(?:[^\\s"'\`<>|*?]*[^\\s"'\`<>|*?)\\]}~”’».,;:!])?)?`,
     'giu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}${UNIX_MORE_WORDS}(?:\\/(?:[^\\s"'\`<>]*[^\\s"'\`<>)\\]}~”’»*|.,;:!])?)?`,
+    `(?<![A-Za-z0-9.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}(?:(?<![)\\]}~”’».,;:!*|])|(?=\\/))${UNIX_MORE_WORDS}(?:\\/(?:[^\\s"'\`<>]*[^\\s"'\`<>)\\]}~”’»*|.,;:!?])?)?`,
     'gu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9.-])\\/${anyCase('users')}\\/(?![{:]|me\\/|\\d+\\/)${UNIX_NAME_SEG}${UNIX_MORE_WORDS}\\/${MAC_PROFILE}(?:\\/(?:[^\\s"'\`<>]*[^\\s"'\`<>)\\]}~”’»*|.,;:!])?)?`,
+    `(?<![A-Za-z0-9.-])\\/${anyCase('users')}\\/(?![{:]|me\\/|\\d+\\/)${UNIX_NAME_SEG}${UNIX_MORE_WORDS}\\/${MAC_PROFILE}(?:\\/(?:[^\\s"'\`<>]*[^\\s"'\`<>)\\]}~”’»*|.,;:!?])?)?`,
     'gu',
   ),
 ];
