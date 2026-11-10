@@ -710,3 +710,10 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   last folder closed by `_` before a space or the end is removed whole; R5-N2 the Unix forms keep a closing `**` or
   `|`. R5-N3 needed no change. Every reported string is a test row, with new timing loops; worst probe 2 ms at 20k
   characters.
+- **Sixth re-review (at `0accf31`): no High or Medium, no leak; 2 Lows and 1 nit fixed (both Lows removed too
+  much).** R6-1 the address password first stops at quotes, backticks, `<>` and `|` and only falls back to the
+  last-`@` rule, so JSON keys, table cells and e-mail addresses after a URL stay; a raw `"` or `|` in a password is
+  still caught. R6-2 a path tail no longer ends on `.,;:!`, so `(see /home/jordan/x.md).` keeps `).` and two older
+  rows now keep their comma. R6-N1 a snake_case last folder inside `_…_` emphasis is removed whole, with a linear
+  form. Every reported string is a test row, with timing loops for the new shapes; worst probe 12 ms at 50k
+  characters.

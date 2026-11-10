@@ -750,7 +750,7 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['«C:\\Users\\Jordan Price\\Projects» x', '» x'],
     ['C:\\Users\\Jordan Price\\Projects| x', '| x'],
     ['[link](/home/jordan/x.md) y', ') y'],
-    ['C:\\Users\\Jordan Price\\Projects, then run it', ' then run it'],
+    ['C:\\Users\\Jordan Price\\Projects, then run it', ', then run it'],
     // Re-review 5 R5-1: a closing mark inside the path does not end it.
     ['C:\\Users\\jordan\\Documents\\DOCUME~1\\Jordan_Price_W2.pdf', ''],
     ['C:\\Users\\jordan\\Downloads\\scans(old)\\jordan_passport.pdf', ''],
@@ -761,10 +761,20 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['/users/jordan/Documents/a(b)/c) x', ') x'],
     // Re-review 5 R5-N1: a spaced name inside "_" emphasis before more text.
     ['_C:\\Users\\Jordan Price\\Projects_ next', ' next'],
-    ['__/home/Jordan Price/projects__, then', ' then'],
+    ['__/home/Jordan Price/projects__, then', ', then'],
     // Re-review 5 R5-N2: Unix paths keep a closing "**" or "|".
     ['**/home/jordan/x** bold', '** bold'],
     ['/home/jordan/x| y', '| y'],
+    // Re-review 6 R6-2: a bracket or quote before a sentence mark stays, and so does the mark.
+    ['(see C:\\Users\\jordan\\Documents).', ').'],
+    ['[link](/home/jordan/x.md).', ').'],
+    ['(saved in /home/jordan/notes.txt), then', '), then'],
+    ['see /home/jordan/x.md). Then', '). Then'],
+    ['“/home/jordan/x”.', '”.'],
+    ['Saved to /home/jordan/x.txt.', '.'],
+    // Re-review 6 R6-N1: a snake_case last folder inside "_" emphasis.
+    ['_C:\\Users\\Jordan Price\\my_file_ next', ' next'],
+    ['_/home/Jordan Price/my_notes_ next', ' next'],
     // Final review P-2: Windows profile paths in any letter case.
     ['c:\\users\\jordan\\notes.txt', ''],
     ['C:\\USERS\\JORDAN\\notes.txt', ''],
@@ -826,6 +836,29 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ],
   ] as const)
     assert.equal(clean(raw), out, raw);
+  // Re-review 6 R6-1: what follows the host is kept, but a raw quote or "|" in the
+  // password is still caught.
+  for (const [raw, out] of [
+    [
+      '{"url":"postgres://u:p@h","email":"jordan@example.com"}',
+      '{"url":"[credential removed]h","email":"jordan@example.com"}',
+    ],
+    [
+      '`postgres://u:p@h`;`jordan@example.com`',
+      '`[credential removed]h`;`jordan@example.com`',
+    ],
+    [
+      '|postgres://u:p@h|jordan@example.com|',
+      '|[credential removed]h|jordan@example.com|',
+    ],
+    [
+      '<postgres://u:p@h>(jordan@example.com)',
+      '<[credential removed]h>(jordan@example.com)',
+    ],
+    ['postgres://u:p|ss@h', '[credential removed]h'],
+    ['postgres://u:p"ss@h', '[credential removed]h'],
+  ] as const)
+    assert.equal(clean(raw), out, raw);
   for (const kept of [
     'http://example.com/a:b@c',
     'https://example.com:8080/x',
@@ -833,14 +866,24 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     'mailto:a@b.c',
   ])
     assert.equal(clean(kept), kept);
-  for (const run of ['x://a:', 'x://:', '@', ':@', 'a:@']) {
-    const started = performance.now();
-    clean(`x://u:${run.repeat(20_000)}`);
-    assert.ok(
-      performance.now() - started < 500,
-      `${run} x 20000 took too long`,
-    );
-  }
+  for (const run of ['x://a:', 'x://:', '@', ':@', 'a:@', '"@', 'a,@', '|@'])
+    for (const head of ['x://u:', 'x://u:"']) {
+      const started = performance.now();
+      clean(`${head}${run.repeat(20_000)}`);
+      assert.ok(
+        performance.now() - started < 500,
+        `${run} x 20000 took too long`,
+      );
+    }
+  for (const run of ['_', 'a_', '_a', 'a__', '__a'])
+    for (const head of ['_C:\\Users\\a b\\', '_/home/a b/']) {
+      const started = performance.now();
+      clean(`${head}${run.repeat(20_000)} z`);
+      assert.ok(
+        performance.now() - started < 500,
+        `${head} + ${run} x 20000 took too long`,
+      );
+    }
   for (const tail of [')', ']', '")'])
     for (const head of ['C:\\Users\\a b\\x', '/home/a b/x']) {
       const started = performance.now();
