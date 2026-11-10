@@ -721,12 +721,25 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
       'Open C:\\Users\\jorda then use the Settings/Advanced tab',
       ' then use the Settings/Advanced tab',
     ],
+    // Re-review 2 R2-1: a two-word name before one last folder or a bare separator.
+    ['C:\\Users\\Jordan Price\\Projects', ''],
+    ['C:\\Users\\Jordan Price\\source', ''],
+    ['Open C:\\Users\\Jordan Price\\ in Explorer', ' in Explorer'],
+    ['/home/Jordan Price/projects', ''],
+    ['/home/jordan price/desktop', ''],
+    ['See "C:\\Users\\Jordan Price\\Projects".', '".'],
+    // Re-review 2 R2-N2 and R2-N3: longer names, apostrophes, digits, macOS in any case.
+    ['C:\\Users\\Mary Ann Van Dyke\\Documents\\a.csv', ''],
+    ["C:\\Users\\O'Brien Price\\Documents\\a.csv", ''],
+    ["C:\\Users\\O'Brien\\x.txt", ''],
+    ['C:\\Users\\Jordan Price2\\Documents\\a.csv', ''],
+    ['/users/jordan/notes.txt', ''],
     // Final review P-2: Windows profile paths in any letter case.
     ['c:\\users\\jordan\\notes.txt', ''],
     ['C:\\USERS\\JORDAN\\notes.txt', ''],
     ['/mnt/c/users/jordan/notes.txt', ''],
   ] as const) {
-    const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt/);
+    const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt|\/users/);
     assert.equal(
       clean(raw),
       `${raw.slice(0, at)}[private path removed]${kept}`,

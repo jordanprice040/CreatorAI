@@ -684,3 +684,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   file name with an extension); P-2 Windows profile paths match in any letter case; N-1 the ethics-only wording uses
   the gate's own `needs_judgment`; N-2 SESSION_HANDOFF brought up to date; N-3 README names wholly held-back checks
   when they are mixed with manual ones. Tests cover every string the review listed. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Second re-review (at `ffb5a12`): no High or Medium.** R2-1 a two-word account name before one last folder or a
+  bare separator is removed again (a last segment that ends the text or line, or a separator followed by a space,
+  quote, bracket or the end, now counts as more path); R2-N2 names of up to four words, with digits or an apostrophe
+  (`O'Brien`), are removed; R2-N3 lower-case macOS `/users/…` and lower-case profile folders on the Unix arm are
+  matched, and the guide names the forms still not covered. Every string the review listed is a test row; probes of
+  100k to 320k characters finish in about 10 ms. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.

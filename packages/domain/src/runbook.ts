@@ -56,20 +56,53 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]{16,}=*/g,
 ];
 /** A personal folder: the account name is the private part, so it and the rest are dropped. */
-// The account name may hold one or two more words after a space ("Jordan Price", "José García",
-// "jordan price"), but only when what follows the separator is clearly more path: a profile
-// folder, a segment followed by another separator, or a file name with an extension. So
-// "/home/ci Linux/macOS only" keeps its words. Windows paths match in any case.
-const NAME_SEG = `[^\\\\/\\s"'\`<>|:*?]+`;
-const MORE_PATH = `(?:(?:Desktop|Documents|Downloads|AppData|OneDrive|Pictures|Music|Videos|Library|Favorites|Contacts|Links|Saved Games|Searches)(?![\\p{L}\\p{N}])|\\.[\\w-]+|${NAME_SEG}[\\\\/]|[^\\\\/\\s"'\`<>|:*?.]+\\.[A-Za-z0-9]{1,8}(?![\\p{L}\\p{N}]))`;
-const MORE_WORDS = `(?:(?: \\p{L}[\\p{L}\\p{M}'.-]*){1,2}(?=[\\\\/]+${MORE_PATH}))?`;
+// The account name may hold up to three more words after a space ("Jordan Price", "José García",
+// "Mary Ann Van Dyke", "O'Brien"), but only when what follows the separator is clearly more
+// path: a profile folder, a segment followed by another separator, a file name with an
+// extension, a last segment that ends the text or line, or a separator followed by a space,
+// quote, bracket or the end. So "/home/ci Linux/macOS only" keeps its words. Windows paths match
+// in any letter case; so do macOS profiles, whose disks usually ignore case.
+const NAME_SEG = `(?:[^\\\\/\\s"'\`<>|:*?]|'(?=\\p{L}))+`;
+const anyCase = (w: string) =>
+  w.replace(/[A-Za-z]/g, (c) => `[${c.toUpperCase()}${c.toLowerCase()}]`);
+const PROFILE_FOLDERS = [
+  'Desktop',
+  'Documents',
+  'Downloads',
+  'AppData',
+  'OneDrive',
+  'Pictures',
+  'Music',
+  'Videos',
+  'Library',
+  'Favorites',
+  'Contacts',
+  'Links',
+  'Saved Games',
+  'Searches',
+]
+  .map(anyCase)
+  .join('|');
+const CLOSE = `["'\`)\\]>]`;
+const MORE_PATH = [
+  `(?:${PROFILE_FOLDERS})(?![\\p{L}\\p{N}])`,
+  `\\.[\\w-]+`,
+  `${NAME_SEG}[\\\\/]`,
+  `[^\\\\/\\s"'\`<>|:*?.]+\\.[A-Za-z0-9]{1,8}(?![\\p{L}\\p{N}])`,
+  // One last segment that ends the text or the line (sentence punctuation and closing
+  // quotes or brackets may follow).
+  `[^\\\\/\\s"'\`<>|:*?]+?${CLOSE}*[.,;:!?]?${CLOSE}*(?:$|\\r?\\n)`,
+  // Nothing but a separator: "…\Jordan Price\ in Explorer", "…\Jordan Price\".
+  `(?:$|\\s|${CLOSE})`,
+].join('|');
+const MORE_WORDS = `(?:(?:[ \\t]+[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'.-]*){1,3}(?=[\\\\/]+(?:${MORE_PATH})))?`;
 const PATH_PATTERNS: readonly RegExp[] = [
   new RegExp(
     `(?:\\b[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}${MORE_WORDS}(?:[\\\\/]+[^\\s"'\`<>|*?]*)?`,
     'giu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9_.-])(?:\\/(?:home|Users)|\\/mnt\\/[A-Za-z]\\/[Uu][Ss][Ee][Rr][Ss])\\/[^/\\s"'\`<>]+${MORE_WORDS.replaceAll('[\\\\/]', '\\/')}(?:\\/[^\\s"'\`<>]*)?`,
+    `(?<![A-Za-z0-9_.-])(?:\\/home|\\/${anyCase('Users')}|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${NAME_SEG.replace('\\\\\\\\', '\\\\')}${MORE_WORDS.replaceAll('[\\\\/]', '\\/')}(?:\\/[^\\s"'\`<>]*)?`,
     'gu',
   ),
 ];
