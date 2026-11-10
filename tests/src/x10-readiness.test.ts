@@ -79,18 +79,36 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
   assert.equal(r.requirements.length, 54);
-  // The owner pilot was decided on 2026-10-30, so the committed plan passes its gate
-  // while its window is open (up to its last second), and is refused once it has ended.
-  assert.deepEqual(r.pilot, { ready: true, refusals: [] });
-  assert.deepEqual(evaluate(register(), pilot(), JUST_BEFORE_END).pilot, {
+  // The owner pilot was decided on 2026-10-30 and recorded as completed by Jordan on
+  // 2026-11-10, with its log as evidence. A completed pilot is judged by its evidence, so
+  // its gate passes during and after its window.
+  assert.equal(pilot().status, 'completed');
+  for (const now of [IN_WINDOW, JUST_BEFORE_END, AT_END, AFTER_WINDOW])
+    assert.deepEqual(evaluate(register(), pilot(), now).pilot, {
+      ready: true,
+      refusals: [],
+    });
+  // The same plan not yet finished passes while its window is open (up to its last
+  // second), and is refused once it has ended.
+  const running: OwnerPilot = { ...pilot(), status: 'running', evidence: [] };
+  assert.deepEqual(evaluate(register(), running, JUST_BEFORE_END).pilot, {
     ready: true,
     refusals: [],
   });
   for (const now of [AT_END, AFTER_WINDOW])
-    assert.deepEqual(evaluate(register(), pilot(), now).pilot, {
+    assert.deepEqual(evaluate(register(), running, now).pilot, {
       ready: false,
       refusals: ['Pilot window has already ended.'],
     });
+  // A completed pilot whose evidence is missing is still refused after its window.
+  assert.deepEqual(
+    evaluate(
+      register(),
+      { ...pilot(), evidence: ['docs/NEVER_WRITTEN.md'] },
+      AFTER_WINDOW,
+    ).pilot.refusals,
+    ['Pilot evidence "docs/NEVER_WRITTEN.md" does not exist.'],
+  );
   // Nothing in the studio has a verified live model call, so live discovery rows stay open.
   assert.ok(
     r.requirements.find((x) => x.id === 'C01')?.missing.includes('live'),

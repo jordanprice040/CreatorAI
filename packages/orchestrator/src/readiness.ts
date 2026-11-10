@@ -52,6 +52,9 @@ export interface OwnerPilot {
   schedules: unknown[] | null;
   enabled_accounts: string[];
   platforms: string[];
+  /** Who recorded the pilot as completed, and when (set with status 'completed'). */
+  finished_by?: string | null;
+  finished_at?: string | null;
   stop_rules: {
     max_spend_nano_usd: string | null;
     max_consecutive_failures: number | null;
@@ -201,7 +204,9 @@ export function checkPilot(
     r.push('Owner has not chosen the pilot window (starts_at, ends_at).');
   else if (Date.parse(end) <= Date.parse(start))
     r.push('Pilot window ends before it starts.');
-  else if (Date.parse(end) <= now.getTime())
+  // A pilot that has not finished cannot run outside its window; a completed one is
+  // judged by its evidence instead, since its window has necessarily passed.
+  else if (pilot.status !== 'completed' && Date.parse(end) <= now.getTime())
     r.push('Pilot window has already ended.');
   // null means not chosen; [] is the owner's choice of manual runs only (decision #29).
   if (!Array.isArray(pilot.schedules))
