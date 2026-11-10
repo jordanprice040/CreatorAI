@@ -406,6 +406,18 @@ test('X04 owner verification, scope limits, push, review, checks and exact-head 
   assert.equal(state(await merge(c2)), 'refused:check_pending');
   gh.setCheck(repo.github_id, c2, 'ci', 'failure');
   assert.equal(state(await merge(c2)), 'refused:check_failed');
+  // P22: the owner can read the pull request's head and checks without journaling anything;
+  // other members cannot use the connection's credential to read.
+  const opsBefore = (await store.listGitHubOperations(owner, ws)).length;
+  const read = await svc.pullChecks(owner, ws, repo.id, number);
+  assert.equal(read.pull?.head_sha, c2);
+  assert.deepEqual(
+    read.checks.map((x) => `${x.name}:${x.conclusion}`),
+    ['ci:failure'],
+  );
+  assert.equal((await store.listGitHubOperations(owner, ws)).length, opsBefore);
+  await assert.rejects(svc.pullChecks(agent, ws, repo.id, number), /owner/i);
+  assert.equal((await svc.pullChecks(owner, ws, repo.id, 9999)).pull, null);
   gh.setCheck(repo.github_id, c2, 'ci', 'success');
   // Someone pushes after review: the reviewed head is stale, and so are its approval and checks.
   const c3 = local.commit('src/app.txt', 'v3');

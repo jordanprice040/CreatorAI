@@ -3,6 +3,7 @@ import {
   ContractError,
   type GitHubConnection,
   type GitHubOperation,
+  type GitHubPullChecks,
   type GitHubRepository,
 } from '@creator/contracts';
 import { classifyResponse, webhookSignatureValid } from '@creator/domain';
@@ -255,6 +256,46 @@ export class GitHubService {
       case 'pr_merge':
         return a.merge(ref!, p.pr_number, p.reviewed_head_sha, p.merge_method);
     }
+  }
+
+  /**
+   * P22: reads one pull request and the checks on its current head. Read-only: no operation is
+   * journaled, nothing is admitted and nothing on GitHub changes.
+   */
+  async pullChecks(
+    ctx: CommandContext,
+    ws: string,
+    repositoryId: string,
+    number: number,
+  ): Promise<GitHubPullChecks> {
+    const { connection, repository } = await this.store.repositoryForRead(
+      ctx,
+      ws,
+      repositoryId,
+    );
+    const a = this.#need(connection);
+    const seen = await a.repositoryById(repository.github_id);
+    if (!seen)
+      throw new ContractError(
+        'NOT_FOUND',
+        'GitHub did not return this repository to the connection’s credential.',
+      );
+    const ref = { github_id: repository.github_id, full_name: seen.full_name };
+    const pull = await a.pull(ref, number);
+    const c = pull
+      ? await a.checks(ref, pull.head_sha)
+      : {
+          checks: [],
+          check_runs_readable:
+            connection.body.credential.kind !== 'fine_grained_pat',
+        };
+    return {
+      repository_id: repository.id,
+      read_at: new Date().toISOString(),
+      pull,
+      checks: c.checks,
+      check_runs_readable: c.check_runs_readable,
+    };
   }
 
   /** Reads GitHub to settle an unknown outcome; never repeats the change itself. */

@@ -3,6 +3,7 @@ import {
   GitHubConnectionSchema,
   GitHubDeliverySchema,
   GitHubOperationSchema,
+  GitHubPullChecksSchema,
   GitHubRepositorySchema,
   GitHubReviewSchema,
   RunControlSchema,
@@ -10,6 +11,7 @@ import {
   type GitHubConnection,
   type GitHubOperation,
   type GitHubOperationParams,
+  type GitHubPullChecks,
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
@@ -211,6 +213,9 @@ export function GitHub({
                         })()}
                         {r.status_reason ? ` · ${r.status_reason}` : ''}
                       </small>
+                      {workspace.role === 'owner' &&
+                        r.status === 'active' &&
+                        !revoked && <ReadChecks base={base} repoId={r.id} />}
                     </li>
                   );
                 })}
@@ -1247,6 +1252,75 @@ function RecordReview({
           Record review
         </button>
       </div>
+    </form>
+  );
+}
+
+/**
+ * P22: reads one pull request's current head and the checks GitHub reports on it. Read-only:
+ * nothing is journaled and nothing on GitHub changes. A fine-grained token sees commit
+ * statuses only (GitHub does not let it read check runs).
+ */
+function ReadChecks({ base, repoId }: { base: string; repoId: string }) {
+  const [pr, setPr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [read, setRead] = useState<GitHubPullChecks | null>(null);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      setRead(
+        await api(
+          GitHubPullChecksSchema,
+          `${base}/github-repositories/${repoId}/checks?pr=${encodeURIComponent(pr.trim())}`,
+        ),
+      );
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="actions" onSubmit={(e) => void submit(e)}>
+      <label>
+        Pull request
+        <input
+          inputMode="numeric"
+          size={6}
+          value={pr}
+          onChange={(e) => setPr(e.target.value)}
+        />
+      </label>
+      <button className="secondary" disabled={busy || !/^\d+$/.test(pr.trim())}>
+        {busy ? 'Reading…' : 'Read its checks'}
+      </button>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {read && (
+        <p className="small" role="status">
+          {when(read.read_at)} ·{' '}
+          {read.pull
+            ? `#${read.pull.number} ${read.pull.merged ? 'merged' : read.pull.state} · ${read.pull.head_ref} → ${read.pull.base_ref} · head ${read.pull.head_sha.slice(0, 12)} · ${
+                read.checks.length
+                  ? read.checks
+                      .map(
+                        (c) =>
+                          `${c.name}: ${c.conclusion ?? c.status} (${c.source === 'status' ? 'status' : 'check run'})`,
+                      )
+                      .join(', ')
+                  : 'no checks reported on this head'
+              }`
+            : 'GitHub returned no pull request with that number.'}
+          {!read.check_runs_readable &&
+            ' Check runs (GitHub Actions) are not readable with a fine-grained token; only commit statuses are shown.'}
+        </p>
+      )}
     </form>
   );
 }

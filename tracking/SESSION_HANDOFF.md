@@ -736,3 +736,18 @@ limit. Stored-text quote checks passed 5/5. Fetching, not finding, is the bottle
 routes, configuration, grants and migrations are unchanged; no ADR is adopted. Next: Jordan chooses
 whether to start P12 work on challenge/low-text detection and the PDF scope, or to authorise the
 small code change that tests plan-route search.
+
+## P22 live connection checks (November 10, 2026, no migration, no ADR)
+
+Jordan's typed OK (November 10, 22:40 UTC) covers live API and GitHub tests. Added: a "Test
+connection" for the metered OpenAI API key route on Models and connections (one bounded request
+under its own run, grant and $0.05 run budget; closed, revoked and cancelled afterwards;
+`apps/web/src/api-key-check.ts`, `api-key-check-panel.tsx`), `live_model_id` on
+`GET /api/broker/status`, and a read-only GitHub pull-request checks read
+(`GET …/github-repositories/{id}/checks?pr=<n>`, `pnpm cli github-checks`, a form per repository).
+Owner steps: [docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md). GitHub credential
+(Jordan's choice): a fine-grained token limited to one owner-created private repository
+`creator-agent-p22-trial`; a later trial with a repository-creating token is recorded as a follow-up.
+Local checks: new loopback API test `tests/src/api-key-check-api.test.ts`, unit tests
+`tests/src/web-api-key-check.test.ts`, GitHub fixture assertions in `tests/src/github.test.ts`.
+Live results go in tracking/INTEGRATIONS.md, "P22 live connection checks"; none has run yet.

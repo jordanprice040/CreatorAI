@@ -1034,6 +1034,7 @@ export function createApi(
         action,
         method,
         body: () => readJson(req),
+        query: url.searchParams,
         send,
       }))
     )
@@ -2109,6 +2110,7 @@ export function createApi(
           parse(BrokerStatusSchema, {
             fixture_adapter: 'deterministic-fixture-broker-v1',
             live: { openai: live ? 'configured_unverified' : 'not_configured' },
+            live_model_id: live?.model_id ?? null,
             note: live
               ? `Live adapter for ${live.model_id} is configured; a call still needs pricing, a covering grant and a funded envelope. No live call has been verified.`
               : 'Fixture workspaces use the deterministic adapter. Real workspaces are denied until a live provider is configured.',

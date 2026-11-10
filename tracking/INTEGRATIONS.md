@@ -1,5 +1,36 @@
 # Integration readiness
 
+## P22 live connection checks: API key route and GitHub — November 10, 2026
+
+Jordan gave the typed OK for live API and GitHub tests on November 10 (22:40 UTC). Owner steps:
+[docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md).
+
+Built in this package (local and loopback checks only so far):
+
+- **API key route Test connection** on Models and connections: one "Reply with exactly: ok" request
+  (≤256 output tokens) under its own run, one `model.generate` grant (≤$0.05, 30 minutes, synthetic),
+  and a $0.05 run budget lent by an existing funded budget; the ceiling, spend limits, grant and
+  budget admit it as any paid call. Afterwards the run budget is closed, the grant revoked and the run
+  cancelled. `GET /api/broker/status` now also names the live model (`live_model_id`). Checked against
+  a loopback Responses server through the real API routes (one call, cost settled from the documented
+  price, unspent amount returned, nothing sent without the grant or after cancel).
+- **GitHub read-only checks read**: `GET …/github-repositories/{id}/checks?pr=<n>` (owner only),
+  `pnpm cli github-checks`, and a form on each repository row. It reads the pull request's head and
+  its checks and journals nothing. Fixture-tested.
+- GitHub credential chosen by Jordan: a fine-grained token limited to one owner-created private
+  repository `creator-agent-p22-trial`. Repository creation by the studio is not part of this trial;
+  Jordan asked for a later trial with a token that can create repositories once the rest works.
+
+Live results (date, model or repository, cost, outcome): **not run yet**. Each row is added here when
+it runs, including a failure.
+
+| Check | When (UTC) | Target | Cost | Result |
+| --- | --- | --- | --- | --- |
+| API key route, Test connection | — | gpt-6-astra | — | not run |
+| ChatGPT plan route, one approved model check | — | gpt-6-astra | $0 | not run in P22 |
+| Claude Code route, one approved model check | — | claude-sonnet-5-5 | $0 | not run in P22 |
+| GitHub verify, branch, push, PR, read checks | — | creator-agent-p22-trial | $0 | not run |
+
 ## Search route investigation and live test — November 10, 2026
 
 Report: [docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md);

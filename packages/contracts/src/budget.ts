@@ -285,6 +285,8 @@ export const BrokerStatusSchema = z.strictObject({
   live: z.strictObject({
     openai: z.enum(['not_configured', 'configured_unverified']),
   }),
+  /** P22: the model the live OpenAI adapter calls, so a check can pick matching pricing. */
+  live_model_id: z.string().max(200).nullable(),
   note: z.string(),
 });
 
