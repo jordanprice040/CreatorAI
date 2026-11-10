@@ -736,7 +736,20 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['/users/jordan/Documents/notes.txt', ''],
     // Re-review 3 R3-3: a last folder in a code span, in brackets or before a comma.
     ['Use `C:\\Users\\Jordan Price\\Projects` here', '` here'],
-    ['(C:\\Users\\Jordan Price\\Projects) holds it', ' holds it'],
+    ['(C:\\Users\\Jordan Price\\Projects) holds it', ') holds it'],
+    // Re-review 4 R4-3: straight after "_" (Markdown emphasis or a joined word).
+    ['_C:\\Users\\jordan\\notes.txt_', ''],
+    ['__C:\\Users\\jordan\\Documents__', ''],
+    ['_/home/jordan/x_', ''],
+    ['path_C:\\Users\\jordan\\x', ''],
+    // Re-review 4 R4-N1 and R4-N2: other closers end the path and stay.
+    ['**C:\\Users\\Jordan Price\\Projects** bold', '** bold'],
+    ['~~C:\\Users\\Jordan Price\\Projects~~ x', '~~ x'],
+    ['{C:\\Users\\Jordan Price\\Projects} x', '} x'],
+    ['“C:\\Users\\Jordan Price\\Projects” x', '” x'],
+    ['«C:\\Users\\Jordan Price\\Projects» x', '» x'],
+    ['C:\\Users\\Jordan Price\\Projects| x', '| x'],
+    ['[link](/home/jordan/x.md) y', ') y'],
     ['C:\\Users\\Jordan Price\\Projects, then run it', ' then run it'],
     // Final review P-2: Windows profile paths in any letter case.
     ['c:\\users\\jordan\\notes.txt', ''],
@@ -744,6 +757,7 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ['/mnt/c/users/jordan/notes.txt', ''],
   ] as const) {
     const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt|\/users/);
+    // (Trailing "_" of an emphasis is part of the path text and goes with it.)
     // The bracket or quote before the path stays.
     assert.equal(
       clean(raw),
@@ -757,10 +771,34 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     'The API exposes /users/me and /users/{id}.',
     'Call `/users/me` first',
     '"/users/42"',
+    // Re-review 4 R4-2: sub-resources named like profile folders.
+    'GET /users/:id/contacts lists contacts',
+    'GET /users/{id}/links',
+    'GET /users/me/library returns books',
+    'POST /users/42/favorites',
+    'see `/users/{userId}/documents` x',
   ])
     assert.equal(clean(route), route);
   // Re-review 3 R3-1: long runs of closing brackets or quotes after a spaced name are
   // scanned in linear time (they took seconds to minutes before).
+  // Re-review 4 R4-1: the address-with-password pattern starts only where a scheme can.
+  for (const run of ['a.', 'x-', 'a+']) {
+    const started = performance.now();
+    clean(run.repeat(20_000));
+    assert.ok(
+      performance.now() - started < 500,
+      `${run} x 20000 took too long`,
+    );
+  }
+  for (const t of [
+    'git+ssh://u:pw@h',
+    'jdbc:postgresql://u:pw@h',
+    'DATABASE_URL=postgres://u:pw@h',
+    '-postgres://u:pw@h',
+    '(redis://a:bb@h)',
+  ])
+    assert.match(clean(t), /\[credential removed\]/, t);
+  assert.equal(clean('http://example.com/a'), 'http://example.com/a');
   for (const tail of [')', ']', '")'])
     for (const head of ['C:\\Users\\a b\\x', '/home/a b/x']) {
       const started = performance.now();

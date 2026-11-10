@@ -49,7 +49,9 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}/g,
   /\bwhsec_[A-Za-z0-9]{16,}/g,
   /\bBearer\s+[A-Za-z0-9._~+/-]{20,}=*/g,
-  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/gi,
+  // Starts only where a scheme can start, so a long dotted or hyphenated run is scanned once
+  // (re-review 4, R4-1).
+  /(?<![a-z0-9+.-])[a-z0-9+.-]+:\/\/[^\s/:@]+:[^\s/@]+@/gi,
   /\bglpat-[A-Za-z0-9_-]{20,}/g,
   /\bhf_[A-Za-z0-9]{30,}/g,
   /\bnpm_[A-Za-z0-9]{36,}/g,
@@ -68,7 +70,7 @@ const NAME_SEG = `(?:[^\\\\/\\s"'\`<>|:*?]|'(?=\\p{L}))+`;
 const UNIX_NAME_SEG = `(?:[^/\\s"'\`<>]|'(?=\\p{L}))+`;
 const anyCase = (w: string) =>
   w.replace(/[A-Za-z]/g, (c) => `[${c.toUpperCase()}${c.toLowerCase()}]`);
-const PROFILE_FOLDERS = [
+const PROFILE_FOLDER_NAMES = [
   'Desktop',
   'Documents',
   'Downloads',
@@ -83,14 +85,18 @@ const PROFILE_FOLDERS = [
   'Links',
   'Saved Games',
   'Searches',
-]
-  .map(anyCase)
-  .join('|');
+];
+const PROFILE_FOLDERS = PROFILE_FOLDER_NAMES.map(anyCase).join('|');
 const PROFILE = `(?:${PROFILE_FOLDERS})(?![\\p{L}\\p{N}])`;
-const CLOSE = `["'\`)\\]>]`;
+// The lower-case macOS arm needs the folder in its real spelling, so a web route such as
+// "/users/{id}/links" or "/users/me/library" is not taken for a profile (re-review 4, R4-2).
+const MAC_PROFILE = `(?:${PROFILE_FOLDER_NAMES.join('|')})(?![\\p{L}\\p{N}])`;
+// Closing marks after a path: quotes (straight and curly), a backtick, brackets, Markdown
+// emphasis and a table bar.
+const CLOSE = `["'\`)\\]}>*~|”’»]`;
 // A last segment cannot hold a closing bracket, and each part below can match a character in
 // only one way, so a long run of brackets is scanned in linear time (re-review 3, R3-1).
-const LAST_SEG = `[^\\\\/\\s"'\`<>|:*?)\\]]+`;
+const LAST_SEG = `[^\\\\/\\s"'\`<>|:*?)\\]}~”’»]+`;
 const MORE_PATH = [
   PROFILE,
   `\\.[\\w-]+`,
@@ -109,15 +115,15 @@ const MORE_WORDS = `(?:(?:[ \\t]+[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'.-]*){1,3}(?=
 const UNIX_MORE_WORDS = MORE_WORDS.replaceAll('[\\\\/]', '\\/');
 const PATH_PATTERNS: readonly RegExp[] = [
   new RegExp(
-    `(?:\\b[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}${MORE_WORDS}(?:[\\\\/]+[^\\s"'\`<>|*?]*)?`,
+    `(?:(?<![A-Za-z0-9])[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}${MORE_WORDS}(?:[\\\\/]+[^\\s"'\`<>|*?)\\]}~”’»]*)?`,
     'giu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9_.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}${UNIX_MORE_WORDS}(?:\\/[^\\s"'\`<>]*)?`,
+    `(?<![A-Za-z0-9.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}${UNIX_MORE_WORDS}(?:\\/[^\\s"'\`<>)\\]}~”’»]*)?`,
     'gu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9_.-])\\/${anyCase('users')}\\/${UNIX_NAME_SEG}${UNIX_MORE_WORDS}\\/${PROFILE}(?:\\/[^\\s"'\`<>]*)?`,
+    `(?<![A-Za-z0-9.-])\\/${anyCase('users')}\\/(?![{:]|me\\/|\\d+\\/)${UNIX_NAME_SEG}${UNIX_MORE_WORDS}\\/${MAC_PROFILE}(?:\\/[^\\s"'\`<>)\\]}~”’»]*)?`,
     'gu',
   ),
 ];

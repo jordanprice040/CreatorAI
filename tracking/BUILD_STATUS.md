@@ -696,3 +696,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   R3-2 lower-case `/users/name` counts only before a profile folder, so routes such as `/users/me` are kept (test
   rows). R3-3 a last folder closed by a backtick, quote or bracket or followed by a comma is removed whole. R3-N3 the
   Unix arm has its own name class (no dead `replace`). R3-N1 and R3-N2 are named in the guide as limits. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Fourth re-review (at `7b8b376`): no High or Medium; 3 Lows and 2 nits fixed.** R4-1 the address-with-password
+  pattern starts only where a scheme can start, so 100k-character dotted or hyphenated runs take a few ms (timing
+  test; `git+ssh`, `jdbc:postgresql`, `-postgres` still caught); R4-2 the lower-case macOS arm needs the profile
+  folder in its real spelling and refuses route placeholders (`{id}`, `:id`, digits, `me`), so routes such as
+  `/users/{id}/links` stay; R4-3 a path right after `_` is caught; R4-N1 `*`, `~`, `}`, `|`, curly quotes and `»` also
+  close a path; R4-N2 a closing bracket after a path is kept. R4-N3 needed no change. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
