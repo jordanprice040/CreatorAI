@@ -1,0 +1,38 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch();
+  const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
+  p.on('pageerror', (e) => console.log('PAGEERROR', e.message));
+  const ws = 'b24dc1db-9f63-492b-8f01-30d049b633ce';
+  await p.goto('http://127.0.0.1:5183/#login=walk-login-code-0123456789abcdefghijkl');
+  await p.waitForTimeout(2000);
+  await p.goto(`http://127.0.0.1:5183/#/projects/discover?ws=${ws}`);
+  await p.waitForTimeout(2500);
+  await p.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
+  await p.fill('#b-theme', 'Shift reminders for volunteers');
+  await p.fill('#b-fa', 'Volunteer coordination');
+  await p.fill('#b-fb', 'Behavioural reminders');
+  await p.fill('#b-users', 'Volunteer coordinators at small charities');
+  await p.fill('#b-prob', 'Volunteers miss shifts because reminders arrive late or not at all.');
+  await p.fill('#b-meas', 'Share of shifts missed per month');
+  // Attach the first claim and give it a role.
+  await p.locator('.claims-pick input[type=checkbox]').first().check();
+  await p.waitForTimeout(300);
+  const role = p.locator('.claims-pick .chips input[type=checkbox], .claims-pick .chip input[type=checkbox]').nth(0);
+  console.log('role chips', await p.locator('.claims-pick input[type=checkbox]').count());
+  await p.uncheck('label.chip:has-text("Let this run make model calls") input');
+  await p.check('#b-routine-on');
+  await p.fill('#b-routine-usd', '20');
+  await p.locator('.claims-pick input[type=checkbox]').nth(1).check();
+  await p.check('#b-routine-confirm');
+  await p.locator('.routine-policy').screenshot({ path: 'routine-confirmed.png' });
+  await p.click('button:has-text("Save brief and start discovery")');
+  await p.waitForTimeout(6000);
+  console.log('ISSUES', await p.evaluate(() => [...document.querySelectorAll('#sub-issues li')].map(l=>l.textContent).join(' || ')));
+  console.log('ERR', await p.evaluate(() => [...document.querySelectorAll('.error')].map(l=>l.textContent).join(' || ')));
+  console.log('URL', await p.evaluate(() => location.href));
+  await p.click('nav a:has-text("Monitor")');
+  await p.waitForTimeout(1500);
+  console.log(await p.evaluate(() => [...document.querySelectorAll('a')].map(e => (e.textContent||'').trim().slice(0,30)+'→'+e.getAttribute('href')).filter(x=>x.includes('monitor')).join(' | ')));
+  await b.close();
+})();
