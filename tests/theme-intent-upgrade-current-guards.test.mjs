@@ -163,33 +163,33 @@ test(
         : false,
   },
   async () => {
-  const home = join(root, 'foreign-home'),
-    e = join(root, 'foreign-evidence');
-  await mkdir(join(home, 'postgres', 'data'), { recursive: true });
-  await mkdir(e);
-  await writeFile(join(home, 'postgres/data/PG_VERSION'), '18\n');
-  const server = net.createServer((s) => s.end());
-  await new Promise((ok, fail) => {
-    server.once('error', fail);
-    server.listen(0, '127.0.0.1', ok);
-  });
-  const port = server.address().port;
-  try {
-    await assert.rejects(
-      managed(
-        { pg_bin: 'C:/Program Files/PostgreSQL/18/bin', database: { port } },
-        home,
-        e,
-        () => {
-          throw new Error('Must not start body');
-        },
-      ),
-      /Foreign listener/,
-    );
-    assert.ok(await listening(port));
-  } finally {
-    await new Promise((ok) => server.close(ok));
-  }
+    const home = join(root, 'foreign-home'),
+      e = join(root, 'foreign-evidence');
+    await mkdir(join(home, 'postgres', 'data'), { recursive: true });
+    await mkdir(e);
+    await writeFile(join(home, 'postgres/data/PG_VERSION'), '18\n');
+    const server = net.createServer((s) => s.end());
+    await new Promise((ok, fail) => {
+      server.once('error', fail);
+      server.listen(0, '127.0.0.1', ok);
+    });
+    const port = server.address().port;
+    try {
+      await assert.rejects(
+        managed(
+          { pg_bin: 'C:/Program Files/PostgreSQL/18/bin', database: { port } },
+          home,
+          e,
+          () => {
+            throw new Error('Must not start body');
+          },
+        ),
+        /Foreign listener/,
+      );
+      assert.ok(await listening(port));
+    } finally {
+      await new Promise((ok) => server.close(ok));
+    }
   },
 );
 test(

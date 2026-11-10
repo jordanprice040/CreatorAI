@@ -570,3 +570,21 @@ reads one claim's evidence inside a caller's transaction. After the re-review, s
 
 F9: Jordan confirmed "Judge the hybrid row" on November 6, as implemented. No live run or device step was needed or done. Main becomes schema 49; next free numbers
 are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
+
+## State review cleanup (November 10, branch `claude/project-thread-7r0ehf`, PR #151, no migration or ADR)
+
+- From the [November 10 state review](https://claude.ai/artifact/7KiojJQSaz5Mf1p3DTpFcA) (no High; four Medium, eight Low).
+  Rewrote the top of this file, `BUILD_STATUS.md`/`SESSION_HANDOFF.md`, `docs/CURRENT_STATUS.md`, the runbook note,
+  `README.md` and `docs/LOCAL_DEVELOPMENT.md` to main `e08e0a4`, schema 49 (M4). The November 4 tops are kept.
+- Web recipe record (M1): the two stale "`RECIPE_QUALIFICATIONS` is empty" lines are corrected (a dated note is appended to
+  the results file; nothing removed). PR #150 review M-1 is restated as open for Jordan; the record is unchanged.
+- Fixes: `CREATOR_SESSION_FILE` is no longer read as a secret file by the API and migrations (L2, with a test);
+  `pnpm cli help` prints plain usage and exits 0 (L7); the Windows-only foreign-listener safety test skips elsewhere (L8);
+  a failed Revoke or Stop keeps its message (#90 N-4); the comparison's call counts are tested (#77 L-1, `manifestCalls`);
+  no bare `: ` label for a control-character source title (PR #148 N-I).
+- Left open: `config/owner-pilot.json` status, the installed-app upgrade and the web record decision (Jordan); #128 N-6,
+  #129 N-4, PR #150 N-1..N-3; the qualification record living in source (L1). `t17-test.log` stays (the X10 manifest lists it).
+- Checks (cloud container, PostgreSQL 16): TypeScript, web typecheck and formatting pass; full suite 867 tests, 833 pass,
+  29 skips, 5 fail (the known no-`pwsh` wrapper tests); standalone safety 22 tests, 19 pass, 3 skips, 0 fail. GitHub CI
+  cannot run (no Actions minutes). The #90 N-4 change was not walked in a browser. Not independently reviewed yet.
+- Next eligible: P10 and P16 (in progress in their own threads).

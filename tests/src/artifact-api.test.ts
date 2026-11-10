@@ -1390,10 +1390,7 @@ test('owner inspects, downloads, previews, gives feedback and compares a revisio
   assert.equal(cmp.feedback[0].text, BUILD_FIXTURE_FEEDBACK);
   // The comparison reports each side's model calls from its own manifest (PR #77 review L-1).
   assert.equal(cmp.costs.base_calls, pkg1.manifest.costs.broker_calls);
-  assert.equal(
-    cmp.costs.candidate_calls,
-    pkg2.manifest.costs.broker_calls,
-  );
+  assert.equal(cmp.costs.candidate_calls, pkg2.manifest.costs.broker_calls);
   assert.ok(cmp.costs.base_calls > 0);
   // Old artifacts are preserved and still downloadable.
   assert.equal(
