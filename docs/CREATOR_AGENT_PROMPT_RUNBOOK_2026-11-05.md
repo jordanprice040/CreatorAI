@@ -459,7 +459,7 @@ still reachable). Gate: that walk passes and no server gate changed.
 
 ```text
 Apply the shared contract. Execute P20 (R22) after P10 and P19; the full unattended branch
-needs P13. First get Jordan's OK and write an ADR amending ADR-0057/0070, which keep chat
+needs P13. Jordan approved this change on November 10; write an ADR amending ADR-0057/0070, which keep chat
 advice only. Design: the chat model may propose the next step as an action card (start
 discovery with this theme, accept these claims, decide, freeze spec, build, export runbook),
 filled from the conversation. The card shows exactly what will be sent and is submitted
@@ -489,8 +489,8 @@ plus tests for the default resolution and refusal.
 ## P22 — Live connection checks: API and GitHub
 
 ```text
-Apply the shared contract. Execute P22 (R24, R25). Every live step needs Jordan's typed OK
-in the thread for that step. API: confirm whether Models and connections has a check for the
+Apply the shared contract. Execute P22 (R24, R25). Jordan approved the live API and GitHub tests
+on November 10; stay inside the steps below. API: confirm whether Models and connections has a check for the
 metered OpenAI API-key route; if not, add a "Test connection" that sends one smallest request
 through the broker with a covering grant, a funded envelope and the owner's $20 runtime
 ceiling. Run it once live, and run the existing check for each plan route; record date,
