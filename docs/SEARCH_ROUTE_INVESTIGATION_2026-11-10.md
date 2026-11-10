@@ -42,7 +42,13 @@ traceable to a search result. The weak link was **fetching, not finding**: only 
 pages produced usable passages. Academic hosts answered 403 or a reCAPTCHA page, and PDFs are not a
 supported content type. A raw search API would return the same kinds of URLs, so it would not fix
 this. The verdict stands: a separate search API is not necessary now. Evidence is still
-insufficient for unattended runs and for the OpenAI plan route, which has not been tried.
+insufficient for unattended runs.
+
+**Second update (section 13, same evening):** the OpenAI plan route also searched, through the
+studio's own admission and token handling. It made 4 search calls, ran 9 distinct queries and
+returned 24 candidates, all among the sources it reported. Each answer took 17 to 27 s. Only 2 of 15
+pages were usable after fetching. The two routes found **no identical URLs**, so they complement
+each other rather than duplicate. Fetching is still the bottleneck.
 
 ## 2. Comparison of the routes
 
@@ -364,3 +370,99 @@ whether PDFs are in scope, and prefer open-access copies (for example Europe PMC
 open-access pages) when a host refuses. These are P12 implementation choices for a separate
 decision. Still unresolved: the OpenAI plan route (needs a small code change to test),
 cancellation, usage-limit behaviour, and whether unattended runs are acceptable plan usage.
+
+## 13. OpenAI plan route results (2026-11-10, approved by Jordan)
+
+Jordan asked for this test at 22:19 UTC ("I would like this done as well"). Jordan approved the
+dev-connection change at 22:42 UTC ("OK widen dev connection"). Evidence is in
+`tracking/evidence/search-route-test-2026-11-10/plan-route/`, and the driver is
+`scripts/plan-search.mjs` in the same folder. Smoke test only.
+
+### Code and scope
+
+- **Code:** PR #157 (merged) added an opt-in `web_search` option to the plan request
+  (`packages/broker/src/plan-responses.ts`, `plan-service.ts`). The request asks for the hosted
+  `web_search` tool with `tool_choice: "required"` and `include: ["web_search_call.action.sources"]`.
+  Each `web_search_call` is recorded once, and more than `max_calls` calls end the stream as
+  `unknown` (`studio_search_cap`). Claude Code connections refuse the option, and no route, UI or
+  workflow passes it. Tests: `tests/src/plan-web-search.test.ts`. The new and existing plan suites
+  passed 65 of 65 against the test database.
+- **Route:** `PlanConnectionService.invoke` on the dev database (schema 49), workspace
+  `88df6c10…`, ChatGPT plan connection `4e4a7bec…` (Plus), model `gpt-6-astra`, purpose `chat`,
+  `max_calls: 3`. Admission, the plan request record and the token stayed inside studio code; the
+  driver never saw the token.
+- **Settings changed for the test and restored:**
+  - **First attempt:** refused at admission before anything was sent. Chat answers are
+    `private_approved` and the connection allowed only `synthetic` and `public`. Kept as
+    `attempt1-refused.txt`.
+  - **With Jordan's OK:** the driver added `private_approved`, re-accepted the same caps, switched
+    chat answers on, ran the 3 requests, then restored both.
+  - **After:** the connection settings are byte-identical to before (`same_settings_as_before:
+true`) and chat answers are off. The caps acceptance timestamp is now 2026-11-10T22:44:10Z, the
+    connection version went from 16 to 21, and the chat setting from 0 to 4. Each change is in the
+    audit log.
+
+### Discovery
+
+| Query          | Search calls (cap 3) | Distinct queries | Distinct source URLs | Candidates | Hosts | Candidates in sources | Time | Output tokens |
+| -------------- | -------------------: | ---------------: | -------------------: | ---------: | ----: | --------------------: | ---: | ------------: |
+| q1 broad       |                    1 |                3 |                   40 |         10 |     7 |                 10/10 | 27 s |           763 |
+| q2 cross-field |                    1 |                3 |                   29 |          8 |     7 |                   8/8 | 17 s |           538 |
+| q3 gap         |                    2 |                3 |                   56 |          6 |     4 |                   6/6 | 23 s |           546 |
+
+Observations:
+
+- **One call can run several queries.** A single `web_search_call` reported 3 to 4 query strings,
+  and the `query` field repeats the first entry of `queries`. So `max_calls` bounds calls, not the
+  queries inside them.
+- **The complete sources list worked.** It is separate from the model's text. Every candidate
+  appeared in it, so none were invented in this sample.
+- **No snippets, ranks or dates** came back, as documented.
+- **Overlap with Claude Code:** 0 identical candidate URLs across all three queries. One article
+  appears on both routes under two ScienceDirect paths (`/abs/pii/…` and `/pii/…`), so
+  normalising URLs before deduplication matters.
+- **Speed:** 2 to 4 times faster than the Claude Code runs (17 to 27 s against 63 to 68 s).
+- **Spend:** $0 incremental. The connection notes that the Plus five-hour allowance is shared with
+  Jordan's own ChatGPT and Codex use. Plan-side usage was not observable.
+
+### Guarded fetch (top 5 per query, same method as section 12)
+
+| Outcome                                     | Count | Where                                                     |
+| ------------------------------------------- | ----: | --------------------------------------------------------- |
+| Usable passages                             | **2** | psnet.ahrq.gov (6,005 words), stateswin.org (1,357 words) |
+| "Fetched", but an empty app shell (0 words) |     2 | reddit.com, stored as fetched (F2)                        |
+| PDF refused or over the limit               |     5 | report PDFs on q1, q2 and q3                              |
+| HTTP 403                                    |     6 | apnews, ahrq.gov PDF, PMC, ResearchGate, ScienceDirect ×2 |
+
+- **Usable rate:** 2/15 (13%), which fails AC3. Both usable pages passed the stored-text quote check
+  and the invented-sentence check, and both had `published_at`.
+- **Source mix:** this route leaned more on PDFs and forum threads than Claude Code did, and both
+  are poor fits for the current fetcher.
+
+### Acceptance criteria (plan route)
+
+| AC                                        | Result                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| AC1 search happened                       | **Pass:** `web_search_call` items on every response                                        |
+| AC2 useful candidates (≥5 URLs, ≥3 hosts) | **Pass:** 6 to 10 URLs, 4 to 7 hosts                                                       |
+| AC3 fetchable (≥60%)                      | **Fail:** 13%                                                                              |
+| AC4 citation fidelity                     | Stored-text quote check 2/2; model `url_citation` annotations not requested in this prompt |
+| AC5 bounded                               | **Partly:** call cap enforced in code (untriggered here); queries per call not bounded     |
+| AC6 typed failures                        | Admission refusal observed and typed; usage-limit and search-unavailable not seen          |
+| AC7 cancellation                          | Not tested live (unit tests cover the cap stop)                                            |
+| AC8 spend                                 | **Pass:** $0 incremental                                                                   |
+
+### What this changes
+
+**Observation:** both subscription routes can find sources, at $0 incremental spend and with
+search events separate from model text. **Inference:** running both and merging candidates gives
+more independent sources than either alone. A paid raw API is still not justified by anything
+measured here. The deciding work for P12 is on the evidence side:
+
+- detect challenge, empty-shell and low-text pages;
+- decide on PDF support;
+- find open-access alternatives when a host refuses;
+- normalise URLs before deduplication.
+
+Using the plan route for real chat or discovery would also need a deliberate data-class decision,
+because chat requires `private_approved`.
