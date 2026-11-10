@@ -3133,3 +3133,72 @@ details.routine > summary {
 .routine-edit {
   margin-top: 0.5rem;
 }
+
+/* ---------- P18: one-line summaries that expand on click ---------- */
+details.fold {
+  margin-top: 0;
+}
+details.fold > summary {
+  font-weight: 400;
+  color: var(--text);
+  padding: 6px 0;
+}
+details.fold > summary:hover .fold-title {
+  color: var(--accent-strong);
+}
+.fold-title {
+  font-weight: 600;
+}
+.fold-line {
+  display: block;
+  margin: 2px 0 0 1.1em;
+  color: var(--text-2);
+  font-weight: 400;
+}
+.fold-attention {
+  color: var(--warn);
+  font-weight: 600;
+}
+.fold-body {
+  padding: 2px 0 6px 1.1em;
+}
+.fold-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.fold-all {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+.alt details.fold > .fold-body,
+.decide-option > .fold-body {
+  padding-left: 0;
+}
+.claim details.fold > summary {
+  padding: 0;
+}
+.decide-option {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 12px;
+  margin: 8px 0;
+}
+.decide-option > .fold-body > fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.decide-option > .fold-body > fieldset.flagged {
+  box-shadow: none;
+}
+.decide-option:has(> .fold-body > fieldset.flagged) {
+  border-color: var(--warn-border);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+details.fold > summary .kind {
+  margin-right: 6px;
+}

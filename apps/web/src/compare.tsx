@@ -31,6 +31,8 @@ import {
   type View,
 } from './ui.js';
 import { newestFirst } from './versions.js';
+import { Fold, FoldAll, useFolds } from './fold.js';
+import { firstNeeding, nameList } from './fold-state.js';
 import { runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
@@ -47,12 +49,24 @@ import {
 function pendingReviews(
   g: ReturnType<typeof formGate>,
   overrideText: string,
+  /** P18: options are folded, so the line names the ones that hold the record back. */
+  name: (id: string) => string,
+  incomplete: string[],
 ): string[] {
   const out: string[] = [];
   const n = g.unreviewed.length;
-  if (n) out.push(`keep or change ${n} flagged option${n === 1 ? '' : 's'}`);
+  if (n)
+    out.push(
+      `keep or change ${n} flagged option${n === 1 ? '' : 's'} (${nameList(g.unreviewed.map(name))})`,
+    );
+  if (incomplete.length)
+    out.push(
+      `give a disposition, reason and “would reverse if” for ${incomplete.length} option${incomplete.length === 1 ? '' : 's'} (${nameList(incomplete.map(name))})`,
+    );
   if (g.stale_reasons.length)
-    out.push('rewrite or keep the reasons written for an earlier choice');
+    out.push(
+      `rewrite or keep the reasons written for an earlier choice (${nameList(g.stale_reasons.map(name))})`,
+    );
   if (g.rationale_review) out.push('review the overall rationale');
   if (g.override_review) out.push('review the override reason');
   else if (g.override_needed && !overrideText.trim())
@@ -83,65 +97,83 @@ function ClaimCard({
   c,
   relation,
   open,
+  folds,
 }: {
   c: ClaimEvidence;
   relation: string;
   open: (view: View, id?: string) => void;
+  folds: ReturnType<typeof useFolds>;
 }) {
   return (
     <li className="claim">
-      <div>
-        <span className={`kind ev-${c.status}`}>{words(c.status)}</span>{' '}
-        <small>{words(relation)} the problem</small>
-      </div>
-      <p>{c.claim.statement ?? c.claim.title}</p>
-      <p className="small">
-        {c.explanation} {c.independent_origins} independent origin
-        {c.independent_origins === 1 ? '' : 's'}
-        {c.contrary_origins ? `, ${c.contrary_origins} contrary` : ''}.
-      </p>
-      {c.labels.length > 0 && (
-        <ul className="small labels">
-          {c.labels.map((l) => (
-            <li key={l}>{l}</li>
-          ))}
-        </ul>
-      )}
-      <ul className="passages">
-        {c.rows.slice(0, 6).map((r) => (
-          <li key={r.support.id} className={r.counted ? '' : 'not-counted'}>
+      <Fold
+        id={c.claim.id}
+        folds={folds}
+        summary={
+          <>
+            <span className={`kind ev-${c.status}`}>{words(c.status)}</span>{' '}
+            <span className="fold-title">
+              {clip(c.claim.statement ?? c.claim.title, 140)}
+            </span>{' '}
             <small>
-              {words(r.support.stance)}
-              {r.support.support_type
-                ? ` · ${words(r.support.support_type)}`
-                : ''}{' '}
-              ·{' '}
-              <span className={`fresh-${r.freshness}`}>
-                {FRESH_NOTE[r.freshness] ?? words(r.freshness)}
-              </span>
-              {r.counted ? '' : ' · not counted'}
+              · {words(relation)} the problem · {c.independent_origins}{' '}
+              independent origin{c.independent_origins === 1 ? '' : 's'}
+              {c.contrary_origins ? `, ${c.contrary_origins} contrary` : ''}
             </small>
-            {r.support.quote && <blockquote>“{r.support.quote}”</blockquote>}
-            <button
-              className="text"
-              onClick={() => open('evidence', `source:${r.support.source_id}`)}
-            >
-              {r.source_title}
-            </button>
-          </li>
-        ))}
-        {c.rows.length === 0 && (
-          <li className="small">
-            No support recorded: this claim is unsupported.
-          </li>
-        )}
-      </ul>
-      <button
-        className="text"
-        onClick={() => open('evidence', `claim:${c.claim.id}`)}
+          </>
+        }
       >
-        All evidence for this claim →
-      </button>
+        <p>{c.claim.statement ?? c.claim.title}</p>
+        <p className="small">
+          {c.explanation} {c.independent_origins} independent origin
+          {c.independent_origins === 1 ? '' : 's'}
+          {c.contrary_origins ? `, ${c.contrary_origins} contrary` : ''}.
+        </p>
+        {c.labels.length > 0 && (
+          <ul className="small labels">
+            {c.labels.map((l) => (
+              <li key={l}>{l}</li>
+            ))}
+          </ul>
+        )}
+        <ul className="passages">
+          {c.rows.slice(0, 6).map((r) => (
+            <li key={r.support.id} className={r.counted ? '' : 'not-counted'}>
+              <small>
+                {words(r.support.stance)}
+                {r.support.support_type
+                  ? ` · ${words(r.support.support_type)}`
+                  : ''}{' '}
+                ·{' '}
+                <span className={`fresh-${r.freshness}`}>
+                  {FRESH_NOTE[r.freshness] ?? words(r.freshness)}
+                </span>
+                {r.counted ? '' : ' · not counted'}
+              </small>
+              {r.support.quote && <blockquote>“{r.support.quote}”</blockquote>}
+              <button
+                className="text"
+                onClick={() =>
+                  open('evidence', `source:${r.support.source_id}`)
+                }
+              >
+                {r.source_title}
+              </button>
+            </li>
+          ))}
+          {c.rows.length === 0 && (
+            <li className="small">
+              No support recorded: this claim is unsupported.
+            </li>
+          )}
+        </ul>
+        <button
+          className="text"
+          onClick={() => open('evidence', `claim:${c.claim.id}`)}
+        >
+          All evidence for this claim →
+        </button>
+      </Fold>
     </li>
   );
 }
@@ -303,8 +335,11 @@ export function Compare({
       reasons: '',
       reverse_if: '',
     };
-  const setRow = (id: string, patch: Partial<Row>) =>
+  const setRow = (id: string, patch: Partial<Row>) => {
     setRows((r) => ({ ...r, [id]: { ...row(id), ...patch } }));
+    // An option being edited stays open, even once it no longer needs attention.
+    rowFolds.set(id, true);
+  };
   const gate =
     carried && d
       ? formGate(carried, latest, d.report, {
@@ -405,6 +440,30 @@ export function Compare({
         ? `${c.score.display}${c.rank ? ` · rank ${c.rank}` : ''}`
         : `${words(c.status)}${c.range ? ` (${c.range.lower.display}–${c.range.upper.display})` : ''}`;
   const viewer = workspace.role === 'viewer';
+  // P18: options, claims and history are one-line summaries that expand on click. Only the
+  // first option that needs the person opens by default; anything that blocks recording is
+  // also named in the summary and in the line above Record.
+  const altIds = alts.map((a) => a.entity.id);
+  const optionName = (id: string) =>
+    clip(alts.find((a) => a.entity.id === id)?.entity.title ?? shortId(id), 60);
+  const incomplete = altIds.filter((id) => {
+    const r = row(id);
+    return !(r.disposition && r.reasons.trim() && r.reverse_if.trim());
+  });
+  const changedSince = (id: string) =>
+    !!carried?.from && carried.options[id]?.status !== 'kept';
+  const needsYou = (id: string) =>
+    unreviewed.includes(id) ||
+    changedSince(id) ||
+    !!gate?.stale_reasons.includes(id) ||
+    incomplete.includes(id);
+  const claimFolds = useFolds([]);
+  const altFolds = useFolds(firstNeeding(altIds, changedSince));
+  const rowFolds = useFolds(viewer ? [] : firstNeeding(altIds, needsYou));
+  const historyFolds = useFolds([]);
+  const blockedCount = (id: string) =>
+    Object.values(suit.get(id)?.gates.blocked ?? {}).filter((x) => x?.length)
+      .length;
   return (
     <section className="panel" aria-labelledby="cmp-title">
       <h2 id="cmp-title">Compare and decide</h2>
@@ -484,7 +543,14 @@ export function Compare({
               )}
             </article>
 
-            <h3>Evidence behind the problem</h3>
+            <div className="fold-head">
+              <h3>Evidence behind the problem</h3>
+              <FoldAll
+                ids={d.cmp.claims.map((c) => c.evidence.claim.id)}
+                folds={claimFolds}
+                label="claims"
+              />
+            </div>
             {d.cmp.claims.length === 0 ? (
               <Empty>
                 No claims are linked to this problem: its evidence is
@@ -498,6 +564,7 @@ export function Compare({
                     c={c.evidence}
                     relation={c.relation}
                     open={open}
+                    folds={claimFolds}
                   />
                 ))}
               </ul>
@@ -530,7 +597,10 @@ export function Compare({
               </ul>
             )}
 
-            <h3>Alternatives side by side</h3>
+            <div className="fold-head">
+              <h3>Alternatives side by side</h3>
+              <FoldAll ids={altIds} folds={altFolds} label="alternatives" />
+            </div>
             {alts.length === 0 ? (
               <Empty>No alternatives were derived from this problem.</Empty>
             ) : (
@@ -548,142 +618,179 @@ export function Compare({
                       role="listitem"
                       aria-labelledby={`alt-${a.entity.id}`}
                     >
-                      <span className="kind">
-                        {words(String(a.entity.body?.kind ?? ''))}
-                      </span>
-                      {carried?.from &&
-                        carried.options[a.entity.id]?.status !== 'kept' && (
-                          <span className="kind flag">
-                            {carried.options[a.entity.id]?.status === 'new'
-                              ? 'New since your decision'
-                              : 'Changed since your decision'}
-                          </span>
-                        )}
-                      <h4 id={`alt-${a.entity.id}`}>{a.entity.title}</h4>
-                      <p className="small">
-                        {String(a.entity.body?.rationale ?? '')}
-                      </p>
-                      <dl>
-                        <div>
-                          <dt>Suitability</dt>
-                          <dd className={`score-${s?.status ?? 'unscored'}`}>
-                            {score(s)}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Software opportunity</dt>
-                          <dd>{o ? score(o) : 'not a software option'}</dd>
-                        </div>
-                        <div>
-                          <dt>Reviews</dt>
-                          <dd>
-                            {a.scorecards} scorecard
-                            {a.scorecards === 1 ? '' : 's'}
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Ethics and access</dt>
-                          <dd
-                            className={`gate-${s?.gates.ethics_access ?? 'not_assessed'}`}
-                          >
-                            {words(s?.gates.ethics_access ?? 'not_assessed')}
-                          </dd>
-                        </div>
-                        {s && s.gates.humility !== 'not_applicable' && (
-                          <div>
-                            <dt>Humility review</dt>
-                            <dd className={`gate-${s.gates.humility}`}>
-                              {words(s.gates.humility)}
-                            </dd>
-                          </div>
-                        )}
-                        {p && (
-                          <div>
-                            <dt>Discovery</dt>
-                            <dd>
-                              {words(p.disposition)}
-                              {p.verdict ? ` · skeptic: ${p.verdict}` : ''}
-                            </dd>
-                          </div>
-                        )}
-                      </dl>
-                      <AssessmentLines
-                        rubrics={[
-                          { rubric: 'suitability', cand: s },
-                          { rubric: 'opportunity', cand: o },
-                        ]}
-                        cards={d.scorecards}
-                        claims={d.cmp.claims.map((c) => c.evidence.claim)}
-                        canEdit={!viewer}
-                        onEdit={(rubric, systemId) =>
-                          setScorePick({
-                            optionId: a.entity.id,
-                            rubric,
-                            systemId,
-                            n: Date.now(),
-                          })
+                      <Fold
+                        id={a.entity.id}
+                        folds={altFolds}
+                        summary={
+                          <>
+                            <span className="kind">
+                              {words(String(a.entity.body?.kind ?? ''))}
+                            </span>
+                            {changedSince(a.entity.id) && (
+                              <span className="kind flag">
+                                {carried?.options[a.entity.id]?.status === 'new'
+                                  ? 'New since your decision'
+                                  : 'Changed since your decision'}
+                              </span>
+                            )}
+                            <strong
+                              id={`alt-${a.entity.id}`}
+                              className="fold-title"
+                            >
+                              {a.entity.title}
+                            </strong>
+                            <span className="fold-line small">
+                              Suitability {score(s)}
+                              {o ? ` · Opportunity ${score(o)}` : ''} · Ethics
+                              and access{' '}
+                              <span
+                                className={`gate-${s?.gates.ethics_access ?? 'not_assessed'}`}
+                              >
+                                {words(
+                                  s?.gates.ethics_access ?? 'not_assessed',
+                                )}
+                              </span>
+                              {s && s.gates.humility !== 'not_applicable' && (
+                                <>
+                                  {' '}
+                                  · Humility{' '}
+                                  <span className={`gate-${s.gates.humility}`}>
+                                    {words(s.gates.humility)}
+                                  </span>
+                                </>
+                              )}
+                              {blockedCount(a.entity.id) > 0 &&
+                                ` · ${blockedCount(a.entity.id)} choice${blockedCount(a.entity.id) === 1 ? '' : 's'} blocked`}
+                            </span>
+                          </>
                         }
-                      />
-                      {s && s.unknown_criteria.length > 0 && (
+                      >
                         <p className="small">
-                          Unknown: {s.unknown_criteria.map(words).join(', ')}
+                          {String(a.entity.body?.rationale ?? '')}
                         </p>
-                      )}
-                      {s && s.disagreements.length > 0 && (
-                        <p className="small">
-                          Reviewers differ on{' '}
-                          {s.disagreements
-                            .map((x) => words(x.criterion))
-                            .join(', ')}
-                        </p>
-                      )}
-                      <p className="small">
-                        Trade-offs:{' '}
-                        {(
-                          a.entity.body?.tradeoffs as string[] | undefined
-                        )?.join('; ') ?? '—'}
-                      </p>
-                      <p className="small">
-                        Uncertainty: {String(a.entity.body?.uncertainty ?? '—')}
-                      </p>
-                      {hr && (
-                        <p className="small">
-                          Humility review: {words(String(hr.disposition ?? ''))}
-                          ; would change course if{' '}
-                          {String(hr.change_course_trigger ?? '—')}
-                        </p>
-                      )}
-                      {!viewer &&
-                        ['build', 'hybrid'].includes(
-                          String(a.entity.body?.kind ?? ''),
-                        ) &&
-                        !humilityFor && (
-                          <button
-                            type="button"
-                            className="text"
-                            onClick={() => setHumilityFor(a.entity.id)}
-                          >
-                            {hr &&
-                            (hr.subject as { version?: number } | undefined)
-                              ?.version === a.entity.version
-                              ? 'Review again'
-                              : hr
-                                ? `Review v${a.entity.version} (the review is of an older version)`
-                                : 'Add a humility review'}
-                          </button>
+                        <dl>
+                          <div>
+                            <dt>Suitability</dt>
+                            <dd className={`score-${s?.status ?? 'unscored'}`}>
+                              {score(s)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Software opportunity</dt>
+                            <dd>{o ? score(o) : 'not a software option'}</dd>
+                          </div>
+                          <div>
+                            <dt>Reviews</dt>
+                            <dd>
+                              {a.scorecards} scorecard
+                              {a.scorecards === 1 ? '' : 's'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Ethics and access</dt>
+                            <dd
+                              className={`gate-${s?.gates.ethics_access ?? 'not_assessed'}`}
+                            >
+                              {words(s?.gates.ethics_access ?? 'not_assessed')}
+                            </dd>
+                          </div>
+                          {s && s.gates.humility !== 'not_applicable' && (
+                            <div>
+                              <dt>Humility review</dt>
+                              <dd className={`gate-${s.gates.humility}`}>
+                                {words(s.gates.humility)}
+                              </dd>
+                            </div>
+                          )}
+                          {p && (
+                            <div>
+                              <dt>Discovery</dt>
+                              <dd>
+                                {words(p.disposition)}
+                                {p.verdict ? ` · skeptic: ${p.verdict}` : ''}
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+                        <AssessmentLines
+                          rubrics={[
+                            { rubric: 'suitability', cand: s },
+                            { rubric: 'opportunity', cand: o },
+                          ]}
+                          cards={d.scorecards}
+                          claims={d.cmp.claims.map((c) => c.evidence.claim)}
+                          canEdit={!viewer}
+                          onEdit={(rubric, systemId) =>
+                            setScorePick({
+                              optionId: a.entity.id,
+                              rubric,
+                              systemId,
+                              n: Date.now(),
+                            })
+                          }
+                        />
+                        {s && s.unknown_criteria.length > 0 && (
+                          <p className="small">
+                            Unknown: {s.unknown_criteria.map(words).join(', ')}
+                          </p>
                         )}
-                      {p && p.dissent.length > 0 && (
-                        <details>
-                          <summary>
-                            Skeptic dissent ({p.dissent.length})
-                          </summary>
-                          <ul>
-                            {p.dissent.map((x, i) => (
-                              <li key={i}>{x}</li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
+                        {s && s.disagreements.length > 0 && (
+                          <p className="small">
+                            Reviewers differ on{' '}
+                            {s.disagreements
+                              .map((x) => words(x.criterion))
+                              .join(', ')}
+                          </p>
+                        )}
+                        <p className="small">
+                          Trade-offs:{' '}
+                          {(
+                            a.entity.body?.tradeoffs as string[] | undefined
+                          )?.join('; ') ?? '—'}
+                        </p>
+                        <p className="small">
+                          Uncertainty:{' '}
+                          {String(a.entity.body?.uncertainty ?? '—')}
+                        </p>
+                        {hr && (
+                          <p className="small">
+                            Humility review:{' '}
+                            {words(String(hr.disposition ?? ''))}; would change
+                            course if {String(hr.change_course_trigger ?? '—')}
+                          </p>
+                        )}
+                        {!viewer &&
+                          ['build', 'hybrid'].includes(
+                            String(a.entity.body?.kind ?? ''),
+                          ) &&
+                          !humilityFor && (
+                            <button
+                              type="button"
+                              className="text"
+                              onClick={() => setHumilityFor(a.entity.id)}
+                            >
+                              {hr &&
+                              (hr.subject as { version?: number } | undefined)
+                                ?.version === a.entity.version
+                                ? 'Review again'
+                                : hr
+                                  ? `Review v${a.entity.version} (the review is of an older version)`
+                                  : 'Add a humility review'}
+                            </button>
+                          )}
+                        {p && p.dissent.length > 0 && (
+                          <details>
+                            <summary>
+                              Skeptic dissent ({p.dissent.length})
+                            </summary>
+                            <ul>
+                              {p.dissent.map((x, i) => (
+                                <li key={i}>{x}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </Fold>
                     </article>
                   );
                 })}
@@ -818,141 +925,190 @@ export function Compare({
                     </label>
                   </p>
                 )}
+                <FoldAll ids={altIds} folds={rowFolds} label="options" />
                 {alts.map((a) => {
                   const s = suit.get(a.entity.id);
                   const r = row(a.entity.id);
                   const id = a.entity.id;
                   const c = carried?.from ? carried.options[id] : undefined;
                   const flagged = review.includes(id);
+                  const state = unreviewed.includes(id)
+                    ? c?.status === 'new'
+                      ? 'New option: decide it'
+                      : 'Changed since you decided: review it'
+                    : gate?.stale_reasons.includes(id)
+                      ? 'Reasons were written for another choice'
+                      : incomplete.includes(id)
+                        ? 'Needs a disposition, reason and “would reverse if”'
+                        : c?.status === 'kept'
+                          ? 'Kept from your last decision'
+                          : '';
                   return (
-                    <fieldset
+                    <Fold
                       key={id}
-                      className={
-                        flagged && !rows[id]
-                          ? 'flagged'
-                          : c?.status === 'new'
-                            ? 'flagged new'
-                            : undefined
+                      id={id}
+                      folds={rowFolds}
+                      className="decide-option"
+                      summary={
+                        <>
+                          <span className="fold-title">
+                            {clip(a.entity.title, 120)}
+                          </span>
+                          <span className="fold-line small">
+                            {r.disposition
+                              ? DISPOSITION_NOTE[r.disposition]
+                              : 'Not decided'}
+                            {state && (
+                              <>
+                                {' · '}
+                                <span
+                                  className={
+                                    needsYou(id) ? 'fold-attention' : undefined
+                                  }
+                                >
+                                  {state}
+                                </span>
+                              </>
+                            )}
+                            {blockedCount(id) > 0 &&
+                              ` · ${blockedCount(id)} choice${blockedCount(id) === 1 ? '' : 's'} blocked by gates`}
+                          </span>
+                        </>
                       }
                     >
-                      <legend>{clip(a.entity.title, 120)}</legend>
-                      {c && c.status === 'kept' && (
-                        <p className="small">
-                          Kept from your last decision; nothing about this
-                          option changed.
-                          {c.notes.length > 0 && ` ${c.notes.join('; ')}.`}
-                        </p>
-                      )}
-                      {c && c.status !== 'kept' && (
-                        <div className="carry-flag">
-                          <strong>
-                            {c.status === 'new'
-                              ? 'New option: decide it.'
-                              : rows[id] && r.disposition
-                                ? 'Reviewed.'
-                                : 'Review: this changed since you decided it.'}
-                          </strong>
-                          {c.status !== 'new' && (
-                            <ul>
-                              {[...c.changes, ...c.notes].map((x) => (
-                                <li key={x}>{x}</li>
-                              ))}
-                            </ul>
-                          )}
-                          {c.status === 'changed' && !rows[id] && (
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() => setRow(id, {})}
-                            >
-                              Keep my decision
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <label htmlFor={`dis-${id}`}>Disposition</label>
-                      <select
-                        id={`dis-${id}`}
-                        value={r.disposition}
-                        onChange={(e) =>
-                          setRow(id, {
-                            disposition: e.target.value as SelectionDisposition,
-                          })
+                      <fieldset
+                        className={
+                          flagged && !rows[id]
+                            ? 'flagged'
+                            : c?.status === 'new'
+                              ? 'flagged new'
+                              : undefined
                         }
                       >
-                        <option value="">Choose…</option>
-                        {SelectionDispositionSchema.options.map((o) => {
-                          const blocked = s?.gates.blocked[o];
-                          return (
-                            <option
-                              key={o}
-                              value={o}
-                              disabled={!!blocked?.length}
-                            >
-                              {DISPOSITION_NOTE[o]}
-                              {blocked?.length
-                                ? ` (blocked: ${blocked[0]})`
-                                : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      {gate?.stale_reasons.includes(id) && (
-                        <div className="carry-flag">
-                          <strong>
-                            These reasons were written for “
-                            {words(
-                              latest?.dispositions.find(
-                                (x) =>
-                                  x.alternative.id.toLowerCase() ===
-                                  id.toLowerCase(),
-                              )?.disposition ?? '',
+                        <legend className="sr-only">
+                          {clip(a.entity.title, 120)}
+                        </legend>
+                        {c && c.status === 'kept' && (
+                          <p className="small">
+                            Kept from your last decision; nothing about this
+                            option changed.
+                            {c.notes.length > 0 && ` ${c.notes.join('; ')}.`}
+                          </p>
+                        )}
+                        {c && c.status !== 'kept' && (
+                          <div className="carry-flag">
+                            <strong>
+                              {c.status === 'new'
+                                ? 'New option: decide it.'
+                                : rows[id] && r.disposition
+                                  ? 'Reviewed.'
+                                  : 'Review: this changed since you decided it.'}
+                            </strong>
+                            {c.status !== 'new' && (
+                              <ul>
+                                {[...c.changes, ...c.notes].map((x) => (
+                                  <li key={x}>{x}</li>
+                                ))}
+                              </ul>
                             )}
-                            ”.
-                          </strong>{' '}
-                          Rewrite them for the new choice, or keep them if they
-                          still apply.
+                            {c.status === 'changed' && !rows[id] && (
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => setRow(id, {})}
+                              >
+                                Keep my decision
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <label htmlFor={`dis-${id}`}>Disposition</label>
+                        <select
+                          id={`dis-${id}`}
+                          value={r.disposition}
+                          onChange={(e) =>
+                            setRow(id, {
+                              disposition: e.target
+                                .value as SelectionDisposition,
+                            })
+                          }
+                        >
+                          <option value="">Choose…</option>
+                          {SelectionDispositionSchema.options.map((o) => {
+                            const blocked = s?.gates.blocked[o];
+                            return (
+                              <option
+                                key={o}
+                                value={o}
+                                disabled={!!blocked?.length}
+                              >
+                                {DISPOSITION_NOTE[o]}
+                                {blocked?.length
+                                  ? ` (blocked: ${blocked[0]})`
+                                  : ''}
+                              </option>
+                            );
+                          })}
+                        </select>
+                        {gate?.stale_reasons.includes(id) && (
+                          <div className="carry-flag">
+                            <strong>
+                              These reasons were written for “
+                              {words(
+                                latest?.dispositions.find(
+                                  (x) =>
+                                    x.alternative.id.toLowerCase() ===
+                                    id.toLowerCase(),
+                                )?.disposition ?? '',
+                              )}
+                              ”.
+                            </strong>{' '}
+                            Rewrite them for the new choice, or keep them if
+                            they still apply.
+                            <div>
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() =>
+                                  setReasonsKept((k) => ({
+                                    ...k,
+                                    [id]: r.disposition,
+                                  }))
+                                }
+                              >
+                                Keep these reasons
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="two">
                           <div>
-                            <button
-                              type="button"
-                              className="secondary"
-                              onClick={() =>
-                                setReasonsKept((k) => ({
-                                  ...k,
-                                  [id]: r.disposition,
-                                }))
+                            <label htmlFor={`why-${id}`}>Reason</label>
+                            <input
+                              id={`why-${id}`}
+                              maxLength={300}
+                              value={r.reasons}
+                              onChange={(e) =>
+                                setRow(id, { reasons: e.target.value })
                               }
-                            >
-                              Keep these reasons
-                            </button>
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor={`rev-${id}`}>
+                              Would reverse if
+                            </label>
+                            <input
+                              id={`rev-${id}`}
+                              maxLength={300}
+                              value={r.reverse_if}
+                              onChange={(e) =>
+                                setRow(id, { reverse_if: e.target.value })
+                              }
+                            />
                           </div>
                         </div>
-                      )}
-                      <div className="two">
-                        <div>
-                          <label htmlFor={`why-${id}`}>Reason</label>
-                          <input
-                            id={`why-${id}`}
-                            maxLength={300}
-                            value={r.reasons}
-                            onChange={(e) =>
-                              setRow(id, { reasons: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor={`rev-${id}`}>Would reverse if</label>
-                          <input
-                            id={`rev-${id}`}
-                            maxLength={300}
-                            value={r.reverse_if}
-                            onChange={(e) =>
-                              setRow(id, { reverse_if: e.target.value })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </fieldset>
+                      </fieldset>
+                    </Fold>
                   );
                 })}
                 <label htmlFor="dec-rationale">Overall rationale</label>
@@ -1043,12 +1199,20 @@ export function Compare({
                     </option>
                   ))}
                 </select>
-                {gate && pendingReviews(gate, override).length > 0 && (
-                  <p className="small">
-                    Before you can record:{' '}
-                    {pendingReviews(gate, override).join('; ')}.
-                  </p>
-                )}
+                {gate &&
+                  pendingReviews(gate, override, optionName, incomplete)
+                    .length > 0 && (
+                    <p className="small">
+                      Before you can record:{' '}
+                      {pendingReviews(
+                        gate,
+                        override,
+                        optionName,
+                        incomplete,
+                      ).join('; ')}
+                      .
+                    </p>
+                  )}
                 <button
                   className="primary"
                   type="submit"
@@ -1113,34 +1277,62 @@ export function Compare({
               open={open}
             />
 
-            <h3>Selection history</h3>
+            <div className="fold-head">
+              <h3>Selection history</h3>
+              <FoldAll
+                ids={d.selections.map((s) => s.id)}
+                folds={historyFolds}
+                label="selections"
+              />
+            </div>
             {d.selections.length === 0 ? (
               <Empty>No selection recorded for this problem yet.</Empty>
             ) : (
               <ol className="rows">
                 {d.selections.map((s) => (
                   <li key={s.id}>
-                    <strong>{s.current ? 'Current' : 'Replaced'}</strong> ·{' '}
-                    {when(s.created_at)} · {s.rationale}
-                    <ul>
-                      {s.dispositions.map((x) => (
-                        <li key={x.alternative.id}>
-                          <span className="kind">{words(x.disposition)}</span>{' '}
-                          {clip(
-                            alts.find((a) => a.entity.id === x.alternative.id)
-                              ?.entity.title ?? shortId(x.alternative.id),
-                            80,
-                          )}
+                    <Fold
+                      id={s.id}
+                      folds={historyFolds}
+                      summary={
+                        <>
+                          <strong>{s.current ? 'Current' : 'Replaced'}</strong>{' '}
+                          · {when(s.created_at)} ·{' '}
+                          <span className="fold-title">
+                            {clip(s.rationale, 120)}
+                          </span>{' '}
                           <small>
-                            {' '}
-                            · {x.reasons.join(' ')} · reverse if {x.reverse_if}
+                            · {s.dispositions.length} option
+                            {s.dispositions.length === 1 ? '' : 's'}
+                            {s.overrides.length > 0 ? ' · with override' : ''}
                           </small>
-                        </li>
-                      ))}
-                    </ul>
-                    {s.overrides.length > 0 && (
-                      <p className="override">Override: {s.override_reason}</p>
-                    )}
+                        </>
+                      }
+                    >
+                      <p className="small">{s.rationale}</p>
+                      <ul>
+                        {s.dispositions.map((x) => (
+                          <li key={x.alternative.id}>
+                            <span className="kind">{words(x.disposition)}</span>{' '}
+                            {clip(
+                              alts.find((a) => a.entity.id === x.alternative.id)
+                                ?.entity.title ?? shortId(x.alternative.id),
+                              80,
+                            )}
+                            <small>
+                              {' '}
+                              · {x.reasons.join(' ')} · reverse if{' '}
+                              {x.reverse_if}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                      {s.overrides.length > 0 && (
+                        <p className="override">
+                          Override: {s.override_reason}
+                        </p>
+                      )}
+                    </Fold>
                   </li>
                 ))}
               </ol>

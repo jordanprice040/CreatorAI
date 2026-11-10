@@ -791,3 +791,46 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   no plan-role build was run end to end with a policy.
 - Checks at `dc29506` (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` passes; `pnpm test:db` 882 tests, 848 pass,
   29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 15 tests in `routine-policy.test.ts`.
+
+## P18 collapsible options and shorter pages (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
+
+R20 and part of R12 from the [November 10 check](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) (the P18
+row arrives with docs PR #158). Web only; no data, route, gate, scoring or API change.
+
+- New `apps/web/src/fold.tsx` (`Fold`, `FoldAll`, `useFolds`) and `fold-state.ts` (pure rules: `foldIsOpen`,
+  `chooseAll`, `firstNeeding`, `nameList`). Each item is a native `<details>`/`<summary>`, so Enter/Space and screen
+  readers' expanded state work without extra code; closed content stays in the page, so typed fields keep their
+  values. Open state lives in the page component, and pages stay mounted while hidden, so it lasts while the app is
+  open. Expand all / Collapse all shows for lists of two or more.
+- Projects › Decide: claims, alternatives, the Decide form's options and the selection history each show one line
+  (alternatives: kind, title, scores, ethics and humility gates, how many choices gates block; options: chosen
+  disposition, what still needs the person, blocked choices). Only the first option that needs the person
+  (flagged, new, reasons written for another choice, or incomplete) opens by default; an option being edited stays
+  open. The line above Record now names the options it waits on, including the new case "give a disposition, reason
+  and would reverse if for N options (…)", so no reason a Record is disabled sits only inside a closed option.
+- Scores and specs: the two rankings (summary: candidates, first place, gates not clear, shortlist stability), the
+  selections and the open spec's task list fold; an unfrozen spec opens its tasks. Spec blockers and task-graph
+  problems stay outside the fold.
+- Proposals: the 15 editor sections fold (label, required, state, cited claims, first words); the first required
+  section not written opens; checks and blockers stay above the sections.
+- Monitor › Approvals: decision cards fold, every pending (and linked) decision is open, answered and closed ones
+  fold; "cannot be approved: the target changed" shows in the summary. Routine approval policies fold (a paused one
+  opens); the policy's error stays outside the fold.
+- Evidence (`tracking/evidence/p18-folds/`, throwaway PostgreSQL 16 database with the four seed workspaces, 1280×900):
+  page height before → after: Decide 6,480 → 3,563 px; Scores and specs 2,588 → 1,082 px (one screen); a new
+  proposal with all 15 sections open 5,880 → 2,623 px collapsed. `walk.cjs` output in `walk-output-2026-11-10.txt`:
+  Enter opens and Space closes an option from the keyboard; Expand/Collapse all; an emptied reason in a closed option
+  shows in its summary and in "Before you can record", Record disabled; open state and the typed (empty) field kept
+  after leaving for Scores and back; a freeze raised an approval whose card opened by default; empty Decide and
+  Approvals show their empty messages with no Expand/Collapse buttons. Before/after screenshots in `screens/`.
+- Gate: Scores and specs fits one screen. On Decide the collapsed alternatives and the collapsed options each fit in
+  about one screen, but the whole page is still about four screens (problem statement, automatic assessment, the
+  scoring form and "Why this response" are unchanged). Folding those is left to P19/P17.
+- Not done: Decide's assumption list, Proposals' review list and the Approvals runs and standing-policy lists stay
+  as they were (each is already one line per item). The decision card's `time_spent_ms` still counts from when the
+  card was shown, as before; pending cards open by default, so the measure is unchanged for them. Not independently
+  reviewed.
+- Checks (cloud container, PostgreSQL 16, no CI: Actions has no minutes): `pnpm typecheck` and `pnpm format:check`
+  pass; `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm
+  test:dev-safety` 22 tests, 19 pass, 3 skip. New `tests/src/web-folds.test.ts` (4 tests); `web-session.test.ts`
+  stubs the new `./fold.js` import of `oversight.tsx`. The Windows CI job did not run.

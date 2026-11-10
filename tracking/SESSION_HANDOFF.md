@@ -713,3 +713,15 @@ routine-stops.ts` (`routineStopReason`), `routineMissNote` in `packages/domain/s
 `reconfirmed`, `runDataClasses` on `RoutinePolicies`. Migration 50 was edited in place a second time (the `change`
 check gained `reconfirmed`); recreate any throwaway database that ran an earlier text. Not built: domain and output
 scope in a policy; claim admission (P12).
+
+## P18 collapsible options (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
+
+See the BUILD_STATUS entry "P18 collapsible options and shorter pages". Shared pieces for later pages (P19, P17):
+`Fold`, `FoldAll` and `useFolds` in `apps/web/src/fold.tsx`, rules in `fold-state.ts` (tested in
+`tests/src/web-folds.test.ts`). Rule for any new fold: the reason an action is blocked goes in the summary or
+outside the fold, never only inside it; open by default only what needs the person (`firstNeeding`), and mark an
+item open once the person edits it so it does not close under them. Walk scripts:
+`tracking/evidence/p18-folds/walk.cjs` and `heights.mjs` (set `WALK_CODE` to the throwaway API's
+`CREATOR_DEV_LOGIN_CODE`; web on 5183). P18 takes no migration or ADR number; P21 (parallel thread) takes migration 51 and
+ADR-0081, so check main before allocating. Next eligible prompt after review: P19 (Standard and Advanced across
+the app), which can fold Decide's remaining long sections.

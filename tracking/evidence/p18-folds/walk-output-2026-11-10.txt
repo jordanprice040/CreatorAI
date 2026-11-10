@@ -1,0 +1,34 @@
+DECIDE height 3563 viewport 900
+DECIDE option folds open [ false, false, false, false, false ]
+DECIDE alternative folds open [ false, false, false, false, false ]
+DECIDE claim folds open [ false ]
+KEY Enter opens true
+KEY Space closes true
+EXPAND ALL [ true, true, true, true, true ]
+COLLAPSE ALL [ false, false, false, false, false ]
+BLOCKED summary Hybrid: routine workaround supported by a simple list from existing dataResearch further · Needs a disposition, reason and “would reverse if” · 1 choice blocked by gates
+BLOCKED line Before you can record: give a disposition, reason and “would reverse if” for 1 option (Hybrid: routine workaround supported by a simple list from…).
+RECORD disabled true
+KEPT after leaving and returning true reason still empty: true
+SCORES height 1082
+SPEC tasks fold open (not frozen) [ true ]
+SPEC blockers outside fold v2 · changed since v1 was frozen
+FREEZE outcome Waiting for your approval. Needs a person: outside grant. Open the decision I approved it: freeze again
+APPROVALS decisions open [ true ]
+APPROVALS decision summary AUTHORIZATION Decision needed: Allow spec.freeze on specification v2?outside grant · pending · expires Nov 13, 2026, 10:52 PM
+POLICY folds open [ false, false, false ]
+POLICY summary v1 Unused first-appointment slots at rural clinics · Nov 10, 10:44 PM · 44b0e184 · Admitting covered steps0 of 40 steps used · ends Nov 11, 2026, 10:55 PM
+ALL decisions open [ true, false, false ]
+PROPOSAL section folds open [
+  false, false, true,
+  false, false, false,
+  false, false, false,
+  false, false, false,
+  false, false, false
+]
+PROPOSAL first summaries Problem and who it affects · required · WrittenFirst-appointment slots go unused when booked patients do not attend, while others wait. Evidence: Rural clinics… || Background · WrittenSelected response: an existing tool — Use the existing tool: The clinics’ scheduling systems send reminders but do not… || Objectives · required · Unknown yetState the outcome this should change, for whom, and how it will be measured. || Evidence · required · Written · 1 cited claim1 supporting claim is cited here; their statements, sources and current evidence status are listed under References.
+PROPOSAL checks visible Not complete yet · 5 written, 10 unknown, 0 not applicable · checks of this draftObjectives is marked unknown.Methods and step-by-step procedure is marked unkno
+PROPOSALS height 2623
+PROPOSALS height with every section open (the old layout) 5880
+EMPTY decide true expand buttons: 0
+EMPTY approvals true decision cards: 0 expand buttons: 0
