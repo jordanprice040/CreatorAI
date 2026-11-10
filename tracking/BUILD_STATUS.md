@@ -46,8 +46,8 @@ Open items:
 - **Installed app** is eight schema versions behind main; migrations 43–49 are not rehearsed on a copy of
   the installed database, and the web preview frame is not observed in the desktop window.
 - **Windows verification:** no full Windows run of main since CI stopped.
-- **Owner pilot:** `config/owner-pilot.json` still says `running`; its window ended November 6. Jordan
-  decides finished or extended.
+- **Owner pilot:** finished. Jordan marked it finished on November 10 (PR #155); its window ended
+  November 6.
 - **Older review items still open:** #128 N-6, #129 N-4, PR #150 N-1..N-3. Health reports configuration,
   not live state; the preview cookie-host limit remains. (#75 L-1 was repaired earlier; #77 L-1, #90 N-4
   and PR #148 N-I are fixed by the November 10 cleanup.)
@@ -589,6 +589,49 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   is now met for 3 of 3; `RECIPE_QUALIFICATIONS` is unchanged. Observed four days after the runs, on the same packages.
 - The Try list names packages by commit, not by artifact id; the guide's "find artifact X" steps should say so (UX note).
 - The dev studio is still running on Jordan's PC and holds the installed app's ports until it is stopped.
+
+## Owner pilot recorded as finished (November 10, no migration or ADR)
+
+- Jordan's decision in the project thread (2026-11-10 08:37 UTC): the owner pilot is finished, not extended.
+  `config/owner-pilot.json` now says `status: completed` with `finished_by`, `finished_at` and
+  `docs/OWNER_PILOT_LOG.md` as evidence; the log has a "Pilot finished" section stating what it holds and what it
+  does not (per-run owner minutes stay unknown). This supersedes the "Owner pilot ... still says `running`" open
+  item above.
+- Readiness gate (`packages/orchestrator/src/readiness.ts`): a completed pilot is judged by its evidence, so its
+  past window no longer refuses it; a pilot that has not finished is still refused after its window. X10 stays NOT
+  READY (readiness rows still need owner inputs). `docs/X10_ACCEPTANCE.md` no longer says the pilot was not run.
+- Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
+  `owner-pilot.json`), so no app or database step is needed.
+- Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
+  pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+  P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
+
+## PR #155 review fixes (November 10, no migration or ADR)
+
+- Independent review of PR #155: no High, M-1 and L-1..L-3, all fixed here.
+- M-1 and L-1: the pilot log's finish note no longer says F2–F21 are fixed; it points to the P00 reconciliation table
+  (F2 open, F5/F7/F15/F17 web/F18 partly open as of November 5, F9 addressed by P09). It now says the 3-in-a-row stop
+  rule never fired, with at most 2 failures in a row counting qualifications and builds.
+- L-2: `checkPilot` now requires, for a completed pilot, `finished_by`, an ISO `finished_at` that is not before the
+  window starts and not in the future, repository-relative evidence paths, and evidence other than
+  `config/owner-pilot.json`. Negative tests cover each.
+- L-3: the "Owner pilot" open item at the top of both tracking files, runbook step 4 and the `checkPilot` doc comment
+  are current. The double blank line before the previous section is removed.
+
+## PR #156 re-review fixes (November 10, no migration or ADR)
+
+- Re-review of PR #156: no High or Medium; L-1..L-3 and a nit, all fixed in the same PR with negative tests.
+- L-1: pilot evidence paths are normalised before the "not the pilot config itself" check, so `./config/owner-pilot.json`,
+  `config//owner-pilot.json` and `docs/../config/owner-pilot.json` are refused too.
+- L-2: pilot evidence must be a file. Empty, blank, `.`, and folders such as `docs` are refused. `checkPilot` and
+  `evaluateReadiness` now take an `isFile` check for this; readiness rows keep `exists`, since they cite evidence folders.
+- L-3: times must name a real calendar date and clock time (no month 13, February 30 or hour 25), both for
+  `finished_at` and for the window, so a running pilot with an impossible end date is refused.
+- Nit: `finished_by` must be non-blank text.
+- Final review Low (at 1b79084): the "not the pilot config itself" check is now case-insensitive, so
+  `Config/Owner-Pilot.json` (the same file on Windows) is refused; test added. Checks (cloud container, PostgreSQL 16):
+  typecheck and format check pass; `pnpm test:db` 867 tests, 833 pass, 29 skipped, 5 fail (the known no-`pwsh`
+  wrapper tests), the same counts as main.
 
 ## P10 routine approvals (November 10, branch `claude/project-thread-q4lf7q`, PR #153, ADR-0079, migration 50)
 

@@ -1,3 +1,4 @@
+import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
 
 /**
@@ -52,6 +53,9 @@ export interface OwnerPilot {
   schedules: unknown[] | null;
   enabled_accounts: string[];
   platforms: string[];
+  /** Who recorded the pilot as completed, and when (set with status 'completed'). */
+  finished_by?: string | null;
+  finished_at?: string | null;
   stop_rules: {
     max_spend_nano_usd: string | null;
     max_consecutive_failures: number | null;
@@ -85,9 +89,41 @@ export const PILOT_PLATFORMS: Record<string, string | null> = {
   hosted: 'hosted-operation',
 };
 
+/** The pilot's own record; it cannot be its own evidence. */
+export const PILOT_CONFIG = 'config/owner-pilot.json';
+
 const NANO = /^(0|[1-9][0-9]{0,24})$/;
 const ISO =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** An ISO time that names a real calendar date and clock time (no month 13, no Feb 30). */
+function validTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !ISO.test(value)) return false;
+  const [y, m, d] = value.slice(0, 10).split('-').map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const day = new Date(Date.UTC(y, m - 1, d));
+  return (
+    day.getUTCFullYear() === y &&
+    day.getUTCMonth() === m - 1 &&
+    day.getUTCDate() === d &&
+    !Number.isNaN(Date.parse(value))
+  );
+}
+
+/**
+ * A pilot evidence path in canonical repository-relative form, or null. Equivalent
+ * spellings (`./x`, `a//b`, `a/./b`) normalise to one form so they compare equal.
+ */
+function pilotEvidencePath(p: unknown): string | null {
+  if (typeof p !== 'string' || p.trim() === '' || p.includes('\\')) return null;
+  if (p.startsWith('/')) return null;
+  const n = posix.normalize(p).replace(/\/+$/, '');
+  if (n === '.' || n === '' || n === '..' || n.startsWith('../')) return null;
+  return n;
+}
 
 /** Requirement ids in the traceability table (context/REQUIREMENTS.md), in order. */
 export function requirementIds(markdown: string): string[] {
@@ -161,11 +197,16 @@ function checkRow(
   };
 }
 
-/** Whether the owner pilot may start, with every reason it may not. */
+/**
+ * The owner pilot's gate, with every refusal. Before it has finished, the plan is judged: it
+ * may start only inside its window. Once `completed`, the record is judged instead: who
+ * finished it and when (inside or after its window, not in the future), and evidence files
+ * other than the pilot config itself.
+ */
 export function checkPilot(
   pilot: OwnerPilot,
   register: Register,
-  exists: (path: string) => boolean,
+  isFile: (path: string) => boolean,
   now = new Date(),
 ): { ready: boolean; refusals: string[] } {
   const r: string[] = [];
@@ -197,11 +238,13 @@ export function checkPilot(
     );
   const start = pilot.window?.starts_at;
   const end = pilot.window?.ends_at;
-  if (!start || !end || !ISO.test(start) || !ISO.test(end))
+  if (!validTime(start) || !validTime(end))
     r.push('Owner has not chosen the pilot window (starts_at, ends_at).');
   else if (Date.parse(end) <= Date.parse(start))
     r.push('Pilot window ends before it starts.');
-  else if (Date.parse(end) <= now.getTime())
+  // A pilot that has not finished cannot run outside its window; a completed one is
+  // judged by its evidence instead, since its window has necessarily passed.
+  else if (pilot.status !== 'completed' && Date.parse(end) <= now.getTime())
     r.push('Pilot window has already ended.');
   // null means not chosen; [] is the owner's choice of manual runs only (decision #29).
   if (!Array.isArray(pilot.schedules))
@@ -238,10 +281,32 @@ export function checkPilot(
       r.push(`Account "${a}" has not been activated by the owner.`);
   }
   if (pilot.status === 'completed') {
+    if (
+      typeof pilot.finished_by !== 'string' ||
+      pilot.finished_by.trim() === ''
+    )
+      r.push('Pilot marked completed without who finished it (finished_by).');
+    const fin = pilot.finished_at;
+    if (!validTime(fin))
+      r.push('Pilot marked completed without a finish time (finished_at).');
+    else if (validTime(start) && Date.parse(fin) < Date.parse(start))
+      r.push('Pilot finished before its window started.');
+    else if (Date.parse(fin) > now.getTime())
+      r.push('Pilot finish time is in the future.');
     if (!Array.isArray(pilot.evidence) || pilot.evidence.length === 0)
       r.push('Pilot marked completed without evidence.');
-    for (const p of pilot.evidence ?? [])
-      if (!exists(p)) r.push(`Pilot evidence "${p}" does not exist.`);
+    for (const p of Array.isArray(pilot.evidence) ? pilot.evidence : []) {
+      const path = pilotEvidencePath(p);
+      if (path === null)
+        r.push(
+          `Pilot evidence path "${String(p)}" must be a repository-relative file path.`,
+        );
+      // Case-insensitive: Windows and macOS file systems treat these spellings as one file.
+      else if (path.toLowerCase() === PILOT_CONFIG.toLowerCase())
+        r.push(`Pilot evidence cannot be the pilot config itself (${p}).`);
+      else if (!isFile(path))
+        r.push(`Pilot evidence "${p}" is not a file in the repository.`);
+    }
   }
   return { ready: r.length === 0, refusals: r };
 }
@@ -251,6 +316,7 @@ export function evaluateReadiness(
   pilot: OwnerPilot,
   requirementsMarkdown: string,
   exists: (path: string) => boolean,
+  isFile: (path: string) => boolean,
   registerBytes: string,
   now = new Date(),
 ): ReadinessResult {
@@ -276,7 +342,7 @@ export function evaluateReadiness(
   const integrations = register.integrations.map((r) =>
     checkRow('integration', r, exists, problems),
   );
-  const pilotResult = checkPilot(pilot, register, exists, now);
+  const pilotResult = checkPilot(pilot, register, isFile, now);
   const counts = Object.fromEntries(
     DIMENSIONS.map((d) => [
       d,
