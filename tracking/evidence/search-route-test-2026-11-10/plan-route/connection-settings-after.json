@@ -1,0 +1,38 @@
+{
+  "version": 21,
+  "settings": {
+    "caps": {
+      "codex": {
+        "build_timeout_ms": 600000,
+        "max_builds_per_day": 2,
+        "max_turns_per_build": 1,
+        "max_model_requests_per_build": 25
+      },
+      "shared": {
+        "max_in_flight": 1,
+        "max_model_requests_per_day": 40
+      },
+      "responses": {
+        "max_input_chars": 60000,
+        "max_output_chars": 16000,
+        "request_timeout_ms": 120000,
+        "max_requests_per_run": 10
+      }
+    },
+    "format": "chatgpt-plan-settings/1",
+    "plan_type": "plus",
+    "allowed_data_classes": [
+      "synthetic",
+      "public"
+    ],
+    "allowed_task_classes": [
+      "summarization",
+      "specification",
+      "patch_build",
+      "independent_review"
+    ],
+    "shared_allowance_note": "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent."
+  },
+  "caps_accepted_at": "2026-11-10T22:44:10.819Z",
+  "same_settings_as_before": true
+}
