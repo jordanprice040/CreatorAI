@@ -632,3 +632,26 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   `Config/Owner-Pilot.json` (the same file on Windows) is refused; test added. Checks (cloud container, PostgreSQL 16):
   typecheck and format check pass; `pnpm test:db` 867 tests, 833 pass, 29 skipped, 5 fail (the known no-`pwsh`
   wrapper tests), the same counts as main.
+
+## Search route investigation and live test — November 10, 2026
+
+Report: [docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md);
+evidence: `tracking/evidence/search-route-test-2026-11-10/`. Verdict: a separate search API is not
+necessary now; evidence is still insufficient for unattended runs. Before the test no route had run
+a live search: Brave is off and limited to 1-5 domains, the OpenAI plan route sends no tools, the
+Codex builder has web_search disabled (keep it so), and the studio's Claude Code route runs with no
+tools. Official docs say web search is supported on the Sign in with ChatGPT plan route. The earlier
+[comparison report](../docs/SEARCH_API_COMPARISON_2026-11-10.md) did not assess that route; its
+Tavily-first pick conflicts with the accepted October 20 "native plan search first" planning, and
+its "next prompt U02" line is stale.
+
+Jordan-approved smoke test: 3 runs of the unmodified Claude Code CLI (studio sign-in, Max plan,
+WebSearch only, cap 3 calls per run) produced 9 searches and 30 candidate URLs, all present in the
+search output. Each run took 63-68 s at $0 incremental spend. Two earlier attempts failed on a
+stale `.oauth_refresh.lock` left by `claude auth status`; both are preserved. Then 15 fetches went
+through the studio's fetch adapter, per-hop policy and extractor, outside the studio DB: 5 usable
+pages; 5 HTTP 403; 3 reCAPTCHA challenge pages stored as "fetched" (F2); 2 PDFs refused or over the
+limit. Stored-text quote checks passed 5/5. Fetching, not finding, is the bottleneck. The studio
+routes, configuration, grants and migrations are unchanged; no ADR is adopted. Next: Jordan chooses
+whether to start P12 work on challenge/low-text detection and the PDF scope, or to authorise the
+small code change that tests plan-route search.

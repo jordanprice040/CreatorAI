@@ -1,0 +1,22 @@
+{
+  "access_date": "2026-11-10",
+  "scope": "Documentation reference/receipt verification only; not live API or application tests",
+  "reference_definitions": 84,
+  "missing_references": [],
+  "source_urls_absent_from_receipts": [],
+  "receipt_json_valid": true,
+  "files": [
+    {
+      "path": "docs/SEARCH_API_COMPARISON_2026-11-10.md",
+      "sha256": "e2d078f9fe811401704ce485eb0ff7ab128007cc641ede4f7c1002c42184242f"
+    },
+    {
+      "path": "tracking/evidence/search-api-research-2026-11-10/sources.json",
+      "sha256": "1d521a53ca53af4e575637aa5690a2fda7ea6257375797de1d43d004899b6267"
+    },
+    {
+      "path": "tracking/evidence/search-api-research-2026-11-10/final-check.json",
+      "sha256": "6252e63568941393881a4de8d62c7ef3d69a5abd6c631c64553423818e2a340b"
+    }
+  ]
+}
