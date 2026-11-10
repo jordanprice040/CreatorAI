@@ -1,0 +1,12 @@
+{
+  "workspace_id": "88df6c10-7310-4ec0-b623-7f48046bc447",
+  "enabled": false,
+  "connection_id": null,
+  "model_id": null,
+  "include_snapshot": true,
+  "daily_limit": 20,
+  "version": 2,
+  "updated_by": "00000000-0000-4000-8000-000000000001",
+  "updated_at": "2026-11-10T22:38:53.507Z",
+  "used_24h": 0
+}
