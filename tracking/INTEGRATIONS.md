@@ -21,12 +21,13 @@ Built in this package (local and loopback checks only so far):
   repository `creator-agent-p22-trial`. Repository creation by the studio is not part of this trial;
   Jordan asked for a later trial with a token that can create repositories once the rest works.
 
-Live results (date, model or repository, cost, outcome): **not run yet**. Each row is added here when
-it runs, including a failure.
+Live results (date, model or repository, cost, outcome). Each row is added when it runs, including a
+failure. The API key route row is the first live call on the metered OpenAI route; the cost is computed
+from the documented price (retrieved 2026-10-18), not read from an OpenAI invoice.
 
 | Check | When (UTC) | Target | Cost | Result |
 | --- | --- | --- | --- | --- |
-| API key route, Test connection | — | gpt-6-astra | — | not run |
+| API key route, Test connection | 2026-11-10 23:16 | openai/gpt-6-astra (dev studio, real workspace) | $0.00036 charged ($0.014275 reserved), documented price | **Connected**: replied “ok”; reservation settled ([screenshot](evidence/p22/api-key-test-connection-2026-11-10.png)) |
 | ChatGPT plan route, one approved model check | — | gpt-6-astra | $0 | not run in P22 |
 | Claude Code route, one approved model check | — | claude-sonnet-5-5 | $0 | not run in P22 |
 | GitHub verify, branch, push, PR, read checks | — | creator-agent-p22-trial | $0 | not run |

@@ -313,8 +313,9 @@ export function ApiKeyCheck({
                 {recent.map((r) => (
                   <li key={r.id}>
                     {when(r.created_at)} · {r.provider}/{r.model_id} ·{' '}
-                    {r.status} ({r.reason_code}) · charged{' '}
-                    {money(r.incurred, false)}
+                    {r.status}
+                    {r.reason_code !== r.status ? ` (${r.reason_code})` : ''} ·
+                    charged {money(r.incurred, false)}
                   </li>
                 ))}
               </ul>
