@@ -632,3 +632,124 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   `Config/Owner-Pilot.json` (the same file on Windows) is refused; test added. Checks (cloud container, PostgreSQL 16):
   typecheck and format check pass; `pnpm test:db` 867 tests, 833 pass, 29 skipped, 5 fail (the known no-`pwsh`
   wrapper tests), the same counts as main.
+
+## P16 runbook export (November 10, branch `claude/project-thread-tq4rcm`, PR #152, ADR-0080, no migration)
+
+- **What works.** A spec (Projects › Build) or a non-code proposal (Projects › Proposals) can be exported as a
+  standalone runbook: a ZIP with a README, the shared project contract, requirements and visible acceptance cases,
+  the task plan in dependency order, the proposed stack and limits, decisions (decided / proposed / assumptions /
+  still open), evidence, recovery steps, one prompt per step with prerequisites, scope, expected artifacts and a
+  completion gate, a standard-library Python runner for command-line cases and a `runbook/1` manifest with a
+  SHA-256 per file. Download or "Save to Files". Guide: [docs/RUNBOOK_EXPORT.md](../docs/RUNBOOK_EXPORT.md).
+- **Rules.** Computed on read by code from one saved version (no model, nothing stored, nothing granted); held-out
+  cases are dropped and only counted; well-known credential formats and personal folder paths are replaced and
+  counted; the same version gives the same bytes; an unfrozen spec, replaced selection, changed option, missing
+  evidence or a spec without executable cases is stated in the bundle; an invalid task plan is refused; every export
+  passes `validateRunbook` or fails.
+- **Checks (cloud container, local PostgreSQL 16).** `tests/src/runbook-domain.test.ts` (10 pure tests, including the
+  shipped runner executed with Python against a reference program and a wrong one) and `tests/src/runbook.test.ts`
+  (2 PostgreSQL/API tests). Browser walk `tracking/evidence/runbook-export/walk.mjs` in fixture mode: both panels,
+  both downloads validated from their bytes, save to Files twice keeps one copy, no horizontal scroll at phone
+  width. `pnpm typecheck` and `pnpm format:check` pass. Full database suite: see the PR description for the totals of
+  the final run; the only failures are the 5 known no-`pwsh` wrapper tests, plus one `test:dev-safety` test that
+  needs `pg_ctl.exe` (Windows only; it fails the same way on main in this container). CI did not run (no Actions
+  minutes), so the Windows job is unverified.
+- **Not done.** The plan's independent-consumption gate: a separately scoped implementer building the synthetic
+  project from only `tracking/evidence/runbook-export/synthetic-bundle/` in a clean workspace. Not run here, so
+  "no missing context" is unverified. Also no browser-case runner, no CLI command, Markdown and ZIP only.
+
+## P16 runbook export: clean-room gate and fixes (November 10, PR #152)
+
+- **Gate result.** A separate session built the synthetic project from only the committed bundle (at `c97bff3`) in an
+  empty folder and froze it before the fixture was opened. Both held-out cases then passed on a fresh clone. Record:
+  [tracking/evidence/runbook-export/clean-room-2026-11-10.md](evidence/runbook-export/clean-room-2026-11-10.md).
+  Limits of that run: one session did all six prompts, the implementer was the same kind of model that built the
+  exporter, and A3 was judged only by the implementer.
+- **Its findings, fixed in the generator.** F1: a check a person must judge is now "carried out and recorded as
+  provisional" in a task's gate, and the contract says an unnamed judge is not a reason to stop. F2: the runner adds
+  `-B` and setup adds a `.gitignore` for the Python stack. F3: the contract names the root files no task owns, and the
+  review step checks risk mitigations and may fix `README.md`. F4: unclear readings go in `ASSUMPTIONS.md` and are
+  copied into the hand-over. F5: `.gitkeep` in empty folders. F6: a reviewer task reviews only its own checks, writes
+  to a named file and says whether it wrote the code. F7: the contract defines `<bundle>` and the source archive goes
+  outside the project.
+- **Checks.** 25 runbook and proposal tests pass (one new test for these fixes; the runner test now also proves no
+  `__pycache__` is left). `pnpm typecheck` and `pnpm format:check` pass. The example bundle was regenerated
+  (hash `409d0fb8…`). The regenerated bundle has **not** been through a second clean-room run.
+- **Second clean-room run (at `cf820c6`).** Both held-out cases passed again and F1 to F7 were found resolved; the run
+  was not blind (the implementer had seen the first bundle and the held-out cases). Its three Lows are fixed: N1 the
+  unclear-reading rule now says "the reading that does less and refuses more", N2 task gates say a line added to
+  `ASSUMPTIONS.md` is allowed, N3 setup says to leave `.gitkeep` in place. The bundle after these three wording changes
+  has not been consumed again.
+
+## P16 runbook export: independent code review fixes (November 10, PR #152)
+
+- **Review** of `ff29f25` by a separate thread: no High, 2 Medium, 8 Low
+  (`/mnt/project-files/reviews/PR152_RUNBOOK_EXPORT_REVIEW_2026-11-10.md`). All fixed:
+  M-1 an action runbook's `PLAN.md` is rendered inside the export from the redacted proposal, and the self-check reads
+  Markdown with escapes removed; M-2 a missing humility review, one the pre-build gate would not accept, or unresolved
+  ethics is a warning and an open decision, with ethics and dissent in `DECISIONS.md`; L-1 a failed self-check or an
+  oversize bundle is `INVALID_CONTRACT` with its reason, slugs cannot look like credentials, the held-out check reads
+  JSON; L-2 WSL, network-share and spaced Windows profile paths plus `glpat-`, `hf_`, `npm_` and `Basic` values; L-3
+  held-out-only checks get their own gate wording and a review never lands in a code file; L-4 one proposal read per
+  export; L-5 `STACK.md` and setup state the Linux `\n` and `python3` assumptions; L-6 the panel offers the frozen
+  version when a draft is current; L-7 README states the hash rule, guide and ADR updated, walk records its commit;
+  L-8 `evidenceFile` uses the escaped title test.
+- **Checks at the fix commit (cloud container, PostgreSQL 16).** `pnpm typecheck` and `pnpm format:check` pass. Full
+  suite `node --test tests/dist/*.test.js`: 884 tests, 850 pass, 29 skipped, 5 fail (the 5 known no-`pwsh` wrapper
+  tests). `pnpm test:dev-safety`: 22 tests, 19 pass, 3 skipped, 0 fail. Browser walk rerun with a new step for the
+  frozen-version offer (`screens/04-frozen-version-offered.png`); `walk.json` records the commit it ran on. CI did
+  not run (no Actions minutes). The bundle after these changes has not been through another clean-room run.
+- **Re-review (at `08069db`): no High or Medium; all earlier findings fixed.** Its two Lows and two nits are fixed:
+  R-1 a spaced account name in a path continues for at most two capitalised words, so ordinary text after a path is
+  kept; R-2 when unresolved ethics is the gate's only objection the bundle says the owner's ethical judgement is
+  needed, not that the studio would refuse; the README says the owner runs the cases when every case is held back;
+  the frozen-version button ignores a superseded response. Full suite after these: 884 tests, 850 pass, 29 skipped,
+  5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail; typecheck and format pass; walk rerun.
+- **Final review (at `e9bcc95`): no High or Medium.** P-1 the account name in a path continues for one or two
+  words of any case only when what follows the separator is clearly more path (a profile folder, another folder, a
+  file name with an extension); P-2 Windows profile paths match in any letter case; N-1 the ethics-only wording uses
+  the gate's own `needs_judgment`; N-2 SESSION_HANDOFF brought up to date; N-3 README names wholly held-back checks
+  when they are mixed with manual ones. Tests cover every string the review listed. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Second re-review (at `ffb5a12`): no High or Medium.** R2-1 a two-word account name before one last folder or a
+  bare separator is removed again (a last segment that ends the text or line, or a separator followed by a space,
+  quote, bracket or the end, now counts as more path); R2-N2 names of up to four words, with digits or an apostrophe
+  (`O'Brien`), are removed; R2-N3 lower-case macOS `/users/…` and lower-case profile folders on the Unix arm are
+  matched, and the guide names the forms still not covered. Every string the review listed is a test row; probes of
+  100k to 320k characters finish in about 10 ms. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Third re-review (at `b938e15`): 1 Medium, 2 Low, 3 nits, all addressed.** R3-1 (Medium) the last-segment rule
+  backtracked cubically on long runs of closing brackets (5,000 took 47 s); the segment class no longer holds closing
+  brackets and each part matches one way, so 20,000-character runs take a few milliseconds, with a timing test.
+  R3-2 lower-case `/users/name` counts only before a profile folder, so routes such as `/users/me` are kept (test
+  rows). R3-3 a last folder closed by a backtick, quote or bracket or followed by a comma is removed whole. R3-N3 the
+  Unix arm has its own name class (no dead `replace`). R3-N1 and R3-N2 are named in the guide as limits. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Fourth re-review (at `7b8b376`): no High or Medium; 3 Lows and 2 nits fixed.** R4-1 the address-with-password
+  pattern starts only where a scheme can start, so 100k-character dotted or hyphenated runs take a few ms (timing
+  test; `git+ssh`, `jdbc:postgresql`, `-postgres` still caught); R4-2 the lower-case macOS arm needs the profile
+  folder in its real spelling and refuses route placeholders (`{id}`, `:id`, digits, `me`), so routes such as
+  `/users/{id}/links` stay; R4-3 a path right after `_` is caught; R4-N1 `*`, `~`, `}`, `|`, curly quotes and `»` also
+  close a path; R4-N2 a closing bracket after a path is kept. R4-N3 needed no change. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Fifth re-review (at `0c8b2f3`): no High or Medium; 2 Lows and 2 nits fixed.** R5-1 a closing mark inside a
+  removed path (`DOCUME~1`, `scans(old)`, `backups[2025]`) no longer cuts the path short: the tail may hold any path
+  character and only refuses one as its last, so a bracket that closes the path still stays. R5-2 the
+  address-with-password pattern allows an empty user name (`redis://:password@host`) and takes the password up to the
+  last `@` before a `/` or space; ordinary URLs (`https://example.com:8080/x`, `ssh://git@github.com/x`) stay. R5-N1 a
+  last folder closed by `_` before a space or the end is removed whole; R5-N2 the Unix forms keep a closing `**` or
+  `|`. R5-N3 needed no change. Every reported string is a test row, with new timing loops; worst probe 2 ms at 20k
+  characters.
+- **Sixth re-review (at `0accf31`): no High or Medium, no leak; 2 Lows and 1 nit fixed (both Lows removed too
+  much).** R6-1 the address password first stops at quotes, backticks, `<>` and `|` and only falls back to the
+  last-`@` rule, so JSON keys, table cells and e-mail addresses after a URL stay; a raw `"` or `|` in a password is
+  still caught. R6-2 a path tail no longer ends on `.,;:!`, so `(see /home/jordan/x.md).` keeps `).` and two older
+  rows now keep their comma. R6-N1 a snake_case last folder inside `_…_` emphasis is removed whole, with a linear
+  form. Every reported string is a test row, with timing loops for the new shapes; worst probe 12 ms at 50k
+  characters.
+- **Seventh re-review (at `de9bb58`): no High or Medium; 2 Lows and 1 nit fixed.** R7-1 a quote or backtick stays
+  inside an address password unless structure follows it, so `P@ss'w0rd@db` is removed whole; a raw `@` before `|`,
+  `<` or `>` is named in the guide as a limit. R7-2 a spaced name before one folder and a `.`, `:`, `!` or `?` and a
+  space is removed whole. R7-N1 a path that ends at the account name keeps a closer or sentence mark after it, and the
+  Unix tails also refuse a final `?`. One older row now keeps its full stop. Every reported string is a test row,
+  with timing loops for the new shapes; worst probe 13 ms at 100k characters.
+- **Eighth re-review (at `e37eaed`): 1 Medium and 1 nit fixed.** R8-1 (regression from R7-N1) a spaced name whose first
+  word ends in `.` or `,` (`J. Price`, `Dr. Who`, `Smith, John`) leaked every later word; extra name words are now
+  tried before the ending check, so these names are removed whole again and the R7-N1 rows still keep their marks.
+  R8-N1 the guide's raw-`@` sentence is reworded. Test rows for each shape; worst probe 13 ms at 100k characters.

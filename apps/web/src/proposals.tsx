@@ -28,6 +28,7 @@ import { api, message, when, words } from './oversight.js';
 import { Empty, Status, clip, useLoad, type View } from './ui.js';
 import { Markdown } from './markdown-view.js';
 import { newestFirst } from './versions.js';
+import { RunbookExport } from './runbook.js';
 
 // ADR-0077 (P09): why a response was chosen (shown on Decide), and the Proposals tab, where a
 // recommended non-code option gets a versioned proposal people write, check, review, revise,
@@ -659,6 +660,17 @@ function ProposalEditor({
             {preview ? 'Edit view' : 'Preview'}
           </button>
         </div>
+      )}
+      {detail && v !== undefined && (
+        <RunbookExport
+          key={`${detail.proposal.id}:${v}`}
+          base={base}
+          session={session}
+          subject="proposals"
+          id={detail.proposal.id}
+          version={v}
+          writer={writer}
+        />
       )}
       {older && (
         <p className="notice small">

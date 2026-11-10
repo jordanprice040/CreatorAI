@@ -1,0 +1,86 @@
+{
+  "format": "runbook-checks/1",
+  "held_out_cases_withheld": 2,
+  "tasks": [
+    {
+      "key": "T1",
+      "title": "Count words from standard input",
+      "acceptance": [
+        "A1"
+      ]
+    },
+    {
+      "key": "T2",
+      "title": "Add the --lines option",
+      "acceptance": [
+        "A2"
+      ]
+    },
+    {
+      "key": "T3",
+      "title": "Review against the scope",
+      "acceptance": [
+        "A3"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "key": "A1",
+      "method": "automated_test",
+      "statement": "The number of whitespace-separated words is printed.",
+      "measure": "Standard output is the count and a line end; exit code 0.",
+      "cases": [
+        {
+          "args": [],
+          "stdin": "one two three\n",
+          "stdout": "3\n",
+          "exit_code": 0
+        },
+        {
+          "args": [],
+          "stdin": "",
+          "stdout": "0\n",
+          "exit_code": 0
+        },
+        {
+          "args": [
+            "--bogus"
+          ],
+          "stdin": "one two\n",
+          "stdout": "",
+          "exit_code": 2
+        }
+      ],
+      "browser_cases": [],
+      "not_run_reason": null
+    },
+    {
+      "key": "A2",
+      "method": "automated_test",
+      "statement": "With --lines, the number of non-empty lines is printed.",
+      "measure": "Standard output is the count and a line end; exit code 0.",
+      "cases": [
+        {
+          "args": [
+            "--lines"
+          ],
+          "stdin": "a b\n\nc\n",
+          "stdout": "2\n",
+          "exit_code": 0
+        }
+      ],
+      "browser_cases": [],
+      "not_run_reason": null
+    },
+    {
+      "key": "A3",
+      "method": "manual_review",
+      "statement": "The program does nothing the scope does not list.",
+      "measure": "A reviewer reads the source and finds no file or network use.",
+      "cases": [],
+      "browser_cases": [],
+      "not_run_reason": "no executable case; a person judges it"
+    }
+  ]
+}
