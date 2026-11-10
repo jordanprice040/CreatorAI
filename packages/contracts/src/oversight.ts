@@ -72,6 +72,200 @@ export const DataClassSchema = z.enum([
 ]);
 export const TargetRefSchema = z.strictObject({ id, version });
 
+/**
+ * ADR-0079 (P10): routine approvals. An owner sets one policy for a run when the run is set
+ * up; code then admits the covered routine steps without asking again. A policy is realised
+ * as one run-scoped standing grant that only the policy path may use, plus the limits and
+ * stop conditions below. It never covers an action with an external effect.
+ */
+export const ROUTINE_POLICY_VERSION = 'routine/1.0' as const;
+export const RoutineStageSchema = z.enum([
+  'research',
+  'model_work',
+  'selection',
+  'spec_freeze',
+  'build',
+]);
+export type RoutineStage = z.infer<typeof RoutineStageSchema>;
+/** The action types each routine stage covers. Fixed in code; not a runtime setting. */
+export const ROUTINE_STAGE_ACTIONS: Record<
+  RoutineStage,
+  readonly ActionType[]
+> = {
+  research: ['tool.search_public', 'source.fetch'],
+  model_work: ['model.generate', 'model.summarize', 'model.embed'],
+  selection: ['candidate.select'],
+  spec_freeze: ['spec.freeze'],
+  build: ['product.commit_build'],
+};
+export const ROUTINE_STAGE_TEXT: Record<
+  RoutineStage,
+  { label: string; covers: string }
+> = {
+  research: {
+    label: 'Research',
+    covers: 'public searches and fetching public source pages',
+  },
+  model_work: {
+    label: 'Model work',
+    covers:
+      'model calls that draft, summarize, assess and index (a draft stays a draft until a person accepts it)',
+  },
+  selection: {
+    label: 'Selection',
+    covers: 'recording which option is selected for a problem',
+  },
+  spec_freeze: {
+    label: 'Specification freeze',
+    covers: 'freezing a specification version, which cannot be undone',
+  },
+  build: {
+    label: 'Build',
+    covers:
+      'committing to an isolated build of a frozen specification, with its review, repair rounds and private package, when the humility review passes',
+  },
+};
+export const RoutineStopSchema = z.enum(['person_rejects', 'unknown_outcome']);
+export type RoutineStop = z.infer<typeof RoutineStopSchema>;
+export const ROUTINE_STOP_TEXT: Record<RoutineStop, string> = {
+  person_rejects:
+    'Stops after you reject any decision in this run, until you confirm the policy again.',
+  unknown_outcome:
+    'Stops while any paid call in this run has an unknown outcome that is not yet reconciled.',
+};
+const unique = <T>(a: readonly T[]) => new Set(a).size === a.length;
+/** What the owner chooses. Owner-set limits have no hard-coded maximum (2026-11-03 decision). */
+export const RoutinePolicyInputSchema = z.strictObject({
+  stages: z
+    .array(RoutineStageSchema)
+    .min(1)
+    .max(5)
+    .refine(unique, 'List each stage once.'),
+  data_classes: z
+    .array(DataClassSchema)
+    .min(1)
+    .max(3)
+    .refine(unique, 'List each data class once.'),
+  /** The most steps this policy admits over its whole life, across changes. */
+  max_actions: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  /**
+   * The most the admitted steps' stated maximum amounts may add up to. Null: a step that
+   * states an amount is never covered (an amount with no cap is unknown, not zero).
+   */
+  max_total_nano_usd: nanoUsd.nullable(),
+  stop_on: z
+    .array(RoutineStopSchema)
+    .max(2)
+    .refine(unique, 'List each stop condition once.'),
+  expires_at: timestamp,
+  rationale: note,
+});
+export type RoutinePolicyInput = z.infer<typeof RoutinePolicyInputSchema>;
+const summaryLines = z.array(z.string().max(600)).min(1).max(20);
+/** The input plus the exact summary the owner was shown; a different summary is refused. */
+export const RoutinePolicyRequestSchema = RoutinePolicyInputSchema.extend({
+  summary_seen: summaryLines,
+});
+export const ReviseRoutinePolicyRequestSchema =
+  RoutinePolicyRequestSchema.extend({ expected_version: version });
+export const RevokeRoutinePolicyRequestSchema = z.strictObject({
+  expected_version: version,
+  reason: short,
+});
+const dollars = (nano: string) => {
+  const cents = (BigInt(nano) + 5_000_000n) / 10_000_000n;
+  return `$${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
+};
+/**
+ * The one up-front summary of a routine approval policy, in the order the form shows it.
+ * The studio writes it from the chosen values; the owner's request must carry the same
+ * lines, so what was confirmed is exactly what code enforces.
+ */
+export function routinePolicySummary(p: RoutinePolicyInput): string[] {
+  const order = RoutineStageSchema.options.filter((s) => p.stages.includes(s));
+  const stops = RoutineStopSchema.options.filter((s) => p.stop_on.includes(s));
+  const until = new Date(p.expires_at).toISOString();
+  return [
+    'For this run only, the studio admits the steps below without asking you each time. Its own fixed rules check every step against this policy; no model approves anything, and no approve-once record is made on your behalf.',
+    ...order.map(
+      (s) => `${ROUTINE_STAGE_TEXT[s].label}: ${ROUTINE_STAGE_TEXT[s].covers}.`,
+    ),
+    `Data: ${p.data_classes.map((c) => c.replaceAll('_', ' ')).join(', ')} only.`,
+    `Limits: at most ${p.max_actions} step${p.max_actions === 1 ? '' : 's'} in total; ${
+      p.max_total_nano_usd === null
+        ? 'no step that states a money amount'
+        : `steps that state a money amount up to about ${dollars(p.max_total_nano_usd)} in total (the sum of each step's stated maximum; exactly ${p.max_total_nano_usd} nano-USD)`
+    }; ends ${until.slice(0, 10)} ${until.slice(11, 16)} UTC. Budgets, spending limits and connection request caps still apply as well.`,
+    ...stops.map((s) => ROUTINE_STOP_TEXT[s]),
+    'Never covered: publishing, sending messages, payments, GitHub changes, account or access changes, raising budgets, or changing this policy.',
+    'Still stops and asks you: value questions and flagged concerns, a serious unresolved ethical problem, a material or refuted assumption, and any step outside the stages, data or limits above. A failed humility review is refused. Work done so far is kept.',
+    'You can stop the run or revoke this policy at any time. Changing it needs you to confirm a new summary.',
+  ];
+}
+/** True when `next` permits anything `prev` did not (a material change, recorded as such). */
+export function routinePolicyWidens(
+  prev: RoutinePolicyInput,
+  next: RoutinePolicyInput,
+): boolean {
+  const more = <T>(a: readonly T[], b: readonly T[]) =>
+    b.some((x) => !a.includes(x));
+  return (
+    more(prev.stages, next.stages) ||
+    more(prev.data_classes, next.data_classes) ||
+    next.max_actions > prev.max_actions ||
+    (next.max_total_nano_usd !== null &&
+      (prev.max_total_nano_usd === null ||
+        BigInt(next.max_total_nano_usd) > BigInt(prev.max_total_nano_usd))) ||
+    Date.parse(next.expires_at) > Date.parse(prev.expires_at) ||
+    more(next.stop_on, prev.stop_on)
+  );
+}
+export const RoutinePolicySchema = z.strictObject({
+  id,
+  workspace_id: id,
+  run_id: id,
+  version,
+  status: z.enum(['active', 'revoked']),
+  grant_id: id,
+  grant_version: version,
+  stages: z.array(RoutineStageSchema),
+  data_classes: z.array(DataClassSchema),
+  max_actions: z.number().int(),
+  max_total_nano_usd: nanoUsd.nullable(),
+  stop_on: z.array(RoutineStopSchema),
+  expires_at: timestamp,
+  rationale: note,
+  summary: summaryLines,
+  policy_version: z.string().max(100),
+  created_by: id,
+  created_at: timestamp,
+  /** When this version was confirmed; a person_rejects stop counts rejections after it. */
+  confirmed_at: timestamp,
+  revoked_at: timestamp.nullable(),
+  revoke_reason: short.nullable(),
+});
+export type RoutinePolicy = z.infer<typeof RoutinePolicySchema>;
+/** A policy with what it has admitted so far and whether it admits now. */
+export const RoutinePolicyViewSchema = z.strictObject({
+  policy: RoutinePolicySchema,
+  used_actions: z.number().int(),
+  used_nano_usd: nanoUsd,
+  state: z.enum(['active', 'paused', 'expired', 'revoked']),
+  /** Why it admits nothing now; null while active. */
+  state_reason: z.string().max(400).nullable(),
+  recent: z
+    .array(
+      z.strictObject({
+        admission_id: id,
+        action_type: ActionTypeSchema,
+        policy_grant_version: version,
+        created_at: timestamp,
+      }),
+    )
+    .max(20),
+});
+export type RoutinePolicyView = z.infer<typeof RoutinePolicyViewSchema>;
+
 // Runs under oversight. Mode and condition are fixed at registration.
 export const RegisterRunRequestSchema = z.strictObject({
   run: TargetRefSchema,
@@ -79,6 +273,11 @@ export const RegisterRunRequestSchema = z.strictObject({
   stage_gates: z.array(ActionTypeSchema).max(20).nullable(),
   /** Autonomous runs may use only grants listed here, at these versions. */
   initial_grants: z.array(TargetRefSchema).max(50),
+  /**
+   * ADR-0079: routine approvals are chosen here, when the run is set up, or never for this
+   * run. Supervised and human-in-the-loop runs only.
+   */
+  routine_policy: RoutinePolicyRequestSchema.nullable().optional(),
 });
 export const RunControlSchema = z.strictObject({
   run_id: id,

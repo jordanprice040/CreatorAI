@@ -41,6 +41,13 @@ import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
+import {
+  RoutineFields,
+  routineIssues,
+  routineRequest,
+  routineStart,
+  type RoutineDraft,
+} from './routine-policy.js';
 import { Blocked, type BlockedReason } from './blocked.js';
 import {
   SOURCE_TEXT,
@@ -329,6 +336,10 @@ export function Submit({
   const [runChoice, setRunChoice] = useState('new');
   const [newMode, setNewMode] = useState<Oversight>(start.oversight);
   const [allowCalls, setAllowCalls] = useState(start.allowCalls);
+  // ADR-0079: off until the owner turns it on here; a preset never carries it.
+  const [routine, setRoutine] = useState<RoutineDraft>(() =>
+    routineStart(start.dataClass),
+  );
   const [envelopeId, setEnvelopeId] = useState('');
   const [pricingId, setPricingId] = useState('');
   const [resourceKind, setResourceKind] = useState<RouteKind>(start.route);
@@ -625,6 +636,21 @@ export function Submit({
         runChoice === 'new' ? sourceText('allowCalls', allowCalls) : undefined,
     },
     {
+      label: 'Routine approvals',
+      value:
+        runChoice !== 'new'
+          ? 'As the chosen run was set up'
+          : !routine.enabled
+            ? 'Off: the run asks you as its oversight setting says'
+            : routine.confirmed
+              ? `On for ${routine.stages.length} kind${routine.stages.length === 1 ? '' : 's'} of step, up to ${routine.maxActions} steps; revocable under Monitor › Approvals`
+              : 'Chosen but not confirmed yet: read the summary and tick the box',
+      source:
+        runChoice === 'new' && !routine.enabled
+          ? 'studio default'
+          : 'changed here',
+    },
+    {
       label: 'Model access',
       value: routeText,
       source: sourceText('route', resourceKind),
@@ -708,10 +734,22 @@ export function Submit({
               }
             : { text: plain(i.message) },
       );
-  const allIssues = [...issues, ...reqIssues];
+  const routineBlocks =
+    runChoice === 'new'
+      ? [
+          ...routineIssues(routine),
+          ...(routine.enabled && !routine.dataClasses.includes(dataClass)
+            ? [
+                `Routine approvals: add ${dataClass.replace('_', ' ')} data, the class this run uses, or its steps will each ask.`,
+              ]
+            : []),
+        ].map((text) => ({ text, field: '#b-routine-on' }))
+      : [];
+  const allIssues = [...issues, ...reqIssues, ...routineBlocks];
   const ready =
     briefCheck.success &&
     reqCheck.success &&
+    routineBlocks.length === 0 &&
     setup.length === 0 &&
     (resourceKind === 'subscription' ? !!model : !!envelope && !!price);
 
@@ -785,6 +823,7 @@ export function Submit({
               autonomy_mode: newMode,
               stage_gates: null,
               initial_grants: [],
+              routine_policy: routineRequest(routine),
             },
           })
         ).run_id;
@@ -1259,7 +1298,19 @@ export function Submit({
                         Without it, each model call waits for your approval.
                       </p>
                     )}
+                    <RoutineFields
+                      draft={routine}
+                      onChange={setRoutine}
+                      idPrefix="b-routine"
+                      runDataClass={dataClass}
+                    />
                   </>
+                )}
+                {runChoice !== 'new' && (
+                  <p className="small">
+                    Routine approvals are chosen when a run is set up. This run
+                    keeps what it was set up with; see Monitor › Approvals.
+                  </p>
                 )}
                 <button
                   type="button"

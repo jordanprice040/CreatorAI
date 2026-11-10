@@ -2912,6 +2912,56 @@ create trigger proposal_reviews_append_only before update or delete on proposal_
   for each row execute function creator_reject_change();
 `,
   },
+  {
+    // ADR-0079 (P10): routine approvals. One policy per run, chosen when the run is set up.
+    // The policy owns one run-scoped standing grant that only the policy path of admission
+    // uses; its limits and stop conditions live here. Every version is kept unchanged.
+    version: 50,
+    name: 'routine_policies',
+    sql: `
+create table routine_policies (
+ id uuid primary key,
+ workspace_id uuid not null references workspaces(id),
+ run_id uuid not null,
+ version integer not null check (version >= 1),
+ status text not null check (status in ('active', 'revoked')),
+ grant_id uuid not null unique references grants(id),
+ grant_version integer not null check (grant_version >= 1),
+ stages text[] not null check (cardinality(stages) >= 1 and stages <@ array['research',
+   'model_work', 'selection', 'spec_freeze', 'build']),
+ data_classes text[] not null check (cardinality(data_classes) >= 1),
+ max_actions bigint not null check (max_actions >= 1),
+ max_total_nano_usd numeric(30, 0) check (max_total_nano_usd >= 0),
+ stop_on text[] not null check (stop_on <@ array['person_rejects', 'unknown_outcome']),
+ expires_at timestamptz not null,
+ rationale text not null,
+ summary text[] not null,
+ policy_version text not null,
+ created_by uuid not null references actors(id),
+ created_at timestamptz not null default clock_timestamp(),
+ confirmed_at timestamptz not null default clock_timestamp(),
+ revoked_at timestamptz,
+ revoke_reason text,
+ unique (workspace_id, run_id),
+ foreign key (workspace_id, run_id) references run_controls (workspace_id, run_id),
+ check ((status = 'revoked') = (revoked_at is not null))
+);
+create table routine_policy_versions (
+ policy_id uuid not null references routine_policies(id),
+ version integer not null,
+ snapshot jsonb not null,
+ change text not null check (change in ('created', 'widened', 'narrowed', 'revoked')),
+ actor_id uuid not null references actors(id),
+ event_id uuid not null references audit_events(id),
+ created_at timestamptz not null default clock_timestamp(),
+ primary key (policy_id, version)
+);
+create trigger routine_policy_versions_append_only before update or delete
+  on routine_policy_versions for each row execute function creator_reject_change();
+create index action_admissions_by_grant on action_admissions (grant_id)
+  where grant_id is not null;
+`,
+  },
 ];
 
 export function migrationChecksum(m: Migration): string {

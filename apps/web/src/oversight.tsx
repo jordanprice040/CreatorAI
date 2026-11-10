@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { usePageActive } from './page-drafts.js';
+import { RoutinePolicies } from './routine-policy.js';
 import { runLabel } from './labels.js';
 import { clearOtherTransfers, resetTransfers } from './transfers.js';
 import {
@@ -12,12 +13,14 @@ import {
   AuthStatusSchema,
   DecisionSchema,
   GrantSchema,
+  RoutinePolicyViewSchema,
   RunControlSchema,
   SessionInfoSchema,
   parse,
   z,
   type Decision,
   type Grant,
+  type RoutinePolicyView,
   type RunControl,
   type SessionInfo,
   type Workspace,
@@ -571,6 +574,7 @@ export function Oversight({
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [grants, setGrants] = useState<Grant[]>([]);
   const [runs, setRuns] = useState<RunControl[]>([]);
+  const [policies, setPolicies] = useState<RoutinePolicyView[]>([]);
   const [runNames, setRunNames] = useState<Map<string, string>>(new Map());
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState('');
@@ -606,6 +610,10 @@ export function Oversight({
         z.array(RunControlSchema),
         `workspaces/${workspace}/runs`,
       );
+      const policies = await api(
+        z.array(RoutinePolicyViewSchema),
+        `workspaces/${workspace}/routine-policies`,
+      );
       // Run names come from the run records; a run without a readable record has none.
       const named = await api(
         z.array(z.object({ id: z.string(), title: z.string() })),
@@ -619,6 +627,7 @@ export function Oversight({
         ),
       );
       setGrants(grants);
+      setPolicies(policies);
       setRuns(
         [...runs].sort(
           (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at),
@@ -675,9 +684,18 @@ export function Oversight({
     }
     await load();
   }
+  // A routine approval policy's own grant is shown with the policy, not as a standing policy.
+  const policyGrants = new Set(policies.map((v) => v.policy.grant_id));
   const standing = grants.filter(
-    (g) => g.scope === 'standing' && g.status === 'active',
+    (g) =>
+      g.scope === 'standing' &&
+      g.status === 'active' &&
+      !policyGrants.has(g.id),
   );
+  const policyRun = (runId: string) => {
+    const r = runs.find((x) => x.run_id === runId);
+    return r ? runLabel(r, runNames) : `run ${runId.slice(0, 8)}`;
+  };
   return (
     <section className="panel records" aria-labelledby="oversight-title">
       <h2 id="oversight-title">Approvals, policies and runs</h2>
@@ -738,6 +756,13 @@ export function Oversight({
               ))}
             </ul>
           )}
+          <RoutinePolicies
+            policies={policies}
+            runName={policyRun}
+            session={session}
+            workspace={workspace}
+            onDone={() => void load()}
+          />
           <h3>Standing policies</h3>
           {standing.length === 0 ? (
             <p className="small">
