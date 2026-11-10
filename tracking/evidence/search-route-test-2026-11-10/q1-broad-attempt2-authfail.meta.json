@@ -1,0 +1,30 @@
+{
+  "id": "q1-broad",
+  "query": "Recurring problems that small community organisations report with volunteer scheduling",
+  "args": [
+    "-p",
+    "<prompt>",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--restricted",
+    "--tools",
+    "WebSearch",
+    "--allowedTools",
+    "WebSearch",
+    "--strict-mcp-config",
+    "--disallowedTools",
+    "mcp__*",
+    "--disable-slash-commands",
+    "--no-session-persistence",
+    "--max-turns",
+    "5"
+  ],
+  "prompt": "Use the WebSearch tool (at most 3 searches) to find current, publicly accessible web pages relevant to this research question. Do not answer from memory; only report URLs that appeared in your search results.\n\nQuestion: Recurring problems that small community organisations report with volunteer scheduling\n\nReturn only a JSON object: {\"candidates\":[{\"url\":\"...\",\"title\":\"...\",\"why\":\"one short line\"}]} with up to 10 candidates from distinct pages, most useful first.",
+  "started_at": "2026-11-10T22:20:18.160Z",
+  "elapsed_ms": 8061,
+  "exit_code": 1,
+  "timed_out": false,
+  "stderr": "",
+  "search_cap_env": "3"
+}
