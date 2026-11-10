@@ -687,6 +687,33 @@ of letters), P-2 (Windows profile paths in any letter case) and nits N-1 (`needs
 `humilityGate`), N-2 (this entry) and N-3 (README wording when held-out and manual checks are mixed) are in the next
 commit. The last wording has not been consumed in a clean-room run. Next eligible prompts unchanged.
 
+## P10 routine approvals (November 10, branch `claude/project-thread-q4lf7q`, PR #153, ADR-0079, migration 50)
+
+What works and what was checked: see ADR-0079 and the BUILD_STATUS entry. New in code: `routine_policy` on
+`POST runs`; routes `routine-policies` (list), `routine-policies/{id}/revisions`, `routine-policies/{id}/revoke`;
+contracts in `packages/contracts/src/oversight.ts` (`RoutinePolicy*`, `routinePolicySummary`); the policy path in
+`evaluateAction` (`routine` input); store methods in `OversightStore` (`reviseRoutinePolicy`, `revokeRoutinePolicy`,
+`listRoutinePolicies`); web `apps/web/src/routine-policy.tsx`, used by the Discover form and Monitor › Approvals.
+
+Owner decision (Jordan, November 10): routine approvals can be changed mid run. `POST runs/{id}/routine-policy`
+(`setRoutinePolicy`) turns them on for a run that is already going or whose policy was revoked; migration 50 was
+changed in place before merge (one active policy per run instead of one policy per run), so a throwaway database
+that ran the earlier text fails the checksum check and must be recreated (no lasting database ran 50). Choices the
+owner has not yet confirmed: the stop conditions are a rejection in the run and an unknown paid outcome; the end
+time is at most 90 days, as for grants.
+
+For P12: add an action type for claim admission and a routine stage for it before any unattended claim admission.
+Do not run prettier on `tracking/` or `context/`; the repository's format script does not cover them.
+
+Main becomes schema 50 when this merges. Next free numbers: migration 51 and ADR-0081 (P16, PR #152, took
+ADR-0080). Next eligible prompts: P12 (needs the search provider choice) and P13.
+
+P10 review fixes (November 10, same PR): see the BUILD_STATUS entry "P10 review fixes". New code: `packages/db/src/
+routine-stops.ts` (`routineStopReason`), `routineMissNote` in `packages/domain/src/oversight.ts`, version change
+`reconfirmed`, `runDataClasses` on `RoutinePolicies`. Migration 50 was edited in place a second time (the `change`
+check gained `reconfirmed`); recreate any throwaway database that ran an earlier text. Not built: domain and output
+scope in a policy; claim admission (P12).
+
 ## Search route investigation and live test — November 10, 2026
 
 Report: [docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md);

@@ -3103,3 +3103,33 @@ details.routine > summary {
 .runbook-export ul {
   margin: 0.25rem 0;
 }
+
+/* ADR-0079: routine approval policy fields and cards. */
+.routine-policy fieldset {
+  margin: 0.5rem 0;
+}
+.routine-choice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.35rem 0;
+  font-weight: 400;
+}
+.routine-choice input {
+  flex: none;
+  width: auto;
+  margin-top: 0.2rem;
+}
+.routine-summary {
+  margin: 0.4rem 0;
+  padding-left: 1.1rem;
+}
+.routine-summary li {
+  margin: 0.25rem 0;
+}
+.routine-card {
+  margin-bottom: 0.75rem;
+}
+.routine-edit {
+  margin-top: 0.5rem;
+}

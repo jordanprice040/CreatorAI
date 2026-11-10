@@ -148,6 +148,29 @@ export function grantCovers(g: Grant, b: Binding, ctx: GrantContext): boolean {
   return true;
 }
 
+/**
+ * ADR-0079: why a routine policy that names this kind of step does not cover this one, for
+ * the person who is asked instead. Null when the policy does not name the step at all.
+ */
+export function routineMissNote(
+  g: Grant,
+  b: Binding,
+  now: number,
+): string | null {
+  if (g.status !== 'active' || g.run_id !== b.run_id) return null;
+  if (!g.action_types.includes(b.action_type)) return null;
+  if (Date.parse(g.expires_at) <= now) return 'Its end time has passed.';
+  if (!g.data_classes.includes(b.data_class))
+    return `It does not cover ${b.data_class.replaceAll('_', ' ')} data.`;
+  if (b.amount_nano_usd !== null) {
+    if (g.max_amount_nano_usd === null)
+      return 'This step states an amount and the policy has no money total.';
+    if (BigInt(b.amount_nano_usd) > BigInt(g.max_amount_nano_usd))
+      return "This step's amount is more than the policy's money total.";
+  }
+  return null;
+}
+
 export interface HumilityInput {
   id: string;
   version: number;
@@ -236,6 +259,11 @@ export interface AdmissionInput {
   flags: readonly HumanReason[];
   /** Non-authorization reasons a person already answered "proceed" to for this binding. */
   resolvedReasons: readonly HumanReason[];
+  /**
+   * ADR-0079: the run's routine approval policy, as its own grant, with the reason the store
+   * found it cannot admit this step now (limit used up, stop condition), or null.
+   */
+  routine?: { grant: Grant; blocked: string | null } | null;
   now: number;
 }
 export interface AdmissionVerdict {
@@ -248,6 +276,10 @@ export interface AdmissionVerdict {
   provisional_assumptions: string[];
   decision_kind: DecisionKind | null;
   policy_version: typeof OVERSIGHT_POLICY_VERSION;
+  /** The step was admitted by the routine approval policy, not by an ordinary grant. */
+  via_routine_policy?: boolean;
+  /** Why a routine policy that names this step did not admit it; shown to the person asked. */
+  routine_note?: string | null;
 }
 const deny = (reason_code: string, explanation: string): AdmissionVerdict => ({
   verdict: 'deny',
@@ -307,7 +339,7 @@ export function evaluateAction(input: AdmissionInput): AdmissionVerdict {
   const gated = input.stageGates.includes(b.action_type);
   // In supervised and human-in-the-loop runs a stage gate needs an approval of this exact
   // action; an autonomous run's initial packet is its only approval.
-  const covering =
+  let covering =
     input.grants.find(
       (g) =>
         grantCovers(g, b, ctx) &&
@@ -315,6 +347,29 @@ export function evaluateAction(input: AdmissionInput): AdmissionVerdict {
           g.scope === 'once' ||
           input.mode === 'autonomous_within_scope'),
     ) ?? null;
+  // ADR-0079: an ordinary covering grant is used first. Otherwise the run's routine policy
+  // admits a step it names, stage gate or not, while its limits and stop conditions hold.
+  // Autonomous runs keep their initial packet as their only approval; human-only runs have
+  // no policy. The policy's grant never allows external effects, so publishing stays gated.
+  let viaRoutine = false;
+  let routineNote: string | null = null;
+  const routine = input.routine ?? null;
+  if (
+    !covering &&
+    routine &&
+    (input.mode === 'supervised' || input.mode === 'human_in_loop') &&
+    grantCovers(routine.grant, b, ctx)
+  ) {
+    if (routine.blocked === null) {
+      covering = routine.grant;
+      viaRoutine = true;
+    } else routineNote = routine.blocked;
+  } else if (
+    !covering &&
+    routine &&
+    (input.mode === 'supervised' || input.mode === 'human_in_loop')
+  )
+    routineNote = routineMissNote(routine.grant, b, input.now);
   if (!covering) reasons.push(gated ? 'stage_gate' : 'outside_grant');
   const provisional: string[] = [];
   for (const a of input.assumptions) {
@@ -333,17 +388,24 @@ export function evaluateAction(input: AdmissionInput): AdmissionVerdict {
     return {
       verdict: 'allow',
       outcome: 'admitted',
-      reason_code: provisional.length
-        ? 'covered_with_provisional_assumptions'
-        : 'covered',
+      reason_code: viaRoutine
+        ? provisional.length
+          ? 'covered_by_routine_policy_with_provisional_assumptions'
+          : 'covered_by_routine_policy'
+        : provisional.length
+          ? 'covered_with_provisional_assumptions'
+          : 'covered',
       reasons: [],
-      explanation: provisional.length
-        ? 'Covered by an existing grant; routine reversible assumptions are logged as provisional.'
-        : 'Covered by an existing grant; no human input needed.',
+      explanation: viaRoutine
+        ? `Admitted by the routine approval policy the owner set for this run; no person approved this step individually.${provisional.length ? ' Routine reversible assumptions are logged as provisional.' : ''}`
+        : provisional.length
+          ? 'Covered by an existing grant; routine reversible assumptions are logged as provisional.'
+          : 'Covered by an existing grant; no human input needed.',
       covered_by: covering,
       provisional_assumptions: provisional,
       decision_kind: null,
       policy_version: OVERSIGHT_POLICY_VERSION,
+      via_routine_policy: viaRoutine,
     };
   // Ask the value question before the permission question.
   const first =
@@ -366,11 +428,12 @@ export function evaluateAction(input: AdmissionInput): AdmissionVerdict {
     outcome: 'waiting_human',
     reason_code: first,
     reasons: open,
-    explanation: `Needs a person: ${open.map((r) => r.replaceAll('_', ' ')).join(', ')}.`,
+    explanation: `Needs a person: ${open.map((r) => r.replaceAll('_', ' ')).join(', ')}.${routineNote ? ` Routine approvals did not cover it: ${routineNote}` : ''}`,
     covered_by: null,
     provisional_assumptions: provisional,
     decision_kind: reasonKind(first),
     policy_version: OVERSIGHT_POLICY_VERSION,
+    routine_note: routineNote,
   };
 }
 
