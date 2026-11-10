@@ -6,7 +6,9 @@ November 5, 2026. Use with the [consolidated implementation plan](CREATOR_AGENT_
 
 Start with P00. For each task paste the shared contract and that task's prompt into a coding session attached to `C:\dev\creator_agent`. Select one task or explicitly authorize a named sequence. A prompt number is not evidence that its prerequisites passed. P11 planning and P14 inventory can start after P00; P16 can precede larger builds. For large tasks, complete the design/contracts and one useful slice first, record the remaining slices, and continue only within the selected scope. Do not quietly count a design-only result as implemented.
 
-Recommended sequence: P00→P01→P02→P03→P04→P05→P06→P07→P08→P09→P10→P12→P13→P14/P15→P17, with P11 staged early and P16 after P05/P08/P09. P14 inventory should inform product claims early; its full qualification follows exact recipes. B01–B08 retain wider planned work and are selected separately. This is sequencing guidance, not an instruction to launch multiple agents.
+**November 10 update:** P00–P10, P14, P16 and the first P15 slice are merged, P11 is prepared. Jordan's November 10 notes added P18–P22 (see the plan's November 10 section). Remaining order: P18 and P21 (can run in parallel), P22 when Jordan gives the live OK, P19, P12 once the search provider is chosen, P13, P20, later P15 slices, P17.
+
+Original recommended sequence: P00→P01→P02→P03→P04→P05→P06→P07→P08→P09→P10→P12→P13→P14/P15→P17, with P11 staged early and P16 after P05/P08/P09. P14 inventory should inform product claims early; its full qualification follows exact recipes. B01–B08 retain wider planned work and are selected separately. This is sequencing guidance, not an instruction to launch multiple agents.
 
 When adopted, place this file and its companion under `docs/` and link them from `docs/COMPLETION_RUNBOOK.md`; add a short planning-only handoff entry. Do not rewrite the historical runbooks or replace the current next eligible review with feature work.
 
@@ -419,6 +421,84 @@ Gate: independent exact-candidate review and meaningful executed acceptance, kno
 source/artifact hashes, migration/rollback evidence and next release decision. Provide a
 committee user guide with supported features and test scenarios. Do not call the whole
 product or thesis complete because the selected release passed.
+```
+
+## P18 — Collapsible options and shorter pages
+
+```text
+Apply the shared contract. Execute P18 (R20, part of R12) from the November 10 section of
+the implementation plan. On Projects › Decide, Scores and specs, Proposals and Monitor ›
+Approvals, show each option, criterion or policy as a one-line summary (title, status,
+total, gates, what needs attention) that expands on click, with expand all / collapse all.
+Open by default only the item that needs the person's attention. Keep open state while
+the page stays open; do not change data, routes, gates or scoring. Use native
+<details>/<summary> or buttons with aria-expanded; keyboard and screen-reader use must work.
+A blocked action's reasons must never be hidden inside a closed item.
+Check with a browser walk on a throwaway database: page height before and after, keyboard
+toggling, an item with a blocker, and an empty list. Gate: Decide and Scores show the
+collapsed list in about one screen and every detail is still one click away.
+```
+
+## P19 — Standard and Advanced across the app
+
+```text
+Apply the shared contract. Execute P19 (R21, rest of R10–R12) after P18. Extend ADR-0071's
+Guided/Advanced idea app-wide: one Standard/Advanced choice per person (decide and record
+whether it is stored server-side so it follows the person across devices). Standard folds
+routine fields behind visible effective defaults on spec, scorecard, humility, evidence and
+build forms, shows "What will happen" before each start, and hides rarely used pages
+(Launch, Maintain, Study, Workers) from navigation without removing their routes. Add a
+first-run path from an empty workspace to one useful output, with one next action per step.
+Defaults and presets never add evidence, grants, qualifications, higher caps or a private
+data class. Check a new-user walk in Standard from an empty workspace to a scored option and
+a proposal or build request without Advanced or the CLI, plus Advanced parity (every field
+still reachable). Gate: that walk passes and no server gate changed.
+```
+
+## P20 — Do the whole process from Chat
+
+```text
+Apply the shared contract. Execute P20 (R22) after P10 and P19; the full unattended branch
+needs P13. Jordan approved this change on November 10; write an ADR amending ADR-0057/0070, which keep chat
+advice only. Design: the chat model may propose the next step as an action card (start
+discovery with this theme, accept these claims, decide, freeze spec, build, export runbook),
+filled from the conversation. The card shows exactly what will be sent and is submitted
+through the same server route as the form; the person's click is the approval, or a matching
+P10 routine policy admits it. A model never acts as the owner, mints grants or raises caps.
+Guided mode asks the questions the form would ask, one at a time, and says what it still needs.
+Check: a full walk from an empty workspace to a decision and a proposal or build using only
+Chat; refused, uncovered, study-run and human-only actions are refused with the same reasons
+as the forms; a stale card (record changed) is refused. Gate: that walk passes on a throwaway
+database and the audit trail shows who approved each step.
+```
+
+## P21 — Quick model switch beside the usage indicator
+
+```text
+Apply the shared contract. Execute P21 (R23). Add a model picker beside the usage indicator
+that sets the person's current connection and model for the workspace. Chat, Discover,
+Assess, Build and qualification forms default to it unless changed on the form. Offer only
+verified models; when the chosen model is not qualified for a task, the form says so and
+offers the qualified alternative instead of silently switching. A run that already started
+keeps its recorded route. Decide where the choice is stored (a migration if server-side;
+allocate the number from main). Check: one switch changes the default on every listed form;
+an unqualified task is refused with a reason; a running run is unchanged. Gate: browser walk
+plus tests for the default resolution and refusal.
+```
+
+## P22 — Live connection checks: API and GitHub
+
+```text
+Apply the shared contract. Execute P22 (R24, R25). Jordan approved the live API and GitHub tests
+on November 10; stay inside the steps below. API: confirm whether Models and connections has a check for the
+metered OpenAI API-key route; if not, add a "Test connection" that sends one smallest request
+through the broker with a covering grant, a funded envelope and the owner's $20 runtime
+ceiling. Run it once live, and run the existing check for each plan route; record date,
+model, cost and result. GitHub: run the B04 scoped live trial on one new private
+creator-agent- test repository (connect, create a branch, push, open a PR, read checks),
+with no merge unless Jordan approves the exact head. Record both in INTEGRATIONS.md as live
+evidence, including any failure. Gate: dated live records; no credential written to the repo
+or logs.
 ```
 
 ## B01 — Extended file workflows
