@@ -23,14 +23,19 @@ the record of each package and are appended to, not rewritten.
 | P07 previews until stopped | Merged (PR #137; ADR-0069, migration 44) |
 | P08 automatic assessments | Merged (PR #144; ADR-0074, migration 47) |
 | P09 why this response, proposals | Merged (PR #148; ADR-0077, migration 49) |
-| P10 scoped routine approvals | Not on main; started November 10 in its own thread |
+| P10 scoped routine approvals | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12) |
 | P11 committee staging | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9 |
 | P12 online discovery | Not started; needs Jordan's search provider choice |
 | P13 unattended workflow | Not started; needs P10 and P12 |
 | P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
 | P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
-| P16 external runbook export | Not on main; started November 10 in its own thread |
+| P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
 | P17 integrated acceptance | Not started |
+| P18 collapsible options, shorter pages | Not started (added November 10, R20) |
+| P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
+| P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
+| P21 quick model switch | Not started (added November 10, R23) |
+| P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -56,12 +61,14 @@ Open items:
 
 ## Next eligible prompt
 
-P10 and P16 are in progress in their own threads (suggested numbers: P10 migration 50 and ADR-0079; P16
-migration 51 and ADR-0080 if needed; recheck main). After them: the installed-app upgrade when Jordan
-approves it (rehearse 41 to current on a copy first), P12 once the search provider is chosen, then P13,
-later P15 slices, the final design pass and P17. Do not automatically install, publish, run a live
-provider or advance the pilot or thesis. Accepted owner decisions and existing scoped grants remain
-authoritative.
+P10 and P16 merged on November 10 (main `cb12eeb`; next free migration 51, ADR-0081). Jordan's 25 revision notes
+were checked against main on November 10 (12 done, 7 partial, 6 not done; table in the
+[plan's November 10 section](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md#november-10-check-of-jordans-revision-notes-and-added-packages-p18p22)),
+which added P18–P22. Next: P18 and P21 (small, UI only, can run in parallel); P22 (live tests approved November 10);
+then P19; P12 once Jordan picks the next step from the search route investigation (PR #157, merged); P13; P20; later P15 slices; P17.
+The installed-app upgrade stays owner-gated (rehearse 41 to current on a copy first). Do not automatically install,
+publish, run a live provider or advance the pilot or thesis. Accepted owner decisions and existing scoped grants
+remain authoritative.
 
 ## Previous sessions
 
@@ -713,6 +720,36 @@ routine-stops.ts` (`routineStopReason`), `routineMissNote` in `packages/domain/s
 `reconfirmed`, `runDataClasses` on `RoutinePolicies`. Migration 50 was edited in place a second time (the `change`
 check gained `reconfirmed`); recreate any throwaway database that ran an earlier text. Not built: domain and output
 scope in a policy; claim admission (P12).
+
+## Search route investigation and live test — November 10, 2026
+
+Report: [docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md);
+evidence: `tracking/evidence/search-route-test-2026-11-10/`. Verdict: a separate search API is not
+necessary now; evidence is still insufficient for unattended runs. Before the test no route had run
+a live search: Brave is off and limited to 1-5 domains, the OpenAI plan route sends no tools, the
+Codex builder has web_search disabled (keep it so), and the studio's Claude Code route runs with no
+tools. Official docs say web search is supported on the Sign in with ChatGPT plan route. The earlier
+[comparison report](../docs/SEARCH_API_COMPARISON_2026-11-10.md) did not assess that route; its
+Tavily-first pick conflicts with the accepted October 20 "native plan search first" planning, and
+its "next prompt U02" line is stale.
+
+Jordan-approved smoke test: 3 runs of the unmodified Claude Code CLI (studio sign-in, Max plan,
+WebSearch only, cap 3 calls per run) produced 9 searches and 30 candidate URLs, all present in the
+search output. Each run took 63-68 s at $0 incremental spend. Two earlier attempts failed on a
+stale `.oauth_refresh.lock` left by `claude auth status`; both are preserved. Then 15 fetches went
+through the studio's fetch adapter, per-hop policy and extractor, outside the studio DB: 5 usable
+pages; 5 HTTP 403; 3 reCAPTCHA challenge pages stored as "fetched" (F2); 2 PDFs refused or over the
+limit. Stored-text quote checks passed 5/5. Fetching, not finding, is the bottleneck. The studio
+routes, configuration, grants and migrations are unchanged; no ADR is adopted. Next: Jordan chooses
+whether to start P12 work on challenge/low-text detection and the PDF scope, or to authorise the
+small code change that tests plan-route search.
+
+## Revision notes check and plan update (November 10, documentation only)
+
+Checked Jordan's 25 current revision notes against main `cb12eeb`: 12 done, 7 partial, 6 not done. The status table
+and five new packages (P18 collapsible options, P19 Standard/Advanced app-wide, P20 chat-guided process, P21 quick
+model switch, P22 live API and GitHub checks) were added to the November 5 plan and its prompt runbook rather than a
+new plan. No application code, migration, ADR, configuration, grant or live call changed; no tests were needed or run.
 
 ## P18 collapsible options (November 10, branch `claude/project-thread-d4dxg5`, no migration or ADR)
 

@@ -6,6 +6,9 @@ and the next eligible work are in [build status](../tracking/BUILD_STATUS.md). S
 are complete (the repairs merged as PR #132 and the F1/F2 recheck passed). The file library, named
 notes and non-code proposals listed under "Remaining additions" are implemented (P05, P06, P09), and
 a first generated web recipe (`static-web/1`) exists beside the Python CLI recipe.
+P10 (routine approvals) and P16 (runbook export) merged the same day. Jordan's November 10 revision notes are
+checked in [the plan's November 10 section](CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md#november-10-check-of-jordans-revision-notes-and-added-packages-p18p22),
+which adds P18–P22 with prompts in the [prompt runbook](CREATOR_AGENT_PROMPT_RUNBOOK_2026-11-05.md).
 
 Current source state and evidence are in [CURRENT_STATUS](CURRENT_STATUS.md). The October
 plan, its completed steps and original owner requests are preserved in
