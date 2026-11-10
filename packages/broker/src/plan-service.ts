@@ -45,6 +45,7 @@ import {
   callPlanResponses,
   classifyPlanError,
   type PlanObservedOutcome,
+  type PlanWebSearch,
 } from './plan-responses.js';
 
 /** What the executor's Codex relay observed for one upstream request (structural copy). */
@@ -181,6 +182,12 @@ export interface InvokeRequest {
   ) => string | ScoreResult | Promise<string | ScoreResult>;
   /** Called once admission has recorded the request, before anything is sent (ADR-0057). */
   onAdmitted?: () => void;
+  /**
+   * Opt-in hosted web search (search-route test, November 10, 2026). ChatGPT plan route only;
+   * no route, UI or workflow passes it. Search calls come back on the outcome and are not
+   * stored with the request, so a replayed request does not return them.
+   */
+  web_search?: PlanWebSearch;
 }
 
 export class PlanConnectionService {
@@ -723,7 +730,16 @@ export class PlanConnectionService {
         ws,
         r.connection_id,
       );
-      if (connection.kind === 'claude_code')
+      if (connection.kind === 'claude_code' && r.web_search)
+        outcome = {
+          kind: 'rejected',
+          reason_code: 'web_search_unsupported_route',
+          message: 'Web search is only available on a ChatGPT plan connection.',
+          response_id: null,
+          output_chars: null,
+          retry_allowed: false,
+        };
+      else if (connection.kind === 'claude_code')
         outcome = await this.#claudeCall(connection, r, admitted.request_id);
       else outcome = await this.#chatgptCall(ctx, ws, r, admitted.request_id);
     } catch (e) {
@@ -772,6 +788,7 @@ export class PlanConnectionService {
       ),
       ...(r.signal ? { signal: r.signal } : {}),
       ...(this.deps.fetchImpl ? { fetchImpl: this.deps.fetchImpl } : {}),
+      ...(r.web_search ? { web_search: r.web_search } : {}),
     });
   }
 
