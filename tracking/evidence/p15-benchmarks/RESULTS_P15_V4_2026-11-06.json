@@ -543,6 +543,7 @@
  "notes": [
   "No patch was refused and no repair round was used, so the repair path was not exercised live.",
   "Attempt 1 preparation first stopped at the driver's spec comparison, which wrongly included the stored record envelope (format, alternative, selection_id); fixed and re-compared before any build. Not a replacement attempt; no model request was made in between.",
-  "RECIPE_QUALIFICATIONS in packages/executor/src/artifacts.ts is still empty, so the manifests say unqualified_trial; adding a record for this connection, model and prompt pair is a reviewed code change, not done here."
+  "RECIPE_QUALIFICATIONS in packages/executor/src/artifacts.ts is still empty, so the manifests say unqualified_trial; adding a record for this connection, model and prompt pair is a reviewed code change, not done here.",
+  "Correction, 2026-11-10 (state review; PR #150 review L-1 and M-1): the note above described the moment of the runs. The record was added to RECIPE_QUALIFICATIONS in PR #150, so builds made after that code is running are no longer labelled unqualified trials on this connection, model and prompt pair. Still open for Jordan: the frozen per-attempt pass bar includes the owner seeing the preview, and only attempt 1's preview was opened (see owner_observation.preview_shows_page_for_attempt). Until Jordan opens the previews of attempts 2 and 3, or decides explicitly that one observed preview is enough, the preview line of the bar is met for 1 of 3 attempts; every machine-checked line is met for 3 of 3."
  ]
 }

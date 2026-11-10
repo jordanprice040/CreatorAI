@@ -61,11 +61,13 @@ pnpm cli seed-selection
 Seed commands create labelled synthetic workspaces. Select one in the web UI.
 The studio has six pages. It opens on **Chat**: ask "what's next?" or "why is it
 blocked?", paste a web address, or "save this idea: …". Conversations are saved per
-workspace; replies come from your records by fixed rules (no model is called), and
-their buttons only open a tab or fill in a field there. The other pages have tabs:
+workspace; studio replies come from your records by fixed rules, and their buttons only
+open a tab or fill in a field there. Open questions are answered by a model only when the
+owner has turned on Chat answers for a connected plan (Models and connections), and those
+replies are labelled as unchecked model answers. The other pages have tabs:
 **Projects** (Path, Discover, Decide,
-Scores and specs, Build, Try, Launch), **Sources** (sources and claims, Library,
-Search), **Monitor** (Overview, Approvals, Runs, Activity, Budgets, Workers),
+Proposals, Scores and specs, Build, Try, Launch), **Sources** (sources and claims, Library,
+Files, Search), **Monitor** (Overview, Approvals, Runs, Activity, Budgets, Workers),
 **Models and connections** (Models, GitHub, Devices) and **Settings**. Projects ›
 Path shows which step of the main path is next or blocked, and why. Discover uses
 claims already recorded in the workspace. Configure the run, pricing, envelope and
@@ -84,8 +86,9 @@ arguments and replace sample IDs, dates and credentials.
 Read [isolated execution](ISOLATED_EXECUTION.md),
 [bounded builder](BOUNDED_BUILDER.md), then
 [artifacts and preview](ARTIFACTS_AND_PREVIEW.md). Generated code runs only through
-the reviewed WSL2/Bubblewrap worker. The supported recipe is a bounded Python
-standard-library CLI, not an arbitrary web or persistent application.
+the reviewed WSL2/Bubblewrap worker. The supported recipes are a bounded Python
+standard-library CLI and [`static-web/1`](STATIC_WEB_RECIPE.md) (a small plain HTML, CSS and
+JavaScript page), not an arbitrary web or persistent application.
 
 Gallery supports integrity inspection, source download, private preview and
 feedback for the exact package. Revised specs and verified builds produce new

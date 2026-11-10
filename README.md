@@ -2,8 +2,9 @@
 
 Creator Agent is a local evidence and product studio with a React web interface,
 Node API/CLI and PostgreSQL records. It supports evidence-backed discovery,
-alternative comparison, human decisions, bounded workflows and budgets, searchable
-provenance, and a reviewed Python CLI prototype build/package/preview path.
+alternative comparison, automatic assessments, human decisions, non-code proposals,
+workspace files and notes, bounded workflows and budgets, searchable provenance, and
+reviewed build/package/preview paths for a Python CLI prototype and a small static web page.
 
 Start with [local development](docs/LOCAL_DEVELOPMENT.md) for setup and operation.
 The [current product guide](docs/CODE_AUDIT_AND_PRODUCT_GUIDE.md) covers features,
@@ -32,7 +33,9 @@ Fixture demonstrations use deterministic synthetic responses. Live provider and
 source-fetch adapters exist, but paid inference and live research are not verified
 or activated by setup. Submitting a theme uses recorded evidence; it does not
 automatically search the internet. Generated execution needs the reviewed WSL2
-worker and supports a bounded Python standard-library CLI recipe.
+worker and supports a bounded Python standard-library CLI recipe and the
+`static-web/1` recipe (plain HTML, CSS and JavaScript, checked in a pinned headless browser);
+see the [capability matrix](docs/CAPABILITY_MATRIX_2026-11-05.md).
 
 Study/evaluation/analysis machinery is implemented and rehearsed; final participant
 evaluation, independent ratings, empirical analysis and committee acceptance remain
