@@ -733,19 +733,43 @@ test('personal folders are removed in their Windows, network and WSL forms', () 
     ["C:\\Users\\O'Brien Price\\Documents\\a.csv", ''],
     ["C:\\Users\\O'Brien\\x.txt", ''],
     ['C:\\Users\\Jordan Price2\\Documents\\a.csv', ''],
-    ['/users/jordan/notes.txt', ''],
+    ['/users/jordan/Documents/notes.txt', ''],
+    // Re-review 3 R3-3: a last folder in a code span, in brackets or before a comma.
+    ['Use `C:\\Users\\Jordan Price\\Projects` here', '` here'],
+    ['(C:\\Users\\Jordan Price\\Projects) holds it', ' holds it'],
+    ['C:\\Users\\Jordan Price\\Projects, then run it', ' then run it'],
     // Final review P-2: Windows profile paths in any letter case.
     ['c:\\users\\jordan\\notes.txt', ''],
     ['C:\\USERS\\JORDAN\\notes.txt', ''],
     ['/mnt/c/users/jordan/notes.txt', ''],
   ] as const) {
     const at = raw.search(/[A-Za-z]:\\|\/home|\/mnt|\/users/);
+    // The bracket or quote before the path stays.
     assert.equal(
       clean(raw),
       `${raw.slice(0, at)}[private path removed]${kept}`,
       raw,
     );
   }
+  // Re-review 3 R3-2: web routes are not macOS profiles.
+  for (const route of [
+    'GET /users/123/profile returns the profile',
+    'The API exposes /users/me and /users/{id}.',
+    'Call `/users/me` first',
+    '"/users/42"',
+  ])
+    assert.equal(clean(route), route);
+  // Re-review 3 R3-1: long runs of closing brackets or quotes after a spaced name are
+  // scanned in linear time (they took seconds to minutes before).
+  for (const tail of [')', ']', '")'])
+    for (const head of ['C:\\Users\\a b\\x', '/home/a b/x']) {
+      const started = performance.now();
+      clean(`${head}${tail.repeat(20_000)} z`);
+      assert.ok(
+        performance.now() - started < 500,
+        `${head} + ${tail} x 20000 took too long`,
+      );
+    }
   // Re-review R-1: a path followed by ordinary words keeps the words.
   assert.equal(
     clean(

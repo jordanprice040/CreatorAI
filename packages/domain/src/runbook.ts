@@ -56,13 +56,16 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\bBasic\s+(?=[A-Za-z0-9+/]*[0-9+/=])[A-Za-z0-9+/]{16,}=*/g,
 ];
 /** A personal folder: the account name is the private part, so it and the rest are dropped. */
-// The account name may hold up to three more words after a space ("Jordan Price", "José García",
-// "Mary Ann Van Dyke", "O'Brien"), but only when what follows the separator is clearly more
-// path: a profile folder, a segment followed by another separator, a file name with an
-// extension, a last segment that ends the text or line, or a separator followed by a space,
-// quote, bracket or the end. So "/home/ci Linux/macOS only" keeps its words. Windows paths match
-// in any letter case; so do macOS profiles, whose disks usually ignore case.
+// The account name may hold up to three more words joined by ordinary spaces ("Jordan Price",
+// "José García", "Mary Ann Van Dyke", "O'Brien"), but only when what follows the separator is
+// clearly more path: a profile folder, a segment followed by another separator, a file name
+// with an extension, a last segment that ends the text or line or is followed by a closing
+// quote, backtick or bracket, a comma or semicolon, or a separator followed by a space, quote,
+// bracket or the end. So "/home/ci Linux/macOS only" keeps its words. Windows paths match in
+// any letter case. A lower-case macOS "/users/name" counts only before a profile folder, so a
+// web route such as "/users/me" is kept.
 const NAME_SEG = `(?:[^\\\\/\\s"'\`<>|:*?]|'(?=\\p{L}))+`;
+const UNIX_NAME_SEG = `(?:[^/\\s"'\`<>]|'(?=\\p{L}))+`;
 const anyCase = (w: string) =>
   w.replace(/[A-Za-z]/g, (c) => `[${c.toUpperCase()}${c.toLowerCase()}]`);
 const PROFILE_FOLDERS = [
@@ -83,26 +86,38 @@ const PROFILE_FOLDERS = [
 ]
   .map(anyCase)
   .join('|');
+const PROFILE = `(?:${PROFILE_FOLDERS})(?![\\p{L}\\p{N}])`;
 const CLOSE = `["'\`)\\]>]`;
+// A last segment cannot hold a closing bracket, and each part below can match a character in
+// only one way, so a long run of brackets is scanned in linear time (re-review 3, R3-1).
+const LAST_SEG = `[^\\\\/\\s"'\`<>|:*?)\\]]+`;
 const MORE_PATH = [
-  `(?:${PROFILE_FOLDERS})(?![\\p{L}\\p{N}])`,
+  PROFILE,
   `\\.[\\w-]+`,
   `${NAME_SEG}[\\\\/]`,
   `[^\\\\/\\s"'\`<>|:*?.]+\\.[A-Za-z0-9]{1,8}(?![\\p{L}\\p{N}])`,
-  // One last segment that ends the text or the line (sentence punctuation and closing
-  // quotes or brackets may follow).
-  `[^\\\\/\\s"'\`<>|:*?]+?${CLOSE}*[.,;:!?]?${CLOSE}*(?:$|\\r?\\n)`,
+  // One last segment that ends the text or the line, after optional closing quotes or
+  // brackets and one sentence mark.
+  `${LAST_SEG}${CLOSE}*(?:[.,;:!?]${CLOSE}*)?(?:$|\\r?\\n)`,
+  // One last segment closed by a quote, backtick or bracket (a code span), or followed by a
+  // comma or semicolon and a space.
+  `${LAST_SEG}(?:${CLOSE}|[,;](?=\\s))`,
   // Nothing but a separator: "…\Jordan Price\ in Explorer", "…\Jordan Price\".
   `(?:$|\\s|${CLOSE})`,
 ].join('|');
 const MORE_WORDS = `(?:(?:[ \\t]+[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}'.-]*){1,3}(?=[\\\\/]+(?:${MORE_PATH})))?`;
+const UNIX_MORE_WORDS = MORE_WORDS.replaceAll('[\\\\/]', '\\/');
 const PATH_PATTERNS: readonly RegExp[] = [
   new RegExp(
     `(?:\\b[A-Za-z]:|\\\\\\\\${NAME_SEG})[\\\\/]+Users[\\\\/]+${NAME_SEG}${MORE_WORDS}(?:[\\\\/]+[^\\s"'\`<>|*?]*)?`,
     'giu',
   ),
   new RegExp(
-    `(?<![A-Za-z0-9_.-])(?:\\/home|\\/${anyCase('Users')}|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${NAME_SEG.replace('\\\\\\\\', '\\\\')}${MORE_WORDS.replaceAll('[\\\\/]', '\\/')}(?:\\/[^\\s"'\`<>]*)?`,
+    `(?<![A-Za-z0-9_.-])(?:\\/home|\\/Users|\\/mnt\\/[A-Za-z]\\/${anyCase('Users')})\\/${UNIX_NAME_SEG}${UNIX_MORE_WORDS}(?:\\/[^\\s"'\`<>]*)?`,
+    'gu',
+  ),
+  new RegExp(
+    `(?<![A-Za-z0-9_.-])\\/${anyCase('users')}\\/${UNIX_NAME_SEG}${UNIX_MORE_WORDS}\\/${PROFILE}(?:\\/[^\\s"'\`<>]*)?`,
     'gu',
   ),
 ];

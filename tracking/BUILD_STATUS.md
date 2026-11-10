@@ -690,3 +690,9 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   (`O'Brien`), are removed; R2-N3 lower-case macOS `/users/…` and lower-case profile folders on the Unix arm are
   matched, and the guide names the forms still not covered. Every string the review listed is a test row; probes of
   100k to 320k characters finish in about 10 ms. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.
+- **Third re-review (at `b938e15`): 1 Medium, 2 Low, 3 nits, all addressed.** R3-1 (Medium) the last-segment rule
+  backtracked cubically on long runs of closing brackets (5,000 took 47 s); the segment class no longer holds closing
+  brackets and each part matches one way, so 20,000-character runs take a few milliseconds, with a timing test.
+  R3-2 lower-case `/users/name` counts only before a profile folder, so routes such as `/users/me` are kept (test
+  rows). R3-3 a last folder closed by a backtick, quote or bracket or followed by a comma is removed whole. R3-N3 the
+  Unix arm has its own name class (no dead `replace`). R3-N1 and R3-N2 are named in the guide as limits. Full suite after these: 884 tests, 850 pass, 29 skipped, 5 fail (the known no-`pwsh` tests); `test:dev-safety` 0 fail.

@@ -61,12 +61,17 @@ assistant never reports a step as done on its own word, and unknown sections sta
   for personal folder paths (`C:\Users\name\…`, `\\host\Users\name\…`, `/home/name/…`,
   `/Users/name/…`, `/mnt/c/Users/name/…`). Matches are
   replaced and counted in the manifest and the README. The scan is a pattern list, not a guarantee:
-  read a bundle before sending it outside. Windows and macOS profile paths match in any letter case. An
-  account name with spaces (at most four words) is caught only when what follows it is clearly more
-  path: a profile folder such as `Documents`, another folder and separator, a file name with an
-  extension, a last folder that ends the text or line, or a bare separator. A two-word name followed
-  by one folder and then more prose ("…\Jordan Price\Projects folder") is only partly caught, and
-  forms such as `C:\Documents and Settings\name` or URL-encoded paths are not on the list. A spec with approved private data exports its visible cases as written and
+  read a bundle before sending it outside. Windows profile paths match in any letter case; a lower-case
+  macOS `/users/name` counts only before a profile folder, so web routes such as `/users/me` are
+  kept. An account name of up to four words joined by ordinary spaces is caught only when what
+  follows it is clearly more path: a profile folder such as `Documents`, another folder and
+  separator, a file name with an extension, a last folder that ends the text or line, is closed by
+  a quote, backtick or bracket or is followed by a comma, or a bare separator. Otherwise only the
+  first word is caught ("…\Jordan Price\Projects - see", or "C:\Users\Jordan Price" with nothing
+  after it). The rule can also remove up to three words of prose after a path when a slash follows
+  them ("/home/ci and Linux/macOS."), which errs on the safe side. Forms such as
+  `C:\Documents and Settings\name`, URL-encoded paths, and names with non-breaking spaces, curly
+  apostrophes or more than four words are not on the list. A spec with approved private data exports its visible cases as written and
   says so in a warning.
 - **Only cited records.** The bundle holds the spec or proposal, the selection's decision for that
   option, the option's rationale, trade-offs and uncertainty, a humility review of the spec, and the
