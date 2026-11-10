@@ -613,4 +613,5 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   and screenshots of the three walk scripts, run after these fixes on a throwaway database (`WALK_WS` names the
   seeded discovery workspace). L-1 is tested at `buildApprovalBlockers` with an approval record inserted by the test;
   no plan-role build was run end to end with a policy.
-- Checks: FULL_SUITE_LINE
+- Checks at `dc29506` (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` passes; `pnpm test:db` 882 tests, 848 pass,
+  29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 15 tests in `routine-policy.test.ts`.
