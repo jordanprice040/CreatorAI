@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import {
   checkPilot,
+  PILOT_CONFIG,
   DIMENSIONS,
   evaluateReadiness,
   type OwnerPilot,
@@ -80,14 +81,20 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
   assert.equal(r.verdict, 'not_ready');
   assert.equal(r.requirements.length, 54);
   // The owner pilot was decided on 2026-10-30 and recorded as completed by Jordan on
-  // 2026-11-10, with its log as evidence. A completed pilot is judged by its evidence, so
-  // its gate passes during and after its window.
+  // 2026-11-10, with its log as evidence. A completed pilot is judged by its record, so its
+  // gate passes from its finish time on, though its window has passed; before that time
+  // the record would be claiming a finish that had not happened yet.
   assert.equal(pilot().status, 'completed');
-  for (const now of [IN_WINDOW, JUST_BEFORE_END, AT_END, AFTER_WINDOW])
+  const finishedAt = Date.parse(pilot().finished_at!);
+  for (const now of [new Date(finishedAt), new Date(finishedAt + 86_400_000)])
     assert.deepEqual(evaluate(register(), pilot(), now).pilot, {
       ready: true,
       refusals: [],
     });
+  assert.deepEqual(
+    evaluate(register(), pilot(), new Date(finishedAt - 1000)).pilot.refusals,
+    ['Pilot finish time is in the future.'],
+  );
   // The same plan not yet finished passes while its window is open (up to its last
   // second), and is refused once it has ended.
   const running: OwnerPilot = { ...pilot(), status: 'running', evidence: [] };
@@ -105,7 +112,7 @@ test('X10 committed register is consistent, cites real evidence, and does not cl
     evaluate(
       register(),
       { ...pilot(), evidence: ['docs/NEVER_WRITTEN.md'] },
-      AFTER_WINDOW,
+      new Date(finishedAt),
     ).pilot.refusals,
     ['Pilot evidence "docs/NEVER_WRITTEN.md" does not exist.'],
   );
@@ -272,14 +279,62 @@ test('X10 pilot gate: owner choices, stop rules and verified accounts are all re
   const r = evaluateReadiness(all, plan, requirements, exists, '{}');
   assert.deepEqual(r.problems, []);
   assert.equal(r.verdict, 'not_ready');
+  const finished: OwnerPilot = {
+    ...plan,
+    status: 'completed',
+    finished_by: 'owner (synthetic test value)',
+    finished_at: '2026-11-01T00:00:00Z',
+    evidence: ['docs/OWNER_PILOT_LOG.md'],
+  };
+  const LATER = new Date('2026-12-01T00:00:00Z');
   const done = evaluateReadiness(
     all,
-    { ...plan, status: 'completed', evidence: ['config/owner-pilot.json'] },
+    finished,
     requirements,
     exists,
     '{}',
+    LATER,
   );
   assert.equal(done.verdict, 'ready');
+  // A completed record must say who finished it and when, inside or after its window and
+  // not in the future, with repository-relative evidence other than the pilot config.
+  const completedRefusals = (p: Partial<OwnerPilot>) =>
+    checkPilot({ ...finished, ...p }, all, exists, LATER).refusals.join('\n');
+  assert.equal(completedRefusals({}), '');
+  assert.match(completedRefusals({ finished_by: null }), /finished_by/);
+  assert.match(completedRefusals({ finished_at: null }), /finished_at/);
+  assert.match(completedRefusals({ finished_at: 'yesterday' }), /finished_at/);
+  assert.match(
+    completedRefusals({ finished_at: '2026-01-01T00:00:00Z' }),
+    /finished before its window started/,
+  );
+  // A window wholly in the future cannot have been finished.
+  assert.match(
+    completedRefusals({
+      window: {
+        starts_at: '2027-01-01T00:00:00Z',
+        ends_at: '2027-02-01T00:00:00Z',
+      },
+    }),
+    /finished before its window started/,
+  );
+  assert.match(
+    completedRefusals({ finished_at: '2026-12-02T00:00:00Z' }),
+    /finish time is in the future/,
+  );
+  assert.match(
+    completedRefusals({ evidence: [PILOT_CONFIG] }),
+    /cannot be the pilot config itself/,
+  );
+  for (const bad of [
+    '/etc/passwd',
+    '../outside.md',
+    'docs\\OWNER_PILOT_LOG.md',
+  ])
+    assert.match(
+      completedRefusals({ evidence: [bad] }),
+      /must be repository-relative/,
+    );
 });
 
 test('X10 release archive binds every file to the commit and refuses tampering', (t) => {

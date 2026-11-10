@@ -88,6 +88,9 @@ export const PILOT_PLATFORMS: Record<string, string | null> = {
   hosted: 'hosted-operation',
 };
 
+/** The pilot's own record; it cannot be its own evidence. */
+export const PILOT_CONFIG = 'config/owner-pilot.json';
+
 const NANO = /^(0|[1-9][0-9]{0,24})$/;
 const ISO =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -164,7 +167,12 @@ function checkRow(
   };
 }
 
-/** Whether the owner pilot may start, with every reason it may not. */
+/**
+ * The owner pilot's gate, with every refusal. Before it has finished, the plan is judged: it
+ * may start only inside its window. Once `completed`, the record is judged instead: who
+ * finished it and when (inside or after its window, not in the future), and evidence files
+ * other than the pilot config itself.
+ */
 export function checkPilot(
   pilot: OwnerPilot,
   register: Register,
@@ -243,10 +251,31 @@ export function checkPilot(
       r.push(`Account "${a}" has not been activated by the owner.`);
   }
   if (pilot.status === 'completed') {
+    if (!pilot.finished_by)
+      r.push('Pilot marked completed without who finished it (finished_by).');
+    const fin = pilot.finished_at;
+    if (!fin || !ISO.test(fin))
+      r.push('Pilot marked completed without a finish time (finished_at).');
+    else if (start && ISO.test(start) && Date.parse(fin) < Date.parse(start))
+      r.push('Pilot finished before its window started.');
+    else if (Date.parse(fin) > now.getTime())
+      r.push('Pilot finish time is in the future.');
     if (!Array.isArray(pilot.evidence) || pilot.evidence.length === 0)
       r.push('Pilot marked completed without evidence.');
-    for (const p of pilot.evidence ?? [])
-      if (!exists(p)) r.push(`Pilot evidence "${p}" does not exist.`);
+    for (const p of pilot.evidence ?? []) {
+      if (
+        typeof p !== 'string' ||
+        p.startsWith('/') ||
+        p.includes('..') ||
+        p.includes('\\')
+      )
+        r.push(
+          `Pilot evidence path "${String(p)}" must be repository-relative.`,
+        );
+      else if (p === PILOT_CONFIG)
+        r.push(`Pilot evidence cannot be the pilot config itself (${p}).`);
+      else if (!exists(p)) r.push(`Pilot evidence "${p}" does not exist.`);
+    }
   }
   return { ready: r.length === 0, refusals: r };
 }

@@ -22,8 +22,9 @@ ADRs govern scope; this runbook grants no live spending, installation or release
 2. U02: independently review the changed source, acceptance checks and exact candidate.
 3. Complete the remaining final UX and native acceptance on the candidate selected for
    installation. Preserve the existing backup, migration, isolated-worker and owner-decision gates.
-4. Reconcile the owner pilot against its actual log and dates; do not infer completion from
-   its scheduled November 6 endpoint. C54 and X10 remain partial until their evidence exists.
+4. Owner pilot: done. Jordan marked it finished on November 10 against its log (PR #155),
+   not inferred from its November 6 endpoint. C54 and X10 remain partial until their evidence
+   exists.
 5. Prepare signed Windows distribution only after the applicable release gates and exact
    owner approval of artifact and destination. Hosted operation, live commerce and campaigns
    stay separately gated.
