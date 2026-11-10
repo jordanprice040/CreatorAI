@@ -32,6 +32,8 @@ Do not treat these as interchangeable. A spending grant does not answer a stakeh
 
 “Auto-approve” means deterministically matching an existing policy to a covered action, not a model signing its own permission. Offer a clear settings preview showing which actions the policy covers. Changing this setting is an authenticated owner action and is versioned. Never enable it by default because a model asks.
 
+Implemented as routine approvals ([ADR-0079](../tracking/DECISIONS.md)): one owner policy per run, set when the run is set up or while it is going, with stages, data classes, step and money limits, an end time and stop conditions, shown as one summary the owner confirms. Application code admits covered steps and records each one as policy-admitted, distinct from a person's approval. Turning it on, changing it and turning it on again after a revoke each need the summary confirmed by the owner and are versioned; the run's recorded mode and condition never change. External effects, value questions and serious ethical problems are never covered.
+
 The supervisor can stop any run. For experiments, emergency/operator intervention does not disappear from the dataset; record it and apply the protocol's deviation rule.
 
 ## Admission order

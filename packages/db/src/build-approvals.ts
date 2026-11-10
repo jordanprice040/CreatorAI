@@ -7,6 +7,7 @@ import {
   type DataClassSchema,
   type z,
 } from '@creator/contracts';
+import { routineStopReason } from './routine-stops.js';
 import { iso, type Row } from './store.js';
 
 /**
@@ -150,6 +151,30 @@ export async function buildApprovalBlockers(
     out.push(
       'The grant behind this build approval was revoked, changed or has expired.',
     );
+  // ADR-0079 (review L-1): a build the routine policy admitted sends nothing more while one
+  // of the policy's stop conditions holds. The step limit is not applied here: the build was
+  // already counted as one step when it was admitted.
+  if (grantHolds) {
+    const policy = (
+      await c.query(
+        `select workspace_id, run_id, stop_on, confirmed_at from routine_policies
+          where grant_id = $1 and status = 'active'`,
+        [a.grant_id],
+      )
+    ).rows[0] as Row | undefined;
+    const stop = policy
+      ? await routineStopReason(c, {
+          workspace_id: String(policy.workspace_id),
+          run_id: String(policy.run_id),
+          stop_on: policy.stop_on as string[],
+          confirmed_at: policy.confirmed_at as Date,
+        })
+      : null;
+    if (stop)
+      out.push(
+        `The routine approvals that admitted this build have stopped. ${stop}`,
+      );
+  }
   const review = (
     await c.query(
       `select version, status from entities where workspace_id = $1 and id = $2

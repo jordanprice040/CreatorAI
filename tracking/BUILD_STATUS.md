@@ -753,3 +753,41 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
   word ends in `.` or `,` (`J. Price`, `Dr. Who`, `Smith, John`) leaked every later word; extra name words are now
   tried before the ending check, so these names are removed whole again and the R7-N1 rows still keep their marks.
   R8-N1 the guide's raw-`@` sentence is reworded. Test rows for each shape; worst probe 13 ms at 100k characters.
+
+## P10 routine approvals (November 10, branch `claude/project-thread-q4lf7q`, PR #153, ADR-0079, migration 50)
+
+- What works: an owner can choose "Approve routine steps for me" when a run is set up on the Discover form: stages
+  (research, model work, selection, specification freeze, build), data classes, a step limit, a money total, an end
+  time and two stop conditions, confirmed as one summary. Code admits covered steps through the policy's own grant
+  and records each as `covered_by_routine_policy`; a step outside the policy pauses and raises a decision that says
+  why. Monitor › Approvals lists each policy with its state, use, confirmed summary and admitted steps, and offers
+  Change (new summary confirmed, versioned as widened or narrowed) and Revoke. After Jordan's November 10 request,
+  the owner can also turn routine approvals on for a run that is already going, and again after a revoke
+  (`POST runs/{id}/routine-policy`, on Monitor › Approvals); autonomous, human-only and study runs are refused.
+- Checks run (cloud container, PostgreSQL 16, no CI: no Actions minutes): `pnpm typecheck` passes; `pnpm test:db`
+  879 tests, 845 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 12 new
+  PostgreSQL tests in `tests/src/routine-policy.test.ts`. Browser walk on a throwaway database
+  (`tracking/evidence/routine-approvals/`): the form refused to send until the summary was confirmed, a discovery's
+  model call was admitted by the policy with no decision raised, then the policy was changed and revoked on the
+  Approvals page. The Windows CI job has no local substitute and did not run.
+- Not done: no stage covers claim (evidence) admission, which has no action type yet (P12); the money total sums
+  stated maximum amounts, not actual spend; the Evidence, Assess and Explore pages register runs without the policy
+  fields; no CLI command; no live provider call; not independently reviewed.
+
+### P10 review fixes (November 10, same PR #153; review `reviews/PR153_P10_ROUTINE_APPROVALS_REVIEW_2026-11-10.md`, 1 Medium, 6 Low)
+
+- M-1: mid-run turn-on decides "study run" from a `study_attempts` row or the registered run version's `config_hash`
+  (plus the current record), so an editor clearing the hash on the run record no longer opens it. L-1: a build the
+  policy admitted stops at its next plan request while a stop condition holds (`routineStopReason`, used by
+  `buildApprovalBlockers`); the step limit does not stop an admitted build. L-2: confirming the same settings is
+  recorded as `reconfirmed` (migration 50 edited in place again, still unmerged). L-3: a step the policy names but
+  does not cover says why (end time passed, data class, money total). L-4: the mid-run form starts from the kinds
+  of data the page has seen for the run and says other kinds still ask. L-5: Revoke asks for confirmation.
+- Not done (L-6, added so P10 is not read as complete): domain scope and output scope are not part of a policy
+  (website scope still comes from the evidence-site settings); evidence admission as before (P12).
+- Evidence: `tracking/evidence/routine-approvals/walk-output-2026-11-10.txt` and `screens/` are the captured output
+  and screenshots of the three walk scripts, run after these fixes on a throwaway database (`WALK_WS` names the
+  seeded discovery workspace). L-1 is tested at `buildApprovalBlockers` with an approval record inserted by the test;
+  no plan-role build was run end to end with a policy.
+- Checks at `dc29506` (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` passes; `pnpm test:db` 882 tests, 848 pass,
+  29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm format:check` passes. 15 tests in `routine-policy.test.ts`.

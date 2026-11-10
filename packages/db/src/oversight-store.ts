@@ -17,6 +17,16 @@ import {
   CreateDecisionRequestSchema,
   AnswerDecisionRequestSchema,
   AssumptionBodySchema,
+  ROUTINE_POLICY_VERSION,
+  ROUTINE_STAGE_ACTIONS,
+  RoutinePolicyRequestSchema,
+  ReviseRoutinePolicyRequestSchema,
+  RevokeRoutinePolicyRequestSchema,
+  routinePolicySummary,
+  routinePolicyWidens,
+  type RoutinePolicy,
+  type RoutinePolicyInput,
+  type RoutinePolicyView,
   type ActionRequest,
   type ActionType,
   type Admission,
@@ -44,6 +54,7 @@ import {
   standingDraft,
   type HumilityVerdict,
 } from '@creator/domain';
+import { routineStopReason } from './routine-stops.js';
 import {
   Store,
   fail,
@@ -131,6 +142,41 @@ function toAdmission(r: Row): Admission {
     created_at: iso(r.created_at),
   };
 }
+export function toRoutinePolicy(r: Row): RoutinePolicy {
+  return {
+    id: String(r.id),
+    workspace_id: String(r.workspace_id),
+    run_id: String(r.run_id),
+    version: Number(r.version),
+    status: r.status as RoutinePolicy['status'],
+    grant_id: String(r.grant_id),
+    grant_version: Number(r.grant_version),
+    stages: r.stages as RoutinePolicy['stages'],
+    data_classes: r.data_classes as RoutinePolicy['data_classes'],
+    max_actions: Number(r.max_actions),
+    max_total_nano_usd:
+      r.max_total_nano_usd === null ? null : String(r.max_total_nano_usd),
+    stop_on: r.stop_on as RoutinePolicy['stop_on'],
+    expires_at: iso(r.expires_at),
+    rationale: String(r.rationale),
+    summary: r.summary as string[],
+    policy_version: String(r.policy_version),
+    created_by: String(r.created_by),
+    created_at: iso(r.created_at),
+    confirmed_at: iso(r.confirmed_at),
+    revoked_at: nullableIso(r.revoked_at),
+    revoke_reason: r.revoke_reason === null ? null : String(r.revoke_reason),
+  };
+}
+const policyInput = (p: RoutinePolicy): RoutinePolicyInput => ({
+  stages: p.stages,
+  data_classes: p.data_classes,
+  max_actions: p.max_actions,
+  max_total_nano_usd: p.max_total_nano_usd,
+  stop_on: p.stop_on,
+  expires_at: p.expires_at,
+  rationale: p.rationale,
+});
 const GRANT_COLUMNS = `id, workspace_id, version, scope, status, run_id, action_types,
   target_kind, target, spec_hash, max_amount_nano_usd, allow_irreversible,
   allow_external_effects, data_classes, expires_at, decision_id, policy_version,
@@ -355,6 +401,11 @@ export class OversightStore extends Store {
             'Initial grants must be active, workspace-wide and at their current version.',
           );
       }
+      const routine = req.routine_policy
+        ? this.checkRoutineInput(req.routine_policy)
+        : null;
+      if (routine)
+        this.checkRoutineRun(req.autonomy_mode, run.body?.config_hash ?? null);
       const gates = req.stage_gates ?? DEFAULT_STAGE_GATES[req.autonomy_mode];
       const initial = req.initial_grants.map((g) => ({
         id: g.id.toLowerCase(),
@@ -387,8 +438,10 @@ export class OversightStore extends Store {
           autonomy_mode: req.autonomy_mode,
           stage_gates: [...new Set(gates)],
           initial_grants: initial,
+          routine_policy: routine !== null,
         },
       });
+      if (routine) await this.insertRoutinePolicy(c, ctx, ws, runId, routine);
       return toRun(rows[0] as Row);
     });
   }
@@ -566,6 +619,27 @@ export class OversightStore extends Store {
     if (!rows[0]) throw fail('VERSION_CONFLICT', 'Grant changed concurrently.');
     const grant = toGrant(rows[0] as Row);
     await this.recordGrantVersion(c, ctx, grant, action);
+    // ADR-0079: however a policy's grant is revoked (the policy, the grant list, a stopped
+    // run), the policy is recorded as revoked with it.
+    if (action === 'grant.revoked') {
+      const revoked = await c.query(
+        `update routine_policies set status = 'revoked', version = version + 1,
+           grant_version = $2, revoked_at = clock_timestamp(), revoke_reason = $3
+         where grant_id = $1 and status = 'active' returning *`,
+        [
+          grant.id,
+          grant.version,
+          String(change.revoke_reason ?? 'Revoked').slice(0, 500),
+        ],
+      );
+      if (revoked.rows[0])
+        await this.recordRoutineVersion(
+          c,
+          ctx,
+          toRoutinePolicy(revoked.rows[0] as Row),
+          'revoked',
+        );
+    }
     return grant;
   }
   private async lockGrant(
@@ -643,6 +717,17 @@ export class OversightStore extends Store {
           'INVALID_TRANSITION',
           'Only active standing grants can be revised.',
         );
+      if (
+        (
+          await c.query('select 1 from routine_policies where grant_id = $1', [
+            g.id,
+          ])
+        ).rowCount
+      )
+        throw fail(
+          'INVALID_TRANSITION',
+          'This grant belongs to a routine approval policy. Change the policy instead, so its summary is confirmed again.',
+        );
       return this.writeGrant(c, ctx, g, 'grant.revised', {
         action_types: [...new Set(req.action_types)],
         target_kind: req.target_kind,
@@ -686,6 +771,462 @@ export class OversightStore extends Store {
         [ws],
       );
       return rows.map((r: Row) => toGrant(r));
+    });
+  }
+
+  // ---- Routine approval policies (ADR-0079) ---------------------------------------------
+
+  /** Which runs may have routine approvals at all, at setup or later. */
+  private checkRoutineRun(mode: AutonomyMode, configHash: unknown) {
+    if (mode !== 'supervised' && mode !== 'human_in_loop')
+      throw fail(
+        'INVALID_CONTRACT',
+        'Routine approvals are for supervised and human-in-the-loop runs. An autonomous run has only its initial grants, and a human-only run makes every decision by hand.',
+      );
+    // A run configured by a study keeps its frozen condition exactly.
+    if (configHash !== null)
+      throw fail(
+        'INVALID_CONTRACT',
+        'A study run keeps its frozen conditions; routine approvals cannot be added to it.',
+      );
+  }
+  /**
+   * Turns routine approvals on for a run that is already going (owner decision, November 10):
+   * a run set up without a policy, or one whose policy was revoked. It is the same owner
+   * action as at setup, with the summary confirmed; the run's mode, condition and stage gates
+   * do not change. A run with an active policy is changed through its revisions instead.
+   */
+  async setRoutinePolicy(
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    raw: unknown,
+  ): Promise<RoutinePolicy> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    runId = uuid(runId);
+    const input = this.checkRoutineInput(
+      parse(RoutinePolicyRequestSchema, raw),
+    );
+    return this.idempotent(
+      ws,
+      ctx,
+      { op: 'routine_policy.set', runId, input },
+      async (c) => {
+        await this.requireOwner(c, ws, ctx.actorId);
+        const run = await this.lockRun(c, ws, runId);
+        if (run.state !== 'active')
+          throw fail('INVALID_TRANSITION', 'The run was cancelled.');
+        // Review M-1: the run record can be revised by any editor, so "is this a study run"
+        // is read from records nobody can change: a study attempt for the run, or the
+        // config hash of the run version that was registered. The current record counts too.
+        const study = await c.query(
+          `select (select v.body->>'config_hash' from run_controls r
+                     join entity_versions v
+                       on v.entity_id = r.run_id and v.version = r.run_version
+                    where r.workspace_id = $1 and r.run_id = $2) as registered,
+                  (select body->>'config_hash' from entities
+                    where workspace_id = $1 and id = $2 and kind = 'run') as current,
+                  exists (select 1 from study_attempts
+                           where workspace_id = $1 and run_id = $2) as attempt`,
+          [ws, runId],
+        );
+        const sr = study.rows[0] as Row;
+        this.checkRoutineRun(
+          run.autonomy_mode,
+          sr.attempt ? 'study_attempt' : (sr.registered ?? sr.current ?? null),
+        );
+        const active = await c.query(
+          `select 1 from routine_policies where workspace_id = $1 and run_id = $2
+             and status = 'active'`,
+          [ws, runId],
+        );
+        if (active.rowCount)
+          throw fail(
+            'INVALID_TRANSITION',
+            'This run already has routine approvals. Change that policy instead.',
+          );
+        return this.insertRoutinePolicy(c, ctx, ws, runId, input);
+      },
+    );
+  }
+  /** Normalises the chosen values and refuses a summary that is not the one they produce. */
+  private checkRoutineInput(
+    req: RoutinePolicyInput & { summary_seen: string[] },
+  ): RoutinePolicyInput {
+    const { summary_seen, ...rest } = req;
+    const ms = Date.parse(rest.expires_at) - Date.now();
+    if (ms <= 0 || ms > 90 * 86_400_000)
+      throw fail(
+        'INVALID_CONTRACT',
+        'Routine approvals need an end time within 90 days.',
+      );
+    const input: RoutinePolicyInput = {
+      ...rest,
+      stages: [...rest.stages].sort(),
+      data_classes: [...rest.data_classes].sort(),
+      stop_on: [...rest.stop_on].sort(),
+      expires_at: new Date(rest.expires_at).toISOString(),
+    };
+    const summary = routinePolicySummary(input);
+    if (
+      summary.length !== summary_seen.length ||
+      summary.some((line, i) => line !== summary_seen[i])
+    )
+      throw fail(
+        'VERSION_CONFLICT',
+        'The summary you confirmed does not match these settings. Review the summary again.',
+      );
+    return input;
+  }
+  /** The fields of the one grant a policy owns. External effects are never allowed. */
+  private routineGrantFields(p: RoutinePolicyInput) {
+    return {
+      action_types: [
+        ...new Set(p.stages.flatMap((s) => ROUTINE_STAGE_ACTIONS[s])),
+      ],
+      target_kind: null,
+      max_amount_nano_usd: p.max_total_nano_usd,
+      allow_irreversible: p.stages.includes('spec_freeze'),
+      allow_external_effects: false,
+      data_classes: p.data_classes,
+      expires_at: p.expires_at,
+      rationale: `Routine approval policy: ${p.rationale}`.slice(0, 1200),
+    };
+  }
+  private async recordRoutineVersion(
+    c: PoolClient,
+    ctx: CommandContext,
+    policy: RoutinePolicy,
+    change: 'created' | 'widened' | 'narrowed' | 'reconfirmed' | 'revoked',
+  ) {
+    const eventId = await this.append(c, ctx, {
+      workspaceId: policy.workspace_id,
+      action: `routine_policy.${change === 'created' || change === 'revoked' ? change : 'revised'}`,
+      subjectKind: 'routine_policy',
+      subjectId: policy.id,
+      subjectVersion: policy.version,
+      contentHash: canonicalHash(policy),
+      payload: {
+        change,
+        stages: policy.stages,
+        max_actions: policy.max_actions,
+        max_total_nano_usd: policy.max_total_nano_usd,
+        expires_at: policy.expires_at,
+        grant_version: policy.grant_version,
+      },
+      relatedIds: [policy.run_id, policy.grant_id],
+    });
+    await c.query(
+      `insert into routine_policy_versions (policy_id, version, snapshot, change, actor_id,
+         event_id) values ($1, $2, $3, $4, $5, $6)`,
+      [
+        policy.id,
+        policy.version,
+        JSON.stringify(policy),
+        change,
+        ctx.actorId,
+        eventId,
+      ],
+    );
+  }
+  private async insertRoutinePolicy(
+    c: PoolClient,
+    ctx: CommandContext,
+    ws: string,
+    runId: string,
+    input: RoutinePolicyInput,
+  ) {
+    const grant = await this.insertGrant(c, ctx, ws, {
+      scope: 'standing',
+      run_id: runId,
+      target: null,
+      spec_hash: null,
+      decision_id: null,
+      ...this.routineGrantFields(input),
+    });
+    const { rows } = await c.query(
+      `insert into routine_policies (id, workspace_id, run_id, version, status, grant_id,
+         grant_version, stages, data_classes, max_actions, max_total_nano_usd, stop_on,
+         expires_at, rationale, summary, policy_version, created_by)
+       values ($1,$2,$3,1,'active',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) returning *`,
+      [
+        randomUUID(),
+        ws,
+        runId,
+        grant.id,
+        grant.version,
+        input.stages,
+        input.data_classes,
+        input.max_actions,
+        input.max_total_nano_usd,
+        input.stop_on,
+        input.expires_at,
+        input.rationale,
+        routinePolicySummary(input),
+        ROUTINE_POLICY_VERSION,
+        ctx.actorId,
+      ],
+    );
+    const policy = toRoutinePolicy(rows[0] as Row);
+    await this.recordRoutineVersion(c, ctx, policy, 'created');
+    return policy;
+  }
+  /** What a policy's grant has admitted so far: steps, and the sum of their stated amounts. */
+  private async routineUsage(c: PoolClient, grantId: string) {
+    const { rows } = await c.query<{ n: string; total: string }>(
+      `select count(*)::text as n,
+              coalesce(sum((binding->>'amount_nano_usd')::numeric), 0)::text as total
+         from action_admissions where grant_id = $1 and verdict = 'allow'`,
+      [grantId],
+    );
+    return { actions: Number(rows[0]!.n), nano: BigInt(rows[0]!.total) };
+  }
+  /**
+   * Why an active policy admits nothing more now (null: it can admit). The amount is the
+   * step being admitted, or null when only the policy's own state is asked about.
+   */
+  private async routineBlocked(
+    c: PoolClient,
+    p: RoutinePolicy,
+    amount: string | null,
+  ): Promise<string | null> {
+    const used = await this.routineUsage(c, p.grant_id);
+    if (used.actions >= p.max_actions)
+      return `Its limit of ${p.max_actions} step${p.max_actions === 1 ? '' : 's'} is used up.`;
+    if (
+      amount !== null &&
+      p.max_total_nano_usd !== null &&
+      used.nano + BigInt(amount) > BigInt(p.max_total_nano_usd)
+    )
+      return `This step would take its admitted amounts past the policy's total of ${p.max_total_nano_usd} nano-USD.`;
+    return routineStopReason(c, p);
+  }
+  /**
+   * The run's policy for admission: its grant (left out of ordinary grant matching) and why
+   * it cannot admit this step now. Null when the run has no active policy.
+   */
+  private async routineFor(
+    c: PoolClient,
+    ws: string,
+    runId: string,
+    grants: readonly Grant[],
+    amount: string | null,
+  ) {
+    const { rows } = await c.query(
+      `select * from routine_policies where workspace_id = $1 and run_id = $2
+         and status = 'active'`,
+      [ws, runId],
+    );
+    if (!rows[0]) return null;
+    const policy = toRoutinePolicy(rows[0] as Row);
+    const grant = grants.find((g) => g.id === policy.grant_id);
+    // The grant must be exactly the one this policy version recorded.
+    if (!grant || grant.version !== policy.grant_version) return null;
+    return {
+      policy,
+      grant,
+      blocked: await this.routineBlocked(c, policy, amount),
+    };
+  }
+  private async lockRoutinePolicy(
+    c: PoolClient,
+    ws: string,
+    policyId: string,
+    expected: number,
+  ) {
+    const found = await c.query(
+      'select run_id from routine_policies where workspace_id = $1 and id = $2',
+      [ws, policyId],
+    );
+    if (!found.rows[0])
+      throw fail('NOT_FOUND', 'Routine approval policy not found.');
+    // The run lock is what admissions take, so a change never interleaves with one.
+    const run = await this.lockRun(c, ws, String(found.rows[0].run_id));
+    const { rows } = await c.query(
+      'select * from routine_policies where id = $1 for update',
+      [policyId],
+    );
+    const policy = toRoutinePolicy(rows[0] as Row);
+    if (policy.version !== expected)
+      throw fail(
+        'VERSION_CONFLICT',
+        `Expected policy version ${expected}, but it is at ${policy.version}.`,
+      );
+    if (policy.status !== 'active')
+      throw fail(
+        'INVALID_TRANSITION',
+        'This routine approval policy was revoked. Turn routine approvals on again for the run to set a new one.',
+      );
+    return { run, policy };
+  }
+  /**
+   * Changes a policy. Any change is an owner action that confirms the new summary; one that
+   * permits more is recorded as widened. Builds approved under the earlier version stop at
+   * their next request, because the grant behind them changed.
+   */
+  async reviseRoutinePolicy(
+    ctx: CommandContext,
+    ws: string,
+    policyId: string,
+    raw: unknown,
+  ): Promise<RoutinePolicy> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    policyId = uuid(policyId);
+    const { expected_version, ...rest } = parse(
+      ReviseRoutinePolicyRequestSchema,
+      raw,
+    );
+    const input = this.checkRoutineInput(rest);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const { run, policy } = await this.lockRoutinePolicy(
+        c,
+        ws,
+        policyId,
+        expected_version,
+      );
+      if (run.state !== 'active')
+        throw fail('INVALID_TRANSITION', 'The run was cancelled.');
+      const grant = await this.lockGrant(
+        c,
+        ws,
+        policy.grant_id,
+        policy.grant_version,
+      );
+      const next = await this.writeGrant(
+        c,
+        ctx,
+        grant,
+        'grant.revised',
+        this.routineGrantFields(input),
+      );
+      const { rows } = await c.query(
+        `update routine_policies set version = version + 1, grant_version = $2, stages = $3,
+           data_classes = $4, max_actions = $5, max_total_nano_usd = $6, stop_on = $7,
+           expires_at = $8, rationale = $9, summary = $10, confirmed_at = clock_timestamp()
+         where id = $1 returning *`,
+        [
+          policy.id,
+          next.version,
+          input.stages,
+          input.data_classes,
+          input.max_actions,
+          input.max_total_nano_usd,
+          input.stop_on,
+          input.expires_at,
+          input.rationale,
+          routinePolicySummary(input),
+        ],
+      );
+      const revised = toRoutinePolicy(rows[0] as Row);
+      const prev = policyInput(policy);
+      await this.recordRoutineVersion(
+        c,
+        ctx,
+        revised,
+        routinePolicyWidens(prev, input)
+          ? 'widened'
+          : canonicalHash({ ...prev, rationale: '' }) ===
+              canonicalHash({ ...input, rationale: '' })
+            ? 'reconfirmed'
+            : 'narrowed',
+      );
+      return revised;
+    });
+  }
+  async revokeRoutinePolicy(
+    ctx: CommandContext,
+    ws: string,
+    policyId: string,
+    raw: unknown,
+  ): Promise<RoutinePolicy> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    policyId = uuid(policyId);
+    const req = parse(RevokeRoutinePolicyRequestSchema, raw);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const { policy } = await this.lockRoutinePolicy(
+        c,
+        ws,
+        policyId,
+        req.expected_version,
+      );
+      const grant = await this.lockGrant(
+        c,
+        ws,
+        policy.grant_id,
+        policy.grant_version,
+      );
+      await this.writeGrant(c, ctx, grant, 'grant.revoked', {
+        status: 'revoked',
+        revoke_reason: req.reason,
+      });
+      const { rows } = await c.query(
+        'select * from routine_policies where id = $1',
+        [policy.id],
+      );
+      return toRoutinePolicy(rows[0] as Row);
+    });
+  }
+  /** Every routine policy in the workspace, with what it admitted and whether it admits now. */
+  async listRoutinePolicies(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<RoutinePolicyView[]> {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.role(c, ws, ctx.actorId, false);
+      const { rows } = await c.query(
+        `select * from routine_policies where workspace_id = $1
+          order by created_at desc, id limit 200`,
+        [ws],
+      );
+      const out: RoutinePolicyView[] = [];
+      for (const r of rows) {
+        const policy = toRoutinePolicy(r as Row);
+        const used = await this.routineUsage(c, policy.grant_id);
+        const recent = await c.query(
+          `select id, binding->>'action_type' as action_type, grant_version, created_at
+             from action_admissions where grant_id = $1 and verdict = 'allow'
+            order by created_at desc, id limit 20`,
+          [policy.grant_id],
+        );
+        const blocked =
+          policy.status === 'active'
+            ? await this.routineBlocked(c, policy, null)
+            : null;
+        const expired = Date.parse(policy.expires_at) <= Date.now();
+        out.push({
+          policy,
+          used_actions: used.actions,
+          used_nano_usd: used.nano.toString(),
+          state:
+            policy.status === 'revoked'
+              ? 'revoked'
+              : expired
+                ? 'expired'
+                : blocked
+                  ? 'paused'
+                  : 'active',
+          state_reason:
+            policy.status === 'revoked'
+              ? (policy.revoke_reason ?? 'Revoked.')
+              : expired
+                ? 'Its end time has passed. Change the policy to set a new one.'
+                : blocked,
+          recent: recent.rows.map((a: Row) => ({
+            admission_id: String(a.id),
+            action_type: a.action_type as ActionType,
+            policy_grant_version: Number(a.grant_version),
+            created_at: iso(a.created_at),
+          })),
+        });
+      }
+      return out;
     });
   }
 
@@ -1206,6 +1747,23 @@ export class OversightStore extends Store {
     );
   }
 
+  /** Grants as ordinary admission may match them: every routine policy's own grant left out. */
+  private async withoutRoutineGrants(
+    c: PoolClient,
+    ws: string,
+    grants: readonly Grant[],
+  ) {
+    const owned = new Set(
+      (
+        await c.query<{ grant_id: string }>(
+          'select grant_id from routine_policies where workspace_id = $1',
+          [ws],
+        )
+      ).rows.map((r) => String(r.grant_id)),
+    );
+    return grants.filter((g) => !owned.has(g.id));
+  }
+
   /** Admission inside the caller's transaction, so the broker can reserve atomically with it. */
   /**
    * Read-only dry run of a target-free admission: the verdict admitIn would reach from the
@@ -1229,14 +1787,23 @@ export class OversightStore extends Store {
         })(),
     );
     const { binding } = await this.bind(c, ws, runId, req);
-    const grants = (
+    const all = (
       await c.query(
         `select * from grants where workspace_id = $1 and status = 'active'
            and (run_id is null or run_id = $2) order by scope, created_at`,
         [ws, runId],
       )
     ).rows.map((r: Row) => toGrant(r));
+    const routine = await this.routineFor(
+      c,
+      ws,
+      runId,
+      all,
+      binding.amount_nano_usd,
+    );
+    const grants = await this.withoutRoutineGrants(c, ws, all);
     return evaluateAction({
+      routine,
       mode: run.autonomy_mode,
       runState: run.state,
       stageGates: run.stage_gates,
@@ -1271,15 +1838,25 @@ export class OversightStore extends Store {
       const { binding, stale } = await this.bind(c, ws, runId, req);
       await portfolioEffectFence(c, ws, runId, ctx.idempotencyKey);
       const hash = bindingHash(binding);
-      const grants = (
+      const allGrants = (
         await c.query(
           `select * from grants where workspace_id = $1 and status = 'active'
              and (run_id is null or run_id = $2) order by scope, created_at for update`,
           [ws, runId],
         )
-      ).rows
-        .map((r: Row) => toGrant(r))
-        .filter((g) => !excludeGrantIds?.has(g.id));
+      ).rows.map((r: Row) => toGrant(r));
+      // ADR-0079: a policy's grant is never matched as an ordinary grant; only the policy
+      // path below may use it, with the policy's limits and stop conditions.
+      const routine = await this.routineFor(
+        c,
+        ws,
+        runId,
+        allGrants,
+        binding.amount_nano_usd,
+      );
+      const grants = (await this.withoutRoutineGrants(c, ws, allGrants)).filter(
+        (g) => !excludeGrantIds?.has(g.id),
+      );
       const assumptions = [];
       for (const id of req.assumption_ids) {
         const { rows } = await c.query(
@@ -1352,6 +1929,7 @@ export class OversightStore extends Store {
             humility,
             flags: req.flags.map((f) => f.reason),
             resolvedReasons: resolved,
+            routine,
             now: Date.now(),
           });
       const portfolioReason =
@@ -1402,7 +1980,11 @@ export class OversightStore extends Store {
                 .slice(0, 1200) ||
               (assumptions.length
                 ? 'A referenced assumption is material or refuted.'
-                : `No grant covers this ${s.reversible ? 'reversible' : 'irreversible'} action.`),
+                : `No grant covers this ${s.reversible ? 'reversible' : 'irreversible'} action.${
+                    'routine_note' in verdict && verdict.routine_note
+                      ? ` Routine approvals did not cover it: ${verdict.routine_note}`
+                      : ''
+                  }`),
             consequence_if_wrong: s.external_effect
               ? 'An external effect that cannot be taken back.'
               : s.reversible
@@ -1502,6 +2084,16 @@ export class OversightStore extends Store {
           verdict: outcome.verdict,
           reason_code: outcome.reason_code,
           policy_version: outcome.policy_version,
+          ...(outcome.verdict === 'allow' &&
+          routine &&
+          coveredBy?.id === routine.grant.id
+            ? {
+                routine_policy: {
+                  id: routine.policy.id,
+                  version: routine.policy.version,
+                },
+              }
+            : {}),
         },
         relatedIds: [
           runId,

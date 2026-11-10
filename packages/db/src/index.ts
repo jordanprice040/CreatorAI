@@ -32,3 +32,4 @@ export * from './connection-store.js';
 export { chatInput, chatSnapshot } from './chat-store.js';
 export * from './file-store.js';
 export * from './tester-store.js';
+export { buildApprovalBlockers } from './build-approvals.js';
