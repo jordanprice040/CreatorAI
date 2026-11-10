@@ -3091,3 +3091,15 @@ details.routine > summary {
 .explain-avenue summary {
   cursor: pointer;
 }
+/* ADR-0080 (P16): the runbook export panel under a spec or a proposal. */
+.runbook-export {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-width: 46rem;
+}
+.runbook-export p,
+.runbook-export ul {
+  margin: 0.25rem 0;
+}

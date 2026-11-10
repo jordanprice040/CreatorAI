@@ -103,7 +103,7 @@ export function toSelection(r: Row, current: boolean): Selection {
     current,
   };
 }
-function toFreeze(r: Row): SpecFreeze {
+export function toFreeze(r: Row): SpecFreeze {
   return {
     id: String(r.id),
     workspace_id: String(r.workspace_id),
@@ -117,7 +117,7 @@ function toFreeze(r: Row): SpecFreeze {
     created_at: iso(r.created_at),
   };
 }
-const contentOf = (b: SpecBody) => {
+export const contentOf = (b: SpecBody) => {
   const { format: _f, alternative: _a, selection_id: _s, ...content } = b;
   return content;
 };

@@ -1,0 +1,15 @@
+{
+  "when": "2026-11-10T07:29:26.332Z",
+  "steps": [
+    "seeded a frozen synthetic spec 07b74f9f and a non-code proposal f9b0f82c",
+    "screenshot 01-build-spec-runbook.png",
+    "Build shows the runbook panel under the frozen spec, with what is left out",
+    "downloaded word-tally-synthetic-runbook-v1.zip: 18 files, 6 prompts, validates from its bytes alone (bundle hash 3906a18a0469)",
+    "saved to Files once; a second save keeps the one copy",
+    "screenshot 02-proposal-action-runbook.png",
+    "Proposals shows the action runbook panel and names the unknown sections",
+    "downloaded proposal-use-the-existing-tool-the-clini-runbook-v1.zip: 12 files, 5 prompts, validates from its bytes alone (bundle hash 8f548a64119a)",
+    "phone width horizontal overflow: false",
+    "screenshot 03-phone.png"
+  ]
+}

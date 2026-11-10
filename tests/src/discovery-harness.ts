@@ -9,7 +9,7 @@ import type {
 } from '@creator/contracts';
 import type { DiscoveryScenario } from '@creator/domain';
 import {
-  ProposalStore,
+  RunbookStore,
   ORCHESTRATOR_ACTOR_ID,
   type CommandContext,
 } from '@creator/db';
@@ -39,7 +39,7 @@ export async function discoverySetup(
 ) {
   const db = await freshDatabase(t);
   if (!db) return null;
-  const store = new ProposalStore(db.pool);
+  const store = new RunbookStore(db.pool);
   await store.ensureActor({
     id: owner.actorId,
     kind: 'human',

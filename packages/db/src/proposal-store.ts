@@ -226,7 +226,7 @@ export class ProposalStore extends CatalogStore {
     return { option, kind, problem, selection };
   }
 
-  private async problemClaims(c: PoolClient, ws: string, problemId: string) {
+  protected async problemClaims(c: PoolClient, ws: string, problemId: string) {
     const { rows } = await c.query<{ id: string; relation: string }>(
       `select distinct on (x.from_id) x.from_id::text as id, x.relation from (${PROBLEM_CLAIMS_SQL}) x
         order by x.from_id, (x.relation = 'contradicts') desc, x.created_at`,

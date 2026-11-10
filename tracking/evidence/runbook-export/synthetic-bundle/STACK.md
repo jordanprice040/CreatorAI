@@ -1,0 +1,20 @@
+# Stack and limits
+
+**Proposed stack: Python command-line program (standard library only).**
+
+This is a proposal, not an owner decision. It is the stack the frozen acceptance cases were written for, so another stack must still pass the same cases in the same way.
+
+- Python 3, standard library only. No packages to install and no network at run time.
+- The entry point is `src/main.py`. Each check runs it as `python3 -I src/main.py <arguments>` from the project root, with the case’s standard input.
+- `python3 -I` ignores `PYTHON*` variables and does not put the script’s folder on the import path, so `src/main.py` must add its own folder to `sys.path` before importing local modules.
+- A case passes when standard output matches byte for byte (including line ends) and the exit code matches.
+- Each run starts fresh: do not rely on files or state left by an earlier run.
+
+Creator Agent calls this recipe `python-build/1`. That name only says the checks fit the recipe; it does not say any model or tool is qualified to build it.
+
+## Limits that always apply
+
+- Build only what REQUIREMENTS.md lists as in scope.
+- Use only the data classes REQUIREMENTS.md allows. Do not fetch, scrape or invent real personal data.
+- No credentials, accounts, payments, publication or deployment are part of this bundle. Each needs its own decision by the owner.
+- Keep every change inside the files the current task may change (TASKS.md).

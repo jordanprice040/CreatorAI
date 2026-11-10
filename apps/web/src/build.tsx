@@ -40,6 +40,7 @@ import { Blocked, type BlockedReason } from './blocked.js';
 import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
 import { recordLabel, runLabel } from './labels.js';
+import { RunbookExport } from './runbook.js';
 import {
   artifactForBuild,
   envelopeFor,
@@ -521,6 +522,20 @@ export function BuildView({
                               Freeze it under Scores and specs
                             </button>
                           </>
+                        )}
+                      {s.spec.status === 'active' &&
+                        s.problems.length === 0 && (
+                          <div>
+                            <RunbookExport
+                              key={`${s.spec.id}:${s.spec.version}`}
+                              base={base}
+                              session={session}
+                              subject="specs"
+                              id={s.spec.id}
+                              version={s.spec.version}
+                              writer={writer}
+                            />
+                          </div>
                         )}
                       {s.spec.status === 'active' &&
                         (!stale(s) || s.frozen_current) && (
