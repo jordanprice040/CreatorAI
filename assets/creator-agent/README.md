@@ -16,6 +16,20 @@ Keep the icon square. Give the freestanding mark or horizontal logo clear space 
 
 The palette comes from the studio’s existing theme. Ink is `#141312`, sage is `#8FC4A6` and paper is `#F4F3EE`. The horizontal lettering uses Segoe UI Semibold.
 
+## Derived in the app
+
+`scripts/brand-derived-assets.ps1` regenerates these from the pack. Their SHA-256 values are in `SHA256SUMS.txt` under `../../`-relative paths.
+
+| App file | Source |
+| --- | --- |
+| `apps/desktop/src-tauri/icons/icon.ico` | Copy of `windows.ico`: executable, window and tray icon, and the installer and uninstaller icons. |
+| `apps/web/public/favicon.ico`, `apps/web/public/apple-touch-icon.png` | Copies of `favicon.ico` and `touch-icon-180.png`. |
+| `apps/web/public/creator-agent-icon.png`, `apps/desktop/control/mark.png` | 64 px frame of `windows.ico`, used for the web header and the desktop status window. |
+| `apps/desktop/src-tauri/icons/nsis-header.bmp` | 150 × 57, `mark-ink.png` at the left on white. Tauri's NSIS template draws the header image on the left. |
+| `apps/desktop/src-tauri/icons/nsis-sidebar.bmp` | 164 × 314, `mark-sage.png` on ink, for the welcome and finish pages. |
+
+NSIS stretches the two bitmaps to the page controls, so they look soft above 100% display scaling. Tauri takes one bitmap per slot, so there is no high-DPI variant. The uninstaller reuses `icon.ico` and the header bitmap (`uninstallerIcon`, `uninstallerHeaderImage`).
+
 ## Source and exports
 
-Created November 11, 2026. The starting silhouette was generated with ImageGen for this project from a brief for a single-color, folded-index-card C. Its edges were straightened on a 96 × 90 grid for the SVG master. PNGs, native icon frames and cover art derive from that geometry. `SHA256SUMS.txt` records the pack contents.
+Created November 11, 2026. The starting silhouette was generated with ImageGen for this project from a brief for a single-color, folded-index-card C. Its edges were straightened on a 96 × 90 grid for the SVG master. PNGs, native icon frames and cover art derive from that geometry. `SHA256SUMS.txt` records the pack contents. On November 11 the 256 px frame of `windows.ico` was re-stored as PNG (pixels unchanged; 369 KB to 114 KB).
