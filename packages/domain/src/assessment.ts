@@ -52,6 +52,13 @@ export const rubricsForKind = (kind: string): RubricId[] =>
     ? ['suitability', 'opportunity']
     : ['suitability'];
 
+/**
+ * ADR-0091: option texts drafted by discovery cite that run's packet claims as "C3"; those
+ * numbers are not this packet's claim refs, so the assessor read them as wrong citations. They
+ * are renamed "draft-C3" and a note says what they are.
+ */
+const DRAFT_REF = /\bC([1-9][0-9]?)\b/g;
+const draftRefs = (s: string) => s.replace(DRAFT_REF, 'draft-C$1');
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
@@ -208,10 +215,10 @@ function planAt(
       alternative_id: a.id,
       version: a.version,
       kind: a.kind,
-      title: clip(a.title, 500),
-      rationale: clip(a.rationale, 1200),
-      tradeoffs: a.tradeoffs.slice(0, 8).map((t) => clip(t, 300)),
-      uncertainty: clip(a.uncertainty, 600),
+      title: clip(draftRefs(a.title), 500),
+      rationale: clip(draftRefs(a.rationale), 1200),
+      tradeoffs: a.tradeoffs.slice(0, 8).map((t) => clip(draftRefs(t), 300)),
+      uncertainty: clip(draftRefs(a.uncertainty), 600),
       rubrics: rubricsForKind(a.kind),
     }));
   const rubrics = (['suitability', 'opportunity'] as const)
@@ -406,6 +413,16 @@ function planAt(
     if (!eligible.length)
       notes.push(
         'No claim is linked to this problem, so every rating can only be unknown.',
+      );
+    if (
+      options.some((o) =>
+        [o.title, o.rationale, o.uncertainty, ...o.tradeoffs].some((t) =>
+          t.includes('draft-C'),
+        ),
+      )
+    )
+      notes.push(
+        'Option texts cite "draft-C…" claims from the discovery run that drafted them; those are not this packet\'s claim refs and cannot be cited.',
       );
     if (read.some((c) => c.options))
       notes.push(

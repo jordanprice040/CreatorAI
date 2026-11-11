@@ -384,3 +384,29 @@ test('ADR-0091: requests also fit the answer cap: fewer assessments per request 
   // One option still goes alone even when its two rubrics pass the per-request number.
   assert.ok(per(2_000).every((n) => n <= 2));
 });
+
+test('ADR-0091: option texts citing the drafting packet ("C3") are renamed draft-C3 and explained', () => {
+  const s = small();
+  const plan = buildAssessmentPacket({
+    ...s,
+    alternatives: [
+      {
+        ...s.alternatives[0]!,
+        rationale: 'Uses the export (C3, C12).',
+        tradeoffs: ['Feasibility: Data: C3.', 'CSV and C99X stay as they are.'],
+      },
+      s.alternatives[1]!,
+    ],
+  });
+  assert.ok(plan.ok);
+  const o = plan.packet.options[0]!;
+  assert.equal(o.rationale, 'Uses the export (draft-C3, draft-C12).');
+  assert.deepEqual(o.tradeoffs, [
+    'Feasibility: Data: draft-C3.',
+    'CSV and C99X stay as they are.',
+  ]);
+  assert.ok(plan.packet.notes.some((n) => /draft-C/.test(n)));
+  const plain = buildAssessmentPacket(small());
+  assert.ok(plain.ok);
+  assert.ok(!plain.packet.notes.some((n) => /draft-C/.test(n)));
+});
