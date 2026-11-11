@@ -765,3 +765,15 @@ incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable
 Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
 results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 `tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
+## P16 runbook wording follow-up — November 11, 2026
+
+Jordan approved a follow-up PR for the eight Low wording gaps (R1–R8) the separate prompt 05 reviewer found in
+the synthetic bundle ([report](evidence/runbook-export/clean-room-2026-11-10.md), third run). Exporter template
+changes in `packages/domain/src/runbook.ts`: REQUIREMENTS.md says exact cases govern over a check's general measure
+(R1); contract rule 9 settles readings where neither choice refuses or refusing has no defined exit code (R5); rule
+10 lets only the review-and-repair step correct an ASSUMPTIONS.md line (R2); prompt 05 keeps past task reviews as
+written (R3) and states what Part 1 may change and the commit order (R4); STACK.md says the notes under a proposed
+stack are binding on that stack (R7). Fixture spec changes in `runbook-fixture.ts` (R1 A1 measure, R6 README
+mitigation, R8 A3 measure). Bundle regenerated (hash `3150012b…`); `node scripts/p16-runbook-example.mjs` verifies
+it. New assertions in `tests/src/runbook-domain.test.ts`. No ADR or migration. Not re-consumed in a clean room.

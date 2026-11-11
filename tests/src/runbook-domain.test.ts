@@ -276,6 +276,24 @@ test('a receiver with only the bundle can finish every step as written', () => {
   assert.match(contract, /ASSUMPTIONS\.md in the project/);
   assert.match(contract, /the reading that does less and refuses more/);
   assert.match(contract, /Five files at the project root belong to no task/);
+  // Rule 9 settles readings where neither choice refuses, or refusing has no exit code.
+  assert.match(contract, /Where neither reading refuses anything/);
+  assert.match(contract, /do not invent one/);
+  // The reviewer may correct a wrong assumption, and no other step may.
+  assert.match(contract, /Only the review-and-repair step may correct a line/);
+  // A case that differs from its check's general measure governs.
+  assert.match(
+    textOf(files, 'REQUIREMENTS.md'),
+    /Where one differs from the general measure above it .* the case governs/,
+  );
+  // The stack notes are binding on that stack, not part of the proposal.
+  assert.match(textOf(files, 'STACK.md'), /The notes below are not proposals/);
+  const review = textOf(files, 'prompts/05-review-and-repair.md');
+  assert.doesNotMatch(review, /review \(change nothing\)/);
+  assert.match(review, /change no file except REVIEW\.md/);
+  assert.match(review, /Commit REVIEW\.md on its own before any fix/);
+  assert.match(review, /Commit that update to REVIEW\.md last/);
+  assert.match(review, /leave that review as it is/);
   const t3 = textOf(files, 'prompts/04-t3-review-against-the-scope.md');
   assert.doesNotMatch(t3, /Check A3 passes when run now/);
   assert.match(t3, /Check A3 is carried out .* recorded as provisional/);
@@ -300,7 +318,6 @@ test('a receiver with only the bundle can finish every step as written', () => {
     textOf(files, 'checks/run_checks.py'),
     /"-I", "-B", "src\/main\.py"/,
   );
-  const review = textOf(files, 'prompts/05-review-and-repair.md');
   assert.match(review, /each mitigation REQUIREMENTS\.md gives for a risk/);
   assert.match(review, /A finding about README\.md is fixed in README\.md/);
   assert.match(

@@ -89,3 +89,43 @@ Visible cases in a fresh clone: 4 run, 0 failed, A3 skipped. `git status` stayed
 - Not blind: by this run the implementer had already seen the first bundle and both held-out cases. The result shows the fixes work and nothing regressed, not a second independent consumption.
 - Prompt 05 was again carried out by the session that wrote the code, and REVIEW.md says so. A separate reviewer session was not started.
 - The two runs chose opposite readings of "non-empty line" (only spaces counted in run 1, not counted in run 2) and both pass, so the held-out cases do not tell these readings apart.
+
+---
+
+# Third run: prompt 05 by a separate reviewer session (2026-11-10, evening)
+
+PR #152 had merged by then (main `655f5dd`, bundle hash `b572ed29…`, which fixes N1–N3). The reviewer got only that bundle and the run-2 project at its T3 commit `b376e7d`, before my own non-independent review. It did not get my reports, the repository or the held-out cases. Its full REVIEW.md is in the project files at `reviews/p16-independent-review/REVIEW.md`.
+
+## Result
+
+- Gate passed: 4 visible cases run, 0 failed, clean tree. Final commit `a661db8` (5 commits: review, 3 fixes, status).
+- I re-ran both held-out cases on a fresh clone of `a661db8`: **A1 PASS, A2 PASS**.
+- Code findings: 1 Medium fixed (README did not state the counting rule, the same gap I found in my own runs). Lows fixed: Windows line ends now forced as STACK.md asks, and ASSUMPTIONS.md now names the exact separators. Lows left for the owner: invalid UTF-8 is counted rather than refused, whitespace-only lines are not counted, a closed standard input gives a traceback, and T3's review cites lines that are off by one.
+
+## Bundle gaps the reviewer found (new, all Low)
+
+- **R1** REQUIREMENTS.md A1: the measure says "exit code 0", but A1 case 3 expects exit 2. Exporter-wide: a check's measure can contradict its own refusal case. This comes from the spec text.
+- **R2** Prompt 05 says a wrong line in ASSUMPTIONS.md is a finding, but rule 10 lets steps only *add* lines, so the reviewer cannot correct one.
+- **R3** Prompt 05 says to fix findings inside the owning task's scope, but `review/t3-review.md` belongs to T3, a role that "changes nothing". It is unclear whether a later step may correct a past review.
+- **R4** Prompt 05: "review (change nothing)" sits next to "Write REVIEW.md", and "one commit per repaired finding" does not say how REVIEW.md itself is committed.
+- **R5** Rule 9 ("does less and refuses more") still does not settle readings where neither choice refuses anything (whitespace-only lines), or how to refuse when no exit code is defined (invalid UTF-8).
+- **R6** "The README states the counting rule in one sentence": it says "rule", but there are two counts. Spec wording.
+- **R7** STACK.md's Windows line-end advice is a proposal, so it is unclear whether ignoring it is a review finding.
+- **R8** A3 "no file use": it is unclear whether `os.path` on `__file__` (required by STACK.md) counts.
+
+R1, R6 and R8 are spec wording in the synthetic fixture. R2–R5 and R7 are exporter template wording.
+
+## Fixes for R1–R8 (2026-11-11, follow-up PR)
+
+Regenerated bundle hash `3150012b…`. Not re-consumed in a clean room; the wording was checked by tests only.
+
+| Gap | Where | Fix |
+| --- | --- | --- |
+| R1 | Fixture A1 measure; REQUIREMENTS.md template | The A1 measure now names the exit code 2 refusal. Every REQUIREMENTS.md now says a case's exact output and exit code govern where they differ from the general measure, and the mismatch is reported, not edited. |
+| R2 | CONTRACT.md rule 10; prompt 05 | Only the review-and-repair step may correct an ASSUMPTIONS.md line, for a finding in REVIEW.md, saying what it said before. |
+| R3 | Prompt 05 | Past task reviews (`review/`) stay as written; a mistake in one is a finding in REVIEW.md. |
+| R4 | Prompt 05 | Part 1 changes no file except REVIEW.md; commit order is REVIEW.md first, one commit per fix, then the final status update. |
+| R5 | CONTRACT.md rule 9 | Where neither reading refuses, take the one closer to the plain words; where refusing needs an undefined exit code or message, do not invent one, take the non-refusing reading and mark it "owner to decide". |
+| R6 | Fixture risk mitigation | The README states how words are counted and how lines are counted, one sentence each. |
+| R7 | STACK.md template | The stack is a proposal, but the notes under it are not: a program on that stack that ignores one is a review finding. |
+| R8 | Fixture A3 measure | "No reading or writing of files and no network use"; finding the program's own folder for imports does not count. |

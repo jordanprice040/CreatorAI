@@ -49,7 +49,7 @@
       "key": "A1",
       "flow": "F1",
       "statement": "The number of whitespace-separated words is printed.",
-      "measure": "Standard output is the count and a line end; exit code 0.",
+      "measure": "Standard output is the count and a line end; exit code 0. An unknown option gives no output and exit code 2.",
       "method": "automated_test",
       "cases": [
         {
@@ -99,7 +99,7 @@
       "key": "A3",
       "flow": null,
       "statement": "The program does nothing the scope does not list.",
-      "measure": "A reviewer reads the source and finds no file or network use.",
+      "measure": "A reviewer reads the source and finds no reading or writing of files and no network use. Finding the program’s own folder to import its modules does not count as file use.",
       "method": "manual_review",
       "cases": [],
       "browser_cases": [],
@@ -109,7 +109,7 @@
   "risks": [
     {
       "risk": "Counts differ from a writer’s word processor",
-      "mitigation": "The README states the counting rule in one sentence."
+      "mitigation": "The README states how words are counted and how lines are counted, in one sentence each."
     }
   ],
   "maintenance": {
