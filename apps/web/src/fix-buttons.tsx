@@ -329,9 +329,18 @@ async function startedRuns(
   return out;
 }
 
-/** A known benchmark's name (any role) from its manifest hash, or "another benchmark". */
+/**
+ * A known benchmark's name (any role) from its manifest hash, or "another benchmark": every
+ * offer, and every bundled manifest, including Search the web's, which no fix offers but whose
+ * started run can share a task with one (third review N-2).
+ */
+const bundledHashes = BENCHMARKS.map((b) => ({
+  name: b.name,
+  hash: memo(() => manifestHash(b.manifest)),
+}));
 async function nameOf(hash: string): Promise<string> {
-  for (const b of allOffers()) if ((await b.hash()) === hash) return b.name;
+  for (const b of [...allOffers(), ...bundledHashes])
+    if ((await b.hash()) === hash) return b.name;
   return 'another benchmark';
 }
 

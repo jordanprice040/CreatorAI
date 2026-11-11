@@ -312,7 +312,7 @@ test("Discover's setup blockers attach fixes by code and by what is missing, not
 
 // fix-buttons.tsx with its siblings transpiled the way the web app builds them; React and the
 // bundled benchmark files load from the web app's own folder. A sibling with no stub here is
-// loaded from its .ts source, so a new import (such as P34's qualification-role) needs no
+// loaded from its .ts or .tsx source, so a new import (such as P34's qualification-role) needs no
 // edit (P34 re-review M-A).
 async function loadButtons() {
   const { readFile } = await import('node:fs/promises');
@@ -322,7 +322,10 @@ async function loadButtons() {
   const web = createRequire(
     new URL('../../apps/web/src/fix-buttons.tsx', import.meta.url),
   );
-  const compile = async (file: string, stubs: Record<string, unknown>) => {
+  const compile = async (
+    file: string,
+    stubs: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
     const code = ts.transpileModule(
       await readFile(`apps/web/src/${file}`, 'utf8'),
       {
@@ -337,8 +340,12 @@ async function loadButtons() {
     const siblings = new Map<string, unknown>();
     for (const m of code.matchAll(/require\("\.\/([^"]+)\.js"\)/g)) {
       const name = `./${m[1]}.js`;
-      if (!(name in stubs) && existsSync(`apps/web/src/${m[1]}.ts`))
+      if (name in stubs) continue;
+      if (existsSync(`apps/web/src/${m[1]}.ts`))
         siblings.set(name, await loadWeb(`${m[1]}.ts`));
+      // A .tsx sibling is compiled the same way, with no stubs (third review N-3).
+      else if (existsSync(`apps/web/src/${m[1]}.tsx`))
+        siblings.set(name, await compile(`${m[1]}.tsx`, {}));
     }
     const exports = {} as Record<string, unknown>;
     new Function('require', 'exports', code)(
@@ -401,6 +408,8 @@ test('each route qualifies only on its own benchmark; the confirmation says what
   assert.equal(mod.canQualifyFor('plan')('specification'), true);
   assert.equal(mod.canQualifyFor('plan')('patch_build'), true);
   assert.equal(mod.canQualifyFor('plan')('scoring'), false);
+  // P12's web-discovery benchmark (research synthesis) qualifies no fix's route (third review N-1).
+  assert.equal(mod.canQualifyFor('plan')('research_synthesis'), false);
 
   const c = connection({
     settings: {
