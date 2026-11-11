@@ -297,7 +297,7 @@ export function Explore({
               q.state === 'qualified',
           )
             ? [
-                `${model} is not qualified for research synthesis (the discovery locator's qualification). Qualify it under Models and connections first.`,
+                `${model} is not qualified for research synthesis on the discovery-locator benchmark (a web-discovery qualification covers only Search the web). Qualify it under Models and connections first.`,
               ]
             : []),
         ]

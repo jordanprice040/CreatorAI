@@ -671,7 +671,8 @@ function Discovery({
         <details open={d.state !== 'done'}>
           <summary>
             Pages: {d.leads.filter((l) => l.disposition === 'selected').length}{' '}
-            chosen of {d.leads.length} named
+            chosen of {d.leads.length} named,{' '}
+            {d.leads.filter((l) => l.quality === 'usable').length} read
           </summary>
           <ul className="small">
             {d.leads.map((l) => (
@@ -702,21 +703,6 @@ function Discovery({
       {d.proposals.length > 0 && (
         <>
           <h4>Proposed claims</h4>
-          {owner && pending.length > 1 && (
-            <button
-              type="button"
-              disabled={!!busy}
-              onClick={() =>
-                void act('admit-all', 'admit', {
-                  proposal_ids: pending.map((p) => p.id),
-                })
-              }
-            >
-              {busy === 'admit-all'
-                ? 'Adding…'
-                : `Add all ${pending.length} checked claims`}
-            </button>
-          )}
           <ol>
             {d.proposals.map((p) => (
               <li key={p.id}>
@@ -738,6 +724,27 @@ function Discovery({
               </li>
             ))}
           </ol>
+          {owner && pending.length > 1 && (
+            <p className="small">
+              Read each claim's sources and uncertainty first. A checked quote
+              is on the page; it may not prove the claim.
+            </p>
+          )}
+          {owner && pending.length > 1 && (
+            <button
+              type="button"
+              disabled={!!busy}
+              onClick={() =>
+                void act('admit-all', 'admit', {
+                  proposal_ids: pending.map((p) => p.id),
+                })
+              }
+            >
+              {busy === 'admit-all'
+                ? 'Adding…'
+                : `Add all ${pending.length} checked claims`}
+            </button>
+          )}
         </>
       )}
       {d.not_covered.length > 0 && (

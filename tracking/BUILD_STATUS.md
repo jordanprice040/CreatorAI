@@ -57,7 +57,7 @@ the record of each package and are appended to, not rewritten.
 | P09 why this response, proposals           | Merged (PR #148; ADR-0077, migration 49)                                                                                                             |
 | P10 scoped routine approvals               | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12)                                                                      |
 | P11 committee staging                      | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9                                                    |
-| P12 online discovery                       | Built in this branch (ADR-0086, migration 54): Search the web through the plan connection's own web search; live qualification waits for Jordan's OK |
+| P12 online discovery                       | Built in this branch (ADR-0086, migration 54): Search the web through the plan connection's own web search; live on the dev studio 2026-11-11: qualified on web-discovery-v2 (7/7 held out), one discovery proposed 8 checked claims, pending Jordan |
 | P13 unattended workflow                    | Not started; needs P10 and P12                                                                                                                       |
 | P14 capability inventory and benchmarks    | Merged (PRs #135, #145, #146; ADR-0076)                                                                                                              |
 | P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started                               |
