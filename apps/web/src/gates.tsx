@@ -58,7 +58,9 @@ export function GateLines({
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  if (!details?.length) return null;
+  // Nothing to say when people's scorecards already cleared both gates.
+  if (!details?.length || details.every((d) => d.state === 'clear'))
+    return null;
   async function confirm(d: Detail) {
     setBusy(true);
     setError('');
