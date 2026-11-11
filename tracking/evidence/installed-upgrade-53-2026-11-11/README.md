@@ -52,12 +52,12 @@ Issues and requests for review/fix:
    `locked || !chosen || !pick`, not by a running qualification, so a new one can be started.
 5. **Activity badge alignment.** The number in the Activity tab's badge is not centered vertically.
 6. **Usage window exhausted.** Jordan asks for a notice when a model's usage window runs out, with an option to
-   raise or reset the current window only, without changing future windows; those stay on the model's settings.
-   (Jordan's message was cut off here.)
+   raise or reset the current window only. Future windows are not changed automatically; the person can change them
+   in the model's settings if they want to.
 7. **Seen in a screenshot, not raised by Jordan:** Projects › Decide › Automatic assessment shows "The assessment
    packet is too large for one model message." Unlike the evidence and exploration messages, it does not say what
    to do about it (`packages/db/src/selection-store.ts:877`). It also shows that gpt-6-astra has no scoring
    qualification. Worth checking whether a real problem with several options can be assessed at all on the plan
    route.
 
-Jordan's note about the model switch ("…but being able to") was also cut off; waiting on the rest.
+Jordan withdrew the half-written model-switch request; P21 needs no change.
