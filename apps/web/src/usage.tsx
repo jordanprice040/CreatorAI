@@ -5,7 +5,12 @@ import {
   type UsageSummary,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, STUDIO_CHANGED } from './oversight.js';
+import {
+  api,
+  message,
+  STUDIO_CHANGED,
+  STUDIO_WRITE_STARTED,
+} from './oversight.js';
 import { money } from './budgets.js';
 import {
   NO_WATCH,
@@ -301,8 +306,9 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
     load();
     // A write in this window (a chat answer, starting a build or a qualification) may use plan
     // requests now or, for work that carries on on the server, over the next while: read
-    // shortly after it ends, then keep watching, at most 10 minutes (usage-refresh.ts).
-    // Requests made from the CLI or another window show at the next minute's read.
+    // shortly after it is sent and again after it ends, then keep watching, at most 10 minutes
+    // from the latest write (usage-refresh.ts). Requests made from the CLI or another window
+    // show at the next minute's read.
     let soon: ReturnType<typeof setTimeout> | undefined;
     const changed = () => {
       watch.current = watchAfterWrite(Date.now(), watch.current);
@@ -312,6 +318,9 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
     window.addEventListener('focus', load);
     window.addEventListener('hashchange', load);
     window.addEventListener(STUDIO_CHANGED, changed);
+    // Also when the write is sent: a long one (a qualification run) uses plan requests while
+    // it is still open, so the fast reads start now and running requests keep them going.
+    window.addEventListener(STUDIO_WRITE_STARTED, changed);
     return () => {
       clearTimeout(timer.current);
       clearTimeout(soon);
@@ -319,6 +328,7 @@ export function UsageIndicator({ workspace }: { workspace: Workspace }) {
       window.removeEventListener('focus', load);
       window.removeEventListener('hashchange', load);
       window.removeEventListener(STUDIO_CHANGED, changed);
+      window.removeEventListener(STUDIO_WRITE_STARTED, changed);
     };
   }, [load]);
   useEffect(() => {

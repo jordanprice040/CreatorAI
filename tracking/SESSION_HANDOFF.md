@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 11 handoff — P26 stale state and small polish
+
+P26 (walk items 5, 9, 13, 14) is on branch `claude/project-thread-8jjhd7`, web only, no migration or ADR. Chat answers picks up a newly verified model by itself, the usage count goes live when a long request starts, and badge and step numbers are centred. Item 19 belongs to P23 now. Jordan's check at the next upgrade: verify a model on a fresh connection and see Chat answers offer and save it without Reset fields; watch the top-bar count move during a qualification run; look at the Activity count and the Path circles at 100% and 125%. Next eligible prompts unchanged: P23, P25, P12 (running), then P24 and P27 after P23, P28 and P29 once this merges.
+
 ## November 11 handoff — fix plan from the installed-app walk
 
 Docs only. [FIX_PLAN_INSTALLED_WALK_2026-11-11.md](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) groups the 24 findings from Jordan's walk of the installed app at schema 53 ([record](evidence/installed-upgrade-53-2026-11-11/README.md), PR #168) into packages P23–P32, with order and Jordan's November 11 decisions: all allowed work on for new connections plus one-click allow buttons; whole-process automation (P33) right after P13, and P13 a priority; P12 discovery through the model connections' own web search, no search or browser API. Target before the next user test: P23–P31, P12, P13, P33. No code changed. Next eligible prompts: P23 (qualify section), P25 (assessment packets that fit) and P26 (stale state and polish), in parallel. Next free numbers: migration 54, ADR-0084.

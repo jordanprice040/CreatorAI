@@ -19,7 +19,8 @@ import {
 } from '@creator/contracts';
 import { Markdown } from './markdown-view.js';
 import { CONTEXT_LABEL } from './chat-context.js';
-import { api, message, when } from './oversight.js';
+import { api, message, STUDIO_CHANGED, when } from './oversight.js';
+import { fillEmptyChoice, verifiedModels } from './chat-answers-form.js';
 import { withFreshCount } from './usage-refresh.js';
 import { MODEL_CHOICE_CHANGED } from './model-choice.js';
 import { useModelChoice } from './model-switch.js';
@@ -249,6 +250,19 @@ export function ChatAnswersCard({
     if (!session || !settings || !stamp) return;
     loadDetails().catch((e) => setError(message(e)));
   }, [stamp]);
+  // Walkthrough item 9: the stamp above does not change when a model is verified, so the
+  // connections are read again after any write in this window (verifying a model is one).
+  // Only the details are read; what the owner picked or typed stays put.
+  useEffect(() => {
+    if (!session) return;
+    const changed = () => void loadDetails().catch((e) => setError(message(e)));
+    window.addEventListener(STUDIO_CHANGED, changed);
+    return () => window.removeEventListener(STUDIO_CHANGED, changed);
+  }, [workspace.id, session?.actor_id]);
+  // A field still empty takes the first connection and verified model once details show one.
+  useEffect(() => {
+    if (settings) setForm((f) => fillEmptyChoice(f, details));
+  }, [details, settings]);
   // Connections checked or changed elsewhere, and chat answers asked since, show when the
   // page is shown again (audit L-10); the settings form keeps what the owner typed.
   useOnShow(() => {
@@ -506,15 +520,4 @@ export function ChatAnswersCard({
       )}
     </section>
   );
-}
-
-function verifiedModels(details: PlanConnectionDetail[], id: string) {
-  const d = details.find((x) => x.connection.id === id);
-  return [
-    ...new Set(
-      (d?.model_access ?? [])
-        .filter((a) => a.access === 'verified' && a.path === 'responses')
-        .map((a) => a.model_id),
-    ),
-  ];
 }
