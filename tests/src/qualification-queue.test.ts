@@ -13,6 +13,7 @@ import {
   PlanConnectionService,
   QualificationQueueRunner,
 } from '@creator/broker';
+import { canonicalHash } from '@creator/domain';
 import { freshDatabase } from './pg-harness.js';
 import { fakePlan, type FakePlanOptions } from './plan-fakes.js';
 
@@ -779,4 +780,68 @@ test('PR #176 re-review L-2b: an error that recurs when recording a result also 
   await r.idle();
   assert.equal(runs, 3);
   assert.equal(errors.length, 3);
+});
+
+test('PR #176 review 3 L-1 and N-2: research synthesis is queued per lane, locator and web discovery apart', async (t) => {
+  const s = await setup(t, { responses: [{ kind: 'text', text: 'ok' }, GOOD] });
+  if (!s) return;
+  // Fixture copies, since the test connection is a fixture one.
+  const WEB = {
+    ...read('config/connections/benchmarks/web-discovery-v2.json'),
+    fixture: true,
+  };
+  const OLD_WEB = {
+    ...read('config/connections/benchmarks/web-discovery-v1.json'),
+    fixture: true,
+  };
+  const item = (manifest: Record<string, unknown>) => ({
+    manifest,
+    min_held_out_cases: 3,
+    floor: { numerator: 1, denominator: 1 },
+  });
+  const queueOf = async (...manifests: Record<string, unknown>[]) =>
+    s.store.startQualificationQueue(owner, s.ws.id, s.conn.id, {
+      expected_version: (await s.current()).version,
+      model_id: 'm',
+      items: manifests.map(item),
+    });
+  // Two web discovery benchmarks are one lane, whatever their role version (N-2).
+  await refused(
+    queueOf(WEB, { ...WEB, name: 'web-discovery-copy' }),
+    'INVALID_CONTRACT',
+    /once/,
+  );
+  await refused(queueOf(OLD_WEB, WEB), 'INVALID_CONTRACT', /once/);
+  // The locator benchmark and web discovery share a task class but not a lane.
+  const both = await queueOf(bench('research_synthesis'), WEB);
+  assert.deepEqual(
+    both.items.map((i) => i.state),
+    ['waiting', 'waiting'],
+  );
+  await s.store.cancelQualificationQueue(owner, s.ws.id, both.id);
+  // A decided research synthesis qualification, then made a web discovery pass by giving it
+  // the current web benchmark (the fixture locator benchmark is not a current Discover role,
+  // so on its own it qualifies nothing).
+  await s.queue(['research_synthesis']);
+  const r = s.runner();
+  await r.sweep();
+  await r.idle();
+  const [locator] = await s.quals();
+  assert.equal(locator!.state, 'qualified');
+  assert.equal(locator!.admits_web_discovery, false);
+  // A web discovery pass, and no locator pass, refuses web discovery only.
+  await s.db.pool.query(
+    `update plan_qualifications set manifest = $2, manifest_hash = $3 where id = $1`,
+    [locator!.id, WEB, canonicalHash(WEB)],
+  );
+  assert.equal((await s.quals())[0]!.admits_web_discovery, true);
+  await refused(
+    queueOf(WEB),
+    'INVALID_TRANSITION',
+    /already qualified for research synthesis/,
+  );
+  assert.equal(
+    (await queueOf(bench('research_synthesis'))).items[0]!.state,
+    'waiting',
+  );
 });

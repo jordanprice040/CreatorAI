@@ -320,6 +320,10 @@ export function QualifyModel({
             setTicked={setTicked}
             locked={locked || !pick}
             requestsLeft={requestsLeft}
+            dailyCap={
+              connection.settings.caps.shared?.max_model_requests_per_day ??
+              null
+            }
             error={queueError}
             onStart={() => startQueue(chosenSeveral)}
             onStartAll={() => startQueue(eligible)}
@@ -575,6 +579,7 @@ function QueueChoices({
   setTicked,
   locked,
   requestsLeft = null,
+  dailyCap = null,
   error = '',
   onStart,
   onStartAll,
@@ -586,6 +591,8 @@ function QueueChoices({
   setTicked: (f: (t: string[]) => string[]) => void;
   locked: boolean;
   requestsLeft?: number | null;
+  /** The connection's plan requests a day (review 3 of PR #176, L-2). */
+  dailyCap?: number | null;
   error?: string;
   onStart: () => void;
   onStartAll: () => void;
@@ -594,6 +601,8 @@ function QueueChoices({
   const picked = eligible.filter((c) => ticked.includes(c.name));
   const blocked = choices.filter((c) => c.state.kind === 'not_allowed');
   const requests = (l: QueueChoice[]) => l.reduce((n, c) => n + c.requests, 0);
+  // The warning is about what Qualify selected would send, or Qualify all when none is ticked.
+  const over = picked.length ? picked : eligible;
   return (
     <div className="qualify-several" role="group" aria-labelledby={`qs-${id}`}>
       <p id={`qs-${id}`}>
@@ -668,6 +677,17 @@ function QueueChoices({
               requests)
             </button>
           </div>
+          {dailyCap !== null && requests(over) > dailyCap && (
+            <p className="small" role="note">
+              {over === picked
+                ? 'The selected tasks need'
+                : 'Qualify all needs'}{' '}
+              up to {requests(over)} plan requests, more than this
+              connection&apos;s cap of {dailyCap} a day, so the queue stops at
+              the cap partway through. Its answered cases are kept: queue the
+              rest the next day to finish it.
+            </p>
+          )}
           {requestsLeft !== null && (
             <p className="small">
               {Math.max(0, requestsLeft)} plan request

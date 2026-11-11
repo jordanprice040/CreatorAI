@@ -277,12 +277,22 @@ interface QueueRow {
   created_by: string;
 }
 const words = (s: string) => s.replace(/_/g, ' ');
-/** ADR-0086: whether a benchmark qualifies web discovery (the lane its qualification counts in). */
-const webLane = (manifest: { task_class: string }) =>
-  currentForWebDiscoveryRole({
-    task_class: manifest.task_class,
-    manifest,
-    manifest_hash: canonicalHash(manifest),
+/**
+ * ADR-0086: whether a benchmark is a web discovery one (the lane its qualification counts in).
+ * Review 3 of PR #176, N-2: any role version counts, so an outdated web benchmark shares the
+ * web lane with the current one instead of being taken for a locator benchmark.
+ */
+const webLane = (manifest: { task_class: string; cases?: unknown }) =>
+  manifest.task_class === WEB_DISCOVERY_TASK_CLASS &&
+  Array.isArray(manifest.cases) &&
+  manifest.cases.length > 0 &&
+  manifest.cases.every((item: { check?: unknown }) => {
+    const parsed = BenchmarkCheckSchema.safeParse(item?.check);
+    return (
+      parsed.success &&
+      (parsed.data.kind === 'web_scout_contract' ||
+        parsed.data.kind === 'web_reader_contract')
+    );
   });
 const clip = (s: string) => (s.length > 1200 ? `${s.slice(0, 1199)}…` : s);
 

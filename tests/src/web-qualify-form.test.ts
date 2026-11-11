@@ -493,3 +493,72 @@ test('P24: a running queue shows its progress and locks every other qualify acti
   assert.match(stopped, />Hide</);
   assert.doesNotMatch(stopped, /Cancel the queue/);
 });
+
+test('P24 after P12: Qualify several reads each benchmark in its own research synthesis lane (review 3 L-1)', async () => {
+  const { queueChoices } = await loadQualify();
+  const allowed = ['research_synthesis'];
+  const web = (qs: PlanQualification[]) =>
+    queueChoices(qs, 'gpt-6-astra', allowed).find(
+      (c) => c.name === 'web-discovery-v2',
+    )?.eligible;
+  const decided = {
+    task_class: 'research_synthesis' as const,
+    state: 'qualified' as const,
+    decided_at: '2026-11-11T10:05:00.000Z',
+  };
+  // ADR-0086: a locator pass does not qualify web discovery, so web discovery is still offered.
+  assert.equal(
+    web([qualification({ ...decided, admits_web_discovery: false })]),
+    true,
+  );
+  assert.equal(
+    web([qualification({ ...decided, admits_web_discovery: true })]),
+    false,
+  );
+});
+
+test('P24: Qualify several says before it starts when the queue needs more than the daily cap (review 3 L-2)', async () => {
+  const { QualifyModel } = await loadQualify();
+  const html = (cap: number) =>
+    renderToStaticMarkup(
+      createElement(QualifyModel, {
+        base: 'workspaces/w',
+        connection: {
+          id: randomUUID(),
+          kind: 'chatgpt_plan',
+          version: 3,
+          fixture: false,
+          caps_accepted_at: '2026-11-11T09:00:00.000Z',
+          settings: {
+            allowed_data_classes: ['synthetic', 'public'],
+            allowed_task_classes: [
+              'specification',
+              'summarization',
+              'patch_build',
+              'independent_review',
+              'scoring',
+              'research_synthesis',
+            ],
+            caps: {
+              responses: { request_timeout_ms: 120000 },
+              shared: { max_model_requests_per_day: cap },
+            },
+          },
+        },
+        models: ['gpt-6-astra'],
+        qualifications: [],
+        queue: null,
+        requestsLeft: cap,
+        busy: false,
+        act: async () => null,
+      }),
+    );
+  // Six bundled benchmarks: 8 + 8 + 8 + 4 + 4 + 13 plan requests on a fresh connection.
+  const fresh = html(40);
+  assert.match(fresh, /Qualify all \(6, up to 45 plan requests\)/);
+  assert.match(
+    fresh,
+    /Qualify all needs up to 45 plan requests, more than this connection&#x27;s cap of 40 a day/,
+  );
+  assert.doesNotMatch(html(45), /more than this connection/);
+});
