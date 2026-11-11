@@ -25,7 +25,7 @@ reproduced.
 | 5   | Activity badge number not vertically centred                   | P26                            |
 | 6   | Notice when a usage window runs out; raise current window only | P29                            |
 | 7   | Assessment packet too large, no next step                      | P25                            |
-| 8   | "Not qualified" with no way forward in Testing                 | P23 (message), P27 (fix there) |
+| 8   | "Not qualified" with no way forward in Testing                 | P23 (message), P34, P27        |
 | 9   | Chat answers "No verified model" until Reset fields            | P26                            |
 | 10  | Run enabled for a running qualification after a workspace swap | P23                            |
 | 11  | Start offered for an already-qualified task                    | P23                            |
@@ -116,6 +116,30 @@ ADR-0074.
 - Gate: unit tests for a problem with 8 long options and 30 claims (several requests, all under the cap, nothing
   silently dropped), a single oversized option (clear refusal), and unchanged hashes for a small problem that fits
   in one request today. A live check on Jordan's real problem needs his typed OK (it spends plan requests).
+
+**P34 Qualify discovery tasks in the app** (rest of item 8; found by the P23 review, PR #172 M-1). Medium; web and
+API, no migration expected. Needed before the next user test.
+
+- Today research synthesis and candidate generation can only be qualified with `pnpm cli plan-qualify`. The Qualify
+  section's bundled benchmarks (`BENCHMARKS` in `apps/web/src/qualify.tsx`) are specification, summarization,
+  builder, reviewer and the assessment benchmark (which also covers scoring for discovery). So on any new connection
+  Explore for me and the Chat discovery card stay blocked with no way forward in the app, which is exactly what Jordan
+  hit in Testing.
+- Add the discovery benchmarks to Qualify a model: research synthesis and candidate generation from
+  `config/connections/benchmarks/discovery-synthetic-v5/` (about 110–120 KB each; serve them from the API like the
+  assessment manifest instead of bundling them into the web app). The server keeps its checks: manifest hash, task
+  class, data class, verified model, and `currentForDiscoveryRole` binding the manifest to the current role prompts,
+  so a stale manifest is refused rather than offered.
+- Which manifest the app offers is a choice to record in the package's ADR. Recommended: the newest manifest per task
+  class that passes the role-currency check (today v5; `discovery-research14-v2` stays a CLI option for research
+  synthesis), chosen by the server so the list follows the role prompts. P12 will change the discovery role (web
+  search), so it ships a new manifest and the app offers it with no UI change; anything qualified before P12 then
+  needs a re-run, which P24's "Qualify all" makes one step.
+- After it lands, the "not qualified" messages from P23 point to the real Qualify option (and P27's "Allow and
+  qualify" works for discovery tasks).
+- Gate: a browser walk on a fixture connection shows both discovery options with allow and start states; DB tests
+  that a manifest failing the role-currency check is refused and that held-out binding (ADR-0052) is unchanged. A live
+  qualification of gpt-6-astra for research synthesis in Testing needs Jordan's typed OK (it spends plan requests).
 
 ### Then: small polish and stale state (can run beside P23–P25)
 
@@ -214,7 +238,8 @@ Small; web only. Done in PR #170.
 
 1. In parallel: **P23** (qualify section), **P25** (assessment packets), **P26** (polish). Different areas:
    `qualify.tsx`/`models.tsx`, `assessment.ts`/`selection-store.ts`, and small web files.
-2. **P24** (qualify several) after P23, since both change the Qualify section.
+2. **P34** (qualify discovery tasks in the app) right after P23, then **P24** (qualify several), since all three
+   change the Qualify section. P34 comes first because it unblocks Explore for me and the Chat discovery card.
 3. **P27** (fix it here) after P23. The new all-on default (Decision A) goes in P23; P27 adds the allow buttons for
    connections that do not have every task allowed.
 4. **P28** (API key) and **P29** (usage window), in parallel.
@@ -224,7 +249,7 @@ Small; web only. Done in PR #170.
    November 11), then **P33** (automation levels, including the whole process) right after P13.
 
 Jordan's timing (November 11): P12, P13 and the automation levels should be ready by the next user-testing phase,
-which can start once these fixes are made. So the target set before that test is P23–P31 plus P12, P13 and P33;
+which can start once these fixes are made. So the target set before that test is P23–P31 and P34 plus P12, P13 and P33;
 P32 (GitHub sign-in) only if he gives the live OK in time.
 
 ### P12 route (Jordan, November 11)
