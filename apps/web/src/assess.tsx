@@ -23,7 +23,7 @@ import {
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, when, words } from './oversight.js';
+import { ApiError, api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View } from './ui.js';
@@ -77,22 +77,14 @@ export function AutoAssess({
   const fixture = workspace.record_mode === 'fixture';
   const owner = workspace.role === 'owner';
   const ctx = useLoad(async () => {
-    const [workflows, envelopes, pricing, connections, preview] =
-      await Promise.all([
-        api(z.array(WorkflowSchema), `${base}/workflows`),
-        api(z.array(EnvelopeSchema), `${base}/budgets`),
-        api(z.array(PricingSnapshotSchema), `${base}/pricing`),
-        api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
-          () => [],
-        ),
-        api(
-          AssessmentPreviewSchema,
-          `${base}/problems/${problem.id}/assessment-preview`,
-        ).then(
-          (data) => ({ data, error: '' }),
-          (e: unknown) => ({ data: null, error: message(e) }),
-        ),
-      ]);
+    const [workflows, envelopes, pricing, connections] = await Promise.all([
+      api(z.array(WorkflowSchema), `${base}/workflows`),
+      api(z.array(EnvelopeSchema), `${base}/budgets`),
+      api(z.array(PricingSnapshotSchema), `${base}/pricing`),
+      api(z.array(PlanConnectionSchema), `${base}/plan-connections`).catch(
+        () => [],
+      ),
+    ]);
     const details = (
       await Promise.all(
         connections.map((c) =>
@@ -117,7 +109,6 @@ export function AutoAssess({
       ),
       pricing: newestFirst(pricing),
       details,
-      preview,
     };
   }, [workspace.id, problem.id, problem.version]);
 
@@ -168,13 +159,61 @@ export function AutoAssess({
   const timeout =
     plan?.connection.settings.caps.responses.request_timeout_ms ??
     LIMITS.call_timeout_ms;
-  const preview = c?.preview.data ?? null;
+  // ADR-0085: the requests are sized to the chosen connection's input cap, so the preview is
+  // read again when the connection or its accepted settings change.
+  const capConnection =
+    resourceKind === 'subscription' ? (plan?.connection.id ?? '') : '';
+  const pv = useLoad(async () => {
+    if (resourceKind === 'subscription' && !c) return null;
+    return api(
+      AssessmentPreviewSchema,
+      `${base}/problems/${problem.id}/assessment-preview${capConnection ? `?connection=${capConnection}` : ''}`,
+    ).then(
+      (data) => ({ data, error: '', tooLarge: false }),
+      (e: unknown) => ({
+        data: null,
+        error: message(e),
+        // Only the size refusal (an option that does not fit alone) is fixed by a larger cap.
+        tooLarge: e instanceof ApiError && e.code === 'BODY_TOO_LARGE',
+      }),
+    );
+  }, [
+    workspace.id,
+    problem.id,
+    problem.version,
+    resourceKind,
+    capConnection,
+    plan?.connection.settings_hash ?? '',
+    !!c,
+  ]);
+  const previewRead = pv.data;
+  const preview = previewRead?.data ?? null;
+  // Too large, or evidence left out for size: the owner can raise the connection's input cap.
+  const capHelp =
+    owner &&
+    resourceKind === 'subscription' &&
+    !!plan &&
+    (!!previewRead?.tooLarge || (preview?.claims_left_out ?? 0) > 0);
+  const linked = preview
+    ? preview.packet.claims.length +
+      preview.claims_left_out +
+      preview.claims_over_max
+    : 0;
   // One request per batch of options, each with one retry for a malformed answer.
   const requests = preview?.requests ?? 1;
+  // On a plan connection the calls stay within its accepted per-run cap; a retry is dropped
+  // before a request is (ADR-0085: finer splits can mean up to eight requests).
+  const perRun =
+    resourceKind === 'subscription'
+      ? (plan?.connection.settings.caps.responses.max_requests_per_run ?? null)
+      : null;
   const sized = {
     ...LIMITS,
     max_children: requests,
-    max_calls: 2 * requests,
+    max_calls:
+      perRun === null
+        ? 2 * requests
+        : Math.max(requests, Math.min(2 * requests, perRun)),
   };
   const limits =
     resourceKind === 'subscription'
@@ -220,13 +259,18 @@ export function AutoAssess({
     ...(preview ? { preview_hash: preview.preview_hash } : {}),
   };
   const blockers = [
-    ...(c?.preview.error ? [c.preview.error] : []),
+    ...(previewRead?.error ? [previewRead.error] : []),
     ...(resourceKind === 'subscription'
       ? [
           ...(plan?.blockers ?? [
             'Add and verify a plan connection under Models and connections.',
           ]),
           ...(plan && !model ? ['No verified model on this connection.'] : []),
+          ...(perRun !== null && preview && requests > perRun
+            ? [
+                `This assessment takes ${requests} requests and ${plan?.connection.label ?? 'the connection'} allows ${perRun} per run. Raise its requests per run under Change caps or allowed work.`,
+              ]
+            : []),
           ...(plan &&
           !plan.connection.settings.allowed_data_classes.includes(dataClass)
             ? ['This connection does not permit the selected sharing class.']
@@ -253,6 +297,7 @@ export function AutoAssess({
   const ready =
     !busy &&
     !!preview &&
+    !pv.loading &&
     owner &&
     !running &&
     blockers.length === 0 &&
@@ -315,6 +360,7 @@ export function AutoAssess({
       );
       setOpenId(started.workflow.id);
       ctx.refresh();
+      pv.refresh();
     } catch (err) {
       const begun = runId
         ? await api(z.array(WorkflowSchema), `${base}/workflows`)
@@ -368,12 +414,10 @@ export function AutoAssess({
               Will send {preview.packet.options.length} option
               {preview.packet.options.length === 1 ? '' : 's'} and{' '}
               {preview.packet.claims.length} linked claim
-              {preview.packet.claims.length === 1 ? '' : 's'} (
-              {preview.chars.toLocaleString()} of{' '}
-              {preview.limit.toLocaleString()} characters)
+              {preview.packet.claims.length === 1 ? '' : 's'}
               {preview.requests > 1
-                ? ` in ${preview.requests} requests of a few options each.`
-                : '.'}{' '}
+                ? ` in ${preview.requests} requests of a few options each, every request with the same claims; the largest is ${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters.`
+                : ` in one request (${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters).`}{' '}
               {preview.packet.notes.slice(0, -1).join(' ')}{' '}
               <button
                 type="button"
@@ -386,7 +430,38 @@ export function AutoAssess({
               </button>
             </p>
           )}
-          {showSent && preview && <Packet packet={preview.packet} />}
+          {showSent && preview && (
+            <>
+              <p className="small">
+                Request sizes:{' '}
+                {preview.request_chars
+                  .map((n) => n.toLocaleString())
+                  .join(', ')}{' '}
+                of {preview.limit.toLocaleString()} characters each.
+              </p>
+              <Packet packet={preview.packet} />
+            </>
+          )}
+          {capHelp && (
+            <p className="small">
+              {preview && preview.claims_left_out > 0
+                ? `${preview.claims_left_out} linked claim${preview.claims_left_out === 1 ? ' is' : 's are'} left out to fit ${plan.connection.label}’s input cap of ${preview.limit.toLocaleString()} characters per request. `
+                : ''}
+              {preview && preview.cap_for_all
+                ? `Reading all of them needs an input cap of about ${preview.cap_for_all.toLocaleString()} characters per request (about ${Math.round(preview.cap_for_all / 4).toLocaleString()} tokens). `
+                : ''}
+              To send a larger packet, raise the input cap under “Change caps or
+              allowed work” on {plan.connection.label} (the provider must accept
+              requests that large too).{' '}
+              <button
+                type="button"
+                className="text"
+                onClick={() => open('models')}
+              >
+                Open Models and connections
+              </button>
+            </p>
+          )}
           {owner && (
             <details>
               <summary>
@@ -478,7 +553,7 @@ export function AutoAssess({
               </select>
               <p className="small">
                 {resourceKind === 'subscription'
-                  ? `${requests === 1 ? 'One request' : `${requests} requests (a few options each, so every answer fits the connection’s answer cap)`} on your plan, plus one retry each if an answer is malformed, within the connection’s accepted caps. No API spending.`
+                  ? `${requests === 1 ? 'One request' : `${requests} requests (a few options each, so every answer fits the connection’s answer and input caps)`} on your plan, plus ${sized.max_calls - requests === requests ? 'one retry each' : `${sized.max_calls - requests} ${sized.max_calls - requests === 1 ? 'retry' : 'retries'} in all`} if an answer is malformed, within the connection’s accepted caps. No API spending.`
                   : `Metered under ${envelope?.name ?? 'no budget'}; at most ${2 * requests} calls.`}{' '}
                 Starting registers a new run with a 24-hour permission for this
                 request only.
@@ -507,7 +582,15 @@ export function AutoAssess({
                     ? 'Assess again'
                     : 'Assess automatically'}
             </button>
-          ) : (
+          ) : null}
+          {owner && preview && linked > 0 ? (
+            <span className="small">
+              {' '}
+              Rates on {preview.packet.claims.length} of {linked} linked claim
+              {linked === 1 ? '' : 's'}.
+            </span>
+          ) : null}
+          {owner ? null : (
             <p className="small">Only the workspace owner can start one.</p>
           )}
           {error && (

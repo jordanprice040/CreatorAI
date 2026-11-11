@@ -1825,7 +1825,16 @@ export function createApi(
       if (action === 'explanation')
         return send(200, await store.responseExplanation(ctx, ws, item), false);
       if (action === 'assessment-preview')
-        return send(200, await store.previewAssessment(ctx, ws, item), false);
+        return send(
+          200,
+          await store.previewAssessment(
+            ctx,
+            ws,
+            item,
+            url.searchParams.get('connection'),
+          ),
+          false,
+        );
       if (action === 'report') {
         const n = url.searchParams.get('shortlist');
         return send(
