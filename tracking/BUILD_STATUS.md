@@ -8,6 +8,10 @@ Review fixes (PR #172 review: M-1, L-1, L-2 and nits N-1 to N-5, all fixed): ref
 
 Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 database in the cloud container (958 tests: 924 pass, 29 skipped, and the 5 PowerShell-wrapper tests that always fail without `pwsh`; main before this change gave 920 pass with the same 5), including the new concurrency test (two Runs in one process and one from a second store instance; every case sent once). Browser walk on the reviewer ports (5183/4330/4340, throwaway database): a new ChatGPT connection lists all eight tasks; Deselect all plus Summarization showed the "No longer allows …" summary; after accepting, Allow all tasks showed the summary and "accepted again", and saved with the caps still accepted. Not checked: a live qualification (needs a verified model and Jordan's OK); the Claude Code proposal was checked by test, not on screen.
 
+## November 11 update — P25 assessment requests that fit (ADR-0085)
+
+Assessments no longer stop at a fixed 19,000-character packet. Requests are sized to the chosen connection's per-request input cap (counted with the role text, as admission counts it), split down to one option per request when needed, and every request reads the same claims; the preview shows each request's size and how many claims were left out, and offers raising the connection's input cap when evidence is left out or an option alone does not fit. No migration. Checked in the cloud container: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (962 tests after the review fixes: 928 pass, 29 skipped, 5 fail: the known PowerShell-wrapper tests, no pwsh in the container). Not checked: the Decide screen in a browser, and a live assessment of Jordan's real problem (needs his typed OK; it spends plan requests).
+
 ## November 11 update — P26 stale state and small polish
 
 Web only, no migration, no ADR ([fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) P26 with the review corrections M-2, M-3 and N-1). Item 9: the Chat answers card reads its connections again after any write in the window (verifying a model is one; its stamp never changed on verification), and an empty Connection or Model field takes the first connection and verified model once one shows, so a save no longer sends no model until Reset fields (`chat-answers-form.ts`). Item 13: every non-quiet write also announces itself when it is sent (`STUDIO_WRITE_STARTED`), and the usage button starts its fast reads on that, so a qualification run's requests show while the run is open, not only after it ends. Items 5 and 14: the Activity and sidebar counts and the Path and Getting started step circles trim their line box to the digits (`text-box: trim-both cap alphabetic`, inside `@supports`) and pad to the same size, so the number sits in the middle. Item 19 moved to P23 (review N-1), so `models.tsx` is untouched. "Refresh connection status" still does not re-read the card when nothing on the connection list changed; verification itself now does, and P23 owns `models.tsx` if a Refresh-driven read is still wanted.
@@ -40,30 +44,30 @@ the record of each package and are appended to, not rewritten.
 
 [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md) packages:
 
-| Package | State on main |
-| --- | --- |
-| P00 candidate and repair closure | Done (PR #135; F1/F2 recheck passed) |
-| P01 activity links, P02 sorting and paging | Merged (PR #138) |
-| P03 chat context | Merged (PR #136, fixes #139; ADR-0070, migration 43) |
-| P04 guided Discover | Merged (PR #140; ADR-0071) |
-| P05 workspace files | Merged (PR #141; ADR-0072, migration 45) |
-| P06 named notes | Merged (PR #142; ADR-0073, migration 46) |
-| P07 previews until stopped | Merged (PR #137; ADR-0069, migration 44) |
-| P08 automatic assessments | Merged (PR #144; ADR-0074, migration 47) |
-| P09 why this response, proposals | Merged (PR #148; ADR-0077, migration 49) |
-| P10 scoped routine approvals | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12) |
-| P11 committee staging | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9 |
-| P12 online discovery | Not started; needs Jordan's search provider choice |
-| P13 unattended workflow | Not started; needs P10 and P12 |
-| P14 capability inventory and benchmarks | Merged (PRs #135, #145, #146; ADR-0076) |
-| P15 larger software | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started |
-| P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
-| P17 integrated acceptance | Not started |
-| P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
-| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52); Decide and Proposals folds follow-up on branch `claude/project-thread-qc6o5z` |
-| P20 whole process from Chat | Merged (PR #165; ADR-0083 amending ADR-0057/0070, migration 53) |
-| P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
-| P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
+| Package                                    | State on main                                                                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| P00 candidate and repair closure           | Done (PR #135; F1/F2 recheck passed)                                                                                    |
+| P01 activity links, P02 sorting and paging | Merged (PR #138)                                                                                                        |
+| P03 chat context                           | Merged (PR #136, fixes #139; ADR-0070, migration 43)                                                                    |
+| P04 guided Discover                        | Merged (PR #140; ADR-0071)                                                                                              |
+| P05 workspace files                        | Merged (PR #141; ADR-0072, migration 45)                                                                                |
+| P06 named notes                            | Merged (PR #142; ADR-0073, migration 46)                                                                                |
+| P07 previews until stopped                 | Merged (PR #137; ADR-0069, migration 44)                                                                                |
+| P08 automatic assessments                  | Merged (PR #144; ADR-0074, migration 47)                                                                                |
+| P09 why this response, proposals           | Merged (PR #148; ADR-0077, migration 49)                                                                                |
+| P10 scoped routine approvals               | Merged (PR #153; ADR-0079, migration 50); no evidence-admission stage yet (P12)                                         |
+| P11 committee staging                      | Design and tester accounts merged (PRs #135, #143; ADR-0075, migration 48); deploy waits on D1–D9                       |
+| P12 online discovery                       | Not started; needs Jordan's search provider choice                                                                      |
+| P13 unattended workflow                    | Not started; needs P10 and P12                                                                                          |
+| P14 capability inventory and benchmarks    | Merged (PRs #135, #145, #146; ADR-0076)                                                                                 |
+| P15 larger software                        | Slice 1 `static-web/1` merged and recorded qualified on one route (PRs #149, #150; ADR-0078); later slices not started  |
+| P16 external runbook export                | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163)                                            |
+| P17 integrated acceptance                  | Not started                                                                                                             |
+| P18 collapsible options, shorter pages     | Merged (PR #162; no migration or ADR)                                                                                   |
+| P19 Standard/Advanced across the app       | Merged (PR #164; ADR-0082, migration 52); Decide and Proposals folds follow-up on branch `claude/project-thread-qc6o5z` |
+| P20 whole process from Chat                | Merged (PR #165; ADR-0083 amending ADR-0057/0070, migration 53)                                                         |
+| P21 quick model switch                     | Merged (PR #161; ADR-0081, migration 51)                                                                                |
+| P22 live API and GitHub checks             | Merged (PR #160); live checks passed November 10–11 (R24, R25)                                                          |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -1013,7 +1017,7 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
   reviewed.
 - Checks (cloud container, PostgreSQL 16, no CI: Actions has no minutes): `pnpm typecheck` and `pnpm format:check`
   pass; `pnpm test:db` 903 tests, 869 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests); `pnpm
-  test:dev-safety` 22 tests, 19 pass, 3 skip. New `tests/src/web-folds.test.ts` (4 tests); `web-session.test.ts`
+test:dev-safety` 22 tests, 19 pass, 3 skip. New `tests/src/web-folds.test.ts` (4 tests); `web-session.test.ts`
   stubs the new `./fold.js` import of `oversight.tsx`. The Windows CI job did not run.
 
 ### P18 review fixes (November 10, same PR #162; review `reviews/P18_PR162_REVIEW_2026-11-10.md`, no High or Medium, 7 Lows)
@@ -1253,6 +1257,7 @@ locally (e.g. an unusable private key) says to check the App credential, not "tr
 GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
 Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
 points at the App id or private key; a 5xx or a 201 without a token names the token step.
+
 - After merging main with P18 (#162): `style.css` and the tracking logs conflicted and were joined; typecheck and
   format pass; `pnpm test:db` 940 tests, 906 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The walk now
   opens P18's one-line folds on Decide before using the option controls, as a person clicking each summary would,
