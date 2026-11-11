@@ -506,9 +506,10 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
                 `${done.join(' ')} Qualifying ${model} for ${words(t)}…`,
               );
               const rest = a.qualify.slice(i + 1);
-              const notStarted = () =>
-                rest.length &&
-                done.push(`Not started: ${rest.map(words).join(', ')}.`);
+              const notStarted = () => {
+                if (rest.length)
+                  done.push(`Not started: ${rest.map(words).join(', ')}.`);
+              };
               let r: { text: string; qualified: boolean };
               try {
                 r = await qualify(model, t, a.role, save);
