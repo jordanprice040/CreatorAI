@@ -4,6 +4,7 @@ import { AssessmentPacketSchema, type ClaimEvidence } from '@creator/contracts';
 import {
   ASSESSMENTS_PER_REQUEST,
   assessmentPreviewHash,
+  assessmentsPerRequest,
   assessmentRequestChars,
   assessmentRoleInput,
   buildAssessmentPacket,
@@ -357,4 +358,29 @@ test('ADR-0091: claims linked to an option are read, tagged with it, and come fi
     both.option_coverage.map((c) => c.read),
     [0, 1],
   );
+});
+
+test('ADR-0091: requests also fit the answer cap: fewer assessments per request under a smaller output cap', () => {
+  assert.equal(assessmentsPerRequest(), ASSESSMENTS_PER_REQUEST);
+  assert.equal(assessmentsPerRequest(16_000), 3);
+  assert.equal(assessmentsPerRequest(32_000), 4);
+  assert.equal(assessmentsPerRequest(2_000), 1);
+  const per = (outputCap?: number) => {
+    const plan = buildAssessmentPacket({
+      ...large(200_000, 'mid'),
+      ...(outputCap ? { output_cap: outputCap } : {}),
+    });
+    assert.ok(plan.ok);
+    return plan.batches.map((refs) =>
+      packetForOptions(plan.packet, refs).options.reduce(
+        (n, o) => n + o.rubrics.length,
+        0,
+      ),
+    );
+  };
+  assert.ok(per().every((n) => n <= 4));
+  assert.ok(per(16_000).every((n) => n <= 3));
+  assert.ok(per(16_000).length > per().length);
+  // One option still goes alone even when its two rubrics pass the per-request number.
+  assert.ok(per(2_000).every((n) => n <= 2));
 });

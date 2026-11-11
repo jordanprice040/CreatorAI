@@ -158,6 +158,8 @@ type AssessmentInput = {
   now: Date;
   /** The route's per-request input cap (`caps.responses.max_input_chars` on a plan connection). */
   input_cap?: number;
+  /** ADR-0091: the route's answer cap (`caps.responses.max_output_chars` on a plan connection). */
+  output_cap?: number;
   /** A plan connection's cap can be raised by its owner; other routes have a fixed size. */
   route?: 'plan' | 'other';
 };
@@ -355,7 +357,7 @@ function planAt(
     return out;
   };
   let best: { batches: string[][]; claims: AssessmentClaim[] } | null = null;
-  for (let per = ASSESSMENTS_PER_REQUEST; per >= 1; per--) {
+  for (let per = assessmentsPerRequest(input.output_cap); per >= 1; per--) {
     const batches = split(per);
     const largest = Math.max(...batches.map(base));
     const claims = pick(cap - NOTE_RESERVE - largest);
@@ -487,6 +489,24 @@ export const assessmentContext = (
  * cap; four stay near 7,000 to 11,000.
  */
 export const ASSESSMENTS_PER_REQUEST = 4;
+/**
+ * ADR-0091: answer characters allowed for each option-and-rubric assessment when the route has
+ * an answer cap. With option claims read, ratings cite more evidence: a live four-assessment
+ * answer reading eight claims passed a 16,000-character cap (one reading four was about
+ * 12,000). At 16,000 this allows three per request; at 20,000 or more, four.
+ */
+export const OUTPUT_CHARS_PER_ASSESSMENT = 5_000;
+/** Assessments per request under the route's answer cap (`max_output_chars`), if it has one. */
+export const assessmentsPerRequest = (outputCap?: number) =>
+  outputCap === undefined
+    ? ASSESSMENTS_PER_REQUEST
+    : Math.max(
+        1,
+        Math.min(
+          ASSESSMENTS_PER_REQUEST,
+          Math.floor(outputCap / OUTPUT_CHARS_PER_ASSESSMENT),
+        ),
+      );
 
 /**
  * The packet one batch's task reads: the same problem, claims and notes, only its options (with

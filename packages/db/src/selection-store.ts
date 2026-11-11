@@ -846,9 +846,17 @@ export class SelectionStore extends DiscoveryStore {
     const read = await this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
       let cap: number | undefined;
+      let outputCap: number | undefined;
       if (route) {
         const conn = await c.query<{
-          settings: { caps?: { responses?: { max_input_chars?: number } } };
+          settings: {
+            caps?: {
+              responses?: {
+                max_input_chars?: number;
+                max_output_chars?: number;
+              };
+            };
+          };
           settings_hash: string;
         }>(
           'select settings, settings_hash from plan_connections where workspace_id = $1 and id = $2',
@@ -864,6 +872,7 @@ export class SelectionStore extends DiscoveryStore {
             'Connection settings changed; refresh run setup.',
           );
         cap = conn.rows[0].settings.caps?.responses?.max_input_chars;
+        outputCap = conn.rows[0].settings.caps?.responses?.max_output_chars;
       }
       const p = await c.query(
         `select * from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
@@ -928,7 +937,7 @@ export class SelectionStore extends DiscoveryStore {
           [ws, problemId],
         )
       ).rows[0]?.body as Row | undefined;
-      return { problem, alts, claims, brief, cap };
+      return { problem, alts, claims, brief, cap, outputCap };
     });
     const claims: AssessmentInputClaim[] = [];
     for (const cl of read.claims)
@@ -966,6 +975,7 @@ export class SelectionStore extends DiscoveryStore {
       claims,
       now: new Date(),
       ...(read.cap ? { input_cap: read.cap } : {}),
+      ...(read.outputCap ? { output_cap: read.outputCap } : {}),
       route: route ? 'plan' : 'other',
     });
     // BODY_TOO_LARGE (HTTP 413) marks the size refusal: the request the studio would send is
