@@ -61,3 +61,83 @@ Issues and requests for review/fix:
    route.
 
 Jordan withdrew the half-written model-switch request; P21 needs no change.
+
+## Owner walk, second pass: P20 and P22 (Jordan, November 11, Testing workspace)
+
+Works as intended:
+- P20: the Getting started card and the Chat action cards work. Getting started and Projects › Path update together
+  as steps finish. Several cards can be used in one conversation. Jordan recorded evidence, set up a budget and
+  recorded a claim from Chat; the claim card showed "What will happen" before Send.
+- The qualification flow worked once the task was allowed: gpt-6-astra qualified for summarization and
+  specification writing in Testing (practice 2/2, held out 6/6).
+
+Not testable:
+- P22 API key "Test connection": the installed app offers no way to add an OpenAI API key. The route is turned on
+  only by the process environment (`CREATOR_LIVE_PROVIDER=openai` and `OPENAI_API_KEY`, see
+  `docs/LIVE_CONNECTION_CHECKS.md`). A Start-menu launch of the desktop app does not get those, so "Other routes"
+  shows the route as not configured and has no Test connection button. **Gap:** the installed app needs a way to
+  add, store (DPAPI, like the plan credentials) and remove an API key in Models and connections.
+
+### Bugs
+
+8. **"Not qualified" with no way forward in Testing.** The Chat discovery card says "gpt-6-astra is not qualified for
+   research synthesis, candidate generation, scoring". Discover › Explore for me says the same for research
+   synthesis. This persists after a new card, a new conversation and an app restart, and does not happen in
+   Jordan's Creator Studio. Likely cause, not verified against the database: qualifications and allowed tasks
+   belong to each workspace's connection. Testing's ChatGPT connection allows only Summarization and Specification
+   writing, so research synthesis, candidate generation and scoring cannot be qualified there; their benchmarks are
+   listed as "not allowed by this connection's settings". The messages are correct but give no way forward (see 12).
+9. **Chat answers "No verified model" after verification.** After the plan connection was added and its model
+   verified, Models and connections › Chat answers still listed "No verified model". "Refresh connection status"
+   did not fix it; only "Reset fields" did. The verified list should refresh by itself, and at least on Refresh.
+10. **Qualification state after switching workspaces.** After switching to Jordan's Creator Studio and back to
+    Testing, Run was enabled for a qualification that was already running. Pressing it showed "A qualification case
+    is still unresolved." That message stayed after the qualification resolved. Page state is kept per mounted page,
+    not reloaded per workspace.
+11. **Starting a qualification for an already-qualified task**, then pressing Finish, warns that it will record
+    every unanswered case as failed. Either don't offer Start for a task that is already qualified, or say that a
+    re-run replaces or adds to the existing result.
+12. **Assessment packet too large** (item 7, confirmed after scoring was qualified in Jordan's Creator Studio). The
+    limit is a fixed 19,000 characters for the whole packet (`MAX_ASSESSMENT_PACKET_CHARS`,
+    `packages/domain/src/assessment.ts:41`): all options plus up to 30 claims with their quotes. A real problem
+    exceeds it, and nothing the person can do in the UI resolves it. Jordan suggests a way to approve sending a
+    larger packet wherever "packet too large" appears. A safer fix is probably to split the packet into several
+    requests by option or claim, inside the connection's input cap (24,000 characters on Testing).
+13. **Usage indicator not live.** The ChatGPT request count in the top bar sometimes updates only when clicked, for
+    example during qualifications. It should refresh periodically or after each request.
+14. **Badge number alignment** (item 5) also affects the step numbers on Projects › Path. Check every numbered or
+    badge circle.
+15. **Fetched passage text.** In the claim card, the passages of one fetched page (Microsoft Learn, Xbox
+    Accessibility Guidelines) are mostly page furniture ("Copy Markdown Print", "Note", "Feedback", sign-in
+    notices) rather than the guideline text. This may be extraction on that page. It matches the search route
+    finding that fetching is the bottleneck.
+
+### Making blocked states fixable where they appear
+
+16. A refusal should offer its fix in place, with a link to Models and connections as a fallback:
+    - "Data class private_approved is not allowed on this connection": offer to allow approved private data.
+    - "The owner has not accepted the current caps and allowed work": offer to accept them right there, in Chat or
+      wherever it shows.
+    - "gpt-6-astra is not qualified for …" (Chat discovery card, Discover › Explore for me, Decide › Automatic
+      assessment): offer to allow the task and run the qualification right there.
+17. Qualify a model for a task: allow a task from this section without scrolling up to Change caps; offer
+    "qualify all" across tasks and across models; move the section up (items 1–3).
+18. Allowed work should default to all tasks on for a new connection, with the person able to turn some off, and the
+    task list should have Select all and Deselect all. *Note:* this changes a deliberate default (least privilege,
+    the owner opts in per task class), so it is an owner decision to record as an ADR, not a UI tweak.
+19. One approved model check: give an example in the Model box, such as `gpt-6-astra` or `claude-opus-5-5`.
+
+### Feature requests
+
+20. **Copy connections between workspaces.** Copy a workspace's model connections and their settings (caps, allowed
+    work, chat answers) to another workspace, then adjust them there. Credentials and qualifications would need
+    care: whether a qualification can carry over is a policy question.
+21. **Model help per step in Chat.** On an action card, offer to let the connected model fill in or do the step,
+    and a "Next step" button that adds the next card in the path.
+22. **Automation levels for a project.** Choose which steps are automated when a project starts ("automate
+    selection"), switch a running project to automated ("automate the rest"), and have the whole process run by a
+    model. Jordan notes that full-process automation seems not to exist yet and wants it. *Note:* this touches run
+    modes, permissions and stop conditions (context/HUMAN_OVERSIGHT.md), so it needs a design and owner decisions.
+23. **Explore for me in the Chat discovery card**, not only on Discover.
+24. **Simpler GitHub connection.** Today it needs a hand-made fine-grained token in the environment. Jordan asks for
+    a browser sign-in, like the plan connections (for example a GitHub App or OAuth device flow).
