@@ -536,8 +536,8 @@ export function Evidence({
                   what gets fetched.
                 </p>
               )}
-              <ol className="versions">
-                {source.passages.map((p) => (
+              {(() => {
+                const item = (p: Passage) => (
                   <li key={p.id}>
                     <small>
                       ¶{p.locator.paragraph} · {p.locator.start}–{p.locator.end}
@@ -555,8 +555,27 @@ export function Evidence({
                       </>
                     )}
                   </li>
-                ))}
-              </ol>
+                );
+                // Walkthrough item 15: menus, buttons and other page furniture fold away.
+                const furniture = source.passages.filter((p) => p.boilerplate);
+                return (
+                  <>
+                    <ol className="versions">
+                      {source.passages.filter((p) => !p.boilerplate).map(item)}
+                    </ol>
+                    {furniture.length > 0 && (
+                      <details>
+                        <summary>
+                          Page furniture: {furniture.length} passage
+                          {furniture.length === 1 ? '' : 's'} (menus, buttons,
+                          headers and footers)
+                        </summary>
+                        <ol className="versions">{furniture.map(item)}</ol>
+                      </details>
+                    )}
+                  </>
+                );
+              })()}
               {cite && source.passages.some((p) => p.id === cite.id) && (
                 <CiteForm
                   key={cite.id}

@@ -63,6 +63,8 @@ export const ActionTypeSchema = z.enum([
   'github.write',
   'github.workflow_change',
   'github.merge',
+  // ADR-0086: adding a claim whose quotes the studio found word for word in fetched pages.
+  'claim.admit',
 ]);
 export type ActionType = z.infer<typeof ActionTypeSchema>;
 export const DataClassSchema = z.enum([
@@ -85,6 +87,8 @@ export const RoutineStageSchema = z.enum([
   'selection',
   'spec_freeze',
   'build',
+  // ADR-0086 (P12): the claim-admission stage P10 left open.
+  'evidence',
 ]);
 export type RoutineStage = z.infer<typeof RoutineStageSchema>;
 /** The action types each routine stage covers. Fixed in code; not a runtime setting. */
@@ -97,6 +101,7 @@ export const ROUTINE_STAGE_ACTIONS: Record<
   selection: ['candidate.select'],
   spec_freeze: ['spec.freeze'],
   build: ['product.commit_build'],
+  evidence: ['claim.admit'],
 };
 export const ROUTINE_STAGE_TEXT: Record<
   RoutineStage,
@@ -124,6 +129,11 @@ export const ROUTINE_STAGE_TEXT: Record<
     covers:
       'committing to an isolated build of a frozen specification, with its review, repair rounds and private package, when the humility review passes',
   },
+  evidence: {
+    label: 'Evidence',
+    covers:
+      'adding claims found by web discovery whose quotes the studio checked word for word against the fetched pages (contrary quotes are added with them)',
+  },
 };
 export const RoutineStopSchema = z.enum(['person_rejects', 'unknown_outcome']);
 export type RoutineStop = z.infer<typeof RoutineStopSchema>;
@@ -139,7 +149,7 @@ export const RoutinePolicyInputSchema = z.strictObject({
   stages: z
     .array(RoutineStageSchema)
     .min(1)
-    .max(5)
+    .max(6)
     .refine(unique, 'List each stage once.'),
   data_classes: z
     .array(DataClassSchema)

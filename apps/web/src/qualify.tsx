@@ -9,6 +9,7 @@ import specification from '../../../config/connections/benchmarks/specification-
 import summarization from '../../../config/connections/benchmarks/summarization-synthetic-v1.json';
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
+import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v1.json';
 import { api, words } from './oversight.js';
 
 /**
@@ -25,6 +26,7 @@ export const BENCHMARKS = [
   builder,
   reviewer,
   assessment,
+  webDiscovery,
 ].map((m) => ({
   manifest: m,
   name: m.name,

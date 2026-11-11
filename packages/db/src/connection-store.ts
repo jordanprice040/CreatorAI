@@ -28,6 +28,7 @@ import {
   type BuildApproval,
   type BuildApprovalResult,
   type PlanAdmissionRequest,
+  WEB_DISCOVERY_TASK_CLASS,
   type PlanConnection,
   type PlanConnectionDetail,
   type PlanModelAccess,
@@ -95,8 +96,15 @@ import {
   type BuildRole,
   type PlanChatAllowance,
   type PlanUsageCounts,
+  READER_PROMPT,
+  SCOUT_PROMPT,
+  WEB_DISCOVERY_ROLE_VERSION,
 } from '@creator/domain';
-import { PortfolioStore } from './portfolio-store.js';
+import { WebDiscoveryStore } from './web-discovery-store.js';
+import {
+  webDiscoveryRequestGate,
+  type WebDiscoveryBinding,
+} from './web-discovery-gates.js';
 import { usageSummary } from './usage-summary.js';
 import {
   CHAT_ANSWER_STALE_POINT,
@@ -268,8 +276,11 @@ const toQualification = (r: Row): PlanQualification => ({
   decided_at: r.decided_at ? iso(r.decided_at) : null,
   prompt_current:
     currentForBuildRole(r) &&
-    (currentForDiscoveryRole(r) || currentForAssessmentRole(r)),
+    (currentForDiscoveryRole(r) ||
+      currentForAssessmentRole(r) ||
+      currentForWebDiscoveryRole(r)),
   admits_assessment: currentForAssessmentRole(r),
+  admits_web_discovery: currentForWebDiscoveryRole(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),
@@ -345,6 +356,43 @@ function currentForAssessmentRole(r: Row): boolean {
         .join('\n\n') === assessmentRoleInput(check.packet)[0]!.text
     );
   });
+}
+
+/**
+ * ADR-0086: a research-synthesis qualification admits web discovery only when every case is a
+ * web scout or reader check on the current role version and its system message is that
+ * stage's current prompt, and both stages are covered. It never admits Explore or the locator,
+ * and their qualifications never admit web discovery.
+ */
+export function currentForWebDiscoveryRole(r: Row): boolean {
+  if (String(r.task_class) !== WEB_DISCOVERY_TASK_CLASS) return false;
+  const manifest = r.manifest as {
+    cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
+  };
+  if (!manifest.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
+    return false;
+  const stages = new Set<string>();
+  for (const item of manifest.cases) {
+    const parsed = BenchmarkCheckSchema.safeParse(item.check);
+    if (
+      !parsed.success ||
+      (parsed.data.kind !== 'web_scout_contract' &&
+        parsed.data.kind !== 'web_reader_contract') ||
+      parsed.data.role_version !== WEB_DISCOVERY_ROLE_VERSION
+    )
+      return false;
+    const system = (item.input ?? [])
+      .filter((m) => m.role === 'system')
+      .map((m) => m.text)
+      .join('\n\n');
+    if (
+      system !==
+      (parsed.data.kind === 'web_scout_contract' ? SCOUT_PROMPT : READER_PROMPT)
+    )
+      return false;
+    stages.add(parsed.data.kind);
+  }
+  return stages.size === 2;
 }
 
 /** Same discovery prompt binding used for both admission and historical-result labels. */
@@ -471,7 +519,7 @@ async function modelChoice(
   };
 }
 
-export class ConnectionStore extends PortfolioStore {
+export class ConnectionStore extends WebDiscoveryStore {
   /**
    * PR #126 review L-1: chat answers this studio process has begun and not yet finished. A reply
    * can come back only to the process that sent the request, so these are the answers that are
@@ -2611,6 +2659,20 @@ export class ConnectionStore extends PortfolioStore {
    * Admits one upstream plan request or refuses it with every reason. On success the request
    * row is in flight and counts against every cap until it settles.
    */
+  /** ADR-0086: research-synthesis qualifications bound to the current web discovery prompts. */
+  async #webDiscoveryQualifications(
+    c: PoolClient,
+    id: string,
+  ): Promise<PlanQualification[]> {
+    const rows = await c.query(
+      'select * from plan_qualifications where connection_id=$1',
+      [id],
+    );
+    return rows.rows
+      .filter((r) => currentForWebDiscoveryRole(r as Row))
+      .map((r) => toQualification(r as Row));
+  }
+
   async #discoveryQualifications(
     c: PoolClient,
     id: string,
@@ -3002,6 +3064,8 @@ export class ConnectionStore extends PortfolioStore {
     body: unknown,
     qualificationCase?: { case_id: string; split: 'development' | 'held_out' },
     workflow?: { task_id: string; lease_token: string; input_hash: string },
+    /** ADR-0086: a web discovery's search or reading request, covered by its start. */
+    webDiscovery?: WebDiscoveryBinding,
   ): Promise<{
     request_id: string;
     connection: PlanConnection;
@@ -3021,6 +3085,7 @@ export class ConnectionStore extends PortfolioStore {
       req,
       qualificationCase,
       workflow,
+      webDiscovery,
     );
     // ADR-0064: a newly admitted request is live in this process until it is settled.
     if (out.request_id && !out.replay && !out.admission)
@@ -3036,6 +3101,7 @@ export class ConnectionStore extends PortfolioStore {
       { case_id: string; split: 'development' | 'held_out' } | undefined,
     workflow:
       { task_id: string; lease_token: string; input_hash: string } | undefined,
+    webDiscovery?: WebDiscoveryBinding,
   ): Promise<{
     request_id: string;
     connection: PlanConnection;
@@ -3136,6 +3202,18 @@ export class ConnectionStore extends PortfolioStore {
             'Plan build roles are not used for frozen study assignments.',
           );
       }
+      // ADR-0086: the discovery's start is the one approval for its two requests; the
+      // binding is checked under the discovery's lock, before the connection's.
+      if (webDiscovery)
+        await webDiscoveryRequestGate(
+          c,
+          uuid(ws),
+          ctx.actorId,
+          req,
+          webDiscovery,
+          (runId) => this.lockRun(c, ws, runId),
+          () => this.requireOwner(c, uuid(ws), ctx.actorId),
+        );
       const conn = await this.#lock(c, ws, req.connection_id);
       if (
         wf &&
@@ -3177,7 +3255,9 @@ export class ConnectionStore extends PortfolioStore {
             conn.id,
             wf.role as Workflow['role'],
           )
-        : await this.#qualifications(c, conn.id, true);
+        : webDiscovery
+          ? await this.#webDiscoveryQualifications(c, conn.id)
+          : await this.#qualifications(c, conn.id, true);
       // ADR-0057: a chat answer is the owner's, under the workspace's chat setting.
       let chat: PlanChatAllowance | null = null;
       if (req.purpose === 'chat') {
@@ -3303,6 +3383,12 @@ export class ConnectionStore extends PortfolioStore {
         await c.query(
           'update plan_requests set workflow_task_id=$2, input_hash=$3 where id=$1',
           [rid, workflow.task_id, workflow.input_hash],
+        );
+      if (webDiscovery)
+        await c.query(
+          `update web_discoveries set ${webDiscovery.stage === 'search' ? 'search_request_id' : 'read_request_id'} = $2,
+             version = version + 1, updated_at = clock_timestamp() where id = $1`,
+          [uuid(webDiscovery.discovery_id), rid],
         );
       return { request_id: rid, connection: conn };
     });

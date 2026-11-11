@@ -10,6 +10,7 @@ export * from './discovery.js';
 export * from './discovery-fixture.js';
 export * from './exploration.js';
 export * from './exploration-fixture.js';
+export * from './web-discovery.js';
 export * from './discovery-scenarios.js';
 export * from './selection.js';
 export * from './selection-fixture.js';

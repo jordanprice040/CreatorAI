@@ -54,6 +54,27 @@ const BLOCK = new Set([
   'tr',
   'ul',
 ]);
+// Site chrome: text inside these is navigation, sign-in, sharing or forms, not page text
+// (walkthrough item 15, ADR-0086). It is still stored, flagged, and after the page text.
+const CHROME = new Set([
+  'nav',
+  'header',
+  'footer',
+  'aside',
+  'form',
+  'button',
+  'menu',
+  'dialog',
+]);
+// Short interface labels that sit inside article text on documentation and news sites.
+const UI_LABEL =
+  /^(copy( markdown)?|print|share|feedback|note|tip|important|warning|caution|edit|edit this page|sign in|sign up|log in|subscribe|menu|search|skip to (main )?content|table of contents|in this article|contents|was this (page|article) helpful\??|yes|no|accept( all)?( cookies)?|reject( all)?|cookie (settings|preferences)|read (more|next)|previous|next|back to top|related (articles|content|links)|additional resources|theme|summarize this article( for me)?|ask learn)(\s+(copy( markdown)?|print|share|feedback|edit))*$/i;
+/** True for paragraph text that is page furniture rather than content. */
+export function looksLikeFurniture(text: string): boolean {
+  return (
+    text.length <= 80 && UI_LABEL.test(text.replace(/[.:!·•|]+$/g, '').trim())
+  );
+}
 const PUBLISHED_META = new Set([
   'article:published_time',
   'og:published_time',
@@ -107,23 +128,25 @@ export function extractDocument(
   let published: string | null = null;
   let timeCandidate: string | null = null;
   let canonical: string | null = null;
-  const blocks: { text: string; main: boolean }[] = [];
+  const blocks: { text: string; main: boolean; chrome: boolean }[] = [];
   let hasMain = false;
   if (media === 'text/plain') {
     for (const part of raw.split(/\n\s*\n/)) {
       const text = squash(part);
-      if (text) blocks.push({ text, main: true });
+      if (text) blocks.push({ text, main: true, chrome: false });
     }
   } else {
     let skip = 0;
     let inTitle = false;
     let titleText = '';
     let mainDepth = 0;
+    let chromeDepth = 0;
     let buf = '';
     const flush = () => {
       const text = squash(buf);
       buf = '';
-      if (text) blocks.push({ text, main: mainDepth > 0 });
+      if (text)
+        blocks.push({ text, main: mainDepth > 0, chrome: chromeDepth > 0 });
     };
     const parser = new Parser(
       {
@@ -144,7 +167,8 @@ export function extractDocument(
             if (BLOCK.has(name)) flush();
             mainDepth += 1;
             hasMain = true;
-          } else if (BLOCK.has(name)) flush();
+          } else if (BLOCK.has(name) || CHROME.has(name)) flush();
+          if (CHROME.has(name)) chromeDepth += 1;
         },
         ontext(text) {
           if (skip > 0) return;
@@ -157,7 +181,8 @@ export function extractDocument(
             inTitle = false;
             title = squash(titleText) || null;
           }
-          if (BLOCK.has(name)) flush();
+          if (BLOCK.has(name) || CHROME.has(name)) flush();
+          if (CHROME.has(name)) chromeDepth = Math.max(0, chromeDepth - 1);
           if (name === 'article' || name === 'main')
             mainDepth = Math.max(0, mainDepth - 1);
         },
@@ -175,6 +200,9 @@ export function extractDocument(
       text: b.text,
       start: offset,
       end: offset + b.text.length,
+      // Outside the marked article, inside site chrome, or an interface label.
+      boilerplate:
+        (hasMain && !b.main) || b.chrome || looksLikeFurniture(b.text),
     });
     offset += b.text.length + 2;
   }

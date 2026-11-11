@@ -146,6 +146,8 @@ export class SourceBroker {
     ws: string,
     runId: string,
     raw: unknown,
+    /** ADR-0086: a page a web discovery chose; its start covers this fetch. */
+    opts: { webDiscoveryId?: string } = {},
   ): Promise<Retrieval> {
     const req = parse(SourceFetchRequestSchema, raw);
     const fixture = await this.store.isFixtureWorkspace(ctx, ws);
@@ -175,6 +177,7 @@ export class SourceBroker {
             : null,
       maxFetchesPerRun: policy?.max_fetches_per_run ?? 0,
       staleAfterMs: (policy?.timeout_ms ?? 60_000) * 2 + 60_000,
+      webDiscoveryId: opts.webDiscoveryId ?? null,
     });
     if (begun.kind === 'done') return begun.retrieval;
     if (!adapter || !policy || !verdict?.ok)

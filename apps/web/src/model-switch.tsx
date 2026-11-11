@@ -87,7 +87,12 @@ export function routePlans(
       qualified: taskClasses.filter((tc) =>
         assessment && tc === ASSESSMENT_TASK_CLASS
           ? assessQualified(d, m)
-          : isQualified(d.qualifications, m, tc),
+          : isQualified(
+              // ADR-0086: a web discovery qualification admits only web discovery.
+              d.qualifications.filter((q) => q.admits_web_discovery !== true),
+              m,
+              tc,
+            ),
       ),
     })),
   }));

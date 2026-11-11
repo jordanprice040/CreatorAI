@@ -291,6 +291,7 @@ export function Explore({
           model &&
           !plan.qualifications.some(
             (q) =>
+              q.admits_web_discovery !== true &&
               q.model_id === model &&
               q.task_class === EXPLORATION_TASK_CLASS &&
               q.state === 'qualified',

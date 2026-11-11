@@ -448,6 +448,8 @@ export const PlanQualificationSchema = z.strictObject({
   prompt_current: z.boolean().optional(),
   /** ADR-0074 review L-4: a scoring qualification that admits automatic assessments. */
   admits_assessment: z.boolean().optional(),
+  /** ADR-0086: a research-synthesis qualification bound to the web discovery prompts. */
+  admits_web_discovery: z.boolean().optional(),
 });
 export type PlanQualification = z.infer<typeof PlanQualificationSchema>;
 /**
