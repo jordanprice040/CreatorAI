@@ -16,6 +16,7 @@ import { STALE_NOTE } from './owner-actions.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
 import { QualifyModel } from './qualify.js';
+import { forRole, roleOf } from './qualification-role.js';
 import { useModelChoice } from './model-switch.js';
 import {
   capChanges,
@@ -1082,8 +1083,10 @@ export function Models({
           {detail.qualifications.length ? (
             <ul>
               {detail.qualifications.map((q) => {
+                // PR #175 review M-1: a row counts against its own role only, as the server
+                // admits it (a failed assessment scoring run never withdraws a discovery pass).
                 const latest = latestDecided(
-                  detail.qualifications,
+                  forRole(detail.qualifications, roleOf(q)),
                   q.model_id,
                   q.task_class,
                 );
@@ -1093,7 +1096,7 @@ export function Models({
                     {q.state === 'qualified' && latest?.state === 'failed' && (
                       <p className="small">
                         No longer counts: a newer qualification of this model
-                        for the same job failed.
+                        for the same job and role failed.
                       </p>
                     )}
                   </li>

@@ -53,3 +53,59 @@ web-discovery-v2, a different manifest hash `d3a87d16…`), so it did not cover 
 - `admits_discovery` will only show once the dev studio runs P34 code. The P34 branch does not
   have the P12 migrations this schema-54 database already has (it branched from main before them),
   so P34 needs P12 merged in before it runs on this database.
+
+## Settings change
+
+On Jordan's "Allow" (2026-11-11 15:40:41Z), the dev studio's ChatGPT plan connection
+`4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4` (workspace `88df6c10…`, API 127.0.0.1:4310) was changed
+the same way the app's "Allow all tasks" button changes it (ADR-0084 `allowTaskSequence`), through
+the owner CLI (`plan-settings`, then `plan-accept-caps`). The installed app was not touched.
+
+- Settings saved from version 34 to 35 (15:43:21Z). Only `allowed_task_classes` changed. Data
+  classes (`synthetic, public, private_approved`) and all caps stayed the same.
+- Allowed task classes are now `research_synthesis, candidate_generation, scoring,
+  specification, summarization, patch_build, independent_review, code_build` (all eight a
+  ChatGPT plan connection can take).
+- The caps had been accepted before (14:18:53Z), so they were accepted again: version 36,
+  `caps_accepted_at` 15:43:37Z, settings_hash
+  `c3452298ca07c1ea18d2d46dd75c467e7f7333898b99faabb62ca4209dfb24d5`. No blockers are listed.
+- No qualification was run. There were 37 requests in the last 24 h (cap 40, 3 free). Going by
+  the `plan_requests` start times, and only if no new requests start, at least 12 requests are
+  free just after **2026-11-12 14:21:01.336Z**, when the ninth-oldest request (started
+  2026-11-11 14:21:01.336Z) leaves the window.
+
+## Cap change
+
+On Jordan's typed approval to raise the request window by 30 (relayed 2026-11-11 15:55Z), the dev
+studio's ChatGPT plan connection `4e4a7bec-c1ca-4f31-8f87-b11ed5fc81d4` was changed through the
+owner CLI (`plan-settings`, then `plan-accept-caps`) from `C:\dev\creator_agent_p12`. The installed
+app was not touched.
+
+- Field: `settings.caps.shared.max_model_requests_per_day` (rolling 24 hours, both paths together;
+  `PlanCapsSchema` in `packages/contracts/src/connections.ts`, minimum 1, no maximum per ADR-0062).
+- Changed 40 → 70. The saved settings equal the previous settings with only that field changed
+  (checked by comparing the full settings object). The server accepted 70 without a refusal.
+- Settings saved from version 36 to 37 (`caps_accepted_at` cleared), settings_hash
+  `18fbb29750084996256c0fa34c3b9d0cdd0cf519651f7267df96f627d468fb11`.
+- Caps accepted again at version 38, `caps_accepted_at` 2026-11-11T15:56:19.635Z. No blockers.
+- After the change: 37 requests in the last 24 h (33 free), 0 in flight, 0 unresolved.
+
+## Candidate generation and scoring
+
+`pnpm cli plan-qualify <ws> <conn> <version> gpt-6-astra <manifest> 4 1/1`, then `plan-qualify-run`,
+one at a time. One run each, no retries, no continuation needed. Held-out outputs were not opened.
+
+| Task class | Manifest | Qualification | State | Practice | Held out | Plan requests |
+|---|---|---|---|---|---|---|
+| candidate_generation | discovery-semantics-v2/candidate_generation.json (hash `b3917017…8e74`) | `cab57f95-9e55-4dc8-a595-2698aeaa9815` | qualified | 2/2 | 4/4 | 6 |
+| scoring | discovery-semantics-v2/scoring.json (hash `d4031d22…5576`) | `7118b6d9-70ab-4202-8001-52f301f0946c` | qualified | 2/2 | 4/4 | 6 |
+
+- Candidate generation: started 15:56:31Z (connection version 38 → 39), decided 15:59:54Z.
+- Scoring: started 16:00:07Z (version 39 → 40), decided 16:01:58Z.
+- Both reasons: "4/4 held-out cases accepted; 4 of 4 were needed (absolute, not
+  baseline-relative)." Both `prompt_current: true`.
+
+Plan usage: 37 requests in the last 24 h before, 43 after candidate generation, 49 after scoring
+(cap 70); 0 in flight and 0 unresolved throughout. Used 12 of the 12 allowed.
+
+`admits_discovery` is still not shown: the dev studio runs p12 code, not P34 (see Remaining above).

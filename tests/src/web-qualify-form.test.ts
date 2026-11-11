@@ -7,6 +7,7 @@ import ts from 'typescript';
 import {
   BenchmarkManifestSchema,
   PLAN_RESPONSES_TASK_CLASSES,
+  latestDecided,
   type PlanQualification,
 } from '@creator/contracts';
 import { BUILD_ROLE_PROMPTS, BUILD_ROLE_TASK_CLASSES } from '@creator/domain';
@@ -83,8 +84,23 @@ test('every benchmark the app offers would pass the server checks it can know ab
   assert.deepEqual(inApp, [...new Set([...offered, ...discovery])].sort());
 });
 
+// qualification-role.ts imports types only, so it runs as transpiled.
+async function loadRole() {
+  const code = ts.transpileModule(
+    await readFile('apps/web/src/qualification-role.ts', 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS } },
+  ).outputText;
+  const exports = {} as {
+    forRole: <T>(qs: readonly T[], admits: string | null) => T[];
+    manifestRole: (m: { cases: { check?: unknown }[] }) => string | null;
+  };
+  new Function('require', 'exports', code)(() => ({}), exports);
+  return exports;
+}
+
 // qualify.tsx with its sibling import stubbed; the benchmark files and React load for real.
 async function loadQualify() {
+  const roleModule = await loadRole();
   const source = await readFile('apps/web/src/qualify.tsx', 'utf8');
   const code = ts.transpileModule(source, {
     compilerOptions: {
@@ -112,14 +128,19 @@ async function loadQualify() {
   };
   new Function('require', 'exports', code)(
     (name: string) =>
-      name === './oversight.js'
-        ? { words: (s: string) => s.replaceAll('_', ' '), api: async () => {} }
-        : name === './allow-tasks.js'
+      name === './qualification-role.js'
+        ? roleModule
+        : name === './oversight.js'
           ? {
-              AllowTasks: ({ label }: { label: string }) =>
-                createElement('button', null, label),
+              words: (s: string) => s.replaceAll('_', ' '),
+              api: async () => {},
             }
-          : require(name),
+          : name === './allow-tasks.js'
+            ? {
+                AllowTasks: ({ label }: { label: string }) =>
+                  createElement('button', null, label),
+              }
+            : require(name),
     exports,
   );
   return exports;
@@ -308,10 +329,15 @@ test('ADR-0089: the discovery benchmarks are listed with their own allow, start 
       qualification({
         task_class: 'research_synthesis',
         manifest_hash: discovery[0]!.manifest_hash,
+        // The server derives this from the stored manifest.
+        admits_discovery: true,
       }),
     ],
   );
-  assert.match(started, /research synthesis on gpt-6-astra is started/);
+  assert.match(
+    started,
+    /research synthesis for discovery on gpt-6-astra is started/,
+  );
   assert.match(started, /Run \(up to 6 plan requests/);
   assert.match(started, /research synthesis for discovery[^<]*· started/);
 
@@ -348,4 +374,166 @@ test('ADR-0089: the discovery benchmarks are listed with their own allow, start 
     benchmarkState([skeptic], 'gpt-6-astra', 'scoring', all, 'assessment').kind,
     'new',
   );
+});
+
+test("PR #175 review L-1 and M-2: another role running is named, and no role borrows another role's pass", async () => {
+  const { benchmarkState, QualifyModel } = await loadQualify();
+  const { forRole, manifestRole } = await loadRole();
+  const all = ['scoring', 'research_synthesis'];
+  const assessRunning = qualification({
+    task_class: 'scoring',
+    admits_assessment: true,
+    admits_discovery: false,
+  });
+  const discoveryRunning = qualification({
+    task_class: 'scoring',
+    admits_assessment: false,
+    admits_discovery: true,
+  });
+  assert.equal(
+    benchmarkState([assessRunning], 'gpt-6-astra', 'scoring', all, 'discovery')
+      .kind,
+    'other_running',
+  );
+  assert.equal(
+    benchmarkState([assessRunning], 'gpt-6-astra', 'scoring', all, 'assessment')
+      .kind,
+    'started',
+  );
+  assert.equal(
+    benchmarkState(
+      [discoveryRunning],
+      'gpt-6-astra',
+      'scoring',
+      all,
+      'assessment',
+    ).kind,
+    'other_running',
+  );
+  assert.equal(
+    benchmarkState(
+      [discoveryRunning],
+      'gpt-6-astra',
+      'scoring',
+      all,
+      'discovery',
+    ).kind,
+    'started',
+  );
+  // The page says which one is running and offers no Start.
+  const discovery = offeredDiscoveryBenchmarks().map(
+    ({ manifest: _m, ...b }) => b,
+  );
+  const page = renderToStaticMarkup(
+    createElement(QualifyModel, {
+      base: 'workspaces/w',
+      connection: {
+        id: randomUUID(),
+        kind: 'chatgpt_plan',
+        version: 3,
+        fixture: false,
+        caps_accepted_at: '2026-11-11T09:00:00.000Z',
+        settings: {
+          allowed_data_classes: ['synthetic', 'public'],
+          allowed_task_classes: all,
+          caps: { responses: { request_timeout_ms: 120000 } },
+        },
+      },
+      models: ['gpt-6-astra'],
+      qualifications: [assessRunning],
+      busy: false,
+      discovery,
+      act: async () => null,
+    }),
+  );
+  assert.match(page, /scoring for discovery[^<]*another role is running/);
+  assert.match(page, /scoring for assessments on gpt-6-astra is started/);
+
+  // M-2: a web-discovery pass (P12's flag) and a locator pass never stand in for each other,
+  // and an untagged benchmark never borrows either.
+  const passed = (flags: object) =>
+    qualification({
+      task_class: 'research_synthesis',
+      state: 'qualified',
+      decided_at: '2026-11-11T10:05:00.000Z',
+      ...flags,
+    });
+  const web = passed({ admits_web_discovery: true });
+  const locate = passed({ admits_discovery: true });
+  const state = (qs: PlanQualification[], admits: string | null) =>
+    benchmarkState(
+      qs,
+      'gpt-6-astra',
+      'research_synthesis',
+      all,
+      admits as never,
+    ).kind;
+  assert.equal(state([web], 'discovery'), 'new');
+  assert.equal(state([web], 'web_discovery'), 'qualified');
+  assert.equal(state([locate], 'web_discovery'), 'new');
+  assert.equal(state([locate], 'discovery'), 'qualified');
+  assert.equal(state([web, locate], null), 'new');
+  assert.equal(forRole([web, locate], 'web_discovery').length, 1);
+  // A bundled benchmark's role comes from its checks.
+  assert.equal(
+    manifestRole(
+      JSON.parse(
+        await readFile(
+          'config/connections/benchmarks/assessment-synthetic-v1.json',
+          'utf8',
+        ),
+      ),
+    ),
+    'assessment',
+  );
+  assert.equal(
+    manifestRole({
+      cases: [
+        { check: { kind: 'web_scout_contract' } },
+        { check: { kind: 'web_reader_contract' } },
+      ],
+    }),
+    'web_discovery',
+  );
+  assert.equal(
+    manifestRole(
+      JSON.parse(
+        await readFile(
+          'config/connections/benchmarks/specification-synthetic-v1.json',
+          'utf8',
+        ),
+      ),
+    ),
+    null,
+  );
+});
+
+test('PR #175 review M-1: a discovery pass keeps counting after a failed assessment scoring run', async () => {
+  const { forRole } = await loadRole();
+  const pass = qualification({
+    task_class: 'scoring',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+    admits_discovery: true,
+  });
+  const fail = qualification({
+    task_class: 'scoring',
+    state: 'failed',
+    created_at: '2026-11-11T11:00:00.000Z',
+    decided_at: '2026-11-11T11:05:00.000Z',
+    admits_assessment: true,
+  });
+  // The Qualified tasks list in models.tsx computes each row's newest decided like this.
+  assert.equal(
+    latestDecided(forRole([pass, fail], 'discovery'), 'gpt-6-astra', 'scoring')
+      ?.state,
+    'qualified',
+  );
+  assert.equal(
+    latestDecided([pass, fail], 'gpt-6-astra', 'scoring')?.state,
+    'failed',
+    'without the role filter the failure would withdraw it',
+  );
+  const models = await readFile('apps/web/src/models.tsx', 'utf8');
+  assert.match(models, /forRole\(detail\.qualifications, roleOf\(q\)\)/);
 });

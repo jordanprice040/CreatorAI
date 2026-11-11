@@ -326,6 +326,8 @@ export function taskBlockerTexts(
             `Qualify ${subject} for ${names(inApp)} under Models and connections › Qualify a model, with the benchmarks marked "for discovery".`,
           ]
         : []),
+      // A guard since P34 (PR #175 review N-2): every discovery class is in QUALIFY_IN_APP, so
+      // only a task with no benchmark in the app (code build) reaches this.
       ...(cli.length
         ? [
             `The app can't qualify ${names(cli)} yet; that is planned for a later update.`,

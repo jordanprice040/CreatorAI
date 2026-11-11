@@ -14,6 +14,13 @@ import summarization from '../../../config/connections/benchmarks/summarization-
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
 import { AllowTasks } from './allow-tasks.js';
+import {
+  forRole,
+  manifestRole,
+  roleOf,
+  roleTask,
+  type Admits,
+} from './qualification-role.js';
 import { api, words } from './oversight.js';
 
 /**
@@ -40,10 +47,11 @@ export const BENCHMARKS = [
 
 /**
  * Which qualifications count for a benchmark's own role (ADR-0089): the assessment benchmark's
- * scoring counts only for assessments and the discovery benchmarks' only for discovery, so a
- * scoring pass on one never shows the other as qualified.
+ * scoring counts only for assessments, the discovery benchmarks' only for discovery, and (with
+ * P12) the web discovery benchmark's only for Search the web, so a pass on one never shows
+ * another as qualified. See qualification-role.ts.
  */
-export type Admits = 'assessment' | 'discovery' | null;
+export type { Admits };
 
 /** One benchmark in the list: bundled with the app, or offered by the server (discovery). */
 export interface Offer {
@@ -70,7 +78,9 @@ export function offers(discovery: readonly DiscoveryBenchmark[]): Offer[] {
       task_class: b.task_class,
       development: b.development,
       held_out: b.held_out,
-      admits: (b.manifest === assessment ? 'assessment' : null) as Admits,
+      // Read from the manifest's checks, so a bundled benchmark of another role (P12's web
+      // discovery) gets its own tag without a change here (PR #175 review M-2).
+      admits: manifestRole(b.manifest),
       manifest_hash: null,
       start: {
         manifest: b.manifest,
@@ -91,14 +101,8 @@ export function offers(discovery: readonly DiscoveryBenchmark[]): Offer[] {
 }
 
 /** The task in the benchmark list, with the role when one task class serves two roles. */
-export function offerTask(o: Pick<Offer, 'task_class' | 'admits'>): string {
-  const w = o.task_class.replaceAll('_', ' ');
-  return o.admits === 'discovery'
-    ? `${w} for discovery`
-    : o.admits === 'assessment'
-      ? `${w} for assessments`
-      : w;
-}
+export const offerTask = (o: Pick<Offer, 'task_class' | 'admits'>): string =>
+  roleTask(o.task_class, o.admits);
 
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
 export function QualifyModel({
@@ -217,7 +221,7 @@ export function QualifyModel({
     )) as { state?: string; reason?: string | null } | null;
     if (out?.state)
       setOutcome(
-        `${words(q.task_class)} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
+        `${roleTask(q.task_class, roleOf(q))} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
       );
   }
   const chosen = list.find((b) => b.name === bench);
@@ -323,42 +327,50 @@ export function QualifyModel({
                       : ''}
                   {state.kind === 'started'
                     ? 'Already started: press Run on it below.'
-                    : `Uses up to ${chosen.development + chosen.held_out} plan requests when run. Pass bar: all ${chosen.held_out} held-out cases.`}
+                    : state.kind === 'other_running'
+                      ? // PR #175 review L-1: the server runs one qualification per model and
+                        // task class, so the other role's must be run or finished first.
+                        `A ${roleTask(chosen.task_class, roleOf(state.qualification))} qualification of ${pick} is started; run or finish it below first, since one qualification per model and task runs at a time.`
+                      : `Uses up to ${chosen.development + chosen.held_out} plan requests when run. Pass bar: all ${chosen.held_out} held-out cases.`}
                 </p>
               )}
-              {state.kind !== 'not_allowed' && state.kind !== 'started' && (
-                <button
-                  type="button"
-                  disabled={locked || !pick}
-                  onClick={() => {
-                    setError('');
-                    setOutcome('');
-                    void act(
-                      `${p}/qualifications`,
-                      {
-                        expected_version: connection.version,
-                        model_id: pick,
-                        ...chosen.start,
-                      },
-                      undefined,
-                      setError,
-                    );
-                  }}
-                >
-                  {state.kind === 'qualified'
-                    ? 'Start a re-run'
-                    : state.kind === 'failed'
-                      ? 'Start qualification again'
-                      : 'Start qualification'}
-                </button>
-              )}
-              {anyExecuting && state.kind !== 'started' && (
-                <p className="small">
-                  A qualification on this connection is running; it sends one
-                  request at a time, so wait for it to finish before starting
-                  another.
-                </p>
-              )}
+              {state.kind !== 'not_allowed' &&
+                state.kind !== 'started' &&
+                state.kind !== 'other_running' && (
+                  <button
+                    type="button"
+                    disabled={locked || !pick}
+                    onClick={() => {
+                      setError('');
+                      setOutcome('');
+                      void act(
+                        `${p}/qualifications`,
+                        {
+                          expected_version: connection.version,
+                          model_id: pick,
+                          ...chosen.start,
+                        },
+                        undefined,
+                        setError,
+                      );
+                    }}
+                  >
+                    {state.kind === 'qualified'
+                      ? 'Start a re-run'
+                      : state.kind === 'failed'
+                        ? 'Start qualification again'
+                        : 'Start qualification'}
+                  </button>
+                )}
+              {anyExecuting &&
+                state.kind !== 'started' &&
+                state.kind !== 'other_running' && (
+                  <p className="small">
+                    A qualification on this connection is running; it sends one
+                    request at a time, so wait for it to finish before starting
+                    another.
+                  </p>
+                )}
             </>
           )}
         </>
@@ -374,7 +386,7 @@ export function QualifyModel({
         return (
           <div key={q.id} className="qualify-row" role="group">
             <span>
-              {words(q.task_class)} on {q.model_id} is started.
+              {roleTask(q.task_class, roleOf(q))} on {q.model_id} is started.
               {executing(q) &&
                 ' Running: one plan request per case; this can take several minutes, and it carries on if you leave this page.'}
             </span>
@@ -436,7 +448,12 @@ export function QualifyModel({
  * `decided` with the recorded qualification once every case has an answer.
  */
 export function runOutcome(
-  q: { task_class: string; model_id: string },
+  q: {
+    task_class: string;
+    model_id: string;
+    admits_assessment?: boolean | undefined;
+    admits_discovery?: boolean | undefined;
+  },
   out: unknown,
 ): string {
   const o = (out ?? {}) as {
@@ -448,7 +465,7 @@ export function runOutcome(
       held_out: { passed: number; total: number };
     };
   };
-  const what = `${words(q.task_class)} on ${q.model_id}`;
+  const what = `${roleTask(q.task_class, roleOf(q))} on ${q.model_id}`;
   if (o.state === 'stopped')
     return `${what} stopped: ${words(o.reason ?? 'unknown reason')}. Answered cases are kept. Fix the cause and press Run to continue with the rest, or Finish to record the result now.`;
   if (o.state === 'decided' && o.qualification)
@@ -464,6 +481,7 @@ export function runOutcome(
 export type BenchmarkState =
   | { kind: 'not_allowed' }
   | { kind: 'started'; qualification: PlanQualification }
+  | { kind: 'other_running'; qualification: PlanQualification }
   | { kind: 'qualified' | 'failed'; latest: PlanQualification }
   | { kind: 'new' };
 
@@ -479,18 +497,15 @@ export function benchmarkState(
     (q) =>
       q.state === 'running' && q.model_id === model && q.task_class === task,
   );
-  if (started) return { kind: 'started', qualification: started };
-  // The server runs one qualification per model and task class at a time, so "started" counts
-  // any role; qualified or failed counts only this benchmark's role (ADR-0089).
-  const latest = latestDecided(
-    admits === 'assessment'
-      ? qualifications.filter((q) => q.admits_assessment === true)
-      : admits === 'discovery'
-        ? qualifications.filter((q) => q.admits_discovery === true)
-        : qualifications,
-    model,
-    task,
-  );
+  // The server runs one qualification per model and task class at a time, whatever its role;
+  // one of another role blocks this start and is named as such (PR #175 review L-1).
+  if (started)
+    return roleOf(started) === admits
+      ? { kind: 'started', qualification: started }
+      : { kind: 'other_running', qualification: started };
+  // Qualified or failed counts only this benchmark's role (ADR-0089), and an untagged one never
+  // borrows a tagged role's pass (PR #175 review M-2).
+  const latest = latestDecided(forRole(qualifications, admits), model, task);
   if (latest?.state === 'qualified' || latest?.state === 'failed')
     return { kind: latest.state, latest };
   return { kind: 'new' };
@@ -502,6 +517,8 @@ function benchmarkTag(s: BenchmarkState): string {
       return ' · not allowed on this connection yet';
     case 'started':
       return ' · started';
+    case 'other_running':
+      return ' · another role is running';
     case 'qualified':
       // Short, so the option fits the select; the line below it has the score (PR #172 N-2).
       return ` · qualified${s.latest.decided_at ? ` ${new Date(s.latest.decided_at).toLocaleDateString()}` : ''}`;
