@@ -1,0 +1,19 @@
+SETUP advanced 200
+SETUP approve 200
+SETUP selection "Selection recorded. It now appears in the history below and in Activity."
+MODE standard 200
+LOADED {"fold":"Override reason: not needed for these choices","foldOpen":false,"active":"BODY","value":""}
+TYPED because {"fold":"Override reason: “because” (not needed, not recorded)","foldOpen":true,"active":"dec-override","value":"because"}
+CLEARED and TYPED new reason {"fold":"Override reason: “new reason” (not needed, not recorded)","foldOpen":true,"active":"dec-override","value":"new reason"}
+CLEARED {"fold":"Override reason: not needed for these choices","foldOpen":true,"active":"dec-override","value":""}
+REVIEW marks {"marksVisible":4,"marksInFold":false}
+EXPAND ALL group open true
+GROUP closed by hand {"open":false,"expandDisabled":false}
+EXPAND ALL again true
+ORDER before Save ["What changed: “Edited” (default)","What will happen","Save as version 2"]
+SETUP blocked Background ["200 ","200 "]
+BLOCKED loaded {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":true,"sectionsOpen":1,"expandDisabled":false}
+BLOCKED group closed by hand {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":false,"sectionsOpen":0,"expandDisabled":false}
+BLOCKED expand all {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":true,"sectionsOpen":6,"expandDisabled":true}
+BLOCKED closed and expand all again {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":true,"sectionsOpen":6,"expandDisabled":true}
+ERRORS []
