@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   AssessmentPacketSchema,
   ContractError,
@@ -7,6 +8,7 @@ import {
   type AssessmentPacket,
   type AssessorOutput,
   type ErrorCode,
+  type PlanConnection,
   type ScorecardBody,
   type SelectionReport,
   type StartAssessmentRequest,
@@ -28,6 +30,7 @@ import {
   type AdapterRequest,
   type ModelAdapter,
 } from '@creator/broker';
+import { ConnectionStore } from '@creator/db';
 import { discoverySetup, owner } from './discovery-harness.js';
 
 // P08 automatic assessments (ADR-0074): system ratings with evidence-linked rationales on the
@@ -812,4 +815,67 @@ test('review L-7: a batch that fails for good stops its sibling tasks', () => {
   const done = coordinateAssessment(view('cancelled'), 2);
   assert.equal(done.state, 'failed');
   assert.match(done.terminal!.explanation, /part 1 of 2 \(invalid_output\)/);
+});
+
+test('P25: the preview sizes requests to the chosen plan connection input cap, and refuses with the cap to raise', async (t) => {
+  const s = await setup(t, new FixtureAdapter());
+  if (!s) return;
+  const connections = new ConnectionStore(s.db.pool);
+  const settings = JSON.parse(
+    readFileSync(
+      new URL('../../config/connections/chatgpt-plan.json', import.meta.url),
+      'utf8',
+    ),
+  ) as PlanConnection['settings'];
+  const make = (label: string, cap: number) =>
+    connections.createPlanConnection(owner, s.ws.id, {
+      kind: 'chatgpt_plan',
+      label,
+      settings: {
+        ...settings,
+        caps: {
+          ...settings.caps,
+          responses: { ...settings.caps.responses, max_input_chars: cap },
+        },
+      },
+    });
+  const wide = await make('Wide', 200_000);
+  const preview = await s.store.previewAssessment(
+    owner,
+    s.ws.id,
+    s.problem.id,
+    wide.id,
+  );
+  assert.equal(preview.limit, 200_000);
+  assert.equal(preview.request_chars.length, preview.requests);
+  assert.ok(preview.request_chars.every((n) => n <= 200_000));
+  assert.equal(preview.claims_left_out, 0);
+  const narrow = await make('Narrow', 7_000);
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.previewAssessment(owner, s.ws.id, s.problem.id, narrow.id),
+    /7,000 per request.*Change caps/,
+  );
+  // Starting on the narrow connection is refused the same way, before anything is queued.
+  const runId = await s.run();
+  await rejects(
+    'INVALID_CONTRACT',
+    s.store.startAssessment(
+      owner,
+      s.ws.id,
+      runId,
+      s.request(s.problem.version, {
+        resource_setup: {
+          kind: 'subscription',
+          connection_id: narrow.id,
+          model_id: 'gpt-test',
+          settings_hash: narrow.settings_hash,
+          max_output_chars: 16_000,
+        },
+      }),
+    ),
+    /Change caps/,
+  );
+  const workflows = await s.store.listWorkflows(owner, s.ws.id);
+  assert.ok(!workflows.some((w) => w.run_id === runId));
 });

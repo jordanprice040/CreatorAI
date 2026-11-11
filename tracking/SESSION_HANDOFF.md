@@ -1,5 +1,9 @@
 # Session handoff — November 10, 2026
 
+## November 11 handoff — P25 assessment requests that fit
+
+[ADR-0085](DECISIONS.md) amends ADR-0074. `buildAssessmentPacket` (`packages/domain/src/assessment.ts`) now returns the packet with its requests (`batches`, `request_chars`, `claims_left_out`) sized to an input cap, or a refusal naming the option that does not fit alone; `selection-store.ts` reads the cap from the plan connection (preview `?connection=`, start `resource_setup`). Decide (`apps/web/src/assess.tsx`) shows the sizes and an "Open Models and connections" button to raise the cap. Tests: `tests/src/assessment-packing.test.ts` (pure) and a DB test in `assessment.test.ts`. Next: a live check on Jordan's real problem after his typed OK (dev studio, or the installed app after its next upgrade); if the 24,000 cap still leaves too few claims there, he raises the input cap on that connection. Next free numbers after this: migration 54, ADR-0086 (re-check main; P12 may take them).
+
 ## November 11 handoff — fix plan from the installed-app walk
 
 Docs only. [FIX_PLAN_INSTALLED_WALK_2026-11-11.md](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) groups the 24 findings from Jordan's walk of the installed app at schema 53 ([record](evidence/installed-upgrade-53-2026-11-11/README.md), PR #168) into packages P23–P32, with order and Jordan's November 11 decisions: all allowed work on for new connections plus one-click allow buttons; whole-process automation (P33) right after P13, and P13 a priority; P12 discovery through the model connections' own web search, no search or browser API. Target before the next user test: P23–P31, P12, P13, P33. No code changed. Next eligible prompts: P23 (qualify section), P25 (assessment packets that fit) and P26 (stale state and polish), in parallel. Next free numbers: migration 54, ADR-0084.

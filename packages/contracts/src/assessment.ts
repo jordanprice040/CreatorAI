@@ -165,9 +165,15 @@ export const AssessmentPreviewSchema = z.strictObject({
   packet_hash: hash,
   /** The packet without its read time: a start compares it. */
   preview_hash: hash,
+  /** ADR-0085: the largest request's counted input (role text plus its part of the packet). */
   chars: z.number().int().min(0),
+  /** The route's per-request input cap the requests were sized to. */
   limit: z.number().int().min(0),
   /** How many model requests the assessment takes (a few options each). */
   requests: z.number().int().min(1).max(8),
+  /** Each request's counted input, in order. Every request reads the same claims. */
+  request_chars: z.array(z.number().int().min(0)).min(1).max(8),
+  /** Linked claims no request reads (the cap, or at most 30). */
+  claims_left_out: z.number().int().min(0),
 });
 export type AssessmentPreview = z.infer<typeof AssessmentPreviewSchema>;

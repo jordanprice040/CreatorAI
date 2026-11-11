@@ -10,6 +10,7 @@ import {
   discoveryRoleInput,
   explorationRoleInput,
   assessmentRoleInput,
+  planTaskText,
   roleInput,
 } from '@creator/domain';
 import {
@@ -210,13 +211,8 @@ export class Worker {
         const abort = new AbortController();
         this.#planControllers.set(lease.runId, abort);
         try {
-          const instructions = input
-            .filter((m) => m.role !== 'user')
-            .map((m) => m.text)
-            .join('\n');
-          const userInput = JSON.stringify(
-            input.filter((m) => m.role === 'user'),
-          );
+          // The same rendering the assessment uses to size its requests (ADR-0085).
+          const { instructions, input: userInput } = planTaskText(input);
           const response = await this.optionsPlanService.invoke(
             this.#ctx,
             lease.workspaceId,

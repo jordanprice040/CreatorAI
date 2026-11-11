@@ -1,5 +1,9 @@
 # Build status — November 10, 2026
 
+## November 11 update — P25 assessment requests that fit (ADR-0085)
+
+Assessments no longer stop at a fixed 19,000-character packet. Requests are sized to the chosen connection's per-request input cap (counted with the role text, as admission counts it), split down to one option per request when needed, and every request reads the same claims; the preview shows each request's size and how many claims were left out, and offers raising the connection's input cap when evidence is left out or an option alone does not fit. No migration. Checked in the cloud container: `pnpm typecheck`, `pnpm format:check`, `pnpm test:db` on a throwaway PostgreSQL 16 (see the handoff for counts). Not checked: the Decide screen in a browser, and a live assessment of Jordan's real problem (needs his typed OK; it spends plan requests).
+
 ## November 11 update — fix plan from the installed-app walk
 
 Docs only: [fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) for the 24 walk findings (P23–P33 planned, not started; Jordan decided A (all allowed work on for new connections, plus allow buttons), B (whole-process automation after P13) and the P12 route (model connections own web search) on November 11). Checked: `prettier --check` on the new plan.

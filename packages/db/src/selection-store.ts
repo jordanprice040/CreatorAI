@@ -28,8 +28,6 @@ import {
 import {
   ASSESSMENT_PROMPT_HASH,
   ASSESSMENT_ROLE_VERSION,
-  MAX_ASSESSMENT_PACKET_CHARS,
-  assessmentBatches,
   assessmentPreviewHash,
   buildAssessmentPacket,
   supportHash,
@@ -634,7 +632,12 @@ export class SelectionStore extends DiscoveryStore {
     const req = parse(StartAssessmentRequestSchema, raw);
     await this.studyWorkflowGate(ctx, ws, runId, null);
     const problemId = req.problem.id.toLowerCase();
-    const built = await this.buildAssessment(ctx, ws, problemId);
+    const built = await this.buildAssessment(
+      ctx,
+      ws,
+      problemId,
+      req.resource_setup.kind === 'subscription' ? req.resource_setup : null,
+    );
     if (built.packet.problem.version !== req.problem.version)
       throw fail(
         'VERSION_CONFLICT',
@@ -648,8 +651,9 @@ export class SelectionStore extends DiscoveryStore {
         'VERSION_CONFLICT',
         'What the assessment would send changed since the preview (an option, claim or its evidence changed). Check it again, then start.',
       );
-    // Each request rates a few options so its answer fits the route's output cap.
-    const batches = assessmentBatches(built.packet);
+    // Each request rates a few options so its answer fits the route's output cap and its input
+    // fits the route's input cap (ADR-0085); every request reads the same claims.
+    const batches = built.batches;
     if (
       req.limits.max_children < batches.length ||
       req.limits.max_calls < batches.length * req.limits.max_attempts
@@ -752,17 +756,26 @@ export class SelectionStore extends DiscoveryStore {
     ctx: CommandContext,
     ws: string,
     problemId: string,
+    connectionId?: string | null,
   ): Promise<AssessmentPreview> {
     ctx = normalize(ctx);
     ws = uuid(ws);
-    const { packet } = await this.buildAssessment(ctx, ws, uuid(problemId));
+    const built = await this.buildAssessment(
+      ctx,
+      ws,
+      uuid(problemId),
+      connectionId ? { connection_id: uuid(connectionId) } : null,
+    );
+    const { packet } = built;
     return {
       packet,
       packet_hash: canonicalHash(packet),
       preview_hash: assessmentPreviewHash(packet),
-      chars: JSON.stringify(packet).length,
-      limit: MAX_ASSESSMENT_PACKET_CHARS,
-      requests: assessmentBatches(packet).length,
+      chars: Math.max(...built.request_chars),
+      limit: built.input_cap,
+      requests: built.batches.length,
+      request_chars: built.request_chars,
+      claims_left_out: built.claims_left_out,
     };
   }
 
@@ -783,17 +796,46 @@ export class SelectionStore extends DiscoveryStore {
     });
   }
 
+  /**
+   * ADR-0085: the packet and its requests, sized to the route's per-request input cap: the plan
+   * connection's accepted `max_input_chars`, or the default for API, local and fixture routes.
+   */
   private async buildAssessment(
     ctx: CommandContext,
     ws: string,
     problemId: string,
+    route: { connection_id: string; settings_hash?: string } | null,
   ): Promise<{
     packet: AssessmentPacket;
+    batches: string[][];
+    request_chars: number[];
+    input_cap: number;
+    claims_left_out: number;
     evidence: AssessmentWorkflowContext['evidence'];
     linked_hash: string;
   }> {
     const read = await this.tx(async (c) => {
       await this.role(c, ws, ctx.actorId, false);
+      let cap: number | undefined;
+      if (route) {
+        const conn = await c.query<{
+          settings: { caps?: { responses?: { max_input_chars?: number } } };
+          settings_hash: string;
+        }>(
+          'select settings, settings_hash from plan_connections where workspace_id = $1 and id = $2',
+          [ws, route.connection_id.toLowerCase()],
+        );
+        if (!conn.rows[0]) throw fail('NOT_FOUND', 'Connection not found.');
+        if (
+          route.settings_hash &&
+          conn.rows[0].settings_hash !== route.settings_hash
+        )
+          throw fail(
+            'VERSION_CONFLICT',
+            'Connection settings changed; refresh run setup.',
+          );
+        cap = conn.rows[0].settings.caps?.responses?.max_input_chars;
+      }
       const p = await c.query(
         `select * from entities where workspace_id = $1 and id = $2 and kind = 'problem'`,
         [ws, problemId],
@@ -832,7 +874,7 @@ export class SelectionStore extends DiscoveryStore {
           [ws, problemId],
         )
       ).rows[0]?.body as Row | undefined;
-      return { problem, alts, claims, brief };
+      return { problem, alts, claims, brief, cap };
     });
     const claims: {
       relation: 'supports' | 'contradicts';
@@ -845,7 +887,7 @@ export class SelectionStore extends DiscoveryStore {
       });
     const str = (v: unknown) => (typeof v === 'string' ? v : '');
     const b = read.problem.body as Row | null;
-    const packet = buildAssessmentPacket({
+    const plan = buildAssessmentPacket({
       problem: {
         id: read.problem.id,
         version: read.problem.version,
@@ -870,12 +912,10 @@ export class SelectionStore extends DiscoveryStore {
       }),
       claims,
       now: new Date(),
+      ...(read.cap ? { input_cap: read.cap } : {}),
     });
-    if (JSON.stringify(packet).length > MAX_ASSESSMENT_PACKET_CHARS)
-      throw fail(
-        'INVALID_CONTRACT',
-        'The assessment packet is too large for one model message.',
-      );
+    if (!plan.ok) throw fail('INVALID_CONTRACT', plan.problem);
+    const { packet } = plan;
     const support = await this.tx((c) =>
       this.supportHashes(
         c,
@@ -885,6 +925,10 @@ export class SelectionStore extends DiscoveryStore {
     );
     return {
       packet,
+      batches: plan.batches,
+      request_chars: plan.request_chars,
+      input_cap: plan.input_cap,
+      claims_left_out: plan.claims_left_out,
       linked_hash: supportHash(read.claims.map((x) => x.from_id)),
       evidence: packet.claims.map((x) => ({
         id: x.claim_id,

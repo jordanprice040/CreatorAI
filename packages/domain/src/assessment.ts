@@ -37,8 +37,6 @@ import { rubricHash } from './selection.js';
 // computes every total and rank, and never lets a system card clear an ethics or access gate.
 
 export const ASSESSMENT_ROLE_VERSION = 'r08-assessor/1.0';
-/** One model message, like discovery's and exploration's packets. */
-export const MAX_ASSESSMENT_PACKET_CHARS = 19_000;
 export const MAX_ASSESSMENT_OPTIONS = 8;
 const MAX_CLAIMS = 30;
 const SOFTWARE_KINDS = ['build', 'hybrid'];
@@ -57,10 +55,56 @@ export const rubricsForKind = (kind: string): RubricId[] =>
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
+/** The per-request input cap for routes that have none of their own (API, local, fixture). */
+export const DEFAULT_ASSESSMENT_INPUT_CHARS = 24_000;
+/** Room kept in each request for the notes, which are written after the claims are chosen. */
+const NOTE_RESERVE = 1_200;
+
 /**
- * The packet for one problem: its options (current versions), the claims linked to it with
- * their two strongest passages, and both rubrics with their hashes. Claims are added in the
- * order given while they fit the one-message limit; what was left out is noted.
+ * What a plan request's admission counts for these messages, rendered the way the workflow
+ * worker sends them: the non-user texts joined as instructions, the user messages as JSON input.
+ */
+export function planTaskText(
+  messages: readonly { role: 'system' | 'user'; text: string }[],
+): { instructions: string; input: string } {
+  return {
+    instructions: messages
+      .filter((m) => m.role !== 'user')
+      .map((m) => m.text)
+      .join('\n'),
+    input: JSON.stringify(messages.filter((m) => m.role === 'user')),
+  };
+}
+/** The characters one assessor request counts against the route's input cap. */
+export function assessmentRequestChars(packet: AssessmentPacket): number {
+  const t = planTaskText(assessmentRoleInput(packet));
+  return t.instructions.length + t.input.length;
+}
+/** A value's length once it is quoted inside the request's JSON input. */
+const quoted = (v: unknown) => JSON.stringify(JSON.stringify(v)).length - 2;
+
+export type AssessmentPlan =
+  | {
+      ok: true;
+      packet: AssessmentPacket;
+      /** Option refs per request, in packet order. Every request reads the same claims. */
+      batches: string[][];
+      /** Each request's counted input, in batch order. */
+      request_chars: number[];
+      input_cap: number;
+      claims_left_out: number;
+    }
+  | { ok: false; problem: string; needed: number; input_cap: number };
+
+/**
+ * The packet for one problem and how it is split into requests (ADR-0085, amending ADR-0074):
+ * its options (current versions), the claims linked to it with their two strongest passages,
+ * and the rubrics with their hashes. Each request carries a few options and must fit the
+ * route's per-request input cap, counted with the role text. Every request reads the same
+ * claim set, so options in different requests are rated on the same evidence: claims are
+ * added in the order given while they fit beside the largest request's options, and the
+ * options are split more finely (down to one per request) when that lets more claims in.
+ * When one option alone does not fit, nothing is built and the refusal says what it needs.
  */
 export function buildAssessmentPacket(input: {
   problem: {
@@ -82,9 +126,10 @@ export function buildAssessmentPacket(input: {
   }[];
   claims: { relation: 'supports' | 'contradicts'; evidence: ClaimEvidence }[];
   now: Date;
-  limit?: number;
-}): AssessmentPacket {
-  const limit = input.limit ?? MAX_ASSESSMENT_PACKET_CHARS;
+  /** The route's per-request input cap (`caps.responses.max_input_chars` on a plan connection). */
+  input_cap?: number;
+}): AssessmentPlan {
+  const cap = input.input_cap ?? DEFAULT_ASSESSMENT_INPUT_CHARS;
   const options: AssessmentOption[] = input.alternatives
     .slice(0, MAX_ASSESSMENT_OPTIONS)
     .map((a, i) => ({
@@ -98,7 +143,6 @@ export function buildAssessmentPacket(input: {
       uncertainty: clip(a.uncertainty, 600),
       rubrics: rubricsForKind(a.kind),
     }));
-  const notes: string[] = [];
   const rubrics = (['suitability', 'opportunity'] as const)
     .filter((r) => options.some((o) => o.rubrics.includes(r)))
     .map((r) => ({
@@ -111,7 +155,10 @@ export function buildAssessmentPacket(input: {
         anchors: c.anchors,
       })),
     }));
-  const shell = (claims: AssessmentClaim[]): AssessmentPacket => ({
+  const shell = (
+    claims: AssessmentClaim[],
+    notes: string[],
+  ): AssessmentPacket => ({
     packet_version: 'assessment-packet/1',
     kind: 'untrusted_evidence/1',
     authority: 'none',
@@ -133,20 +180,29 @@ export function buildAssessmentPacket(input: {
     notes,
     assessed_at: input.now.toISOString(),
   });
-  // Room for the notes written after the claims are chosen.
-  let room = limit - 1_200 - JSON.stringify(shell([])).length;
-  const claims: AssessmentClaim[] = [];
-  let skipped = 0;
-  for (const { relation, evidence: e } of input.claims) {
+  const bare = shell([], []);
+  const base = (refs: readonly string[]) =>
+    assessmentRequestChars(packetForOptions(bare, refs));
+
+  // One option alone, with no claims, must fit; otherwise say what it needs.
+  for (const o of options) {
+    const needed = base([o.ref]) + NOTE_RESERVE;
+    if (needed > cap)
+      return {
+        ok: false,
+        needed,
+        input_cap: cap,
+        problem: `Option ${o.ref} (“${clip(o.title, 80)}”) needs about ${needed.toLocaleString('en-US')} characters in one request with no evidence, and this route accepts ${cap.toLocaleString('en-US')} per request. Shorten its rationale or trade-offs, or raise the connection's input cap under Models and connections, Change caps or allowed work.`,
+      };
+  }
+
+  // Every candidate claim, rendered once; retracted or changed support is not passed on.
+  const candidates = input.claims.map(({ relation, evidence: e }) => {
     const rows = e.rows.filter(
       (r) => r.freshness !== 'retracted' && r.freshness !== 'claim_changed',
     );
-    if (claims.length >= MAX_CLAIMS) {
-      skipped += 1;
-      continue;
-    }
-    const claim: AssessmentClaim = {
-      ref: `C${claims.length + 1}`,
+    return (ref: string): AssessmentClaim => ({
+      ref,
       claim_id: e.claim.id,
       version: e.claim.version,
       statement: (e.claim.statement ?? e.claim.title).slice(0, 2000),
@@ -167,31 +223,97 @@ export function buildAssessmentPacket(input: {
           freshness: r.freshness,
           quote: r.support.quote ? r.support.quote.slice(0, 300) : null,
         })),
-    };
-    const size = JSON.stringify(claim).length + 1;
-    if (size > room) {
-      skipped += 1;
-      continue;
+    });
+  });
+  const pick = (room: number): AssessmentClaim[] => {
+    const out: AssessmentClaim[] = [];
+    for (const make of candidates) {
+      if (out.length >= MAX_CLAIMS) break;
+      const claim = make(`C${out.length + 1}`);
+      const size = quoted(claim) + 1;
+      if (size > room) continue;
+      out.push(claim);
+      room -= size;
     }
-    claims.push(claim);
-    room -= size;
+    return out;
+  };
+  // Options in request-sized batches: at most `per` assessments each (the answer must fit the
+  // output cap) and within the input cap. Try finer splits; keep the one that reads the most
+  // claims, and of those the one with the fewest requests.
+  const split = (per: number): string[][] => {
+    const out: string[][] = [];
+    let cur: string[] = [];
+    let n = 0;
+    for (const o of options) {
+      const k = o.rubrics.length;
+      if (
+        cur.length &&
+        (n + k > per || base([...cur, o.ref]) + NOTE_RESERVE > cap)
+      ) {
+        out.push(cur);
+        cur = [];
+        n = 0;
+      }
+      cur.push(o.ref);
+      n += k;
+    }
+    if (cur.length) out.push(cur);
+    return out;
+  };
+  let best: { batches: string[][]; claims: AssessmentClaim[] } | null = null;
+  for (let per = ASSESSMENTS_PER_REQUEST; per >= 1; per--) {
+    const batches = split(per);
+    const largest = Math.max(...batches.map(base));
+    const claims = pick(cap - NOTE_RESERVE - largest);
+    if (
+      !best ||
+      claims.length > best.claims.length ||
+      (claims.length === best.claims.length &&
+        batches.length < best.batches.length)
+    )
+      best = { batches, claims };
+    if (claims.length === Math.min(candidates.length, MAX_CLAIMS)) break;
   }
-  if (input.alternatives.length > MAX_ASSESSMENT_OPTIONS)
+  const { batches } = best!;
+  let claims = best!.claims;
+
+  const notesFor = (n: number) => {
+    const notes: string[] = [];
+    const skipped = input.claims.length - n;
+    if (input.alternatives.length > MAX_ASSESSMENT_OPTIONS)
+      notes.push(
+        `${input.alternatives.length - MAX_ASSESSMENT_OPTIONS} more options were not assessed: one assessment covers at most ${MAX_ASSESSMENT_OPTIONS}.`,
+      );
+    if (skipped > 0)
+      notes.push(
+        `${skipped} linked claim${skipped === 1 ? ' was' : 's were'} not read: every request reads the same claims, at most ${MAX_CLAIMS}, within this route's ${cap.toLocaleString('en-US')} input characters per request.`,
+      );
+    if (!input.claims.length)
+      notes.push(
+        'No claim is linked to this problem, so every rating can only be unknown.',
+      );
     notes.push(
-      `${input.alternatives.length - MAX_ASSESSMENT_OPTIONS} more options were not assessed: one assessment covers at most ${MAX_ASSESSMENT_OPTIONS}.`,
+      'Only evidence already recorded in this workspace was read; the assessor did not search the web or fetch pages.',
     );
-  if (skipped)
-    notes.push(
-      `${skipped} linked claim${skipped === 1 ? ' was' : 's were'} not read: the packet holds at most ${MAX_CLAIMS} claims in about ${limit.toLocaleString('en-US')} characters.`,
+    return notes;
+  };
+  // The exact check: every request, with its notes, under the cap; drop the last claims if not.
+  for (;;) {
+    const packet = shell(claims, notesFor(claims.length));
+    const request_chars = batches.map((refs) =>
+      assessmentRequestChars(packetForOptions(packet, refs)),
     );
-  if (!input.claims.length)
-    notes.push(
-      'No claim is linked to this problem, so every rating can only be unknown.',
-    );
-  notes.push(
-    'Only evidence already recorded in this workspace was read; the assessor did not search the web or fetch pages.',
-  );
-  return shell(claims);
+    if (request_chars.every((n) => n <= cap) || !claims.length)
+      return {
+        ok: true,
+        packet,
+        batches,
+        request_chars,
+        input_cap: cap,
+        claims_left_out: input.claims.length - claims.length,
+      };
+    claims = claims.slice(0, -1);
+  }
 }
 
 // ---- Prompt and model input ---------------------------------------------------------------
@@ -230,25 +352,6 @@ export const assessmentContext = (
  * cap; four stay near 7,000 to 11,000.
  */
 export const ASSESSMENTS_PER_REQUEST = 4;
-
-/** The packet's options in request-sized batches, in packet order (refs). */
-export function assessmentBatches(packet: AssessmentPacket): string[][] {
-  const out: string[][] = [];
-  let cur: string[] = [];
-  let n = 0;
-  for (const o of packet.options) {
-    const k = o.rubrics.length;
-    if (cur.length && n + k > ASSESSMENTS_PER_REQUEST) {
-      out.push(cur);
-      cur = [];
-      n = 0;
-    }
-    cur.push(o.ref);
-    n += k;
-  }
-  if (cur.length) out.push(cur);
-  return out;
-}
 
 /**
  * The packet one batch's task reads: the same problem, claims and notes, only its options (with
