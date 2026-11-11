@@ -270,6 +270,30 @@ export const PullObservationSchema = z.strictObject({
 });
 export type PullObservation = z.infer<typeof PullObservationSchema>;
 
+/** P22: a read-only look at one pull request's head and the checks GitHub reports on it. */
+export const GitHubPullChecksSchema = z.strictObject({
+  repository_id: id,
+  read_at: timestamp,
+  pull: PullObservationSchema.nullable(),
+  checks: z.array(CheckObservationSchema).max(200),
+  /** False with a fine-grained token: GitHub only lets it read commit statuses. */
+  check_runs_readable: z.boolean(),
+  /**
+   * Review M-1: reads GitHub did not answer (an expired or refused token, rate limit, 5xx or no
+   * response). Non-empty means `pull` and `checks` are not evidence of absence.
+   */
+  refusals: z
+    .array(
+      z.strictObject({
+        step: z.enum(['repository', 'pull', 'check_runs', 'statuses']),
+        status: z.number().int().nullable(),
+        message: z.string().max(300),
+      }),
+    )
+    .max(3),
+});
+export type GitHubPullChecks = z.infer<typeof GitHubPullChecksSchema>;
+
 export const GitHubDeliverySchema = z.strictObject({
   id,
   connection_id: id,

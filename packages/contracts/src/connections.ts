@@ -542,6 +542,20 @@ export const PlanConnectionDetailSchema = z.strictObject({
   }),
   /** ADR-0064: in-flight or unknown requests, oldest first. */
   open_requests: z.array(PlanOpenRequestSchema),
+  /**
+   * P22 review L-6: the latest finished availability recheck per model and path. A recheck never
+   * changes `model_access`, so this is where the page shows when one ran and how it ended.
+   */
+  last_rechecks: z.array(
+    z.strictObject({
+      model_id: short,
+      path: PlanPathSchema,
+      request_id: id,
+      state: z.string().max(40),
+      reason_code: short.nullable(),
+      finished_at: timestamp,
+    }),
+  ),
   /** Every reason inference would be refused right now, in plain words. Empty means ready. */
   blockers: z.array(note),
 });

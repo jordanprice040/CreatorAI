@@ -3,6 +3,7 @@ import {
   GitHubConnectionSchema,
   GitHubDeliverySchema,
   GitHubOperationSchema,
+  GitHubPullChecksSchema,
   GitHubRepositorySchema,
   GitHubReviewSchema,
   RunControlSchema,
@@ -10,6 +11,7 @@ import {
   type GitHubConnection,
   type GitHubOperation,
   type GitHubOperationParams,
+  type GitHubPullChecks,
   type SessionInfo,
   type Workspace,
 } from '@creator/contracts';
@@ -17,6 +19,7 @@ import { api, message, when, words } from './oversight.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { newestFirst } from './versions.js';
 import { runLabel } from './labels.js';
+import { checksSummary } from './github-checks.js';
 
 /** The simulated GitHub account fixture workspaces talk to (FixtureGitHub's default). */
 const FIXTURE_OWNER = { login: 'fixture-owner', id: 4_100_001 };
@@ -211,6 +214,9 @@ export function GitHub({
                         })()}
                         {r.status_reason ? ` · ${r.status_reason}` : ''}
                       </small>
+                      {workspace.role === 'owner' &&
+                        r.status === 'active' &&
+                        !revoked && <ReadChecks base={base} repoId={r.id} />}
                     </li>
                   );
                 })}
@@ -1247,6 +1253,61 @@ function RecordReview({
           Record review
         </button>
       </div>
+    </form>
+  );
+}
+
+/**
+ * P22: reads one pull request's current head and the checks GitHub reports on it. Read-only:
+ * nothing is journaled and nothing on GitHub changes. A fine-grained token sees commit
+ * statuses only (GitHub does not let it read check runs).
+ */
+function ReadChecks({ base, repoId }: { base: string; repoId: string }) {
+  const [pr, setPr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [read, setRead] = useState<GitHubPullChecks | null>(null);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      setRead(
+        await api(
+          GitHubPullChecksSchema,
+          `${base}/github-repositories/${repoId}/checks?pr=${encodeURIComponent(pr.trim())}`,
+        ),
+      );
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="actions" onSubmit={(e) => void submit(e)}>
+      <label>
+        Pull request
+        <input
+          inputMode="numeric"
+          size={6}
+          value={pr}
+          onChange={(e) => setPr(e.target.value)}
+        />
+      </label>
+      <button className="secondary" disabled={busy || !/^\d+$/.test(pr.trim())}>
+        {busy ? 'Reading…' : 'Read its checks'}
+      </button>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      {read && (
+        <p className="small" role="status">
+          {when(read.read_at)} · {checksSummary(read)}
+        </p>
+      )}
     </form>
   );
 }
