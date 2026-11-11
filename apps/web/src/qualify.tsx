@@ -7,6 +7,7 @@ import {
   type DiscoveryBenchmark,
   type PlanConnection,
   type PlanQualification,
+  type QualificationQueue,
 } from '@creator/contracts';
 import assessment from '../../../config/connections/benchmarks/assessment-synthetic-v1.json';
 import specification from '../../../config/connections/benchmarks/specification-synthetic-v1.json';
@@ -114,6 +115,8 @@ export function QualifyModel({
   connection,
   models,
   qualifications,
+  queue = null,
+  requestsLeft = null,
   busy,
   preferred = null,
   discovery: given,
@@ -129,6 +132,10 @@ export function QualifyModel({
   models: string[];
   /** Every qualification on this connection, as the server last reported them. */
   qualifications: PlanQualification[];
+  /** ADR-0088 (P24): the connection's newest qualification queue, if any. */
+  queue?: QualificationQueue | null;
+  /** Plan requests left in the connection's rolling 24-hour cap, if known (review N-4). */
+  requestsLeft?: number | null;
   busy: boolean;
   /** ADR-0081: the current model, preselected when it is verified on this connection. */
   preferred?: string | null;
@@ -149,6 +156,11 @@ export function QualifyModel({
   const [outcome, setOutcome] = useState('');
   const [runningId, setRunningId] = useState('');
   const [confirmFinish, setConfirmFinish] = useState('');
+  // P24: tasks ticked for "Qualify selected", and a finished queue the person hid.
+  const [ticked, setTicked] = useState<string[]>([]);
+  const [hidden, setHidden] = useState('');
+  // Review N-3: a refused queue start shows next to the buttons that made it.
+  const [queueError, setQueueError] = useState('');
   const [loaded, setLoaded] = useState<DiscoveryBenchmark[] | null>(null);
   const [loadError, setLoadError] = useState('');
   useEffect(() => {
@@ -176,7 +188,9 @@ export function QualifyModel({
   const executing = (q: PlanQualification) =>
     q.executing === true || runningId === q.id;
   const anyExecuting = running.some(executing);
-  const locked = busy || anyExecuting;
+  // ADR-0088: while a queue works on this connection, it alone sends requests here.
+  const queueRunning = queue?.state === 'running';
+  const locked = busy || anyExecuting || queueRunning;
   async function run(q: PlanQualification) {
     setError('');
     setOutcome('');
@@ -244,6 +258,22 @@ export function QualifyModel({
         chosen.admits,
       )
     : null;
+  const several = queueChoices(qualifications, pick, allowed, list);
+  const eligible = several.filter((x) => x.eligible);
+  const chosenSeveral = eligible.filter((x) => ticked.includes(x.name));
+  function startQueue(list: typeof eligible) {
+    setError('');
+    setOutcome('');
+    setQueueError('');
+    void act(
+      `${p}/qualification-queues`,
+      queueBody(connection.version, pick, list),
+      30_000,
+      setQueueError,
+    ).then((out) => {
+      if (out) setTicked([]);
+    });
+  }
   return (
     <fieldset>
       <legend>Qualify a model for a task</legend>
@@ -377,7 +407,39 @@ export function QualifyModel({
                 )}
             </>
           )}
+          <QueueChoices
+            id={connection.id}
+            model={pick}
+            choices={several}
+            ticked={ticked}
+            setTicked={setTicked}
+            locked={locked || !pick}
+            requestsLeft={requestsLeft}
+            dailyCap={
+              connection.settings.caps.shared?.max_model_requests_per_day ??
+              null
+            }
+            error={queueError}
+            onStart={() => startQueue(chosenSeveral)}
+            onStartAll={() => startQueue(eligible)}
+          />
         </>
+      )}
+      {queue && queue.id !== hidden && (
+        <QueueProgress
+          queue={queue}
+          busy={busy}
+          onCancel={() => {
+            setError('');
+            void act(
+              `plan-qualification-queues/${queue.id}/cancel`,
+              {},
+              undefined,
+              setError,
+            );
+          }}
+          onHide={() => setHidden(queue.id)}
+        />
       )}
       {running.map((q) => {
         // The offered benchmark with this manifest, else one of this task class and role: a
@@ -540,4 +602,302 @@ function decidedWords(q: PlanQualification): string {
     ? `on ${new Date(q.decided_at).toLocaleDateString()}, `
     : '';
   return `${when}${q.held_out.passed} of ${q.held_out.total} held-out cases passed`;
+}
+
+/** One benchmark as a choice for "Qualify several tasks" (P24, items 2, 3 and 17). */
+export interface QueueChoice {
+  name: string;
+  task_class: string;
+  /** The role the benchmark qualifies (ADR-0089), for its words in the list. */
+  admits: Admits;
+  requests: number;
+  /** Allowed here and not yet qualified (new, last run failed, or started and not finished). */
+  eligible: boolean;
+  state: BenchmarkState;
+  /** The queue item: the bundled manifest, or the name of a benchmark the server offers. */
+  start: Record<string, unknown>;
+}
+
+/**
+ * The benchmarks for "Qualify several tasks", in the order a queue runs them: the bundled ones,
+ * then the discovery benchmarks the server offers (ADR-0089). A queue only takes tasks not yet
+ * qualified: a failed re-run would replace a pass (ADR-0052), so a qualified task is re-run on
+ * its own, on purpose. One that is started is taken over as it is; one whose task is started
+ * in another role is not offered, since the server runs one per model and task class.
+ */
+export function queueChoices(
+  qualifications: readonly PlanQualification[],
+  model: string,
+  allowed: readonly string[],
+  list: readonly Offer[] = offers([]),
+): QueueChoice[] {
+  return list.map((b) => {
+    const state = benchmarkState(
+      qualifications,
+      model,
+      b.task_class,
+      allowed,
+      b.admits,
+    );
+    // Review of PR #176, L-3: a started re-run of a qualified task is still qualified (the
+    // newest decided one counts), so it is run on its own, not queued. Each benchmark reads
+    // only its own role's qualifications (ADR-0089).
+    const qualified =
+      latestDecided(forRole(qualifications, b.admits), model, b.task_class)
+        ?.state === 'qualified';
+    return {
+      name: b.name,
+      task_class: b.task_class,
+      admits: b.admits,
+      requests: b.development + b.held_out,
+      eligible:
+        state.kind !== 'not_allowed' &&
+        state.kind !== 'qualified' &&
+        state.kind !== 'other_running' &&
+        !qualified,
+      state,
+      start: b.start,
+    };
+  });
+}
+
+/** The request that queues `list` for `model`; the pass bar is every held-out case, as Start. */
+export function queueBody(
+  version: number,
+  model: string,
+  list: readonly Pick<QueueChoice, 'start'>[],
+) {
+  return {
+    expected_version: version,
+    model_id: model,
+    items: list.map((x) => x.start),
+  };
+}
+
+function QueueChoices({
+  id,
+  model,
+  choices,
+  ticked,
+  setTicked,
+  locked,
+  requestsLeft = null,
+  dailyCap = null,
+  error = '',
+  onStart,
+  onStartAll,
+}: {
+  id: string;
+  model: string;
+  choices: QueueChoice[];
+  ticked: string[];
+  setTicked: (f: (t: string[]) => string[]) => void;
+  locked: boolean;
+  requestsLeft?: number | null;
+  /** The connection's plan requests a day (review 3 of PR #176, L-2). */
+  dailyCap?: number | null;
+  error?: string;
+  onStart: () => void;
+  onStartAll: () => void;
+}) {
+  const eligible = choices.filter((c) => c.eligible);
+  const picked = eligible.filter((c) => ticked.includes(c.name));
+  // Task classes, once each: one task class can have two roles' benchmarks (ADR-0089).
+  const blocked = Array.from(
+    new Set(
+      choices
+        .filter((c) => c.state.kind === 'not_allowed')
+        .map((c) => c.task_class),
+    ),
+  );
+  // PR #176 review 4: another role of the same task is started, so the server would refuse it.
+  const otherRole = choices.filter((c) => c.state.kind === 'other_running');
+  const requests = (l: QueueChoice[]) => l.reduce((n, c) => n + c.requests, 0);
+  // The warning is about what Qualify selected would send, or Qualify all when none is ticked.
+  const over = picked.length ? picked : eligible;
+  const overCap = dailyCap !== null && requests(over) > dailyCap;
+  return (
+    <div className="qualify-several" role="group" aria-labelledby={`qs-${id}`}>
+      <p id={`qs-${id}`}>
+        <strong>Qualify several tasks</strong>
+      </p>
+      {eligible.length === 0 ? (
+        <p className="small">
+          {model} has no task left to qualify here
+          {blocked.length
+            ? `; ${blocked.map(words).join(', ')} ${blocked.length === 1 ? 'is' : 'are'} not allowed on this connection`
+            : ''}
+          {otherRole.length
+            ? `; ${otherRole.map((c) => offerTask(c)).join(', ')} waits while another role of the same task is started (run or finish that one first)`
+            : ''}
+          .
+        </p>
+      ) : (
+        <>
+          <p className="small">
+            Tick the tasks to qualify {model} for. The studio runs them one
+            after another, so you can leave this page. Each one is checked and
+            counted against this connection&apos;s caps when its turn comes, and
+            a failure or a refusal stops the queue there.
+          </p>
+          {eligible.map((c) => (
+            <label key={c.name} className="qualify-choice">
+              <input
+                type="checkbox"
+                checked={ticked.includes(c.name)}
+                disabled={locked}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setTicked((t) =>
+                    on ? [...t, c.name] : t.filter((x) => x !== c.name),
+                  );
+                }}
+              />{' '}
+              {offerTask(c)} · {c.name} (up to {c.requests} plan requests)
+              {c.state.kind === 'started'
+                ? c.state.qualification.executing
+                  ? ' · running now'
+                  : ' · started; a queue continues it'
+                : c.state.kind === 'failed'
+                  ? ' · last run failed'
+                  : ''}
+            </label>
+          ))}
+          {blocked.length > 0 && (
+            <p className="small">
+              Not allowed on this connection, so not offered:{' '}
+              {blocked.map(words).join(', ')}. To allow one, choose it as the
+              Benchmark above and press &quot;Allow this task&quot;, or change
+              them under Change caps or allowed work.
+            </p>
+          )}
+          {otherRole.length > 0 && (
+            <p className="small">
+              Not offered while another role of the same task is started for{' '}
+              {model}: {otherRole.map((c) => offerTask(c)).join(', ')}. Run or
+              finish that one first.
+            </p>
+          )}
+          <div className="inline-form">
+            <button
+              type="button"
+              disabled={locked || picked.length === 0}
+              onClick={onStart}
+            >
+              Qualify selected
+              {picked.length
+                ? ` (${picked.length}, up to ${requests(picked)} plan requests)`
+                : ''}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={locked}
+              onClick={onStartAll}
+            >
+              Qualify all ({eligible.length}, up to {requests(eligible)} plan
+              requests)
+            </button>
+          </div>
+          {overCap && (
+            <p className="small" role="note">
+              {over === picked
+                ? 'The selected tasks need'
+                : 'Qualify all needs'}{' '}
+              up to {requests(over)} plan requests, more than this
+              connection&apos;s cap of {dailyCap} in any 24 hours, so the queue
+              stops at the cap partway through. Its answered cases are kept:
+              queue the rest once requests free up, 24 hours after each was
+              sent.
+            </p>
+          )}
+          {requestsLeft !== null && (
+            <p className="small">
+              {Math.max(0, requestsLeft)} plan request
+              {requestsLeft === 1 ? '' : 's'} left in this connection&apos;s
+              24-hour cap
+              {!overCap && requestsLeft < requests(eligible)
+                ? '; a queue that needs more stops at the cap, and its answered cases are kept'
+                : ''}
+              .
+            </p>
+          )}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const ITEM_STATE: Record<QualificationQueue['items'][number]['state'], string> =
+  {
+    waiting: 'waiting',
+    running: 'running',
+    qualified: 'qualified',
+    failed: 'did not qualify',
+    stopped: 'stopped',
+    cancelled: 'not started',
+  };
+
+/** Where a queue stands, in the Qualify section; finished ones can be hidden. */
+export function QueueProgress({
+  queue,
+  busy,
+  onCancel,
+  onHide,
+}: {
+  queue: QualificationQueue;
+  busy: boolean;
+  onCancel: () => void;
+  onHide: () => void;
+}) {
+  const ended = queue.items.filter(
+    (i) => i.state !== 'waiting' && i.state !== 'running',
+  ).length;
+  const running = queue.state === 'running';
+  return (
+    <div className="qualify-queue" role="status">
+      <p>
+        {running
+          ? `Qualifying ${queue.model_id} one task after another: ${ended} of ${queue.items.length} done. You can leave this page; it carries on.`
+          : queue.state === 'done'
+            ? `The queue for ${queue.model_id} finished: ${queue.items.filter((i) => i.state === 'qualified').length} of ${queue.items.length} qualified.`
+            : `The queue for ${queue.model_id} ${queue.state === 'cancelled' ? 'was cancelled' : 'stopped'}${queue.reason ? `. ${queue.reason}` : '.'}`}
+        {running && !queue.active
+          ? ' Waiting for the studio to pick it up (after a restart this takes up to two minutes).'
+          : ''}
+      </p>
+      <ol className="small">
+        {queue.items.map((i) => (
+          <li key={i.position}>
+            {words(i.task_class)} · {i.manifest_name}: {ITEM_STATE[i.state]}
+            {i.reason &&
+            i.state !== 'cancelled' &&
+            // Review N-2: a stop reason the queue line already gives is not repeated.
+            !(queue.reason ?? '').includes(i.reason)
+              ? ` (${i.reason})`
+              : ''}
+          </li>
+        ))}
+      </ol>
+      {running ? (
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          Cancel the queue (the task now running finishes)
+        </button>
+      ) : (
+        <button type="button" className="text" onClick={onHide}>
+          Hide
+        </button>
+      )}
+    </div>
+  );
 }

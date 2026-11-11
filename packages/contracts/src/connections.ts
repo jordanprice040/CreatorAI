@@ -588,6 +588,66 @@ export const PlanOpenRequestSchema = z.strictObject({
 });
 export type PlanOpenRequest = z.infer<typeof PlanOpenRequestSchema>;
 
+/**
+ * ADR-0088 (P24): several qualifications of one model, run one after another by the studio, so
+ * the person can leave the page. Each item is started and run on its own when its turn comes,
+ * and admitted then like a Run pressed by hand; a failure or refusal stops the queue there.
+ */
+export const QUALIFICATION_QUEUE_MAX_ITEMS = 20;
+export const StartQualificationQueueRequestSchema = z.strictObject({
+  expected_version: version,
+  model_id: short,
+  items: z
+    .array(
+      z.union([
+        z.strictObject({
+          manifest: BenchmarkManifestSchema,
+          min_held_out_cases: counter.min(3).max(200),
+          floor: RateSchema,
+        }),
+        // ADR-0089: a discovery benchmark the studio offers, named; the server loads it.
+        z.strictObject({ benchmark: z.string().min(1).max(120) }),
+      ]),
+    )
+    .min(1)
+    .max(QUALIFICATION_QUEUE_MAX_ITEMS),
+});
+export const QualificationQueueItemSchema = z.strictObject({
+  position: counter,
+  task_class: PlanTaskClassSchema,
+  manifest_name: short,
+  manifest_hash: hash,
+  /** Set once the item's qualification is started (or, for one started before, at queueing). */
+  qualification_id: id.nullable(),
+  state: z.enum([
+    'waiting',
+    'running',
+    'qualified',
+    'failed',
+    'stopped',
+    'cancelled',
+  ]),
+  reason: note.nullable(),
+});
+export const QualificationQueueSchema = z.strictObject({
+  id,
+  connection_id: id,
+  model_id: short,
+  state: z.enum(['running', 'done', 'stopped', 'cancelled']),
+  /** Why it stopped or was cancelled, in plain words; null while running or when done. */
+  reason: note.nullable(),
+  created_by: id,
+  created_at: timestamp,
+  finished_at: timestamp.nullable(),
+  /** True while a studio process holds the queue's lease and is working on it. */
+  active: z.boolean(),
+  items: z.array(QualificationQueueItemSchema),
+});
+export type QualificationQueue = z.infer<typeof QualificationQueueSchema>;
+export type QualificationQueueItem = z.infer<
+  typeof QualificationQueueItemSchema
+>;
+
 export const PlanConnectionDetailSchema = z.strictObject({
   connection: PlanConnectionSchema,
   model_access: z.array(PlanModelAccessSchema),
@@ -617,6 +677,8 @@ export const PlanConnectionDetailSchema = z.strictObject({
   ),
   /** Every reason inference would be refused right now, in plain words. Empty means ready. */
   blockers: z.array(note),
+  /** ADR-0088 (P24): the connection's newest qualification queue, if it ever had one. */
+  qualification_queue: QualificationQueueSchema.nullable().optional(),
 });
 export type PlanConnectionDetail = z.infer<typeof PlanConnectionDetailSchema>;
 

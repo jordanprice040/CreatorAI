@@ -16,3 +16,4 @@ export * from './plan-vault.js';
 export * from './plan-responses.js';
 export * from './plan-service.js';
 export * from './claude-code.js';
+export * from './qualification-queue.js';
