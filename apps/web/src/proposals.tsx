@@ -42,7 +42,6 @@ import { useViewMode } from './view-mode.js';
 import {
   FOLDED_PROPOSAL_SECTIONS,
   foldedSectionsSummary,
-  marksSummary,
   revisionReasonSummary,
   sectionCounts,
 } from './decide-routine.js';
@@ -974,12 +973,28 @@ function ProposalEditor({
             <Routine
               summary={foldedSectionsSummary(
                 folded.map((k) => body.sections[k].state),
+                folded.filter((k) => !!sectionBlocker(k)).length,
               )}
               open={folded.some(
                 (k) => sectionFolds.isOpen(k) || !!sectionBlocker(k),
               )}
+              // Review N-2: closing the group closes its sections, so Expand all opens it again.
+              onClose={() => sectionFolds.setAll(folded, false)}
             >
               {folded.map(sectionFold)}
+            </Routine>
+          )}
+          {editable && detail && (
+            <Routine summary={revisionReasonSummary(reason)}>
+              <label>
+                What changed{' '}
+                <input
+                  value={reason}
+                  maxLength={300}
+                  placeholder="e.g. Answered review feedback on costs"
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              </label>
             </Routine>
           )}
           {editable && (
@@ -1020,19 +1035,6 @@ function ProposalEditor({
           )}
           {editable && (
             <div className="actions">
-              {detail && (
-                <Routine summary={revisionReasonSummary(reason)}>
-                  <label>
-                    What changed{' '}
-                    <input
-                      value={reason}
-                      maxLength={300}
-                      placeholder="e.g. Answered review feedback on costs"
-                      onChange={(e) => setReason(e.target.value)}
-                    />
-                  </label>
-                </Routine>
-              )}
               <button
                 className="primary"
                 disabled={busy || (!!detail && !dirty)}
@@ -1177,30 +1179,28 @@ function Reviews({
               </p>
             )}
           </fieldset>
-          <Routine summary={marksSummary(marks)}>
-            {MARKS.map(([k, label]) => (
-              <label key={k}>
-                {label}{' '}
-                <select
-                  value={marks[k]}
-                  onChange={(e) =>
-                    setMarks((m) => ({
-                      ...m,
-                      [k]: e.target.value as keyof typeof MARK_TEXT,
-                    }))
-                  }
-                >
-                  {(Object.keys(MARK_TEXT) as (keyof typeof MARK_TEXT)[]).map(
-                    (x) => (
-                      <option key={x} value={x}>
-                        {MARK_TEXT[x]}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-            ))}
-          </Routine>
+          {MARKS.map(([k, label]) => (
+            <label key={k}>
+              {label}{' '}
+              <select
+                value={marks[k]}
+                onChange={(e) =>
+                  setMarks((m) => ({
+                    ...m,
+                    [k]: e.target.value as keyof typeof MARK_TEXT,
+                  }))
+                }
+              >
+                {(Object.keys(MARK_TEXT) as (keyof typeof MARK_TEXT)[]).map(
+                  (x) => (
+                    <option key={x} value={x}>
+                      {MARK_TEXT[x]}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+          ))}
           <label>
             Comments{verdict === 'revise' ? ' (what to revise)' : ''}
             <textarea

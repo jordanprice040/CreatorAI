@@ -13,10 +13,13 @@ import { useViewMode } from './view-mode.js';
 export function Routine({
   summary,
   open,
+  onClose,
   children,
 }: {
   summary: string;
   open?: boolean;
+  /** Called when the person closes the fold (only the person closes one). */
+  onClose?: () => void;
   children: ReactNode;
 }) {
   const { standard } = useViewMode();
@@ -26,7 +29,13 @@ export function Routine({
   }, [open, standard]);
   if (!standard) return <>{children}</>;
   return (
-    <details className="routine" ref={fold}>
+    <details
+      className="routine"
+      ref={fold}
+      onToggle={(e) => {
+        if (!e.currentTarget.open) onClose?.();
+      }}
+    >
       <summary>{summary}</summary>
       {children}
     </details>

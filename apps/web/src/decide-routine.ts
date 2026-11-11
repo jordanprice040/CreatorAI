@@ -12,29 +12,43 @@ export function runSource(
 }
 
 /**
- * The override reason is a judgment, so it stays in view whenever it matters: when the choices
+ * The override reason is a judgment, so its fold opens whenever it matters: when the choices
  * need one, when an earlier one needs a look, or when one is typed (the page then says it is
- * not recorded). Only an empty reason the choices do not need folds under Standard.
+ * not recorded). Before the report loads nothing is known, so it does not open yet. The field
+ * keeps one place in the page either way (review M-1): the fold only opens, never moves it.
  */
-export function overrideInView(
+export function overrideMatters(
   gate: { override_needed: boolean; override_review: boolean } | null,
   override: string,
 ): boolean {
   return (
-    !gate || gate.override_needed || gate.override_review || !!override.trim()
+    !!gate &&
+    (gate.override_needed || gate.override_review || !!override.trim())
   );
 }
 
-/** The one-line summary of the Decide form's routine group. */
-export function decideRoutineSummary(
-  run: { label: string; source: 'found' | 'other' | 'none' },
-  overrideFolded: boolean,
+/** The override reason fold's one line. */
+export function overrideSummary(
+  gate: { override_needed: boolean; override_review: boolean } | null,
+  override: string,
 ): string {
-  const head =
-    run.source === 'none'
-      ? 'No active run to record under: open to see why'
-      : `Recorded under ${run.label}${run.source === 'found' ? ' (the run that found this problem)' : ''}`;
-  return overrideFolded ? `${head} · no override reason needed` : head;
+  const r = override.trim();
+  if (gate?.override_needed && !r)
+    return 'Override reason: needed before you can record';
+  if (gate?.override_review) return 'Override reason: review it';
+  if (r)
+    return `Override reason: “${r.length > 60 ? `${r.slice(0, 59)}…` : r}”${gate && !gate.override_needed ? ' (not needed, not recorded)' : ''}`;
+  return 'Override reason: not needed for these choices';
+}
+
+/** The one-line summary of the Decide form's run fold. */
+export function decideRoutineSummary(run: {
+  label: string;
+  source: 'found' | 'other' | 'none';
+}): string {
+  return run.source === 'none'
+    ? 'No active run to record under: start or resume one first'
+    : `Recorded under ${run.label}${run.source === 'found' ? ' (the run that found this problem)' : ''}`;
 }
 
 /** "2 select for a bounded build, 1 defer", in the form's own words, for "What will happen". */
@@ -62,14 +76,18 @@ export const FOLDED_PROPOSAL_SECTIONS = [
 type SectionState = 'written' | 'unknown' | 'not_applicable';
 
 /** "6 more sections (optional): 1 written, 5 unknown yet". */
-export function foldedSectionsSummary(states: readonly SectionState[]): string {
+export function foldedSectionsSummary(
+  states: readonly SectionState[],
+  /** Folded sections a check blocks (review N-1): named in the summary, never only inside. */
+  blocked = 0,
+): string {
   const n = (s: SectionState) => states.filter((x) => x === s).length;
   const parts = [
     n('written') && `${n('written')} written`,
     n('unknown') && `${n('unknown')} unknown yet`,
     n('not_applicable') && `${n('not_applicable')} not applicable`,
   ].filter(Boolean);
-  return `${states.length} more sections (optional): ${parts.join(', ') || 'none'}`;
+  return `${states.length} more sections (optional): ${parts.join(', ') || 'none'}${blocked ? ` · ${blocked} blocked` : ''}`;
 }
 
 /** The proposal save's "Sections" line. */
@@ -89,22 +107,4 @@ export function revisionReasonSummary(reason: string): string {
   return r
     ? `What changed: “${r.length > 60 ? `${r.slice(0, 59)}…` : r}”`
     : 'What changed: “Edited” (default)';
-}
-
-/** The review marks' summary: how many are still "not checked", and any concerns. */
-export function marksSummary(
-  marks: Readonly<Record<string, 'pass' | 'concern' | 'not_checked'>>,
-): string {
-  const v = Object.values(marks);
-  const count = (m: string) => v.filter((x) => x === m).length;
-  if (count('not_checked') === v.length)
-    return `Marks: all ${v.length} not checked (default)`;
-  return `Marks: ${[
-    count('pass') && `${count('pass')} looks right`,
-    count('concern') &&
-      `${count('concern')} concern${count('concern') === 1 ? '' : 's'}`,
-    count('not_checked') && `${count('not_checked')} not checked`,
-  ]
-    .filter(Boolean)
-    .join(', ')}`;
 }

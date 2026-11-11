@@ -40,11 +40,11 @@ import { ResponseExplanationPanel } from './proposals.js';
 import { ScoreOption } from './scorecard.js';
 import { AssessmentLines, AutoAssess } from './assess.js';
 import { Routine, WhatWillHappen } from './routine.js';
-import { useViewMode } from './view-mode.js';
 import {
   decideRoutineSummary,
   dispositionCounts,
-  overrideInView,
+  overrideMatters,
+  overrideSummary,
   runSource,
 } from './decide-routine.js';
 import {
@@ -487,35 +487,15 @@ export function Compare({
         : [];
     });
   };
-  // P19 follow-up: Standard folds the run choice (and an override reason the choices do not
-  // need) under one line; Advanced shows them open, in the same order as before.
-  const { standard } = useViewMode();
-  const overrideShown = !standard || overrideInView(gate, override);
+  // P19 follow-up: Standard folds the run choice, and the override reason while it does not
+  // matter, each under one line; Advanced shows them open, in the same order as before. The
+  // override field never moves: its fold only opens (review M-1).
   const chosenRun = d?.runs.find((r) => r.run_id === runId);
   const source = runSource(runId, d?.cmp.run_id ?? null);
-  const routineSummary = decideRoutineSummary(
-    {
-      label: chosenRun && d ? runLabel(chosenRun, d.names) : '',
-      source,
-    },
-    !overrideShown,
-  );
-  const overrideField = (
-    <>
-      <label htmlFor="dec-override">
-        Override reason (needed when you advance a lower-ranked option)
-      </label>
-      <input
-        id="dec-override"
-        maxLength={1200}
-        value={override}
-        onChange={(e) => {
-          setOverride(e.target.value);
-          if (gate) setOverrideKept(gate.override_signature);
-        }}
-      />
-    </>
-  );
+  const routineSummary = decideRoutineSummary({
+    label: chosenRun && d ? runLabel(chosenRun, d.names) : '',
+    source,
+  });
   const blockedCount = (id: string) => clearable(id).length;
   const blockedText = (id: string) =>
     groupByReason(clearable(id))
@@ -1203,38 +1183,54 @@ export function Compare({
                     </div>
                   </div>
                 )}
-                {overrideShown && overrideField}
-                {gate && !gate.override_needed && override.trim() && (
-                  <p className="small">
-                    Not needed for these choices: no option is advanced over a
-                    higher-ranked one, so this reason is not recorded.
-                  </p>
-                )}
-                {gate?.override_review && (
-                  <div className="carry-flag">
-                    <strong>Review the override reason.</strong>{' '}
-                    {override.trim()
-                      ? 'The options this reason compares have changed. Keep it if it still explains the choice, or rewrite it.'
-                      : 'Your choices now advance an option over higher-ranked options; give a reason.'}
-                    {override.trim() && (
-                      <div>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() =>
-                            gate && setOverrideKept(gate.override_signature)
-                          }
-                        >
-                          Keep this reason
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                <Routine
+                  summary={overrideSummary(gate, override)}
+                  open={overrideMatters(gate, override)}
+                >
+                  <label htmlFor="dec-override">
+                    Override reason (needed when you advance a lower-ranked
+                    option)
+                  </label>
+                  <input
+                    id="dec-override"
+                    maxLength={1200}
+                    value={override}
+                    onChange={(e) => {
+                      setOverride(e.target.value);
+                      if (gate) setOverrideKept(gate.override_signature);
+                    }}
+                  />
+                  {gate && !gate.override_needed && override.trim() && (
+                    <p className="small">
+                      Not needed for these choices: no option is advanced over a
+                      higher-ranked one, so this reason is not recorded.
+                    </p>
+                  )}
+                  {gate?.override_review && (
+                    <div className="carry-flag">
+                      <strong>Review the override reason.</strong>{' '}
+                      {override.trim()
+                        ? 'The options this reason compares have changed. Keep it if it still explains the choice, or rewrite it.'
+                        : 'Your choices now advance an option over higher-ranked options; give a reason.'}
+                      {override.trim() && (
+                        <div>
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={() =>
+                              gate && setOverrideKept(gate.override_signature)
+                            }
+                          >
+                            Keep this reason
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Routine>
                 {/* Opens only once the runs are loaded and none is active; runId is empty for a moment
                     before the first run is picked, and a fold opened then would stay open. */}
                 <Routine summary={routineSummary} open={d.runs.length === 0}>
-                  {!overrideShown && overrideField}
                   <label htmlFor="dec-run">Record under run</label>
                   <select
                     id="dec-run"

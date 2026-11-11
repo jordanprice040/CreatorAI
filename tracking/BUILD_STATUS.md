@@ -1263,3 +1263,25 @@ route, gate, request or data change. The rules are in `apps/web/src/decide-routi
 - Not done: the folded override case was checked by the unit test, not in the browser (the seeded selection needs
   an override reason). The `problems//explanation` 404 on Proposals is still there (pre-existing). Not independently
   reviewed.
+
+### P19 follow-up review fixes (November 11, same PR #166; review `reviews/PR166_DECIDE_PROPOSALS_FOLDS_REVIEW.md`, 1 Medium, 1 Low, 4 nits)
+
+- M-1 Decide: the override reason has one place in the page, in its own fold ("Override reason: not needed for these
+  choices", "needed before you can record", "review it", or the typed text with "(not needed, not recorded)"). The
+  fold opens when the reason matters and never closes or moves the field, so typing into it or clearing it keeps
+  focus and every keystroke. The run fold no longer holds the reason.
+- L-1 Proposals: the four review marks are no longer folded; they are the reviewer's judgment.
+- N-1: the optional-sections summary adds "· N blocked" when a check blocks a folded section. N-2: closing the group
+  by hand closes its sections, so Expand all opens it again (`Routine` gained `onClose`). N-3: with no active run the
+  run summary says "start or resume one first". N-4: "What changed" sits above "What will happen", right before Save.
+- Evidence: new `walk-override.cjs` (output `walk-override-output-2026-11-11.txt`) records a selection deferring every
+  option with no override reason on a fresh `seed-selection` workspace (approving once through the API), then in
+  Standard: the reason loads folded; `keyboard.type("because")` keeps focus on `dec-override` with value "because";
+  select-all, Backspace and "new reason" keep focus and the value; clearing keeps focus. Review marks: 4 visible,
+  none in a fold. Expand all, close the group by hand, Expand all enabled and reopens it. Order before Save: "What
+  changed", "What will happen", Save. `walk.cjs` re-run (output replaced).
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db`
+  954 tests, 919 pass, 29 skip, 6 fail: the 5 known no-`pwsh` wrapper tests and one `tester-accounts` test that lost
+  its database connection (`ECONNRESET`) while the browser walk ran against the same server; rerun alone it passed
+  2 of 2, twice. No code it covers changed.
+

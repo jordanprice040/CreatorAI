@@ -56,15 +56,15 @@ const log = (k, v) => console.log(k, JSON.stringify(v));
     p.evaluate(() => {
       const f = document.querySelector('form.decide');
       if (!f) return null;
-      const r = f.querySelector('details.routine');
       const run = f.querySelector('#dec-run');
       const ov = f.querySelector('#dec-override');
       return {
-        routine: r ? r.querySelector('summary').textContent : null,
-        routineOpen: r ? r.open : null,
-        runInsideFold: !!(r && run && r.contains(run)),
-        overrideInsideFold: !!(r && ov && r.contains(ov)),
-        overrideVisible: !!ov && ov.offsetParent !== null,
+        folds: [...f.querySelectorAll('details.routine')].map((d) => [
+          d.querySelector('summary').textContent,
+          d.open,
+        ]),
+        runInsideFold: !!run?.closest('details.routine'),
+        overrideInsideFold: !!ov?.closest('details.routine'),
         whatHappens: [...f.querySelectorAll('.what-happens dt')].map((d) => [
           d.textContent,
           d.nextElementSibling.textContent,
@@ -81,10 +81,10 @@ const log = (k, v) => console.log(k, JSON.stringify(v));
       .screenshot({ path: shot(`decide-${mode}.png`) });
   }
 
-  // Standard: the override reason leaves the fold once typed (it then says it is not recorded).
+  // Standard: typing into the override reason keeps it in its fold (walk-override.cjs covers a
+  // reason that is really folded, typed with the keyboard).
   await setMode('standard');
   await go('projects/decide');
-  await p.locator('form.decide details.routine > summary').click();
   await p.fill('#dec-override', 'testing the fold');
   await p.waitForTimeout(300);
   log('DECIDE override typed', await decideFacts());
