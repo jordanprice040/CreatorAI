@@ -8,7 +8,11 @@ import {
   ContractError,
   WebDiscoveryScopeSchema,
   WebDiscoverySchema,
+  forDiscover,
+  forWebDiscovery,
+  isQualified,
   routinePolicySummary,
+  type PlanQualification,
   type RoutinePolicyInput,
   type WebSearchCall,
 } from '@creator/contracts';
@@ -26,7 +30,14 @@ import {
   scoutInputHash,
   webQuoteLongEnough,
 } from '@creator/domain';
-import { ConnectionStore } from '@creator/db';
+import {
+  ConnectionStore,
+  heldOutKeys,
+  heldOutSeen,
+  heldOutPrompts,
+  promptHash,
+  type ManifestCase,
+} from '@creator/db';
 import { MemoryVault, PlanConnectionService } from '@creator/broker';
 import {
   FIXTURE_SOURCE_POLICY,
@@ -141,6 +152,32 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
   assert.ok(long.ok);
   assert.equal(long.ok && long.leads[0]!.why.length, 300);
   assert.equal(long.ok && long.leads[0]!.disposition, 'selected');
+  // Review 3 L-2: a clip that lands on an emoji keeps the text well formed, so it can be stored.
+  const emoji = checkScoutOutput(
+    {
+      summary: 'Searched.',
+      leads: [lead('https://a.org/1', 'Title', `${'W'.repeat(298)}😀 more`)],
+    },
+    [call(['https://a.org/1'])],
+    scope(),
+  );
+  assert.ok(emoji.ok);
+  const why = emoji.ok ? emoji.leads[0]!.why : '';
+  assert.ok(why.length <= 300 && why.endsWith('…'));
+  assert.ok(
+    !/[\uD800-\uDFFF]/.test(why.replace(/\p{Extended_Pictographic}/gu, '')),
+  );
+  assert.doesNotThrow(() => JSON.parse(JSON.stringify(why)));
+  assert.ok(!JSON.stringify(why).includes('\\ud83d'));
+  const lone = checkScoutOutput(
+    {
+      summary: 'Half \ud83d of an emoji.',
+      leads: [lead('https://a.org/1')],
+    },
+    [call(['https://a.org/1'])],
+    scope(),
+  );
+  assert.equal(lone.ok && lone.summary, 'Half \uFFFD of an emoji.');
   // Re-review R-4: a search source reported over http is fetched at its https form.
   const plain = checkScoutOutput(
     { summary: 'Searched.', leads: [lead('https://g.org/plain')] },
@@ -160,6 +197,91 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
   assert.ok(none.ok && !none.searched);
   assert.equal(none.ok && none.leads[0]!.disposition, 'not_from_search');
   assert.equal(checkScoutOutput({ leads: [] }, [], s).ok, false);
+});
+
+test('a web-discovery and a Discover qualification of research synthesis never stand in for each other (review 3 M-1)', () => {
+  const q = (
+    state: 'qualified' | 'failed',
+    web: boolean,
+    at: string,
+  ): PlanQualification =>
+    ({
+      id: randomUUID(),
+      model_id: 'm',
+      task_class: 'research_synthesis',
+      state,
+      prompt_current: true,
+      admits_web_discovery: web,
+      created_at: at,
+      decided_at: at,
+    }) as PlanQualification;
+  // A newer failed web run leaves a good locate qualification standing, and the reverse.
+  const both = [
+    q('qualified', false, '2026-11-11T10:00:00Z'),
+    q('failed', true, '2026-11-11T11:00:00Z'),
+  ];
+  assert.equal(isQualified(both, 'm', 'research_synthesis'), false); // the old mix-up
+  assert.equal(isQualified(forDiscover(both), 'm', 'research_synthesis'), true);
+  assert.equal(
+    isQualified(forWebDiscovery(both), 'm', 'research_synthesis'),
+    false,
+  );
+  // Only a web qualification (gpt-6-astra on the dev studio): Discover is not qualified.
+  const webOnly = [q('qualified', true, '2026-11-11T12:00:00Z')];
+  assert.equal(
+    isQualified(forDiscover(webOnly), 'm', 'research_synthesis'),
+    false,
+  );
+  assert.equal(
+    isQualified(forWebDiscovery(webOnly), 'm', 'research_synthesis'),
+    true,
+  );
+});
+
+test('viewed held-out web cases are refused for a revised stage prompt, not for an unchanged one (review 3 L-1)', () => {
+  const read = (v: number) =>
+    BenchmarkManifestSchema.parse(
+      JSON.parse(
+        readFileSync(
+          `config/connections/benchmarks/web-discovery-v${v}.json`,
+          'utf8',
+        ),
+      ),
+    ).cases as unknown as ManifestCase[];
+  const v1 = read(1);
+  const v2 = read(2);
+  // The role version no longer changes a case's key: v2 keeps v1's reader held-out cases.
+  const k1 = new Set(heldOutKeys(v1));
+  const shared = heldOutKeys(v2).filter((k) => k1.has(k));
+  assert.equal(shared.length, 4);
+  // Views as recorded now (per-case prompts) of v1's results: v2's reader prompt is unchanged
+  // and its scout held-out cases are new, so v2 may start.
+  const viewOf = (cases: ManifestCase[]) => ({
+    prompt_hash: promptHash(cases),
+    held_out: heldOutKeys(cases),
+    held_out_prompts: heldOutPrompts(cases),
+  });
+  assert.equal(heldOutSeen(viewOf(v1), v2), 0);
+  // A v3 that revises the scout prompt and keeps v2's viewed scout held-out cases is refused;
+  // revising only the reader prompt refuses the reader cases.
+  const revise = (kind: string) =>
+    v2.map((c) =>
+      (c.check as { kind?: string }).kind === kind
+        ? {
+            ...c,
+            input: c.input.map((m) =>
+              m.role === 'system' ? { ...m, text: `${m.text} Be brief.` } : m,
+            ),
+          }
+        : c,
+    );
+  assert.equal(heldOutSeen(viewOf(v2), revise('web_scout_contract')), 3);
+  assert.equal(heldOutSeen(viewOf(v2), revise('web_reader_contract')), 4);
+  assert.equal(heldOutSeen(viewOf(v2), v2), 0);
+  // A view recorded before per-case prompts compares the whole prompt, as before.
+  const old = { prompt_hash: promptHash(v2), held_out: heldOutKeys(v2) };
+  assert.equal(heldOutSeen(old, v2), 0);
+  assert.equal(heldOutSeen(old, revise('web_scout_contract')), 7);
 });
 
 test('fetched pages are judged by their text: bot checks, app shells and short pages are not read', () => {

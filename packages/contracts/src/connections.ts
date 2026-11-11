@@ -479,6 +479,15 @@ export function latestDecided(
   }
   return out;
 }
+/**
+ * ADR-0086 (PR #173 review 3 M-1): web discovery and Discover's locator share the task name
+ * research_synthesis, and each qualification admits only its own work. Discover, Explore, the
+ * chat card and the model picker read `forDiscover`; Search the web reads `forWebDiscovery`.
+ */
+export const forDiscover = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_web_discovery !== true);
+export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_web_discovery === true);
 export const isQualified = (
   qualifications: readonly PlanQualification[],
   model_id: string,

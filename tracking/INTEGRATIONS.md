@@ -2,7 +2,7 @@
 
 ## Plan-route web search used by Search the web (ADR-0086) — November 11, 2026
 
-PR #157's opt-in `web_search` plan option is now used by one route: the search stage of a web discovery (and the scout cases of the `web-discovery-v1` qualification). A plan request carrying `web_search` without a web discovery binding is refused (`web_search_not_bound`). Pages are fetched only by the studio's own SourceBroker under the evidence-site policy. Not activated live: no live web discovery or `web-discovery-v1` qualification has run yet (needs Jordan's typed OK). The Brave adapter stays disabled; the Claude Code route still runs without tools.
+PR #157's opt-in `web_search` plan option is now used by one route: the search stage of a web discovery (and the scout cases of the `web-discovery-v2` qualification). A plan request carrying `web_search` without a web discovery binding is refused (`web_search_not_bound`). Pages are fetched only by the studio's own SourceBroker under the evidence-site policy. Live on the dev studio since November 11 on Jordan's typed OK: gpt-6-astra qualified on `web-discovery-v2` and one discovery ran ([evidence](evidence/web-discovery-live-2026-11-11/README.md)); the installed app has not run it. The Brave adapter stays disabled; the Claude Code route still runs without tools.
 
 ## P22 live connection checks: API key route and GitHub — November 10, 2026
 

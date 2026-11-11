@@ -8,6 +8,7 @@ import {
   PlanConnectionDetailSchema,
   PlanConnectionSchema,
   isQualified,
+  forDiscover,
   latestDecided,
   z,
   type ModelChoice,
@@ -87,12 +88,7 @@ export function routePlans(
       qualified: taskClasses.filter((tc) =>
         assessment && tc === ASSESSMENT_TASK_CLASS
           ? assessQualified(d, m)
-          : isQualified(
-              // ADR-0086: a web discovery qualification admits only web discovery.
-              d.qualifications.filter((q) => q.admits_web_discovery !== true),
-              m,
-              tc,
-            ),
+          : isQualified(forDiscover(d.qualifications), m, tc),
       ),
     })),
   }));
@@ -342,7 +338,7 @@ export function ModelSwitch({
                 t.classes.every((tc) =>
                   tc === ASSESSMENT_TASK_CLASS
                     ? assessQualified(d, m)
-                    : isQualified(d.qualifications, m, tc),
+                    : isQualified(forDiscover(d.qualifications), m, tc),
                 ),
               ).map((t) => t.label);
               const not = CHOICE_TASKS.map((t) => t.label).filter(

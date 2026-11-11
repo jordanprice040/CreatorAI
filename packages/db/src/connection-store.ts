@@ -488,6 +488,12 @@ function withoutRoleVersion(check: unknown): unknown {
     kind?: string;
     context?: Record<string, unknown>;
   } | null;
+  // PR #173 review 3 L-1: a web check names its role version at the top level; the stage's
+  // prompt is its system message, which `heldOutPrompts` covers case by case.
+  if (c?.kind === 'web_scout_contract' || c?.kind === 'web_reader_contract') {
+    const { role_version: _v, ...rest } = c as Record<string, unknown>;
+    return rest;
+  }
   if (c?.kind !== 'discovery_contract' || !c.context) return check ?? null;
   const { role_version: _v, packet_hash: _p, ...context } = c.context;
   return { ...c, context };
@@ -509,6 +515,37 @@ export const promptHash = (cases: readonly ManifestCase[]) =>
       ),
     ].sort(),
   );
+/**
+ * PR #173 review 3 L-1: the prompt each held-out case gives its model, in `heldOutKeys` order.
+ * A benchmark with several stages (web discovery's scout and reader) revises one stage's prompt
+ * without changing the other's, so a viewed case is compared with its own stage's prompt.
+ */
+export const heldOutPrompts = (cases: readonly ManifestCase[]) =>
+  cases.filter((k) => k.split === 'held_out').map((k) => promptHash([k]));
+/**
+ * ADR-0052: how many of a manifest's held-out cases one recorded view showed under a different
+ * prompt. A view recorded before per-case prompts were stored compares the whole prompt.
+ */
+export function heldOutSeen(
+  view: {
+    prompt_hash: string;
+    held_out: string[];
+    held_out_prompts?: string[];
+  },
+  cases: readonly ManifestCase[],
+): number {
+  const keys = heldOutKeys(cases);
+  if (!view.held_out_prompts) {
+    if (view.prompt_hash === promptHash(cases)) return 0;
+    const now = new Set(keys);
+    return view.held_out.filter((k) => now.has(k)).length;
+  }
+  const prompts = heldOutPrompts(cases);
+  const now = new Map(keys.map((k, i) => [k, prompts[i]!]));
+  return view.held_out.filter(
+    (k, i) => now.has(k) && now.get(k) !== view.held_out_prompts![i],
+  ).length;
+}
 const HELD_OUT_VIEWED = 'qualification_held_out_viewed';
 
 /** ADR-0081: one person's model choice in a workspace; version 0 when never chosen. */
@@ -3686,8 +3723,6 @@ export class ConnectionStore extends WebDiscoveryStore {
         ).length;
         // ADR-0052: held-out cases whose results someone has viewed no longer test a prompt
         // revised after that view. Retrying the same prompt on them stays allowed.
-        const keys = new Set(heldOutKeys(req.manifest.cases));
-        const prompt = promptHash(req.manifest.cases);
         const views = await c.query(
           `select e.body, e.created_at from plan_connection_events e
              join plan_connections p on p.id = e.connection_id
@@ -3696,9 +3731,10 @@ export class ConnectionStore extends WebDiscoveryStore {
           [conn.workspace_id, HELD_OUT_VIEWED, tc],
         );
         for (const v of views.rows as Row[]) {
-          const b = v.body as { prompt_hash: string; held_out: string[] };
-          if (b.prompt_hash === prompt) continue;
-          const seen = b.held_out.filter((k) => keys.has(k)).length;
+          const seen = heldOutSeen(
+            v.body as Parameters<typeof heldOutSeen>[0],
+            req.manifest.cases,
+          );
           if (seen)
             throw fail(
               'INVALID_CONTRACT',
@@ -3976,6 +4012,7 @@ export class ConnectionStore extends WebDiscoveryStore {
               manifest_hash: String(rows[0].manifest_hash),
               prompt_hash: promptHash(full.cases),
               held_out: heldOutKeys(full.cases),
+              held_out_prompts: heldOutPrompts(full.cases),
             },
             ctx,
           );

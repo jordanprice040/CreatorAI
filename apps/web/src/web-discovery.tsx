@@ -9,6 +9,7 @@ import {
   WebDiscoverySchema,
   WebDiscoverySummarySchema,
   latestDecided,
+  forWebDiscovery,
   z,
   type PlanConnectionDetail,
   type SessionInfo,
@@ -75,7 +76,7 @@ const CHECK: Record<WebClaimProposal['check'], string> = {
 /** Whether this model's newest decided web discovery qualification passed. */
 export const webQualified = (d: PlanConnectionDetail, model: string) =>
   latestDecided(
-    d.qualifications.filter((q) => q.admits_web_discovery === true),
+    forWebDiscovery(d.qualifications),
     model,
     WEB_DISCOVERY_TASK_CLASS,
   )?.state === 'qualified';
@@ -672,7 +673,8 @@ function Discovery({
           <summary>
             Pages: {d.leads.filter((l) => l.disposition === 'selected').length}{' '}
             chosen of {d.leads.length} named,{' '}
-            {d.leads.filter((l) => l.quality === 'usable').length} read
+            {d.leads.filter((l) => l.quality === 'usable').length} with usable
+            text
           </summary>
           <ul className="small">
             {d.leads.map((l) => (
@@ -725,25 +727,25 @@ function Discovery({
             ))}
           </ol>
           {owner && pending.length > 1 && (
-            <p className="small">
-              Read each claim's sources and uncertainty first. A checked quote
-              is on the page; it may not prove the claim.
-            </p>
-          )}
-          {owner && pending.length > 1 && (
-            <button
-              type="button"
-              disabled={!!busy}
-              onClick={() =>
-                void act('admit-all', 'admit', {
-                  proposal_ids: pending.map((p) => p.id),
-                })
-              }
-            >
-              {busy === 'admit-all'
-                ? 'Adding…'
-                : `Add all ${pending.length} checked claims`}
-            </button>
+            <>
+              <p className="small">
+                Read each claim's sources and uncertainty first. A checked quote
+                is on the page; it may not prove the claim.
+              </p>
+              <button
+                type="button"
+                disabled={!!busy}
+                onClick={() =>
+                  void act('admit-all', 'admit', {
+                    proposal_ids: pending.map((p) => p.id),
+                  })
+                }
+              >
+                {busy === 'admit-all'
+                  ? 'Adding…'
+                  : `Add all ${pending.length} checked claims`}
+              </button>
+            </>
           )}
         </>
       )}

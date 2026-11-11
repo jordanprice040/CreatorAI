@@ -80,7 +80,21 @@ const clipped = (n: number) =>
     .trim()
     .min(1)
     .max(4000)
-    .transform((s) => (s.length > n ? `${s.slice(0, n - 1)}…` : s));
+    .transform((s) => {
+      // PR #173 review 3 L-2: never end on half of a surrogate pair (an emoji), and replace any
+      // lone half the answer already held, or PostgreSQL refuses the stored JSON.
+      let out = s;
+      if (out.length > n) {
+        let cut = n - 1;
+        const last = out.charCodeAt(cut - 1);
+        if (last >= 0xd800 && last <= 0xdbff) cut -= 1;
+        out = `${out.slice(0, cut)}…`;
+      }
+      return out.replace(
+        /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+        '\uFFFD',
+      );
+    });
 
 /** What the search request answers: candidate pages, each with why it may hold evidence. */
 export const ScoutOutputSchema = z.strictObject({

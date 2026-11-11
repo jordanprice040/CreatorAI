@@ -23,6 +23,9 @@ import {
   type Workflow,
   type WorkflowDetail,
   type Workspace,
+  forDiscover,
+  forWebDiscovery,
+  isQualified,
 } from '@creator/contracts';
 import { api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
@@ -290,12 +293,10 @@ export function Explore({
             : []),
           ...(plan &&
           model &&
-          !plan.qualifications.some(
-            (q) =>
-              q.admits_web_discovery !== true &&
-              q.model_id === model &&
-              q.task_class === EXPLORATION_TASK_CLASS &&
-              q.state === 'qualified',
+          !isQualified(
+            forDiscover(plan.qualifications),
+            model,
+            EXPLORATION_TASK_CLASS,
           )
             ? [
                 // P23 item 8: name the reason when the task is not allowed here at all,
@@ -307,14 +308,13 @@ export function Explore({
                 ),
                 // ADR-0086: a web-discovery qualification is also research synthesis but
                 // covers only Search the web; say so, since Models lists it as qualified.
-                ...(plan.qualifications.some(
-                  (q) =>
-                    q.admits_web_discovery === true &&
-                    q.model_id === model &&
-                    q.state === 'qualified',
+                ...(isQualified(
+                  forWebDiscovery(plan.qualifications),
+                  model,
+                  EXPLORATION_TASK_CLASS,
                 )
                   ? [
-                      'Its web-discovery qualification covers only Search the web; Explore for me needs the discovery-locator benchmark.',
+                      'Its web-discovery qualification covers only Search the web; Explore for me needs a qualification on the discovery locator’s own benchmark.',
                     ]
                   : []),
               ]
