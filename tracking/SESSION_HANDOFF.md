@@ -32,8 +32,8 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
-| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52) |
-| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; reviews clean; ready to merge |
+| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52); Decide and Proposals folds follow-up on branch `claude/project-thread-qc6o5z` |
+| P20 whole process from Chat | Merged (PR #165; ADR-0083 amending ADR-0057/0070, migration 53) |
 | P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
 | P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
@@ -960,3 +960,13 @@ Overlap with open PRs:
 
 Main becomes schema 52 when this merges, after P21's 51. Next free numbers: migration 53 and ADR-0083.
 Next eligible prompts: P20, then P12 and P13 as the plan orders them.
+
+## P19 follow-up: Decide and Proposals in Standard (November 11, branch `claude/project-thread-qc6o5z`)
+
+Standard now folds the Decide form's run choice (and an override reason only when empty and not needed) and the
+Proposals form's six non-core optional sections, revision "What changed" and review marks; both forms gained "What
+will happen". Contrary evidence, assumptions and required sections never fold. Rules in `apps/web/src/decide-routine.ts`,
+tests in `tests/src/web-decide-routine.test.ts`, walk in `tracking/evidence/p19-decide-proposals/` (run it with
+`LOGIN_CODE=<dev login code> node walk.cjs` against dev servers on 5183/4330/4340 and a `cli seed-selection`
+workspace). No migration or ADR; next free numbers stay migration 54 and ADR-0084. Next: independent review, then
+the installed app upgrade and P17.

@@ -37,6 +37,15 @@ import {
   type FoldChoices,
 } from './fold.js';
 import { firstNeeding } from './fold-state.js';
+import { Routine, WhatWillHappen } from './routine.js';
+import { useViewMode } from './view-mode.js';
+import {
+  FOLDED_PROPOSAL_SECTIONS,
+  foldedSectionsSummary,
+  marksSummary,
+  revisionReasonSummary,
+  sectionCounts,
+} from './decide-routine.js';
 
 // ADR-0077 (P09): why a response was chosen (shown on Decide), and the Proposals tab, where a
 // recommended non-code option gets a versioned proposal people write, check, review, revise,
@@ -660,6 +669,156 @@ function ProposalEditor({
     editable ? firstNeeding(PROPOSAL_SECTIONS, sectionNeeds) : [],
     foldChoices,
   );
+  // P19 follow-up: Standard keeps the required sections, contrary evidence and assumptions in
+  // view and folds the other optional sections under one line; Advanced keeps the P18 order.
+  const { standard } = useViewMode();
+  const folded: readonly ProposalSection[] = FOLDED_PROPOSAL_SECTIONS;
+  const inView = PROPOSAL_SECTIONS.filter((k) => !folded.includes(k));
+  const sectionFold = (k: ProposalSection) => {
+    const s = body.sections[k];
+    const core = CORE_PROPOSAL_SECTIONS.includes(k);
+    const cited = new Set(s.claims.map((c) => c.id));
+    return (
+      <Fold
+        key={k}
+        id={k}
+        folds={sectionFolds}
+        className="proposal-fold"
+        summary={
+          <>
+            <span className="fold-title">{PROPOSAL_SECTION_LABELS[k]}</span>
+            <small>
+              {core ? ' · required' : ''} ·{' '}
+              <span className={sectionNeeds(k) ? 'fold-attention' : undefined}>
+                {STATE_TEXT[s.state]}
+                {sectionBlocker(k) && s.state === 'written'
+                  ? `, blocked: ${clip(sectionBlocker(k)!.message, 100)}`
+                  : ''}
+              </span>
+              {s.claims.length > 0
+                ? ` · ${s.claims.length} cited claim${s.claims.length === 1 ? '' : 's'}`
+                : ''}
+            </small>
+            {s.text.trim() && (
+              <span className="fold-line small">
+                {clip(s.text.trim(), 120)}
+              </span>
+            )}
+          </>
+        }
+      >
+        <fieldset className="proposal-section">
+          <legend className="sr-only">
+            {PROPOSAL_SECTION_LABELS[k]}
+            {core ? ' · required' : null}
+          </legend>
+          <label>
+            State{' '}
+            <select
+              value={s.state}
+              disabled={!editable}
+              onChange={(e) =>
+                setSection(k, {
+                  state: e.target.value as typeof s.state,
+                })
+              }
+            >
+              {(['written', 'unknown', 'not_applicable'] as const)
+                .filter((x) => !(core && x === 'not_applicable'))
+                .map((x) => (
+                  <option key={x} value={x}>
+                    {STATE_TEXT[x]}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <textarea
+            aria-label={`${PROPOSAL_SECTION_LABELS[k]} text`}
+            rows={s.state === 'written' ? 5 : 2}
+            value={s.text}
+            maxLength={PROPOSAL_SECTION_MAX}
+            disabled={!editable}
+            placeholder={
+              s.state === 'unknown'
+                ? 'What is not known yet (optional)'
+                : s.state === 'not_applicable'
+                  ? 'Why it does not apply'
+                  : 'Plain text; Markdown shows as typed in the saved file'
+            }
+            onChange={(e) => setSection(k, { text: e.target.value })}
+          />
+          {(k === 'evidence' ||
+            k === 'contrary_evidence' ||
+            s.claims.length > 0) && (
+            <details open={s.claims.length > 0}>
+              <summary className="small">
+                Cited claims ({s.claims.length})
+              </summary>
+              <ul className="small claim-picks">
+                {offered.map((c) => (
+                  <li key={c.evidence.claim.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        disabled={!editable}
+                        checked={cited.has(c.evidence.claim.id)}
+                        onChange={(e) =>
+                          setSection(k, {
+                            claims: e.target.checked
+                              ? [
+                                  ...s.claims,
+                                  {
+                                    id: c.evidence.claim.id,
+                                    version: c.evidence.claim.version,
+                                  },
+                                ].slice(0, 20)
+                              : s.claims.filter(
+                                  (x) => x.id !== c.evidence.claim.id,
+                                ),
+                          })
+                        }
+                      />{' '}
+                      {clip(
+                        c.evidence.claim.statement ?? c.evidence.claim.title,
+                        160,
+                      )}{' '}
+                      <small>
+                        · {c.relation} · v{c.evidence.claim.version} ·{' '}
+                        {words(c.evidence.status)}
+                      </small>
+                    </label>
+                  </li>
+                ))}
+                {s.claims
+                  .filter(
+                    (x) => !offered.some((c) => c.evidence.claim.id === x.id),
+                  )
+                  .map((x) => (
+                    <li key={x.id}>
+                      Claim {x.id.slice(0, 8)} v{x.version} (not linked to this
+                      problem now){' '}
+                      {editable && (
+                        <button
+                          type="button"
+                          className="text"
+                          onClick={() =>
+                            setSection(k, {
+                              claims: s.claims.filter((y) => y.id !== x.id),
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          )}
+        </fieldset>
+      </Fold>
+    );
+  };
   return (
     <section className="panel proposal" aria-labelledby="proposal-head">
       <h2 id="proposal-head">
@@ -810,175 +969,69 @@ function ProposalEditor({
             folds={sectionFolds}
             label="sections"
           />
-          {PROPOSAL_SECTIONS.map((k) => {
-            const s = body.sections[k];
-            const core = CORE_PROPOSAL_SECTIONS.includes(k);
-            const cited = new Set(s.claims.map((c) => c.id));
-            return (
-              <Fold
-                key={k}
-                id={k}
-                folds={sectionFolds}
-                className="proposal-fold"
-                summary={
-                  <>
-                    <span className="fold-title">
-                      {PROPOSAL_SECTION_LABELS[k]}
-                    </span>
-                    <small>
-                      {core ? ' · required' : ''} ·{' '}
-                      <span
-                        className={
-                          sectionNeeds(k) ? 'fold-attention' : undefined
-                        }
-                      >
-                        {STATE_TEXT[s.state]}
-                        {sectionBlocker(k) && s.state === 'written'
-                          ? `, blocked: ${clip(sectionBlocker(k)!.message, 100)}`
-                          : ''}
-                      </span>
-                      {s.claims.length > 0
-                        ? ` · ${s.claims.length} cited claim${s.claims.length === 1 ? '' : 's'}`
-                        : ''}
-                    </small>
-                    {s.text.trim() && (
-                      <span className="fold-line small">
-                        {clip(s.text.trim(), 120)}
-                      </span>
-                    )}
-                  </>
-                }
-              >
-                <fieldset className="proposal-section">
-                  <legend className="sr-only">
-                    {PROPOSAL_SECTION_LABELS[k]}
-                    {core ? ' · required' : null}
-                  </legend>
-                  <label>
-                    State{' '}
-                    <select
-                      value={s.state}
-                      disabled={!editable}
-                      onChange={(e) =>
-                        setSection(k, {
-                          state: e.target.value as typeof s.state,
-                        })
-                      }
-                    >
-                      {(['written', 'unknown', 'not_applicable'] as const)
-                        .filter((x) => !(core && x === 'not_applicable'))
-                        .map((x) => (
-                          <option key={x} value={x}>
-                            {STATE_TEXT[x]}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <textarea
-                    aria-label={`${PROPOSAL_SECTION_LABELS[k]} text`}
-                    rows={s.state === 'written' ? 5 : 2}
-                    value={s.text}
-                    maxLength={PROPOSAL_SECTION_MAX}
-                    disabled={!editable}
-                    placeholder={
-                      s.state === 'unknown'
-                        ? 'What is not known yet (optional)'
-                        : s.state === 'not_applicable'
-                          ? 'Why it does not apply'
-                          : 'Plain text; Markdown shows as typed in the saved file'
-                    }
-                    onChange={(e) => setSection(k, { text: e.target.value })}
-                  />
-                  {(k === 'evidence' ||
-                    k === 'contrary_evidence' ||
-                    s.claims.length > 0) && (
-                    <details open={s.claims.length > 0}>
-                      <summary className="small">
-                        Cited claims ({s.claims.length})
-                      </summary>
-                      <ul className="small claim-picks">
-                        {offered.map((c) => (
-                          <li key={c.evidence.claim.id}>
-                            <label>
-                              <input
-                                type="checkbox"
-                                disabled={!editable}
-                                checked={cited.has(c.evidence.claim.id)}
-                                onChange={(e) =>
-                                  setSection(k, {
-                                    claims: e.target.checked
-                                      ? [
-                                          ...s.claims,
-                                          {
-                                            id: c.evidence.claim.id,
-                                            version: c.evidence.claim.version,
-                                          },
-                                        ].slice(0, 20)
-                                      : s.claims.filter(
-                                          (x) => x.id !== c.evidence.claim.id,
-                                        ),
-                                  })
-                                }
-                              />{' '}
-                              {clip(
-                                c.evidence.claim.statement ??
-                                  c.evidence.claim.title,
-                                160,
-                              )}{' '}
-                              <small>
-                                · {c.relation} · v{c.evidence.claim.version} ·{' '}
-                                {words(c.evidence.status)}
-                              </small>
-                            </label>
-                          </li>
-                        ))}
-                        {s.claims
-                          .filter(
-                            (x) =>
-                              !offered.some(
-                                (c) => c.evidence.claim.id === x.id,
-                              ),
-                          )
-                          .map((x) => (
-                            <li key={x.id}>
-                              Claim {x.id.slice(0, 8)} v{x.version} (not linked
-                              to this problem now){' '}
-                              {editable && (
-                                <button
-                                  type="button"
-                                  className="text"
-                                  onClick={() =>
-                                    setSection(k, {
-                                      claims: s.claims.filter(
-                                        (y) => y.id !== x.id,
-                                      ),
-                                    })
-                                  }
-                                >
-                                  Remove
-                                </button>
-                              )}
-                            </li>
-                          ))}
-                      </ul>
-                    </details>
-                  )}
-                </fieldset>
-              </Fold>
-            );
-          })}
+          {(standard ? inView : PROPOSAL_SECTIONS).map(sectionFold)}
+          {standard && (
+            <Routine
+              summary={foldedSectionsSummary(
+                folded.map((k) => body.sections[k].state),
+              )}
+              open={folded.some(
+                (k) => sectionFolds.isOpen(k) || !!sectionBlocker(k),
+              )}
+            >
+              {folded.map(sectionFold)}
+            </Routine>
+          )}
+          {editable && (
+            <WhatWillHappen
+              items={[
+                {
+                  label: 'Proposal',
+                  value: detail
+                    ? `Saves version ${detail.proposal.version + 1} of “${clip(title, 80)}”; version ${detail.proposal.version} stays as it was`
+                    : `Saves a new proposal “${clip(title, 80)}”`,
+                },
+                {
+                  label: 'Sections',
+                  value: sectionCounts(
+                    PROPOSAL_SECTIONS.map((k) => ({
+                      required: CORE_PROPOSAL_SECTIONS.includes(k),
+                      state: body.sections[k].state,
+                    })),
+                  ),
+                },
+                ...(detail
+                  ? [
+                      {
+                        label: 'What changed',
+                        value: reason.trim() || 'Edited',
+                        source: reason.trim() ? 'written here' : 'default',
+                      },
+                    ]
+                  : []),
+                {
+                  label: 'Checks',
+                  value:
+                    'Run again on the saved version; a review can say “Ready to use” only once every required section is written and no check finds a blocker',
+                },
+              ]}
+              note="Nothing is saved until you press the button below. A proposal is a document: saving it sends nothing anywhere and starts no work."
+            />
+          )}
           {editable && (
             <div className="actions">
               {detail && (
-                <label>
-                  What changed{' '}
-                  <input
-                    value={reason}
-                    maxLength={300}
-                    placeholder="e.g. Answered review feedback on costs"
-                    onChange={(e) => setReason(e.target.value)}
-                  />
-                </label>
+                <Routine summary={revisionReasonSummary(reason)}>
+                  <label>
+                    What changed{' '}
+                    <input
+                      value={reason}
+                      maxLength={300}
+                      placeholder="e.g. Answered review feedback on costs"
+                      onChange={(e) => setReason(e.target.value)}
+                    />
+                  </label>
+                </Routine>
               )}
               <button
                 className="primary"
@@ -1124,28 +1177,30 @@ function Reviews({
               </p>
             )}
           </fieldset>
-          {MARKS.map(([k, label]) => (
-            <label key={k}>
-              {label}{' '}
-              <select
-                value={marks[k]}
-                onChange={(e) =>
-                  setMarks((m) => ({
-                    ...m,
-                    [k]: e.target.value as keyof typeof MARK_TEXT,
-                  }))
-                }
-              >
-                {(Object.keys(MARK_TEXT) as (keyof typeof MARK_TEXT)[]).map(
-                  (x) => (
-                    <option key={x} value={x}>
-                      {MARK_TEXT[x]}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
-          ))}
+          <Routine summary={marksSummary(marks)}>
+            {MARKS.map(([k, label]) => (
+              <label key={k}>
+                {label}{' '}
+                <select
+                  value={marks[k]}
+                  onChange={(e) =>
+                    setMarks((m) => ({
+                      ...m,
+                      [k]: e.target.value as keyof typeof MARK_TEXT,
+                    }))
+                  }
+                >
+                  {(Object.keys(MARK_TEXT) as (keyof typeof MARK_TEXT)[]).map(
+                    (x) => (
+                      <option key={x} value={x}>
+                        {MARK_TEXT[x]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+            ))}
+          </Routine>
           <label>
             Comments{verdict === 'revise' ? ' (what to revise)' : ''}
             <textarea

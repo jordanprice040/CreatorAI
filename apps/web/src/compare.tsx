@@ -39,6 +39,14 @@ import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
 import { ScoreOption } from './scorecard.js';
 import { AssessmentLines, AutoAssess } from './assess.js';
+import { Routine, WhatWillHappen } from './routine.js';
+import { useViewMode } from './view-mode.js';
+import {
+  decideRoutineSummary,
+  dispositionCounts,
+  overrideInView,
+  runSource,
+} from './decide-routine.js';
 import {
   carryDecisions,
   formGate,
@@ -479,6 +487,35 @@ export function Compare({
         : [];
     });
   };
+  // P19 follow-up: Standard folds the run choice (and an override reason the choices do not
+  // need) under one line; Advanced shows them open, in the same order as before.
+  const { standard } = useViewMode();
+  const overrideShown = !standard || overrideInView(gate, override);
+  const chosenRun = d?.runs.find((r) => r.run_id === runId);
+  const source = runSource(runId, d?.cmp.run_id ?? null);
+  const routineSummary = decideRoutineSummary(
+    {
+      label: chosenRun && d ? runLabel(chosenRun, d.names) : '',
+      source,
+    },
+    !overrideShown,
+  );
+  const overrideField = (
+    <>
+      <label htmlFor="dec-override">
+        Override reason (needed when you advance a lower-ranked option)
+      </label>
+      <input
+        id="dec-override"
+        maxLength={1200}
+        value={override}
+        onChange={(e) => {
+          setOverride(e.target.value);
+          if (gate) setOverrideKept(gate.override_signature);
+        }}
+      />
+    </>
+  );
   const blockedCount = (id: string) => clearable(id).length;
   const blockedText = (id: string) =>
     groupByReason(clearable(id))
@@ -1166,19 +1203,7 @@ export function Compare({
                     </div>
                   </div>
                 )}
-                <label htmlFor="dec-override">
-                  Override reason (needed when you advance a lower-ranked
-                  option)
-                </label>
-                <input
-                  id="dec-override"
-                  maxLength={1200}
-                  value={override}
-                  onChange={(e) => {
-                    setOverride(e.target.value);
-                    if (gate) setOverrideKept(gate.override_signature);
-                  }}
-                />
+                {overrideShown && overrideField}
                 {gate && !gate.override_needed && override.trim() && (
                   <p className="small">
                     Not needed for these choices: no option is advanced over a
@@ -1206,22 +1231,29 @@ export function Compare({
                     )}
                   </div>
                 )}
-                <label htmlFor="dec-run">Record under run</label>
-                <select
-                  id="dec-run"
-                  value={runId}
-                  onChange={(e) => setRunId(e.target.value)}
-                >
-                  {d.runs.length === 0 && (
-                    <option value="">No active run</option>
-                  )}
-                  {d.runs.map((r) => (
-                    <option key={r.run_id} value={r.run_id}>
-                      {runLabel(r, d.names)}
-                      {r.run_id === d.cmp.run_id ? ' (found this problem)' : ''}
-                    </option>
-                  ))}
-                </select>
+                {/* Opens only once the runs are loaded and none is active; runId is empty for a moment
+                    before the first run is picked, and a fold opened then would stay open. */}
+                <Routine summary={routineSummary} open={d.runs.length === 0}>
+                  {!overrideShown && overrideField}
+                  <label htmlFor="dec-run">Record under run</label>
+                  <select
+                    id="dec-run"
+                    value={runId}
+                    onChange={(e) => setRunId(e.target.value)}
+                  >
+                    {d.runs.length === 0 && (
+                      <option value="">No active run</option>
+                    )}
+                    {d.runs.map((r) => (
+                      <option key={r.run_id} value={r.run_id}>
+                        {runLabel(r, d.names)}
+                        {r.run_id === d.cmp.run_id
+                          ? ' (found this problem)'
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                </Routine>
                 {gate &&
                   pendingReviews(gate, override, optionName, incomplete)
                     .length > 0 && (
@@ -1236,6 +1268,51 @@ export function Compare({
                       .
                     </p>
                   )}
+                <WhatWillHappen
+                  items={[
+                    {
+                      label: 'Selection',
+                      value: `Records ${
+                        dispositionCounts(
+                          alts.map((a) => row(a.entity.id).disposition),
+                          DISPOSITION_NOTE,
+                        ) || 'no dispositions yet'
+                      } for ${alts.length} option${alts.length === 1 ? '' : 's'}, bound to report ${d.report.report_hash.slice(0, 12)}`,
+                    },
+                    {
+                      label: 'Run',
+                      value: chosenRun
+                        ? runLabel(chosenRun, d.names)
+                        : 'No active run: start or resume one first',
+                      ...(source !== 'none' && {
+                        source:
+                          source === 'found'
+                            ? 'the run that found this problem'
+                            : 'chosen here',
+                      }),
+                    },
+                    {
+                      label: 'Override reason',
+                      value: gate?.override_needed
+                        ? override.trim()
+                          ? 'Recorded with the selection'
+                          : 'Needed before you can record'
+                        : 'Not needed: no option is advanced over a higher-ranked one',
+                    },
+                    {
+                      label: 'Data class',
+                      value:
+                        workspace.record_mode === 'fixture'
+                          ? 'Synthetic'
+                          : 'Public',
+                      source:
+                        workspace.record_mode === 'fixture'
+                          ? 'fixture workspace'
+                          : 'real workspace',
+                    },
+                  ]}
+                  note="Nothing is recorded until you press the button below, and the server checks the report, the gates and the run again; if the run needs your approval, it waits on Approvals. Every disposition, reason and rationale is only what you wrote."
+                />
                 <button
                   className="primary"
                   type="submit"

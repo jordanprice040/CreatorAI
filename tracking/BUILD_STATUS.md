@@ -32,8 +32,8 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
-| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52) |
-| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; reviews clean; ready to merge |
+| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52); Decide and Proposals folds follow-up on branch `claude/project-thread-qc6o5z` |
+| P20 whole process from Chat | Merged (PR #165; ADR-0083 amending ADR-0057/0070, migration 53) |
 | P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
 | P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
@@ -1230,3 +1230,36 @@ points at the App id or private key; a 5xx or a 201 without a token names the to
   opens P18's one-line folds on Decide before using the option controls, as a person clicking each summary would,
   and passed on a fresh database. The Decide and Proposals forms now carry P18's folds; folding their routine fields
   under Standard is the remaining follow-up.
+
+## P19 follow-up: Decide and Proposals in Standard (November 11, branch `claude/project-thread-qc6o5z`, no migration or ADR)
+
+Closes P19's "not folded" item now that P18 (#162) and P19 (#164) are both on main. Web only, under ADR-0082; no
+route, gate, request or data change. The rules are in `apps/web/src/decide-routine.ts`.
+
+- What works:
+  - Decide (Standard): "Record under run" folds under one line naming the run and whether it is the run that found
+    the problem. The override reason folds with it only when it is empty and the choices do not need one; it stays in
+    view when needed, when an earlier reason needs a look, or when one is typed (the "not recorded" note then shows
+    beside it). The fold opens by itself when there is no active run. A new "What will happen" before Record lists
+    the dispositions it records, the report it binds, the run, whether an override reason is recorded and the data
+    class. Advanced shows the same fields open, in the order they had before.
+  - Proposals (Standard): the seven required sections, "Contrary evidence" and "Decision-changing assumptions" stay
+    in view (each keeps its P18 fold). The other six optional sections (background, materials, roles, timeline,
+    costs, limitations) fold together under "6 more sections (optional): N written, M unknown yet"; the group opens
+    when one of them is opened (Expand all included) or a check blocks one. A revision's "What changed" folds under
+    its value ("Edited" by default). The review form's four marks fold under "Marks: all 4 not checked (default)" or
+    their counts; verdict and comments stay in view. A new "What will happen" before Save lists the version saved,
+    required and optional sections written, the "What changed" note and when checks run. Advanced keeps P18's order
+    and every field open.
+- Checks run (cloud container, PostgreSQL 16, no CI: no Actions minutes): `pnpm typecheck` and `pnpm format:check`
+  pass; `pnpm test:db` 954 tests, 920 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). New `tests/src/web-decide-routine.test.ts` (4 tests): an override reason folds
+  only when empty and not needed; the run summary; folded proposal sections are never required sections, contrary
+  evidence or assumptions; the reason and marks summaries.
+  - Browser walk (`tracking/evidence/p19-decide-proposals/`, throwaway database `decidewalk` at schema 53, reviewer
+    ports, `cli seed-selection`): Decide and Proposals in Standard and Advanced, a new proposal drafted and saved,
+    Expand all opening the folded group. Output in `walk-output-2026-11-11.txt`, screens in `screens/`. The walk
+    found the run fold opening for a moment before the first run was picked (and then staying open); it now opens
+    only once the runs are loaded and none is active, and the rerun shows it closed.
+- Not done: the folded override case was checked by the unit test, not in the browser (the seeded selection needs
+  an override reason). The `problems//explanation` 404 on Proposals is still there (pre-existing). Not independently
+  reviewed.
