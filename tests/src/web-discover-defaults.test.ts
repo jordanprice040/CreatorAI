@@ -205,6 +205,27 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
       'The model is not qualified for scoring.',
     ],
   );
+  // P23 item 8: a task the connection does not allow is named as that, with its fix.
+  const notAllowed = m.discoverSetupBlockers({
+    ...base,
+    plan: {
+      blockers: [],
+      allowedDataClasses: ['public'],
+      allowedTaskClasses: ['research_synthesis'],
+    },
+    model: 'm1',
+    unqualified: ['research_synthesis', 'scoring'],
+  });
+  assert.deepEqual(
+    notAllowed.map((b) => [b.text, b.fix?.view]),
+    [
+      ['The model is not qualified for research synthesis.', 'models'],
+      [
+        "scoring is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections, then qualify it.",
+        'models',
+      ],
+    ],
+  );
   const ready = m.discoverSetupBlockers({
     ...base,
     plan: { blockers: [], allowedDataClasses: ['public'] },

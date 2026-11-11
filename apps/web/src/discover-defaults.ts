@@ -185,6 +185,8 @@ export function discoverSetupBlockers(input: {
   plan: {
     blockers: readonly string[];
     allowedDataClasses: readonly string[];
+    /** P23 item 8: so a task that is not allowed is named as such, not as "not qualified". */
+    allowedTaskClasses?: readonly string[];
   } | null;
   dataClass: string;
   model: string;
@@ -221,7 +223,11 @@ export function discoverSetupBlockers(input: {
         });
       for (const tc of input.unqualified)
         out.push({
-          text: `The model is not qualified for ${tc.replaceAll('_', ' ')}.`,
+          text:
+            input.plan.allowedTaskClasses &&
+            !input.plan.allowedTaskClasses.includes(tc)
+              ? `${tc.replaceAll('_', ' ')} is not allowed on this connection, so the model can't be qualified for it yet. Allow it under Models and connections, then qualify it.`
+              : `The model is not qualified for ${tc.replaceAll('_', ' ')}.`,
           fix: models,
         });
     }

@@ -22,6 +22,8 @@ export interface FakePlanOptions {
   refresh?: 'rotate' | 'invalid_grant' | 'down';
   subject?: string;
   nonce_override?: string;
+  /** Awaited before each Responses answer, so a test can hold a request in flight. */
+  beforeResponse?: () => Promise<void>;
 }
 
 export interface FakePlan {
@@ -70,7 +72,7 @@ export async function fakePlan(o: FakePlanOptions = {}): Promise<FakePlan> {
     const u = new URL(req.url ?? '/', 'http://127.0.0.1');
     let raw = '';
     req.on('data', (d) => (raw += d));
-    req.on('end', () => {
+    req.on('end', async () => {
       const json = (status: number, v: unknown) =>
         res
           .writeHead(status, { 'content-type': 'application/json' })
@@ -149,6 +151,7 @@ export async function fakePlan(o: FakePlanOptions = {}): Promise<FakePlan> {
           auth: String(req.headers.authorization),
           body,
         });
+        await o.beforeResponse?.();
         const list = o.responses ?? [{ kind: 'text', text: 'ok' }];
         const step = list[Math.min(calls++, list.length - 1)]!;
         if (step.kind === 'error')

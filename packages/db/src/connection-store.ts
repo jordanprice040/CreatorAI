@@ -486,6 +486,15 @@ export class ConnectionStore extends PortfolioStore {
    * are covered by the time rule only).
    */
   readonly #livePlanRequests = new Set<string>();
+  /**
+   * ADR-0084 (P23): qualifications whose Run loop this studio process is executing now. A Run
+   * is one long request, so a page that was left or a second window could press Run again and
+   * start a second loop for the same qualification (review of PR #169, M-1). The claim is taken
+   * and checked with no await in between, so two presses in this process cannot both get it.
+   * Empty after a restart; a case still in flight from before is caught by the database check
+   * in `claimQualificationRun`.
+   */
+  readonly #runningQualifications = new Set<string>();
 
   // ---- Owner configuration --------------------------------------------------------------
 
@@ -3653,7 +3662,7 @@ export class ConnectionStore extends PortfolioStore {
       );
       if (!rows[0]) throw fail('NOT_FOUND', 'Qualification not found.');
       const done = await c.query(
-        'select case_id from plan_requests where qualification_id = $1',
+        'select case_id, state from plan_requests where qualification_id = $1',
         [qid],
       );
       return {
@@ -3662,8 +3671,40 @@ export class ConnectionStore extends PortfolioStore {
           typeof StartPlanQualificationRequestSchema
         >['manifest'],
         attempted_cases: done.rows.map((x) => String(x.case_id)),
+        in_flight_cases: done.rows.filter((x) => x.state === 'in_flight')
+          .length,
       };
     });
+  }
+
+  /**
+   * ADR-0084 (P23): claims the Run of one qualification for this process, or refuses. Call it
+   * with what `planQualificationManifest` just read, and call the returned release when the
+   * loop ends. Refuses a qualification that is already being run here, one with a case still
+   * in flight (a run in another studio process, or one cut off by a restart), and one that has
+   * already finished.
+   */
+  claimQualificationRun(read: {
+    qualification: PlanQualification;
+    in_flight_cases: number;
+  }): () => void {
+    const key = String(uuid(read.qualification.id));
+    if (this.#runningQualifications.has(key))
+      throw fail(
+        'INVALID_TRANSITION',
+        'This qualification is already running. Its cases are being sent one by one; this page shows when it finishes.',
+      );
+    if (read.qualification.state !== 'running')
+      throw fail('INVALID_TRANSITION', 'The qualification already finished.');
+    if (read.in_flight_cases > 0)
+      throw fail(
+        'INVALID_TRANSITION',
+        'A case of this qualification is still in flight, from another window or from before the studio restarted. Wait for it to finish, or close it under Running now once it can be closed, then press Run again.',
+      );
+    this.#runningQualifications.add(key);
+    return () => {
+      this.#runningQualifications.delete(key);
+    };
   }
 
   /** Tallies recorded signals and decides; cases that never ran count as not accepted. */
@@ -4039,7 +4080,14 @@ export class ConnectionStore extends PortfolioStore {
     );
     return (rows as Row[])
       .filter((r) => !current || currentForBuildRole(r))
-      .map((r) => toQualification(r));
+      .map((r) => {
+        const q = toQualification(r);
+        // ADR-0084: say which started qualification this process is running now, so the page
+        // reads it from here instead of remembering a press it may have lost.
+        return q.state === 'running'
+          ? { ...q, executing: this.#runningQualifications.has(q.id) }
+          : q;
+      });
   }
 
   /** Qualifications that may admit work now: build-role ones only under the current prompts. */

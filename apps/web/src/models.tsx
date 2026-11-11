@@ -26,6 +26,8 @@ import {
   classErrors,
   classSummary,
   DATA_CLASS_CHOICES,
+  defaultTaskClasses,
+  missingTaskClasses,
   orderedClasses,
   taskChoicesFor,
   draftToCaps,
@@ -33,6 +35,7 @@ import {
 import { ChatAnswersCard } from './chat-answers.js';
 import { OpenRequests } from './open-requests.js';
 import { ApiKeyCheck } from './api-key-check-panel.js';
+import { AllowTasks } from './allow-tasks.js';
 
 // §2.2 Models and connections. Sign-in, model access and task qualification are shown as
 // separate states; nothing here can enable credits or a paid fallback. A Claude Code
@@ -64,7 +67,8 @@ const PROPOSED_SETTINGS = {
   shared_allowance_note:
     "ChatGPT Plus: the five-hour usage allowance is shared with Jordan's personal ChatGPT and Codex use. Credits after the limit stay off for Creator Agent.",
   allowed_data_classes: ['synthetic', 'public'],
-  allowed_task_classes: ['summarization', 'specification'],
+  // ADR-0084 (Decision A): every task this kind can take; the owner can untick any.
+  allowed_task_classes: defaultTaskClasses('chatgpt_plan'),
   caps: {
     responses: {
       max_requests_per_run: 10,
@@ -88,7 +92,8 @@ const PROPOSED_CLAUDE_SETTINGS = {
   shared_allowance_note:
     "Claude Pro/Max: the five-hour and weekly usage limits are shared with Jordan's own Claude and Claude Code use. Extra usage after the limit stays off.",
   allowed_data_classes: ['synthetic', 'public'],
-  allowed_task_classes: ['summarization', 'specification'],
+  // ADR-0084 (Decision A): every task Claude Code can take, so no code build.
+  allowed_task_classes: defaultTaskClasses('claude_code'),
   caps: {
     responses: {
       max_requests_per_run: 10,
@@ -156,6 +161,9 @@ export function Models({
     tasks: string[];
   } | null>(null);
   const [capsErrors, setCapsErrors] = useState<Record<string, string>>({});
+  // P23 (handed over from P26): each Refresh press also reloads the Chat answers card, even
+  // when nothing in the connection list changed (a model verified elsewhere, for example).
+  const [refreshes, setRefreshes] = useState(0);
   const loadSequence = useRef(0);
   async function load(id = selected) {
     const sequence = ++loadSequence.current;
@@ -280,19 +288,22 @@ export function Models({
       <button
         className="secondary"
         disabled={busy || !session}
-        onClick={() => void load().catch((e) => setError(message(e)))}
+        onClick={() => {
+          setRefreshes((n) => n + 1);
+          void load().catch((e) => setError(message(e)));
+        }}
       >
         Refresh connection status
       </button>
       <ChatAnswersCard
         workspace={workspace}
         session={session}
-        stamp={list
+        stamp={`${refreshes}#${list
           .map(
             (x) =>
               `${x.id}:${x.version}:${x.caps_accepted_at ?? ''}:${x.sign_in.state}:${x.credits.state}`,
           )
-          .join('|')}
+          .join('|')}`}
         onChanged={() => void load().catch((e) => setError(message(e)))}
       />
       <h3>Other routes</h3>
@@ -477,6 +488,23 @@ export function Models({
                 c.settings.allowed_data_classes,
                 c.settings.allowed_task_classes,
               )}
+              {owner &&
+                missingTaskClasses(c.kind, c.settings.allowed_task_classes)
+                  .length > 0 && (
+                  <>
+                    {' '}
+                    <AllowTasks
+                      connection={c}
+                      tasks={missingTaskClasses(
+                        c.kind,
+                        c.settings.allowed_task_classes,
+                      )}
+                      label="Allow all tasks"
+                      busy={busy || !session}
+                      act={act}
+                    />
+                  </>
+                )}
             </dd>
           </dl>
           {detail.blockers.length > 0 && (
@@ -668,6 +696,39 @@ export function Models({
                         }
                       >
                         <legend>{title}</legend>
+                        {field === 'tasks' && (
+                          // ADR-0084: tasks only. Data classes stay one by one, so approved
+                          // private data is never ticked by a bulk choice.
+                          <div className="actions">
+                            <button
+                              type="button"
+                              className="text"
+                              disabled={ticked.length === choices.length}
+                              onClick={() => {
+                                setCapsDraft((d) =>
+                                  d
+                                    ? { ...d, tasks: choices.map((x) => x.key) }
+                                    : d,
+                                );
+                                setCapsErrors(({ tasks: _, ...rest }) => rest);
+                              }}
+                            >
+                              Select all
+                            </button>
+                            <button
+                              type="button"
+                              className="text"
+                              disabled={ticked.length === 0}
+                              onClick={() =>
+                                setCapsDraft((d) =>
+                                  d ? { ...d, tasks: [] } : d,
+                                )
+                              }
+                            >
+                              Deselect all
+                            </button>
+                          </div>
+                        )}
                         {choices.map((x) => (
                           <label key={x.key} className="check">
                             <input
@@ -927,7 +988,9 @@ export function Models({
                 <input
                   value={model}
                   placeholder={
-                    claude ? 'Full model id, e.g. claude-sonnet-5-5' : ''
+                    claude
+                      ? 'Full model id, e.g. claude-sonnet-5-5'
+                      : 'Full model id, e.g. gpt-6-astra'
                   }
                   onChange={(e) => setModel(e.target.value)}
                 />
@@ -986,6 +1049,26 @@ export function Models({
               )}
             </fieldset>
           )}
+          {/* P23 item 1: right below the model check, above the list of results. Keyed on
+              the workspace and connection, so a switch starts it fresh (items 4 and 10). */}
+          {owner && (
+            <QualifyModel
+              key={`${workspace.id}:${c.id}`}
+              base={base}
+              connection={c}
+              models={detail.model_access
+                .filter(
+                  (a) => a.path === 'responses' && a.access === 'verified',
+                )
+                .map((a) => a.model_id)}
+              qualifications={detail.qualifications}
+              busy={busy || !session}
+              preferred={
+                choice?.connection_id === c.id ? choice.model_id : null
+              }
+              act={act}
+            />
+          )}
           <h4>Qualified tasks</h4>
           {detail.qualifications.length ? (
             <ul>
@@ -1010,26 +1093,6 @@ export function Models({
             </ul>
           ) : (
             <p>No qualification yet.</p>
-          )}
-          {owner && (
-            <QualifyModel
-              base={base}
-              connection={c}
-              models={detail.model_access
-                .filter(
-                  (a) => a.path === 'responses' && a.access === 'verified',
-                )
-                .map((a) => a.model_id)}
-              allowed={c.settings.allowed_task_classes}
-              running={detail.qualifications.filter(
-                (q) => q.state === 'running',
-              )}
-              busy={busy || !session}
-              preferred={
-                choice?.connection_id === c.id ? choice.model_id : null
-              }
-              act={act}
-            />
           )}
           <h4>Recent requests</h4>
           <p>

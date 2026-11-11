@@ -235,9 +235,21 @@ export async function loadCard(
       const missing = DISCOVERY_CLASSES.filter(
         (tc) => !isQualified(d.qualifications, model, tc),
       );
-      if (missing.length)
+      // P23 item 8: a task the connection does not allow can't be qualified, so say that
+      // instead of a plain "not qualified" with no way forward.
+      const allowed = d.connection.settings
+        .allowed_task_classes as readonly string[];
+      const notAllowed = missing.filter((tc) => !allowed.includes(tc));
+      const unqualified = missing.filter((tc) => allowed.includes(tc));
+      const names = (xs: readonly string[]) =>
+        xs.map((m) => m.replaceAll('_', ' ')).join(', ');
+      if (notAllowed.length)
         out.routeBlockers.push(
-          `${model} is not qualified for ${missing.map((m) => m.replaceAll('_', ' ')).join(', ')}. Pick a qualified model beside the usage indicator, or use Discover.`,
+          `${names(notAllowed)} ${notAllowed.length === 1 ? 'is' : 'are'} not allowed on this connection, so ${model} can't be qualified for ${notAllowed.length === 1 ? 'it' : 'them'} yet. Allow ${notAllowed.length === 1 ? 'it' : 'them'} under Models and connections (Allow all tasks, or Allow this task in Qualify a model).`,
+        );
+      if (unqualified.length)
+        out.routeBlockers.push(
+          `${model} is not qualified for ${names(unqualified)}. Qualify it under Models and connections, pick a qualified model beside the usage indicator, or use Discover.`,
         );
       if (out.routeBlockers.length === 0)
         out.route = {

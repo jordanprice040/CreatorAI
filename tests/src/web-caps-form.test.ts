@@ -46,6 +46,8 @@ type CapsFields = {
     after: { data: string[]; tasks: string[] },
   ) => string[];
   classSummary: (data: string[], tasks: string[]) => string;
+  defaultTaskClasses: (kind: string) => string[];
+  missingTaskClasses: (kind: string, allowed: string[]) => string[];
 };
 type Choice = { key: string; label: string; codexOnly: boolean };
 
@@ -400,4 +402,49 @@ test('client waits follow the connection timeout, per call, under the timer boun
   assert.equal(planWaitMs(120_000, 0), 180_000, 'at least one call');
   assert.equal(planWaitMs(2_147_460_000, 1, 120_000), TIMER_MAX_MS);
   assert.equal(planWaitMs(2_000_000_000, 8), TIMER_MAX_MS);
+});
+
+test('ADR-0084: new connections allow every task their kind can take, in the app and the config', async () => {
+  const m = await load();
+  const config = async (f: string) =>
+    PlanSettingsSchema.parse(
+      JSON.parse(await readFile(`config/connections/${f}`, 'utf8')),
+    );
+  const chatgpt = await config('chatgpt-plan.json');
+  const claude = await config('claude-code.json');
+  // Decision A: all eight on ChatGPT, including code build.
+  assert.deepEqual(
+    [...m.defaultTaskClasses('chatgpt_plan')].sort(),
+    [...PlanTaskClassSchema.options].sort(),
+  );
+  // Claude Code has no Codex path, so "all" is the seven Responses tasks (review L-1).
+  assert.deepEqual(
+    [...m.defaultTaskClasses('claude_code')].sort(),
+    PlanTaskClassSchema.options.filter((x) => x !== 'code_build').sort(),
+  );
+  // The bundled config proposals say the same as the Models page buttons.
+  assert.deepEqual(
+    chatgpt.allowed_task_classes,
+    m.defaultTaskClasses('chatgpt_plan'),
+  );
+  assert.deepEqual(
+    claude.allowed_task_classes,
+    m.defaultTaskClasses('claude_code'),
+  );
+  // Data classes are a separate setting and keep their default: private data stays opt-in.
+  for (const s of [chatgpt, claude])
+    assert.deepEqual(s.allowed_data_classes, ['synthetic', 'public']);
+  // The "Allow all tasks" button offers what is missing, and nothing a kind can't take.
+  assert.deepEqual(m.missingTaskClasses('claude_code', ['summarization']), [
+    'research_synthesis',
+    'candidate_generation',
+    'scoring',
+    'specification',
+    'patch_build',
+    'independent_review',
+  ]);
+  assert.deepEqual(
+    m.missingTaskClasses('chatgpt_plan', m.defaultTaskClasses('chatgpt_plan')),
+    [],
+  );
 });
