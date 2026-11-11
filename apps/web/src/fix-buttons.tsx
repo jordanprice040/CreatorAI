@@ -177,9 +177,16 @@ const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.map((b) => ({
   }),
 }));
 
-/** Every benchmark a fix can start in a role. The P34 wiring point (see QualifyOffer). */
+/**
+ * Every benchmark a fix can start, in every role. The P34 wiring point (see QualifyOffer): its
+ * offers are read from the server, so the page loads them and passes them in here; a module
+ * constant can't hold them.
+ */
+const allOffers = (): readonly QualifyOffer[] => BUNDLED;
+
+/** Every benchmark a fix can start in a role. */
 export const offersFor = (role: QualifyRole): readonly QualifyOffer[] =>
-  BUNDLED.filter((b) => b.role === role);
+  allOffers().filter((b) => b.role === role);
 
 /** The app's benchmark for a task in a role (ADR-0087), or none. */
 export const benchmarkFor = (task: string, role: QualifyRole) =>
@@ -210,6 +217,8 @@ async function startedRuns(
   const model =
     a.kind === 'qualify' || a.kind === 'allow_tasks' ? a.model_id : null;
   if (!model) return [];
+  // A press that only allows meets no started run (re-review N-2).
+  if (a.kind === 'allow_tasks' && !qualifies(a, d)) return [];
   const tasks =
     a.kind === 'qualify'
       ? [a.task_class]
@@ -231,9 +240,9 @@ async function startedRuns(
   return out;
 }
 
-/** A bundled benchmark's name from its manifest hash, or "another benchmark". */
+/** A known benchmark's name (any role) from its manifest hash, or "another benchmark". */
 async function nameOf(hash: string): Promise<string> {
-  for (const b of BUNDLED) if ((await b.hash()) === hash) return b.name;
+  for (const b of allOffers()) if ((await b.hash()) === hash) return b.name;
   return 'another benchmark';
 }
 
@@ -375,9 +384,11 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
               }
             },
             setError,
+            // Saved settings make the panel's copy old even when re-accepting then fails
+            // (re-review L-1): close it and read again.
+            save,
           );
           if (!ok) break;
-          save();
           done.push(
             a.kind === 'allow_data'
               ? 'Allowed.'

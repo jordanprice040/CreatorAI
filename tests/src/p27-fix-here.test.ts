@@ -311,15 +311,18 @@ test("Discover's setup blockers attach fixes by code and by what is missing, not
 });
 
 // fix-buttons.tsx with its siblings transpiled the way the web app builds them; React and the
-// bundled benchmark files load from the web app's own folder.
+// bundled benchmark files load from the web app's own folder. A sibling with no stub here is
+// loaded from its .ts source, so a new import (such as P34's qualification-role) needs no
+// edit (P34 re-review M-A).
 async function loadButtons() {
   const { readFile } = await import('node:fs/promises');
+  const { existsSync } = await import('node:fs');
   const { createRequire } = await import('node:module');
   const ts = (await import('typescript')).default;
   const web = createRequire(
     new URL('../../apps/web/src/fix-buttons.tsx', import.meta.url),
   );
-  const compile = async (file: string, req: (n: string) => unknown) => {
+  const compile = async (file: string, stubs: Record<string, unknown>) => {
     const code = ts.transpileModule(
       await readFile(`apps/web/src/${file}`, 'utf8'),
       {
@@ -331,34 +334,35 @@ async function loadButtons() {
         },
       },
     ).outputText;
+    const siblings = new Map<string, unknown>();
+    for (const m of code.matchAll(/require\("\.\/([^"]+)\.js"\)/g)) {
+      const name = `./${m[1]}.js`;
+      if (!(name in stubs) && existsSync(`apps/web/src/${m[1]}.ts`))
+        siblings.set(name, await loadWeb(`${m[1]}.ts`));
+    }
     const exports = {} as Record<string, unknown>;
-    new Function('require', 'exports', code)(req, exports);
+    new Function('require', 'exports', code)(
+      (n: string) =>
+        n in stubs ? stubs[n] : siblings.has(n) ? siblings.get(n) : web(n),
+      exports,
+    );
     return exports;
   };
   const words = (s: string) => s.replaceAll('_', ' ');
   const oversight = { words, api: async () => ({}), message: String };
   const caps = await loadWeb('caps-fields.ts');
   const fixHere = await loadWeb('fix-here.ts');
-  const qualify = await compile('qualify.tsx', (n) =>
-    n === './oversight.js'
-      ? oversight
-      : n === './allow-tasks.js'
-        ? { AllowTasks: () => null }
-        : web(n),
-  );
-  const mod = await compile('fix-buttons.tsx', (n) =>
-    n === './oversight.js'
-      ? oversight
-      : n === './qualify.js'
-        ? qualify
-        : n === './caps-fields.js'
-          ? caps
-          : n === './fix-here.js'
-            ? fixHere
-            : n === './allow-tasks.js'
-              ? { allowSequence: async () => true }
-              : web(n),
-  );
+  const qualify = await compile('qualify.tsx', {
+    './oversight.js': oversight,
+    './allow-tasks.js': { AllowTasks: () => null },
+  });
+  const mod = await compile('fix-buttons.tsx', {
+    './oversight.js': oversight,
+    './qualify.js': qualify,
+    './caps-fields.js': caps,
+    './fix-here.js': fixHere,
+    './allow-tasks.js': { allowSequence: async () => true },
+  });
   return {
     mod: mod as {
       canQualifyFor(role: string): (t: string) => boolean;
@@ -626,5 +630,44 @@ test('review N-2, N-3: an unverified model still gets the allow; a fixture conne
       },
     ),
     /stopping at the first that does not pass/,
+  );
+});
+
+test('P34 re-review L-A: an assessment Qualify now never runs a started scoring qualification of another role', async () => {
+  const m = (await loadWeb('fix-here.ts')) as {
+    manifestHash(x: unknown): Promise<string>;
+    startedFor(
+      q: readonly unknown[],
+      model: string,
+      task: string,
+      hash: string,
+    ): { kind: string };
+  };
+  const dir = new URL('../../config/connections/benchmarks/', import.meta.url);
+  const assessment = await m.manifestHash(
+    JSON.parse(
+      readFileSync(new URL('assessment-synthetic-v1.json', dir), 'utf8'),
+    ),
+  );
+  // A started discovery scoring run (the skeptic benchmark) has its own manifest hash; a
+  // stand-in hash is enough, since the role is read from the benchmark the hash names.
+  const discovery = 'd'.repeat(64);
+  const running = (hash: string) => [
+    {
+      id: randomUUID(),
+      state: 'running',
+      model_id: 'gpt-6-astra',
+      task_class: 'scoring',
+      manifest_hash: hash,
+    },
+  ];
+  assert.equal(
+    m.startedFor(running(discovery), 'gpt-6-astra', 'scoring', assessment).kind,
+    'other',
+  );
+  assert.equal(
+    m.startedFor(running(assessment), 'gpt-6-astra', 'scoring', assessment)
+      .kind,
+    'same',
   );
 });

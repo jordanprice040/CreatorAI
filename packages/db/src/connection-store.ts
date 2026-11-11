@@ -3665,7 +3665,12 @@ export class ConnectionStore extends PortfolioStore {
     return this.tx(async (c) => {
       // Run sends paid requests on the owner's connection and records the outcome; like
       // starting a qualification it is the owner's alone (ADR-0087, P27 review L-3).
-      await this.requireOwner(c, uuid(ws), ctx.actorId);
+      await this.requireOwner(
+        c,
+        uuid(ws),
+        ctx.actorId,
+        'Only the workspace owner, signed in as a person, can run a qualification.',
+      );
       const { rows } = await c.query(
         `select q.*, p.workspace_id from plan_qualifications q join plan_connections p on p.id = q.connection_id
          where q.id = $1 and p.workspace_id = $2`,
@@ -3739,7 +3744,17 @@ export class ConnectionStore extends PortfolioStore {
         'This qualification is running. Wait for the Run to finish; it records the result itself once every case has an answer.',
       );
     return this.tx(async (c) => {
-      await this.role(c, uuid(ws), ctx.actorId, true);
+      // Finishing records every unanswered case as failed, and a failure withdraws an earlier
+      // pass (ADR-0052): the owner's alone, as Run is (P27 re-review L-2). The Run loop's own
+      // finish already passed that check.
+      if (fromRun) await this.role(c, uuid(ws), ctx.actorId, true);
+      else
+        await this.requireOwner(
+          c,
+          uuid(ws),
+          ctx.actorId,
+          'Only the workspace owner, signed in as a person, can finish a qualification.',
+        );
       const { rows } = await c.query(
         `select q.* from plan_qualifications q join plan_connections p on p.id = q.connection_id
          where q.id = $1 and p.workspace_id = $2 for update of q`,

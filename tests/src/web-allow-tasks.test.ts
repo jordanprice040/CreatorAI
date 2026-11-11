@@ -37,6 +37,7 @@ async function load() {
       after: { data?: readonly string[]; tasks?: readonly string[] },
       act: Act,
       report: (e: string) => void,
+      onSaved?: () => void,
     ) => Promise<boolean>;
   };
 }
@@ -161,13 +162,18 @@ test('ADR-0087: allowing a data class changes only the data classes, and re-acce
       return null;
     },
   ]);
+  let saved = 0;
   const ok = await allowSequence(
     connection(true),
     { data: ['synthetic', 'public', 'private_approved'] },
     act,
     (e) => errors.push(e),
+    () => saved++,
   );
   assert.equal(ok, false);
+  // The settings were saved though re-accepting failed: the fix panel reads again (P27
+  // re-review L-1).
+  assert.equal(saved, 1);
   const sent = (
     calls[0]!.body as {
       settings: {

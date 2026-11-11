@@ -2939,6 +2939,17 @@ test('ADR-0087 (P27 review L-3): the routes the fix-it-here buttons call refuse 
     'ACCESS_DENIED',
     s.service.runQualification(editor, s.ws.id, q.id),
   );
+  // Finishing records the unanswered cases as failed, so it is the owner's too (re-review L-2).
+  await rejects(
+    'ACCESS_DENIED',
+    s.store.finishPlanQualification(editor, s.ws.id, q.id),
+  );
+  assert.equal(
+    (
+      await s.store.planConnectionDetail(owner, s.ws.id, c.id)
+    ).qualifications.find((x) => x.id === q.id)?.state,
+    'running',
+  );
   // Nothing changed and nothing was sent.
   const after = await s.current();
   assert.equal(after.version, c.version);

@@ -51,6 +51,8 @@ export async function allowSequence(
   after: { data?: readonly string[]; tasks?: readonly string[] },
   act: Act,
   report: (error: string) => void,
+  /** Called once the settings are saved, even if accepting the caps again then fails. */
+  onSaved?: () => void,
 ): Promise<boolean> {
   const p = `plan-connections/${c.id}`;
   const saved = (await act(
@@ -67,6 +69,7 @@ export async function allowSequence(
     report,
   )) as { version?: number; settings_hash?: string } | null;
   if (!saved?.version || !saved.settings_hash) return false;
+  onSaved?.();
   if (c.caps_accepted_at === null) return true;
   const ok = await act(
     `${p}/accept-caps`,
