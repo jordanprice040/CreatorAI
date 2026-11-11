@@ -72,7 +72,7 @@ model answer; N-1 placeholders fill whole values and path segments only; N-2 no 
 (never released): a database that ran the earlier 53 must be re-created.
 Re-review (`/mnt/project-files/reviews/P20_PR165_REREVIEW.md`): L-6 refusal-only events no longer make a card
 `partial`; N-7 walk script updated and re-run; N-8 "Send again" on a fetch card reuses its run; N-9 new-run question
-reworded. Next: a final re-review in a new thread.
+reworded. Second re-review clean (0 Low+); nits N-10 and N-11 fixed. Ready for Jordan to merge after #164.
 
 ## Next eligible prompt
 

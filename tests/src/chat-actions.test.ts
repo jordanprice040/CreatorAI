@@ -412,6 +412,30 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
     caused.rows.map((r) => r.action),
     ['study.workflow_denied'],
   );
+  // Re-review 2 N-10: the same refusal when the page lost track of the answer ends refused too.
+  const lostCard = (
+    await call('POST', cards, {
+      client_id: randomUUID(),
+      kind: 'start_discovery',
+      input: {},
+    })
+  ).body;
+  const s7 = (
+    await call('POST', `${cards}/${lostCard.id}/send`, { expected_version: 1 })
+  ).body;
+  const denied = await call(
+    'POST',
+    m.fillPath(startStep.path, got),
+    m.fill(startStep.body, got),
+    { 'X-Causation-Id': s7.causation_id, 'X-Correlation-Id': lostCard.id },
+  );
+  assert.equal(denied.body.error.code, 'HUMAN_ONLY_DENIED');
+  const r7 = (
+    await call('POST', `${cards}/${lostCard.id}/outcome`, { ok: null })
+  ).body;
+  assert.equal(r7.state, 'refused');
+  assert.equal(r7.outcome.events, 1);
+  assert.match(r7.reason, /only a refusal was recorded/);
 
   // Put away: a draft only.
   const c4 = await make();
@@ -429,7 +453,15 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
   const detail = (await call('GET', `workspaces/${ws}/chats/${chat}`)).body;
   assert.deepEqual(
     detail.actions.map((a: { state: string }) => a.state),
-    ['done', 'unconfirmed', 'refused', 'partial', 'refused', 'dismissed'],
+    [
+      'done',
+      'unconfirmed',
+      'refused',
+      'partial',
+      'refused',
+      'refused',
+      'dismissed',
+    ],
   );
   // Another workspace's address cannot reach a card.
   const other = (

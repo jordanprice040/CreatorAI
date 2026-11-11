@@ -1169,13 +1169,16 @@ export class ConnectionStore extends PortfolioStore {
             ? trail.work > 0
               ? 'partial'
               : 'refused'
-            : events > 0
+            : trail.work > 0
               ? 'unconfirmed'
               : 'refused';
+      // Re-review 2 N-10: a lost send whose only events record a refusal saved nothing.
       const reason =
         req.ok === null
           ? state === 'refused'
-            ? 'The page lost track of this send before any request was recorded. Nothing was saved.'
+            ? events > 0
+              ? 'The page lost track of this send; only a refusal was recorded. Nothing was saved.'
+              : 'The page lost track of this send before any request was recorded. Nothing was saved.'
             : 'The page lost track of this send after something was recorded. Check the records it names.'
           : state === 'unconfirmed'
             ? 'The page reported success, but no recorded event names this send.'

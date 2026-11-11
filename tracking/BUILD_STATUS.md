@@ -991,8 +991,8 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257â€
     one at a time, says what it still needs, lists answers with Change, shows "What will happen" and exactly the
     requests Send makes. Standard uses P19's routine defaults; Advanced asks them too.
   - Send runs the form's own requests from the person's browser, each naming the card's `chat.action_sent` event as
-    its cause. The store records done, unconfirmed, refused or "refused; part of it was recorded" from the audit
-    events, not from the browser's word alone. Held steps (a selection waiting for a decision) say so and offer
+    its cause. The store records done, unconfirmed, refused or "refused; part of it was recorded" (work was saved
+    before the refusal) from the audit events, not from the browser's word alone. Held steps (a selection waiting for a decision) say so and offer
     "Send again with the same answers".
   - A card whose records changed (version, archived, gone, or a decision no longer waiting) is refused as stale before
     anything is sent.
@@ -1017,4 +1017,5 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257â€
 - Re-review fixes (November 11, `/mnt/project-files/reviews/P20_PR165_REREVIEW.md`, 1 Low and 3 nits): a refusal whose
   only caused events record the refusal ends `refused`, not `partial` (L-6; tests for both); the committed walk was
   updated and re-run on a fresh `p20walk` (N-7); "Send again" on a fetch card reuses the run it registered (N-8); the
-  new-run question is reworded (N-9). Next: a final re-review.
+  new-run question is reworded (N-9). Second re-review clean; its two nits fixed (N-10 a lost send with only a
+  refusal recorded ends `refused`; N-11 ADR-0083's provenance paragraph states the amended rule).
