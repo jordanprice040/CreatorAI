@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useOnShow } from './page-active.js';
+import { useOnShow, usePageActive } from './page-active.js';
 import {
   CHAT_DAILY_LIMIT_DEFAULT,
   CHAT_DAILY_LIMIT_MAX,
@@ -19,7 +19,12 @@ import {
 } from '@creator/contracts';
 import { Markdown } from './markdown-view.js';
 import { CONTEXT_LABEL } from './chat-context.js';
-import { api, message, when } from './oversight.js';
+import { api, message, STUDIO_CHANGED, when } from './oversight.js';
+import {
+  matchOfferedChoice,
+  savedModelNote,
+  verifiedModels,
+} from './chat-answers-form.js';
 import { withFreshCount } from './usage-refresh.js';
 import { MODEL_CHOICE_CHANGED } from './model-choice.js';
 import { useModelChoice } from './model-switch.js';
@@ -159,6 +164,10 @@ export function ChatAnswersCard({
     daily_limit: CHAT_DAILY_LIMIT_DEFAULT,
   });
   const [error, setError] = useState('');
+  // A failed read shows until a later read succeeds; an action's error stays until the next
+  // action (PR #170 re-review RN-2), so a background read never hides a refused save.
+  const [readError, setReadError] = useState('');
+  const failedRead = (e: unknown) => setReadError(message(e));
   const [saved, setSaved] = useState('');
   const [busy, setBusy] = useState(false);
   // The connection version "Allow" was sent from: until a newer one is read, a second click
@@ -176,7 +185,10 @@ export function ChatAnswersCard({
     const d = await Promise.all(
       conns.map((c) => api(Detail, `${base}/plan-connections/${c.id}`)),
     );
-    if (mine === detailsSeq.current) setDetails(d);
+    if (mine === detailsSeq.current) {
+      setDetails(d);
+      setReadError('');
+    }
   }
   async function load() {
     const [s, conns] = await Promise.all([
@@ -188,6 +200,7 @@ export function ChatAnswersCard({
     );
     setSettings(s);
     setDetails(d);
+    setReadError('');
     const first = d[0]?.connection.id ?? '';
     const connection_id = s.connection_id ?? first;
     setForm({
@@ -200,7 +213,7 @@ export function ChatAnswersCard({
   }
   useEffect(() => {
     if (!session) return;
-    load().catch((e) => setError(message(e)));
+    load().catch(failedRead);
   }, [workspace.id, session?.actor_id]);
   // ADR-0081: a setting never saved starts from the current model in the top bar; a switch
   // there may move a saved setting too, so the form is read again after one.
@@ -228,7 +241,7 @@ export function ChatAnswersCard({
   }, [choice?.connection_id, choice?.model_id, settings?.version, details]);
   useEffect(() => {
     if (!session) return;
-    const changed = () => void load().catch((e) => setError(message(e)));
+    const changed = () => void load().catch(failedRead);
     window.addEventListener(MODEL_CHOICE_CHANGED, changed);
     return () => window.removeEventListener(MODEL_CHOICE_CHANGED, changed);
   }, [workspace.id, session?.actor_id]);
@@ -247,16 +260,37 @@ export function ChatAnswersCard({
   }
   useEffect(() => {
     if (!session || !settings || !stamp) return;
-    loadDetails().catch((e) => setError(message(e)));
+    loadDetails().catch(failedRead);
   }, [stamp]);
+  // Walkthrough item 9: the stamp above does not change when a model is verified, so the
+  // connections are read again after any write in this window (verifying a model is one).
+  // Only the details are read; what the owner picked or typed stays put. Only while the page
+  // is shown (PR #170 review L-2): a hidden Models page reads again on return (useOnShow below).
+  const active = usePageActive();
+  const shown = useRef(active);
+  shown.current = active;
+  useEffect(() => {
+    if (!session) return;
+    const changed = () => {
+      if (shown.current) void loadDetails().catch(failedRead);
+    };
+    window.addEventListener(STUDIO_CHANGED, changed);
+    return () => window.removeEventListener(STUDIO_CHANGED, changed);
+  }, [workspace.id, session?.actor_id]);
+  // A field that is empty, or holds a connection or model no longer offered, takes the first
+  // one offered, so what the form shows is what a save sends.
+  useEffect(() => {
+    if (settings) setForm((f) => matchOfferedChoice(f, details));
+  }, [details, settings]);
   // Connections checked or changed elsewhere, and chat answers asked since, show when the
   // page is shown again (audit L-10); the settings form keeps what the owner typed.
   useOnShow(() => {
-    if (session && settings) refresh().catch((e) => setError(message(e)));
+    if (session && settings) refresh().catch(failedRead);
   });
 
   const chosen = details.find((d) => d.connection.id === form.connection_id);
   const models = verifiedModels(details, form.connection_id);
+  const savedNote = savedModelNote(settings, form, details);
   const privateAllowed =
     chosen?.connection.settings.allowed_data_classes.includes(
       'private_approved',
@@ -356,6 +390,7 @@ export function ChatAnswersCard({
         they cannot start, approve or spend anything.
       </p>
       {error && <p role="alert">{error}</p>}
+      {readError && <p role="alert">{readError}</p>}
       {saved && <p role="status">{saved}</p>}
       {!settings ? (
         <p role="status">Loading…</p>
@@ -415,6 +450,7 @@ export function ChatAnswersCard({
               ))}
             </select>
           </label>
+          {savedNote && <p className="small">{savedNote}</p>}
           <label className="check">
             <input
               type="checkbox"
@@ -506,15 +542,4 @@ export function ChatAnswersCard({
       )}
     </section>
   );
-}
-
-function verifiedModels(details: PlanConnectionDetail[], id: string) {
-  const d = details.find((x) => x.connection.id === id);
-  return [
-    ...new Set(
-      (d?.model_access ?? [])
-        .filter((a) => a.access === 'verified' && a.path === 'responses')
-        .map((a) => a.model_id),
-    ),
-  ];
 }
