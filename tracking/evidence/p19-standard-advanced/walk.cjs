@@ -246,7 +246,14 @@ let advancedClicks = 0;
       .catch(() => []),
   );
 
+  // P18's one-line folds (not the Standard/Advanced view) hide the option controls until opened,
+  // as a person clicking each summary would.
+  const openFolds = () =>
+    p.$$eval('main details.fold:not([open])', (ds) =>
+      ds.forEach((d) => (d.open = true)),
+    );
   // Humility review form of the hybrid option (rendered, not saved).
+  await openFolds();
   const hb = p.locator('button:has-text("Add a humility review")').first();
   if (await hb.count()) {
     await hb.click();
@@ -265,6 +272,8 @@ let advancedClicks = 0;
 
   // Step 5: choose (Decide), the run's gate asks once, then the proposal.
   const record = async () => {
+    await openFolds();
+    await p.waitForTimeout(300);
     const dec = p.locator('form.decide');
     for (const s of await dec.locator('select[id^="dis-"]').all()) {
       const id = (await s.getAttribute('id')).slice(4);

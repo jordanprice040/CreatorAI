@@ -2,9 +2,9 @@
   {
     "step": "0 workspace",
     "value": {
-      "name": "P19 walk 03:12:31",
-      "ws": "da66dc8e-4e23-40a3-92c3-68873d5e268a",
-      "url": "http://127.0.0.1:5183/#/chat/conversations?ws=da66dc8e-4e23-40a3-92c3-68873d5e268a"
+      "name": "P19 walk 07:18:15",
+      "ws": "c88e130f-a299-4d96-8c97-8c7e8ff394dc",
+      "url": "http://127.0.0.1:5183/#/chat/conversations?ws=c88e130f-a299-4d96-8c97-8c7e8ff394dc"
     }
   },
   {
@@ -77,7 +77,7 @@
   },
   {
     "step": "2 opened",
-    "value": "/sources/claims?ws=da66dc8e-4e23-40a3-92c3-68873d5e268a"
+    "value": "/sources/claims?ws=c88e130f-a299-4d96-8c97-8c7e8ff394dc"
   },
   {
     "step": "2 cite form folds (Standard)",
@@ -169,7 +169,7 @@
   },
   {
     "step": "5 scorecard what will happen",
-    "value": "What will happen\nScorecard\nSaves your solution suitability scorecard of “Human-led: a named coordinator owns Days from request to appointment” v1, as Local owner\nRanking\nIt counts in the ranking under Decide; an unresolved gate still holds the option back\nChecks\nOther checks: 2 of 4 answered, the rest “unknown” · no existing tools listed\n\nNothing is saved until you press the button below. Ratings, gates and confidence are only what you picked; the defaults fill nothing but unanswered checks with “unknown”."
+    "value": "What will happen\nScorecard\nSaves your solution suitability scorecard of “Human-led: a named coordinator owns Days from request to appointment” v1, as Local owner\nRanking\nIt counts in the ranking under Decide; an unresolved gate still holds the option back\nChecks\nOther checks: 2 of 4 answered, the rest “unknown” · no existing tools listed\n\nNothing is saved until you press the button below. Ratings, gates and confidence are only what you picked; the defaults fill only the four routine checks with “unknown”, and what argues against it needs your own answer."
   },
   {
     "step": "5 scorecard errors",
@@ -194,7 +194,7 @@
   },
   {
     "step": "5 humility what will happen",
-    "value": "What will happen\nReview\nSaves your humility review of Software: Rural clinic access v1\nBuild\nDecided once every required field is filled\n\nNothing is saved until you press the button below. The disposition, every viability call and the ethics status are only what you picked."
+    "value": "What will happen\nReview\nSaves your humility review of Hybrid: staff review supported by a simple list from existing data v1\nBuild\nDecided once every required field is filled\n\nNothing is saved until you press the button below. The disposition, every viability call and the ethics status are only what you picked."
   },
   {
     "step": "6 after first record",
@@ -210,12 +210,12 @@
   },
   {
     "step": "6 selection history",
-    "value": "Selection history\nCurrent · Nov 11, 2026, 3:16 AM · Start with the human-led option; revisit the others if it fails.\nDEFER Change the process behind Days from request to appointment · Not pursued in t"
+    "value": "Selection history\nCurrent · Nov 11, 2026, 7:21 AM · Start with the human-led option; revisit the others if it fails. · 5 options"
   },
   {
     "step": "7 proposals",
     "value": [
-      "Proposal: Human-led: a named coordinator owns Days from request to appointment · Human-led · v1 · Nov 11, 2026, 3:16 AM"
+      "Proposal: Human-led: a named coordinator owns Days from request to appointment · Human-led · v1 · Nov 11, 2026, 7:21 AM"
     ]
   },
   {
@@ -234,7 +234,7 @@
     "value": {
       "view_mode": "advanced",
       "version": 1,
-      "updated_at": "2026-11-11T03:16:13.450Z"
+      "updated_at": "2026-11-11T07:22:00.230Z"
     }
   },
   {
@@ -293,8 +293,8 @@
   {
     "step": "errors",
     "value": [
-      "A: 404 http://127.0.0.1:5183/api/workspaces/da66dc8e-4e23-40a3-92c3-68873d5e268a/problems//explanation",
-      "A: 404 http://127.0.0.1:5183/api/workspaces/da66dc8e-4e23-40a3-92c3-68873d5e268a/problems//explanation"
+      "A: 404 http://127.0.0.1:5183/api/workspaces/c88e130f-a299-4d96-8c97-8c7e8ff394dc/problems//explanation",
+      "A: 404 http://127.0.0.1:5183/api/workspaces/c88e130f-a299-4d96-8c97-8c7e8ff394dc/problems//explanation"
     ]
   }
 ]

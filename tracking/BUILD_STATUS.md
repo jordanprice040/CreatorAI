@@ -1154,3 +1154,8 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
 - Second re-review nits (`reviews/P19_PR164_REREVIEW2.md`): N-C the scorecard's "What will happen" note and N-D the
   comment above the check fields now say only the four routine checks default to "unknown". Text only; typecheck,
   format and the scorecard form tests pass.
+- After merging main with P18 (#162): `style.css` and the tracking logs conflicted and were joined; typecheck and
+  format pass; `pnpm test:db` 940 tests, 906 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The walk now
+  opens P18's one-line folds on Decide before using the option controls, as a person clicking each summary would,
+  and passed on a fresh database. The Decide and Proposals forms now carry P18's folds; folding their routine fields
+  under Standard is the remaining follow-up.
