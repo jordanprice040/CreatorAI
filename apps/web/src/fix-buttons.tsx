@@ -161,21 +161,25 @@ const memo = <T,>(f: () => Promise<T>) => {
   return () => (p ??= f());
 };
 
-const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.map((b) => ({
-  name: b.name,
-  task_class: b.task_class,
-  role: roleOf(b.manifest),
-  development: b.development,
-  held_out: b.held_out,
-  hash: memo(() => manifestHash(b.manifest)),
-  start: (expected_version: number, model_id: string) => ({
-    expected_version,
-    model_id,
-    manifest: b.manifest,
-    min_held_out_cases: b.held_out,
-    floor: { numerator: 1, denominator: 1 },
+// The web-discovery benchmark (ADR-0086) qualifies only Search the web, which no fix here
+// starts, so it is never offered: its research synthesis counts for no route a fix serves.
+const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.filter((b) => !b.web).map(
+  (b) => ({
+    name: b.name,
+    task_class: b.task_class,
+    role: roleOf(b.manifest),
+    development: b.development,
+    held_out: b.held_out,
+    hash: memo(() => manifestHash(b.manifest)),
+    start: (expected_version: number, model_id: string) => ({
+      expected_version,
+      model_id,
+      manifest: b.manifest,
+      min_held_out_cases: b.held_out,
+      floor: { numerator: 1, denominator: 1 },
+    }),
   }),
-}));
+);
 
 /**
  * Every benchmark a fix can start, in every role. The P34 wiring point (see QualifyOffer): its

@@ -23,6 +23,8 @@ import {
   type Workflow,
   type WorkflowDetail,
   type Workspace,
+  forDiscover,
+  forWebDiscovery,
   isQualified,
 } from '@creator/contracts';
 import { api, message, refusalsOf, when, words } from './oversight.js';
@@ -288,10 +290,16 @@ export function Explore({
     limits,
   };
   // As the server admits it (P27 review L-4): the newest decided qualification under the
-  // current discovery prompt counts, so a later failure withdraws a pass (ADR-0052). P34 (#175)
-  // narrows this to `admits_discovery` qualifications.
+  // current discovery prompt counts, so a later failure withdraws a pass (ADR-0052), and a
+  // web-discovery qualification does not (ADR-0086). P34 (#175) narrows this to
+  // `admits_discovery` qualifications.
   const explorationQualified = Boolean(
-    plan && isQualified(plan.qualifications, model, EXPLORATION_TASK_CLASS),
+    plan &&
+    isQualified(
+      forDiscover(plan.qualifications),
+      model,
+      EXPLORATION_TASK_CLASS,
+    ),
   );
   const blockers =
     resourceKind === 'subscription'
@@ -305,13 +313,26 @@ export function Explore({
             ? ['This connection does not permit the selected sharing class.']
             : []),
           ...(plan && model && !explorationQualified
-            ? // P23 item 8: name the reason when the task is not allowed here at all,
-              // and only fixes that exist (review of PR #172, M-1).
-              missingTaskTexts(
-                model,
-                [EXPLORATION_TASK_CLASS],
-                plan.connection.settings.allowed_task_classes,
-              )
+            ? [
+                // P23 item 8: name the reason when the task is not allowed here at all,
+                // and only fixes that exist (review of PR #172, M-1).
+                ...missingTaskTexts(
+                  model,
+                  [EXPLORATION_TASK_CLASS],
+                  plan.connection.settings.allowed_task_classes,
+                ),
+                // ADR-0086: a web-discovery qualification is also research synthesis but
+                // covers only Search the web; say so, since Models lists it as qualified.
+                ...(isQualified(
+                  forWebDiscovery(plan.qualifications),
+                  model,
+                  EXPLORATION_TASK_CLASS,
+                )
+                  ? [
+                      'Its web-discovery qualification covers only Search the web; Explore for me needs a qualification on the discovery locator’s own benchmark.',
+                    ]
+                  : []),
+              ]
             : []),
         ]
       : [

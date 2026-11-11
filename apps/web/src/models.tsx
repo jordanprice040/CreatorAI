@@ -10,6 +10,8 @@ import {
   type SessionInfo,
   type Workspace,
   latestDecided,
+  forDiscover,
+  forWebDiscovery,
 } from '@creator/contracts';
 import { ApiError, api, message } from './oversight.js';
 import { STALE_NOTE } from './owner-actions.js';
@@ -1076,8 +1078,12 @@ export function Models({
           {detail.qualifications.length ? (
             <ul>
               {detail.qualifications.map((q) => {
+                // ADR-0086: a web-discovery and a Discover qualification of the same
+                // task name do not replace each other.
                 const latest = latestDecided(
-                  detail.qualifications,
+                  q.admits_web_discovery === true
+                    ? forWebDiscovery(detail.qualifications)
+                    : forDiscover(detail.qualifications),
                   q.model_id,
                   q.task_class,
                 );

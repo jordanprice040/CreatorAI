@@ -32,6 +32,7 @@ import {
   type SessionInfo,
   type Workspace,
   isQualified,
+  forDiscover,
 } from '@creator/contracts';
 import { api, message, refusalsOf, words } from './oversight.js';
 import { FixButtons, qualifierFor, type FixContext } from './fix-buttons.js';
@@ -41,6 +42,7 @@ import { envelopesFor } from './build-defaults.js';
 import { money } from './budgets.js';
 import { ThemeIntent } from './theme-intent.js';
 import { Explore, type ExploredPick } from './explore.js';
+import { WebDiscover } from './web-discovery.js';
 import { Empty, Status, runNames, useLoad, type View } from './ui.js';
 import { runLabel } from './labels.js';
 import { preferredRoute } from './model-choice.js';
@@ -447,7 +449,7 @@ export function Submit({
       models: verifiedModels(p).map((m) => ({
         id: m,
         qualified: DISCOVERY_CLASSES.filter((tc) =>
-          isQualified(p.qualifications, m, tc),
+          isQualified(forDiscover(p.qualifications), m, tc),
         ),
       })),
     })),
@@ -488,7 +490,8 @@ export function Submit({
     model,
     unqualified: model
       ? DISCOVERY_CLASSES.filter(
-          (tc) => !isQualified(plan?.qualifications ?? [], model, tc),
+          (tc) =>
+            !isQualified(forDiscover(plan?.qualifications ?? []), model, tc),
         )
       : [],
     envelopes: c?.envelopes.length ?? 0,
@@ -910,6 +913,11 @@ export function Submit({
               'No theme yet: the studio looks for problems in your recorded evidence.',
             ],
             [
+              'web-title',
+              'Search the web',
+              'Find new evidence online: checked quotes from real pages become claims.',
+            ],
+            [
               'theme-intent-title',
               'Start with a theme',
               'A rough idea saved as a draft to plan later.',
@@ -945,6 +953,11 @@ export function Submit({
         workspace={workspace}
         onUse={takePick}
         open={open}
+      />
+      <WebDiscover
+        key={`web-${workspace.id}`}
+        session={session}
+        workspace={workspace}
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>

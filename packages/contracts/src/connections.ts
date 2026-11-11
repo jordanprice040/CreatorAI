@@ -448,6 +448,8 @@ export const PlanQualificationSchema = z.strictObject({
   prompt_current: z.boolean().optional(),
   /** ADR-0074 review L-4: a scoring qualification that admits automatic assessments. */
   admits_assessment: z.boolean().optional(),
+  /** ADR-0086: a research-synthesis qualification bound to the web discovery prompts. */
+  admits_web_discovery: z.boolean().optional(),
   /**
    * ADR-0084 (P23): on a started qualification, whether this studio is running its cases now.
    * Read from the server, so a page that was left or reloaded shows a running Run as running.
@@ -477,6 +479,15 @@ export function latestDecided(
   }
   return out;
 }
+/**
+ * ADR-0086 (PR #173 review 3 M-1): web discovery and Discover's locator share the task name
+ * research_synthesis, and each qualification admits only its own work. Discover, Explore, the
+ * chat card and the model picker read `forDiscover`; Search the web reads `forWebDiscovery`.
+ */
+export const forDiscover = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_web_discovery !== true);
+export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
+  qualifications.filter((q) => q.admits_web_discovery === true);
 export const isQualified = (
   qualifications: readonly PlanQualification[],
   model_id: string,
