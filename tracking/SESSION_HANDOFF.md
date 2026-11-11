@@ -767,6 +767,16 @@ Reddit empty shells). Fetching remains the bottleneck; no search API is justifie
 results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 `tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
 
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51)
+
+Branch `claude/project-thread-6af37w`. The owner picks a current model beside the usage indicator; forms
+start from it and say so when it is not qualified for their task (offering a qualified one); a saved chat
+setting follows the switch; started work keeps its route. Details, evidence and limits: BUILD_STATUS.md
+"P21 current-model switch" and ADR-0081. Migration 51 and ADR-0081 were reserved with the parallel P18 and
+P22 threads (they were told to take 52/0082 and 53/0083 if they need numbers). Next free after this PR:
+migration 52, ADR-0082 (recheck main). Next eligible: independent review of this PR in a separate thread;
+then P19 per the November 10 order.
+
 ## P22 live connection checks (November 10, 2026, no migration, no ADR)
 
 Jordan's typed OK (November 10, 22:40 UTC) covers live API and GitHub tests. Added: a "Test
@@ -788,5 +798,7 @@ passed at $0 (November 11). The dev studio now runs from `C:\dev\creator_agent_p
 Review of PR #160 (1 Medium, 6 Lows) fixed in the same PR: refused GitHub reads are reported as
 refusals (M-1); the panel says "outcome unknown, reconcile" when no answer arrives, archives a run
 record whose registration failed, and its clean-up is tested end to end through `runCheck` (L-3–L-5);
-Models and connections shows each model's last availability recheck (L-6). Open owner clean-up: revoke
-the "P22 trial" GitHub connection, delete the token, decide about the trial repository.
+Models and connections shows each model's last availability recheck (L-6). Re-review Lows fixed: the
+checks read's repository lookup keeps GitHub's real status, and a rate-limit 403 says "try again", not
+"token expired". Owner clean-up: Jordan revoked the "P22 trial" connection on November 11 (01:43 UTC)
+and reported the token deleted; the trial repository is his to keep or delete.

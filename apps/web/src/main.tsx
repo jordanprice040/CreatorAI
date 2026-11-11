@@ -44,6 +44,7 @@ import './style.css';
 import { PageDrafts } from './page-drafts.js';
 import { forgetSort } from './list-sort.js';
 import { UsageIndicator } from './usage.js';
+import { ModelSwitch } from './model-switch.js';
 import { NextStep, useStudioFacts } from './next-step.js';
 import { useActivityDots } from './activity-dots.js';
 import { dotText, type MarkedView } from './activity-marks.js';
@@ -1072,6 +1073,16 @@ function App() {
                 </button>
               </span>
             )}
+            {inStudio &&
+              signedIn &&
+              workspace?.role === 'owner' &&
+              auth.session && (
+                <ModelSwitch
+                  key={`model-${workspace.id}`}
+                  workspace={workspace}
+                  session={auth.session}
+                />
+              )}
             {inStudio && signedIn && workspace && (
               <UsageIndicator key={workspace.id} workspace={workspace} />
             )}

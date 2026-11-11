@@ -560,3 +560,31 @@ export const PlanConnectionDetailSchema = z.strictObject({
   blockers: z.array(note),
 });
 export type PlanConnectionDetail = z.infer<typeof PlanConnectionDetailSchema>;
+
+/**
+ * ADR-0081 (P21): the person's current plan connection and model in a workspace, set from the
+ * picker beside the usage indicator. Forms start from it; a form may still choose another
+ * route, and a run keeps the route recorded when it started. Version 0 means never chosen.
+ */
+export const ModelChoiceSchema = z.strictObject({
+  workspace_id: id,
+  connection_id: id.nullable(),
+  model_id: short.nullable(),
+  version: z.number().int().min(0),
+  updated_at: timestamp.nullable(),
+});
+export type ModelChoice = z.infer<typeof ModelChoiceSchema>;
+
+export const SetModelChoiceRequestSchema = z.strictObject({
+  expected_version: z.number().int().min(0),
+  connection_id: id,
+  model_id: short,
+});
+
+/** What a switch changed: the choice, and the chat setting when the owner's chat followed. */
+export const ModelChoiceResultSchema = z.strictObject({
+  choice: ModelChoiceSchema,
+  /** True when the workspace's chat-answer setting now uses the same connection and model. */
+  chat_updated: z.boolean(),
+});
+export type ModelChoiceResult = z.infer<typeof ModelChoiceResultSchema>;

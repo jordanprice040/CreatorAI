@@ -1,5 +1,20 @@
 # Decision log
 
+## ADR-0081 — Current model: one owner choice per workspace beside the usage indicator; forms start from it (November 10, 2026)
+
+P21 (revision R23) from the [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md), November 10 section. Migration 51 (`model_choices`). No model call, no spending and no live step.
+
+- **Stored on the server, per person and workspace.** `model_choices (workspace_id, actor_id)` holds a plan connection and a model with a version. `GET/POST /api/workspaces/:ws/model-choice` reads and switches it; the route is owner-only like the plan connections it points at (ADR-0075 testers are refused). Server-side rather than browser storage so the choice follows the owner across devices and windows, and so a saved chat setting (already server-side, ADR-0057) can move with it in one transaction.
+- **Only verified models.** A switch is refused unless the model has verified Responses access on a connection of that workspace. Qualification is not checked at switch time: it is per task, and each form checks it where the task runs, as before.
+- **Forms start from it, never switch quietly.** Explore, Discover, Assess, Build (plan-role builder), the Chat answers setting and Qualify use the choice when nothing was picked on the form; a pick on the form wins for that form only. When the current model is not qualified for the form's task, the form keeps it, shows the existing blocker and offers a qualified alternative (same connection first, only connections that can run now) as a button, instead of silently using another model (`apps/web/src/model-choice.ts`). A choice no longer verified falls back to the form's own default and says so.
+- **Chat follows a saved setting.** If the owner has saved a chat-answer setting, the switch moves its connection and model in the same transaction (on/off, snapshot and daily limit untouched), audited as `chat.settings_changed` with `via: model_switch`. An unsaved chat setting is not created; its form starts from the choice.
+- **Started work keeps its route.** The switch writes only `model_choices` and, as above, `chat_settings`. Runs, workflows, builds, qualifications and chat answers keep the connection and model they recorded when they started.
+- **Audited.** Each switch appends `model_choice.changed` with the new and previous route.
+
+Rejected: browser `localStorage` (per device, invisible to the server and to chat); a workspace-wide choice for all members (plan connections are the owner's own credentials); picking the first qualified model automatically when the choice is not qualified (the person would not know which model ran); changing routes of runs already started (breaks the recorded route and the provenance invariant).
+
+Not done: the Build plan-role default and its alternative are covered by unit tests of `planBuilderDefault` and the qualification blocker, not by a browser walk (fixture workspaces list no plan builders); Qualify preselects the choice but a fixture connection cannot be qualified, so that was not walked either; the CLI has no command for the choice.
+
 ## ADR-0080 — Runbook export: a standalone bundle of ordered prompts computed from a spec or proposal version (November 10, 2026)
 
 P16 (revision R18) from the [November 5 plan](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md). Guide: [docs/RUNBOOK_EXPORT.md](../docs/RUNBOOK_EXPORT.md). No migration, no model call, no spending and no live step.

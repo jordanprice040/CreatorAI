@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -228,6 +229,22 @@ test('tester accounts: own actor, own sample workspace, no owner powers, expiry 
   );
   assert.equal((await get('/ops/status', ta.read!)).status, 403);
   assert.equal((await get('/desktop/devices', ta.read!)).status, 403);
+  // ADR-0081 (P21 review L-4): the current-model choice points at the owner's own plan
+  // connections, so a tester can neither read nor switch it.
+  assert.equal(
+    (await get(`/workspaces/${a.workspace_id}/model-choice`, ta.read!)).status,
+    403,
+  );
+  assert.equal(
+    (
+      await post(`/workspaces/${a.workspace_id}/model-choice`, ta.write!, {
+        expected_version: 0,
+        connection_id: randomUUID(),
+        model_id: 'm',
+      })
+    ).status,
+    403,
+  );
   // The owner still has them.
   assert.equal((await get('/settings/spending', owner.read!)).status, 200);
 
