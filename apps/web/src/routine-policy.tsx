@@ -13,6 +13,8 @@ import {
 } from '@creator/contracts';
 import { usdToNano } from './amounts.js';
 import { api, message, when, words } from './oversight.js';
+import { Fold, FoldAll, useFolds, type Folds } from './fold.js';
+import { firstNeeding } from './fold-state.js';
 
 // ADR-0079 (P10): "Approve routine steps for me". The form only gathers the owner's choices
 // and shows the summary the studio writes from them. The server writes the same summary
@@ -362,12 +364,14 @@ const STATE_TEXT: Record<RoutinePolicyView['state'], string> = {
 
 function PolicyCard({
   v,
+  folds,
   runName,
   session,
   workspace,
   onDone,
 }: {
   v: RoutinePolicyView;
+  folds: Folds;
   runName: string;
   session: SessionInfo;
   workspace: string;
@@ -398,140 +402,162 @@ function PolicyCard({
   const request = draft ? routineRequest(draft) : null;
   return (
     <li className="routine-card">
-      <span className="kind">v{p.version}</span> {runName} ·{' '}
-      <strong>{STATE_TEXT[v.state]}</strong>
-      {v.state_reason ? `: ${v.state_reason}` : ''}
-      <small>
-        {' '}
-        {p.stages.map((s) => ROUTINE_STAGE_TEXT[s].label).join(', ')} ·{' '}
-        {v.used_actions} of {p.max_actions} steps used
-        {p.max_total_nano_usd === null
-          ? ''
-          : ` · $${nanoToUsd(v.used_nano_usd)} of $${nanoToUsd(p.max_total_nano_usd)} in stated amounts admitted`}{' '}
-        · {v.state === 'expired' ? 'ended' : 'ends'} {when(p.expires_at)}
-      </small>
-      <details>
-        <summary>Summary you confirmed on {when(p.confirmed_at)}</summary>
-        <ul className="routine-summary">
-          {p.summary.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        <p className="small">Your reason: {p.rationale}</p>
-      </details>
-      <details>
-        <summary>
-          Steps this policy admitted ({v.used_actions}
-          {v.used_actions > v.recent.length
-            ? `, latest ${v.recent.length} shown`
-            : ''}
-          )
-        </summary>
-        {v.recent.length === 0 ? (
-          <p className="small">None yet.</p>
-        ) : (
-          <ul>
-            {v.recent.map((a) => (
-              <li key={a.admission_id}>
-                {words(a.action_type)} · {when(a.created_at)} · admitted by
-                policy rules, not approved by a person
-              </li>
+      <Fold
+        id={p.id}
+        folds={folds}
+        summary={
+          <>
+            <span className="kind">v{p.version}</span>{' '}
+            <span className="fold-title">{runName}</span> ·{' '}
+            <strong
+              className={v.state === 'paused' ? 'fold-attention' : undefined}
+            >
+              {STATE_TEXT[v.state]}
+            </strong>
+            {v.state_reason ? `: ${v.state_reason}` : ''}
+            <span className="fold-line small">
+              {v.used_actions} of {p.max_actions} steps used
+              {p.max_total_nano_usd === null
+                ? ''
+                : ` · $${nanoToUsd(v.used_nano_usd)} of $${nanoToUsd(p.max_total_nano_usd)} admitted`}{' '}
+              · {v.state === 'expired' ? 'ended' : 'ends'} {when(p.expires_at)}
+            </span>
+          </>
+        }
+      >
+        <p className="small">
+          Covers: {p.stages.map((s) => ROUTINE_STAGE_TEXT[s].label).join(', ')}
+          {p.max_total_nano_usd === null
+            ? ''
+            : ` · $${nanoToUsd(v.used_nano_usd)} of $${nanoToUsd(p.max_total_nano_usd)} in stated amounts admitted`}
+        </p>
+        <details>
+          <summary>Summary you confirmed on {when(p.confirmed_at)}</summary>
+          <ul className="routine-summary">
+            {p.summary.map((line) => (
+              <li key={line}>{line}</li>
             ))}
           </ul>
-        )}
-      </details>
-      {p.status === 'active' && !draft && (
-        <span className="actions">
-          <button
-            className="text"
-            disabled={busy}
-            onClick={() => setDraft(routineDraftOf(v))}
-          >
-            Change…
-          </button>{' '}
-          <button
-            className="text"
-            disabled={busy}
-            onClick={() => setRevoking(true)}
-          >
-            Revoke…
-          </button>
-        </span>
-      )}
-      {p.status === 'active' && !draft && revoking && (
-        <div className="routine-edit" role="group" aria-label="Confirm revoke">
-          <p className="small">
-            Revoke routine approvals for this run? The run asks you again from
-            its next step, and a build admitted under this policy stops at its
-            next request. If you turn routine approvals on again later, that is
-            a new policy whose step and money counts start at zero.
-          </p>
-          <div className="actions">
+          <p className="small">Your reason: {p.rationale}</p>
+        </details>
+        <details>
+          <summary>
+            Steps this policy admitted ({v.used_actions}
+            {v.used_actions > v.recent.length
+              ? `, latest ${v.recent.length} shown`
+              : ''}
+            )
+          </summary>
+          {v.recent.length === 0 ? (
+            <p className="small">None yet.</p>
+          ) : (
+            <ul>
+              {v.recent.map((a) => (
+                <li key={a.admission_id}>
+                  {words(a.action_type)} · {when(a.created_at)} · admitted by
+                  policy rules, not approved by a person
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+        {p.status === 'active' && !draft && (
+          <span className="actions">
             <button
-              className="secondary strong"
+              className="text"
               disabled={busy}
-              onClick={() => {
-                setRevoking(false);
-                void send('revoke', {
-                  expected_version: p.version,
-                  reason: 'Revoked from the Approvals page',
-                });
-              }}
+              onClick={() => setDraft(routineDraftOf(v))}
             >
-              Revoke routine approvals
+              Change…
             </button>{' '}
             <button
               className="text"
               disabled={busy}
-              onClick={() => setRevoking(false)}
+              onClick={() => setRevoking(true)}
             >
-              Keep them
+              Revoke…
             </button>
+          </span>
+        )}
+        {p.status === 'active' && !draft && revoking && (
+          <div
+            className="routine-edit"
+            role="group"
+            aria-label="Confirm revoke"
+          >
+            <p className="small">
+              Revoke routine approvals for this run? The run asks you again from
+              its next step, and a build admitted under this policy stops at its
+              next request. If you turn routine approvals on again later, that
+              is a new policy whose step and money counts start at zero.
+            </p>
+            <div className="actions">
+              <button
+                className="secondary strong"
+                disabled={busy}
+                onClick={() => {
+                  setRevoking(false);
+                  void send('revoke', {
+                    expected_version: p.version,
+                    reason: 'Revoked from the Approvals page',
+                  });
+                }}
+              >
+                Revoke routine approvals
+              </button>{' '}
+              <button
+                className="text"
+                disabled={busy}
+                onClick={() => setRevoking(false)}
+              >
+                Keep them
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      {p.status === 'revoked' && (
-        <p className="small">
-          Revoked. You can turn routine approvals on again for this run below,
-          with a new summary.
-        </p>
-      )}
-      {draft && (
-        <div className="routine-edit">
+        )}
+        {p.status === 'revoked' && (
           <p className="small">
-            Changing the policy needs the new summary confirmed. A build already
-            approved under the current version stops at its next request and
-            asks again.
+            Revoked. You can turn routine approvals on again for this run below,
+            with a new summary.
           </p>
-          <RoutineFields
-            draft={draft}
-            onChange={setDraft}
-            idPrefix={`rp-${p.id.slice(0, 8)}`}
-            editing
-          />
-          <div className="actions">
-            <button
-              className="secondary strong"
-              disabled={busy || !request}
-              onClick={() =>
-                void send('revisions', {
-                  ...request,
-                  expected_version: p.version,
-                })
-              }
-            >
-              Save the changed policy
-            </button>
-            <button
-              className="secondary"
-              disabled={busy}
-              onClick={() => setDraft(null)}
-            >
-              Cancel
-            </button>
+        )}
+        {draft && (
+          <div className="routine-edit">
+            <p className="small">
+              Changing the policy needs the new summary confirmed. A build
+              already approved under the current version stops at its next
+              request and asks again.
+            </p>
+            <RoutineFields
+              draft={draft}
+              onChange={setDraft}
+              idPrefix={`rp-${p.id.slice(0, 8)}`}
+              editing
+            />
+            <div className="actions">
+              <button
+                className="secondary strong"
+                disabled={busy || !request}
+                onClick={() =>
+                  void send('revisions', {
+                    ...request,
+                    expected_version: p.version,
+                  })
+                }
+              >
+                Save the changed policy
+              </button>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => setDraft(null)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Fold>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -566,6 +592,13 @@ export function RoutinePolicies({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const chosen = eligibleRuns.includes(runId) ? runId : '';
+  // P18: each policy folds to one line; a paused one (it stopped admitting) opens.
+  const policyFolds = useFolds(
+    firstNeeding(
+      policies.map((v) => v.policy.id),
+      (id) => policies.find((v) => v.policy.id === id)?.state === 'paused',
+    ),
+  );
   const request = draft && chosen ? routineRequest(draft) : null;
   const seenData = chosen ? runDataClasses(chosen) : [];
   const missing = draft
@@ -592,7 +625,14 @@ export function RoutinePolicies({
   }
   return (
     <>
-      <h3>Routine approvals</h3>
+      <div className="fold-head">
+        <h3>Routine approvals</h3>
+        <FoldAll
+          ids={policies.map((v) => v.policy.id)}
+          folds={policyFolds}
+          label="routine approval policies"
+        />
+      </div>
       {eligibleRuns.length > 0 && (
         <div className="routine-edit">
           <label htmlFor="rp-run">
@@ -674,6 +714,7 @@ export function RoutinePolicies({
             <PolicyCard
               key={`${v.policy.id}-${v.policy.version}`}
               v={v}
+              folds={policyFolds}
               runName={runName(v.policy.run_id)}
               session={session}
               workspace={workspace}
