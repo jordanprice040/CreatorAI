@@ -13,11 +13,14 @@ import { useViewMode } from './view-mode.js';
 export function Routine({
   summary,
   open,
+  reopen,
   onClose,
   children,
 }: {
   summary: string;
   open?: boolean;
+  /** Changing it opens the fold again while `open` holds (e.g. Expand all pressed). */
+  reopen?: number;
   /** Called when the person closes the fold (only the person closes one). */
   onClose?: () => void;
   children: ReactNode;
@@ -26,14 +29,16 @@ export function Routine({
   const fold = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     if (open && fold.current) fold.current.open = true;
-  }, [open, standard]);
+  }, [open, standard, reopen]);
   if (!standard) return <>{children}</>;
   return (
     <details
       className="routine"
       ref={fold}
       onToggle={(e) => {
-        if (!e.currentTarget.open) onClose?.();
+        // A nested <details> (a section's own fold) toggling bubbles here too; only the
+        // person closing this fold counts (re-review L-A).
+        if (e.target === e.currentTarget && !e.currentTarget.open) onClose?.();
       }}
     >
       <summary>{summary}</summary>

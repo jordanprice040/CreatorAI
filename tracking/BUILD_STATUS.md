@@ -1285,3 +1285,14 @@ route, gate, request or data change. The rules are in `apps/web/src/decide-routi
   its database connection (`ECONNRESET`) while the browser walk ran against the same server; rerun alone it passed
   2 of 2, twice. No code it covers changed.
 
+### P19 follow-up re-review fixes (November 11, same PR #166; `reviews/PR166_DECIDE_PROPOSALS_FOLDS_REREVIEW.md`, 1 Low, 1 nit)
+
+- L-A Proposals: a section's own fold toggling no longer reaches the group's close handler (`Routine` ignores toggles
+  from nested `<details>`), and Expand all reopens the group even while a blocked section keeps it marked open
+  (`FoldAll` gained `onExpand`, `Routine` gained `reopen`).
+- N-A: `walk.cjs` finds the "What changed" fold in its new place (output replaced).
+- Evidence: `walk-override.cjs` gained a blocked folded section (Background cites a claim that is then archived):
+  summary "· 1 blocked"; closed by hand, then Expand all opens the group with all 6 sections; closed and Expand all
+  again, the same. Output replaced.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db`
+  954 tests, 920 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).

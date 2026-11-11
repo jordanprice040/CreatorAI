@@ -671,6 +671,7 @@ function ProposalEditor({
   // P19 follow-up: Standard keeps the required sections, contrary evidence and assumptions in
   // view and folds the other optional sections under one line; Advanced keeps the P18 order.
   const { standard } = useViewMode();
+  const [expanded, setExpanded] = useState(0);
   const folded: readonly ProposalSection[] = FOLDED_PROPOSAL_SECTIONS;
   const inView = PROPOSAL_SECTIONS.filter((k) => !folded.includes(k));
   const sectionFold = (k: ProposalSection) => {
@@ -967,6 +968,7 @@ function ProposalEditor({
             ids={PROPOSAL_SECTIONS}
             folds={sectionFolds}
             label="sections"
+            onExpand={() => setExpanded((n) => n + 1)}
           />
           {(standard ? inView : PROPOSAL_SECTIONS).map(sectionFold)}
           {standard && (
@@ -978,7 +980,9 @@ function ProposalEditor({
               open={folded.some(
                 (k) => sectionFolds.isOpen(k) || !!sectionBlocker(k),
               )}
-              // Review N-2: closing the group closes its sections, so Expand all opens it again.
+              // Review N-2, re-review L-A: closing the group closes its sections, and Expand all
+              // opens it again even while a blocked section keeps `open` true.
+              reopen={expanded}
               onClose={() => sectionFolds.setAll(folded, false)}
             >
               {folded.map(sectionFold)}

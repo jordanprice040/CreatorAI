@@ -206,6 +206,87 @@ const log = (k, v) => console.log(k, JSON.stringify(v));
         .map((e) => e.textContent.trim().slice(0, 40)),
     ),
   );
+  // Re-review L-A: a folded section a check blocks. Revise the proposals so Background cites a
+  // claim, archive that claim (a blocker), then close the group by hand and press Expand all.
+  log(
+    'SETUP blocked Background',
+    await p.evaluate(async (ws) => {
+      const s = await (await fetch('/api/auth/session')).json();
+      const list = await (
+        await fetch(`/api/workspaces/${ws}/proposals`)
+      ).json();
+      const out = [];
+      const post = (url, body) =>
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': s.csrf_token,
+          },
+          body: JSON.stringify(body),
+        }).then(async (r) => `${r.status} ${r.ok ? '' : await r.text()}`);
+      let archived = null;
+      for (const { id } of list) {
+        const d = await (
+          await fetch(`/api/workspaces/${ws}/proposals/${id}`)
+        ).json();
+        const body = structuredClone(d.proposal.body);
+        if (!archived) {
+          const cmp = await (
+            await fetch(
+              `/api/workspaces/${ws}/problems/${body.problem.id}/comparison`,
+            )
+          ).json();
+          archived = cmp.claims[0].evidence.claim;
+        }
+        body.sections.background.claims = [
+          { id: archived.id, version: archived.version },
+        ];
+        out.push(
+          await post(`/api/workspaces/${ws}/proposals/${id}/revisions`, {
+            expected_version: d.proposal.version,
+            title: d.proposal.title,
+            body,
+            reason: 'Walk: cite a claim in Background, then archive it',
+          }),
+        );
+      }
+      // Archiving the cited claim makes Background blocked ("cites a claim that is archived").
+      out.push(
+        await post(`/api/workspaces/${ws}/entities/${archived.id}/archive`, {
+          expected_version: archived.version,
+          reason: 'Walk: blocked folded section (throwaway database)',
+        }),
+      );
+      return out;
+    }, process.env.WALK_PROPOSAL_WS),
+  );
+  await p.reload();
+  await p.waitForTimeout(4500);
+  await p.locator('ul.rows button.text').first().click();
+  await p.waitForTimeout(2500);
+  const blockedState = async () => ({
+    summary: await group.locator('> summary').textContent(),
+    open: await group.evaluate((d) => d.open),
+    sectionsOpen: await group.evaluate(
+      (d) =>
+        [...d.querySelectorAll('details.proposal-fold')].filter((x) => x.open)
+          .length,
+    ),
+    expandDisabled: await expand.isDisabled(),
+  });
+  log('BLOCKED loaded', await blockedState());
+  await group.locator('> summary').click();
+  await p.waitForTimeout(200);
+  log('BLOCKED group closed by hand', await blockedState());
+  await expand.click();
+  await p.waitForTimeout(300);
+  log('BLOCKED expand all', await blockedState());
+  await group.locator('> summary').click();
+  await p.waitForTimeout(200);
+  await expand.click();
+  await p.waitForTimeout(300);
+  log('BLOCKED closed and expand all again', await blockedState());
   log('ERRORS', errors);
   await b.close();
 })();

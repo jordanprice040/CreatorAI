@@ -969,4 +969,5 @@ will happen". Contrary evidence, assumptions and required sections never fold. R
 tests in `tests/src/web-decide-routine.test.ts`, walk in `tracking/evidence/p19-decide-proposals/` (run it with
 `LOGIN_CODE=<dev login code> node walk.cjs` against dev servers on 5183/4330/4340 and a `cli seed-selection`
 workspace). No migration or ADR; next free numbers stay migration 54 and ADR-0084. Review fixes (M-1 override field stays in one place, L-1 review marks open, N-1..N-4) are in
-the same PR, with `walk-override.cjs`. Next: re-review, then the installed app upgrade and P17.
+the same PR, with `walk-override.cjs`. Re-review fixes (L-A Expand all with a
+blocked folded section, N-A walk selector) followed. Next: re-review, then the installed app upgrade and P17.

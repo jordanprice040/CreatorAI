@@ -82,11 +82,14 @@ export function FoldAll({
   ids,
   folds,
   label,
+  onExpand,
 }: {
   ids: readonly string[];
   folds: Folds;
   /** What the list holds, e.g. "options", for screen readers. */
   label: string;
+  /** Called on Expand all, e.g. to open a group some of the items sit in. */
+  onExpand?: () => void;
 }) {
   if (ids.length < 2) return null;
   const allOpen = ids.every((id) => folds.isOpen(id));
@@ -97,7 +100,10 @@ export function FoldAll({
         type="button"
         className="text"
         disabled={allOpen}
-        onClick={() => folds.setAll(ids, true)}
+        onClick={() => {
+          folds.setAll(ids, true);
+          onExpand?.();
+        }}
       >
         Expand all
       </button>

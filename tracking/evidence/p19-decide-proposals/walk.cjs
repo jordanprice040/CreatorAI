@@ -113,9 +113,9 @@ const log = (k, v) => console.log(k, JSON.stringify(v));
               sections: titles(group),
             }
           : null,
-        reasonFold: [
-          ...f.querySelectorAll('.actions details.routine > summary'),
-        ].map((s) => s.textContent),
+        reasonFold: [...f.querySelectorAll('details.routine > summary')]
+          .map((s) => s.textContent)
+          .filter((t) => t.startsWith('What changed')),
         whatHappens: [...f.querySelectorAll('.what-happens dt')].map((d) => [
           d.textContent,
           d.nextElementSibling.textContent,

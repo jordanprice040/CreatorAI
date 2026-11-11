@@ -11,4 +11,9 @@ EXPAND ALL group open true
 GROUP closed by hand {"open":false,"expandDisabled":false}
 EXPAND ALL again true
 ORDER before Save ["What changed: “Edited” (default)","What will happen","Save as version 2"]
+SETUP blocked Background ["200 ","200 "]
+BLOCKED loaded {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":true,"sectionsOpen":1,"expandDisabled":false}
+BLOCKED group closed by hand {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":false,"sectionsOpen":0,"expandDisabled":false}
+BLOCKED expand all {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":true,"sectionsOpen":6,"expandDisabled":true}
+BLOCKED closed and expand all again {"summary":"6 more sections (optional): 2 written, 4 unknown yet · 1 blocked","open":true,"sectionsOpen":6,"expandDisabled":true}
 ERRORS []
