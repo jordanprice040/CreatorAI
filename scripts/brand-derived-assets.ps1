@@ -7,6 +7,8 @@
 #   apps/desktop/src-tauri/icons/nsis-header.bmp   150x57, mark at the left (Tauri's template has no MUI_HEADERIMAGE_RIGHT)
 #   apps/desktop/src-tauri/icons/nsis-sidebar.bmp  164x314, sage mark on ink
 #   apps/web/public/creator-agent-icon.png, apps/desktop/control/mark.png   64 px frame of windows.ico
+#   apps/web/public/favicon.ico, apps/web/public/apple-touch-icon.png       copies of the pack's browser icons
+#   assets/creator-agent/SHA256SUMS.txt            refreshed for the pack and every file above
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
@@ -94,3 +96,25 @@ function New-Art($w, $h, $bg, $markFile, $markH, $x, $y, $out) {
 }
 New-Art 150 57 '#FFFFFF' (Join-Path $pack 'mark-ink.png') 33 12 12 (Join-Path $icons 'nsis-header.bmp')
 New-Art 164 314 '#141312' (Join-Path $pack 'mark-sage.png') 64 48 72 (Join-Path $icons 'nsis-sidebar.bmp')
+
+# 4. Browser icons are straight copies.
+Copy-Item (Join-Path $pack 'favicon.ico') (Join-Path $root 'apps/web/public/favicon.ico') -Force
+Copy-Item (Join-Path $pack 'touch-icon-180.png') (Join-Path $root 'apps/web/public/apple-touch-icon.png') -Force
+
+# 5. Refresh SHA256SUMS.txt (pack files, then app copies relative to the pack; LF endings).
+$derived = @(
+  'apps/desktop/control/mark.png',
+  'apps/desktop/src-tauri/icons/icon.ico',
+  'apps/desktop/src-tauri/icons/nsis-header.bmp',
+  'apps/desktop/src-tauri/icons/nsis-sidebar.bmp',
+  'apps/web/public/apple-touch-icon.png',
+  'apps/web/public/creator-agent-icon.png',
+  'apps/web/public/favicon.ico'
+)
+[string[]]$names = Get-ChildItem $pack -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+  ForEach-Object { $_.Name }
+[Array]::Sort($names, [StringComparer]::Ordinal)
+$lines = @()
+foreach ($n in $names) { $lines += (Get-FileHash (Join-Path $pack $n) -Algorithm SHA256).Hash.ToLower() + '  ' + $n }
+foreach ($d in $derived) { $lines += (Get-FileHash (Join-Path $root $d) -Algorithm SHA256).Hash.ToLower() + '  ../../' + $d }
+[IO.File]::WriteAllText((Join-Path $pack 'SHA256SUMS.txt'), (($lines -join "`n") + "`n"))
