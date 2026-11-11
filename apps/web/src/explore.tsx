@@ -33,6 +33,7 @@ import {
   FixRow,
   qualifierFor,
   routeFixes,
+  useQualifyOffers,
   type FixContext,
 } from './fix-buttons.js';
 import { refusalFixes, type FixAction } from './fix-here.js';
@@ -119,6 +120,8 @@ export function Explore({
   open: (view: View, id?: string) => void;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
+  useQualifyOffers(base);
   const fixture = workspace.record_mode === 'fixture';
   const ctx = useLoad(async () => {
     const [workflows, envelopes, pricing, connections, claims] =

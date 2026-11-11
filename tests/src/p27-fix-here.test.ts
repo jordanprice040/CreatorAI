@@ -349,7 +349,19 @@ async function loadButtons() {
     return exports;
   };
   const words = (s: string) => s.replaceAll('_', ' ');
-  const oversight = { words, api: async () => ({}), message: String };
+  // What `GET plan-benchmarks` answers (P34 #175); none until a test sets it.
+  const offers: { served: { benchmarks: unknown[] } | null } = {
+    served: null,
+  };
+  const oversight = {
+    words,
+    api: async (_s: unknown, path: string) => {
+      if (!path.endsWith('/plan-benchmarks')) return {};
+      if (!offers.served) throw new Error('404');
+      return offers.served;
+    },
+    message: String,
+  };
   const caps = await loadWeb('caps-fields.ts');
   const fixHere = await loadWeb('fix-here.ts');
   const qualify = await compile('qualify.tsx', {
@@ -364,6 +376,7 @@ async function loadButtons() {
     './allow-tasks.js': { allowSequence: async () => true },
   });
   return {
+    offers,
     mod: mod as {
       canQualifyFor(role: string): (t: string) => boolean;
       confirmText(a: FixAction, d: unknown): string;
@@ -670,4 +683,84 @@ test('P34 re-review L-A: an assessment Qualify now never runs a started scoring 
       .kind,
     'same',
   );
+});
+
+test('P34 handover: discovery fixes qualify on the benchmarks the server offers, started by name', async () => {
+  const { mod, offers } = (await loadButtons()) as unknown as {
+    offers: { served: { benchmarks: unknown[] } | null };
+    mod: {
+      loadOffers(base: string, fresh?: boolean): Promise<void>;
+      canQualifyFor(role: string): (t: string) => boolean;
+      benchmarkFor(
+        t: string,
+        role: string,
+      ):
+        | {
+            name: string;
+            hash(): Promise<string>;
+            start(v: number, m: string): unknown;
+          }
+        | undefined;
+      roleOf(m: unknown): string | null;
+    };
+  };
+  // A studio without the route (main before #175) offers no discovery benchmark.
+  await mod.loadOffers('workspaces/w');
+  assert.equal(mod.canQualifyFor('discovery')('candidate_generation'), false);
+  const hash = 'c'.repeat(64);
+  offers.served = {
+    benchmarks: [
+      {
+        name: 'plan-discovery-semantics-v2-candidate_generation',
+        task_class: 'candidate_generation',
+        manifest_hash: hash,
+        data_class: 'synthetic',
+        development: 2,
+        held_out: 4,
+      },
+      {
+        name: 'plan-discovery-semantics-v2-scoring',
+        task_class: 'scoring',
+        manifest_hash: 'e'.repeat(64),
+        data_class: 'synthetic',
+        development: 2,
+        held_out: 4,
+      },
+    ],
+  };
+  await mod.loadOffers('workspaces/w', true);
+  assert.equal(mod.canQualifyFor('discovery')('candidate_generation'), true);
+  const b = mod.benchmarkFor('candidate_generation', 'discovery')!;
+  assert.equal(await b.hash(), hash);
+  assert.deepEqual(b.start(7, 'gpt-6-astra'), {
+    expected_version: 7,
+    model_id: 'gpt-6-astra',
+    benchmark: 'plan-discovery-semantics-v2-candidate_generation',
+  });
+  // Scoring keeps one benchmark per route: discovery's skeptic and the bundled assessment one.
+  assert.equal(
+    mod.benchmarkFor('scoring', 'discovery')!.name,
+    'plan-discovery-semantics-v2-scoring',
+  );
+  assert.equal(
+    mod.benchmarkFor('scoring', 'assessment')!.name,
+    'assessment-synthetic-v1',
+  );
+  // The role of a bundled benchmark is read from every case, as P34's manifestRole does.
+  const kinds = (...k: string[]) => ({
+    cases: k.map((kind) => ({ check: { kind } })),
+  });
+  assert.equal(mod.roleOf(kinds('assessment_contract')), 'assessment');
+  assert.equal(
+    mod.roleOf(kinds('discovery_contract', 'discovery_contract')),
+    'discovery',
+  );
+  assert.equal(
+    mod.roleOf(kinds('web_scout_contract', 'web_reader_contract')),
+    null,
+  );
+  assert.equal(mod.roleOf(kinds('exact_label')), 'plan');
+  assert.equal(mod.roleOf(kinds('web_scout_contract', 'exact_label')), 'plan');
+  // P12's bundled web-discovery benchmark is never a fix's research synthesis benchmark.
+  assert.equal(mod.benchmarkFor('research_synthesis', 'plan'), undefined);
 });

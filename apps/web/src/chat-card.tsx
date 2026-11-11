@@ -11,7 +11,7 @@ import { useViewMode } from './view-mode.js';
 import { WhatWillHappen } from './routine.js';
 import type { View } from './pages.js';
 import { loadCard } from './chat-card-load.js';
-import { FixRow, routeFixes } from './fix-buttons.js';
+import { FixRow, routeFixes, useQualifyOffers } from './fix-buttons.js';
 import {
   FORM_VIEW,
   LABEL,
@@ -104,6 +104,8 @@ export function ActionCard({
   again: (card: ChatAction) => Promise<void>;
 }) {
   const { standard } = useViewMode();
+  // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
+  useQualifyOffers(`workspaces/${workspaceId}`);
   const base = `workspaces/${workspaceId}/chats/${card.conversation_id}/actions/${card.id}`;
   const [data, setData] = useState<CardData | null>(null);
   const [loadError, setLoadError] = useState('');

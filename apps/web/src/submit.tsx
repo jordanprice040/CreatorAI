@@ -35,7 +35,12 @@ import {
   forDiscover,
 } from '@creator/contracts';
 import { api, message, refusalsOf, words } from './oversight.js';
-import { FixButtons, qualifierFor, type FixContext } from './fix-buttons.js';
+import {
+  FixButtons,
+  qualifierFor,
+  useQualifyOffers,
+  type FixContext,
+} from './fix-buttons.js';
 import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
@@ -223,6 +228,8 @@ export function Submit({
   prefill?: Prefill;
 }) {
   const base = `workspaces/${workspace.id}`;
+  // ADR-0087: the server's discovery benchmarks, so a fix can qualify a discovery task.
+  useQualifyOffers(base);
   const ctx = useLoad(async () => {
     let connectionError = '';
     const [claims, runs, workflows, envelopes, pricing, connections, names] =

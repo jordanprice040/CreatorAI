@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   PlanConnectionDetailSchema,
   PlanQualificationSchema,
@@ -123,26 +123,37 @@ export function routeFixes(input: {
   ];
 }
 
-/** Which route a bundled benchmark qualifies for, from its cases' check kind. */
-function roleOf(manifest: {
+/**
+ * Which route a bundled benchmark qualifies for, from every case's check kind, as P34's
+ * `manifestRole` reads it (qualification-role.ts in #175; swap to it once both are in): all
+ * assessment-contract cases are the assessment route, all discovery-contract cases discovery,
+ * all web scout or reader cases Search the web (`null`: no fix starts it), anything else a plan
+ * role.
+ */
+export function roleOf(manifest: {
   cases: readonly { check?: unknown }[];
-}): QualifyRole {
-  const kind = (manifest.cases[0]?.check as { kind?: string } | undefined)
-    ?.kind;
-  return kind === 'discovery_contract'
-    ? 'discovery'
-    : kind === 'assessment_contract'
-      ? 'assessment'
-      : 'plan';
+}): QualifyRole | null {
+  const kinds = new Set(
+    manifest.cases.map((c) => (c.check as { kind?: string } | undefined)?.kind),
+  );
+  if (kinds.size === 1 && kinds.has('assessment_contract')) return 'assessment';
+  if (kinds.size === 1 && kinds.has('discovery_contract')) return 'discovery';
+  if (
+    kinds.size > 0 &&
+    [...kinds].every(
+      (k) => k === 'web_scout_contract' || k === 'web_reader_contract',
+    )
+  )
+    return null;
+  return 'plan';
 }
 
 /**
- * A benchmark a fix can start for a task in a role (ADR-0087). Today these are the bundled
- * benchmarks, started with their manifest. P34 (#175) serves the discovery benchmarks from the
- * server instead (GET plan-benchmarks, started by name with `{ expected_version, model_id,
- * benchmark }`, carrying their manifest_hash): whichever of #175 and P27 merges second adds
- * them in `offersFor`, and discovery's Qualify now and Allow and qualify turn on from there.
- * Until then discovery offers no qualify fix (review M-1).
+ * A benchmark a fix can start for a task in a role (ADR-0087): a bundled one, started with its
+ * manifest, or one the server offers (P34 #175, `GET plan-benchmarks`), started by name with
+ * `{ expected_version, model_id, benchmark }` and carrying its manifest_hash. A page that
+ * offers discovery fixes calls `useQualifyOffers(base)`; until the server offers discovery
+ * benchmarks (before #175), discovery has no qualify fix.
  */
 export type QualifyOffer = {
   name: string;
@@ -163,30 +174,104 @@ const memo = <T,>(f: () => Promise<T>) => {
 
 // The web-discovery benchmark (ADR-0086) qualifies only Search the web, which no fix here
 // starts, so it is never offered: its research synthesis counts for no route a fix serves.
-const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.filter((b) => !b.web).map(
-  (b) => ({
+const BUNDLED: readonly QualifyOffer[] = BENCHMARKS.filter(
+  (b) => roleOf(b.manifest) !== null,
+).map((b) => ({
+  name: b.name,
+  task_class: b.task_class,
+  role: roleOf(b.manifest)!,
+  development: b.development,
+  held_out: b.held_out,
+  hash: memo(() => manifestHash(b.manifest)),
+  start: (expected_version: number, model_id: string) => ({
+    expected_version,
+    model_id,
+    manifest: b.manifest,
+    min_held_out_cases: b.held_out,
+    floor: { numerator: 1, denominator: 1 },
+  }),
+}));
+
+/**
+ * The discovery benchmarks the server offers (ADR-0089, P34 #175: `GET plan-benchmarks`); the
+ * manifest stays on the server, which starts one by name. Read as P34's
+ * `DiscoveryBenchmarkSchema` lists them; a studio without the route (before #175) offers none.
+ */
+const ServerOffersSchema = z.object({
+  benchmarks: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(120),
+        task_class: z.string().min(1),
+        manifest_hash: z.string().regex(/^[a-f0-9]{64}$/),
+        development: z.number().int().nonnegative(),
+        held_out: z.number().int().nonnegative(),
+      }),
+    )
+    .max(20),
+});
+
+export const serverOffers = (
+  list: z.infer<typeof ServerOffersSchema>['benchmarks'],
+): QualifyOffer[] =>
+  list.map((b) => ({
     name: b.name,
     task_class: b.task_class,
-    role: roleOf(b.manifest),
+    role: 'discovery' as const,
     development: b.development,
     held_out: b.held_out,
-    hash: memo(() => manifestHash(b.manifest)),
+    hash: async () => b.manifest_hash,
     start: (expected_version: number, model_id: string) => ({
       expected_version,
       model_id,
-      manifest: b.manifest,
-      min_held_out_cases: b.held_out,
-      floor: { numerator: 1, denominator: 1 },
+      benchmark: b.name,
     }),
-  }),
-);
+  }));
+
+/** The server's offers for the workspace last read, and that workspace's API path. */
+let offered: { base: string; list: readonly QualifyOffer[] } | null = null;
+const reading = new Map<string, Promise<void>>();
 
 /**
- * Every benchmark a fix can start, in every role. The P34 wiring point (see QualifyOffer): its
- * offers are read from the server, so the page loads them and passes them in here; a module
- * constant can't hold them.
+ * Read the server's discovery offers for a workspace (once per workspace, or again with
+ * `fresh`, since the server refuses a name it no longer offers). Failures offer none.
  */
-const allOffers = (): readonly QualifyOffer[] => BUNDLED;
+export function loadOffers(base: string, fresh = false): Promise<void> {
+  if (!fresh && offered?.base === base) return Promise.resolve();
+  const pending = reading.get(base);
+  if (pending) return pending;
+  const p = api(ServerOffersSchema, `${base}/plan-benchmarks`)
+    .then((r) => serverOffers(r.benchmarks))
+    .catch((): QualifyOffer[] => [])
+    .then((list) => {
+      offered = { base, list };
+    })
+    .finally(() => reading.delete(base));
+  reading.set(base, p);
+  return p;
+}
+
+/**
+ * For a page that offers fixes: reads the server's offers for its workspace and draws again
+ * when they arrive, so `canQualifyFor('discovery')` sees them.
+ */
+export function useQualifyOffers(base: string): number {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void loadOffers(base).then(() => live && setN((x) => x + 1));
+    return () => {
+      live = false;
+    };
+  }, [base]);
+  return n;
+}
+
+/** Every benchmark a fix can start, in every role: the bundled ones and the server's. */
+const allOffers = (): readonly QualifyOffer[] => [
+  ...BUNDLED,
+  ...(offered?.list ?? []),
+];
 
 /** Every benchmark a fix can start in a role. */
 export const offersFor = (role: QualifyRole): readonly QualifyOffer[] =>
@@ -266,7 +351,7 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     setError('');
     setOutcome('');
     try {
-      const d = await read();
+      const [d] = await Promise.all([read(), loadOffers(fix.base, true)]);
       setStarted(await startedRuns(a, d));
       setDetail(d);
       setOpen(true);
