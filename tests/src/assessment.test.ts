@@ -854,14 +854,14 @@ test('P25: the preview sizes requests to the chosen plan connection input cap, a
   assert.equal(preview.cap_for_all, null);
   const narrow = await make('Narrow', 7_000);
   await rejects(
-    'LIMIT_EXCEEDED',
+    'BODY_TOO_LARGE',
     s.store.previewAssessment(owner, s.ws.id, s.problem.id, narrow.id),
     /7,000 per request.*Change caps/,
   );
   // Starting on the narrow connection is refused the same way, before anything is queued.
   const runId = await s.run();
   await rejects(
-    'LIMIT_EXCEEDED',
+    'BODY_TOO_LARGE',
     s.store.startAssessment(
       owner,
       s.ws.id,

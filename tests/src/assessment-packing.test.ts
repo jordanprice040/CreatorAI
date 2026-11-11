@@ -197,6 +197,12 @@ test('the cap that reads every claim is reported, and reads them all', () => {
   assert.ok(all.ok);
   assert.equal(all.claims_left_out, 0);
   assert.equal(all.cap_for_all, null);
+  // Every larger cap reads them all too, so rounding the hint up is safe (re-review L-A).
+  for (let k = 1; k <= 30; k++) {
+    const above = buildAssessmentPacket(large(plan.cap_for_all! + k * 1000));
+    assert.ok(above.ok);
+    assert.equal(above.claims_left_out, 0, `cap_for_all + ${k},000`);
+  }
   const under = buildAssessmentPacket(large(plan.cap_for_all! - 1000));
   assert.ok(under.ok);
   assert.ok(under.claims_left_out > 0, 'the smallest such cap, to a thousand');

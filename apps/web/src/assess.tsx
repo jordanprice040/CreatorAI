@@ -174,7 +174,7 @@ export function AutoAssess({
         data: null,
         error: message(e),
         // Only the size refusal (an option that does not fit alone) is fixed by a larger cap.
-        tooLarge: e instanceof ApiError && e.code === 'LIMIT_EXCEEDED',
+        tooLarge: e instanceof ApiError && e.code === 'BODY_TOO_LARGE',
       }),
     );
   }, [

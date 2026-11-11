@@ -314,15 +314,19 @@ function planAt(
     const largest = Math.max(...batches.map(base));
     const claims = pick(cap - NOTE_RESERVE - largest);
     const gain = best ? claims.length - best.claims.length : 0;
+    // The coarsest split that reads every claim always wins, so every cap from `cap_for_all`
+    // up reads them all (PR #171 re-review L-A); below that, the trade-off rule applies.
+    const readsAll = claims.length === Math.min(candidates.length, MAX_CLAIMS);
     if (
       !best ||
+      readsAll ||
       (gain > 0 &&
         (gain >= FINER_SPLIT_MIN_GAIN ||
           claims.length >= best.claims.length * 1.2)) ||
       (gain === 0 && batches.length < best.batches.length)
     )
       best = { batches, claims };
-    if (claims.length === Math.min(candidates.length, MAX_CLAIMS)) break;
+    if (readsAll) break;
   }
   const { batches } = best!;
   let claims = best!.claims;

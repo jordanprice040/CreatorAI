@@ -919,8 +919,9 @@ export class SelectionStore extends DiscoveryStore {
       ...(read.cap ? { input_cap: read.cap } : {}),
       route: route ? 'plan' : 'other',
     });
-    // LIMIT_EXCEEDED marks the size refusal, so Decide offers raising the cap only for it.
-    if (!plan.ok) throw fail('LIMIT_EXCEEDED', plan.problem);
+    // BODY_TOO_LARGE (HTTP 413) marks the size refusal: the request the studio would send is
+    // too large. Decide offers raising the cap only for it.
+    if (!plan.ok) throw fail('BODY_TOO_LARGE', plan.problem);
     const { packet } = plan;
     const support = await this.tx((c) =>
       this.supportHashes(
