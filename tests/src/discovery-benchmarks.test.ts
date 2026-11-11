@@ -284,4 +284,58 @@ test('ADR-0089: start a discovery qualification by name; stale names, fixture mi
   // The same model and task cannot be started twice while this one runs.
   conn = await current();
   await assert.rejects(start(research.name), /already running/);
+
+  // PR #175 re-review 2 N-3: both directions, through the view format the app records (one
+  // naming the qualification whose results it showed, recomputed from that stored manifest).
+  const both = await ready(false);
+  for (const m of ['m2', 'm3'])
+    await db.pool.query(
+      `insert into plan_model_access (connection_id, model_id, path, access, request_id)
+       values ($1, $2, 'responses', 'verified', $3)`,
+      [both.conn.id, m, randomUUID()],
+    );
+  const fresh = async () =>
+    (await store.planConnectionDetail(owner, both.ws.id, both.conn.id))
+      .connection;
+  const viewed = (qualification_id: string, cases: typeof web.cases) =>
+    db.pool.query(
+      `insert into plan_connection_events (id, connection_id, kind, body, actor_id)
+       values ($1,$2,'qualification_held_out_viewed',$3,$4)`,
+      [
+        randomUUID(),
+        both.conn.id,
+        {
+          task_class: 'research_synthesis',
+          qualification_id,
+          prompt_hash: 'e'.repeat(64),
+          held_out: heldOutKeys(cases),
+          held_out_prompts: heldOutKeys(cases).map(() => 'e'.repeat(64)),
+        },
+        owner.actorId,
+      ],
+    );
+  const webHeld = web.cases.filter((c) => c.split === 'held_out').length;
+  const startWeb = async (model_id: string) =>
+    store.startPlanQualification(owner, both.ws.id, both.conn.id, {
+      expected_version: (await fresh()).version,
+      model_id,
+      manifest: web,
+      min_held_out_cases: webHeld,
+      floor: { numerator: 1, denominator: 1 },
+    });
+  const startLocate = async (model_id: string) =>
+    store.startPlanQualification(owner, both.ws.id, both.conn.id, {
+      expected_version: (await fresh()).version,
+      model_id,
+      benchmark: research.name,
+    });
+  // A viewed web qualification does not refuse the locator...
+  const webQ = await startWeb('m');
+  assert.equal(webQ.admits_web_discovery, true);
+  await viewed(webQ.id, web.cases);
+  const locateQ = await startLocate('m2');
+  assert.equal(locateQ.admits_discovery, true);
+  // ...and a viewed locate qualification does not refuse web discovery.
+  await viewed(locateQ.id, manifest.cases);
+  assert.equal((await startWeb('m3')).admits_web_discovery, true);
 });

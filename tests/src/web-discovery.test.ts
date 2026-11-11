@@ -9,7 +9,6 @@ import {
   ReaderOutputSchema,
   WebDiscoveryScopeSchema,
   WebDiscoverySchema,
-  forDiscover,
   forWebDiscovery,
   isDiscoveryQualified,
   isQualified,
@@ -257,7 +256,6 @@ test('a web-discovery and a Discover qualification of research synthesis never s
     q('failed', true, '2026-11-11T11:00:00Z'),
   ];
   assert.equal(isQualified(both, 'm', 'research_synthesis'), false); // the old mix-up
-  assert.equal(isQualified(forDiscover(both), 'm', 'research_synthesis'), true);
   assert.equal(isDiscoveryQualified(both, 'm', 'research_synthesis'), true);
   assert.equal(
     isQualified(forWebDiscovery(both), 'm', 'research_synthesis'),
@@ -265,10 +263,6 @@ test('a web-discovery and a Discover qualification of research synthesis never s
   );
   // Only a web qualification (gpt-6-astra on the dev studio): Discover is not qualified.
   const webOnly = [q('qualified', true, '2026-11-11T12:00:00Z')];
-  assert.equal(
-    isQualified(forDiscover(webOnly), 'm', 'research_synthesis'),
-    false,
-  );
   assert.equal(isDiscoveryQualified(webOnly, 'm', 'research_synthesis'), false);
   assert.equal(
     isQualified(forWebDiscovery(webOnly), 'm', 'research_synthesis'),

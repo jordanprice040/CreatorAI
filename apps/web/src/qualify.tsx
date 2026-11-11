@@ -520,7 +520,10 @@ function benchmarkTag(s: BenchmarkState): string {
     case 'started':
       return ' · started';
     case 'other_running':
-      return ' · another role is running';
+      // PR #175 re-review 2 N-2: a running row on an older prompt has no role of its own.
+      return roleOf(s.qualification)
+        ? ' · another role is running'
+        : ' · another run is started';
     case 'qualified':
       // Short, so the option fits the select; the line below it has the score (PR #172 N-2).
       return ` · qualified${s.latest.decided_at ? ` ${new Date(s.latest.decided_at).toLocaleDateString()}` : ''}`;

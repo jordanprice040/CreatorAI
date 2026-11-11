@@ -524,13 +524,11 @@ export const isDiscoveryQualified = (
     task_class,
   )?.state === 'qualified';
 /**
- * ADR-0086 (PR #173 review 3 M-1) with ADR-0089: web discovery and Discover's locator share the
- * task name research_synthesis, and each qualification admits only its own work. Discover reads
- * `forDiscover` (the discovery-role qualifications, as `isDiscoveryQualified` counts them);
- * Search the web reads `forWebDiscovery`.
+ * ADR-0086 (PR #173 review 3 M-1): web discovery and Discover's locator share the task name
+ * research_synthesis, and each qualification admits only its own work. Search the web reads
+ * `forWebDiscovery`; Discover, Explore, the chat card and the model picker read
+ * `isDiscoveryQualified` (ADR-0089), which counts only discovery-role qualifications.
  */
-export const forDiscover = (qualifications: readonly PlanQualification[]) =>
-  qualifications.filter((q) => q.admits_discovery === true);
 export const forWebDiscovery = (qualifications: readonly PlanQualification[]) =>
   qualifications.filter((q) => q.admits_web_discovery === true);
 export const isQualified = (
