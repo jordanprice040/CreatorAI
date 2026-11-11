@@ -44,6 +44,7 @@ export function QualifyModel({
   models,
   qualifications,
   queue = null,
+  requestsLeft = null,
   busy,
   preferred = null,
   act,
@@ -60,6 +61,8 @@ export function QualifyModel({
   qualifications: PlanQualification[];
   /** ADR-0088 (P24): the connection's newest qualification queue, if any. */
   queue?: QualificationQueue | null;
+  /** Plan requests left in the connection's rolling 24-hour cap, if known (review N-4). */
+  requestsLeft?: number | null;
   busy: boolean;
   /** ADR-0081: the current model, preselected when it is verified on this connection. */
   preferred?: string | null;
@@ -81,6 +84,8 @@ export function QualifyModel({
   // P24: tasks ticked for "Qualify selected", and a finished queue the person hid.
   const [ticked, setTicked] = useState<string[]>([]);
   const [hidden, setHidden] = useState('');
+  // Review N-3: a refused queue start shows next to the buttons that made it.
+  const [queueError, setQueueError] = useState('');
   const allowed = connection.settings.allowed_task_classes;
   const running = qualifications.filter((q) => q.state === 'running');
   // ADR-0084: whether a Run is executing comes from the server, so leaving the page, a
@@ -159,11 +164,12 @@ export function QualifyModel({
   function startQueue(list: typeof eligible) {
     setError('');
     setOutcome('');
+    setQueueError('');
     void act(
       `${p}/qualification-queues`,
       queueBody(connection.version, pick, list),
       30_000,
-      setError,
+      setQueueError,
     ).then((out) => {
       if (out) setTicked([]);
     });
@@ -295,6 +301,8 @@ export function QualifyModel({
             ticked={ticked}
             setTicked={setTicked}
             locked={locked || !pick}
+            requestsLeft={requestsLeft}
+            error={queueError}
             onStart={() => startQueue(chosenSeveral)}
             onStartAll={() => startQueue(eligible)}
           />
@@ -481,11 +489,18 @@ export function queueChoices(
 ): QueueChoice[] {
   return BENCHMARKS.map((b) => {
     const state = benchmarkState(qualifications, model, b.task_class, allowed);
+    // Review of PR #176, L-3: a started re-run of a qualified task is still qualified (the
+    // newest decided one counts), so it is run on its own, not queued.
+    const qualified =
+      latestDecided(qualifications, model, b.task_class)?.state === 'qualified';
     return {
       name: b.name,
       task_class: b.task_class,
       requests: b.development + b.held_out,
-      eligible: state.kind !== 'not_allowed' && state.kind !== 'qualified',
+      eligible:
+        state.kind !== 'not_allowed' &&
+        state.kind !== 'qualified' &&
+        !qualified,
       state,
     };
   });
@@ -518,6 +533,8 @@ function QueueChoices({
   ticked,
   setTicked,
   locked,
+  requestsLeft = null,
+  error = '',
   onStart,
   onStartAll,
 }: {
@@ -527,6 +544,8 @@ function QueueChoices({
   ticked: string[];
   setTicked: (f: (t: string[]) => string[]) => void;
   locked: boolean;
+  requestsLeft?: number | null;
+  error?: string;
   onStart: () => void;
   onStartAll: () => void;
 }) {
@@ -571,7 +590,9 @@ function QueueChoices({
               {words(c.task_class)} · {c.name} (up to {c.requests} plan
               requests)
               {c.state.kind === 'started'
-                ? ' · started; the queue continues it'
+                ? c.state.qualification.executing
+                  ? ' · running now'
+                  : ' · started; a queue continues it'
                 : c.state.kind === 'failed'
                   ? ' · last run failed'
                   : ''}
@@ -606,6 +627,22 @@ function QueueChoices({
               requests)
             </button>
           </div>
+          {requestsLeft !== null && (
+            <p className="small">
+              {Math.max(0, requestsLeft)} plan request
+              {requestsLeft === 1 ? '' : 's'} left in this connection&apos;s
+              24-hour cap
+              {requestsLeft < requests(eligible)
+                ? '; a queue that needs more stops at the cap, and its answered cases are kept'
+                : ''}
+              .
+            </p>
+          )}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
         </>
       )}
     </div>
@@ -654,7 +691,12 @@ export function QueueProgress({
         {queue.items.map((i) => (
           <li key={i.position}>
             {words(i.task_class)} · {i.manifest_name}: {ITEM_STATE[i.state]}
-            {i.reason && i.state !== 'cancelled' ? ` (${i.reason})` : ''}
+            {i.reason &&
+            i.state !== 'cancelled' &&
+            // Review N-2: a stop reason the queue line already gives is not repeated.
+            !(queue.reason ?? '').includes(i.reason)
+              ? ` (${i.reason})`
+              : ''}
           </li>
         ))}
       </ol>

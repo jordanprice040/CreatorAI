@@ -546,3 +546,182 @@ test('ADR-0088: a queue takes only allowed tasks not yet qualified, one queue pe
     /changed/,
   );
 });
+
+test('PR #176 review M-1: a task stopped or cancelled mid-run can be queued again', async (t) => {
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  let hold = false;
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+    beforeResponse: async () => {
+      if (hold) await held;
+    },
+  });
+  if (!s) return;
+  // Stopped on a refusal: caps changed and not accepted again while the first task runs.
+  const first = await s.queue(['summarization', 'specification']);
+  hold = true;
+  const r = s.runner();
+  await r.sweep();
+  await until(() => s.sent() > 0);
+  let c = await s.current();
+  await s.store.updatePlanSettings(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    settings: {
+      ...c.settings,
+      caps: {
+        ...c.settings.caps,
+        responses: { ...c.settings.caps.responses, max_requests_per_run: 9 },
+      },
+    },
+  });
+  hold = false;
+  release();
+  await r.idle();
+  const stopped = await s.detailQueue();
+  assert.equal(stopped.state, 'stopped');
+  assert.match(stopped.reason ?? '', /queue the rest again/);
+  c = await s.current();
+  await s.store.acceptPlanCaps(owner, s.ws.id, c.id, {
+    expected_version: c.version,
+    settings_hash: c.settings_hash,
+  });
+  // Following that advice queues the started task again and takes it over.
+  const again = await s.queue(['summarization', 'specification']);
+  assert.equal(
+    again.items[0]!.qualification_id,
+    stopped.items[0]!.qualification_id,
+  );
+  await r.sweep();
+  await r.idle();
+  assert.equal((await s.detailQueue()).state, 'done');
+  assert.equal((await s.quals()).length, 2);
+  assert.equal(s.sent(), 2 * CASES, 'answered cases were not sent again');
+  const old = await s.store.planQualificationQueue(owner, s.ws.id, first.id);
+  assert.equal(old.items[0]!.state, 'stopped');
+
+  // Cancelled while its task was started, and the studio stopped before recording it.
+  const third = await s.queue(['scoring', 'candidate_generation']);
+  const a = randomUUID();
+  assert.ok(await s.store.leaseQualificationQueue(a, 60_000));
+  const next = await s.store.nextQueuedQualification(third.id, a);
+  assert.equal(next.kind, 'run');
+  await s.store.cancelQualificationQueue(owner, s.ws.id, third.id);
+  const fourth = await s.queue(['scoring']);
+  assert.equal(
+    fourth.items[0]!.qualification_id,
+    next.kind === 'run' ? next.qualification_id : null,
+  );
+  const handed = await s.store.planQualificationQueue(owner, s.ws.id, third.id);
+  assert.equal(handed.items[0]!.state, 'stopped');
+  assert.match(handed.items[0]!.reason ?? '', /Taken over by a later queue/);
+});
+
+test('PR #176 review L-1: a runner whose lease lapsed mid-run does not take its own queue again', async (t) => {
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  let hold = false;
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+    beforeResponse: async () => {
+      if (hold) await held;
+    },
+  });
+  if (!s) return;
+  const q = await s.queue(['summarization']);
+  hold = true;
+  const r = s.runner();
+  await r.sweep();
+  await until(() => s.sent() > 0);
+  // The lease lapses (a database outage or a sleep) while the run goes on; the next poll comes.
+  await s.db.pool.query(
+    `update plan_qualification_queues set lease_until = clock_timestamp() - interval '1 second' where id = $1`,
+    [q.id],
+  );
+  await r.sweep();
+  hold = false;
+  release();
+  await r.idle();
+  const done = await s.detailQueue();
+  assert.equal(done.state, 'done', done.reason ?? '');
+  assert.equal(done.items[0]!.state, 'qualified');
+  assert.equal(s.sent(), CASES);
+});
+
+test('PR #176 review L-2: the same unexpected error three times stops the queue with its reason', async (t) => {
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+  });
+  if (!s) return;
+  await s.queue(['summarization']);
+  const errors: unknown[] = [];
+  const broken = {
+    leaseQualificationQueue: s.store.leaseQualificationQueue.bind(s.store),
+    renewQualificationQueueLease: s.store.renewQualificationQueueLease.bind(
+      s.store,
+    ),
+    releaseQualificationQueueLease: s.store.releaseQualificationQueueLease.bind(
+      s.store,
+    ),
+    recordQueuedRun: s.store.recordQueuedRun.bind(s.store),
+    abandonQualificationQueue: s.store.abandonQualificationQueue.bind(s.store),
+    nextQueuedQualification: async () => {
+      throw new Error('relation is broken');
+    },
+  };
+  const r = new QualificationQueueRunner({
+    store: broken,
+    service: s.service,
+    onError: (e) => errors.push(e),
+  });
+  for (let i = 1; i <= 2; i++) {
+    await r.sweep();
+    await r.idle();
+    // A blip is retried: still running after one or two failures.
+    assert.equal((await s.detailQueue()).state, 'running');
+  }
+  await r.sweep();
+  await r.idle();
+  const q = await s.detailQueue();
+  assert.equal(q.state, 'stopped');
+  assert.match(
+    q.reason ?? '',
+    /could not continue this queue \(relation is broken\)/,
+  );
+  assert.equal(q.items[0]!.state, 'cancelled');
+  assert.equal(errors.length, 3);
+  assert.equal(s.sent(), 0);
+});
+
+test('PR #176 review L-4: a queue cannot start while a Run is going on the connection', async (t) => {
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  let hold = false;
+  const s = await setup(t, {
+    responses: [{ kind: 'text', text: 'ok' }, GOOD],
+    beforeResponse: async () => {
+      if (hold) await held;
+    },
+  });
+  if (!s) return;
+  const q = await s.store.startPlanQualification(owner, s.ws.id, s.conn.id, {
+    expected_version: (await s.current()).version,
+    model_id: 'm',
+    manifest: bench('summarization'),
+    min_held_out_cases: 8,
+    floor: { numerator: 1, denominator: 1 },
+  });
+  hold = true;
+  const run = s.service.runQualification(owner, s.ws.id, q.id);
+  await until(() => s.sent() > 0);
+  await refused(
+    s.queue(['specification']),
+    'INVALID_TRANSITION',
+    /running on this connection now/,
+  );
+  hold = false;
+  release();
+  await run;
+  // Once it finished, the queue starts.
+  assert.equal((await s.queue(['specification'])).state, 'running');
+});

@@ -1072,6 +1072,10 @@ export function Models({
                 .map((a) => a.model_id)}
               qualifications={detail.qualifications}
               queue={detail.qualification_queue ?? null}
+              requestsLeft={
+                c.settings.caps.shared.max_model_requests_per_day -
+                detail.usage.last_24h_requests
+              }
               busy={busy || !session}
               preferred={
                 choice?.connection_id === c.id ? choice.model_id : null

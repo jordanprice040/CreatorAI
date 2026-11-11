@@ -3077,13 +3077,17 @@ create table plan_qualification_queue_items (
  manifest_hash char(64) not null,
  min_held_out_cases integer not null check (min_held_out_cases >= 3),
  floor jsonb not null,
- qualification_id uuid unique references plan_qualifications(id),
+ qualification_id uuid references plan_qualifications(id),
  state text not null check (state in ('waiting','running','qualified','failed','stopped','cancelled')),
  reason text check (reason is null or length(reason) between 1 and 1200),
  primary key (queue_id, position),
  unique (queue_id, task_class),
  check (state not in ('running','qualified','failed') or qualification_id is not null)
 );
+-- A qualification is worked on by one queue item at a time; a later queue may take over one
+-- whose earlier queue stopped or was cancelled (review of PR #176, M-1).
+create unique index plan_qualification_queue_items_one_running on plan_qualification_queue_items
+ (qualification_id) where state = 'running';
 `,
   },
 ];

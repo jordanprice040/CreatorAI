@@ -267,6 +267,22 @@ interface QueueRow {
 const words = (s: string) => s.replace(/_/g, ' ');
 const clip = (s: string) => (s.length > 1200 ? `${s.slice(0, 1199)}…` : s);
 
+/**
+ * Review of PR #176, M-1: a started qualification taken over by a new queue may still be linked
+ * to a running item of a queue that stopped or was cancelled (its run was refused, or it was
+ * cancelled and the studio stopped before recording it). That old item hands it over.
+ */
+async function releaseEndedLinks(c: PoolClient, ids: string[]) {
+  if (!ids.length) return;
+  await c.query(
+    `update plan_qualification_queue_items i set state = 'stopped', reason = 'Taken over by a later queue.'
+       from plan_qualification_queues q
+      where q.id = i.queue_id and q.state <> 'running' and i.state = 'running'
+        and i.qualification_id = any($1::uuid[])`,
+    [ids],
+  );
+}
+
 async function runningQueueId(
   c: PoolClient,
   connectionId: string,
@@ -3846,6 +3862,13 @@ export class ConnectionStore extends PortfolioStore {
             'A queue is already qualifying tasks on this connection. Wait for it to finish, or cancel it first.',
           );
         const quals = await this.#qualifications(c, conn.id);
+        // Review of PR #176, L-4: a Run already executing here (by hand, or the task a
+        // cancelled queue lets finish) holds the connection's one request at a time.
+        if (quals.some((q) => q.executing))
+          throw fail(
+            'INVALID_TRANSITION',
+            'A qualification is running on this connection now, and it sends one request at a time. Wait for it to finish, then queue the tasks.',
+          );
         const links: (string | null)[] = [];
         for (const item of req.items) {
           const tc = item.manifest.task_class;
@@ -3876,6 +3899,10 @@ export class ConnectionStore extends PortfolioStore {
           `insert into plan_qualification_queues (id, connection_id, model_id, state, created_by)
            values ($1,$2,$3,'running',$4)`,
           [queueId, conn.id, req.model_id, ctx.actorId],
+        );
+        await releaseEndedLinks(
+          c,
+          links.filter((x): x is string => !!x),
         );
         for (const [position, item] of req.items.entries())
           await c.query(
@@ -3956,16 +3983,19 @@ export class ConnectionStore extends PortfolioStore {
   async leaseQualificationQueue(
     holder: string,
     leaseMs: number,
+    /** Queues this runner is already working on (review of PR #176, L-1). */
+    exclude: readonly string[] = [],
   ): Promise<{ id: string; workspace_id: string; created_by: string } | null> {
     const { rows } = await this.pool.query(
       `update plan_qualification_queues q
           set lease_holder = $1, lease_until = clock_timestamp() + make_interval(secs => $2::double precision / 1000)
         where q.id = (select id from plan_qualification_queues
                        where state = 'running' and (lease_until is null or lease_until < clock_timestamp())
+                         and not (id = any($3::uuid[]))
                        order by created_at limit 1 for update skip locked)
         returning q.id, q.created_by,
           (select workspace_id from plan_connections p where p.id = q.connection_id) as workspace_id`,
-      [uuid(holder), leaseMs],
+      [uuid(holder), leaseMs, exclude.map((x) => uuid(x))],
     );
     const r = rows[0] as Row | undefined;
     return r
@@ -4068,6 +4098,7 @@ export class ConnectionStore extends PortfolioStore {
                 `A different ${words(tc)} benchmark was started for ${q.model_id} by hand. Run or finish it, then queue the rest again.`,
               );
             qid = started.id;
+            await releaseEndedLinks(c, [qid]);
           } else {
             const req = {
               model_id: q.model_id,
@@ -4178,6 +4209,42 @@ export class ConnectionStore extends PortfolioStore {
         }
       }
       return q.state === 'running' && q.lease_holder === uuid(holder);
+    });
+  }
+
+  /**
+   * Review of PR #176, L-2: the runner could not go on (the same unexpected error several times
+   * in a row). Stops the queue with a plain reason instead of leaving it "running" and retried
+   * forever; answered cases stay, and the tasks can be queued again.
+   */
+  async abandonQualificationQueue(
+    queueId: string,
+    holder: string,
+    reason: string,
+  ): Promise<void> {
+    await this.tx(async (c) => {
+      const q = await this.#lockQueue(c, null, uuid(queueId));
+      // The runner has released its lease by now; another process holding it is left alone.
+      if (
+        q.state !== 'running' ||
+        (q.lease_holder !== null && q.lease_holder !== uuid(holder))
+      )
+        return;
+      const ctx = normalize({ actorId: q.created_by });
+      await c.query(
+        `update plan_qualification_queue_items set state = 'stopped', reason = $2
+          where queue_id = $1 and state = 'running'`,
+        [q.id, clip(`The studio could not continue: ${reason}`)],
+      );
+      await this.#endQueue(
+        c,
+        q,
+        'stopped',
+        clip(
+          `Stopped: the studio could not continue this queue (${reason.replace(/[.\s]+$/, '')}). Answered cases are kept; queue the tasks again to continue.`,
+        ),
+        ctx,
+      );
     });
   }
 

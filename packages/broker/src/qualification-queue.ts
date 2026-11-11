@@ -8,6 +8,8 @@ export const QUEUE_LEASE_MS = 120_000;
 /** Renewal and polling interval while running. */
 const RENEW_MS = 30_000;
 const POLL_MS = 10_000;
+/** Unexpected failures in a row after which a queue is stopped instead of retried. */
+export const QUEUE_MAX_FAILURES = 3;
 
 /**
  * ADR-0088 (P24): runs queued qualifications one after another in the studio process, so the
@@ -20,6 +22,8 @@ const POLL_MS = 10_000;
 export class QualificationQueueRunner {
   readonly holder: string;
   readonly #active = new Map<string, Promise<void>>();
+  /** Unexpected failures in a row per queue; reset by a step that works (review L-2). */
+  readonly #failures = new Map<string, number>();
   #timer: ReturnType<typeof setInterval> | null = null;
   #sweeping: Promise<void> | null = null;
   #stopped = false;
@@ -33,6 +37,7 @@ export class QualificationQueueRunner {
         | 'releaseQualificationQueueLease'
         | 'nextQueuedQualification'
         | 'recordQueuedRun'
+        | 'abandonQualificationQueue'
       >;
       service: Pick<PlanConnectionService, 'runQualification'>;
       leaseMs?: number;
@@ -78,13 +83,16 @@ export class QualificationQueueRunner {
   async sweep() {
     const ms = this.deps.leaseMs ?? QUEUE_LEASE_MS;
     while (!this.#stopped) {
+      // Review of PR #176, L-1: never lease again a queue this runner is still working on (its
+      // lease can lapse while a run goes on, after a database outage or a sleep).
       const lease = await this.deps.store.leaseQualificationQueue(
         this.holder,
         ms,
+        [...this.#active.keys()],
       );
       if (!lease) return;
       const work = this.#work(lease.id, lease.workspace_id, lease.created_by)
-        .catch((e: unknown) => this.deps.onError?.(e))
+        .catch((e: unknown) => this.#failed(lease.id, e))
         .finally(() => this.#active.delete(lease.id));
       this.#active.set(lease.id, work);
     }
@@ -99,10 +107,16 @@ export class QualificationQueueRunner {
   async #work(id: string, ws: string, actorId: string) {
     const { store, service } = this.deps;
     const ms = this.deps.leaseMs ?? QUEUE_LEASE_MS;
+    // A renewal that finds another holder means this runner lost the queue: it finishes the
+    // case in hand (it cannot be recalled) and then leaves the queue to the new holder.
+    let lost = false;
     const renew = setInterval(
       () => {
         void store
           .renewQualificationQueueLease(id, this.holder, ms)
+          .then((held) => {
+            if (!held) lost = true;
+          })
           .catch((e: unknown) => this.deps.onError?.(e));
       },
       Math.min(RENEW_MS, Math.max(1000, Math.floor(ms / 4))),
@@ -111,6 +125,7 @@ export class QualificationQueueRunner {
     try {
       for (;;) {
         const next = await store.nextQueuedQualification(id, this.holder);
+        this.#failures.delete(id);
         if (next.kind === 'end') return;
         let reason = 'the run ended without a result';
         try {
@@ -130,6 +145,7 @@ export class QualificationQueueRunner {
                 ? e.message
                 : String(e);
         }
+        if (lost) return;
         const go = await store.recordQueuedRun(
           id,
           this.holder,
@@ -144,6 +160,27 @@ export class QualificationQueueRunner {
         .releaseQualificationQueueLease(id, this.holder)
         .catch((e: unknown) => this.deps.onError?.(e));
     }
+  }
+
+  /**
+   * Review of PR #176, L-2: an unexpected error (not a refusal, which the store records as a
+   * stop) is retried at the next poll, so a database blip does not end a queue. The same queue
+   * failing this many times in a row is stopped with the error as its reason instead of being
+   * shown as running and retried forever.
+   */
+  async #failed(id: string, e: unknown) {
+    this.deps.onError?.(e);
+    const n = (this.#failures.get(id) ?? 0) + 1;
+    this.#failures.set(id, n);
+    if (n < QUEUE_MAX_FAILURES) return;
+    this.#failures.delete(id);
+    await this.deps.store
+      .abandonQualificationQueue(
+        id,
+        this.holder,
+        e instanceof Error ? e.message : String(e),
+      )
+      .catch((x: unknown) => this.deps.onError?.(x));
   }
 }
 

@@ -298,6 +298,19 @@ test('P24: Qualify several offers allowed tasks not yet qualified and sends thei
   assert.equal(byTask.scoring, false);
   assert.equal(byTask.specification, true);
   assert.equal(byTask.independent_review, true);
+  // Review of PR #176, L-3: a started re-run of a qualified task is still qualified, so it is
+  // not offered (the server would refuse the whole queue).
+  const rerun = qualification({
+    task_class: 'summarization',
+    created_at: '2026-11-11T11:00:00.000Z',
+  });
+  assert.equal(
+    queueChoices([pass, rerun], 'gpt-6-astra', [
+      'specification',
+      'summarization',
+    ]).find((c) => c.task_class === 'summarization')?.eligible,
+    false,
+  );
   const body = queueBody(
     7,
     'gpt-6-astra',
@@ -371,6 +384,7 @@ test('P24: a running queue shows its progress and locks every other qualify acti
         models: ['gpt-6-astra'],
         qualifications,
         queue: q,
+        requestsLeft: 19,
         busy: false,
         act: async () => null,
       }),
@@ -379,6 +393,8 @@ test('P24: a running queue shows its progress and locks every other qualify acti
   assert.match(idle, /Qualify several tasks/);
   assert.match(idle, /Qualify all \(2, up to/);
   assert.match(idle, /Not allowed on this connection, so not offered/);
+  // Review N-4: what is left of the 24-hour cap is said before queueing.
+  assert.match(idle, /19 plan requests left in this connection/);
   const running = html(queue({}), [
     qualification({ task_class: 'summarization', executing: true }),
   ]);
@@ -411,6 +427,24 @@ test('P24: a running queue shows its progress and locks every other qualify acti
   );
   assert.match(stopped, /stopped\. Stopped: summarization did not qualify/);
   assert.match(stopped, /summarization-synthetic-v1: did not qualify/);
+  // Review N-2: the stop reason the queue line gives is not repeated on the item.
+  const refusedStop = html(
+    queue({
+      state: 'stopped',
+      reason:
+        'Stopped at summarization: This plan request is not admitted. Its answered cases are kept.',
+      finished_at: '2026-11-11T10:30:00.000Z',
+      items: [
+        item(
+          0,
+          'summarization',
+          'stopped',
+          'summarization: This plan request is not admitted.',
+        ),
+      ],
+    }),
+  );
+  assert.equal(refusedStop.split('not admitted').length - 1, 1);
   assert.match(stopped, />Hide</);
   assert.doesNotMatch(stopped, /Cancel the queue/);
 });
