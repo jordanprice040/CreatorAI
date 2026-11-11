@@ -1,0 +1,60 @@
+{
+  "id": "q2-crossfield",
+  "query": "Methods from aviation checklists applied to home medication management",
+  "started_at": "2026-11-10T22:43:30.658Z",
+  "elapsed_ms": 17248,
+  "request_id": "a5c08438-7216-44dd-9955-7f4104684c00",
+  "admission": null,
+  "outcome": {
+    "kind": "completed",
+    "text": "{\"candidates\":[{\"url\":\"https://interruptions.net/literature/Pape-MEDSURG_Nursing03.pdf\",\"title\":\"Applying Airline Safety Practices to Medication Administration\",\"why\":\"Directly applies airline safety methods to medication administration, including a checklist and interruption controls.\"},{\"url\":\"https://www.ahrq.gov/sites/default/files/wysiwyg/professionals/quality-patient-safety/patient-family-engagement/pfeprimarycare/medication-mgmt-staff-checklist.pdf\",\"title\":\"Medication Management: Checklist: Creating a Medication List\",\"why\":\"Practical medication-list checklist supporting patient and family involvement in medication management.\"},{\"url\":\"https://psnet.ahrq.gov/perspective/what-makes-good-checklist\",\"title\":\"What Makes a Good Checklist\",\"why\":\"Explains aviation-derived checklist design principles and the importance of testing before implementation.\"},{\"url\":\"https://pmc.ncbi.nlm.nih.gov/articles/PMC8936617/\",\"title\":\"Checklist design and implementation: critical considerations to improve patient safety for low-frequency, high-risk patient events\",\"why\":\"Studies aviation-style Read and Verify and Read and Do designs that could inform home checklist development.\"},{\"url\":\"https://assets.chapinc.org/wp-content/uploads/2025/10/Medication-Reconciliation-in-Home_Oct-2025.pdf\",\"title\":\"Medication Education Series: Medication Reconciliation in Home\",\"why\":\"Addresses home medication reconciliation and assessment of patients’ medication-management capabilities.\"},{\"url\":\"https://pmc.ncbi.nlm.nih.gov/articles/PMC10018656/\",\"title\":\"Medical physics practice guideline 4.b: Development, implementation, use and maintenance of safety checklists\",\"why\":\"Offers detailed aviation-informed guidance on checklist content, workflow, layout, responsibilities, and maintenance.\"},{\"url\":\"https://naemsp.org/wp-content/uploads/2026/02/EMS-Protocols_Alfred-2024-Checklists.pdf\",\"title\":\"Checking all the boxes: a checklist for when and how to use checklists effectively\",\"why\":\"Provides an algorithm for selecting checklist types according to safety problems and user expertise.\"},{\"url\":\"https://qualitysafety.bmj.com/content/24/7/428\",\"title\":\"Back to basics: checklists in aviation and healthcare\",\"why\":\"Examines foundational aviation checklist principles and cautions about transferring them into healthcare.\"}]}",
+    "output_chars": 2326,
+    "output_tokens": 538,
+    "response_id": "resp_0f52a5932296268e016af39e13d9e487d192413c474ca59bb2",
+    "output_hash": "b0929dddb4018de1be1330c7e18794bb7136d80049d3feb4002ff2c908b6d8bd",
+    "search_calls": [
+      {
+        "id": "ws_0f52a5932296268e016af39e1579e487d1b7beaaf802af4d89",
+        "status": "completed",
+        "action": "search",
+        "queries": [
+          "aviation checklist medication management home patients checklist",
+          "aviation checklist medication management home patients checklist",
+          "aviation checklist design principles medication safety patients home",
+          "home medication management checklist patient caregiver medication safety"
+        ],
+        "sources": [
+          "https://hukstage-new-bucket.s3.eu-west-2.amazonaws.com/s3fs-public/2022-11/flying_home.pdf",
+          "https://aapm.onlinelibrary.wiley.com/doi/10.1002/acm2.13895",
+          "https://pubmed.ncbi.nlm.nih.gov/38885401/",
+          "https://pmc.ncbi.nlm.nih.gov/articles/PMC8936617/",
+          "https://pmc.ncbi.nlm.nih.gov/articles/PMC10018656/",
+          "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1120/jacmp.v16i3.5431",
+          "https://naemsp.org/wp-content/uploads/2026/02/EMS-Protocols_Alfred-2024-Checklists.pdf",
+          "https://www.faa.gov/pilots/medical_certification/medications",
+          "https://www.cdc.gov/yellow-book/hcp/travel-air-sea/perspectives-responding-to-medical-emergencies-when-flying.html",
+          "https://interruptions.net/literature/Pape-MEDSURG_Nursing03.pdf",
+          "https://assets.chapinc.org/wp-content/uploads/2025/10/Medication-Reconciliation-in-Home_Oct-2025.pdf",
+          "https://www.ahrq.gov/sites/default/files/wysiwyg/professionals/quality-patient-safety/patient-family-engagement/pfeprimarycare/medication-mgmt-staff-checklist.pdf",
+          "https://qualitysafety.bmj.com/content/24/7/428",
+          "https://acibademinternational.com/patient-guides/managing-chronic-conditions-during-medical-travel/",
+          "https://www.faa.gov/ame_guide/medguide",
+          "https://psnet.ahrq.gov/perspective/what-makes-good-checklist",
+          "https://eaa430.org/pilot-medications/",
+          "https://pmc.ncbi.nlm.nih.gov/articles/PMC4710114/",
+          "https://en.wikipedia.org/wiki/Checklist",
+          "https://www.reddit.com/r/travel/comments/1q7jbwk/travel_checklist_for_those_with_mobility_or/",
+          "https://time.com/7085664/how-to-travel-when-you-have-copd/",
+          "https://www.reddit.com/r/CaregiverSupport/comments/1xlwmw3/the_48hour_handoff_what_needs_to_be_written_down/",
+          "https://en.wikipedia.org/wiki/Medical_error",
+          "https://en.wikipedia.org/wiki/Preflight_checklist",
+          "https://www.reddit.com/r/delta/comments/1no5k6z/in_flight_medical_emergencies/",
+          "https://arxiv.org/abs/2606.28777",
+          "https://www.reddit.com/r/flying/comments/1ld45zo",
+          "https://www.reddit.com/r/flying/comments/16ektey",
+          "https://arxiv.org/abs/2607.15562"
+        ]
+      }
+    ]
+  }
+}

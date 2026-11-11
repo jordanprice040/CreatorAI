@@ -36,6 +36,21 @@ the page that the recheck happened or when. Read back from the database by query
 | Claude Code route, one approved model check | 2026-11-11 00:13:36 | claude-sonnet-5-5 | $0 (plan request) | **Available**: availability recheck completed (2 characters) |
 | GitHub verify, branch, push, PR, read checks | 2026-11-10 23:18–23:21 | jordanprice040/creator-agent-p22-trial (id 1453277093), fine-grained token | $0 | **All succeeded**: verify matched the owner; 2 pushes, 1 branch, PR #1 opened (not merged); checks read: none, check runs not readable with this token ([record](evidence/p22/github-trial-2026-11-10.md)) |
 
+## ChatGPT plan route search test — November 10, 2026
+
+Jordan asked for it at 22:19 UTC and approved the dev-connection change at 22:42 UTC. PR #157
+(merged) added an opt-in `web_search` option to the plan request (`plan-responses.ts`,
+`plan-service.ts`, tests `plan-web-search.test.ts`); no route, UI or workflow uses it. The test ran
+through `PlanConnectionService.invoke` on the dev database only (Plus connection `4e4a7bec…`,
+gpt-6-astra, purpose chat, cap 3 calls). It was refused once at admission because chat needs
+`private_approved`; with Jordan's OK that data class was added for the test, then removed. The
+settings are byte-identical again and chat is off (connection version 16 to 21, caps re-accepted
+22:44:10Z). Results: 4 search calls, 24 candidates, all in the reported sources, 17-27 s each, $0
+incremental. 0 URLs overlap with the Claude Code run. Guarded fetch: 2/15 usable (PDFs, 403s,
+Reddit empty shells). Fetching remains the bottleneck; no search API is justified by these
+results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
+`tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
+
 ## Search route investigation and live test — November 10, 2026
 
 Report: [docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md);

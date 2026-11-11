@@ -1,0 +1,71 @@
+{
+  "id": "q1-broad",
+  "query": "Recurring problems that small community organisations report with volunteer scheduling",
+  "started_at": "2026-11-10T22:43:03.475Z",
+  "elapsed_ms": 27182,
+  "request_id": "210ba330-ad9e-4a42-8147-eb9c01f1c810",
+  "admission": null,
+  "outcome": {
+    "kind": "completed",
+    "text": "{\n  \"candidates\": [\n    {\n      \"url\": \"https://www.reddit.com/r/volunteer/comments/1b2wrkl\",\n      \"title\": \"Way of scheduling volunteers where they can pick their shifts? And it has to be on whatsapp\",\n      \"why\": \"Firsthand scheduling difficulties from a community shop with ten mostly elderly volunteers.\"\n    },\n    {\n      \"url\": \"https://www.reddit.com/r/nonprofit/comments/1apjpbc\",\n      \"title\": \"Volunteer Scheduling Help\",\n      \"why\": \"Coordinator describes collecting availability in spreadsheets and struggling to find a suitable scheduling solution.\"\n    },\n    {\n      \"url\": \"https://s3.amazonaws.com/kajabi-storefronts-production/file-uploads/sites/60619/themes/1474670/downloads/d43b23d-dd71-4a42-e2ff-ac2c1a66d3_2024_VMPR_Report.pdf\",\n      \"title\": \"2024 Volunteer Management Progress Report\",\n      \"why\": \"Survey reports recurring problems with no-shows, shift sign-ups, volunteer commitment, and maintaining coverage.\"\n    },\n    {\n      \"url\": \"https://catcher.sandiego.edu/items/soles/Volunteer%20needs%20assessment%20FINAL%20REPORT.pdf\",\n      \"title\": \"Challenges to Volunteering and Recruiting\",\n      \"why\": \"Research quantifies mismatches between required shifts, volunteer availability, and commitment length.\"\n    },\n    {\n      \"url\": \"https://apnews.com/article/d99561bb62692d58210d37542898745a\",\n      \"title\": \"Maine's food pantries stare down volunteer shortage while anticipating cuts\",\n      \"why\": \"Community food pantries describe shortages and difficulty securing volunteers for recurring shifts.\"\n    },\n    {\n      \"url\": \"https://civicrm.org/de/blog/roshani/civivolunteer-survey-volunteer-management-challenges\",\n      \"title\": \"CiviVolunteer Survey: Volunteer Management Challenges\",\n      \"why\": \"Organisations report fragmented tools, spreadsheet reliance, and difficulties using volunteer scheduling software.\"\n    },\n    {\n      \"url\": \"https://www.reddit.com/r/nonprofit/comments/1hgjbum/volunteer_management/\",\n      \"title\": \"Volunteer Management\",\n      \"why\": \"Firsthand accounts include scheduling tools that are too complex or expensive for small nonprofits.\"\n    },\n    {\n      \"url\": \"https://www.pdx.edu/center-child-family/sites/centerchildfamily.web.wdt.pdx.edu/files/2020-07/VIO-final-report.pdf\",\n      \"title\": \"What are the barriers to volunteer engagement in Oregon?\",\n      \"why\": \"Organisation and volunteer surveys identify finding people with appropriate skills and availability as a major challenge.\"\n    },\n    {\n      \"url\": \"https://www.reddit.com/r/nonprofit/comments/1uyirq3/are_we_overdue_for_a_volunteer_coordinator/\",\n      \"title\": \"Are we overdue for a volunteer coordinator?\",\n      \"why\": \"Practitioner discussion connects inadequate coordination with mixed-up schedules and uneven volunteer workloads.\"\n    },\n    {\n      \"url\": \"https://www.communitycarecorps.org/learning-library/\",\n      \"title\": \"Learning Library - Community Care Corps\",\n      \"why\": \"Community-service resources address seasonal availability fluctuations and their effects on scheduling and continuity.\"\n    }\n  ]\n}",
+    "output_chars": 3076,
+    "output_tokens": 763,
+    "response_id": "resp_0f0956972449da61016af39dfa323887d1b1257882a065f295",
+    "output_hash": "ce7bd2872234a537954bf5f15a15ca7461c0461a339db03a6071eeac253938d4",
+    "search_calls": [
+      {
+        "id": "ws_0f0956972449da61016af39dfc5efc87d18539f5a5f11a0ec8",
+        "status": "completed",
+        "action": "search",
+        "queries": [
+          "nonprofit volunteer scheduling challenges small organizations no shows availability",
+          "nonprofit volunteer scheduling challenges small organizations no shows availability",
+          "community organisations volunteer rota scheduling problems volunteers",
+          "volunteer scheduling challenges nonprofit survey spreadsheets coordination"
+        ],
+        "sources": [
+          "https://catcher.sandiego.edu/items/soles/Volunteer%20needs%20assessment%20FINAL%20REPORT.pdf",
+          "https://s3.amazonaws.com/kajabi-storefronts-production/file-uploads/sites/60619/themes/1474670/downloads/d43b23d-dd71-4a42-e2ff-ac2c1a66d3_2024_VMPR_Report.pdf",
+          "https://s3.amazonaws.com/kajabi-storefronts-production/sites/60619/themes/1474670/downloads/TTLYKhyvQZK5WXhpE4Aw_2022_VMPR_Report_FINAL_2.3.22.pdf",
+          "https://www.pdx.edu/center-child-family/sites/centerchildfamily.web.wdt.pdx.edu/files/2020-07/VIO-final-report.pdf",
+          "https://stackforgood.net/guides/volunteer-coordination-without-it-taking-over/",
+          "https://corhartselle.org/articles/food-pantry-ministry-volunteer/",
+          "https://www.civicchamps.com/post/how-to-schedule-volunteers-effectively",
+          "https://civicrm.org/de/blog/roshani/civivolunteer-survey-volunteer-management-challenges",
+          "https://volunteerhub.com/hubfs/Website%20-%20Resource%20Assets%20-%20Downloads/Volunteer_Management_Software_151_Nonprofits.pdf?hsLang=en",
+          "https://www.volunteeralive.org/docs/Hager_Brudney_VMC2_2021_brief.pdf",
+          "https://pubsonline.informs.org/doi/10.1287/inte.1110.0570",
+          "https://www.rosterfy.com/resources-hub/blog/blog-volunteer-scheduling-managing-shift-complexity-at-scale/",
+          "https://www.sciencedirect.com/science/article/pii/S0038012123003087",
+          "https://engagejournal.org/free-article",
+          "https://www.wbn.digital/how-vancouver-nonprofits-can-avoid-event-week-chaos/",
+          "https://www.researchgate.net/publication/352907612_Volunteer_Management_Capacity_in_America%27s_Charities_Benchmarking_a_Pre-Pandemic_Field_and_Assessing_Future_Directions",
+          "https://www.communitycarecorps.org/learning-library/",
+          "https://www.evonsys.com/volunteer-management-blog/the-volunteer-scheduling-headache-no-one-talks-about",
+          "https://www.reddit.com/r/nonprofit/comments/1apjpbc",
+          "https://www.reddit.com/r/nonprofit/comments/1pf4fmq/volunteer_managementscheduling/",
+          "https://www.reddit.com/r/nonprofit/comments/16lz615",
+          "https://www.reddit.com/r/nonprofit/comments/1uyirq3/are_we_overdue_for_a_volunteer_coordinator/",
+          "https://www.reddit.com/r/nonprofit/comments/1rp1s37/nonprofit_team_coordination_without_adding_more/",
+          "https://www.reddit.com/r/nonprofit/comments/1wmufo6/volunteer/",
+          "https://www.reddit.com/r/Christianity/comments/1v16mtm/how_does_your_church_handle_volunteer_team/",
+          "https://www.reddit.com/r/volunteer/comments/18tppbp",
+          "https://www.reddit.com/r/volunteer/comments/1b2wrkl",
+          "https://www.reddit.com/r/nonprofit/comments/1prnbx7/non_profit_volunteering_coordinator_overwhelmed/",
+          "https://www.reddit.com/r/nonprofit/comments/1hgjbum/volunteer_management/",
+          "https://www.reddit.com/r/nonprofit/comments/1ialymu",
+          "https://arxiv.org/abs/2312.02920",
+          "https://arxiv.org/abs/2604.09218",
+          "https://apnews.com/article/d99561bb62692d58210d37542898745a",
+          "https://www.axios.com/local/phoenix/2022/07/05/arizona-nonprofits-volunteers-post-pandemic",
+          "https://www.axios.com/local/des-moines/2024/12/03/iowa-volunteering-rebounds-covid-era-slump",
+          "https://www.axios.com/newsletters/axios-des-moines-0da7d0e0-b0ac-11ef-bfac-3756c91228ad",
+          "https://apnews.com/article/78cc6cd70d7d8340dec7aaa94c9fd65e",
+          "https://apnews.com/article/f9f15b48cd67d0ca5dc7b18643f0ca4a",
+          "https://arxiv.org/abs/2507.22894",
+          "https://en.wikipedia.org/wiki/We_Heart_Seattle"
+        ]
+      }
+    ]
+  }
+}
