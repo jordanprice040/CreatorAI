@@ -2,9 +2,9 @@
   {
     "step": "0 workspace",
     "value": {
-      "name": "P19 walk 02:41:33",
-      "ws": "55fb99d0-9d0d-4ab3-bc2d-ce1b363a0121",
-      "url": "http://127.0.0.1:5183/#/chat/conversations?ws=55fb99d0-9d0d-4ab3-bc2d-ce1b363a0121"
+      "name": "P19 walk 03:12:31",
+      "ws": "da66dc8e-4e23-40a3-92c3-68873d5e268a",
+      "url": "http://127.0.0.1:5183/#/chat/conversations?ws=da66dc8e-4e23-40a3-92c3-68873d5e268a"
     }
   },
   {
@@ -77,7 +77,7 @@
   },
   {
     "step": "2 opened",
-    "value": "/sources/claims?ws=55fb99d0-9d0d-4ab3-bc2d-ce1b363a0121"
+    "value": "/sources/claims?ws=da66dc8e-4e23-40a3-92c3-68873d5e268a"
   },
   {
     "step": "2 cite form folds (Standard)",
@@ -194,7 +194,7 @@
   },
   {
     "step": "5 humility what will happen",
-    "value": "What will happen\nReview\nSaves your humility review of Hybrid: staff review supported by a simple list from existing data v1\nBuild\nDecided once every required field is filled\n\nNothing is saved until you press the button below. The disposition, every viability call and the ethics status are only what you picked."
+    "value": "What will happen\nReview\nSaves your humility review of Software: Rural clinic access v1\nBuild\nDecided once every required field is filled\n\nNothing is saved until you press the button below. The disposition, every viability call and the ethics status are only what you picked."
   },
   {
     "step": "6 after first record",
@@ -210,12 +210,12 @@
   },
   {
     "step": "6 selection history",
-    "value": "Selection history\nCurrent · Nov 11, 2026, 2:45 AM · Start with the human-led option; revisit the others if it fails.\nRECOMMEND ALTERNATIVE Human-led: a named coordinator owns Days from request to appo"
+    "value": "Selection history\nCurrent · Nov 11, 2026, 3:16 AM · Start with the human-led option; revisit the others if it fails.\nDEFER Change the process behind Days from request to appointment · Not pursued in t"
   },
   {
     "step": "7 proposals",
     "value": [
-      "Proposal: Human-led: a named coordinator owns Days from request to appointment · Human-led · v1 · Nov 11, 2026, 2:45 AM"
+      "Proposal: Human-led: a named coordinator owns Days from request to appointment · Human-led · v1 · Nov 11, 2026, 3:16 AM"
     ]
   },
   {
@@ -234,7 +234,7 @@
     "value": {
       "view_mode": "advanced",
       "version": 1,
-      "updated_at": "2026-11-11T02:45:16.192Z"
+      "updated_at": "2026-11-11T03:16:13.450Z"
     }
   },
   {
@@ -293,8 +293,8 @@
   {
     "step": "errors",
     "value": [
-      "A: 404 http://127.0.0.1:5183/api/workspaces/55fb99d0-9d0d-4ab3-bc2d-ce1b363a0121/problems//explanation",
-      "A: 404 http://127.0.0.1:5183/api/workspaces/55fb99d0-9d0d-4ab3-bc2d-ce1b363a0121/problems//explanation"
+      "A: 404 http://127.0.0.1:5183/api/workspaces/da66dc8e-4e23-40a3-92c3-68873d5e268a/problems//explanation",
+      "A: 404 http://127.0.0.1:5183/api/workspaces/da66dc8e-4e23-40a3-92c3-68873d5e268a/problems//explanation"
     ]
   }
 ]

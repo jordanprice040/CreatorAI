@@ -976,3 +976,6 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257â€
 - N-A: the P19 status row no longer says "awaiting independent review".
 - N-B: the scorecard's "Evidence against it" and "What they do today" start empty and must be answered (typing
   "unknown" is a deliberate answer); only the four routine checks start as "unknown". Applies in both views.
+- Checks after the re-review fixes (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check`
+  pass; `pnpm test:db` 920 tests, 886 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The browser walk
+  (which now answers the two judgment checks) was rerun on a fresh database and passed; evidence refreshed.

@@ -28,7 +28,7 @@ no live provider was called.
 - Switching to Advanced in browser A is stored on the server (`version 1`). Browser B then opens in Advanced and shows
   the same tabs and fields with no folds (parity). B switches back to Standard and A picks that up.
 
-The walk output, `walk.json` and screens 01–08 are from the rerun after the review fixes (November 11, fresh
+The walk output, `walk.json` and screens 01–08 are from the rerun after the re-review fixes (November 11, fresh
 database at schema 52, merged with main through #163).
 
 ## Earlier walk on a seeded workspace (screenshots 09 and 10)
