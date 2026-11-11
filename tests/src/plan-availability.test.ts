@@ -215,6 +215,12 @@ test('authenticated availability API: intent-bound, atomic one-shot, preserves a
   assert.equal((await check(onceGrant)).status, 403, 'used grant cannot retry');
   let after = await get(path);
   assert.deepEqual(after.model_access, originalAccess);
+  // P22 review L-6: the recheck is shown with its own time and result.
+  assert.deepEqual(before.last_rechecks, []);
+  assert.equal(after.last_rechecks.length, 1);
+  assert.equal(after.last_rechecks[0].model_id, 'fixture-model');
+  assert.equal(after.last_rechecks[0].state, 'completed');
+  assert.ok(Date.parse(after.last_rechecks[0].finished_at) > 0);
   assert.deepEqual(after.qualifications, before.qualifications);
   assert.equal(after.connection.settings_hash, originalSettingsHash);
   assert.equal(after.connection.quota.state, 'available');
@@ -231,6 +237,9 @@ test('authenticated availability API: intent-bound, atomic one-shot, preserves a
   assert.equal(exhausted.body.available, false);
   after = await get(path);
   assert.equal(after.connection.quota.state, 'exhausted');
+  // The latest recheck replaces the earlier one in what the page shows.
+  assert.equal(after.last_rechecks.length, 1);
+  assert.notEqual(after.last_rechecks[0].state, 'completed');
   assert.deepEqual(
     after.model_access,
     originalAccess,

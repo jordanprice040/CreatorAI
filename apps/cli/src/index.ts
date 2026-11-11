@@ -123,6 +123,7 @@ import {
   GitHubDeliverySchema,
   GitHubOperationSchema,
   GitHubRepositorySchema,
+  GitHubPullChecksSchema,
   GitHubReviewSchema,
   AllocationSchema,
   CapacitySchema,
@@ -232,6 +233,7 @@ const USAGE = `Usage:
   pnpm cli github-revoke <workspace> <connection-id> <expected-version> <reason>
   pnpm cli github-deliveries <workspace> <connection-id>
   pnpm cli github-repos <workspace>
+  pnpm cli github-checks <workspace> <repository-id> <pr-number>
   pnpm cli github-op <workspace> <operation-json|file.json>
   pnpm cli github-ops <workspace>
   pnpm cli github-reconcile <workspace> <operation-id>
@@ -1592,6 +1594,12 @@ export async function runCli(
         data = await call(
           z.array(GitHubRepositorySchema),
           `${ws(rest[0])}/github-repositories`,
+        );
+        break;
+      case 'github-checks':
+        data = await call(
+          GitHubPullChecksSchema,
+          `${ws(rest[0])}/github-repositories/${encodeURIComponent(rest[1] ?? '')}/checks?pr=${encodeURIComponent(rest[2] ?? '')}`,
         );
         break;
       case 'github-op':
