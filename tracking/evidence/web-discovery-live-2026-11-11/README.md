@@ -78,3 +78,41 @@ I changed no code.
 ## State left
 
 The dev studio is running from `C:\dev\creator_agent_p12` through `start-dev-p12.ps1` on ports 5173/4310/4320, with the database at schema 54. The ChatGPT plan connection now also allows research synthesis, and its caps are accepted.
+
+## Second run (v2)
+
+Jordan typed "I OK the live search test" (14:32Z). The fix `e2e2781` changes three things:
+
+- the scout prompt now states the field limits (role version 2);
+- over-long text is clipped instead of refused;
+- a new benchmark, `web-discovery-v2`, adds fresh held-out scout cases, and the opened v1 held-out cases became practice.
+
+I pulled the fix and ran `pnpm build`, which passed. I restarted the dev studio with `start-dev-p12.ps1`. The migrate check reported "Database schema already current", so the schema stayed at 54.
+
+### Qualification
+
+- Record `6fcf69cb-504d-4993-bc33-0bb543ddb73c`, manifest hash `d3a87d16…c460800dc`.
+- Started 14:36:19Z, decided 14:42:19Z. I ran it once. It used 13 plan requests; the connection's 24-hour count went from 16 to 29, with 0 unknown outcomes. Cost was $0.
+- **Result: qualified. Practice 6/6, held out 7/7.** The page reads "7/7 held-out cases accepted; 7 of 7 were needed", so the v1 "floor of 1/1" wording is fixed for v2.
+
+| Case                        | Set      | Result |
+| --------------------------- | -------- | ------ |
+| scout-dev-broad             | practice | Passed |
+| scout-dev-volunteers        | practice | Passed |
+| scout-dev-gap               | practice | Passed |
+| scout-dev-cross-field       | practice | Passed |
+| scout-dev-clinics           | practice | Passed |
+| scout-held-donations        | held out | Passed |
+| scout-held-allotments       | held out | Passed |
+| scout-held-school-transport | held out | Passed |
+| reader-dev-clear            | practice | Passed |
+| reader-held-injection       | held out | Passed |
+| reader-held-off-focus       | held out | Passed |
+| reader-held-contrary        | held out | Passed |
+| reader-held-long            | held out | Passed |
+
+**Scout answer shapes:** all 8 parsed. Lead counts were 10, 8, 6, 11, 10, 6, 13 and 14. The longest `why` per answer was 146–174 characters and the longest `title` 74–116. Nothing came near 300, so the stated limits were followed and **no clipping was needed**.
+
+### Evidence websites
+
+Jordan's choice, relayed by the coordinator, was "any public website". When I tried to set it through Settings › Evidence websites, this machine's auto-mode safety check refused the change. Widening fetch access needs the owner's own typed OK in the session, and I did not work around the refusal. The setting stayed at the six CSV-checker hosts, and I asked Jordan to type the OK or make the change himself.
