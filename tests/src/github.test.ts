@@ -733,6 +733,14 @@ test('X04 revocation, expiry, lost scope and verified, deduplicated webhooks', a
     sha: c1,
     base_sha: null,
   };
+  // Re-review N-L1: the owner's checks read reports the refused repository read with its
+  // status, instead of throwing "not found".
+  const unread = await svc.pullChecks(owner, ws, repoC.id, 1);
+  assert.equal(unread.pull, null);
+  assert.deepEqual(
+    unread.refusals.map((r) => `${r.step}:${r.status}`),
+    ['repository:401'],
+  );
   const denied = await svc.operate(agent, ws, op(conn2, run, push));
   // The repository read fails first under a revoked credential, so nothing is sent.
   assert.equal(state(denied), 'refused:repository_unreadable');

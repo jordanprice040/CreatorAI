@@ -1312,6 +1312,7 @@ function ReadChecks({ base, repoId }: { base: string; repoId: string }) {
 }
 
 const STEP: Record<string, string> = {
+  repository: 'the repository',
   pull: 'the pull request',
   check_runs: 'check runs',
   statuses: 'commit statuses',
@@ -1323,9 +1324,11 @@ const STEP: Record<string, string> = {
 export function checksSummary(read: GitHubPullChecks): string {
   const refused = read.refusals.map(
     (r) =>
-      `GitHub refused the read of ${STEP[r.step]} (${r.status ?? 'no response'}: ${r.message}).`,
+      `GitHub did not return ${STEP[r.step]} (${r.status ?? 'no response'}: ${r.message}).`,
   );
-  const pullRefused = read.refusals.some((r) => r.step === 'pull');
+  const pullRefused = read.refusals.some(
+    (r) => r.step === 'pull' || r.step === 'repository',
+  );
   const head = read.pull
     ? `#${read.pull.number} ${read.pull.merged ? 'merged' : read.pull.state} · ${read.pull.head_ref} → ${read.pull.base_ref} · head ${read.pull.head_sha.slice(0, 12)} · ${
         read.checks.length

@@ -391,10 +391,12 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
 });
 
 test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no pull request"', async (t) => {
-  let mode: 'ok' | 'expired' | 'statuses_forbidden' = 'ok';
+  let mode: 'ok' | 'expired' | 'statuses_forbidden' | 'unavailable' = 'ok';
   const gh = await loopbackGitHub((s) => {
     if (mode === 'expired')
       return { status: 401, body: { message: 'Bad credentials' } };
+    if (mode === 'unavailable')
+      return { status: 503, body: { message: 'Service Unavailable' } };
     if (s.path.endsWith('/pulls/1'))
       return {
         status: 200,
@@ -451,4 +453,16 @@ test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no
   });
   // The merge gate's pull() keeps its old meaning: nothing usable was read.
   assert.equal(await a.pull(repo, 1), null);
+  // Re-review N-L1: the repository lookup keeps GitHub's real status. A 401 is an access
+  // problem; a 503 is GitHub not answering, never "the token may be expired".
+  const denied = await a.repositoryRead(repo.github_id);
+  assert.equal(denied.repository, null);
+  assert.equal(denied.refusal?.status, 401);
+  assert.match(denied.refusal!.message, /expired or revoked/);
+  mode = 'unavailable';
+  const down = await a.repositoryRead(repo.github_id);
+  assert.equal(down.refusal?.step, 'repository');
+  assert.equal(down.refusal?.status, 503);
+  assert.match(down.refusal!.message, /did not answer.*Try again/);
+  assert.doesNotMatch(down.refusal!.message, /expired|revoked/);
 });

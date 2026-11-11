@@ -150,7 +150,7 @@ not among the original 19 are R20–R25.
 | R24 | Check that API calls work                                       | Done (P22)                      | Live November 10–11 (PR #160, `tracking/INTEGRATIONS.md` "P22 live connection checks"): the metered OpenAI API-key route answered through the new Test connection (`gpt-6-astra`, $0.00036); ChatGPT plan `gpt-6-astra` and Claude Code `claude-sonnet-5-5` availability rechecks passed at $0. Limits: one model per route, one call each.                                   |
 | R25 | Check that the GitHub connection works                          | Done for the scoped trial (P22) | Live November 10 (PR #160, `tracking/evidence/p22/github-trial-2026-11-10.md`): verify, branch, two pushes and one PR on an owner-created private repository with a fine-grained token limited to it; checks read. Not covered: repository creation by the studio (later trial with a repository-creating token, at Jordan's request), merge, check runs (need a GitHub App). |
 
-Totals: 12 done, 7 partial, 6 not done.
+Totals: 14 done, 6 partial, 5 not done (after P22's live checks, November 11; 12, 7 and 6 on November 10).
 
 ### Added packages
 

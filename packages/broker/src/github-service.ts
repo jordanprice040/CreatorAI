@@ -274,13 +274,21 @@ export class GitHubService {
       repositoryId,
     );
     const a = this.#need(connection);
-    const seen = await a.repositoryById(repository.github_id);
-    if (!seen)
-      throw new ContractError(
-        'NOT_FOUND',
-        'GitHub did not return this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed. Nothing was read.',
-      );
-    const ref = { github_id: repository.github_id, full_name: seen.full_name };
+    const looked = await a.repositoryRead(repository.github_id);
+    if (!looked.repository)
+      return {
+        repository_id: repository.id,
+        read_at: new Date().toISOString(),
+        pull: null,
+        checks: [],
+        check_runs_readable:
+          connection.body.credential.kind !== 'fine_grained_pat',
+        refusals: looked.refusal ? [looked.refusal] : [],
+      };
+    const ref = {
+      github_id: repository.github_id,
+      full_name: looked.repository.full_name,
+    };
     const read = await a.pullRead(ref, number);
     const c = read.pull
       ? await a.checks(ref, read.pull.head_sha)

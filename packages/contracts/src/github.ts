@@ -285,7 +285,7 @@ export const GitHubPullChecksSchema = z.strictObject({
   refusals: z
     .array(
       z.strictObject({
-        step: z.enum(['pull', 'check_runs', 'statuses']),
+        step: z.enum(['repository', 'pull', 'check_runs', 'statuses']),
         status: z.number().int().nullable(),
         message: z.string().max(300),
       }),

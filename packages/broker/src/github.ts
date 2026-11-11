@@ -35,10 +35,27 @@ export interface GitHubResponse {
   message: string;
 }
 export interface ReadRefusal {
-  step: 'pull' | 'check_runs' | 'statuses';
+  step: 'repository' | 'pull' | 'check_runs' | 'statuses';
   status: number | null;
   message: string;
 }
+export interface RepositoryRead {
+  repository: RepoObservation | null;
+  refusal: ReadRefusal | null;
+}
+/**
+ * Re-review N-L1: a repository GitHub does not show the credential (401, 403, 404) is an access
+ * problem; anything else (rate limit, 5xx, no response) is GitHub not answering, so it is said
+ * that way and keeps its real status.
+ */
+export const repositoryRefusal = (status: number | null): ReadRefusal => ({
+  step: 'repository',
+  status,
+  message:
+    status === 401 || status === 403 || status === 404
+      ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
+      : 'GitHub did not answer the repository read; nothing was read. Try again later.',
+});
 export interface PullRead {
   pull: PullObservation | null;
   refusal: ReadRefusal | null;
@@ -104,6 +121,7 @@ export interface GitHubAdapter {
    * that was read and for a plain 404 (no such pull request); any other failure is a refusal.
    */
   pullRead(repo: RepoRef, number: number): Promise<PullRead>;
+  repositoryRead(id: number): Promise<RepositoryRead>;
   checks(
     repo: RepoRef,
     sha: string,
@@ -401,6 +419,14 @@ export class FixtureGitHub implements GitHubAdapter {
   async pull(repo: RepoRef, number: number) {
     return (await this.pullRead(repo, number)).pull;
   }
+  async repositoryRead(id: number): Promise<RepositoryRead> {
+    if (this.#revoked)
+      return { repository: null, refusal: repositoryRefusal(401) };
+    const r = await this.repositoryById(id);
+    return r
+      ? { repository: r, refusal: null }
+      : { repository: null, refusal: repositoryRefusal(404) };
+  }
   async pullRead(repo: RepoRef, number: number): Promise<PullRead> {
     if (this.#revoked)
       return {
@@ -645,6 +671,16 @@ export class LiveGitHub implements GitHubAdapter {
       permissions: { metadata: 'read' },
     });
     return r.status === 200 ? this.#repoObs(r.data) : null;
+  }
+  async repositoryRead(id: number): Promise<RepositoryRead> {
+    const r = await this.#rest('GET', `/repositories/${id}`, {
+      repo: id,
+      permissions: { metadata: 'read' },
+    });
+    const repository = r.status === 200 ? this.#repoObs(r.data) : null;
+    return repository
+      ? { repository, refusal: null }
+      : { repository: null, refusal: repositoryRefusal(r.status) };
   }
   async repositoryByName(fullName: string) {
     const r = await this.#rest('GET', `/repos/${fullName}`, {

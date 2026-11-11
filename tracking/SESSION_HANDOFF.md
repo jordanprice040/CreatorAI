@@ -35,7 +35,7 @@ the record of each package and are appended to, not rewritten.
 | P19 Standard/Advanced across the app | Not started (added November 10, R21 and rest of R10–R12) |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
-| P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
+| P22 live API and GitHub checks | Live checks passed November 10–11 (R24, R25); PR #160 in review |
 
 Checks on main `e08e0a4`, November 10 (cloud container, PostgreSQL 16): TypeScript, web typecheck and
 formatting pass; `pnpm test:db` 867 tests, 833 pass, 29 skips, 5 fail (the known wrapper tests that need
@@ -62,7 +62,8 @@ Open items:
 ## Next eligible prompt
 
 P10 and P16 merged on November 10 (main `cb12eeb`; next free migration 51, ADR-0081). Jordan's 25 revision notes
-were checked against main on November 10 (12 done, 7 partial, 6 not done; table in the
+were checked against main on November 10 (12 done, 7 partial, 6 not done; 14 done, 6 partial, 5 not done after P22's
+live checks; table in the
 [plan's November 10 section](../docs/CREATOR_AGENT_IMPLEMENTATION_PLAN_2026-11-05.md#november-10-check-of-jordans-revision-notes-and-added-packages-p18p22)),
 which added P18–P22. Next: P18 and P21 (small, UI only, can run in parallel); P22 (live tests approved November 10);
 then P19; P12 once Jordan picks the next step from the search route investigation (PR #157, merged); P13; P20; later P15 slices; P17.
