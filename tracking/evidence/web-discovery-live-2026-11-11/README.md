@@ -116,3 +116,103 @@ I pulled the fix and ran `pnpm build`, which passed. I restarted the dev studio 
 ### Evidence websites
 
 Jordan's choice, relayed by the coordinator, was "any public website". When I tried to set it through Settings › Evidence websites, this machine's auto-mode safety check refused the change. Widening fetch access needs the owner's own typed OK in the session, and I did not work around the refusal. The setting stayed at the six CSV-checker hosts, and I asked Jordan to type the OK or make the change himself.
+
+Jordan then typed "OK set evidence websites to any public website on the dev studio" (14:42:58Z). I made the change through the form: Settings › Evidence websites › Change evidence websites › "Any public website" › Review change › "Allow any public website".
+
+- It was saved as **version 1, "Any public website"**, at 14:49Z. The six CSV hosts remain listed as well.
+- The confirm step listed the risks: low-quality pages, sites seeing the IP address, sites' terms, and keeping the setting fixed across study conditions.
+
+### Discovery
+
+Discover › Search the web, run once with:
+
+- interests "volunteer scheduling";
+- who it might help "small community organisations";
+- defaults for everything else: no question, exclusions or skipped websites; up to 8 pages; up to 8 claims; ChatGPT plan with gpt-6-astra.
+
+The request preview showed exactly what would be sent: `{"focus":{"interests":["volunteer scheduling"],"target_groups":["small community organisations"],"question":null},"excluded_topics":[],"excluded_websites":[],"max_leads":16}`.
+
+The API ran from the `e2e2781` build. A later pull merged main (assessment code only) without a restart.
+
+| Item                  | Value                                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Discovery             | `018107d0-ef6c-4d0f-a292-3fbf2329403c`, run `0c1ff13e-7266-41e5-885a-6e1219324577`                                         |
+| Started / finished    | 14:49:30Z / 14:50:43Z (73 s)                                                                                               |
+| Final state / outcome | **done / claims_found**                                                                                                    |
+| Explanation           | "8 claims proposed from 5 pages; 8 passed the word-for-word quote check. 8 checked claims wait for you to add or dismiss." |
+| Plan requests         | 2: one search, one read. Cost $0.                                                                                          |
+
+#### Search calls
+
+The UI summary reads "Search: 3 calls, 71 pages consulted".
+
+| Call | Action    | Queries (as reported; duplicates are in the provider's record)                                                                                                                                                                                            | Sources |
+| ---- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| 1    | search    | "volunteer scheduling small nonprofit spreadsheet challenges food bank volunteers" (×2); "volunteer scheduling community organisation survey availability challenges"; "site.reddit.com volunteer scheduling small nonprofit shifts"                      | 39      |
+| 2    | search    | "site.ncvo.org.uk time well spent 2023 flexibility volunteers time commitment" (×2); "volunteer scheduling case study small charity \"spreadsheet\""; "volunteer scheduling \"case study\" \"museum\""; "volunteer scheduling \"case study\" \"shelter\"" | 36      |
+| 3    | open_page | none                                                                                                                                                                                                                                                      | 0       |
+
+There were 71 distinct source URLs across the calls. The model wrote `site.reddit.com` and `site.ncvo.org.uk` with a dot instead of the `site:` operator. The provider still returned matching pages.
+
+#### Leads
+
+The UI shows "Pages: 8 chosen of 8 named". All 8 came from search sources (`origin: search_source`), and all have the disposition `selected`. No lead was refused.
+
+| #   | Page                                                       | Host                      | Fetch            | Quality     | Note                                                                    |
+| --- | ---------------------------------------------------------- | ------------------------- | ---------------- | ----------- | ----------------------------------------------------------------------- |
+| 0   | Lots of users overwriting roster changes                   | reddit.com (r/excel)      | fetched          | **empty**   | "The page has no readable text without running scripts (an app shell)." |
+| 1   | Volunteer Scheduling Help                                  | reddit.com (r/nonprofit)  | fetched          | **empty**   | same app-shell note                                                     |
+| 2   | The Salvation Army North Toronto Case Study                | volunteerschedulerpro.com | fetched          | usable      | 663 words                                                               |
+| 3   | Key findings from Time Well Spent 2023                     | ncvo.org.uk               | fetched          | usable      | 1,837 words                                                             |
+| 4   | The Volunteer Workflow System                              | uw.manifoldapp.org        | fetched          | usable      | 240 words                                                               |
+| 5   | Kingdom Animal Shelter: Volunteer Scheduling Case Study    | casestudies.com           | fetched          | usable      | 178 words                                                               |
+| 6   | How We Built a Scheduling System That Saved 8 Hours a Week | scalogy.com               | fetched          | usable      | 567 words                                                               |
+| 7   | Maine's food pantries stare down volunteer shortage…       | apnews.com                | **inaccessible** | not_fetched | HTTP 403                                                                |
+
+That gives 5 usable pages, 2 empty pages and 1 refused. The two Reddit threads were the model's strongest firsthand complaints, and both came back as script-only shells. The empty-page check kept them out of the reading packet.
+
+#### Proposed claims
+
+All 8 proposals have the basis `observation` and the check `verified`, with no reasons listed. All are still **pending**. **I did not add or dismiss any.**
+
+| #   | Title                                                 | Source                           | Supporting / contradicting | Quotes (all "found on the page")                                                                                                                                                                                                                                                                                                                                       |
+| --- | ----------------------------------------------------- | -------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | Paper schedule changes risk lost information          | volunteerschedulerpro.com S1.P11 | 1 / 0                      | "But as soon as you start doing that, and touching the different hard-copy volunteer lists, the chance of missing information or misscheduling rears its ugly head."                                                                                                                                                                                                   |
+| 1   | Booking shifts required telephone back-and-forth      | volunteerschedulerpro.com S1.P15 | 1 / 0                      | "Previously, they would have to call someone [and] go back and forth. It was like trying to book a doctor's appointment."; "With VSP, [volunteers] quickly look at the calendar, see what dates are open, and choose"                                                                                                                                                  |
+| 2   | Shift reminders previously required individual calls  | volunteerschedulerpro.com S1.P17 | 1 / 0                      | "Rick: Yes - before, we had to phone everybody to remind them about their shift. But with VSP, we enabled the text messaging reminders, as well as the emails."                                                                                                                                                                                                        |
+| 3   | Volunteer growth overwhelmed informal scheduling      | casestudies.com S4.P4            | 1 / 0                      | "As their volunteer base more than doubled, scheduling by email and informal sign‑ups became unmanageable, so they selected TCP Software's Humanity work scheduler…"                                                                                                                                                                                                   |
+| 4   | Shelter schedule maintenance consumed hours weekly    | scalogy.com S5.P5                | 1 / 0                      | "The staff spent 5-8 hours every week keeping the schedule alive. That is a huge tax on a small team…"                                                                                                                                                                                                                                                                 |
+| 5   | Time commitment deters prospective volunteers         | ncvo.org.uk S2.P59, P60, P63     | 1 / 1                      | supports: "Among those who had considered volunteering in the last 12 months, the most common barriers were:"; "thinking it involved more time than they could commit (21%)"; contradicts: "However, experiences of flexible volunteering are largely positive. For example, 82% of those who do volunteer report their organisation is flexible with the time given." |
+| 6   | Reduced availability is a leading reason to stop      | ncvo.org.uk S2.P30               | 1 / 0                      | "Most people said less time due to changes in circumstances is the main reason they're stopping. Being unhappy with the way their volunteering group is managed and organised is much less common (10%)."                                                                                                                                                              |
+| 7   | Open shifts address shelter coordination difficulties | casestudies.com S4.P5            | 1 / 0                      | "TCP Software implemented Humanity to create open shifts, enable self‑scheduling, and let multiple coordinators manage different volunteer roles without overlap."                                                                                                                                                                                                     |
+
+The proposals' own uncertainty notes point out the following, and Jordan should weigh them before adding anything:
+
+- 6 of the 8 rest on vendor or builder case studies: volunteerschedulerpro, casestudies.com/TCP and Scalogy.
+- Each claim has one supporting source.
+- The NCVO survey claims are not specific to small organisations.
+
+The "Not covered" list names gaps in prevalence across small organisations, independent outcome measurements, budgets and willingness to pay, accessibility for phone or paper volunteers, and detailed requirements.
+
+### Notes on the check
+
+These are observations, not failures.
+
+- **Claim 5's first supporting quote** is a lead-in sentence ("…the most common barriers were:") that proves nothing on its own. It passes because the check confirms that a quote exists and meets the length rule, not that it supports the statement (ADR-0086 M-2). The second quote carries the claim.
+- **Claim 7** describes a vendor's solution, not a problem. Its title, "Open shifts address shelter coordination difficulties", reads as an outcome the source does not measure.
+- **Claim 2's statement** says the operation "replaced phone reminders", which the quote supports. Its uncertainty note adds "few schedule holes afterward", which comes from a passage the claim does not quote.
+
+### UI notes from this run
+
+1. **The Settings page has two "Review change" buttons**: the spending ceiling and the evidence websites. A script that targets one by its text picks the wrong one. A person on screen would not hit this, but the ceiling button is disabled with no hint while its form is empty.
+2. **Explore for me still says "gpt-6-astra is not qualified for research synthesis (the discovery locator's qualification)"** after the web-discovery qualification. This is correct by design: a web qualification admits only web discovery. But the same task name, research synthesis, now shows as both qualified on Models and not qualified on Discover. Naming the benchmark in both places would avoid the apparent contradiction.
+3. **"Add all 8 checked claims"** is the first button under Proposed claims, above the claims themselves. It is easy to press before reading the vendor-source caveats.
+4. **"8 claims proposed from 5 pages" next to "8 chosen of 8 named"** is right, because 2 pages were empty and 1 was refused. But the page count that was actually read appears only in the per-lead details.
+
+### State left
+
+- The dev studio is running from `C:\dev\creator_agent_p12` through `start-dev-p12.ps1`. The schema is 54.
+- Evidence websites are set to "Any public website", version 1.
+- The ChatGPT plan connection allows research synthesis, and gpt-6-astra is qualified on `web-discovery-v2`.
+- The connection's 24-hour count is 31 of its 40 daily requests.
+- 8 proposals are pending in discovery `018107d0…`.
