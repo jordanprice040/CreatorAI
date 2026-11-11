@@ -3,6 +3,7 @@ import {
   ContractError,
   type GitHubConnection,
   type GitHubOperation,
+  type GitHubPullChecks,
   type GitHubRepository,
 } from '@creator/contracts';
 import { classifyResponse, webhookSignatureValid } from '@creator/domain';
@@ -255,6 +256,56 @@ export class GitHubService {
       case 'pr_merge':
         return a.merge(ref!, p.pr_number, p.reviewed_head_sha, p.merge_method);
     }
+  }
+
+  /**
+   * P22: reads one pull request and the checks on its current head. Read-only: no operation is
+   * journaled, nothing is admitted and nothing on GitHub changes.
+   */
+  async pullChecks(
+    ctx: CommandContext,
+    ws: string,
+    repositoryId: string,
+    number: number,
+  ): Promise<GitHubPullChecks> {
+    const { connection, repository } = await this.store.repositoryForRead(
+      ctx,
+      ws,
+      repositoryId,
+    );
+    const a = this.#need(connection);
+    const looked = await a.repositoryRead(repository.github_id);
+    if (!looked.repository)
+      return {
+        repository_id: repository.id,
+        read_at: new Date().toISOString(),
+        pull: null,
+        checks: [],
+        check_runs_readable:
+          connection.body.credential.kind !== 'fine_grained_pat',
+        refusals: looked.refusal ? [looked.refusal] : [],
+      };
+    const ref = {
+      github_id: repository.github_id,
+      full_name: looked.repository.full_name,
+    };
+    const read = await a.pullRead(ref, number);
+    const c = read.pull
+      ? await a.checks(ref, read.pull.head_sha)
+      : {
+          checks: [],
+          check_runs_readable:
+            connection.body.credential.kind !== 'fine_grained_pat',
+          refusals: [],
+        };
+    return {
+      repository_id: repository.id,
+      read_at: new Date().toISOString(),
+      pull: read.pull,
+      checks: c.checks,
+      check_runs_readable: c.check_runs_readable,
+      refusals: [...(read.refusal ? [read.refusal] : []), ...c.refusals],
+    };
   }
 
   /** Reads GitHub to settle an unknown outcome; never repeats the change itself. */

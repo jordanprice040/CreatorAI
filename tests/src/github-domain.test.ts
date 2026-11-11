@@ -15,7 +15,7 @@ import {
   webhookEffects,
   webhookSignatureValid,
 } from '@creator/domain';
-import { LiveGitHub } from '@creator/broker';
+import { LiveGitHub, repositoryRefusal } from '@creator/broker';
 
 test('X04 rules: branch names, workflow paths, response classes and webhook signatures', () => {
   assert.equal(branchRefusal('creator/feature-1', 'creator/'), null);
@@ -388,4 +388,330 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
   assert.ok(!JSON.stringify(back).includes('pat-never-in-argv'));
   // The credential never lands in the product repository's config.
   assert.ok(!git(src, 'config', '--list', '--local').includes('extraheader'));
+});
+
+test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no pull request"', async (t) => {
+  let mode:
+    | 'ok'
+    | 'expired'
+    | 'statuses_forbidden'
+    | 'unavailable'
+    | 'rate_limited'
+    | 'secondary_limit'
+    | 'malformed' = 'ok';
+  const gh = await loopbackGitHub((s) => {
+    if (mode === 'expired')
+      return { status: 401, body: { message: 'Bad credentials' } };
+    if (mode === 'unavailable')
+      return { status: 503, body: { message: 'Service Unavailable' } };
+    if (mode === 'rate_limited')
+      return {
+        status: 403,
+        headers: { 'x-ratelimit-remaining': '0' },
+        body: { message: 'API rate limit exceeded' },
+      };
+    if (mode === 'secondary_limit')
+      return {
+        status: 403,
+        headers: { 'retry-after': '60' },
+        body: { message: 'You have exceeded a secondary rate limit' },
+      };
+    if (mode === 'malformed') return { status: 200, body: { id: 'x' } };
+    if (s.path.endsWith('/pulls/1'))
+      return {
+        status: 200,
+        body: {
+          state: 'open',
+          merged: false,
+          head: { sha: SHA, ref: 'creator/p22-trial' },
+          base: { ref: 'creator/p22-base' },
+        },
+      };
+    if (s.path.endsWith(`/commits/${SHA}/status`))
+      return mode === 'statuses_forbidden'
+        ? {
+            status: 403,
+            body: {
+              message: 'Resource not accessible by personal access token',
+            },
+          }
+        : { status: 200, body: { sha: SHA, statuses: [] } };
+    return { status: 404, body: { message: 'Not Found' } };
+  });
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: { kind: 'fine_grained_pat', token: 'pat-secret' },
+    apiBase: gh.base,
+  });
+  // Read, with no statuses: an empty list that is evidence of absence.
+  const read = await a.pullRead(repo, 1);
+  assert.equal(read.refusal, null);
+  assert.equal(read.pull?.head_sha, SHA);
+  assert.deepEqual(await a.checks(repo, SHA), {
+    checks: [],
+    check_runs_readable: false,
+    refusals: [],
+  });
+  // No such pull request: not a refusal.
+  assert.deepEqual(await a.pullRead(repo, 2), { pull: null, refusal: null });
+  // A refused statuses read is reported, not shown as "no checks".
+  mode = 'statuses_forbidden';
+  const partial = await a.checks(repo, SHA);
+  assert.deepEqual(partial.checks, []);
+  assert.deepEqual(
+    partial.refusals.map((r) => `${r.step}:${r.status}`),
+    ['statuses:403'],
+  );
+  // An expired or revoked token is a refusal, not "no pull request".
+  mode = 'expired';
+  const refused = await a.pullRead(repo, 1);
+  assert.equal(refused.pull, null);
+  assert.deepEqual(refused.refusal, {
+    step: 'pull',
+    status: 401,
+    message: 'Bad credentials',
+  });
+  // The merge gate's pull() keeps its old meaning: nothing usable was read.
+  assert.equal(await a.pull(repo, 1), null);
+  // Re-review N-L1: the repository lookup keeps GitHub's real status. A 401 is an access
+  // problem; a 503 is GitHub not answering, never "the token may be expired".
+  const denied = await a.repositoryRead(repo.github_id);
+  assert.equal(denied.repository, null);
+  assert.equal(denied.refusal?.status, 401);
+  assert.match(denied.refusal!.message, /expired or revoked/);
+  mode = 'unavailable';
+  const down = await a.repositoryRead(repo.github_id);
+  assert.equal(down.refusal?.step, 'repository');
+  assert.equal(down.refusal?.status, 503);
+  assert.match(down.refusal!.message, /did not answer.*Try again/);
+  assert.doesNotMatch(down.refusal!.message, /expired|revoked/);
+  // Re-review N2-L1: GitHub answers a rate limit with 403 too; that is "try again", not the
+  // token, and GitHub's own message is kept.
+  for (const m of ['rate_limited', 'secondary_limit'] as const) {
+    mode = m;
+    const limited = await a.repositoryRead(repo.github_id);
+    assert.equal(limited.refusal?.status, 403);
+    assert.match(limited.refusal!.message, /rate-limiting.*Try again/);
+    assert.match(limited.refusal!.message, /GitHub said: .*rate limit/);
+    assert.doesNotMatch(limited.refusal!.message, /expired|revoked/);
+    assert.ok(limited.refusal!.message.length <= 300);
+  }
+  // A 200 whose body is not a repository is an unreadable reply, not "did not answer".
+  mode = 'malformed';
+  const odd = await a.repositoryRead(repo.github_id);
+  assert.equal(odd.refusal?.status, 200);
+  assert.match(odd.refusal!.message, /could not be read/);
+});
+
+test('P22 nits: a secondary rate limit without retry-after, and a read with no answer, are worded as such', () => {
+  const r = (status: number | null, message: string, headers = {}) =>
+    repositoryRefusal({ status, headers, data: null, message });
+  const secondary = r(403, 'You have exceeded a secondary rate limit.');
+  assert.match(secondary.message, /rate-limiting.*Try again/);
+  assert.doesNotMatch(secondary.message, /expired|revoked/);
+  // A plain 403 without any rate-limit sign still points at the credential.
+  assert.match(
+    r(403, 'Resource not accessible by personal access token').message,
+    /expired or revoked/,
+  );
+  // No HTTP answer: the detail is the studio's own error, never "GitHub said".
+  const hung = r(null, 'timeout');
+  assert.equal(hung.status, null);
+  assert.match(
+    hung.message,
+    /did not answer.*Studio error, no answer from GitHub: timeout/,
+  );
+  assert.doesNotMatch(hung.message, /GitHub said/);
+  assert.match(
+    r(503, 'Service Unavailable').message,
+    /GitHub said: Service Unavailable/,
+  );
+});
+
+test('P22 nits: GitHub App token failures say what failed, not "try again"', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  let mint: {
+    status: number;
+    body: unknown;
+    headers?: Record<string, string>;
+  } = {
+    status: 422,
+    body: {
+      message:
+        'There is at least one repository that does not exist or is not accessible to the parent installation.',
+    },
+  };
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith('/access_tokens')
+      ? mint
+      : { status: 500, body: { message: 'should not be reached' } },
+  );
+  t.after(gh.close);
+  const app = (private_key: string) =>
+    new LiveGitHub({
+      credential: {
+        kind: 'app_installation',
+        client_id: 'Iv1.fixture',
+        private_key,
+        installation_id: 77,
+      },
+      apiBase: gh.base,
+    });
+  // A private key that cannot sign: GitHub is never asked, and retrying will not help.
+  const local = await app('not a private key').repositoryRead(repo.github_id);
+  assert.equal(gh.seen.length, 0);
+  assert.equal(local.refusal?.status, null);
+  assert.match(local.refusal!.message, /could not get a GitHub App token/);
+  assert.match(local.refusal!.message, /check the App credential/);
+  assert.doesNotMatch(local.refusal!.message, /Try again|did not answer/);
+  assert.doesNotMatch(local.refusal!.message, /not a private key/);
+  // The repository was removed from the installation: GitHub refused the token (422).
+  const removed = await app(pem).repositoryRead(repo.github_id);
+  assert.equal(removed.refusal?.status, 422);
+  assert.match(removed.refusal!.message, /refused a GitHub App token/);
+  assert.match(removed.refusal!.message, /GitHub said: There is at least one/);
+  assert.doesNotMatch(removed.refusal!.message, /did not answer|Try again/);
+  // A rate-limited token request is still "try again".
+  mint = {
+    status: 403,
+    headers: { 'x-ratelimit-remaining': '0' },
+    body: { message: 'API rate limit exceeded' },
+  };
+  const limited = await app(pem).repositoryRead(repo.github_id);
+  assert.match(limited.refusal!.message, /rate-limiting.*Try again/);
+  // Nothing past the token step was requested.
+  assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
+});
+
+test('P22 re-review 5: the App token step is named, and its 404 is never "no such pull request"', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  let mint: { status: number; body: unknown } = {
+    status: 404,
+    body: { message: 'Not Found' },
+  };
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith('/access_tokens')
+      ? mint
+      : { status: 500, body: { message: 'should not be reached' } },
+  );
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv1.fixture',
+      private_key: pem,
+      installation_id: 77,
+    },
+    apiBase: gh.base,
+  });
+  // L-1: the installation is gone (404 on the token request): a refusal, not "no pull request".
+  const gone = await a.pullRead(repo, 1);
+  assert.equal(gone.pull, null);
+  assert.equal(gone.refusal?.step, 'pull');
+  assert.equal(gone.refusal?.status, 404);
+  assert.match(gone.refusal!.message, /refused a GitHub App token/);
+  // Nit 1: a 401 at the token step points at the App credential.
+  mint = {
+    status: 401,
+    body: { message: 'A JSON web token could not be decoded' },
+  };
+  const badKey = await a.repositoryRead(repo.github_id);
+  assert.match(badKey.refusal!.message, /App id or private key may be wrong/);
+  assert.doesNotMatch(badKey.refusal!.message, /no longer be installed/);
+  // Nit 2: a 5xx, or a 201 without a token, names the token step, not the read.
+  for (const m of [
+    { status: 502, body: { message: 'Bad Gateway' } },
+    { status: 201, body: {} },
+  ]) {
+    mint = m;
+    for (const r of [
+      (await a.repositoryRead(repo.github_id)).refusal!,
+      (await a.checks(repo, SHA)).refusals[0]!,
+    ]) {
+      assert.equal(r.status, m.status);
+      assert.match(
+        r.message,
+        /did not give a GitHub App token \(the token step failed\)/,
+      );
+      assert.doesNotMatch(r.message, /repository read/);
+    }
+  }
+  assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
+});
+
+test('P22 re-review 6: a 429 at the App token step is a rate limit; its reply is never read as checks', async (t) => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString();
+  let mint: { status: number; body: unknown } = { status: 429, body: {} };
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith('/access_tokens')
+      ? mint
+      : { status: 500, body: { message: 'should not be reached' } },
+  );
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: {
+      kind: 'app_installation',
+      client_id: 'Iv1.fixture',
+      private_key: pem,
+      installation_id: 77,
+    },
+    apiBase: gh.base,
+  });
+  // A bare 429, no rate-limit headers or message.
+  const limited = await a.repositoryRead(repo.github_id);
+  assert.equal(limited.refusal?.status, 429);
+  assert.match(limited.refusal!.message, /rate-limiting.*Try again/);
+  // A token reply without a token, shaped like check results, gives no checks.
+  mint = {
+    status: 201,
+    body: {
+      sha: SHA,
+      check_runs: [
+        {
+          name: 'ci',
+          head_sha: SHA,
+          status: 'completed',
+          conclusion: 'success',
+        },
+      ],
+      statuses: [{ context: 'lint', state: 'success' }],
+    },
+  };
+  const c = await a.checks(repo, SHA);
+  assert.deepEqual(c.checks, []);
+  assert.deepEqual(
+    c.refusals.map((r) => `${r.step}:${r.status}`),
+    ['check_runs:201', 'statuses:201'],
+  );
+  assert.ok(gh.seen.every((s) => s.path.endsWith('/access_tokens')));
+});
+
+test('P22 re-review 7: a 429 on the pull or statuses read itself says rate-limited', async (t) => {
+  const gh = await loopbackGitHub((s) =>
+    s.path.endsWith(`/commits/${SHA}/status`) || s.path.endsWith('/pulls/1')
+      ? { status: 429, body: {} }
+      : { status: 404, body: { message: 'Not Found' } },
+  );
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: { kind: 'fine_grained_pat', token: 'pat-secret' },
+    apiBase: gh.base,
+  });
+  const pull = await a.pullRead(repo, 1);
+  assert.equal(pull.refusal?.status, 429);
+  assert.match(pull.refusal!.message, /rate-limiting.*Try again/);
+  const c = await a.checks(repo, SHA);
+  assert.deepEqual(
+    c.refusals.map((r) => `${r.step}:${r.status}`),
+    ['statuses:429'],
+  );
+  assert.match(c.refusals[0]!.message, /rate-limiting.*Try again/);
+  assert.doesNotMatch(c.refusals[0]!.message, /^HTTP 429$/);
+  // Re-review 8: a one-step refusal names only that step as unread.
+  assert.match(c.refusals[0]!.message, /the commit statuses were not read/);
+  assert.doesNotMatch(c.refusals[0]!.message, /nothing was read/i);
+  assert.match(pull.refusal!.message, /the pull request was not read/);
 });

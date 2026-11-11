@@ -512,6 +512,35 @@ export class GitHubStore extends ArtifactStore {
     });
   }
 
+  /**
+   * P22: owner check before a read-only look at a pull request's checks. The repository must
+   * be studio-managed, active and on an active connection; nothing is recorded or changed.
+   */
+  async repositoryForRead(ctx: CommandContext, ws: string, id: string) {
+    ctx = normalize(ctx);
+    ws = uuid(ws);
+    return this.tx(async (c) => {
+      await this.requireOwner(c, ws, ctx.actorId);
+      const repository = await this.#repository(c, ws, id);
+      const connection = await this.#connection(
+        c,
+        ws,
+        repository.connection_id,
+      );
+      if (repository.status !== 'active')
+        throw fail(
+          'INVALID_TRANSITION',
+          `This repository is ${repository.status.replace('_', ' ')}; it is not read again.`,
+        );
+      if (connection.status !== 'active')
+        throw fail(
+          'INVALID_TRANSITION',
+          'Its connection is not active; verify it first.',
+        );
+      return { connection, repository };
+    });
+  }
+
   // ---- Operations -----------------------------------------------------------------------
 
   /** Validates a request and returns what GitHubService must read before beginning it. */
