@@ -23,6 +23,7 @@ const PAGE_OF_KIND: Record<string, View> = {
   desktop_challenge: 'desktop',
   plan_connection: 'models',
   plan_qualification: 'models',
+  plan_qualification_queue: 'models',
   model_choice: 'models',
   github_connection: 'github',
   github_repository: 'github',

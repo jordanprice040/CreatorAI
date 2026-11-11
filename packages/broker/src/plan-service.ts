@@ -1302,10 +1302,20 @@ export class PlanConnectionService {
   }
 
   /** Runs every not-yet-attempted case once, then decides. Stops early on any refusal. */
-  async runQualification(ctx: CommandContext, ws: string, qid: string) {
+  /**
+   * Sends a started qualification's unanswered cases one by one and records the result once
+   * every case has an answer. `queueId` is set only by the studio's queue runner (ADR-0088):
+   * while a queue works on the connection, a Run pressed by hand is refused.
+   */
+  async runQualification(
+    ctx: CommandContext,
+    ws: string,
+    qid: string,
+    queueId: string | null = null,
+  ) {
     const read = await this.deps.store.planQualificationManifest(ctx, ws, qid);
     // ADR-0084: one Run loop per qualification; a second press is refused, not run twice.
-    const release = this.deps.store.claimQualificationRun(read);
+    const release = this.deps.store.claimQualificationRun(read, queueId);
     try {
       return await this.#runQualification(ctx, ws, qid, read);
     } finally {

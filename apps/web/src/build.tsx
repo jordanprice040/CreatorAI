@@ -676,6 +676,7 @@ export function BuildView({
                       open={open}
                       fixes={{
                         base,
+                        place: `build:${p.product.id}`,
                         csrf: session.csrf_token,
                         owner,
                         onDone: () => data.refresh(),

@@ -210,6 +210,7 @@ function elapsed(iso: string, at: number) {
 function nowTarget(item: ActivityNowItem): [View, string?] {
   if (item.kind === 'workflow') return ['runs', item.id];
   if (item.kind === 'desktop_job') return ['desktop'];
+  if (item.kind === 'qualification_queue') return ['models'];
   if (item.purpose === 'chat') return ['chat'];
   if (
     item.purpose === 'qualification' ||

@@ -67,6 +67,7 @@ import {
   publicSearchFromEnv,
   BRAVE_SEARCH_ID,
   PlanConnectionService,
+  QualificationQueueRunner,
   planVaultFromEnv,
   claudeCodeHostFromEnv,
   type PlanServiceDeps,
@@ -367,6 +368,18 @@ export function createApi(
         patchScorer,
       }))
     : null;
+  // ADR-0088 (P24): queued qualifications run here, one after another, under a database lease.
+  const qualificationQueue =
+    store && planService
+      ? new QualificationQueueRunner({
+          store,
+          service: planService,
+          onError: (e) =>
+            console.error(
+              `Qualification queue could not record its state (${e instanceof Error ? e.message : String(e)}).`,
+            ),
+        })
+      : null;
   const broker = store
     ? new ModelBroker(
         store,
@@ -580,6 +593,7 @@ export function createApi(
     );
     await maintenance.run('outbox', () => store.drainOutbox());
     worker?.start();
+    qualificationQueue?.start();
     if (portfolioScheduler === 'on') portfolio?.start();
   }
   let ready = init();
@@ -1160,6 +1174,7 @@ export function createApi(
         store,
         service: planService,
         codex: codexLauncher,
+        queue: qualificationQueue,
         ctx,
         ws,
         collection,
@@ -1177,9 +1192,12 @@ export function createApi(
               ? action === 'qualifications'
                 ? // A bundled benchmark manifest; assessment-synthetic-v1 is ~132 KiB minified.
                   256 * 1024
-                : action === 'build-calls' || action === 'codex-builds'
-                  ? PLAN_BUILD_CALL_MAX_BODY
-                  : MAX_BODY
+                : action === 'qualification-queues'
+                  ? // ADR-0088: several bundled manifests (all five today are ~200 KiB).
+                    1024 * 1024
+                  : action === 'build-calls' || action === 'codex-builds'
+                    ? PLAN_BUILD_CALL_MAX_BODY
+                    : MAX_BODY
               : MAX_BODY,
           ),
         send,
@@ -2452,6 +2470,7 @@ export function createApi(
   async function close() {
     if (relay) clearInterval(relay);
     await worker?.stop();
+    await qualificationQueue?.stop();
     await portfolio?.stop();
     server.closeAllConnections();
     preview.closeAllConnections();

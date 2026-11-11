@@ -362,10 +362,12 @@ async function loadButtons() {
   };
   const oversight = {
     words,
-    api: async (_s: unknown, path: string) => {
+    // Review 7 N-2: served through the schema the page reads with, so a contract drift between
+    // the server's offers and that schema fails here too.
+    api: async (schema: { parse(x: unknown): unknown }, path: string) => {
       if (!path.endsWith('/plan-benchmarks')) return {};
       if (!offers.served) throw new Error('404');
-      return offers.served;
+      return schema.parse(offers.served);
     },
     message: String,
   };
@@ -400,8 +402,8 @@ async function loadButtons() {
 
 test('each route qualifies only on its own benchmark; the confirmation says what the press does', async () => {
   const { mod, react, server } = await loadButtons();
-  // Discovery and Explore for me count only discovery benchmarks (none bundled yet, P34), so a
-  // scoring qualification on the assessment benchmark is never offered there.
+  // Discovery and Explore for me count only discovery benchmarks (none bundled; the server offers
+  // them, see the P34 handover test), so a scoring qualification on the assessment benchmark is never offered there.
   assert.equal(mod.canQualifyFor('discovery')('scoring'), false);
   assert.equal(mod.canQualifyFor('discovery')('research_synthesis'), false);
   assert.equal(mod.canQualifyFor('assessment')('scoring'), true);
@@ -830,10 +832,11 @@ test('after P34: the tasks a fix can qualify are exactly QUALIFY_IN_APP, with th
     assert.equal(mod.canQualifyFor('discovery')(t), true, t);
 });
 
-test("walk of November 11: a fix's outcome stays on the page for the owner after its buttons go away", async () => {
+test("walk of November 11: a fix's outcome stays where it was pressed, for the owner, after its buttons go away", async () => {
   const { mod, react, server } = (await loadButtons()) as unknown as {
     mod: {
-      announce(base: string, n: { text: string; error: string }): void;
+      announce(w: unknown, n: { text: string; error: string }): void;
+      settlePress(w: unknown, saved: boolean, t: string, e: string): boolean;
       FixOutcome(p: unknown): unknown;
     };
     react: { createElement: (t: unknown, p: unknown) => unknown };
@@ -841,23 +844,141 @@ test("walk of November 11: a fix's outcome stays on the page for the owner after
   };
   const draw = (fix: unknown) =>
     server.renderToStaticMarkup(react.createElement(mod.FixOutcome, { fix }));
-  const owner = { base: 'workspaces/w1', csrf: 'c', owner: true };
+  const owner = { base: 'workspaces/w1', place: 'assess', owner: true };
   assert.equal(draw(owner), '');
-  mod.announce('workspaces/w1', {
-    text: 'scoring on m1: qualified (6 of 6 held-out cases passed)',
-    error: '',
-  });
+  // A press that saved nothing announces nothing: its error stays in the open panel (N-6).
+  assert.equal(mod.settlePress(owner, false, '', 'refused'), false);
+  assert.equal(draw(owner), '');
+  // A press that saved closes its panel and keeps the outcome where it was pressed.
+  assert.equal(
+    mod.settlePress(
+      owner,
+      true,
+      'scoring on m1: qualified (6 of 6 held-out cases passed)',
+      '',
+    ),
+    true,
+  );
   assert.match(draw(owner), /role="status".*qualified \(6 of 6 held-out/);
-  // Not for an editor, and not on another workspace.
+  // Not for an editor, not on another workspace, and not elsewhere on the same one (L-2).
   assert.equal(draw({ ...owner, owner: false }), '');
   assert.equal(draw({ ...owner, base: 'workspaces/w2' }), '');
-  // A failure after a saved step keeps its error beside the text.
-  mod.announce('workspaces/w1', {
-    text: 'Allowed scoring.',
-    error: 'run refused',
-  });
-  assert.match(draw(owner), /Allowed scoring\..*role="alert"[^>]*>run refused/);
+  assert.equal(draw({ ...owner, place: 'build:p1' }), '');
+  assert.equal(draw({ ...owner, place: 'card:c1' }), '');
+  // A failure after a saved step keeps its error beside the text, in the one status region (N-5).
+  mod.settlePress(owner, true, 'Allowed scoring.', 'run refused');
+  const both = draw(owner);
+  assert.match(both, /Allowed scoring\..*class="error">run refused/);
+  assert.doesNotMatch(both, /role="alert"/);
   // Dismissing (an empty note) clears it.
-  mod.announce('workspaces/w1', { text: '', error: '' });
+  mod.announce(owner, { text: '', error: '' });
   assert.equal(draw(owner), '');
+});
+
+test('review 7 M-1: while a qualification queue runs, a press that qualifies waits; one that only allows does not', async () => {
+  const { mod } = (await loadButtons()) as unknown as {
+    mod: {
+      queueBlocks(a: FixAction, d: unknown): string | null;
+      QUEUE_BUSY: string;
+    };
+  };
+  const c = connection({
+    caps_accepted_at: '2026-11-11T00:00:00.000Z',
+  } as Partial<PlanConnection>);
+  const detail = (state: string | null) => ({
+    connection: c,
+    model_access: [
+      {
+        connection_id: c.id,
+        model_id: 'm1',
+        path: 'responses',
+        access: 'verified',
+      },
+    ],
+    qualifications: [],
+    qualification_queue: state ? { state } : null,
+  });
+  const qualify: FixAction = {
+    kind: 'qualify',
+    connection_id: c.id,
+    model_id: 'm1',
+    task_class: 'scoring',
+    role: 'assessment',
+  } as FixAction;
+  const allowAndQualify = {
+    kind: 'allow_tasks',
+    connection_id: c.id,
+    tasks: ['scoring'],
+    qualify: ['scoring'],
+    model_id: 'm1',
+    role: 'assessment',
+  } as unknown as FixAction;
+  const allowOnly = {
+    ...allowAndQualify,
+    qualify: [],
+  } as unknown as FixAction;
+  const caps = { kind: 'accept_caps', connection_id: c.id } as FixAction;
+  for (const a of [qualify, allowAndQualify])
+    assert.equal(mod.queueBlocks(a, detail('running')), mod.QUEUE_BUSY);
+  for (const a of [allowOnly, caps])
+    assert.equal(mod.queueBlocks(a, detail('running')), null);
+  // A finished queue, or none, holds nothing.
+  for (const s of ['done', 'stopped', 'cancelled', null])
+    assert.equal(mod.queueBlocks(qualify, detail(s)), null, String(s));
+});
+
+test('after P24: "Allow and qualify" queues its tasks on the server in one request the queue route accepts', async () => {
+  const { offeredDiscoveryBenchmarks } = await import('@creator/db');
+  const { StartQualificationQueueRequestSchema } =
+    await import('@creator/contracts');
+  const { mod, offers } = (await loadButtons()) as unknown as {
+    offers: { served: { benchmarks: unknown[] } | null };
+    mod: {
+      loadOffers(base: string, fresh?: boolean): Promise<void>;
+      benchmarkFor(t: string, r: string): { name: string } | undefined;
+      queueRequest(o: unknown[], v: number, m: string): unknown;
+    };
+  };
+  offers.served = {
+    benchmarks: offeredDiscoveryBenchmarks().map((b) => ({
+      name: b.name,
+      task_class: b.task_class,
+      manifest_hash: b.manifest_hash,
+      data_class: b.data_class,
+      development: b.development,
+      held_out: b.held_out,
+    })),
+  };
+  await mod.loadOffers('workspaces/q', true);
+  // Discovery: offered by name, the manifest stays on the server (ADR-0089).
+  const disco = ['research_synthesis', 'candidate_generation', 'scoring'].map(
+    (t) => mod.benchmarkFor(t, 'discovery')!,
+  );
+  const body = StartQualificationQueueRequestSchema.parse(
+    mod.queueRequest(disco, 7, 'm1'),
+  );
+  assert.equal(body.expected_version, 7);
+  assert.equal(body.model_id, 'm1');
+  assert.deepEqual(
+    body.items,
+    disco.map((b) => ({ benchmark: b.name })),
+  );
+  // Plan route: bundled manifests, each with its held-out minimum and an all-pass floor.
+  const plan = ['specification', 'patch_build'].map((t) =>
+    mod.benchmarkFor(t, 'plan')!,
+  );
+  const built = StartQualificationQueueRequestSchema.parse(
+    mod.queueRequest(plan, 3, 'm1'),
+  );
+  assert.deepEqual(
+    built.items.map((i) =>
+      'manifest' in i
+        ? [i.manifest.task_class, i.floor.numerator, i.floor.denominator]
+        : null,
+    ),
+    [
+      ['specification', 1, 1],
+      ['patch_build', 1, 1],
+    ],
+  );
 });

@@ -3351,3 +3351,21 @@ details.fold > summary h3.fold-title {
 .decision details.fold > summary h3.fold-title {
   font-size: 15px;
 }
+
+/* P24 (ADR-0088): Qualify several tasks, and a queue's progress. */
+.qualify-several,
+.qualify-queue {
+  margin: 0.75rem 0;
+}
+.qualify-choice {
+  display: block;
+  margin: 0.25rem 0;
+}
+.qualify-queue ol {
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* ADR-0087: a fix's outcome, with its error on a line of its own. */
+.fix-outcome .error {
+  display: block;
+}

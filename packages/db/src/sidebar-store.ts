@@ -204,5 +204,39 @@ export async function activityNow(
       run_id: null,
       started_at: iso(r.created_at),
     });
+  // ADR-0088 (P24): qualifications the studio runs one after another, with how far it got.
+  const queues = await c.query(
+    `select q.id, q.model_id, q.created_at, q.lease_until > clock_timestamp() as leased,
+       count(i.*) as total,
+       count(i.*) filter (where i.state in ('qualified','failed','stopped','cancelled')) as ended,
+       min(i.task_class) filter (where i.state = 'running') as now
+     from plan_qualification_queues q
+     join plan_connections pc on pc.id = q.connection_id
+     join plan_qualification_queue_items i on i.queue_id = q.id
+     where pc.workspace_id = $1 and q.state = 'running'
+     group by q.id order by q.created_at desc limit $2`,
+    [ws, ACTIVITY_NOW_MAX],
+  );
+  for (const r of queues.rows as Row[]) {
+    const leased = Boolean(r.leased);
+    items.push({
+      kind: 'qualification_queue',
+      id: String(r.id),
+      label: 'Qualifying tasks one after another',
+      detail: [
+        String(r.model_id),
+        `${Number(r.ended)} of ${Number(r.total)} done`,
+        r.now ? `now ${words(String(r.now))}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+        .slice(0, 200),
+      state: leased ? 'running' : 'waiting for the studio',
+      active: leased,
+      purpose: null,
+      run_id: null,
+      started_at: iso(r.created_at),
+    });
+  }
   return items.sort((a, b) => b.started_at.localeCompare(a.started_at));
 }

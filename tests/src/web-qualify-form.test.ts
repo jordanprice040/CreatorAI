@@ -137,6 +137,33 @@ async function loadQualify() {
       admits?: 'assessment' | 'discovery' | 'web_discovery' | null,
     ) => { kind: string };
     QualifyModel: (props: Record<string, unknown>) => unknown;
+    offers: (discovery: readonly unknown[]) => unknown[];
+    queueChoices: (
+      qualifications: readonly PlanQualification[],
+      model: string,
+      allowed: readonly string[],
+      list?: readonly unknown[],
+    ) => {
+      name: string;
+      task_class: string;
+      eligible: boolean;
+      state: { kind: string };
+      start: Record<string, unknown>;
+    }[];
+    queueBody: (
+      version: number,
+      model: string,
+      list: readonly { start: Record<string, unknown> }[],
+    ) => {
+      expected_version: number;
+      model_id: string;
+      items: {
+        manifest: { name: string; task_class: string };
+        min_held_out_cases: number;
+        floor: unknown;
+        benchmark?: string;
+      }[];
+    };
   };
   new Function('require', 'exports', code)(
     (name: string) =>
@@ -337,6 +364,252 @@ test('a run that stops says why; a finished run says the result (review M-1)', a
   );
   // A failed request (null) leaves no outcome line: its error shows instead.
   assert.equal(runOutcome(q, null), '');
+});
+
+test('P24: Qualify several offers allowed tasks not yet qualified and sends their benchmarks in order', async () => {
+  const { queueChoices, queueBody } = await loadQualify();
+  const pass = qualification({
+    task_class: 'summarization',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+  });
+  const fail = qualification({
+    task_class: 'specification',
+    state: 'failed',
+    decided_at: '2026-11-11T10:05:00.000Z',
+  });
+  const choices = queueChoices([pass, fail], 'gpt-6-astra', [
+    'specification',
+    'summarization',
+    'independent_review',
+  ]);
+  const byTask = Object.fromEntries(
+    choices.map((c) => [c.task_class, c.eligible]),
+  );
+  // Qualified: re-run on its own (a failed re-run replaces the pass, ADR-0052). Not allowed:
+  // allow it first. Failed or new: offered.
+  assert.equal(byTask.summarization, false);
+  assert.equal(byTask.scoring, false);
+  assert.equal(byTask.specification, true);
+  assert.equal(byTask.independent_review, true);
+  // Review of PR #176, L-3: a started re-run of a qualified task is still qualified, so it is
+  // not offered (the server would refuse the whole queue).
+  const rerun = qualification({
+    task_class: 'summarization',
+    created_at: '2026-11-11T11:00:00.000Z',
+  });
+  assert.equal(
+    queueChoices([pass, rerun], 'gpt-6-astra', [
+      'specification',
+      'summarization',
+    ]).find((c) => c.task_class === 'summarization')?.eligible,
+    false,
+  );
+  const body = queueBody(
+    7,
+    'gpt-6-astra',
+    choices.filter((c) => c.eligible),
+  );
+  assert.equal(body.expected_version, 7);
+  assert.deepEqual(
+    body.items.map((i) => i.manifest.task_class),
+    ['specification', 'independent_review'],
+  );
+  for (const i of body.items) {
+    const m = BenchmarkManifestSchema.parse(i.manifest);
+    assert.equal(
+      i.min_held_out_cases,
+      m.cases.filter((c) => c.split === 'held_out').length,
+      'the pass bar is every held-out case, as Start',
+    );
+    assert.deepEqual(i.floor, { numerator: 1, denominator: 1 });
+  }
+});
+
+test('P24: a running queue shows its progress and locks every other qualify action', async () => {
+  const { QualifyModel } = await loadQualify();
+  const connection = {
+    id: randomUUID(),
+    kind: 'chatgpt_plan',
+    version: 3,
+    fixture: false,
+    caps_accepted_at: '2026-11-11T09:00:00.000Z',
+    settings: {
+      allowed_data_classes: ['synthetic', 'public'],
+      allowed_task_classes: ['specification', 'summarization'],
+      caps: { responses: { request_timeout_ms: 120000 } },
+    },
+  };
+  const item = (
+    position: number,
+    task_class: string,
+    state: string,
+    reason: string | null = null,
+  ) => ({
+    position,
+    task_class,
+    manifest_name: `${task_class}-synthetic-v1`,
+    manifest_hash: 'b'.repeat(64),
+    qualification_id: state === 'waiting' ? null : randomUUID(),
+    state,
+    reason,
+  });
+  const queue = (over: Record<string, unknown>) => ({
+    id: randomUUID(),
+    connection_id: connection.id,
+    model_id: 'gpt-6-astra',
+    state: 'running',
+    reason: null,
+    created_by: randomUUID(),
+    created_at: '2026-11-11T10:00:00.000Z',
+    finished_at: null,
+    active: true,
+    items: [
+      item(0, 'specification', 'qualified', '8 of 8 held-out cases passed'),
+      item(1, 'summarization', 'running'),
+    ],
+    ...over,
+  });
+  const html = (q: unknown, qualifications: PlanQualification[] = []) =>
+    renderToStaticMarkup(
+      createElement(QualifyModel, {
+        base: 'workspaces/w',
+        connection,
+        models: ['gpt-6-astra'],
+        qualifications,
+        queue: q,
+        requestsLeft: 19,
+        busy: false,
+        act: async () => null,
+      }),
+    );
+  const idle = html(null);
+  assert.match(idle, /Qualify several tasks/);
+  assert.match(idle, /Qualify all \(2, up to/);
+  assert.match(idle, /Not allowed on this connection, so not offered/);
+  // Review N-4: what is left of the 24-hour cap is said before queueing.
+  assert.match(idle, /19 plan requests left in this connection/);
+  const running = html(queue({}), [
+    qualification({ task_class: 'summarization', executing: true }),
+  ]);
+  assert.match(running, /one task after another: 1 of 2 done/);
+  assert.match(
+    running,
+    /specification · specification-synthetic-v1: qualified/,
+  );
+  for (const b of running.matchAll(/<button([^>]*)>([^<]*)/g))
+    if (b[2]!.startsWith('Cancel the queue'))
+      assert.doesNotMatch(b[1]!, /disabled/, 'the queue can be cancelled');
+    else
+      assert.match(b[1]!, /disabled/, `locked while the queue runs: ${b[0]}`);
+  // No process holds the lease (after a restart): say it waits for the studio.
+  assert.match(
+    html(queue({ active: false })),
+    /Waiting for the studio to pick it up/,
+  );
+  const stopped = html(
+    queue({
+      state: 'stopped',
+      reason:
+        'Stopped: summarization did not qualify (5 of 8 held-out cases passed).',
+      finished_at: '2026-11-11T10:30:00.000Z',
+      items: [
+        item(0, 'specification', 'qualified'),
+        item(1, 'summarization', 'failed', '5 of 8 held-out cases passed'),
+      ],
+    }),
+  );
+  assert.match(stopped, /stopped\. Stopped: summarization did not qualify/);
+  assert.match(stopped, /summarization-synthetic-v1: did not qualify/);
+  // Review N-2: the stop reason the queue line gives is not repeated on the item.
+  const refusedStop = html(
+    queue({
+      state: 'stopped',
+      reason:
+        'Stopped at summarization: This plan request is not admitted. Its answered cases are kept.',
+      finished_at: '2026-11-11T10:30:00.000Z',
+      items: [
+        item(
+          0,
+          'summarization',
+          'stopped',
+          'summarization: This plan request is not admitted.',
+        ),
+      ],
+    }),
+  );
+  assert.equal(refusedStop.split('not admitted').length - 1, 1);
+  assert.match(stopped, />Hide</);
+  assert.doesNotMatch(stopped, /Cancel the queue/);
+});
+
+test('P24 after P12: Qualify several reads each benchmark in its own research synthesis lane (review 3 L-1)', async () => {
+  const { queueChoices } = await loadQualify();
+  const allowed = ['research_synthesis'];
+  const web = (qs: PlanQualification[]) =>
+    queueChoices(qs, 'gpt-6-astra', allowed).find(
+      (c) => c.name === 'web-discovery-v2',
+    )?.eligible;
+  const decided = {
+    task_class: 'research_synthesis' as const,
+    state: 'qualified' as const,
+    decided_at: '2026-11-11T10:05:00.000Z',
+  };
+  // ADR-0086: a locator pass does not qualify web discovery, so web discovery is still offered.
+  assert.equal(
+    web([qualification({ ...decided, admits_web_discovery: false })]),
+    true,
+  );
+  assert.equal(
+    web([qualification({ ...decided, admits_web_discovery: true })]),
+    false,
+  );
+});
+
+test('P24: Qualify several says before it starts when the queue needs more than the daily cap (review 3 L-2)', async () => {
+  const { QualifyModel } = await loadQualify();
+  const html = (cap: number) =>
+    renderToStaticMarkup(
+      createElement(QualifyModel, {
+        base: 'workspaces/w',
+        connection: {
+          id: randomUUID(),
+          kind: 'chatgpt_plan',
+          version: 3,
+          fixture: false,
+          caps_accepted_at: '2026-11-11T09:00:00.000Z',
+          settings: {
+            allowed_data_classes: ['synthetic', 'public'],
+            allowed_task_classes: [
+              'specification',
+              'summarization',
+              'patch_build',
+              'independent_review',
+              'scoring',
+              'research_synthesis',
+            ],
+            caps: {
+              responses: { request_timeout_ms: 120000 },
+              shared: { max_model_requests_per_day: cap },
+            },
+          },
+        },
+        models: ['gpt-6-astra'],
+        qualifications: [],
+        queue: null,
+        requestsLeft: cap,
+        busy: false,
+        act: async () => null,
+      }),
+    );
+  // Six bundled benchmarks: 8 + 8 + 8 + 4 + 4 + 13 plan requests on a fresh connection.
+  const fresh = html(40);
+  assert.match(fresh, /Qualify all \(6, up to 45 plan requests\)/);
+  assert.match(
+    fresh,
+    /Qualify all needs up to 45 plan requests, more than this connection&#x27;s cap of 40 in any 24 hours/,
+  );
+  assert.doesNotMatch(html(45), /more than this connection/);
 });
 
 test('ADR-0089: the discovery benchmarks are listed with their own allow, start and qualified states', async () => {
@@ -654,5 +927,104 @@ test('PR #175 re-review L-A: a start of one role never runs a running qualificat
   assert.equal(
     runningFor([skeptic], 'other-model', 'scoring', 'assessment').kind,
     'free',
+  );
+});
+
+test('P24 with P34: Qualify several offers the discovery benchmarks by name, per role, and not while another role runs', async () => {
+  const { queueChoices, queueBody, offers } = await loadQualify();
+  const discovery = offeredDiscoveryBenchmarks().map(
+    ({ manifest: _m, ...b }) => b,
+  );
+  const list = offers(discovery);
+  const allowed = ['scoring', 'research_synthesis', 'candidate_generation'];
+  const choices = (qs: PlanQualification[]) =>
+    queueChoices(qs, 'gpt-6-astra', allowed, list);
+  const byName = (qs: PlanQualification[]) =>
+    Object.fromEntries(choices(qs).map((c) => [c.name, c]));
+  const skeptic = discovery.find((b) => b.task_class === 'scoring')!.name;
+  const fresh = byName([]);
+  for (const b of discovery) assert.equal(fresh[b.name]?.eligible, true);
+  // Qualify all on a fresh connection: the six bundled benchmarks (45 plan requests) and the
+  // three discovery ones (2 + 4 cases each) come to 63, above the default 40 in any 24 hours.
+  assert.equal(
+    queueChoices(
+      [],
+      'gpt-6-astra',
+      [
+        ...allowed,
+        'specification',
+        'summarization',
+        'patch_build',
+        'independent_review',
+      ],
+      list,
+    ).reduce((n, c) => n + (c as unknown as { requests: number }).requests, 0),
+    63,
+  );
+  assert.equal(fresh['assessment-synthetic-v1']?.eligible, true);
+  // A discovery benchmark is queued by name; the server loads its manifest.
+  assert.deepEqual(queueBody(1, 'gpt-6-astra', [fresh[skeptic]!]).items, [
+    { benchmark: skeptic },
+  ]);
+  // An assessment pass does not qualify the discovery skeptic, and the reverse.
+  const pass = {
+    task_class: 'scoring' as const,
+    state: 'qualified' as const,
+    decided_at: '2026-11-11T10:05:00.000Z',
+  };
+  const assessed = byName([
+    qualification({ ...pass, admits_assessment: true }),
+  ]);
+  assert.equal(assessed['assessment-synthetic-v1']?.eligible, false);
+  assert.equal(assessed[skeptic]?.eligible, true);
+  const skeptical = byName([
+    qualification({ ...pass, admits_discovery: true }),
+  ]);
+  assert.equal(skeptical['assessment-synthetic-v1']?.eligible, true);
+  assert.equal(skeptical[skeptic]?.eligible, false);
+  // A started skeptic run blocks the assessor (one run per model and task class): not offered.
+  const running = byName([
+    qualification({ task_class: 'scoring', admits_discovery: true }),
+  ]);
+  assert.equal(running['assessment-synthetic-v1']?.state.kind, 'other_running');
+  assert.equal(running['assessment-synthetic-v1']?.eligible, false);
+  assert.equal(
+    running[skeptic]?.eligible,
+    true,
+    'the started one is taken over',
+  );
+});
+
+test('P24 review 5 N-3: with nothing else to queue, the section still says why a task waits for another role', async () => {
+  const { QualifyModel } = await loadQualify();
+  const page = renderToStaticMarkup(
+    createElement(QualifyModel, {
+      base: 'workspaces/w',
+      connection: {
+        id: randomUUID(),
+        kind: 'chatgpt_plan',
+        version: 3,
+        fixture: false,
+        caps_accepted_at: '2026-11-11T09:00:00.000Z',
+        settings: {
+          allowed_data_classes: ['synthetic', 'public'],
+          allowed_task_classes: ['scoring'],
+          caps: { responses: { request_timeout_ms: 120000 } },
+        },
+      },
+      models: ['gpt-6-astra'],
+      // A discovery-skeptic run is started; the assessor is the only bundled scoring choice.
+      qualifications: [
+        qualification({ task_class: 'scoring', admits_discovery: true }),
+      ],
+      discovery: [],
+      queue: null,
+      busy: false,
+      act: async () => null,
+    }),
+  );
+  assert.match(
+    page,
+    /no task left to qualify here[^<]*scoring for assessments waits while another role of the same task is started/,
   );
 });

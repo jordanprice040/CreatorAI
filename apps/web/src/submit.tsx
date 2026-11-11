@@ -513,6 +513,7 @@ export function Submit({
   // ADR-0087 (P27): the owner fixes a refusal here, without leaving Discover.
   const fixes: FixContext = {
     base,
+    place: 'submit',
     csrf: session.csrf_token,
     owner: workspace.role === 'owner',
     onDone: () => ctx.refresh(),

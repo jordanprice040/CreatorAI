@@ -43,6 +43,11 @@ export type FixContext = {
   base: string;
   csrf: string;
   owner: boolean;
+  /**
+   * Where the fixes are drawn (for example `assess`, `build:<product>` or `card:<id>`): a fix's
+   * outcome is kept for that place only (review 7 L-2).
+   */
+  place: string;
   /** Called after a fix changed something, so the page reads its state again. */
   onDone?: () => void;
 };
@@ -68,22 +73,44 @@ export function FixButtons({
   );
 }
 
-/** What the last fix that changed something said, per workspace, until dismissed. */
+/** What the last fix that changed something said, per workspace and place, until dismissed. */
 type Note = { text: string; error: string };
+type Where = Pick<FixContext, 'base' | 'place'>;
 const notes = new Map<string, Note>();
 const listeners = new Set<() => void>();
-export function announce(base: string, note: Note) {
-  if (note.text || note.error) notes.set(base, note);
-  else notes.delete(base);
+const noteKey = (w: Where) => `${w.base}|${w.place}`;
+export function announce(where: Where, note: Note) {
+  if (note.text || note.error) notes.set(noteKey(where), note);
+  else notes.delete(noteKey(where));
   for (const f of listeners) f();
 }
 
 /**
- * The outcome of the last fix pressed here (for example "scoring on gpt-6-astra: qualified (6
- * of 6 held-out cases passed)"). Drawn by the page where it stays when the refusal and its
- * buttons go away after the fix worked.
+ * After a press: when it saved anything, the page reads again and the refusal (with this
+ * button) usually goes, so the outcome is kept where it was pressed (`FixOutcome`) and the
+ * button's own lines are cleared; a press that saved nothing keeps its error in the open panel.
+ * Returns whether the panel closes.
  */
-export function FixOutcome({ fix }: { fix: FixContext | null | undefined }) {
+export function settlePress(
+  where: Where,
+  saved: boolean,
+  text: string,
+  failure: string,
+): boolean {
+  if (saved) announce(where, { text, error: failure });
+  return saved;
+}
+
+/**
+ * The outcome of the last fix pressed in this place (for example "scoring on gpt-6-astra:
+ * qualified (6 of 6 held-out cases passed)"). Drawn by the page where it stays when the
+ * refusal and its buttons go away after the fix worked.
+ */
+export function FixOutcome({
+  fix,
+}: {
+  fix: Pick<FixContext, 'base' | 'place' | 'owner'> | null | undefined;
+}) {
   const [, setN] = useState(0);
   useEffect(() => {
     const f = () => setN((x) => x + 1);
@@ -92,20 +119,17 @@ export function FixOutcome({ fix }: { fix: FixContext | null | undefined }) {
       listeners.delete(f);
     };
   }, []);
-  const n = fix?.owner ? notes.get(fix.base) : undefined;
+  const n = fix?.owner ? notes.get(noteKey(fix)) : undefined;
   if (!fix || !n) return null;
+  // One live region (review 7 N-5): the error is part of the status, not a nested alert.
   return (
     <p className="small fix-outcome" role="status">
       {n.text}
-      {n.error && (
-        <span className="error" role="alert" style={{ display: 'block' }}>
-          {n.error}
-        </span>
-      )}{' '}
+      {n.error && <span className="error">{n.error}</span>}{' '}
       <button
         type="button"
         className="text"
-        onClick={() => announce(fix.base, { text: '', error: '' })}
+        onClick={() => announce(fix, { text: '', error: '' })}
       >
         Dismiss
       </button>
@@ -248,6 +272,30 @@ export const serverOffers = (
     }),
   }));
 
+/**
+ * The body that queues these benchmarks for a model (ADR-0088): each item is what would start
+ * it alone, less the version and model the queue carries once (a bundled manifest, or an
+ * offered discovery benchmark by name, ADR-0089).
+ */
+export function queueRequest(
+  offers: readonly QualifyOffer[],
+  expected_version: number,
+  model_id: string,
+) {
+  return {
+    expected_version,
+    model_id,
+    items: offers.map((b) => {
+      const {
+        expected_version: _v,
+        model_id: _m,
+        ...item
+      } = b.start(expected_version, model_id) as Record<string, unknown>;
+      return item;
+    }),
+  };
+}
+
 /** The server's offers for the workspace last read, and that workspace's API path. */
 let offered: { base: string; list: readonly QualifyOffer[] } | null = null;
 const reading = new Map<string, Promise<void>>();
@@ -378,6 +426,8 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
   const [outcome, setOutcome] = useState('');
   const [started, setStarted] = useState<Started[]>([]);
   const clash = started.filter((x) => x.other !== null);
+  // Review 7 M-1: a running qualification queue holds the connection for presses that qualify.
+  const busy = detail ? queueBlocks(a, detail) : null;
   const path = `${fix.base}/plan-connections/${a.connection_id}`;
   // Passthrough as every page reads it: the detail carries more than this schema lists.
   const read = () => api(PlanConnectionDetailSchema.passthrough(), path);
@@ -418,6 +468,7 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     const d = await read();
     if (d.connection.fixture)
       throw new Error('A fixture connection is not qualified in the app.');
+    if (d.qualification_queue?.state === 'running') throw new Error(QUEUE_BUSY);
     // The server keeps one started qualification per model and task: a started run of this
     // benchmark is run on (its answered cases are skipped); one of another is never run here.
     const s = startedFor(d.qualifications, model, task, await b.hash());
@@ -459,6 +510,36 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
       qualified:
         o?.state === 'decided' && o.qualification?.state === 'qualified',
     };
+  }
+
+  /**
+   * Queue qualifications of the model for the tasks on the server (ADR-0088): one request
+   * starts them all, and the studio runs each in turn. A started run of the same benchmark is
+   * run on; the server refuses one of another benchmark, as the confirmation already says.
+   */
+  async function queue(
+    model: string,
+    tasks: readonly string[],
+    role: QualifyRole,
+    saved: () => void,
+  ): Promise<string> {
+    const offers = tasks.map((t) => {
+      const b = benchmarkFor(t, role);
+      if (!b) throw new Error(noBenchmark(t));
+      return b;
+    });
+    // The allow just saved the settings, so the version is read again.
+    const d = await read();
+    if (d.connection.fixture)
+      throw new Error('A fixture connection is not qualified in the app.');
+    // The server refuses a second queue too; this says why before anything else is sent.
+    if (d.qualification_queue?.state === 'running') throw new Error(QUEUE_BUSY);
+    await post(
+      `plan-connections/${d.connection.id}/qualification-queues`,
+      queueRequest(offers, d.connection.version, model),
+    );
+    saved();
+    return `Queued: ${model} for ${tasks.map(words).join(', ')}. The studio runs them one after another, stops at the first that does not pass, and carries on if you leave this page; progress shows under Models and connections.`;
   }
 
   async function apply() {
@@ -523,36 +604,12 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
               ? 'Allowed.'
               : 'Allowed on this connection.',
           );
-          // Qualifying needs accepted caps; without them the allow is all that happens.
+          // Qualifying needs accepted caps; without them the allow is all that happens. The
+          // tasks go to the studio's qualification queue (ADR-0088, P24), which runs them one
+          // after another, stops at the first that does not pass, and carries on when the
+          // person leaves the page.
           if (a.kind === 'allow_tasks' && qualifies(a, detail)) {
-            const model = a.model_id!;
-            for (const [i, t] of a.qualify.entries()) {
-              setOutcome(
-                `${done.join(' ')} Qualifying ${model} for ${words(t)}…`,
-              );
-              const rest = a.qualify.slice(i + 1);
-              const notStarted = () => {
-                if (rest.length)
-                  done.push(`Not started: ${rest.map(words).join(', ')}.`);
-              };
-              let r: { text: string; qualified: boolean };
-              try {
-                r = await qualify(model, t, a.role, save);
-              } catch (e) {
-                // A refused or vanished benchmark stops here too, naming the rest (fifth
-                // review N-2).
-                notStarted();
-                throw e;
-              }
-              done.push(r.text);
-              // Stop at the first task that is not qualified: each run spends plan requests,
-              // and a failure usually means the route or prompt needs attention first
-              // (review L-2, the stop rule of ADR-0088).
-              if (!r.qualified && rest.length) {
-                notStarted();
-                break;
-              }
-            }
+            done.push(await queue(a.model_id!, a.qualify, a.role, save));
           }
           break;
         }
@@ -572,8 +629,7 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
       // the page read again, even after a later step failed (review L-1). The read usually
       // clears the refusal and this button with it, so the outcome is said where the page
       // keeps it (`FixOutcome`), not on the button (walk of November 11).
-      if (saved) {
-        announce(fix.base, { text, error: failure });
+      if (settlePress(fix, saved, text, failure)) {
         setOutcome('');
         setError('');
         setOpen(false);
@@ -582,11 +638,9 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
     }
   }
 
-  // A press that runs a qualification says what running means; one that only allows does not.
-  const runs =
-    a.kind === 'qualify' ||
-    (a.kind === 'allow_tasks' && detail !== null && qualifies(a, detail));
-  const several = a.kind === 'allow_tasks' && a.qualify.length > 1;
+  // A press that runs a qualification here says what running means; an allow that queues
+  // qualifications says so in its confirmation, and the queue runs on the server.
+  const runs = a.kind === 'qualify';
 
   return (
     <span className="fix-here">
@@ -611,16 +665,22 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
               </span>
             ),
           )}
+          {busy && (
+            <span className="error" style={{ display: 'block' }}>
+              {busy}
+            </span>
+          )}
           {working && runs && (
             <>
-              {several
-                ? 'Running: one plan request per case; this can take several minutes. Stay on this page until every task is done; the one running now carries on if you leave, the rest are not started.'
-                : 'Running: one plan request per case; this can take several minutes, and it carries on if you leave this page.'}{' '}
+              Running: one plan request per case; this can take several minutes,
+              and it carries on if you leave this page.{' '}
             </>
           )}
           <button
             type="button"
-            disabled={working || clash.length > 0 || !ready(a, detail)}
+            disabled={
+              working || clash.length > 0 || busy !== null || !ready(a, detail)
+            }
             onClick={() => void apply()}
           >
             {working ? 'Working…' : confirmButton(a)}
@@ -690,6 +750,25 @@ function ready(a: FixAction, d: PlanConnectionDetail): boolean {
         verified(d, a.model_id)
       );
   }
+}
+
+/** Review 7 M-1: what a press that qualifies says while a P24 queue holds the connection. */
+export const QUEUE_BUSY =
+  'A queue is qualifying tasks on this connection; wait for it to finish, or cancel it under Models and connections.';
+
+/**
+ * Why this press may not run now (review 7 M-1): while a qualification queue runs on the
+ * connection (ADR-0088), a press that qualifies would start a run the queue then trips over,
+ * so it waits; a press that only allows (or accepts caps) still works.
+ */
+export function queueBlocks(
+  a: FixAction,
+  d: PlanConnectionDetail,
+): string | null {
+  if (d.qualification_queue?.state !== 'running') return null;
+  const qualifying =
+    a.kind === 'qualify' || (a.kind === 'allow_tasks' && qualifies(a, d));
+  return qualifying ? QUEUE_BUSY : null;
 }
 
 /** Whether an allow-and-qualify press goes on to qualify, read from the connection just now. */
@@ -770,9 +849,11 @@ export function confirmText(a: FixAction, d: PlanConnectionDetail): string {
               .filter(Boolean)
           : [];
       const several =
-        a.kind === 'allow_tasks' && a.qualify.length > 1 && qualifies(a, d)
+        a.kind === 'allow_tasks' && a.qualify.length && qualifies(a, d)
           ? [
-              'Tasks are qualified one after another, stopping at the first that does not pass.',
+              a.qualify.length > 1
+                ? 'The studio queues them and qualifies them one after another, stopping at the first that does not pass; you can leave this page.'
+                : 'The studio queues it and runs it; you can leave this page.',
             ]
           : [];
       const later =

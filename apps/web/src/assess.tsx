@@ -312,6 +312,7 @@ export function AutoAssess({
   // ADR-0087 (P27): the owner fixes the route's refusals here, without leaving Decide.
   const fixes: FixContext = {
     base,
+    place: 'assess',
     csrf: session.csrf_token,
     owner,
     onDone: () => ctx.refresh(),

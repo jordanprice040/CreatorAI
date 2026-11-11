@@ -465,17 +465,18 @@ export function ActionCard({
               })}
               fix={{
                 base: `workspaces/${workspaceId}`,
+                place: `card:${card.id}`,
                 csrf: session.csrf_token,
                 owner,
                 onDone: () => void read(),
               }}
             />
           )}
-          {draft && (
+          {draft && fixFacts && (
             <FixOutcome
               fix={{
                 base: `workspaces/${workspaceId}`,
-                csrf: session.csrf_token,
+                place: `card:${card.id}`,
                 owner,
               }}
             />

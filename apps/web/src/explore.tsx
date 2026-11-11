@@ -341,6 +341,7 @@ export function Explore({
   // ADR-0087 (P27): the owner fixes the route's refusals here, without leaving Explore.
   const fixes: FixContext = {
     base,
+    place: 'explore',
     csrf: session.csrf_token,
     owner: workspace.role === 'owner',
     onDone: () => ctx.refresh(),
