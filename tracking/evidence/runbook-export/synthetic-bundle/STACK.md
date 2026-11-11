@@ -3,6 +3,7 @@
 **Proposed stack: Python command-line program (standard library only).**
 
 This is a proposal, not an owner decision. It is the stack the frozen acceptance cases were written for, so another stack must still pass the same cases in the same way.
+The notes below are not proposals: they say what a program on this stack must do to meet the cases. A program that does not do what a note requires is a review finding, even where the owner’s own check would still pass. A way shown “for example” is only one way to do it.
 
 - Python 3, standard library only. No packages to install and no network at run time.
 - The entry point is `src/main.py`. Each check runs it as `python3 -I src/main.py <arguments>` from the project root, with the case’s standard input.

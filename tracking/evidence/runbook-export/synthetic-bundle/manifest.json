@@ -5,14 +5,14 @@
   "subject": {
     "type": "specification",
     "id": "00000000-0000-4000-8000-000000000001",
-    "version": 2,
-    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "saved_at": "2026-11-10T08:00:00.000Z"
+    "version": 3,
+    "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "saved_at": "2026-11-11T08:00:00.000Z"
   },
   "freeze": {
     "id": "00000000-0000-4000-8000-000000000002",
-    "frozen_at": "2026-11-10T08:05:00.000Z",
-    "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "frozen_at": "2026-11-11T08:05:00.000Z",
+    "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
   "problem": {
     "id": "00000000-0000-4000-8000-000000000003",
@@ -104,13 +104,13 @@
   "files": [
     {
       "path": "CONTRACT.md",
-      "bytes": 3520,
-      "sha256": "6736310e70f9d88bba9a66467b69d91c723fd8779823196ec391f44d84caad7b"
+      "bytes": 3921,
+      "sha256": "e36e3cecac2e7af98454b4914d8ae45f18aea5cb01ba881bdf9e3e73b462752c"
     },
     {
       "path": "DECISIONS.md",
       "bytes": 2084,
-      "sha256": "63b9cf9563647581294661cad19118329e3dfd23a2ab5ff8f5b626fa4fb67f98"
+      "sha256": "46735034b360ca8056a135270e6a87026308581095ceebf7c018ce417b61abc8"
     },
     {
       "path": "EVIDENCE.md",
@@ -120,7 +120,7 @@
     {
       "path": "README.md",
       "bytes": 4302,
-      "sha256": "dfc9d9a9b118c85512a18dff7c8310a134df3e09c8988ffce05bd523ad1cb488"
+      "sha256": "0ee1081b1bf2fcef1d8830b0f62be6a69c079a289c8ec6fd8ef399b9aa353807"
     },
     {
       "path": "RECOVERY.md",
@@ -129,13 +129,13 @@
     },
     {
       "path": "REQUIREMENTS.md",
-      "bytes": 2851,
-      "sha256": "5c1c9bd9a23222e33da49688a666924417b3d55114c096eeefb3faec0fc3d5c1"
+      "bytes": 3227,
+      "sha256": "927d895a060e25a57867858614fb423d1cc34e3c9606413df77ba6998ed30a34"
     },
     {
       "path": "STACK.md",
-      "bytes": 1921,
-      "sha256": "3b2ec4be6b969a1fe95a88a2d6d8862e684df97459159ca746b0e472ff5507e6"
+      "bytes": 2199,
+      "sha256": "7d8a766fe6e1d290be3fb3ae70b9619dd6dd0a0201041c21ba21099122c18f86"
     },
     {
       "path": "TASKS.md",
@@ -144,8 +144,8 @@
     },
     {
       "path": "checks/acceptance.json",
-      "bytes": 1963,
-      "sha256": "1319ae56f91aa69b4ef5d8aa7129ace4438681edf023c8bb3439739e387ceb66"
+      "bytes": 2126,
+      "sha256": "1f8f6f70d7b1456a29293108da90c09e4d74a36a011a2646a650845143bd6e76"
     },
     {
       "path": "checks/run_checks.py",
@@ -174,8 +174,8 @@
     },
     {
       "path": "prompts/05-review-and-repair.md",
-      "bytes": 2593,
-      "sha256": "0ace1458cb5dcee87595f9dd0e32a6e65949dafd8cab8ae4e35d275228b272de"
+      "bytes": 3406,
+      "sha256": "f724c7f706cf87622029719de41139d409347dafb77892f2956fe9a8b3bb7767"
     },
     {
       "path": "prompts/06-verify-and-hand-over.md",
@@ -184,9 +184,9 @@
     },
     {
       "path": "spec.json",
-      "bytes": 4329,
-      "sha256": "681f7fccb904608829081f602c21ac2544f562df35ca90753866de14d7925d4d"
+      "bytes": 4528,
+      "sha256": "16f53ed6cfa9c6a5a6c95614f73be5b616b96837eb1d71fbb97b917277a60959"
     }
   ],
-  "bundle_hash": "b572ed29f6354132e31eef95653c245f572ed7fb2ae6464545cf4ec64210ee80"
+  "bundle_hash": "8648d257ed35a92bb9c91887946dfb2ec8675d0f43aa01c9a4f579137f7b1c7f"
 }
