@@ -727,7 +727,8 @@ test('P34 handover: discovery fixes qualify on the benchmarks the server offers,
       roleOf(m: unknown): string | null;
     };
   };
-  // A studio without the route (main before #175) offers no discovery benchmark.
+  // A studio without the route (main before #175) offers no discovery benchmark, and a
+  // failed first read is not kept: the next page's read tries again (fifth review L-1).
   await mod.loadOffers('workspaces/w');
   assert.equal(mod.canQualifyFor('discovery')('candidate_generation'), false);
   const hash = 'c'.repeat(64);
@@ -751,7 +752,7 @@ test('P34 handover: discovery fixes qualify on the benchmarks the server offers,
       },
     ],
   };
-  await mod.loadOffers('workspaces/w', true);
+  await mod.loadOffers('workspaces/w');
   assert.equal(mod.canQualifyFor('discovery')('candidate_generation'), true);
   const b = mod.benchmarkFor('candidate_generation', 'discovery')!;
   assert.equal(await b.hash(), hash);

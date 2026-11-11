@@ -235,20 +235,23 @@ const reading = new Map<string, Promise<void>>();
 /**
  * Read the server's discovery offers for a workspace (once per workspace, or again with
  * `fresh`, since the server refuses a name it no longer offers). A failed read keeps the list
- * read before for that workspace (fourth review L-1), or offers none.
+ * read before for that workspace (fourth review L-1); with none read yet it caches nothing,
+ * so the next page tries again (fifth review L-1). Until then the workspace offers none.
  */
 export function loadOffers(base: string, fresh = false): Promise<void> {
   if (!fresh && offered?.base === base) return Promise.resolve();
   const pending = reading.get(base);
   if (pending) return pending;
   const p = api(ServerOffersSchema, `${base}/plan-benchmarks`)
-    .then((r) => serverOffers(r.benchmarks))
-    .catch((): readonly QualifyOffer[] =>
-      offered?.base === base ? offered.list : [],
+    .then(
+      (r) => {
+        offered = { base, list: serverOffers(r.benchmarks) };
+      },
+      () => {
+        // Keep a list read before for this workspace; otherwise leave nothing cached.
+        if (offered?.base !== base) offered = null;
+      },
     )
-    .then((list) => {
-      offered = { base, list };
-    })
     .finally(() => reading.delete(base));
   reading.set(base, p);
   return p;
@@ -502,14 +505,25 @@ function FixButton({ act: a, fix }: { act: FixAction; fix: FixContext }) {
               setOutcome(
                 `${done.join(' ')} Qualifying ${model} for ${words(t)}…`,
               );
-              const r = await qualify(model, t, a.role, save);
+              const rest = a.qualify.slice(i + 1);
+              const notStarted = () =>
+                rest.length &&
+                done.push(`Not started: ${rest.map(words).join(', ')}.`);
+              let r: { text: string; qualified: boolean };
+              try {
+                r = await qualify(model, t, a.role, save);
+              } catch (e) {
+                // A refused or vanished benchmark stops here too, naming the rest (fifth
+                // review N-2).
+                notStarted();
+                throw e;
+              }
               done.push(r.text);
               // Stop at the first task that is not qualified: each run spends plan requests,
               // and a failure usually means the route or prompt needs attention first
               // (review L-2, the stop rule of ADR-0088).
-              const rest = a.qualify.slice(i + 1);
               if (!r.qualified && rest.length) {
-                done.push(`Not started: ${rest.map(words).join(', ')}.`);
+                notStarted();
                 break;
               }
             }
@@ -614,11 +628,11 @@ const confirmButton = (a: FixAction) =>
       ? 'Qualify now'
       : 'Allow';
 
-/** Whether the fix can still do something, read from the connection just now. */
 /** Said when a benchmark the fix was drawn for is no longer offered (fourth review L-1). */
 const noBenchmark = (task: string) =>
   `The app no longer offers a benchmark for ${words(task)}; reload the page.`;
 
+/** Whether the fix can still do something, read from the connection just now. */
 function ready(a: FixAction, d: PlanConnectionDetail): boolean {
   const c = d.connection;
   switch (a.kind) {
