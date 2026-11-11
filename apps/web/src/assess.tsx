@@ -23,7 +23,7 @@ import {
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, when, words } from './oversight.js';
+import { ApiError, api, message, when, words } from './oversight.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View } from './ui.js';
@@ -169,8 +169,13 @@ export function AutoAssess({
       AssessmentPreviewSchema,
       `${base}/problems/${problem.id}/assessment-preview${capConnection ? `?connection=${capConnection}` : ''}`,
     ).then(
-      (data) => ({ data, error: '' }),
-      (e: unknown) => ({ data: null, error: message(e) }),
+      (data) => ({ data, error: '', tooLarge: false }),
+      (e: unknown) => ({
+        data: null,
+        error: message(e),
+        // Only the size refusal (an option that does not fit alone) is fixed by a larger cap.
+        tooLarge: e instanceof ApiError && e.code === 'LIMIT_EXCEEDED',
+      }),
     );
   }, [
     workspace.id,
@@ -183,12 +188,17 @@ export function AutoAssess({
   ]);
   const previewRead = pv.data;
   const preview = previewRead?.data ?? null;
-  // Too large, or evidence left out: the owner can raise the connection's input cap.
+  // Too large, or evidence left out for size: the owner can raise the connection's input cap.
   const capHelp =
     owner &&
     resourceKind === 'subscription' &&
     !!plan &&
-    (!!previewRead?.error || (preview?.claims_left_out ?? 0) > 0);
+    (!!previewRead?.tooLarge || (preview?.claims_left_out ?? 0) > 0);
+  const linked = preview
+    ? preview.packet.claims.length +
+      preview.claims_left_out +
+      preview.claims_over_max
+    : 0;
   // One request per batch of options, each with one retry for a malformed answer.
   const requests = preview?.requests ?? 1;
   // On a plan connection the calls stay within its accepted per-run cap; a retry is dropped
@@ -287,6 +297,7 @@ export function AutoAssess({
   const ready =
     !busy &&
     !!preview &&
+    !pv.loading &&
     owner &&
     !running &&
     blockers.length === 0 &&
@@ -405,7 +416,7 @@ export function AutoAssess({
               {preview.packet.claims.length} linked claim
               {preview.packet.claims.length === 1 ? '' : 's'}
               {preview.requests > 1
-                ? ` in ${preview.requests} requests of a few options each, every request with the same claims (${preview.request_chars.map((n) => n.toLocaleString()).join(', ')} of ${preview.limit.toLocaleString()} characters each).`
+                ? ` in ${preview.requests} requests of a few options each, every request with the same claims; the largest is ${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters.`
                 : ` in one request (${preview.chars.toLocaleString()} of ${preview.limit.toLocaleString()} characters).`}{' '}
               {preview.packet.notes.slice(0, -1).join(' ')}{' '}
               <button
@@ -419,11 +430,25 @@ export function AutoAssess({
               </button>
             </p>
           )}
-          {showSent && preview && <Packet packet={preview.packet} />}
+          {showSent && preview && (
+            <>
+              <p className="small">
+                Request sizes:{' '}
+                {preview.request_chars
+                  .map((n) => n.toLocaleString())
+                  .join(', ')}{' '}
+                of {preview.limit.toLocaleString()} characters each.
+              </p>
+              <Packet packet={preview.packet} />
+            </>
+          )}
           {capHelp && (
             <p className="small">
               {preview && preview.claims_left_out > 0
                 ? `${preview.claims_left_out} linked claim${preview.claims_left_out === 1 ? ' is' : 's are'} left out to fit ${plan.connection.label}’s input cap of ${preview.limit.toLocaleString()} characters per request. `
+                : ''}
+              {preview && preview.cap_for_all
+                ? `Reading all of them needs an input cap of about ${preview.cap_for_all.toLocaleString()} characters per request (about ${Math.round(preview.cap_for_all / 4).toLocaleString()} tokens). `
                 : ''}
               To send a larger packet, raise the input cap under “Change caps or
               allowed work” on {plan.connection.label} (the provider must accept
@@ -557,7 +582,15 @@ export function AutoAssess({
                     ? 'Assess again'
                     : 'Assess automatically'}
             </button>
-          ) : (
+          ) : null}
+          {owner && preview && linked > 0 ? (
+            <span className="small">
+              {' '}
+              Rates on {preview.packet.claims.length} of {linked} linked claim
+              {linked === 1 ? '' : 's'}.
+            </span>
+          ) : null}
+          {owner ? null : (
             <p className="small">Only the workspace owner can start one.</p>
           )}
           {error && (

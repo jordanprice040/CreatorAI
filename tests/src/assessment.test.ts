@@ -850,16 +850,18 @@ test('P25: the preview sizes requests to the chosen plan connection input cap, a
   assert.equal(preview.request_chars.length, preview.requests);
   assert.ok(preview.request_chars.every((n) => n <= 200_000));
   assert.equal(preview.claims_left_out, 0);
+  assert.equal(preview.claims_over_max, 0);
+  assert.equal(preview.cap_for_all, null);
   const narrow = await make('Narrow', 7_000);
   await rejects(
-    'INVALID_CONTRACT',
+    'LIMIT_EXCEEDED',
     s.store.previewAssessment(owner, s.ws.id, s.problem.id, narrow.id),
     /7,000 per request.*Change caps/,
   );
   // Starting on the narrow connection is refused the same way, before anything is queued.
   const runId = await s.run();
   await rejects(
-    'INVALID_CONTRACT',
+    'LIMIT_EXCEEDED',
     s.store.startAssessment(
       owner,
       s.ws.id,

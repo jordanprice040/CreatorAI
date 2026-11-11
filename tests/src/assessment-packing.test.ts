@@ -102,10 +102,21 @@ const small = () => ({
   })),
   now: NOW,
 });
-const large = (cap: number) => ({
+const mid = (n: number) => ({
+  id: uid(2000 + n),
+  version: 1,
+  kind: 'build',
+  title: `Option ${n}`,
+  rationale: fill(`Option ${n} rationale`, 500),
+  tradeoffs: [0, 1, 2].map((i) => fill(`Trade ${i}`, 150)),
+  uncertainty: fill('Unknown', 200),
+});
+const large = (cap: number, options = 'long') => ({
   problem,
   alternatives: Array.from({ length: 8 }, (_, i) =>
-    option(i + 1, i % 3 === 2 ? 'process' : 'build', true),
+    options === 'mid'
+      ? mid(i + 1)
+      : option(i + 1, i % 3 === 2 ? 'process' : 'build', true),
   ),
   claims: Array.from({ length: 30 }, (_, i) => ({
     relation: 'supports' as const,
@@ -113,6 +124,7 @@ const large = (cap: number) => ({
   })),
   now: NOW,
   input_cap: cap,
+  route: 'plan' as const,
 });
 
 test('a small problem that fit one request before is unchanged: same packet hashes, one request', () => {
@@ -157,6 +169,7 @@ test('eight long options and thirty claims: every request is under the cap and r
     }
     // Nothing dropped silently: the count is in the packet the model reads.
     assert.equal(plan.packet.claims.length + plan.claims_left_out, 30);
+    assert.equal(plan.claims_over_max, 0);
     if (plan.claims_left_out)
       assert.ok(
         plan.packet.notes.some((n) =>
@@ -170,9 +183,63 @@ test('eight long options and thirty claims: every request is under the cap and r
     assert.ok(p.ok);
     return p.packet.claims.length;
   };
-  assert.ok(at(24_000) >= 1);
+  assert.equal(at(24_000), 4);
   assert.ok(at(40_000) > at(24_000));
   assert.equal(at(120_000), 30);
+});
+
+test('the cap that reads every claim is reported, and reads them all', () => {
+  const plan = buildAssessmentPacket(large(24_000));
+  assert.ok(plan.ok);
+  assert.ok(plan.cap_for_all !== null && plan.cap_for_all > 24_000);
+  assert.equal(plan.cap_for_all % 1000, 0);
+  const all = buildAssessmentPacket(large(plan.cap_for_all!));
+  assert.ok(all.ok);
+  assert.equal(all.claims_left_out, 0);
+  assert.equal(all.cap_for_all, null);
+  const under = buildAssessmentPacket(large(plan.cap_for_all! - 1000));
+  assert.ok(under.ok);
+  assert.ok(under.claims_left_out > 0, 'the smallest such cap, to a thousand');
+});
+
+test('a finer split is used only when it reads clearly more claims (it costs more requests)', () => {
+  // Eight mid-sized options at 32,000: one option per request would read 10 claims in 8
+  // requests; two per request read 9 in 4, so the 4-request split is kept.
+  const plan = buildAssessmentPacket(large(32_000, 'mid'));
+  assert.ok(plan.ok);
+  assert.equal(plan.batches.length, 4);
+  assert.equal(plan.packet.claims.length, 9);
+  // When the finer split reads many more claims it is used: long options at 24,000.
+  const long = buildAssessmentPacket(large(24_000));
+  assert.ok(long.ok);
+  assert.equal(long.batches.length, 8);
+});
+
+test('claims past the 30-claim maximum are counted apart: no cap reads them', () => {
+  const plan = buildAssessmentPacket({
+    problem,
+    alternatives: [mid(1)],
+    claims: Array.from({ length: 40 }, (_, i) => ({
+      relation: 'supports' as const,
+      evidence: claimEvidence(i + 1, 100),
+    })),
+    now: NOW,
+    input_cap: 200_000,
+    route: 'plan',
+  });
+  assert.ok(plan.ok);
+  assert.equal(plan.packet.claims.length, 30);
+  assert.equal(plan.claims_left_out, 0);
+  assert.equal(plan.claims_over_max, 10);
+  assert.equal(plan.cap_for_all, null);
+  assert.ok(
+    plan.packet.notes.some((n) =>
+      n.startsWith(
+        '10 more linked claims were not read: one assessment reads at most 30',
+      ),
+    ),
+  );
+  assert.ok(!plan.packet.notes.some((n) => /input characters/.test(n)));
 });
 
 test('the count matches what the worker sends to plan admission (instructions plus JSON input)', () => {
@@ -192,7 +259,15 @@ test('one option that does not fit alone is refused with what it needs and where
   assert.equal(plan.ok, false);
   if (plan.ok) return;
   assert.ok(plan.needed > 12_000);
-  assert.match(plan.problem, /Option O1/);
+  // Led by the option's title; the internal ref means nothing in Decide.
+  assert.match(plan.problem, /^The option “Option 1 build”/);
+  assert.doesNotMatch(plan.problem, /O1/);
   assert.match(plan.problem, /12,000 per request/);
   assert.match(plan.problem, /Change caps/);
+  // On an API or local route there is no connection cap to raise.
+  const api = buildAssessmentPacket({ ...large(12_000), route: 'other' });
+  assert.equal(api.ok, false);
+  if (api.ok) return;
+  assert.doesNotMatch(api.problem, /cap under Models/);
+  assert.match(api.problem, /Shorten its rationale or trade-offs\.$/);
 });

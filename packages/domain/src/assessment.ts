@@ -55,8 +55,18 @@ export const rubricsForKind = (kind: string): RubricId[] =>
 const clip = (s: string, n: number) =>
   s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
-/** The per-request input cap for routes that have none of their own (API, local, fixture). */
-export const DEFAULT_ASSESSMENT_INPUT_CHARS = 24_000;
+/**
+ * The per-request input size for routes that have no input cap of their own (API, local,
+ * fixture). Chosen so these routes read at least as much evidence as the fixed 19,000-character
+ * packet did before ADR-0085 (whose role text was not counted), on every problem measured.
+ */
+export const DEFAULT_ASSESSMENT_INPUT_CHARS = 32_000;
+/**
+ * A finer split (more requests) is kept only when it reads clearly more claims: at least this
+ * many more, or at least a fifth more. Each request repeats the role text and every claim, so
+ * twice the requests costs about twice the plan allowance.
+ */
+const FINER_SPLIT_MIN_GAIN = 3;
 /** Room kept in each request for the notes, which are written after the claims are chosen. */
 const NOTE_RESERVE = 1_200;
 
@@ -92,21 +102,19 @@ export type AssessmentPlan =
       /** Each request's counted input, in batch order. */
       request_chars: number[];
       input_cap: number;
+      /** Linked claims no request reads because of the input cap. */
       claims_left_out: number;
+      /** Linked claims past the 30-claim maximum, which no cap would read. */
+      claims_over_max: number;
+      /**
+       * The smallest input cap (rounded up to a thousand) at which no claim is left out for
+       * size; null when none is left out (or none could be found).
+       */
+      cap_for_all: number | null;
     }
   | { ok: false; problem: string; needed: number; input_cap: number };
 
-/**
- * The packet for one problem and how it is split into requests (ADR-0085, amending ADR-0074):
- * its options (current versions), the claims linked to it with their two strongest passages,
- * and the rubrics with their hashes. Each request carries a few options and must fit the
- * route's per-request input cap, counted with the role text. Every request reads the same
- * claim set, so options in different requests are rated on the same evidence: claims are
- * added in the order given while they fit beside the largest request's options, and the
- * options are split more finely (down to one per request) when that lets more claims in.
- * When one option alone does not fit, nothing is built and the refusal says what it needs.
- */
-export function buildAssessmentPacket(input: {
+type AssessmentInput = {
   problem: {
     id: string;
     version: number;
@@ -128,8 +136,45 @@ export function buildAssessmentPacket(input: {
   now: Date;
   /** The route's per-request input cap (`caps.responses.max_input_chars` on a plan connection). */
   input_cap?: number;
-}): AssessmentPlan {
-  const cap = input.input_cap ?? DEFAULT_ASSESSMENT_INPUT_CHARS;
+  /** A plan connection's cap can be raised by its owner; other routes have a fixed size. */
+  route?: 'plan' | 'other';
+};
+
+/**
+ * The packet for one problem and how it is split into requests (ADR-0085, amending ADR-0074):
+ * its options (current versions), the claims linked to it with their two strongest passages,
+ * and the rubrics with their hashes. Each request carries a few options and must fit the
+ * route's per-request input cap, counted with the role text. Every request reads the same
+ * claim set, so options in different requests are rated on the same evidence: claims are
+ * added in the order given while they fit beside the largest request's options, and the
+ * options are split more finely (down to one per request) when that lets more claims in.
+ * When one option alone does not fit, nothing is built and the refusal says what it needs.
+ */
+export function buildAssessmentPacket(input: AssessmentInput): AssessmentPlan {
+  const plan = planAt(input, input.input_cap ?? DEFAULT_ASSESSMENT_INPUT_CHARS);
+  if (!plan.ok) return plan;
+  const { estimate_for_all, ...found } = plan;
+  if (found.claims_left_out === 0) return found;
+  // The cap that would read every claim: start from the one-option-per-request estimate and
+  // step up until the chosen split leaves none out for size.
+  let cap = Math.max(
+    Math.ceil(estimate_for_all / 1000) * 1000,
+    found.input_cap + 1000,
+  );
+  for (let i = 0; i < 60; i++, cap += 1000) {
+    const at = planAt(input, cap);
+    if (at.ok && at.claims_left_out === 0)
+      return { ...found, cap_for_all: cap };
+  }
+  return found;
+}
+
+function planAt(
+  input: AssessmentInput,
+  cap: number,
+):
+  | (Extract<AssessmentPlan, { ok: true }> & { estimate_for_all: number })
+  | Extract<AssessmentPlan, { ok: false }> {
   const options: AssessmentOption[] = input.alternatives
     .slice(0, MAX_ASSESSMENT_OPTIONS)
     .map((a, i) => ({
@@ -192,7 +237,10 @@ export function buildAssessmentPacket(input: {
         ok: false,
         needed,
         input_cap: cap,
-        problem: `Option ${o.ref} (“${clip(o.title, 80)}”) needs about ${needed.toLocaleString('en-US')} characters in one request with no evidence, and this route accepts ${cap.toLocaleString('en-US')} per request. Shorten its rationale or trade-offs, or raise the connection's input cap under Models and connections, Change caps or allowed work.`,
+        problem:
+          input.route === 'plan'
+            ? `The option “${clip(o.title, 80)}” needs about ${needed.toLocaleString('en-US')} characters in one request with no evidence, and this connection accepts ${cap.toLocaleString('en-US')} per request. Shorten its rationale or trade-offs, or raise the connection's input cap under Models and connections (Change caps or allowed work).`
+            : `The option “${clip(o.title, 80)}” needs about ${needed.toLocaleString('en-US')} characters in one request with no evidence, more than the ${cap.toLocaleString('en-US')} an assessment request holds on this route. Shorten its rationale or trade-offs.`,
       };
   }
 
@@ -265,11 +313,13 @@ export function buildAssessmentPacket(input: {
     const batches = split(per);
     const largest = Math.max(...batches.map(base));
     const claims = pick(cap - NOTE_RESERVE - largest);
+    const gain = best ? claims.length - best.claims.length : 0;
     if (
       !best ||
-      claims.length > best.claims.length ||
-      (claims.length === best.claims.length &&
-        batches.length < best.batches.length)
+      (gain > 0 &&
+        (gain >= FINER_SPLIT_MIN_GAIN ||
+          claims.length >= best.claims.length * 1.2)) ||
+      (gain === 0 && batches.length < best.batches.length)
     )
       best = { batches, claims };
     if (claims.length === Math.min(candidates.length, MAX_CLAIMS)) break;
@@ -277,16 +327,29 @@ export function buildAssessmentPacket(input: {
   const { batches } = best!;
   let claims = best!.claims;
 
+  const overMax = Math.max(0, input.claims.length - MAX_CLAIMS);
+  const forSize = (n: number) => Math.max(0, input.claims.length - n - overMax);
+  // One option per request reads the most: its largest request plus every readable claim.
+  const estimate_for_all =
+    Math.max(...options.map((o) => base([o.ref]))) +
+    NOTE_RESERVE +
+    candidates
+      .slice(0, MAX_CLAIMS)
+      .reduce((n, make, i) => n + quoted(make(`C${i + 1}`)) + 1, 0);
   const notesFor = (n: number) => {
     const notes: string[] = [];
-    const skipped = input.claims.length - n;
+    const skipped = forSize(n);
     if (input.alternatives.length > MAX_ASSESSMENT_OPTIONS)
       notes.push(
         `${input.alternatives.length - MAX_ASSESSMENT_OPTIONS} more options were not assessed: one assessment covers at most ${MAX_ASSESSMENT_OPTIONS}.`,
       );
     if (skipped > 0)
       notes.push(
-        `${skipped} linked claim${skipped === 1 ? ' was' : 's were'} not read: every request reads the same claims, at most ${MAX_CLAIMS}, within this route's ${cap.toLocaleString('en-US')} input characters per request.`,
+        `${skipped} linked claim${skipped === 1 ? ' was' : 's were'} not read to fit this route's ${cap.toLocaleString('en-US')} input characters per request; every request reads the same claims.`,
+      );
+    if (overMax > 0)
+      notes.push(
+        `${overMax} more linked claim${overMax === 1 ? ' was' : 's were'} not read: one assessment reads at most ${MAX_CLAIMS} claims.`,
       );
     if (!input.claims.length)
       notes.push(
@@ -303,15 +366,27 @@ export function buildAssessmentPacket(input: {
     const request_chars = batches.map((refs) =>
       assessmentRequestChars(packetForOptions(packet, refs)),
     );
-    if (request_chars.every((n) => n <= cap) || !claims.length)
+    if (request_chars.every((n) => n <= cap))
       return {
         ok: true,
         packet,
         batches,
         request_chars,
         input_cap: cap,
-        claims_left_out: input.claims.length - claims.length,
+        claims_left_out: forSize(claims.length),
+        claims_over_max: overMax,
+        cap_for_all: null,
+        estimate_for_all,
       };
+    if (!claims.length) {
+      const needed = Math.max(...request_chars);
+      return {
+        ok: false,
+        needed,
+        input_cap: cap,
+        problem: `The assessment needs about ${needed.toLocaleString('en-US')} characters in one request with no evidence, more than the ${cap.toLocaleString('en-US')} this route accepts.`,
+      };
+    }
     claims = claims.slice(0, -1);
   }
 }

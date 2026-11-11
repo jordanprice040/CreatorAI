@@ -776,6 +776,8 @@ export class SelectionStore extends DiscoveryStore {
       requests: built.batches.length,
       request_chars: built.request_chars,
       claims_left_out: built.claims_left_out,
+      claims_over_max: built.claims_over_max,
+      cap_for_all: built.cap_for_all,
     };
   }
 
@@ -811,6 +813,8 @@ export class SelectionStore extends DiscoveryStore {
     request_chars: number[];
     input_cap: number;
     claims_left_out: number;
+    claims_over_max: number;
+    cap_for_all: number | null;
     evidence: AssessmentWorkflowContext['evidence'];
     linked_hash: string;
   }> {
@@ -913,8 +917,10 @@ export class SelectionStore extends DiscoveryStore {
       claims,
       now: new Date(),
       ...(read.cap ? { input_cap: read.cap } : {}),
+      route: route ? 'plan' : 'other',
     });
-    if (!plan.ok) throw fail('INVALID_CONTRACT', plan.problem);
+    // LIMIT_EXCEEDED marks the size refusal, so Decide offers raising the cap only for it.
+    if (!plan.ok) throw fail('LIMIT_EXCEEDED', plan.problem);
     const { packet } = plan;
     const support = await this.tx((c) =>
       this.supportHashes(
@@ -929,6 +935,8 @@ export class SelectionStore extends DiscoveryStore {
       request_chars: plan.request_chars,
       input_cap: plan.input_cap,
       claims_left_out: plan.claims_left_out,
+      claims_over_max: plan.claims_over_max,
+      cap_for_all: plan.cap_for_all,
       linked_hash: supportHash(read.claims.map((x) => x.from_id)),
       evidence: packet.claims.map((x) => ({
         id: x.claim_id,
