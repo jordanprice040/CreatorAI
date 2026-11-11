@@ -103,12 +103,19 @@ export class SourceBroker {
    * PR #173 review N-6: how many pages one run may fetch in this workspace now (the fixture
    * policy for a fixture workspace), or null when no fetch is allowed at all.
    */
-  async fetchCapFor(ctx: CommandContext, ws: string): Promise<number | null> {
+  async fetchCapFor(
+    ctx: CommandContext,
+    ws: string,
+  ): Promise<{ cap: number | null; live: boolean }> {
     const fixture = await this.store.isFixtureWorkspace(ctx, ws);
     const policy = fixture
       ? this.policies.fixture
       : await this.policyFor(ctx, ws);
-    return policy?.max_fetches_per_run ?? null;
+    return {
+      cap: policy?.max_fetches_per_run ?? null,
+      // Re-review R-5: false when this studio has no live fetcher at all.
+      live: fixture || this.adapters.live !== null,
+    };
   }
 
   /** What Settings shows: the list in force, where it came from, and its change history. */

@@ -205,11 +205,15 @@ export function WebDiscover({
           `${model} is not qualified for web discovery (the web-discovery-v1 benchmark). Qualify it under Models and connections first.`,
         ]
       : []),
-    ...(current?.data?.max_fetches_per_run === null
+    ...(current?.data?.fetching_available === false
       ? [
-          'No evidence websites are approved for this workspace, so no page could be fetched. Add them in Settings.',
+          'Live page fetching is turned off for this studio (CREATOR_SOURCE_FETCH=off), so no page could be fetched.',
         ]
-      : []),
+      : current?.data?.max_fetches_per_run === null
+        ? [
+            'No evidence websites are approved for this workspace, so no page could be fetched. Add them in Settings.',
+          ]
+        : []),
     ...(live
       ? [
           'A web discovery is still working; one runs at a time in a workspace, so wait for it or cancel it.',

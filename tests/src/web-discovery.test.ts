@@ -129,6 +129,14 @@ test('only URLs the provider search listed are fetched; exclusions, repeats and 
       ['invalid_url', 'model_suggested'],
     ],
   );
+  // Re-review R-4: a search source reported over http is fetched at its https form.
+  const plain = checkScoutOutput(
+    { summary: 'Searched.', leads: [lead('https://g.org/plain')] },
+    [call(['http://g.org/plain'])],
+    scope(),
+  );
+  assert.ok(plain.ok);
+  assert.equal(plain.ok && plain.leads[0]!.url, 'https://g.org/plain');
   // PR #173 review L-1: fetched at the URL the search reported, not the model's spelling.
   assert.equal(r.leads[4]!.url, 'https://b.org/1?utm_medium=x');
   assert.equal(r.leads[3]!.url, 'https://invented.org/page');
@@ -218,6 +226,22 @@ test('page furniture is flagged and stored after the page text (walkthrough item
       })),
     ).quality,
     'usable',
+  );
+  // Re-review R-1: several related cards together do not outweigh a short real article.
+  const card = (n: number) =>
+    `<article><h3>Related ${n}</h3><p>${'Another story about how small teams plan their weekly volunteer shifts and swap them. '.repeat(2)}</p></article>`;
+  const short = extractDocument(
+    Buffer.from(
+      `<html><body><main><h1>Rota swaps</h1><p>${'Coordinators told us that every swap means texting people one by one late at night. '.repeat(4)}</p></main>
+       <aside>${[1, 2, 3, 4].map(card).join('')}</aside><div class="more">${[5, 6, 7, 8].map(card).join('')}</div></body></html>`,
+    ),
+    'text/html',
+    new URL('https://blog.example.org/swaps'),
+  );
+  assert.ok(
+    short.paragraphs
+      .filter((p) => p.text.startsWith('Coordinators told us'))
+      .every((p) => !p.boilerplate),
   );
   // A page wrapped in one <form> (some site frameworks) is not all furniture.
   const wrapped = extractDocument(
@@ -322,7 +346,8 @@ test('a proposed claim counts only with a supporting quote found word for word',
           {
             ref: 'S2.P1',
             stance: 'contradicts',
-            quote: 'saw no change in waits at all',
+            // Re-review R-3: a short contrary quote still counts against the claim.
+            quote: 'no change in waits',
           },
         ]),
         claim('Waits doubled.', [
@@ -1108,4 +1133,49 @@ test('a routine policy with the evidence stage adds checked claims; without it t
     0,
     'a claim the policy does not cover raises no decision',
   );
+});
+
+test('under a routine policy a claim whose quote no longer binds is skipped, and the rest stays', async (t) => {
+  // Re-review R-6: one claim throwing rolls back only its own savepoint.
+  const h = await setup(t);
+  if (!h) return;
+  await h.qualify();
+  const runId = await h.run();
+  const d = await h.start(runId);
+  assert.equal(d.state, 'done');
+  const observation = d.proposals.find(
+    (p) => p.check === 'verified' && p.basis === 'observation',
+  )!;
+  // The first page is redacted after reading, so its quotes no longer occur in stored text.
+  await h.db.pool.query(
+    'update source_passages set excerpt = null where source_id = $1',
+    [observation.evidence[0]!.source_id],
+  );
+  const p: RoutinePolicyInput = {
+    stages: ['research', 'evidence'],
+    data_classes: ['public'],
+    max_actions: 5,
+    max_total_nano_usd: null,
+    stop_on: ['person_rejects'],
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    rationale: 'Test policy.',
+  };
+  await h.store.setRoutinePolicy(owner, h.ws.id, runId, {
+    ...p,
+    summary_seen: routinePolicySummary(p),
+  });
+  const r = await h.store.admitWebClaimsByPolicy(owner, h.ws.id, d.id);
+  assert.equal(r.admitted, 0);
+  assert.match(r.note ?? '', /claim 1/);
+  const after = await h.store.getWebDiscovery(owner, h.ws.id, d.id);
+  assert.equal(
+    after.proposals.find((x) => x.id === observation.id)!.decision,
+    'pending',
+  );
+  assert.match(after.explanation, /Not added: claim 1/);
+  const claims = await h.db.pool.query(
+    `select 1 from entities where workspace_id = $1 and kind = 'claim'`,
+    [h.ws.id],
+  );
+  assert.equal(claims.rowCount, 0, 'the skipped claim left nothing behind');
 });

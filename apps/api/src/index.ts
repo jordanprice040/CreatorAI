@@ -2055,10 +2055,11 @@ export function createApi(
       return send(
         200,
         sources
-          ? {
+          ? await sources.fetchCapFor(ctx, ws).then((f) => ({
               ...preview,
-              max_fetches_per_run: await sources.fetchCapFor(ctx, ws),
-            }
+              max_fetches_per_run: f.cap,
+              fetching_available: f.live,
+            }))
           : preview,
         false,
       );

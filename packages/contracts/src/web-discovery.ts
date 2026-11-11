@@ -55,6 +55,8 @@ export const WebDiscoveryPreviewSchema = z.strictObject({
    * is approved. Absent when the studio has no fetcher.
    */
   max_fetches_per_run: z.number().int().min(1).nullable().optional(),
+  /** False when this studio has live fetching turned off (CREATOR_SOURCE_FETCH=off). */
+  fetching_available: z.boolean().optional(),
 });
 export type WebDiscoveryPreview = z.infer<typeof WebDiscoveryPreviewSchema>;
 

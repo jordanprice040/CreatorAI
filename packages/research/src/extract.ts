@@ -137,18 +137,25 @@ export function extractDocument(
   let published: string | null = null;
   let timeCandidate: string | null = null;
   let canonical: string | null = null;
-  const blocks: { text: string; main: boolean; chrome: boolean }[] = [];
+  const blocks: {
+    text: string;
+    main: boolean;
+    chrome: boolean;
+    /** Which outermost article/main region holds it (-1: none). */
+    region: number;
+  }[] = [];
   let hasMain = false;
   if (media === 'text/plain') {
     for (const part of raw.split(/\n\s*\n/)) {
       const text = squash(part);
-      if (text) blocks.push({ text, main: true, chrome: false });
+      if (text) blocks.push({ text, main: true, chrome: false, region: 0 });
     }
   } else {
     let skip = 0;
     let inTitle = false;
     let titleText = '';
     let mainDepth = 0;
+    let region = -1;
     /** One entry per open element: whether it starts site chrome. */
     const chromeStack: boolean[] = [];
     let chromeDepth = 0;
@@ -157,7 +164,12 @@ export function extractDocument(
       const text = squash(buf);
       buf = '';
       if (text)
-        blocks.push({ text, main: mainDepth > 0, chrome: chromeDepth > 0 });
+        blocks.push({
+          text,
+          main: mainDepth > 0,
+          chrome: chromeDepth > 0,
+          region: mainDepth > 0 ? region : -1,
+        });
     };
     const parser = new Parser(
       {
@@ -176,6 +188,7 @@ export function extractDocument(
           if (name === 'title') inTitle = true;
           if (name === 'article' || name === 'main') {
             if (BLOCK.has(name)) flush();
+            if (mainDepth === 0) region += 1;
             mainDepth += 1;
             hasMain = true;
           } else if (BLOCK.has(name) || CHROME.has(name)) flush();
@@ -214,9 +227,19 @@ export function extractDocument(
   // Likewise site chrome is trusted only when real text remains outside it.
   const open = blocks.filter((b) => !b.chrome);
   const total = open.reduce((n, b) => n + words(b.text), 0);
-  const inMain = open
-    .filter((b) => b.main)
-    .reduce((n, b) => n + words(b.text), 0);
+  // Re-review R-1: only the largest marked region counts, so several small "related" cards
+  // together cannot outweigh a short real article.
+  const byRegion = new Map<number, number>();
+  for (const b of open)
+    if (b.region >= 0)
+      byRegion.set(b.region, (byRegion.get(b.region) ?? 0) + words(b.text));
+  let largest = -1;
+  let inMain = 0;
+  for (const [r, n] of byRegion)
+    if (n > inMain) {
+      largest = r;
+      inMain = n;
+    }
   const trustMain = hasMain && inMain * 2 >= total;
   const all = blocks.reduce((n, b) => n + words(b.text), 0);
   const trustChrome = total >= 40 || total * 2 >= all;
@@ -229,7 +252,7 @@ export function extractDocument(
       end: offset + b.text.length,
       // Outside the marked article, inside site chrome, or an interface label.
       boilerplate:
-        (trustMain && !b.main) ||
+        (trustMain && b.region !== largest) ||
         (trustChrome && b.chrome) ||
         looksLikeFurniture(b.text),
     });

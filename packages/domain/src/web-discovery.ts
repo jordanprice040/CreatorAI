@@ -222,7 +222,13 @@ export function checkScoutOutput(
     if (key) seen.add(key);
     return {
       ordinal,
-      url: ((key && listed.get(key)) ?? l.url).slice(0, 2000),
+      // Re-review R-4: an http:// spelling is fetched as its https key, never refused later.
+      url: (key && listed.has(key)
+        ? /^https:\/\//i.test(listed.get(key)!)
+          ? listed.get(key)!
+          : key
+        : l.url
+      ).slice(0, 2000),
       url_key: (key ?? l.url).slice(0, 2000),
       host,
       title: l.title,
@@ -451,7 +457,9 @@ export function checkReaderOutput(
       const evidence = c.evidence.map((e) => {
         const hit = passages.get(e.ref);
         const found = !!hit && quoteInPassage(hit.passage.text, e.quote);
-        const verified = found && webQuoteLongEnough(e.quote);
+        // Re-review R-3: the length rule is for support; a short contrary quote still counts.
+        const verified =
+          found && (e.stance === 'contradicts' || webQuoteLongEnough(e.quote));
         if (!hit) reasons.push(`${e.ref} is not a passage in the packet.`);
         else if (!found)
           reasons.push(

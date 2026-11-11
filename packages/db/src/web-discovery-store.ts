@@ -642,7 +642,15 @@ export class WebDiscoveryStore extends PortfolioStore {
       );
       const inferences = pending.length - observations.length;
       const skipped: string[] = [];
-      for (const r of observations) {
+      // Re-review R-2: with no routine policy on the run, nothing is tried and the note is short.
+      const hasPolicy = !!(
+        await c.query(
+          `select 1 from routine_policies where workspace_id = $1 and run_id = $2
+             and status = 'active'`,
+          [ws, runId],
+        )
+      ).rowCount;
+      for (const r of hasPolicy ? observations : []) {
         const action = {
           action_type: 'claim.admit' as const,
           task_id: null,
@@ -701,7 +709,7 @@ export class WebDiscoveryStore extends PortfolioStore {
           admitted
             ? `Your routine policy added ${admitted} checked claim${admitted === 1 ? '' : 's'}; ${waiting} wait${waiting === 1 ? 's' : ''} for you.`
             : `${waiting} checked claim${waiting === 1 ? '' : 's'} wait${waiting === 1 ? 's' : ''} for you to add or dismiss.`,
-          inferences ? 'Inferences always wait for you.' : '',
+          hasPolicy && inferences ? 'Inferences always wait for you.' : '',
           note ? `No routine policy added the rest: ${note}` : '',
           skipped.length ? `Not added: ${skipped.join('; ')}` : '',
         ]
@@ -776,7 +784,11 @@ export class WebDiscoveryStore extends PortfolioStore {
     let rows = 0;
     for (const e of p.evidence) {
       // The stored excerpt is checked again by addClaimSupportIn; the length rule here.
-      if (!e.verified || !e.passage_id || !webQuoteLongEnough(e.quote))
+      if (
+        !e.verified ||
+        !e.passage_id ||
+        (e.stance === 'supports' && !webQuoteLongEnough(e.quote))
+      )
         continue;
       try {
         await this.addClaimSupportIn(c, ctx, ws, claim.id, {
