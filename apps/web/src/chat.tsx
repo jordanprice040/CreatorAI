@@ -39,7 +39,7 @@ import {
 import { placeLabel, type View } from './pages.js';
 import { AnswerView } from './chat-answers.js';
 import { ActionCard } from './chat-card.js';
-import { LABEL, cardForStep, type CardKind } from './chat-cards.js';
+import { LABEL, againInput, cardForStep, type CardKind } from './chat-cards.js';
 import {
   ChatContextPicker,
   SCOPE_LABEL,
@@ -432,9 +432,7 @@ export function Chat({
   }
   /** A new draft with a finished card's answers; its records are read again when shown. */
   function again(card: ChatAction) {
-    const input = Object.fromEntries(
-      Object.entries(card.input).filter(([k]) => !k.startsWith('_')),
-    );
+    const input = againInput(card.kind, card.input);
     // It goes to the end of the conversation, where the person is now.
     return startCard(card.kind, latestMessage.current, input, card.id);
   }

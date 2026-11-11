@@ -486,6 +486,24 @@ const fund: Spec<FundData> = {
   title: (v) => `Set up the budget “${str(v.name) || 'Studio budget'}”`,
 };
 
+/**
+ * The answers a card sent again starts from: the person's own answers, without the page's
+ * working keys. Re-review N-8: a fetch card that registered a new run does not register
+ * another; the run question is answered again from the runs that can fetch now.
+ */
+export function againInput(
+  kind: CardKind,
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(input).filter(
+      ([k, v]) =>
+        !k.startsWith('_') &&
+        !(kind === 'fetch_source' && k === 'run' && v === 'new'),
+    ),
+  );
+}
+
 // ---- fetch_source -----------------------------------------------------------------------
 
 const fetchSource: Spec<FetchData> = {
@@ -510,10 +528,10 @@ const fetchSource: Spec<FetchData> = {
       label: 'Run',
       prompt: d.runs.length
         ? 'Which run fetches it?'
-        : 'No run can fetch pages yet. Register a new evidence-gathering run for this?',
+        : 'Fetching needs a run with a 24-hour fetch grant. Register a new evidence-gathering run?',
       help: d.runs.length
         ? undefined
-        : 'Like “Register a run for fetching” under Sources: it gets a grant to fetch public pages for 24 hours, nothing else.',
+        : 'Like “Register a run for fetching” under Sources: the run may fetch public pages for 24 hours, nothing else. Pick it to go on, or put the card away to cancel.',
       type: 'choice',
       ...(d.runs.length
         ? {

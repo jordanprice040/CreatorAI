@@ -55,6 +55,10 @@ type Mod = {
   ) => View;
   fill: (v: unknown, got: Record<string, unknown>) => unknown;
   fillPath: (path: string, got: Record<string, unknown>) => string;
+  againInput: (
+    kind: string,
+    input: Record<string, unknown>,
+  ) => Record<string, unknown>;
   pick: (v: unknown, path: string) => unknown;
   cardForStep: (
     view: string | null,
@@ -359,5 +363,29 @@ test('a default never adds a grant: a new fetching run is always asked (review M
   assert.equal(
     existing.view.steps[0]!.path,
     `workspaces/${ws}/runs/${run.id}/source-fetches`,
+  );
+
+  // Re-review N-8: sending a fetch card again does not register a second run; the run the
+  // first send registered is now the routine choice.
+  const repeat = m.againInput('fetch_source', {
+    ...none.input,
+    url,
+    run: 'new',
+  });
+  assert.deepEqual(repeat, { url });
+  const again = walk(
+    m,
+    'fetch_source',
+    { runs: [run], pages: [url] },
+    {},
+    ctx(),
+    repeat,
+  );
+  assert.deepEqual(again.asked, []);
+  assert.equal(again.view.steps.length, 1);
+  // Other kinds keep every answer but the page's working keys.
+  assert.deepEqual(
+    m.againInput('fund_budget', { name: 'x', _op: 'y', run: 'new' }),
+    { name: 'x', run: 'new' },
   );
 });

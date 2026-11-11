@@ -33,7 +33,7 @@ the record of each package and are appended to, not rewritten.
 | P17 integrated acceptance                  | Not started                                                                                                                                                                               |
 | P18 collapsible options, shorter pages   | Open as PR #162 (review-clean; nit fixes in progress) |
 | P19 Standard/Advanced across the app       | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; independent review done and its findings (1 Medium, 5 Low, 6 nits) fixed, re-review next |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; review and re-review findings fixed, final re-review next |
 | P21 quick model switch                   | Merged (PR #161; ADR-0081, migration 51) |
 | P22 live API and GitHub checks           | Open as PR #160 (review-clean; nit fixes in progress); Jordan approved the live API and GitHub tests November 10 |
 
@@ -1013,4 +1013,8 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257â€
   N-6 fixed as recorded in ADR-0083's review amendment. New tests: a fetch card asks about a new run (M-1), the
   study-run refusal through a card (L-4), "Send again" keeping origin and answer (L-5, in `chat-answers.test.ts`),
   `in_trail` marks (N-3), a demoted sender recording the outcome (N-4), whole-value placeholders (N-1). Migration 53
-  gained `again_of` in place (unreleased). Re-review next.
+  gained `again_of` in place (unreleased).
+- Re-review fixes (November 11, `/mnt/project-files/reviews/P20_PR165_REREVIEW.md`, 1 Low and 3 nits): a refusal whose
+  only caused events record the refusal ends `refused`, not `partial` (L-6; tests for both); the committed walk was
+  updated and re-run on a fresh `p20walk` (N-7); "Send again" on a fetch card reuses the run it registered (N-8); the
+  new-run question is reworded (N-9). Next: a final re-review.

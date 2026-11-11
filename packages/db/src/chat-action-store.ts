@@ -124,16 +124,33 @@ export async function chatActionEvents(
   ws: string,
   sentEvent: string,
   actor: string,
-): Promise<{ count: number; subjects: Set<string> }> {
+): Promise<{ count: number; work: number; subjects: Set<string> }> {
   const { rows } = await c.query(
-    `select subject_id::text as subject_id from audit_events
+    `select action, subject_id::text as subject_id, payload from audit_events
      where workspace_id = $1 and causation_id = $2 and actor_id = $3`,
     [ws, sentEvent, actor],
   );
   return {
     count: rows.length,
+    work: rows.filter(
+      (r) => !refusalRecord({ action: r.action, payload: r.payload }),
+    ).length,
     subjects: new Set(rows.map((r) => String(r.subject_id))),
   };
+}
+
+/**
+ * Re-review L-6: an event that only records a route's refusal (a study-run denial, a blocked
+ * fetch, an action the policy did not allow). A refused send whose only events are these did
+ * none of the requested work, so it ends `refused`, not `partial`.
+ */
+export function refusalRecord(e: { action: unknown; payload: unknown }) {
+  const p = (e.payload ?? {}) as Record<string, unknown>;
+  return (
+    (typeof e.action === 'string' && e.action.endsWith('_denied')) ||
+    (e.action === 'source.fetch_recorded' && p.state !== 'fetched') ||
+    (e.action === 'action.evaluated' && p.verdict !== 'allow')
+  );
 }
 
 /** Refuses a change made against an older version of the card. */

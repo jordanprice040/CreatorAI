@@ -1,11 +1,11 @@
 {
-  "ws": "29fc9b22-7db6-45ea-a4fd-8f03ca9413b9",
+  "ws": "2165d67f-edfd-4a04-9aea-af06d3f123e4",
   "log": [
     {
       "step": "0 workspace",
       "value": {
-        "name": "P20 walk 04:42:45",
-        "ws": "29fc9b22-7db6-45ea-a4fd-8f03ca9413b9"
+        "name": "P20 walk 05:53:57",
+        "ws": "2165d67f-edfd-4a04-9aea-af06d3f123e4"
       }
     },
     {
@@ -26,6 +26,10 @@
         {
           "key": "url",
           "prompt": "Which page should the studio fetch?"
+        },
+        {
+          "key": "run",
+          "prompt": "Fetching needs a run with a 24-hour fetch grant. Register a new evidence-gathering run?"
         }
       ]
     },
@@ -50,14 +54,14 @@
       "step": "1 sent",
       "value": {
         "state": "Done",
-        "result": "run: Evidence gathering\nsource: https://health.fixture.test/reports/clinic-access-2025\n\nSent Nov 11, 2026, 4:43 AM · 6 audit events name this send as their cause"
+        "result": "run: Evidence gathering\nsource: https://health.fixture.test/reports/clinic-access-2025\n\nSent Nov 11, 2026, 5:54 AM · 6 audit events name this send as their cause"
       }
     },
     {
       "step": "1b refused sent",
       "value": {
-        "state": "Refused; part of it was recorded",
-        "result": "Fetch the page through the source broker (Sources): not-approved.example.org is not on the owner-approved source list.\n\nSent Nov 11, 2026, 4:43 AM · 1 audit event names this send as their cause"
+        "state": "Refused",
+        "result": "Fetch the page through the source broker (Sources): not-approved.example.org is not on the owner-approved source list.\n\nSent Nov 11, 2026, 5:54 AM · 1 audit event names this send as their cause"
       }
     },
     {
@@ -120,7 +124,7 @@
       "step": "2 sent",
       "value": {
         "state": "Done",
-        "result": "claim: Rural patients wait weeks for a first clinic appointment.\n\nSent Nov 11, 2026, 4:43 AM · 3 audit events name this send as their cause"
+        "result": "claim: Rural patients wait weeks for a first clinic appointment.\n\nSent Nov 11, 2026, 5:55 AM · 3 audit events name this send as their cause"
       }
     },
     {
@@ -152,7 +156,7 @@
       "step": "3 sent",
       "value": {
         "state": "Done",
-        "result": "budget: Studio budget\n\nSent Nov 11, 2026, 4:44 AM · 2 audit events name this send as their cause"
+        "result": "budget: Studio budget\n\nSent Nov 11, 2026, 5:55 AM · 2 audit events name this send as their cause"
       }
     },
     {
@@ -233,7 +237,7 @@
       "step": "4 sent",
       "value": {
         "state": "Done",
-        "result": "run: Discovery: rural clinic appointment waits\nworkflow: Discovery: rural clinic appointment waits\n\nSent Nov 11, 2026, 4:44 AM · 8 audit events name this send as their cause"
+        "result": "run: Discovery: rural clinic appointment waits\nworkflow: Discovery: rural clinic appointment waits\n\nSent Nov 11, 2026, 5:56 AM · 8 audit events name this send as their cause"
       }
     },
     {
@@ -303,7 +307,7 @@
       "step": "6 sent",
       "value": {
         "state": "Done",
-        "result": "scorecard: Human-led: a named coordinator owns Median days from request to appointment\n\nSent Nov 11, 2026, 4:45 AM · 2 audit events name this send as their cause"
+        "result": "scorecard: Human-led: a named coordinator owns Median days from request to appointment\n\nSent Nov 11, 2026, 5:57 AM · 2 audit events name this send as their cause"
       }
     },
     {
@@ -314,21 +318,21 @@
       "step": "7 asked",
       "value": [
         "problem",
-        "d_117ea076-0036-4d81-80e0-5ab162105305",
-        "why_117ea076-0036-4d81-80e0-5ab162105305",
-        "rev_117ea076-0036-4d81-80e0-5ab162105305",
-        "d_5124f859-9740-4d55-8b1a-2d6b03484f71",
-        "why_5124f859-9740-4d55-8b1a-2d6b03484f71",
-        "rev_5124f859-9740-4d55-8b1a-2d6b03484f71",
-        "d_54c412e7-c181-4d18-9b3e-39f346888510",
-        "why_54c412e7-c181-4d18-9b3e-39f346888510",
-        "rev_54c412e7-c181-4d18-9b3e-39f346888510",
-        "d_6fc61adc-f742-4f8e-a9e4-0ae1184775f2",
-        "why_6fc61adc-f742-4f8e-a9e4-0ae1184775f2",
-        "rev_6fc61adc-f742-4f8e-a9e4-0ae1184775f2",
-        "d_fd1aebc2-bc82-4dad-968b-b0279f1d68f0",
-        "why_fd1aebc2-bc82-4dad-968b-b0279f1d68f0",
-        "rev_fd1aebc2-bc82-4dad-968b-b0279f1d68f0",
+        "d_2bcef2af-1cbc-4ab6-9082-6e9b92ebdfe0",
+        "why_2bcef2af-1cbc-4ab6-9082-6e9b92ebdfe0",
+        "rev_2bcef2af-1cbc-4ab6-9082-6e9b92ebdfe0",
+        "d_50f32561-6ee8-4cd8-b3db-b24028799407",
+        "why_50f32561-6ee8-4cd8-b3db-b24028799407",
+        "rev_50f32561-6ee8-4cd8-b3db-b24028799407",
+        "d_9b77ec2c-1674-4e51-8398-679cb51e7c92",
+        "why_9b77ec2c-1674-4e51-8398-679cb51e7c92",
+        "rev_9b77ec2c-1674-4e51-8398-679cb51e7c92",
+        "d_e2a53f03-aff4-46c4-924e-57da6a928255",
+        "why_e2a53f03-aff4-46c4-924e-57da6a928255",
+        "rev_e2a53f03-aff4-46c4-924e-57da6a928255",
+        "d_f1ed7482-614a-4185-8504-0f5f6e3326c1",
+        "why_f1ed7482-614a-4185-8504-0f5f6e3326c1",
+        "rev_f1ed7482-614a-4185-8504-0f5f6e3326c1",
         "rationale"
       ]
     },
@@ -341,13 +345,13 @@
         "happen": [
           "Problem",
           "rural clinic appointment waits: Rural patients wait weeks for a first clinic appointment. v1",
-          "Human-led: a named coordinator owns Median days from reques…",
-          "Recommend (no new software)",
           "Change the process behind Median days from request to appoi…",
           "Defer",
-          "Use an existing tool (none evidenced)",
-          "Defer",
+          "Human-led: a named coordinator owns Median days from reques…",
+          "Recommend (no new software)",
           "Software: rural clinic appointment waits",
+          "Defer",
+          "Use an existing tool (none evidenced)",
           "Defer",
           "Hybrid: staff review supported by a simple list from existi…",
           "Defer",
@@ -360,8 +364,8 @@
     {
       "step": "7 sent",
       "value": {
-        "state": "Done",
-        "result": "Held for a decision: Needs a person: outside grant. It waits in Approvals; answer it, then send this card again.\n\nSent Nov 11, 2026, 4:46 AM · 2 audit events name this send as their cause"
+        "state": "Held for a decision",
+        "result": "Held for a decision: Needs a person: outside grant. It waits in Approvals; answer it, then send this card again.\n\nSent Nov 11, 2026, 5:57 AM · 2 audit events name this send as their cause"
       }
     },
     {
@@ -376,7 +380,7 @@
       "step": "7 approve sent",
       "value": {
         "state": "Done",
-        "result": "Sent Nov 11, 2026, 4:46 AM · 2 audit events name this send as their cause"
+        "result": "Sent Nov 11, 2026, 5:58 AM · 2 audit events name this send as their cause"
       }
     },
     {
@@ -387,7 +391,7 @@
       "step": "7 again sent",
       "value": {
         "state": "Done",
-        "result": "selection: rural clinic appointment waits: Rural patients wait weeks for a first clinic appointment.\n\nSent Nov 11, 2026, 4:47 AM · 3 audit events name this send as their cause"
+        "result": "selection: rural clinic appointment waits: Rural patients wait weeks for a first clinic appointment.\n\nSent Nov 11, 2026, 5:58 AM · 3 audit events name this send as their cause"
       }
     },
     {
@@ -423,7 +427,7 @@
       "step": "8 sent",
       "value": {
         "state": "Done",
-        "result": "proposal: Proposal: Human-led: a named coordinator owns Median days from request to appointment\n\nSent Nov 11, 2026, 4:47 AM · 2 audit events name this send as their cause"
+        "result": "proposal: Proposal: Human-led: a named coordinator owns Median days from request to appointment\n\nSent Nov 11, 2026, 5:58 AM · 2 audit events name this send as their cause"
       }
     },
     {
@@ -460,7 +464,7 @@
         {
           "kind": "fetch_source",
           "origin": "studio",
-          "state": "partial",
+          "state": "refused",
           "events": 1,
           "sent_by": "00000000-0000-4000-8000-000000000001"
         },
@@ -532,108 +536,108 @@
     {
       "step": "errors",
       "value": [
-        "409 POST http://127.0.0.1:5183/api/workspaces/29fc9b22-7db6-45ea-a4fd-8f03ca9413b9/chats/be53c67f-13ad-406a-b83b-c5e69865d6ce/actions/a63bd2f9-30f2-4509-9998-5eab47f79416/send"
+        "409 POST http://127.0.0.1:5183/api/workspaces/2165d67f-edfd-4a04-9aea-af06d3f123e4/chats/ecffea4e-9075-406b-be2a-a4f9ee45fdf2/actions/1f38f468-71d2-45e2-b23a-401fd08c4181/send"
       ]
     }
   ],
   "errors": [
-    "409 POST http://127.0.0.1:5183/api/workspaces/29fc9b22-7db6-45ea-a4fd-8f03ca9413b9/chats/be53c67f-13ad-406a-b83b-c5e69865d6ce/actions/a63bd2f9-30f2-4509-9998-5eab47f79416/send"
+    "409 POST http://127.0.0.1:5183/api/workspaces/2165d67f-edfd-4a04-9aea-af06d3f123e4/chats/ecffea4e-9075-406b-be2a-a4f9ee45fdf2/actions/1f38f468-71d2-45e2-b23a-401fd08c4181/send"
   ],
   "formRequests": [
     {
       "path": "/api/workspaces/…/entities",
-      "causation": "ad7d0135-52fc-47f8-9a47-f7d41bcf9023",
-      "card": "0272ed77-8c6b-4d59-a78b-5c555ea368fe"
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
     },
     {
       "path": "/api/workspaces/…/runs",
-      "causation": "ad7d0135-52fc-47f8-9a47-f7d41bcf9023",
-      "card": "0272ed77-8c6b-4d59-a78b-5c555ea368fe"
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
     },
     {
       "path": "/api/workspaces/…/grants",
-      "causation": "ad7d0135-52fc-47f8-9a47-f7d41bcf9023",
-      "card": "0272ed77-8c6b-4d59-a78b-5c555ea368fe"
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
     },
     {
-      "path": "/api/workspaces/…/runs/9184835c-68fc-45f3-acf7-bbc35087e7d6/source-fetches",
-      "causation": "ad7d0135-52fc-47f8-9a47-f7d41bcf9023",
-      "card": "0272ed77-8c6b-4d59-a78b-5c555ea368fe"
+      "path": "/api/workspaces/…/runs/7fd34d5f-2f8f-4cc0-86a1-70c80b22d3b2/source-fetches",
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
     },
     {
-      "path": "/api/workspaces/…/runs/9184835c-68fc-45f3-acf7-bbc35087e7d6/source-fetches",
-      "causation": "c7f85518-957f-47fc-9dbe-8ee098a0e0f7",
-      "card": "f1ef30dc-2b4f-4181-8151-d803097613b3"
+      "path": "/api/workspaces/…/runs/7fd34d5f-2f8f-4cc0-86a1-70c80b22d3b2/source-fetches",
+      "causation": "9cb47a4b-8949-4278-9be8-1305969c3649",
+      "card": "1e5c01bf-458e-4e5c-a63d-24567d493ce9"
     },
     {
       "path": "/api/workspaces/…/entities",
-      "causation": "e51f5ce0-9394-4c3b-98f2-c19835645500",
-      "card": "f3d8eb9d-0818-4875-b6e5-b07f46292092"
+      "causation": "8f42a397-c867-45e6-9c36-8b4f3b5f649c",
+      "card": "9984c1ee-18cb-4b31-834d-01b69127fd7a"
     },
     {
-      "path": "/api/workspaces/…/claims/0c9fdcde-0b3a-4689-820d-d6f7fcd01dd0/support",
-      "causation": "e51f5ce0-9394-4c3b-98f2-c19835645500",
-      "card": "f3d8eb9d-0818-4875-b6e5-b07f46292092"
+      "path": "/api/workspaces/…/claims/065a2c23-73e4-452e-8530-8a16d4f7ecc3/support",
+      "causation": "8f42a397-c867-45e6-9c36-8b4f3b5f649c",
+      "card": "9984c1ee-18cb-4b31-834d-01b69127fd7a"
     },
     {
       "path": "/api/workspaces/…/budgets",
-      "causation": "a0c858b0-8db4-4547-a326-21e9b4da0840",
-      "card": "7f3dcbfb-7645-4472-9c47-cc2147fd401c"
+      "causation": "3a4216bf-54af-453b-b38e-9dc2dcf7d74c",
+      "card": "3565a520-22a5-4ea8-a203-129678962073"
     },
     {
       "path": "/api/workspaces/…/pricing",
-      "causation": "a0c858b0-8db4-4547-a326-21e9b4da0840",
-      "card": "7f3dcbfb-7645-4472-9c47-cc2147fd401c"
+      "causation": "3a4216bf-54af-453b-b38e-9dc2dcf7d74c",
+      "card": "3565a520-22a5-4ea8-a203-129678962073"
     },
     {
       "path": "/api/workspaces/…/entities",
-      "causation": "0c6bf849-8d80-4f5c-b980-e86e60ce7cb8",
-      "card": "78d2feb1-2aeb-4391-af45-06898ec1afb1"
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
     },
     {
       "path": "/api/workspaces/…/entities",
-      "causation": "0c6bf849-8d80-4f5c-b980-e86e60ce7cb8",
-      "card": "78d2feb1-2aeb-4391-af45-06898ec1afb1"
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
     },
     {
       "path": "/api/workspaces/…/runs",
-      "causation": "0c6bf849-8d80-4f5c-b980-e86e60ce7cb8",
-      "card": "78d2feb1-2aeb-4391-af45-06898ec1afb1"
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
     },
     {
       "path": "/api/workspaces/…/grants",
-      "causation": "0c6bf849-8d80-4f5c-b980-e86e60ce7cb8",
-      "card": "78d2feb1-2aeb-4391-af45-06898ec1afb1"
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
     },
     {
-      "path": "/api/workspaces/…/runs/e7cd9906-c8b5-49e3-a78a-44f89d0272f7/discoveries",
-      "causation": "0c6bf849-8d80-4f5c-b980-e86e60ce7cb8",
-      "card": "78d2feb1-2aeb-4391-af45-06898ec1afb1"
+      "path": "/api/workspaces/…/runs/a50d663a-c278-45af-9dea-061c4728434e/discoveries",
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
     },
     {
       "path": "/api/workspaces/…/scorecards",
-      "causation": "2eca92c5-cbce-48f1-914f-7e89093fe61e",
-      "card": "bef191a0-6f96-4925-8c74-b1dab3af9951"
+      "causation": "8adf381e-cb4e-4fff-a9b7-dc2ffb72c13e",
+      "card": "2b46c4de-8302-4cd9-8ed9-6ee6e52178be"
     },
     {
-      "path": "/api/workspaces/…/runs/e7cd9906-c8b5-49e3-a78a-44f89d0272f7/selections",
-      "causation": "a7ac4baa-9911-4bc1-a638-a7c6a4474eee",
-      "card": "3939fda3-a020-47b6-923f-c26b354990c5"
+      "path": "/api/workspaces/…/runs/a50d663a-c278-45af-9dea-061c4728434e/selections",
+      "causation": "3debd8d7-7d8a-4b09-8823-5743a087d8da",
+      "card": "f882dbf6-5fc6-49db-8c4e-4a054687d9d7"
     },
     {
-      "path": "/api/workspaces/…/decisions/dfe89b6e-78f5-4b42-b559-c74586a240d4/answer",
-      "causation": "8c828932-7988-4ea0-9b50-4ba226ee88d2",
-      "card": "19546e00-ca67-4736-84f2-554248333d07"
+      "path": "/api/workspaces/…/decisions/a041e7b0-df8a-4f67-acd2-8f25e89441b2/answer",
+      "causation": "aefb5c54-5e28-4f6b-a98a-3397416da017",
+      "card": "007957ff-f7b5-4dc0-a3b9-c00c74bcd8b0"
     },
     {
-      "path": "/api/workspaces/…/runs/e7cd9906-c8b5-49e3-a78a-44f89d0272f7/selections",
-      "causation": "05db2da5-035d-40d2-abde-2ce2459c09ff",
-      "card": "3177c971-e7e4-43c2-b496-80e872416dbe"
+      "path": "/api/workspaces/…/runs/a50d663a-c278-45af-9dea-061c4728434e/selections",
+      "causation": "f76cfb01-f43e-4c86-a48d-ce7831cd5b3a",
+      "card": "4974d442-a876-4b47-b4d9-6edc2b896389"
     },
     {
       "path": "/api/workspaces/…/proposals",
-      "causation": "61fa2a0d-5050-47d6-a522-0ae1d7f0086c",
-      "card": "df509484-71d0-42f2-97be-a66b1819f383"
+      "causation": "bd9852e8-0520-4d5c-92ca-702623a2ffcc",
+      "card": "caefe968-72c4-49b8-b917-c9a445265962"
     }
   ]
 }

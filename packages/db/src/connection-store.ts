@@ -1165,11 +1165,13 @@ export class ConnectionStore extends PortfolioStore {
           ? events > 0
             ? 'done'
             : 'unconfirmed'
-          : events > 0
-            ? req.ok === false
+          : req.ok === false
+            ? trail.work > 0
               ? 'partial'
-              : 'unconfirmed'
-            : 'refused';
+              : 'refused'
+            : events > 0
+              ? 'unconfirmed'
+              : 'refused';
       const reason =
         req.ok === null
           ? state === 'refused'

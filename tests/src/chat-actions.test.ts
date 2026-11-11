@@ -259,6 +259,35 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
   assert.equal(r3.outcome.events, 0);
   assert.equal(r3.reason, no.body.error.message);
 
+  // Re-review L-6: a refusal after real work was saved is still "partial".
+  const c6 = await make();
+  const s6 = (
+    await call('POST', `${cards}/${c6.id}/send`, { expected_version: 1 })
+  ).body;
+  const t6 = { 'X-Causation-Id': s6.causation_id, 'X-Correlation-Id': c6.id };
+  const first = await call(
+    'POST',
+    `workspaces/${ws}/budgets`,
+    budget('Half done'),
+    t6,
+  );
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  const second = await call(
+    'POST',
+    `workspaces/${ws}/budgets`,
+    { ...budget('Bad'), cap_nano_usd: '-5' },
+    t6,
+  );
+  assert.equal(second.status, 400);
+  const r6 = (
+    await call('POST', `${cards}/${c6.id}/outcome`, {
+      ok: false,
+      code: second.body.error.code,
+      message: second.body.error.message,
+    })
+  ).body;
+  assert.equal(r6.state, 'partial');
+
   // Review L-4: a card's step in a study run stays refused with the form's own code and words.
   // The body is the discovery card's own last step, sent against a human-only run.
   const m = (await loadWeb('chat-cards.ts')) as {
@@ -370,9 +399,10 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
       message: viaCard.body.error.message,
     })
   ).body;
-  // The refusal itself is recorded and names the send, so the card reads "Refused; part of it
-  // was recorded" with the form's words; no discovery started.
-  assert.equal(r5.state, 'partial');
+  // Re-review L-6: only the refusal itself was recorded (it names the send), so the card ends
+  // "refused" with the form's words, and the event count still shows the record.
+  assert.equal(r5.state, 'refused');
+  assert.equal(r5.outcome.events, 1);
   assert.equal(r5.reason, viaCard.body.error.message);
   const caused = await db.pool.query(
     `select action from audit_events where workspace_id = $1 and causation_id = $2`,
@@ -399,7 +429,7 @@ test('chat cards over HTTP: a send names its requests; done, unconfirmed and ref
   const detail = (await call('GET', `workspaces/${ws}/chats/${chat}`)).body;
   assert.deepEqual(
     detail.actions.map((a: { state: string }) => a.state),
-    ['done', 'unconfirmed', 'refused', 'partial', 'dismissed'],
+    ['done', 'unconfirmed', 'refused', 'partial', 'refused', 'dismissed'],
   );
   // Another workspace's address cannot reach a card.
   const other = (

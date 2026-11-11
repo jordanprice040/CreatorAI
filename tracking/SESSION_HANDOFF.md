@@ -33,7 +33,7 @@ the record of each package and are appended to, not rewritten.
 | P17 integrated acceptance                  | Not started                                                                                                                                                                               |
 | P18 collapsible options, shorter pages   | Open as PR #162 (review-clean; nit fixes in progress) |
 | P19 Standard/Advanced across the app       | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; independent review done and its findings (1 Medium, 5 Low, 6 nits) fixed, re-review next |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; review and re-review findings fixed, final re-review next |
 | P21 quick model switch                   | Merged (PR #161; ADR-0081, migration 51) |
 | P22 live API and GitHub checks           | Open as PR #160 (review-clean; nit fixes in progress); Jordan approved the live API and GitHub tests November 10 |
 
@@ -69,7 +69,10 @@ the form's `HUMAN_ONLY_DENIED`; L-5 "Send again" names the card it repeats (`aga
 model answer; N-1 placeholders fill whole values and path segments only; N-2 no repeated source; N-3 records marked
 `in_trail` by the store; N-4 a sender who lost the editor role can still record the outcome; N-5 plain message over
 40 records; N-6 DECISIONS.md reflows reverted and the package table corrected. Migration 53 was edited in place
-(never released): a database that ran the earlier 53 must be re-created. Next: re-review in a new thread.
+(never released): a database that ran the earlier 53 must be re-created.
+Re-review (`/mnt/project-files/reviews/P20_PR165_REREVIEW.md`): L-6 refusal-only events no longer make a card
+`partial`; N-7 walk script updated and re-run; N-8 "Send again" on a fetch card reuses its run; N-9 new-run question
+reworded. Next: a final re-review in a new thread.
 
 ## Next eligible prompt
 

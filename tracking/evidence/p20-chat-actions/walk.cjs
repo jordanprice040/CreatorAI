@@ -201,7 +201,7 @@ let WS = null;
     note(
       '1 asked',
       await fill(
-        { url: 'https://health.fixture.test/reports/clinic-access-2025' },
+        { url: 'https://health.fixture.test/reports/clinic-access-2025', run: '*' },
         'fetch',
       ),
     );
@@ -372,7 +372,7 @@ let WS = null;
     await shot('choice-card', card());
     let state7 = await send('7');
     // A run in the loop asks before a selection is recorded: approve, then send it again.
-    for (let i = 0; i < 3 && /Done/.test(state7); i++) {
+    for (let i = 0; i < 3 && /Done|Held for a decision/.test(state7); i++) {
       const held = await card().locator('.chat-card-result').innerText();
       if (!/Held for a decision/.test(held)) break;
       note('7 held', held.split('\n')[0]);
