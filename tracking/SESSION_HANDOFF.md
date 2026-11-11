@@ -766,6 +766,16 @@ Reddit empty shells). Fetching remains the bottleneck; no search API is justifie
 results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 `tracking/evidence/search-route-test-2026-11-10/plan-route/`. No ADR or migration.
 
+## P21 current-model switch (November 10, 2026, ADR-0081, migration 51)
+
+Branch `claude/project-thread-6af37w`. The owner picks a current model beside the usage indicator; forms
+start from it and say so when it is not qualified for their task (offering a qualified one); a saved chat
+setting follows the switch; started work keeps its route. Details, evidence and limits: BUILD_STATUS.md
+"P21 current-model switch" and ADR-0081. Migration 51 and ADR-0081 were reserved with the parallel P18 and
+P22 threads (they were told to take 52/0082 and 53/0083 if they need numbers). Next free after this PR:
+migration 52, ADR-0082 (recheck main). Next eligible: independent review of this PR in a separate thread;
+then P19 per the November 10 order.
+
 ## P16 runbook wording follow-up — November 11, 2026
 
 Jordan approved a follow-up PR for the eight Low wording gaps (R1–R8) the separate prompt 05 reviewer found in

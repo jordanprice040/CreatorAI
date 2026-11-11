@@ -16,6 +16,7 @@ import { STALE_NOTE } from './owner-actions.js';
 import { usePageActive } from './page-drafts.js';
 import { QualificationResults } from './qualification-results.js';
 import { QualifyModel } from './qualify.js';
+import { useModelChoice } from './model-switch.js';
 import {
   capChanges,
   capHint,
@@ -122,6 +123,7 @@ export function Models({
   // PR #118 review L1: every connection change is owner-only on the server, so the actions are
   // offered to the owner only; other members see the state.
   const owner = workspace.role === 'owner';
+  const choice = useModelChoice(workspace);
   const active = usePageActive();
   const [loaded, setLoaded] = useState(false);
   const [list, setList] = useState<PlanConnection[]>([]);
@@ -1013,6 +1015,9 @@ export function Models({
                 (q) => q.state === 'running',
               )}
               busy={busy || !session}
+              preferred={
+                choice?.connection_id === c.id ? choice.model_id : null
+              }
               act={act}
             />
           )}

@@ -1,0 +1,156 @@
+[
+  {
+    "step": "1 before any switch: Explore model",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "1 before any switch: Discover model",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "1 before any switch: Discover page notes",
+    "value": []
+  },
+  {
+    "step": "1 before any switch: Assess model",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "1 before any switch: Assess note",
+    "value": []
+  },
+  {
+    "step": "1 before any switch: Qualify model",
+    "value": null
+  },
+  {
+    "step": "1 before any switch: Chat answers card model",
+    "value": null
+  },
+  {
+    "step": "1 before any switch: model selects on Models page",
+    "value": ["(chat card)"]
+  },
+  {
+    "step": "1 before any switch: Chat answers card model",
+    "value": ["claude-walk-sonnet"]
+  },
+  {
+    "step": "1 before any switch: Chat intro",
+    "value": "answered by claude-walk-sonnet"
+  },
+  {
+    "step": "switch to claude-walk-haiku: status",
+    "value": "Switched to claude-walk-haiku. Chat answers use it too. Runs already started keep their model."
+  },
+  {
+    "step": "2 after switching to haiku: Explore model",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "2 after switching to haiku: Discover model",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "2 after switching to haiku: Discover page notes",
+    "value": [
+      "claude-walk-haiku (your current model) is not qualified for research synthesis, so Explore can't run on it. No verified model here is qualified for it yet; qualify one under Models and connections.",
+      "claude-walk-haiku (your current model) is not qualified for research synthesis, candidate generation, scoring, so Discover can't run on it. No verified model here is qualified for it yet; qualify one under Models and connections."
+    ]
+  },
+  {
+    "step": "2 after switching to haiku: Assess model",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "2 after switching to haiku: Assess note",
+    "value": [
+      "claude-walk-haiku (your current model) is not qualified for scoring, so Assess can't run on it. No verified model here is qualified for it yet; qualify one under Models and connections."
+    ]
+  },
+  {
+    "step": "2 after switching to haiku: Qualify model",
+    "value": null
+  },
+  {
+    "step": "2 after switching to haiku: Chat answers card model",
+    "value": null
+  },
+  {
+    "step": "2 after switching to haiku: model selects on Models page",
+    "value": ["(chat card)"]
+  },
+  {
+    "step": "2 after switching to haiku: Chat answers card model",
+    "value": ["claude-walk-haiku"]
+  },
+  {
+    "step": "2 after switching to haiku: Chat intro",
+    "value": "answered by claude-walk-haiku"
+  },
+  {
+    "step": "switch to claude-walk-sonnet: status",
+    "value": "Switched to claude-walk-sonnet. Chat answers use it too. Runs already started keep their model."
+  },
+  {
+    "step": "3 after switching to sonnet: Explore model",
+    "value": "claude-walk-sonnet"
+  },
+  {
+    "step": "3 after switching to sonnet: Discover model",
+    "value": "claude-walk-sonnet"
+  },
+  {
+    "step": "3 after switching to sonnet: Discover page notes",
+    "value": [
+      "claude-walk-sonnet (your current model) is not qualified for research synthesis, so Explore can't run on it. No verified model here is qualified for it yet; qualify one under Models and connections.",
+      "claude-walk-sonnet (your current model) is not qualified for research synthesis, candidate generation, scoring, so Discover can't run on it. No verified model here is qualified for it yet; qualify one under Models and connections."
+    ]
+  },
+  {
+    "step": "3 after switching to sonnet: Assess model",
+    "value": "claude-walk-sonnet"
+  },
+  {
+    "step": "3 after switching to sonnet: Assess note",
+    "value": [
+      "claude-walk-sonnet (your current model) is not qualified for scoring, so Assess can't run on it. No verified model here is qualified for it yet; qualify one under Models and connections."
+    ]
+  },
+  {
+    "step": "3 after switching to sonnet: Qualify model",
+    "value": null
+  },
+  {
+    "step": "3 after switching to sonnet: Chat answers card model",
+    "value": null
+  },
+  {
+    "step": "3 after switching to sonnet: model selects on Models page",
+    "value": ["(chat card)"]
+  },
+  {
+    "step": "3 after switching to sonnet: Chat answers card model",
+    "value": ["claude-walk-sonnet"]
+  },
+  {
+    "step": "3 after switching to sonnet: Chat intro",
+    "value": "answered by claude-walk-sonnet"
+  },
+  {
+    "step": "Discover after picking haiku on the form",
+    "value": "claude-walk-haiku"
+  },
+  {
+    "step": "Discover notes after the form pick",
+    "value": []
+  },
+  {
+    "step": "top bar after the form pick",
+    "value": "Modelclaude-walk-sonnet"
+  },
+  {
+    "step": "errors",
+    "value": []
+  }
+]

@@ -41,6 +41,7 @@ export function QualifyModel({
   allowed,
   running,
   busy,
+  preferred = null,
   act,
 }: {
   /** The workspace's API path, e.g. `workspaces/<id>`. */
@@ -57,6 +58,8 @@ export function QualifyModel({
   allowed: readonly string[];
   running: PlanQualification[];
   busy: boolean;
+  /** ADR-0081: the current model, preselected when it is verified on this connection. */
+  preferred?: string | null;
   act: (
     path: string,
     body: unknown,
@@ -126,7 +129,11 @@ export function QualifyModel({
   }
   const chosen = BENCHMARKS.find((b) => b.name === bench);
   const p = `plan-connections/${connection.id}`;
-  const pick = model || models[0] || '';
+  const pick =
+    (models.includes(model) ? model : '') ||
+    (preferred && models.includes(preferred) ? preferred : '') ||
+    models[0] ||
+    '';
   return (
     <fieldset>
       <legend>Qualify a model for a task</legend>
