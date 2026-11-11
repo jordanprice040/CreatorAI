@@ -8,8 +8,8 @@ This file separates what people recorded as decided from what this bundle only p
   - Reason: Highest suitability among the options scored
   - Rationale: Build the small local tool (synthetic selection).
   - It would be reversed if: Writers say they will not use a terminal.
-- **Requirements frozen** on 2026-11-10 at spec version 2 (freeze 00000000).
-- **Should-this-be-software review** (review 00000000, of spec version 2): disposition “build”.
+- **Requirements frozen** on 2026-11-11 at spec version 3 (freeze 00000000).
+- **Should-this-be-software review** (review 00000000, of spec version 3): disposition “build”.
   - The software part: Counting words and lines.
   - The part people keep: Deciding what the count means for the draft.
   - Rationale: Small, local and reversible (synthetic review).

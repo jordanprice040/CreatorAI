@@ -483,7 +483,7 @@ export function Compare({
   const blockedText = (id: string) =>
     groupByReason(clearable(id))
       .map((g) => `${clip(g.reason, 90)} Blocks: ${g.choices.join(', ')}.`)
-      .join('; ');
+      .join(' ');
   return (
     <section className="panel" aria-labelledby="cmp-title">
       <h2 id="cmp-title">Compare and decide</h2>

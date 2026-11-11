@@ -73,8 +73,8 @@ Checks without command-line cases (browser, manual, metric) are listed by the sc
 
 ## Where it came from
 
-- Spec 00000000-0000-4000-8000-000000000001, version 2, frozen on 2026-11-10 (freeze 00000000)
-- Spec content hash `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, version saved 2026-11-10T08:00:00.000Z
+- Spec 00000000-0000-4000-8000-000000000001, version 3, frozen on 2026-11-11 (freeze 00000000)
+- Spec content hash `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`, version saved 2026-11-11T08:00:00.000Z
 - Selection 00000000-0000-4000-8000-000000000005
 - Option 00000000-0000-4000-8000-000000000004, version 1
 - Problem 00000000-0000-4000-8000-000000000003, version 1

@@ -43,7 +43,8 @@ export const RUNBOOK_FIXTURE_SPEC: SpecContent = {
       key: 'A1',
       flow: 'F1',
       statement: 'The number of whitespace-separated words is printed.',
-      measure: 'Standard output is the count and a line end; exit code 0.',
+      measure:
+        'Standard output is the count and a line end; exit code 0. An unknown option gives no output and exit code 2.',
       method: 'automated_test',
       cases: [
         {
@@ -97,14 +98,16 @@ export const RUNBOOK_FIXTURE_SPEC: SpecContent = {
       key: 'A3',
       flow: null,
       statement: 'The program does nothing the scope does not list.',
-      measure: 'A reviewer reads the source and finds no file or network use.',
+      measure:
+        'A reviewer reads the source and finds no reading or writing of files and no network use. Finding the program’s own folder to import its modules does not count as file use.',
       method: 'manual_review',
     },
   ],
   risks: [
     {
       risk: 'Counts differ from a writer’s word processor',
-      mitigation: 'The README states the counting rule in one sentence.',
+      mitigation:
+        'The README states how words are counted and how lines are counted, in one sentence each.',
     },
   ],
   maintenance: {
@@ -152,18 +155,18 @@ const HASH = (c: string) => c.repeat(64);
 export const RUNBOOK_FIXTURE_INPUT: SoftwareRunbookInput = {
   spec: {
     id: ID(1),
-    version: 2,
+    version: 3,
     title: 'Word tally (synthetic)',
-    content_hash: HASH('a'),
-    saved_at: '2026-11-10T08:00:00.000Z',
+    content_hash: HASH('b'),
+    saved_at: '2026-11-11T08:00:00.000Z',
     content: RUNBOOK_FIXTURE_SPEC,
   },
   freeze: {
     id: ID(2),
-    frozen_at: '2026-11-10T08:05:00.000Z',
-    content_hash: HASH('a'),
+    frozen_at: '2026-11-11T08:05:00.000Z',
+    content_hash: HASH('b'),
   },
-  latest_frozen_version: 2,
+  latest_frozen_version: 3,
   problem: {
     id: ID(3),
     version: 1,
@@ -195,7 +198,7 @@ export const RUNBOOK_FIXTURE_INPUT: SoftwareRunbookInput = {
   humility: {
     id: ID(6),
     version: 1,
-    subject_version: 2,
+    subject_version: 3,
     disposition: 'build',
     software_part: 'Counting words and lines.',
     human_part: 'Deciding what the count means for the draft.',
