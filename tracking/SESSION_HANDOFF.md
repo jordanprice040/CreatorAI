@@ -32,8 +32,8 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
-| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
+| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52) |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; reviews clean; ready to merge |
 | P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
 | P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
@@ -58,6 +58,21 @@ Open items:
   and PR #148 N-I are fixed by the November 10 cleanup.)
 - **The web qualification record** lives in source against the dev studio's connection id, so it does not
   apply to the installed app's connection.
+
+## P20 review fixes (November 11, PR #165, ADR-0083 amendment, migration 53 unreleased)
+
+Review: `/mnt/project-files/reviews/P20_PR165_REVIEW.md` (0 High, 1 Medium, 5 Low, 6 nits), all fixed:
+M-1 a fetch card asks before registering a new fetching run (it creates a grant); L-1 the card's safety note is
+accurate; L-2 a decision card's `time_spent_ms` runs from when the card is shown to Send, in milliseconds; L-3 a held
+send reads "Held for a decision"; L-4 a test sends a discovery card's own request against a human-only run and gets
+the form's `HUMAN_ONLY_DENIED`; L-5 "Send again" names the card it repeats (`again_of` column) and keeps its origin and
+model answer; N-1 placeholders fill whole values and path segments only; N-2 no repeated source; N-3 records marked
+`in_trail` by the store; N-4 a sender who lost the editor role can still record the outcome; N-5 plain message over
+40 records; N-6 DECISIONS.md reflows reverted and the package table corrected. Migration 53 was edited in place
+(never released): a database that ran the earlier 53 must be re-created.
+Re-review (`/mnt/project-files/reviews/P20_PR165_REREVIEW.md`): L-6 refusal-only events no longer make a card
+`partial`; N-7 walk script updated and re-run; N-8 "Send again" on a fetch card reuses its run; N-9 new-run question
+reworded. Second re-review clean (0 Low+); nits N-10 and N-11 fixed. Ready for Jordan to merge after #164.
 
 ## Next eligible prompt
 
@@ -622,7 +637,7 @@ are migration 50 and ADR-0078 (P15 was asked to take those if it needs them).
 - Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
   `owner-pilot.json`), so no app or database step is needed.
 - Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
-  pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
   P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
 
 ## PR #155 review fixes (November 10, no migration or ADR)
@@ -798,6 +813,66 @@ changed (N3). Re-review fixes (report `reviews/P16_PR163_REREVIEW_2026-11-11.md`
 ASSUMPTIONS.md line with REVIEW.md (L-A) and commits the final REVIEW.md marks whenever there are findings, fixed or
 not (L-B); "other cases exist that you cannot see" appears only when cases are held out (L-C); the "cases govern"
 line also appears when every case is held out (N-A). Bundle hash now `8648d257…`.
+
+## P19 Standard and Advanced (November 11, branch `claude/project-thread-xdq8er`, ADR-0082, migration 52)
+
+What works and what was checked: see ADR-0082 and the BUILD_STATUS entry.
+
+New code:
+
+- Contracts in `packages/contracts/src/preferences.ts`.
+- Migration 52 `person_preferences`.
+- `ConnectionStore.viewPreference` and `setViewPreference`.
+- Route `/api/me/view-mode`.
+- Web:
+  - `view-mode.tsx` and `view-mode-rules.ts` (the context, the switch and the mode resolution).
+  - `routine.tsx` (the `Routine` fold and `WhatWillHappen`).
+  - `first-run.tsx` and `first-run-rules.ts`.
+  - `shownSections` and `hiddenTabs` in `pages.ts`.
+
+For P20:
+
+- Read the mode with `useViewMode()`.
+- Put new routine fields inside `Routine` and add a row to the form's `WhatWillHappen`.
+- Keep every default out of evidence, grants, qualifications, caps and the private data class.
+
+Overlap with open PRs:
+
+- `build.tsx`, `submit.tsx` and `main.tsx` overlap P21 (PR #161) and P18 (PR #162). Expect small conflicts.
+- Conflicts are also likely in the tracking logs.
+
+Main becomes schema 52 when this merges, after P21's 51. Next free numbers: migration 53 and ADR-0083.
+Next eligible prompts: P20, then P12 and P13 as the plan orders them.
+
+## P20 whole process from Chat (November 11, branch `claude/project-thread-b20hlm`, ADR-0083, migration 53)
+
+Built on P19's branch (PR #164, head `c24bd27`) because it reuses `useViewMode`, `Routine` and `WhatWillHappen`;
+merge main into it once #164 merges.
+
+- Chat holds **action cards** (`chat_actions`, migration 53): budget, fetch a page, record a claim, start a
+  discovery, answer a waiting decision, score an option, record a choice, save a proposal. A card asks the form's
+  questions one at a time (Standard uses P19 routine defaults, Advanced asks them), shows "Still needed", the answers
+  with Change, "What will happen" and exactly the requests Send makes. Send runs those requests from the browser
+  through the forms' own routes, each carrying `X-Causation-Id` (the `chat.action_sent` event) and
+  `X-Correlation-Id` (the card). The store decides done / unconfirmed / refused / partial from the audit events that
+  name the send. A changed, archived or missing subject record (or a decision no longer waiting) makes a card stale
+  before anything is sent.
+- Cards come from "Do it here" on studio replies (`cardForStep`, the Path's own rules), "Do a step here" under the
+  conversation, and model answers: an answer may end with one `<propose_action kind="…">{"text","url"}</propose_action>`
+  (CHAT_INSTRUCTIONS v3); a valid one becomes an origin `model` draft under the answer, anything else makes no card
+  and the answer says why. A model can never suggest answering a decision.
+- Files: `packages/contracts/src/chat-actions.ts`, `packages/db/src/chat-action-store.ts`, store methods in
+  `connection-store.ts`, route in `apps/api/src/index.ts`, `apps/web/src/chat-cards.ts` (pure rules and plans),
+  `chat-card-load.ts` (reads), `chat-card.tsx` (UI and sending), `chat.tsx`, `chat-answers.tsx`, `oversight.tsx`
+  (`api()` `trace` option).
+- Tests: `tests/src/chat-actions.test.ts` (HTTP and store), `tests/src/web-chat-cards.test.ts` (plans checked
+  against the server request schemas), one new case in `chat-answers.test.ts` (model suggestion). Walk evidence in
+  `tracking/evidence/p20-chat-actions/`.
+- Not done: spec freeze, build and runbook export cards; editing an earlier selection; other rubrics; mid-send resume
+  on another device.
+
+Next eligible prompt: independent review of P20 in a new thread (reviewer ports 5183/4330/4340, throwaway DB); then
+the installed app upgrade, then P17.
 
 ## P22 live connection checks (November 10, 2026, no migration, no ADR)
 

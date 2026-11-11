@@ -14,6 +14,8 @@ import {
   type PlanConnectionDetail,
   type SessionInfo,
   type Workspace,
+  readProposedAction,
+  withoutProposedAction,
 } from '@creator/contracts';
 import { Markdown } from './markdown-view.js';
 import { CONTEXT_LABEL } from './chat-context.js';
@@ -28,6 +30,19 @@ import { useModelChoice } from './model-switch.js';
 
 export const planName = (kind: ChatAnswer['connection_kind']) =>
   kind === 'claude_code' ? 'Claude' : 'ChatGPT';
+
+/** ADR-0083: a suggestion that did not become a card says why; a valid one shows as a card. */
+function SuggestionNote({ text }: { text: string }) {
+  const p = readProposedAction(text);
+  if (!p.found) return null;
+  return p.ok ? (
+    <p className="small">
+      It suggested a step as a card, shown below. Only your Send sends it.
+    </p>
+  ) : (
+    <p className="small">{p.reason}</p>
+  );
+}
 
 /** A model answer, or why there is none, with the "What was sent" panel. */
 export function AnswerView({
@@ -52,7 +67,10 @@ export function AnswerView({
           </>
         )}
       </p>
-      {a.state === 'completed' && <Markdown text={a.text ?? ''} />}
+      {a.state === 'completed' && (
+        <Markdown text={withoutProposedAction(a.text ?? '')} />
+      )}
+      {a.state === 'completed' && <SuggestionNote text={a.text ?? ''} />}
       {a.state === 'pending' && (
         <p role="status">Waiting for {planName(a.connection_kind)}…</p>
       )}

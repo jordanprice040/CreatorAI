@@ -52,6 +52,8 @@ export async function api<T>(
     idempotencyKey?: string;
     /** A write that changes nothing other pages show (sidebar notes): do not announce it. */
     quiet?: boolean;
+    /** ADR-0083: a Chat card's send; its audit events name the card's send as their cause. */
+    trace?: { causation: string; correlation: string };
   } = {},
 ): Promise<T> {
   const sent = fetch(`/api/${path}`, {
@@ -64,6 +66,12 @@ export async function api<T>(
             ...(init.csrf ? { 'X-CSRF-Token': init.csrf } : {}),
             ...(init.idempotencyKey
               ? { 'Idempotency-Key': init.idempotencyKey }
+              : {}),
+            ...(init.trace
+              ? {
+                  'X-Causation-Id': init.trace.causation,
+                  'X-Correlation-Id': init.trace.correlation,
+                }
               : {}),
           },
           body: JSON.stringify(init.body),

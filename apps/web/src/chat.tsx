@@ -1,5 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import {
+  CHAT_ACTION_FINAL,
+  ChatActionSchema,
+  type ChatAction,
   ChatAnswerSchema,
   ChatConversationSchema,
   ChatDeletedSchema,
@@ -29,6 +38,8 @@ import {
 } from './chat-replies.js';
 import { placeLabel, type View } from './pages.js';
 import { AnswerView } from './chat-answers.js';
+import { ActionCard } from './chat-card.js';
+import { LABEL, againInput, cardForStep, type CardKind } from './chat-cards.js';
 import {
   ChatContextPicker,
   SCOPE_LABEL,
@@ -49,6 +60,57 @@ const ConnectionTimeoutSchema = z.object({
     }),
   }),
 });
+
+/** ADR-0083: the steps a card can do here, in the main path's order. */
+const CARD_KINDS: CardKind[] = [
+  'fetch_source',
+  'cite_claim',
+  'fund_budget',
+  'start_discovery',
+  'answer_decision',
+  'score_option',
+  'record_choice',
+  'save_proposal',
+];
+type DoHere = { kind: CardKind; input: Record<string, unknown> };
+
+/** The card that does what a studio reply points at, when there is one. */
+function doHereFor(
+  m: ChatMessage,
+  f: ReplyFacts,
+  facts: StudioFacts | null,
+): DoHere | null {
+  const counts = {
+    sources: facts?.sources ?? 0,
+    scorecards: facts?.scorecards ?? 0,
+  };
+  switch (m.intent) {
+    case 'next':
+    case 'why_blocked': {
+      if (!f.latest || !f.step) return null;
+      const view =
+        m.intent === 'why_blocked' && f.blocked ? f.blocked.view : f.step.view;
+      const kind = f.pending ? 'answer_decision' : cardForStep(view, counts);
+      return kind ? { kind, input: {} } : null;
+    }
+    case 'approvals':
+      return f.latest && f.pending
+        ? { kind: 'answer_decision', input: {} }
+        : null;
+    case 'add_source':
+      return m.target.url
+        ? { kind: 'fetch_source', input: { hint_url: m.target.url } }
+        : null;
+    case 'save_idea':
+    case 'start_discovery':
+      return {
+        kind: 'start_discovery',
+        input: m.target.text ? { hint_text: m.target.text } : {},
+      };
+    default:
+      return null;
+  }
+}
 
 const EXAMPLES = [
   "What's next?",
@@ -111,6 +173,9 @@ export function Chat({
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [carding, setCarding] = useState(false);
+  const latestMessage = useRef<string | null>(null);
+  const [stepKind, setStepKind] = useState<CardKind>('fetch_source');
   // ADR-0070: the context for the next message; it stays chosen until changed.
   const [scope, setScope] = useState<ChatScope>('auto');
   const [picked, setPicked] = useState<PickedRecord[]>([]);
@@ -324,6 +389,67 @@ export function Chat({
     }
   }
 
+  /** ADR-0083: puts a draft card in the conversation; nothing is sent until its Send. */
+  async function startCard(
+    kind: CardKind,
+    messageId: string | null,
+    input: Record<string, unknown> = {},
+    againOf: string | null = null,
+  ) {
+    if (!canWrite || carding) return;
+    setCarding(true);
+    setError('');
+    let id = focus;
+    try {
+      if (!id) {
+        const created = await api(ChatConversationSchema, base, {
+          csrf: session.csrf_token,
+          body: {},
+        });
+        id = created.id;
+        focusRef.current = id;
+        createdFor.current = id;
+        onFocus(id);
+      }
+      await api(ChatActionSchema, `${base}/${id}/actions`, {
+        csrf: session.csrf_token,
+        body: {
+          client_id: crypto.randomUUID(),
+          kind,
+          message_id: messageId,
+          again_of: againOf,
+          input: { ...input, _op: crypto.randomUUID() },
+          subjects: [],
+        },
+      });
+      if (id === focusRef.current) await loadDetail(id);
+      await loadList();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setCarding(false);
+    }
+  }
+  /** A new draft with a finished card's answers; its records are read again when shown. */
+  function again(card: ChatAction) {
+    const input = againInput(card.kind, card.input);
+    // It goes to the end of the conversation, where the person is now.
+    return startCard(card.kind, latestMessage.current, input, card.id);
+  }
+  const renderCard = (c: ChatAction) => (
+    <ActionCard
+      key={c.id}
+      card={c}
+      session={session}
+      workspaceId={workspace.id}
+      fixture={facts?.fixture ?? false}
+      canWrite={canWrite}
+      reload={() => loadDetail(c.conversation_id)}
+      open={open}
+      again={again}
+    />
+  );
+
   function act(a: ReplyAction) {
     if (a.kind === 'fill') fill(a.view, a.value);
     else open(a.view as View);
@@ -340,8 +466,17 @@ export function Chat({
   const askLabel = settings?.connection_id
     ? `Ask ${settings.model_id ?? 'the model'}`
     : 'Ask the model';
+  latestMessage.current = messages.at(-1)?.id ?? null;
   const latestOf = new Map<string, number>();
   for (const m of messages) latestOf.set(m.intent, m.seq);
+  // ADR-0083: cards sit under the answer that suggested them, or the message they answer.
+  const cardsFor = new Map<string, ChatAction[]>();
+  const looseCards: ChatAction[] = [];
+  for (const c of detail?.actions ?? []) {
+    const key = c.answer_id ?? c.message_id;
+    if (key) cardsFor.set(key, [...(cardsFor.get(key) ?? []), c]);
+    else looseCards.push(c);
+  }
 
   return (
     <section className="panel chat" aria-labelledby="chat-title">
@@ -351,8 +486,10 @@ export function Chat({
           ? `Ask anything: writing, ideas, explanations or advice are answered by ${settings?.model_id} through your plan, at no extra cost. Those answers are labelled and never change anything. `
           : 'The owner can let a connected ChatGPT or Claude plan answer any question, studio or not (Models and connections › Chat answers). '}
         The studio itself answers what&apos;s next, why something is blocked,
-        web addresses and saved ideas from your records by fixed rules, and
-        nothing here starts work: buttons open the tab where you do it.
+        web addresses and saved ideas from your records by fixed rules. A step
+        can be done here as a card: it asks the form&apos;s questions, shows
+        exactly what it will send, and sends nothing until you press its Send,
+        through the same checks as the form.
       </p>
       {error && (
         <p className="error" role="alert">
@@ -490,30 +627,81 @@ export function Chat({
                 </div>
               </li>
             )}
-            {messages.map((m) => (
-              <MessageItem
-                key={m.id}
-                m={m}
-                facts={{
-                  ...replyFacts(facts, latestOf.get(m.intent) === m.seq),
-                  model: answersOn ? (settings?.model_id ?? null) : null,
-                }}
-                act={act}
-                label={actionLabel}
-                answers={answersFor.get(m.id) ?? []}
-                openModels={() => open('models')}
-                ask={
-                  owner && answersOn && detail
-                    ? () => void ask(detail.conversation.id, m.id)
-                    : null
-                }
-                askLabel={askLabel}
-                asking={asking === m.id}
-                busy={Boolean(asking)}
-              />
-            ))}
+            {messages.map((m) => {
+              const f = {
+                ...replyFacts(facts, latestOf.get(m.intent) === m.seq),
+                model: answersOn ? (settings?.model_id ?? null) : null,
+              };
+              const mine = cardsFor.get(m.id) ?? [];
+              const here = canWrite ? doHereFor(m, f, facts) : null;
+              return (
+                <MessageItem
+                  key={m.id}
+                  m={m}
+                  facts={f}
+                  cards={mine.map(renderCard)}
+                  answerCards={(id) => (cardsFor.get(id) ?? []).map(renderCard)}
+                  doHere={
+                    here &&
+                    !mine.some(
+                      (c) =>
+                        c.kind === here.kind &&
+                        !CHAT_ACTION_FINAL.includes(c.state),
+                    )
+                      ? {
+                          label: `Do it here: ${LABEL[here.kind].toLowerCase()}`,
+                          run: () =>
+                            void startCard(here.kind, m.id, here.input),
+                          busy: carding,
+                        }
+                      : null
+                  }
+                  act={act}
+                  label={actionLabel}
+                  answers={answersFor.get(m.id) ?? []}
+                  openModels={() => open('models')}
+                  ask={
+                    owner && answersOn && detail
+                      ? () => void ask(detail.conversation.id, m.id)
+                      : null
+                  }
+                  askLabel={askLabel}
+                  asking={asking === m.id}
+                  busy={Boolean(asking)}
+                />
+              );
+            })}
+            {looseCards.length > 0 && (
+              <li className="chat-turn">{looseCards.map(renderCard)}</li>
+            )}
           </ol>
           <div ref={endRef} />
+          {canWrite && (
+            <form
+              className="chat-step inline-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                // It follows the conversation's latest message, if there is one.
+                void startCard(stepKind, messages.at(-1)?.id ?? null);
+              }}
+            >
+              <label htmlFor="chat-step">Do a step here</label>
+              <select
+                id="chat-step"
+                value={stepKind}
+                onChange={(e) => setStepKind(e.target.value as CardKind)}
+              >
+                {CARD_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {LABEL[k]}
+                  </option>
+                ))}
+              </select>
+              <button className="secondary" disabled={carding}>
+                {carding ? 'Adding…' : 'Add a card'}
+              </button>
+            </form>
+          )}
           {canWrite ? (
             <form className="chat-compose" onSubmit={(e) => void send(e)}>
               {owner && answersOn && (
@@ -572,6 +760,9 @@ export function Chat({
 function MessageItem({
   m,
   facts,
+  cards,
+  answerCards,
+  doHere,
   act,
   label,
   answers,
@@ -583,6 +774,9 @@ function MessageItem({
 }: {
   m: ChatMessage;
   facts: ReplyFacts;
+  cards: ReactNode[];
+  answerCards: (answerId: string) => ReactNode[];
+  doHere: { label: string; run: () => void; busy: boolean } | null;
   act: (a: ReplyAction) => void;
   label: (a: ReplyAction) => string;
   answers: ChatAnswer[];
@@ -609,8 +803,18 @@ function MessageItem({
       <div className="chat-studio">
         <p className="chat-meta">Studio · from your records, no model</p>
         <p>{reply.text}</p>
-        {reply.actions.length > 0 && (
+        {(reply.actions.length > 0 || doHere) && (
           <p className="chat-actions">
+            {doHere && (
+              <button
+                type="button"
+                className="secondary strong"
+                disabled={doHere.busy}
+                onClick={doHere.run}
+              >
+                {doHere.label}
+              </button>
+            )}
             {reply.actions.map((a) => (
               <button
                 key={`${a.kind}:${a.label}`}
@@ -624,8 +828,12 @@ function MessageItem({
           </p>
         )}
       </div>
+      {cards}
       {answers.map((a) => (
-        <AnswerView key={a.id} a={a} openModels={openModels} />
+        <div key={a.id} className="chat-answer-group">
+          <AnswerView a={a} openModels={openModels} />
+          {answerCards(a.id)}
+        </div>
       ))}
       {asking && !live && (
         <div className="chat-studio chat-model">

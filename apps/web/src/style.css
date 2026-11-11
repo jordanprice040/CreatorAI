@@ -3152,6 +3152,112 @@ details.routine > summary {
   margin-top: 8px;
 }
 
+/* ADR-0083 (P20): action cards in Chat. */
+.chat-answer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chat-card {
+  max-width: min(720px, 100%);
+  width: 100%;
+  box-shadow: inset 3px 0 0 var(--accent-strong);
+}
+.chat-card-title {
+  margin: 2px 0 8px;
+}
+.chat-card-draft {
+  background: var(--surface);
+}
+.chat-card-refused,
+.chat-card-partial,
+.chat-card-stale,
+.chat-card-unconfirmed {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.chat-card-dismissed {
+  opacity: 0.75;
+}
+.chat-card-question {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.chat-card-question fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.chat-card-question legend,
+.chat-card-question > label {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.chat-card-question textarea,
+.chat-card-question input:not([type='radio']):not([type='checkbox']) {
+  width: 100%;
+}
+.chat-card-choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.chat-card-choice small {
+  color: var(--text-2);
+}
+.chat-card-choice .warn {
+  color: var(--warn);
+}
+.chat-card-missing {
+  margin-top: 6px !important;
+}
+.chat-card-answers {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+.chat-card-answers > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 160px) 1fr;
+  gap: 8px;
+}
+.chat-card-answers dt {
+  color: var(--text-2);
+}
+.chat-card-answers dd {
+  margin: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.chat-card-answers .source {
+  color: var(--text-3);
+  font-size: 12px;
+}
+.chat-card-blockers {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--warn);
+}
+.chat-card-result ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.chat-step {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+@media (max-width: 560px) {
+  .chat-card-answers > div {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
 /* ---------- P18: one-line summaries that expand on click ---------- */
 details.fold {
   margin-top: 0;

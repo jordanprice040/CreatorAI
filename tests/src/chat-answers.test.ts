@@ -1196,3 +1196,112 @@ test('chat context: general in an empty workspace, automatic, explicit choices, 
   );
   assert.equal(s.runs().length, before);
 });
+
+// ADR-0083 (P20): an answer may suggest one step as a card. The card is a draft with hints
+// only; the model's words are kept as written, and a bad suggestion makes no card.
+test('a model answer may suggest one card; it is a draft with hints only', async (t) => {
+  const s = await setup(t);
+  if (!s) return;
+  const { store, service, ws, chat } = s;
+  await s.allowPrivate();
+  await store.setChatSettings(owner, ws.id, {
+    expected_version: 0,
+    enabled: true,
+    connection_id: s.conn.id,
+    model_id: MODEL,
+    include_snapshot: true,
+    daily_limit: 5,
+  });
+  const text =
+    'A discovery could start from clinic waits.\n<propose_action kind="start_discovery">{"text": "rural clinic waits"}</propose_action>';
+  setFake(s.host.config_dir, { status: SUBSCRIBED, text });
+  const q = await s.say('Which theme could I explore first?');
+  const a = await service.chatAnswer(owner, ws.id, chat.id, q.id, {
+    client_id: randomUUID(),
+  });
+  assert.equal(a.state, 'completed', a.reason ?? '');
+  assert.equal(a.text, text);
+  let detail = await store.chatDetail(owner, ws.id, chat.id);
+  assert.equal(detail.actions.length, 1);
+  const card = detail.actions[0]!;
+  assert.equal(card.origin, 'model');
+  assert.equal(card.answer_id, a.id);
+  assert.equal(card.message_id, q.id);
+  assert.equal(card.kind, 'start_discovery');
+  assert.equal(card.state, 'draft');
+  assert.deepEqual(card.input, { hint_text: 'rural clinic waits' });
+  assert.deepEqual(card.subjects, []);
+  const proposed = await s.db.pool.query(
+    `select actor_id, payload from audit_events where action = 'chat.action_proposed'`,
+  );
+  assert.equal(proposed.rows.length, 1);
+  assert.equal(proposed.rows[0].payload.origin, 'model');
+
+  // Answering a decision is never suggested, and two suggestions make none.
+  for (const bad of [
+    '<propose_action kind="answer_decision">{}</propose_action>',
+    '<propose_action kind="fund_budget"></propose_action><propose_action kind="cite_claim"></propose_action>',
+  ]) {
+    setFake(s.host.config_dir, { status: SUBSCRIBED, text: `Hm. ${bad}` });
+    const q2 = await s.say('And then?');
+    const a2 = await service.chatAnswer(owner, ws.id, chat.id, q2.id, {
+      client_id: randomUUID(),
+    });
+    assert.equal(a2.state, 'completed', a2.reason ?? '');
+  }
+  detail = await store.chatDetail(owner, ws.id, chat.id);
+  assert.equal(detail.actions.length, 1);
+
+  // Review L-5: sending the suggested card again keeps where it came from. The client names
+  // the card it repeats; it can never claim origin `model` for a card of its own.
+  const make = (raw: Record<string, unknown>) =>
+    store.createChatAction(owner, ws.id, chat.id, {
+      client_id: randomUUID(),
+      kind: 'start_discovery',
+      input: { hint_text: 'rural clinic waits' },
+      ...raw,
+    });
+  // A draft has not been sent, so there is nothing to send again.
+  await rejects(
+    'INVALID_CONTRACT',
+    make({ again_of: card.id }),
+    /finished card/,
+  );
+  await store.sendChatAction(owner, ws.id, chat.id, card.id, {
+    expected_version: 1,
+  });
+  await store.finishChatAction(owner, ws.id, chat.id, card.id, { ok: null });
+  const again = await make({ again_of: card.id });
+  assert.equal(again.origin, 'model');
+  assert.equal(again.answer_id, a.id);
+  assert.equal(again.again_of, card.id);
+  await rejects(
+    'INVALID_CONTRACT',
+    make({ again_of: card.id, kind: 'fund_budget' }),
+    /same kind/,
+  );
+  await rejects('NOT_FOUND', make({ again_of: randomUUID() }));
+  await rejects('INVALID_CONTRACT', make({ origin: 'model' }));
+  const sentAgain = await store.sendChatAction(
+    owner,
+    ws.id,
+    chat.id,
+    again.id,
+    { expected_version: 1 },
+  );
+  const trail = await s.db.pool.query(
+    `select action, payload from audit_events
+     where action in ('chat.action_proposed', 'chat.action_sent')
+       and payload->>'action_id' = $1 order by sequence`,
+    [again.id],
+  );
+  assert.deepEqual(
+    trail.rows.map((r) => [r.action, r.payload.origin, r.payload.answer_id]),
+    [
+      ['chat.action_proposed', 'model', a.id],
+      ['chat.action_sent', 'model', a.id],
+    ],
+  );
+  assert.equal(trail.rows[1].payload.again_of, card.id);
+  assert.ok(sentAgain.causation_id);
+});

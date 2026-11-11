@@ -32,8 +32,8 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration); wording follow-up merged (PR #163) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Merged (PR #162; no migration or ADR) |
-| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
-| P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
+| P19 Standard/Advanced across the app | Merged (PR #164; ADR-0082, migration 52) |
+| P20 whole process from Chat              | Built November 11 on branch `claude/project-thread-b20hlm` (ADR-0083 amending ADR-0057/0070, migration 53), PR #165; reviews clean; ready to merge |
 | P21 quick model switch | Merged (PR #161; ADR-0081, migration 51) |
 | P22 live API and GitHub checks | Merged (PR #160); live checks passed November 10–11 (R24, R25) |
 
@@ -611,7 +611,7 @@ with P08) is passed to P08. Tests added to `tester-accounts.test.ts` and
 - Nothing on Jordan's device or in any studio database records the pilot's status (no runtime consumer of
   `owner-pilot.json`), so no app or database step is needed.
 - Checks (cloud container): typecheck and format check pass; the X10 readiness tests pass; `pnpm readiness
-  pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
+pilot-check` reports the gate ready with no refusals. Full suite: see the PR. Next eligible: unchanged (P10 and
   P16 in their threads; then the installed-app upgrade, P12 once a search provider is chosen).
 
 ## PR #155 review fixes (November 10, no migration or ADR)
@@ -1086,7 +1086,7 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
 
 - What works:
   - Each person has one Standard/Advanced choice, stored on the server (`person_preferences`, `GET`/`POST
-    /api/me/view-mode`, versioned). The choice follows the person to other browsers and devices. A person who
+/api/me/view-mode`, versioned). The choice follows the person to other browsers and devices. A person who
     never chose sees Standard, unless their browser held the older Discover "Show all fields" choice. The switch is
     in the sidebar, on Settings and on Discover.
   - Standard hides Launch, Workers and Study (also Maintain and Payments, Marketing and Portfolio when present) from
@@ -1154,6 +1154,77 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
 - Second re-review nits (`reviews/P19_PR164_REREVIEW2.md`): N-C the scorecard's "What will happen" note and N-D the
   comment above the check fields now say only the four routine checks default to "unknown". Text only; typecheck,
   format and the scorecard form tests pass.
+
+## P20 whole process from Chat (November 11, branch `claude/project-thread-b20hlm`, ADR-0083, migration 53)
+
+- What works:
+  - Chat holds action cards for the main path: set up a budget, fetch a page, record a claim, start a discovery,
+    answer a waiting decision, score an option, record a choice and save a proposal. Each asks the form's questions
+    one at a time, says what it still needs, lists answers with Change, shows "What will happen" and exactly the
+    requests Send makes. Standard uses P19's routine defaults; Advanced asks them too.
+  - Send runs the form's own requests from the person's browser, each naming the card's `chat.action_sent` event as
+    its cause. The store records done, unconfirmed, refused or "refused; part of it was recorded" (work was saved
+    before the refusal) from the audit events, not from the browser's word alone. Held steps (a selection waiting for a decision) say so and offer
+    "Send again with the same answers".
+  - A card whose records changed (version, archived, gone, or a decision no longer waiting) is refused as stale before
+    anything is sent.
+  - A model answer may suggest one card (`<propose_action>`, CHAT_INSTRUCTIONS v3) with short hints only; it is a
+    draft the person fills in and sends. Answering a decision is never suggested.
+- Checks run (cloud container, PostgreSQL 16, no CI: no Actions minutes): `pnpm typecheck` and `pnpm format:check`
+  pass; `pnpm test:db` 929 tests, 895 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). New tests:
+  `chat-actions.test.ts` (HTTP flow with causation headers, retries, version conflicts, done/unconfirmed/refused,
+  dismiss, cross-workspace; store roles, sender-only reports, stale by version, archive and missing record),
+  `web-chat-cards.test.ts` (Standard vs Advanced, hints only prefill, discovery and approval plans checked against
+  the server request schemas), a model-suggestion case in `chat-answers.test.ts`; schema check now 53.
+  - Browser walk (`tracking/evidence/p20-chat-actions/`): empty fixture workspace → fetch → claim → budget →
+    discovery → score → choice (held, approved from a card, sent again) → proposal, all from Chat, plus a refused
+    fetch with the form's reason and a stale card. `audit-trail.txt` shows who sent each card and what it caused.
+- Not done: spec freeze, build and runbook export cards; editing an earlier selection; other rubrics; resuming a send
+  on another device. A model-suggested card was tested with the fake `claude`, not a live plan.
+- Review fixes (November 11, review at `/mnt/project-files/reviews/P20_PR165_REVIEW.md`): M-1, L-1 to L-5 and N-1 to
+  N-6 fixed as recorded in ADR-0083's review amendment. New tests: a fetch card asks about a new run (M-1), the
+  study-run refusal through a card (L-4), "Send again" keeping origin and answer (L-5, in `chat-answers.test.ts`),
+  `in_trail` marks (N-3), a demoted sender recording the outcome (N-4), whole-value placeholders (N-1). Migration 53
+  gained `again_of` in place (unreleased).
+- Re-review fixes (November 11, `/mnt/project-files/reviews/P20_PR165_REREVIEW.md`, 1 Low and 3 nits): a refusal whose
+  only caused events record the refusal ends `refused`, not `partial` (L-6; tests for both); the committed walk was
+  updated and re-run on a fresh `p20walk` (N-7); "Send again" on a fetch card reuses the run it registered (N-8); the
+  new-run question is reworded (N-9). Second re-review clean; its two nits fixed (N-10 a lost send with only a
+  refusal recorded ends `refused`; N-11 ADR-0083's provenance paragraph states the amended rule).
+
+## P22 live connection checks (November 10, 2026, no migration, no ADR)
+
+Jordan's typed OK (November 10, 22:40 UTC) covers live API and GitHub tests. Added: a "Test
+connection" for the metered OpenAI API key route on Models and connections (one bounded request
+under its own run, grant and $0.05 run budget; closed, revoked and cancelled afterwards;
+`apps/web/src/api-key-check.ts`, `api-key-check-panel.tsx`), `live_model_id` on
+`GET /api/broker/status`, and a read-only GitHub pull-request checks read
+(`GET …/github-repositories/{id}/checks?pr=<n>`, `pnpm cli github-checks`, a form per repository).
+Owner steps: [docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md). GitHub credential
+(Jordan's choice): a fine-grained token limited to one owner-created private repository
+`creator-agent-p22-trial`; a later trial with a repository-creating token is recorded as a follow-up.
+Local checks: new loopback API test `tests/src/api-key-check-api.test.ts`, unit tests
+`tests/src/web-api-key-check.test.ts`, GitHub fixture assertions in `tests/src/github.test.ts`.
+Live results (tracking/INTEGRATIONS.md, "P22 live connection checks"): API key route connected
+(`gpt-6-astra`, $0.00036, November 10 23:16 UTC); GitHub scoped trial succeeded (verify, branch, two
+pushes, PR #1 in `creator-agent-p22-trial`, checks read); ChatGPT and Claude Code availability rechecks
+passed at $0 (November 11). The dev studio now runs from `C:\dev\creator_agent_p22`
+(`.creator\studio\start-dev-p22.ps1`); `creator_studio` was backed up and migrated 49 → 50.
+Review of PR #160 (1 Medium, 6 Lows) fixed in the same PR: refused GitHub reads are reported as
+refusals (M-1); the panel says "outcome unknown, reconcile" when no answer arrives, archives a run
+record whose registration failed, and its clean-up is tested end to end through `runCheck` (L-3–L-5);
+Models and connections shows each model's last availability recheck (L-6). Re-review Lows fixed: the
+checks read's repository lookup keeps GitHub's real status, and a rate-limit 403 says "try again", not
+"token expired". Owner clean-up: Jordan revoked the "P22 trial" connection on November 11 (01:43 UTC)
+and reported the token deleted; the trial repository is his to keep or delete. Nits fixed at Jordan's
+request (November 11): a secondary rate limit without `retry-after` is recognised by GitHub's message, a
+read with no answer is worded as the studio's own error rather than "GitHub said", and `checksSummary`
+(now in `apps/web/src/github-checks.ts`) has unit tests (`tests/src/web-github-checks.test.ts`).
+Fourth re-review nits (GitHub App path, not used live): a GitHub App token the studio cannot create
+locally (e.g. an unusable private key) says to check the App credential, not "try again", and a token
+GitHub refuses (e.g. 422, repository removed from the installation) says so instead of "did not answer".
+Fifth re-review: a 404 from the App token step is a refusal, not "no such pull request" (L-1); a 401 there
+points at the App id or private key; a 5xx or a 201 without a token names the token step.
 - After merging main with P18 (#162): `style.css` and the tracking logs conflicted and were joined; typecheck and
   format pass; `pnpm test:db` 940 tests, 906 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). The walk now
   opens P18's one-line folds on Decide before using the option controls, as a person clicking each summary would,

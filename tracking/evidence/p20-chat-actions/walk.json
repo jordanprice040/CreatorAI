@@ -1,0 +1,643 @@
+{
+  "ws": "2165d67f-edfd-4a04-9aea-af06d3f123e4",
+  "log": [
+    {
+      "step": "0 workspace",
+      "value": {
+        "name": "P20 walk 05:53:57",
+        "ws": "2165d67f-edfd-4a04-9aea-af06d3f123e4"
+      }
+    },
+    {
+      "step": "1 studio reply",
+      "value": "Next: Gather evidence: fetch approved sources and record the claims a discovery will use."
+    },
+    {
+      "step": "1 button",
+      "value": "Do it here: fetch a page"
+    },
+    {
+      "step": "1 first question",
+      "value": "url"
+    },
+    {
+      "step": "1 asked",
+      "value": [
+        {
+          "key": "url",
+          "prompt": "Which page should the studio fetch?"
+        },
+        {
+          "key": "run",
+          "prompt": "Fetching needs a run with a 24-hour fetch grant. Register a new evidence-gathering run?"
+        }
+      ]
+    },
+    {
+      "step": "1 summary",
+      "value": {
+        "title": "Fetch https://health.fixture.test/reports/clinic-access-2025",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Fetch",
+          "https://health.fixture.test/reports/clinic-access-2025",
+          "Run",
+          "A new evidence-gathering run, allowed to fetch public pages for 24 hours",
+          "Then",
+          "The server fetches it only from an approved website, under the run’s grant. Its passages become sources you can cite; a page is not a claim until you record one."
+        ],
+        "requests": "Exactly what will be sent (4 requests)"
+      }
+    },
+    {
+      "step": "1 sent",
+      "value": {
+        "state": "Done",
+        "result": "run: Evidence gathering\nsource: https://health.fixture.test/reports/clinic-access-2025\n\nSent Nov 11, 2026, 5:54 AM · 6 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "1b refused sent",
+      "value": {
+        "state": "Refused",
+        "result": "Fetch the page through the source broker (Sources): not-approved.example.org is not on the owner-approved source list.\n\nSent Nov 11, 2026, 5:54 AM · 1 audit event names this send as their cause"
+      }
+    },
+    {
+      "step": "2 button",
+      "value": "Do it here: record a claim"
+    },
+    {
+      "step": "2 asked",
+      "value": [
+        {
+          "key": "passage",
+          "prompt": "Which fetched passage is the evidence?"
+        },
+        {
+          "key": "statement",
+          "prompt": "What does it show? Write the claim in one or two sentences."
+        },
+        {
+          "key": "basis",
+          "prompt": "Is the claim observed in the source, or your inference from it?"
+        },
+        {
+          "key": "uncertainty",
+          "prompt": "What is still uncertain about it?"
+        },
+        {
+          "key": "stance",
+          "prompt": "Does the passage support the claim or contradict it?"
+        },
+        {
+          "key": "quote",
+          "prompt": "Quote the words of the passage it rests on (exactly as written)."
+        },
+        {
+          "key": "rationale",
+          "prompt": "Why does this passage bear on the claim?"
+        }
+      ]
+    },
+    {
+      "step": "2 summary",
+      "value": {
+        "title": "Record the claim “Rural patients wait weeks for a first clinic appointment.”",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Claim",
+          "Rural patients wait weeks for a first clinic appointment.",
+          "Evidence",
+          "Regional Clinic Access Report 2025 ¶0, supports",
+          "Kind of evidence",
+          "The source asserts it · studio default",
+          "Then",
+          "Discovery can work from the claim. It counts as supported only by the passages it actually quotes."
+        ],
+        "requests": "Exactly what will be sent (2 requests)"
+      }
+    },
+    {
+      "step": "2 sent",
+      "value": {
+        "state": "Done",
+        "result": "claim: Rural patients wait weeks for a first clinic appointment.\n\nSent Nov 11, 2026, 5:55 AM · 3 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "3 button",
+      "value": "Do it here: set up a budget"
+    },
+    {
+      "step": "3 asked",
+      "value": []
+    },
+    {
+      "step": "3 summary",
+      "value": {
+        "title": "Set up the budget “Studio budget”",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Budget",
+          "A new top-level budget “Studio budget” · studio default",
+          "Cap",
+          "100 simulated units (no money) · studio default",
+          "Pricing",
+          "Adds the bundled fixture pricing, so a discovery can reserve its calls"
+        ],
+        "requests": "Exactly what will be sent (2 requests)"
+      }
+    },
+    {
+      "step": "3 sent",
+      "value": {
+        "state": "Done",
+        "result": "budget: Studio budget\n\nSent Nov 11, 2026, 5:55 AM · 2 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "4 button",
+      "value": "Do it here: start a discovery"
+    },
+    {
+      "step": "4 theme prefilled from the message",
+      "value": "rural clinic appointment waits"
+    },
+    {
+      "step": "4 asked",
+      "value": [
+        {
+          "key": "theme",
+          "prompt": "What should the discovery look into? Name a setting or group."
+        },
+        {
+          "key": "target_users",
+          "prompt": "Who is affected?"
+        },
+        {
+          "key": "measurable_problem",
+          "prompt": "What is the problem, in terms you could measure?"
+        },
+        {
+          "key": "outcome_measure",
+          "prompt": "What would you measure to tell whether it improved?"
+        },
+        {
+          "key": "field_a",
+          "prompt": "Which two fields should the search look across? Name the first."
+        },
+        {
+          "key": "field_b",
+          "prompt": "And the second field?"
+        },
+        {
+          "key": "claims",
+          "prompt": "Which recorded claims should it work from? Tick at least one."
+        },
+        {
+          "key": "roles",
+          "prompt": "What do the ticked claims bear on?"
+        },
+        {
+          "key": "context",
+          "prompt": "Is there a geography or setting that matters?"
+        }
+      ]
+    },
+    {
+      "step": "4 summary",
+      "value": {
+        "title": "Start a discovery about “rural clinic appointment waits”",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Brief",
+          "“rural clinic appointment waits” for Rural patients booking a first appointment, from 1 claim",
+          "Run",
+          "A new run, human in the loop: it asks at stage gates · studio default",
+          "Model access",
+          "Fixture · budget Studio budget",
+          "Model calls",
+          "Allowed for 24 hours on synthetic data, revocable under Monitor › Approvals",
+          "Limits",
+          "At most 24 calls, up to 2 simulated units each from the budget, 900 s in all",
+          "Routine settings",
+          "Six weeks · Fixture budget only; no paid services · 1 revision round · studio defaults",
+          "Output",
+          "Proposals for all 5 response types, each critiqued; you compare them under Decide"
+        ],
+        "requests": "Exactly what will be sent (5 requests)"
+      }
+    },
+    {
+      "step": "4 sent",
+      "value": {
+        "state": "Done",
+        "result": "run: Discovery: rural clinic appointment waits\nworkflow: Discovery: rural clinic appointment waits\n\nSent Nov 11, 2026, 5:56 AM · 8 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "5 decisions answered from Chat",
+      "value": 0
+    },
+    {
+      "step": "5 options proposed",
+      "value": 5
+    },
+    {
+      "step": "6 button",
+      "value": "Do it here: score an option"
+    },
+    {
+      "step": "6 asked",
+      "value": [
+        "option",
+        "r_problem_fit",
+        "e_problem_fit",
+        "w_problem_fit",
+        "r_expected_outcome",
+        "e_expected_outcome",
+        "w_expected_outcome",
+        "r_feasibility_burden",
+        "e_feasibility_burden",
+        "w_feasibility_burden",
+        "r_evidence_support",
+        "e_evidence_support",
+        "w_evidence_support",
+        "r_maintenance_burden",
+        "e_maintenance_burden",
+        "w_maintenance_burden",
+        "r_stakeholder_acceptability",
+        "e_stakeholder_acceptability",
+        "w_stakeholder_acceptability",
+        "influence",
+        "influence_note",
+        "ethics",
+        "ethics_note",
+        "access",
+        "access_note",
+        "c_contrary_evidence",
+        "c_current_workaround",
+        "confidence",
+        "confidence_why"
+      ]
+    },
+    {
+      "step": "6 summary",
+      "value": {
+        "title": "Score “Human-led: a named coordinator owns Median days from reques…”",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Scorecard",
+          "Saves your solution suitability scorecard of “Human-led: a named coordinator owns Median days from request to appointment” v1, as Local owner",
+          "Ranking",
+          "It counts in the ranking under Decide; an unresolved gate still holds the option back",
+          "Checks",
+          "Other checks: 2 of 4 answered, the rest “unknown”"
+        ],
+        "requests": "Exactly what will be sent (1 request)"
+      }
+    },
+    {
+      "step": "6 sent",
+      "value": {
+        "state": "Done",
+        "result": "scorecard: Human-led: a named coordinator owns Median days from request to appointment\n\nSent Nov 11, 2026, 5:57 AM · 2 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "7 button",
+      "value": "Do it here: record your choice"
+    },
+    {
+      "step": "7 asked",
+      "value": [
+        "problem",
+        "d_2bcef2af-1cbc-4ab6-9082-6e9b92ebdfe0",
+        "why_2bcef2af-1cbc-4ab6-9082-6e9b92ebdfe0",
+        "rev_2bcef2af-1cbc-4ab6-9082-6e9b92ebdfe0",
+        "d_50f32561-6ee8-4cd8-b3db-b24028799407",
+        "why_50f32561-6ee8-4cd8-b3db-b24028799407",
+        "rev_50f32561-6ee8-4cd8-b3db-b24028799407",
+        "d_9b77ec2c-1674-4e51-8398-679cb51e7c92",
+        "why_9b77ec2c-1674-4e51-8398-679cb51e7c92",
+        "rev_9b77ec2c-1674-4e51-8398-679cb51e7c92",
+        "d_e2a53f03-aff4-46c4-924e-57da6a928255",
+        "why_e2a53f03-aff4-46c4-924e-57da6a928255",
+        "rev_e2a53f03-aff4-46c4-924e-57da6a928255",
+        "d_f1ed7482-614a-4185-8504-0f5f6e3326c1",
+        "why_f1ed7482-614a-4185-8504-0f5f6e3326c1",
+        "rev_f1ed7482-614a-4185-8504-0f5f6e3326c1",
+        "rationale"
+      ]
+    },
+    {
+      "step": "7 summary",
+      "value": {
+        "title": "Record your choice on “rural clinic appointment waits: Rural patients wait weeks f…”",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Problem",
+          "rural clinic appointment waits: Rural patients wait weeks for a first clinic appointment. v1",
+          "Change the process behind Median days from request to appoi…",
+          "Defer",
+          "Human-led: a named coordinator owns Median days from reques…",
+          "Recommend (no new software)",
+          "Software: rural clinic appointment waits",
+          "Defer",
+          "Use an existing tool (none evidenced)",
+          "Defer",
+          "Hybrid: staff review supported by a simple list from existi…",
+          "Defer",
+          "Then",
+          "The run may ask you to approve the selection under its oversight setting; a card for that appears here. A non-code choice is ready for a proposal; software goes to a spec and a build."
+        ],
+        "requests": "Exactly what will be sent (1 request)"
+      }
+    },
+    {
+      "step": "7 sent",
+      "value": {
+        "state": "Held for a decision",
+        "result": "Held for a decision: Needs a person: outside grant. It waits in Approvals; answer it, then send this card again.\n\nSent Nov 11, 2026, 5:57 AM · 2 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "7 held",
+      "value": "Held for a decision: Needs a person: outside grant. It waits in Approvals; answer it, then send this card again."
+    },
+    {
+      "step": "7 approve button",
+      "value": "Do it here: answer a waiting decision"
+    },
+    {
+      "step": "7 approve sent",
+      "value": {
+        "state": "Done",
+        "result": "Sent Nov 11, 2026, 5:58 AM · 2 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "7 again asked",
+      "value": []
+    },
+    {
+      "step": "7 again sent",
+      "value": {
+        "state": "Done",
+        "result": "selection: rural clinic appointment waits: Rural patients wait weeks for a first clinic appointment.\n\nSent Nov 11, 2026, 5:58 AM · 3 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "8 asked",
+      "value": [
+        "option",
+        "summary",
+        "s_objectives",
+        "s_methods",
+        "s_evaluation",
+        "s_ethics_risks",
+        "s_next_tasks"
+      ]
+    },
+    {
+      "step": "8 summary",
+      "value": {
+        "title": "Save a proposal for “Human-led: a named coordinator owns Median days from reques…”",
+        "missing": null,
+        "blockers": [],
+        "happen": [
+          "Proposal",
+          "Saves “Proposal: Human-led: a named coordinator owns Median days from request to appointment” as version 1",
+          "Sections",
+          "10 sections still marked unknown (Objectives, Contrary evidence, Methods and step-by-step procedure, Materials and resources, Roles, Timeline, Cost estimates and unknowns, Testing and evaluation criteria, Ethics and risks, Next tasks); finish them under Proposals",
+          "Then",
+          "Its checks say what is still missing before it is ready for review. They check the document, not whether the plan works."
+        ],
+        "requests": "Exactly what will be sent (1 request)"
+      }
+    },
+    {
+      "step": "8 sent",
+      "value": {
+        "state": "Done",
+        "result": "proposal: Proposal: Human-led: a named coordinator owns Median days from request to appointment\n\nSent Nov 11, 2026, 5:58 AM · 2 audit events name this send as their cause"
+      }
+    },
+    {
+      "step": "8 proposals",
+      "value": [
+        "Proposal: Human-led: a named coordinator owns Median days from request to appointment"
+      ]
+    },
+    {
+      "step": "9 claim revised",
+      "value": {
+        "from": 1,
+        "to": 2,
+        "error": null
+      }
+    },
+    {
+      "step": "9 stale sent",
+      "value": {
+        "state": "Not sent: out of date",
+        "result": "“Rural patients wait weeks for a first clinic appointment.” changed since this card was made (version 1, now 2), so nothing was sent. Ask again for a card made from the current version."
+      }
+    },
+    {
+      "step": "10 cards",
+      "value": [
+        {
+          "kind": "fetch_source",
+          "origin": "studio",
+          "state": "done",
+          "events": 6,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "fetch_source",
+          "origin": "studio",
+          "state": "refused",
+          "events": 1,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "cite_claim",
+          "origin": "studio",
+          "state": "done",
+          "events": 3,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "fund_budget",
+          "origin": "studio",
+          "state": "done",
+          "events": 2,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "start_discovery",
+          "origin": "studio",
+          "state": "done",
+          "events": 8,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "score_option",
+          "origin": "studio",
+          "state": "done",
+          "events": 2,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "record_choice",
+          "origin": "studio",
+          "state": "done",
+          "events": 2,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "answer_decision",
+          "origin": "studio",
+          "state": "done",
+          "events": 2,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "record_choice",
+          "origin": "studio",
+          "state": "done",
+          "events": 3,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "save_proposal",
+          "origin": "studio",
+          "state": "done",
+          "events": 2,
+          "sent_by": "00000000-0000-4000-8000-000000000001"
+        },
+        {
+          "kind": "start_discovery",
+          "origin": "studio",
+          "state": "stale",
+          "events": null,
+          "sent_by": null
+        }
+      ]
+    },
+    {
+      "step": "errors",
+      "value": [
+        "409 POST http://127.0.0.1:5183/api/workspaces/2165d67f-edfd-4a04-9aea-af06d3f123e4/chats/ecffea4e-9075-406b-be2a-a4f9ee45fdf2/actions/1f38f468-71d2-45e2-b23a-401fd08c4181/send"
+      ]
+    }
+  ],
+  "errors": [
+    "409 POST http://127.0.0.1:5183/api/workspaces/2165d67f-edfd-4a04-9aea-af06d3f123e4/chats/ecffea4e-9075-406b-be2a-a4f9ee45fdf2/actions/1f38f468-71d2-45e2-b23a-401fd08c4181/send"
+  ],
+  "formRequests": [
+    {
+      "path": "/api/workspaces/…/entities",
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
+    },
+    {
+      "path": "/api/workspaces/…/runs",
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
+    },
+    {
+      "path": "/api/workspaces/…/grants",
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
+    },
+    {
+      "path": "/api/workspaces/…/runs/7fd34d5f-2f8f-4cc0-86a1-70c80b22d3b2/source-fetches",
+      "causation": "458785d5-8e94-42d8-828c-b20784cb84d5",
+      "card": "25651953-3d87-494b-a6e9-cb10dede686d"
+    },
+    {
+      "path": "/api/workspaces/…/runs/7fd34d5f-2f8f-4cc0-86a1-70c80b22d3b2/source-fetches",
+      "causation": "9cb47a4b-8949-4278-9be8-1305969c3649",
+      "card": "1e5c01bf-458e-4e5c-a63d-24567d493ce9"
+    },
+    {
+      "path": "/api/workspaces/…/entities",
+      "causation": "8f42a397-c867-45e6-9c36-8b4f3b5f649c",
+      "card": "9984c1ee-18cb-4b31-834d-01b69127fd7a"
+    },
+    {
+      "path": "/api/workspaces/…/claims/065a2c23-73e4-452e-8530-8a16d4f7ecc3/support",
+      "causation": "8f42a397-c867-45e6-9c36-8b4f3b5f649c",
+      "card": "9984c1ee-18cb-4b31-834d-01b69127fd7a"
+    },
+    {
+      "path": "/api/workspaces/…/budgets",
+      "causation": "3a4216bf-54af-453b-b38e-9dc2dcf7d74c",
+      "card": "3565a520-22a5-4ea8-a203-129678962073"
+    },
+    {
+      "path": "/api/workspaces/…/pricing",
+      "causation": "3a4216bf-54af-453b-b38e-9dc2dcf7d74c",
+      "card": "3565a520-22a5-4ea8-a203-129678962073"
+    },
+    {
+      "path": "/api/workspaces/…/entities",
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
+    },
+    {
+      "path": "/api/workspaces/…/entities",
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
+    },
+    {
+      "path": "/api/workspaces/…/runs",
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
+    },
+    {
+      "path": "/api/workspaces/…/grants",
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
+    },
+    {
+      "path": "/api/workspaces/…/runs/a50d663a-c278-45af-9dea-061c4728434e/discoveries",
+      "causation": "4bbdc631-bbb1-4a9c-a609-ec30c280be8f",
+      "card": "6dbbad08-42a2-45c6-812f-7c9651a6a24c"
+    },
+    {
+      "path": "/api/workspaces/…/scorecards",
+      "causation": "8adf381e-cb4e-4fff-a9b7-dc2ffb72c13e",
+      "card": "2b46c4de-8302-4cd9-8ed9-6ee6e52178be"
+    },
+    {
+      "path": "/api/workspaces/…/runs/a50d663a-c278-45af-9dea-061c4728434e/selections",
+      "causation": "3debd8d7-7d8a-4b09-8823-5743a087d8da",
+      "card": "f882dbf6-5fc6-49db-8c4e-4a054687d9d7"
+    },
+    {
+      "path": "/api/workspaces/…/decisions/a041e7b0-df8a-4f67-acd2-8f25e89441b2/answer",
+      "causation": "aefb5c54-5e28-4f6b-a98a-3397416da017",
+      "card": "007957ff-f7b5-4dc0-a3b9-c00c74bcd8b0"
+    },
+    {
+      "path": "/api/workspaces/…/runs/a50d663a-c278-45af-9dea-061c4728434e/selections",
+      "causation": "f76cfb01-f43e-4c86-a48d-ce7831cd5b3a",
+      "card": "4974d442-a876-4b47-b4d9-6edc2b896389"
+    },
+    {
+      "path": "/api/workspaces/…/proposals",
+      "causation": "bd9852e8-0520-4d5c-92ca-702623a2ffcc",
+      "card": "caefe968-72c4-49b8-b917-c9a445265962"
+    }
+  ]
+}

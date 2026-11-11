@@ -1,0 +1,22 @@
+ sent_at  |   sent_by   |      card       |                                                              caused                                                               
+----------+-------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------
+ 05:54:26 | Local owner | fetch_source    | entity.created, run.registered, grant.created, action.evaluated, entity.created, source.fetch_finished
+ 05:54:34 | Local owner | fetch_source    | source.fetch_recorded
+ 05:55:07 | Local owner | cite_claim      | entity.created, link.created, claim.support_recorded
+ 05:55:31 | Local owner | fund_budget     | budget.funded, pricing.recorded
+ 05:56:07 | Local owner | start_discovery | entity.created, entity.created, run.registered, grant.created, member.added, workflow.started, workflow.delegated, workflow.state
+ 05:57:10 | Local owner | score_option    | entity.created, link.created
+ 05:57:55 | Local owner | record_choice   | decision.requested, action.evaluated
+ 05:58:08 | Local owner | answer_decision | grant.created, decision.answered
+ 05:58:15 | Local owner | record_choice   | grant.consumed, action.evaluated, selection.recorded
+ 05:58:46 | Local owner | save_proposal   | entity.created, link.created
+(10 rows)
+
+        action        | count 
+----------------------+-------
+ chat.action_finished |    10
+ chat.action_proposed |    11
+ chat.action_sent     |    10
+ chat.action_stale    |     1
+(4 rows)
+
