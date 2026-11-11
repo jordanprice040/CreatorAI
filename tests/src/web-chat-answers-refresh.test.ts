@@ -15,6 +15,11 @@ type Form = { connection_id: string; model_id: string; enabled: boolean };
 type FormModule = {
   verifiedModels: (details: Detail[], id: string) => string[];
   matchOfferedChoice: (form: Form, details: Detail[]) => Form;
+  savedModelNote: (
+    saved: { connection_id: string | null; model_id: string | null } | null,
+    form: Form,
+    details: Detail[],
+  ) => string;
 };
 const detail = (id: string, verified: string[]): Detail => ({
   connection: { id },
@@ -84,6 +89,52 @@ test('a model verified after the card loaded fills the empty Model field, and a 
   assert.equal(f.matchOfferedChoice(stale, []), stale);
 });
 
+test('the card says when the saved model is no longer verified and what a save would use', async () => {
+  // PR #170 re-review RN-1: until the owner saves, chat keeps the refused saved model.
+  const f = (await loadWeb('chat-answers-form.ts')) as FormModule;
+  const details = [detail('c1', ['gpt-6-astra']), detail('c2', ['m2'])];
+  const form: Form = {
+    connection_id: 'c1',
+    model_id: 'gpt-6-astra',
+    enabled: true,
+  };
+  const note = f.savedModelNote(
+    { connection_id: 'c1', model_id: 'refused-model' },
+    form,
+    details,
+  );
+  assert.match(note, /refused-model is no longer verified/);
+  assert.match(note, /Save to use gpt-6-astra/);
+  // A saved model still verified, nothing saved yet, or connections not read yet: no note.
+  assert.equal(
+    f.savedModelNote(
+      { connection_id: 'c1', model_id: 'gpt-6-astra' },
+      form,
+      details,
+    ),
+    '',
+  );
+  assert.equal(
+    f.savedModelNote({ connection_id: null, model_id: null }, form, details),
+    '',
+  );
+  assert.equal(
+    f.savedModelNote(
+      { connection_id: 'c1', model_id: 'refused-model' },
+      form,
+      [],
+    ),
+    '',
+  );
+  // The owner has picked another connection: the note names no replacement.
+  const other = f.savedModelNote(
+    { connection_id: 'c1', model_id: 'refused-model' },
+    { ...form, connection_id: 'c2', model_id: 'm2' },
+    details,
+  );
+  assert.match(other, /until you save another/);
+});
+
 test('wiring check: the chat answers card listens for writes while shown', async () => {
   // A wiring check only, not a behaviour test (PR #170 review N-2): the card's behaviour is
   // covered by matchOfferedChoice above and the api() test below; this only guards that the
@@ -94,6 +145,8 @@ test('wiring check: the chat answers card listens for writes while shown', async
     /addEventListener\(STUDIO_CHANGED, changed\)[\s\S]*?removeEventListener\(STUDIO_CHANGED, changed\)/,
   );
   assert.match(source, /if \(shown\.current\)/);
+  // RN-2: a successful read clears an earlier read error; actions keep their own error.
+  assert.match(source, /setDetails\(d\);\s*setReadError\(''\)/);
   assert.match(source, /matchOfferedChoice\(f, details\)/);
 });
 

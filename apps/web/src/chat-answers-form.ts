@@ -41,3 +41,22 @@ export function matchOfferedChoice<
     ? form
     : { ...form, connection_id, model_id };
 }
+
+/**
+ * A note when the saved model is no longer verified on the saved connection, so the card is
+ * showing (and a save would send) another one (PR #170 re-review RN-1). Until the owner saves,
+ * chat keeps using the saved setting, which is refused.
+ */
+export function savedModelNote(
+  saved: { connection_id: string | null; model_id: string | null } | null,
+  form: { connection_id: string; model_id: string },
+  details: readonly Detail[],
+): string {
+  if (!saved?.model_id || !saved.connection_id) return '';
+  if (!details.some((d) => d.connection.id === saved.connection_id)) return '';
+  if (verifiedModels(details, saved.connection_id).includes(saved.model_id))
+    return '';
+  return form.model_id && form.connection_id === saved.connection_id
+    ? `The saved model ${saved.model_id} is no longer verified on this connection, so chat answers are refused. Save to use ${form.model_id} instead.`
+    : `The saved model ${saved.model_id} is no longer verified on its connection, so chat answers are refused until you save another.`;
+}
