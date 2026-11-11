@@ -885,3 +885,5 @@ results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
   and format pass; `pnpm test:db` 913 tests, 879 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
 - Second re-review Lows: L-1, when the current model is not verified on a plan connection here and nothing was
   picked, Build says so and names the model it uses instead, like Explore, Discover and Assess. L-2: the wording above.
+- Third re-review Lows: that note is not shown beside "Chosen plan model unavailable: choose again" (nothing runs
+  until a builder is chosen) or in a fixture workspace (Build lists no plan builders there).
