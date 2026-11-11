@@ -203,11 +203,24 @@ export const emptyCase = (): CaseDraft => ({
   held_out: false,
 });
 
+/**
+ * ADR-0082 (P19): the routine values a new spec starts with, shown under their folds with
+ * "studio default" until changed. They describe how the work is organised and kept up, never
+ * what it must do: flows, scope, checks and cases are always the person's own.
+ */
+export const SPEC_DEFAULTS = {
+  role: 'builder' as Role,
+  obligations: 'Check that the acceptance checks still pass',
+  review_interval: 'Every 3 months',
+};
+
 export function emptySpecDraft(
   prefill: {
     title?: string;
     audience?: string;
     problem_statement?: string;
+    /** Who writes the spec; the default maintainer. */
+    maintainer?: string;
   } = {},
 ): SpecDraft {
   return {
@@ -230,15 +243,20 @@ export function emptySpecDraft(
       },
     ],
     risks: [],
-    maintenance: { owner: '', obligations: '', review_interval: '' },
+    maintenance: {
+      owner: (prefill.maintainer ?? '').trim().slice(0, SHORT),
+      obligations: SPEC_DEFAULTS.obligations,
+      review_interval: SPEC_DEFAULTS.review_interval,
+    },
+    // One task delivering the one check is where every spec starts; ticks stay visible.
     tasks: [
       {
         key: 'T1',
         title: '',
-        role: '',
+        role: SPEC_DEFAULTS.role,
         file_scope: '',
         depends_on: [],
-        acceptance: [],
+        acceptance: ['A1'],
         deliverable: '',
       },
     ],

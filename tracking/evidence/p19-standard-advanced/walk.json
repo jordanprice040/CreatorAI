@@ -1,0 +1,300 @@
+[
+  {
+    "step": "0 workspace",
+    "value": {
+      "name": "P19 walk 07:18:15",
+      "ws": "c88e130f-a299-4d96-8c97-8c7e8ff394dc",
+      "url": "http://127.0.0.1:5183/#/chat/conversations?ws=c88e130f-a299-4d96-8c97-8c7e8ff394dc"
+    }
+  },
+  {
+    "step": "0 view mode on first sign-in",
+    "value": "Standard"
+  },
+  {
+    "step": "0 server view choice before any click",
+    "value": {
+      "view_mode": "standard",
+      "version": 0,
+      "updated_at": null
+    }
+  },
+  {
+    "step": "1 Getting started on Chat",
+    "value": [
+      "Record evidence: Next",
+      "Set up a budget: Later",
+      "Discover problems and options: Later",
+      "Score an option: Later",
+      "Choose what to do with it: Later"
+    ]
+  },
+  {
+    "step": "1 Projects tabs (Standard)",
+    "value": [
+      "Path",
+      "Discover",
+      "Decide",
+      "Proposals",
+      "Scores and specs",
+      "Build",
+      "Try",
+      "Launch in Advanced"
+    ]
+  },
+  {
+    "step": "1 Monitor tabs (Standard)",
+    "value": [
+      "Overview",
+      "Approvals",
+      "Runs",
+      "Activity",
+      "Budgets",
+      "Workers in Advanced"
+    ]
+  },
+  {
+    "step": "1 Settings tabs (Standard)",
+    "value": [
+      "Owner settings",
+      "Study in Advanced"
+    ]
+  },
+  {
+    "step": "1 Workers route opens in Standard; tabs while open",
+    "value": [
+      "Overview",
+      "Approvals",
+      "Runs",
+      "Activity",
+      "Budgets",
+      "Workers"
+    ]
+  },
+  {
+    "step": "1 Workers heading",
+    "value": "Workers"
+  },
+  {
+    "step": "2 opened",
+    "value": "/sources/claims?ws=c88e130f-a299-4d96-8c97-8c7e8ff394dc"
+  },
+  {
+    "step": "2 cite form folds (Standard)",
+    "value": [
+      {
+        "open": false,
+        "summary": "Kind of evidence: source asserts · studio default"
+      }
+    ]
+  },
+  {
+    "step": "2 cite form: basis and stance stay open",
+    "value": {
+      "basis": true,
+      "stance": true,
+      "kind": false
+    }
+  },
+  {
+    "step": "3 Getting started after evidence",
+    "value": [
+      "Record evidence: Done",
+      "Set up a budget: Next",
+      "Discover problems and options: Later",
+      "Score an option: Later",
+      "Choose what to do with it: Later"
+    ]
+  },
+  {
+    "step": "3 budget defaults",
+    "value": {
+      "name": "Studio budget",
+      "cap": "100"
+    }
+  },
+  {
+    "step": "4 Getting started after budget",
+    "value": [
+      "Record evidence: Done",
+      "Set up a budget: Done",
+      "Discover problems and options: Next",
+      "Score an option: Later",
+      "Choose what to do with it: Later"
+    ]
+  },
+  {
+    "step": "4 Discover folds (Standard)",
+    "value": [
+      {
+        "open": false,
+        "summary": "Routine details: Six weeks · 1 constraint · studio defaults"
+      },
+      {
+        "open": false,
+        "summary": "5 of 5 response types · 1 revision round · studio default"
+      },
+      {
+        "open": false,
+        "summary": "New run · Fixture · budget Studio budget · studio defaults"
+      }
+    ]
+  },
+  {
+    "step": "4 Discover what will happen",
+    "value": "What will happen\nRun\nA new run, human in the loop: it asks at stage gates · studio default\nModel calls\nAllowed for 24 hours on synthetic data, revocable under Monitor › Approvals · studio default\nRoutine approvals\nOff: the run asks you as its oversight setting says · studio default\nModel access\nFixture · budget Studio budget · studio default\nLimits\nAt most 24 calls, up to 2 simulated units each from the budget, 900 s in all · studio default\nCeilings\nBudget Studio budget: 100.00 sim available\nEvidence sharing\nsynthetic data only · studio default\nOutput\nProposals for 5 response types, each critiqued, with 1 revision round; you compare them under Projects › Decide\n\nNothing starts until you press the button below, and the server checks every permission, cap and qualification again. Defaults never add evidence, permissions or qualifications.\n\nSave these settings as my defaults here"
+  },
+  {
+    "step": "4 discovery run",
+    "value": "Main path: Scores is next. Open Projects › Decide\n\nOverview\nApprovals\nRuns\nActivity\nBudgets\nWorkers in Advanced\nReset fields\nWorkflow runs\n\nA skeptic review critiques one record from several perspectives, then combines them. Discovery runs (started from Projects › Discover, the API or creator seed-discovery) also show here with each proposal's disposition and the skeptic's dissent. Each step is ch"
+  },
+  {
+    "step": "5 Getting started after discovery",
+    "value": [
+      "Record evidence: Done",
+      "Set up a budget: Done",
+      "Discover problems and options: Done",
+      "Score an option: Next",
+      "Choose what to do with it: Later"
+    ]
+  },
+  {
+    "step": "5 scorecard folds (Standard)",
+    "value": [
+      {
+        "open": false,
+        "summary": "Other checks: 2 of 4 answered, the rest “unknown” · no existing tools listed"
+      }
+    ]
+  },
+  {
+    "step": "5 scorecard what will happen",
+    "value": "What will happen\nScorecard\nSaves your solution suitability scorecard of “Human-led: a named coordinator owns Days from request to appointment” v1, as Local owner\nRanking\nIt counts in the ranking under Decide; an unresolved gate still holds the option back\nChecks\nOther checks: 2 of 4 answered, the rest “unknown” · no existing tools listed\n\nNothing is saved until you press the button below. Ratings, gates and confidence are only what you picked; the defaults fill only the four routine checks with “unknown”, and what argues against it needs your own answer."
+  },
+  {
+    "step": "5 scorecard errors",
+    "value": []
+  },
+  {
+    "step": "5 humility folds (Standard)",
+    "value": [
+      {
+        "open": false,
+        "summary": "Inferred, disputed and unknown points (optional): none listed"
+      },
+      {
+        "open": false,
+        "summary": "Burdens and risks it adds (optional): none listed"
+      },
+      {
+        "open": false,
+        "summary": "Disagreements to keep on record (optional): none listed"
+      }
+    ]
+  },
+  {
+    "step": "5 humility what will happen",
+    "value": "What will happen\nReview\nSaves your humility review of Hybrid: staff review supported by a simple list from existing data v1\nBuild\nDecided once every required field is filled\n\nNothing is saved until you press the button below. The disposition, every viability call and the ethics status are only what you picked."
+  },
+  {
+    "step": "6 after first record",
+    "value": [
+      "Next: Record a selection below, then write its spec under Projects › Build (Write a spec).",
+      "",
+      "1 decision waits for you. Open Monitor › Approvals"
+    ]
+  },
+  {
+    "step": "6 the run asked to allow the selection",
+    "value": true
+  },
+  {
+    "step": "6 selection history",
+    "value": "Selection history\nCurrent · Nov 11, 2026, 7:21 AM · Start with the human-led option; revisit the others if it fails. · 5 options"
+  },
+  {
+    "step": "7 proposals",
+    "value": [
+      "Proposal: Human-led: a named coordinator owns Days from request to appointment · Human-led · v1 · Nov 11, 2026, 7:21 AM"
+    ]
+  },
+  {
+    "step": "7 Getting started gone after the proposal",
+    "value": true
+  },
+  {
+    "step": "7 view mode at the end of the walk (never switched)",
+    "value": {
+      "mode": "Standard",
+      "advancedClicks": 0
+    }
+  },
+  {
+    "step": "8 server choice after the switch in A",
+    "value": {
+      "view_mode": "advanced",
+      "version": 1,
+      "updated_at": "2026-11-11T07:22:00.230Z"
+    }
+  },
+  {
+    "step": "8 browser B view mode",
+    "value": "Advanced"
+  },
+  {
+    "step": "8 browser B Projects tabs (Advanced)",
+    "value": [
+      "Path",
+      "Discover",
+      "Decide",
+      "Proposals",
+      "Scores and specs",
+      "Build",
+      "Try",
+      "Launch"
+    ]
+  },
+  {
+    "step": "8 browser B Monitor tabs (Advanced)",
+    "value": [
+      "Overview",
+      "Approvals",
+      "Runs",
+      "Activity",
+      "Budgets",
+      "Workers"
+    ]
+  },
+  {
+    "step": "9 Discover routine folds in Advanced",
+    "value": 0
+  },
+  {
+    "step": "9 Discover routine fields visible in Advanced",
+    "value": {
+      "time": true,
+      "budget": true,
+      "revisions": true,
+      "route": true
+    }
+  },
+  {
+    "step": "9 scorecard routine folds in Advanced",
+    "value": 0
+  },
+  {
+    "step": "9 scorecard check fields visible in Advanced",
+    "value": true
+  },
+  {
+    "step": "10 browser A after B switched back",
+    "value": "Standard"
+  },
+  {
+    "step": "errors",
+    "value": [
+      "A: 404 http://127.0.0.1:5183/api/workspaces/c88e130f-a299-4d96-8c97-8c7e8ff394dc/problems//explanation",
+      "A: 404 http://127.0.0.1:5183/api/workspaces/c88e130f-a299-4d96-8c97-8c7e8ff394dc/problems//explanation"
+    ]
+  }
+]

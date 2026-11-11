@@ -47,6 +47,8 @@ import {
   ChatMessageRequestSchema,
   ChatSettingsRequestSchema,
   SetModelChoiceRequestSchema,
+  SetViewPreferenceRequestSchema,
+  type ViewPreference,
   WorkspaceNoteRequestSchema,
   NoteArchiveRequestSchema,
   NoteCreateRequestSchema,
@@ -1032,6 +1034,69 @@ export class ConnectionStore extends PortfolioStore {
       return {
         items: await activityNow(c, uuid(ws)),
         generated_at: new Date().toISOString(),
+      };
+    });
+  }
+
+  /**
+   * ADR-0082 (P19): the signed-in person's Standard/Advanced choice. Any signed-in person
+   * (owner or tester) reads and sets only their own; it is presentation, never authority.
+   */
+  async viewPreference(ctxIn: CommandContext): Promise<ViewPreference> {
+    const ctx = normalize(ctxIn);
+    const { rows } = await this.pool.query(
+      `select view_mode, version, updated_at from person_preferences where actor_id = $1`,
+      [ctx.actorId],
+    );
+    const r = rows[0] as Row | undefined;
+    return r
+      ? {
+          view_mode: r.view_mode as ViewPreference['view_mode'],
+          version: Number(r.version),
+          updated_at: iso(r.updated_at),
+        }
+      : { view_mode: 'standard', version: 0, updated_at: null };
+  }
+
+  /** A stale `expected_version` (another tab or device changed it) is refused. */
+  async setViewPreference(
+    ctxIn: CommandContext,
+    raw: unknown,
+  ): Promise<ViewPreference> {
+    const ctx = normalize(ctxIn);
+    const req = parse(SetViewPreferenceRequestSchema, raw);
+    return this.tx(async (c) => {
+      const { rows } = await c.query(
+        `select version from person_preferences where actor_id = $1 for update`,
+        [ctx.actorId],
+      );
+      const current = rows[0] ? Number((rows[0] as Row).version) : 0;
+      if (current !== req.expected_version)
+        throw fail(
+          'VERSION_CONFLICT',
+          'Your view choice changed in another window; reload and try again.',
+        );
+      const { rows: out } = await c.query(
+        `insert into person_preferences (actor_id, view_mode, version)
+         values ($1, $2, 1)
+         on conflict (actor_id) do update set view_mode = excluded.view_mode,
+           version = person_preferences.version + 1, updated_at = clock_timestamp()
+         where person_preferences.version = $3
+         returning view_mode, version, updated_at`,
+        [ctx.actorId, req.view_mode, req.expected_version],
+      );
+      // A first save has no row to lock: a simultaneous first save lands first and this
+      // one then finds a row whose version is not the expected 0, so nothing is returned.
+      if (!out[0])
+        throw fail(
+          'VERSION_CONFLICT',
+          'Your view choice changed in another window; reload and try again.',
+        );
+      const r = out[0] as Row;
+      return {
+        view_mode: r.view_mode as ViewPreference['view_mode'],
+        version: Number(r.version),
+        updated_at: iso(r.updated_at),
       };
     });
   }

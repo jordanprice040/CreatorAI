@@ -115,9 +115,16 @@ test('nothing is pre-picked: an empty form names every judgment still to make', 
     target_users: 'Gamers',
     measurable_outcome: 'Missed inputs per minute',
   });
-  // Only text the discovery record states is filled in.
+  // Only text the discovery record states is filled in; the other routine checks start as the
+  // honest "unknown" (ADR-0082), never as an answer.
   assert.equal(d.checks.target_users, 'Gamers');
   assert.equal(d.checks.measurable_outcome, 'Missed inputs per minute');
+  // The judgment checks need a deliberate answer: they start empty and an empty one is refused.
+  assert.equal(d.checks.current_workaround, '');
+  assert.equal(d.checks.contrary_evidence, '');
+  assert.equal(d.checks.validation_plan, 'unknown');
+  assert.equal(d.checks.maintenance, 'unknown');
+  assert.equal(d.influence.rating, '', 'software influence is a judgment');
   const out = f.draftToBody(d, o);
   assert.equal(out.body, null);
   for (const k of o.criteria) assert.ok(out.errors![`ratings.${k}.rating`]);
@@ -125,6 +132,9 @@ test('nothing is pre-picked: an empty form names every judgment still to make', 
   assert.ok(out.errors!['ethics.status']);
   assert.ok(out.errors!['access.status']);
   assert.ok(out.errors!['influence.rating']);
+  assert.ok(out.errors!['checks.contrary_evidence']);
+  assert.ok(out.errors!['checks.current_workaround']);
+  assert.equal(out.errors!['checks.validation_plan'], undefined);
 });
 
 test('a rating without evidence is refused before it reaches the server', async () => {

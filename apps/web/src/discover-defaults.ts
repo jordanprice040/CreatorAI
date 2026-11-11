@@ -244,3 +244,31 @@ export function discoverSetupBlockers(input: {
     });
   return out;
 }
+
+/** ADR-0082: the plan a connection runs on, by name, for summaries and option labels. */
+export const planName = (kind: string | undefined) =>
+  kind === 'claude_code' ? 'Claude plan' : 'ChatGPT plan';
+
+/**
+ * The model-access part of Discover's routine summary. A plan route names its plan (Claude
+ * or ChatGPT), so a Claude Code connection never reads as the ChatGPT plan.
+ */
+export function routeText(
+  kind: 'api' | 'subscription',
+  plan: { kind?: string; label: string } | undefined,
+  model: string,
+  fixture: boolean,
+  budgetName: string | undefined,
+) {
+  return kind === 'subscription'
+    ? `${plan ? planName(plan.kind) : 'Plan'} · ${plan?.label ?? 'no connection yet'} · ${model || 'no verified model'}`
+    : `${fixture ? 'Fixture' : 'API'} · budget ${budgetName ?? 'none yet'}`;
+}
+
+/** The "Model access" option label: the plans the workspace's connections run on. */
+export function plansOffered(kinds: readonly string[]) {
+  const names = [...new Set(kinds.map(planName))].sort();
+  if (!names.length) return 'Subscription plan';
+  if (names.length === 1) return names[0]!;
+  return names.map((n) => n.replace(' plan', '')).join(' or ') + ' plan';
+}

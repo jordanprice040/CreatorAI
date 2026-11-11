@@ -80,3 +80,23 @@ export function artifactForBuild<
       a.spec.version === spec.spec_version,
   );
 }
+
+/**
+ * ADR-0082: the Builder line of Start build's "What will happen". It names the provider the
+ * work goes to, so a Claude-plan builder never reads as the ChatGPT plan.
+ */
+export function builderSummary(
+  connection:
+    | { kind: string; label: string; plan?: 'chatgpt_plan' | 'claude_code' }
+    | undefined,
+  fixture: boolean,
+) {
+  if (!connection)
+    return fixture
+      ? 'Fixture builder (simulated, no model call)'
+      : 'Model broker (metered, reserved from the budget first)';
+  const plan = connection.plan === 'claude_code' ? 'Claude' : 'ChatGPT';
+  return connection.kind === 'roles'
+    ? `Builder and reviewer on your ${plan} plan (${connection.label}), no metered spend`
+    : `Codex on your ChatGPT plan (${connection.label}); a grant you approve must cover it`;
+}

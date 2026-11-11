@@ -9,6 +9,8 @@ import {
 import { api, message, when, words } from './oversight.js';
 import { clip } from './ui.js';
 import {
+  CHECK_DEFAULT,
+  OPEN_CHECKS,
   CHECK_LABELS,
   draftFromBody,
   draftFromSystem,
@@ -23,6 +25,7 @@ import {
   type ScorecardBodyShape,
   type ScorecardDraft,
 } from './scorecard-fields.js';
+import { Routine, WhatWillHappen } from './routine.js';
 
 const RUBRIC_NAME: Record<RubricKey, string> = {
   suitability: 'Solution suitability',
@@ -225,6 +228,42 @@ export function ScoreOption({
     errors[k]
       ? { 'aria-invalid': true, 'aria-describedby': `sc-${k}-error` }
       : {};
+
+  // ADR-0082 (P19): four checks are routine and fold, starting as "unknown" until changed; the
+  // two judgment checks (OPEN_CHECKS) stay visible and start empty, so they need an answer.
+  const checkField = (k: keyof ScorecardDraft['checks']) => (
+    <div key={k}>
+      <label htmlFor={`sc-check-${k}`}>
+        {CHECK_LABELS[k]}
+        <input
+          id={`sc-check-${k}`}
+          maxLength={300}
+          value={draft?.checks[k] ?? ''}
+          {...invalid(`checks.${k}`)}
+          onChange={(e) =>
+            set((d) => {
+              d.checks[k] = e.target.value;
+              return d;
+            })
+          }
+        />
+      </label>
+      {err(`checks.${k}`)}
+    </div>
+  );
+  // "Evidence against it" and today's workaround are judgments, so they stay outside the fold.
+  const checkKeys = Object.keys(
+    CHECK_LABELS,
+  ) as (keyof ScorecardDraft['checks'])[];
+  const foldedChecks = checkKeys.filter((k) => !OPEN_CHECKS.includes(k));
+  const answered = draft
+    ? foldedChecks.filter((k) => {
+        const v = draft.checks[k].trim();
+        return v && v.toLowerCase() !== CHECK_DEFAULT;
+      }).length
+    : 0;
+  const tools = draft?.alternatives_checked.length ?? 0;
+  const checksSummary = `Other checks: ${answered} of ${foldedChecks.length} answered, the rest “unknown” · ${tools === 0 ? 'no existing tools listed' : `${tools} existing tool${tools === 1 ? '' : 's'} listed`}`;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -702,103 +741,100 @@ export function ScoreOption({
             </fieldset>
           ))}
           <fieldset>
-            <legend>Checks</legend>
+            <legend>What argues against it</legend>
             <p className="small">
-              Short answers; write &quot;unknown&quot; where you do not know.
+              Short answers; write &quot;unknown&quot; only if you looked and do
+              not know.
             </p>
-            {(
-              Object.keys(CHECK_LABELS) as (keyof ScorecardDraft['checks'])[]
-            ).map((k) => (
-              <div key={k}>
-                <label htmlFor={`sc-check-${k}`}>
-                  {CHECK_LABELS[k]}
+            {OPEN_CHECKS.map((k) => checkField(k))}
+          </fieldset>
+          <Routine
+            summary={checksSummary}
+            open={Object.keys(errors).some(
+              (k) =>
+                k.startsWith('checks.') &&
+                !OPEN_CHECKS.some((o) => k === `checks.${o}`),
+            )}
+          >
+            <fieldset>
+              <legend>Other checks</legend>
+              <p className="small">
+                Short answers; write &quot;unknown&quot; where you do not know.
+              </p>
+              {foldedChecks.map((k) => checkField(k))}
+              <p className="small">
+                Existing tools or approaches you looked at
+                {draft.alternatives_checked.length === 0 && ': none listed yet'}
+                .
+              </p>
+              {draft.alternatives_checked.map((a, i) => (
+                <div key={i} className="inline-form">
+                  <label htmlFor={`sc-alt-${i}`} className="inline">
+                    Name
+                  </label>
                   <input
-                    id={`sc-check-${k}`}
+                    id={`sc-alt-${i}`}
                     maxLength={300}
-                    value={draft.checks[k]}
-                    {...invalid(`checks.${k}`)}
+                    value={a.name}
+                    {...invalid(`checks.alternatives_checked.${i}.name`)}
                     onChange={(e) =>
                       set((d) => {
-                        d.checks[k] = e.target.value;
+                        d.alternatives_checked[i]!.name = e.target.value;
                         return d;
                       })
                     }
                   />
-                </label>
-                {err(`checks.${k}`)}
-              </div>
-            ))}
-            <p className="small">
-              Existing tools or approaches you looked at
-              {draft.alternatives_checked.length === 0 && ': none listed yet'}.
-            </p>
-            {draft.alternatives_checked.map((a, i) => (
-              <div key={i} className="inline-form">
-                <label htmlFor={`sc-alt-${i}`} className="inline">
-                  Name
-                </label>
-                <input
-                  id={`sc-alt-${i}`}
-                  maxLength={300}
-                  value={a.name}
-                  {...invalid(`checks.alternatives_checked.${i}.name`)}
-                  onChange={(e) =>
-                    set((d) => {
-                      d.alternatives_checked[i]!.name = e.target.value;
-                      return d;
-                    })
-                  }
-                />
-                <label htmlFor={`sc-alt-${i}-on`} className="inline">
-                  Checked on
-                </label>
-                <input
-                  id={`sc-alt-${i}-on`}
-                  type="date"
-                  value={a.checked_on}
-                  {...invalid(`checks.alternatives_checked.${i}.checked_on`)}
-                  onChange={(e) =>
-                    set((d) => {
-                      d.alternatives_checked[i]!.checked_on = e.target.value;
-                      return d;
-                    })
-                  }
-                />
+                  <label htmlFor={`sc-alt-${i}-on`} className="inline">
+                    Checked on
+                  </label>
+                  <input
+                    id={`sc-alt-${i}-on`}
+                    type="date"
+                    value={a.checked_on}
+                    {...invalid(`checks.alternatives_checked.${i}.checked_on`)}
+                    onChange={(e) =>
+                      set((d) => {
+                        d.alternatives_checked[i]!.checked_on = e.target.value;
+                        return d;
+                      })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="text"
+                    onClick={() =>
+                      set((d) => {
+                        d.alternatives_checked.splice(i, 1);
+                        return d;
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
+                  {err(`checks.alternatives_checked.${i}.name`)}
+                  {err(`checks.alternatives_checked.${i}.checked_on`)}
+                </div>
+              ))}
+              {draft.alternatives_checked.length < 20 && (
                 <button
                   type="button"
-                  className="text"
+                  className="secondary"
                   onClick={() =>
                     set((d) => {
-                      d.alternatives_checked.splice(i, 1);
+                      d.alternatives_checked.push({
+                        name: '',
+                        checked_on: '',
+                      });
                       return d;
                     })
                   }
                 >
-                  Remove
+                  Add one you checked
                 </button>
-                {err(`checks.alternatives_checked.${i}.name`)}
-                {err(`checks.alternatives_checked.${i}.checked_on`)}
-              </div>
-            ))}
-            {draft.alternatives_checked.length < 20 && (
-              <button
-                type="button"
-                className="secondary"
-                onClick={() =>
-                  set((d) => {
-                    d.alternatives_checked.push({
-                      name: '',
-                      checked_on: '',
-                    });
-                    return d;
-                  })
-                }
-              >
-                Add one you checked
-              </button>
-            )}
-            {err('checks.alternatives_checked')}
-          </fieldset>
+              )}
+              {err('checks.alternatives_checked')}
+            </fieldset>
+          </Routine>
           <fieldset>
             <legend>Confidence</legend>
             <label htmlFor="sc-confidence">
@@ -875,6 +911,22 @@ export function ScoreOption({
               {error}
             </p>
           )}
+          <WhatWillHappen
+            items={[
+              {
+                label: 'Scorecard',
+                value: `${existing ? `Revises your ${RUBRIC_NAME[rubric].toLowerCase()} scorecard` : `Saves your ${RUBRIC_NAME[rubric].toLowerCase()} scorecard`} of “${clip(option.entity.title, 80)}” v${option.entity.version}, as ${reviewer || 'you'}`,
+              },
+              {
+                label: 'Ranking',
+                value: systemCard
+                  ? 'It replaces the automatic assessment in the ranking under Decide; that assessment is kept as it was'
+                  : 'It counts in the ranking under Decide; an unresolved gate still holds the option back',
+              },
+              { label: 'Checks', value: checksSummary },
+            ]}
+            note="Nothing is saved until you press the button below. Ratings, gates and confidence are only what you picked; the defaults fill only the four routine checks with “unknown”, and what argues against it needs your own answer."
+          />
           <div className="actions">
             <button type="submit" disabled={busy}>
               {existing ? 'Save revised scorecard' : 'Save scorecard'}

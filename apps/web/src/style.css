@@ -3133,6 +3133,24 @@ details.routine > summary {
 .routine-edit {
   margin-top: 0.5rem;
 }
+/* ADR-0082 (P19): the Standard/Advanced switch, the hidden-tabs link and Getting started. */
+.sidebar-foot .view-mode .presentation {
+  margin: 0 0 6px;
+  gap: 4px;
+}
+.sidebar-foot .view-mode .chip {
+  font-size: 12px;
+}
+.tabs .tabs-more {
+  margin-left: auto;
+  align-self: center;
+}
+.first-run {
+  margin-bottom: 16px;
+}
+.first-run > .text {
+  margin-top: 8px;
+}
 
 /* ---------- P18: one-line summaries that expand on click ---------- */
 details.fold {

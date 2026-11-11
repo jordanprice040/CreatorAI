@@ -56,18 +56,18 @@ import {
   defaultPlanChoice,
   discoverSetupBlockers,
   parsePreset,
-  parsePresentation,
-  presentationKey,
+  plansOffered,
   presetKey,
+  routeText,
   sourceOf,
   startingSettings,
   studioDefaults,
   type DataClass,
   type Oversight,
-  type Presentation,
   type RouteKind,
   type RoutineSettings,
 } from './discover-defaults.js';
+import { ViewModeSwitch, useViewMode } from './view-mode.js';
 
 /** This person's saved Discover preset for a workspace; empty when none or unreadable. */
 function readPreset(actor: string, ws: string, fixture: boolean) {
@@ -76,13 +76,6 @@ function readPreset(actor: string, ws: string, fixture: boolean) {
     return raw ? parsePreset(JSON.parse(raw), fixture) : {};
   } catch {
     return {};
-  }
-}
-function readPresentation(actor: string): Presentation {
-  try {
-    return parsePresentation(localStorage.getItem(presentationKey(actor)));
-  } catch {
-    return 'guided';
   }
 }
 const DISCOVERY_CLASSES = [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
@@ -308,17 +301,8 @@ export function Submit({
     readPreset(session.actor_id, workspace.id, fixture),
   );
   const start = startingSettings(fixture, preset);
-  const [presentation, setPresentationState] = useState<Presentation>(() =>
-    readPresentation(session.actor_id),
-  );
-  function setPresentation(p: Presentation) {
-    setPresentationState(p);
-    try {
-      localStorage.setItem(presentationKey(session.actor_id), p);
-    } catch {
-      // Blocked storage: the choice lasts for this page only.
-    }
-  }
+  // ADR-0082 (P19): Discover's Guided/Advanced choice is now the app-wide Standard/Advanced.
+  const { standard: guided } = useViewMode();
   const [fieldA, setFieldA] = useState('');
   const [fieldB, setFieldB] = useState('');
   const [users, setUsers] = useState('');
@@ -564,7 +548,6 @@ export function Submit({
     data_class: dataClass,
     limits,
   };
-  const guided = presentation === 'guided';
   const current: RoutineSettings = {
     timeLimit,
     budgetLimit,
@@ -581,11 +564,14 @@ export function Submit({
     v: RoutineSettings[K],
   ) => SOURCE_TEXT[sourceOf(k, v, fixture, preset)];
   const existingRun = c?.runs.find((r) => r.run_id === runChoice);
-  const routeText =
-    resourceKind === 'subscription'
-      ? `ChatGPT plan · ${plan?.connection.label ?? 'no connection yet'} · ${model || 'no verified model'}`
-      : `${fixture ? 'Fixture' : 'API'} · budget ${usableEnvelopes.find((e) => e.id === envelope)?.name ?? 'none yet'}`;
-  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${routeText} · ${sourcesText(
+  const accessText = routeText(
+    resourceKind,
+    plan?.connection,
+    model,
+    fixture,
+    usableEnvelopes.find((e) => e.id === envelope)?.name,
+  );
+  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${accessText} · ${sourcesText(
     [
       ['access', sourceText('route', resourceKind)],
       ['sharing', sourceText('dataClass', dataClass)],
@@ -661,7 +647,7 @@ export function Submit({
     },
     {
       label: 'Model access',
-      value: routeText,
+      value: accessText,
       source: sourceText('route', resourceKind),
     },
     {
@@ -939,21 +925,7 @@ export function Submit({
       />
       <ThemeIntent key={workspace.id} session={session} workspace={workspace} />
       <h3 id="discover">Discover from existing claims</h3>
-      <div className="presentation" role="radiogroup" aria-label="Form detail">
-        {(['guided', 'advanced'] as const).map((p) => (
-          <label key={p} className="chip">
-            <input
-              type="radio"
-              name={`presentation-${workspace.id}`}
-              checked={presentation === p}
-              onChange={() => setPresentation(p)}
-            />
-            {p === 'guided'
-              ? 'Guided: routine settings folded, with their defaults'
-              : 'Advanced: every setting open'}
-          </label>
-        ))}
-      </div>
+      <ViewModeSwitch />
       <p className="small">
         Write what you know, attach the claims it rests on, and start. Evidence
         is only the claims you attach; the locator does not search the web.
@@ -1337,7 +1309,8 @@ export function Submit({
                   }
                 >
                   <option value="subscription">
-                    ChatGPT plan · subscription quota
+                    {plansOffered(c.planDetails.map((p) => p.connection.kind))}{' '}
+                    · subscription quota
                   </option>
                   <option value="api">
                     API / fixture · budget and pricing

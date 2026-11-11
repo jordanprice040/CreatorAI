@@ -83,6 +83,8 @@ export type StudioFacts = {
     feedback?: { total: number; accepted: number; undecided: number };
   } | null;
   artifacts: number;
+  /** ADR-0082: proposals in the workspace, for the first-run path; absent when unread. */
+  proposals?: number;
   /** Model plan connections; null when not checked (fixture workspaces). */
   planConnections: number | null;
 };
