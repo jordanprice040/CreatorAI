@@ -879,3 +879,7 @@ results. See [section 13](../docs/SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) and
 - L-1 is fixed in the form's effect and was not re-walked in a browser (fixture workspaces list no plan builders).
 - Checks (cloud container, PostgreSQL 16, no CI): typecheck and format pass; `pnpm test:db` 912 tests, 878 pass, 29 skip,
   5 fail (the known no-`pwsh` wrapper tests); dev-safety 19 pass, 3 skip.
+- Re-review fixes: M-1, Build's choice-change effect no longer runs its reset on mount, so a lost locked builder
+  still shows "Chosen plan model unavailable: choose again" (rule `builderAfterChoiceChange`, with a test for a
+  lost default on a mounted form). L-1: the help text under a Claude Code builder says "Claude plan". Checks: typecheck
+  and format pass; `pnpm test:db` 913 tests, 879 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).

@@ -1,6 +1,12 @@
 import { SpecForm, type SpecFormMode } from './spec-form.js';
 import { HumilityForm } from './humility.js';
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   ArtifactSummarySchema,
   buildDeadlineMs,
@@ -45,6 +51,7 @@ import { recordLabel, runLabel } from './labels.js';
 import { RunbookExport } from './runbook.js';
 import {
   BUILD_ROLE_CLASSES,
+  builderAfterChoiceChange,
   planBuilderDefault,
   taskWords,
   type Choice,
@@ -1288,8 +1295,19 @@ function StartBuild({
   const choiceKey = data.choice
     ? `${data.choice.connection_id}:${data.choice.model_id}`
     : '';
+  // Only a real change of the choice counts (re-review M-1): on mount the default stays locked,
+  // so a locked builder that is no longer verified still says "choose again".
+  const seenChoice = useRef(choiceKey);
   useEffect(() => {
-    if (!picked) setBuilder('');
+    const next = builderAfterChoiceChange({
+      builder,
+      picked,
+      previousChoice: seenChoice.current,
+      choice: choiceKey,
+      defaultKey: planDefault?.key ?? '',
+    });
+    seenChoice.current = choiceKey;
+    if (next !== builder) setBuilder(next);
   }, [choiceKey]);
   const connection =
     builder && builder !== 'broker'
@@ -1552,15 +1570,16 @@ function StartBuild({
       )}
       {connection?.kind === 'roles' && (
         <p className="small">
-          Live requests on your ChatGPT plan, with no metered spend: up to{' '}
-          {2 + 2 * repairs} builder and reviewer requests, each counted against
-          the plan caps in Settings. One approval covers the whole build, its
-          repair rounds and both roles within that limit. Both roles must be
-          qualified and the run must have room for at least one of each first
-          (repair rounds need more room); if not, the build stops before
-          anything is sent or any approval is used. The budget and pricing
-          chosen above are recorded with the build, but nothing is reserved or
-          charged on this route.
+          Live requests on your{' '}
+          {connection.plan === 'claude_code' ? 'Claude' : 'ChatGPT'} plan, with
+          no metered spend: up to {2 + 2 * repairs} builder and reviewer
+          requests, each counted against the plan caps in Settings. One approval
+          covers the whole build, its repair rounds and both roles within that
+          limit. Both roles must be qualified and the run must have room for at
+          least one of each first (repair rounds need more room); if not, the
+          build stops before anything is sent or any approval is used. The
+          budget and pricing chosen above are recorded with the build, but
+          nothing is reserved or charged on this route.
         </p>
       )}
       <label htmlFor="bp-repairs">Repair rounds after a failed check</label>

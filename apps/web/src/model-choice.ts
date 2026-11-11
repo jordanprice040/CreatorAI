@@ -124,3 +124,22 @@ export function planBuilderDefault<
         fromChoice: false,
       };
 }
+
+/**
+ * Build's builder after the current model may have changed (re-review M-1). Unchanged when the
+ * choice did not change (a mount or re-render), when the person picked a builder on the form,
+ * or when there is no plan-role default to move to: a locked builder that stopped being
+ * verified keeps asking to be chosen again rather than falling to the metered broker.
+ * Otherwise the new default.
+ */
+export function builderAfterChoiceChange(s: {
+  builder: string;
+  picked: boolean;
+  previousChoice: string;
+  choice: string;
+  defaultKey: string;
+}): string {
+  if (s.previousChoice === s.choice || s.picked || !s.defaultKey)
+    return s.builder;
+  return s.defaultKey;
+}

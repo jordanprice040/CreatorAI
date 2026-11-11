@@ -71,6 +71,13 @@ type Mod = {
     builders: B[],
     choice: { connection_id: string; model_id: string } | null,
   ): { builder: B | undefined; fromChoice: boolean };
+  builderAfterChoiceChange(s: {
+    builder: string;
+    picked: boolean;
+    previousChoice: string;
+    choice: string;
+    defaultKey: string;
+  }): string;
 };
 async function rules(): Promise<Mod> {
   const source = await readFile('apps/web/src/model-choice.ts', 'utf8');
@@ -214,6 +221,38 @@ test("Build's builder starts from the current model's plan roles, else the first
       model_id: 'weak',
     }),
     { builder: weak, fromChoice: true },
+  );
+});
+
+test("Build's builder moves only on a real change of the current model; a lost default stays lost (re-review M-1)", async () => {
+  const m = await rules();
+  const base = {
+    builder: 'responses:a:gone',
+    picked: false,
+    previousChoice: 'a:gone',
+    choice: 'a:gone',
+    defaultKey: 'responses:a:other',
+  };
+  // Mounted form, choice unchanged: the locked builder that is no longer verified stays, so
+  // the form keeps saying "choose again" instead of switching models or going metered.
+  assert.equal(m.builderAfterChoiceChange(base), 'responses:a:gone');
+  // The choice arrives late (L-1) or is switched: move to the new default.
+  assert.equal(
+    m.builderAfterChoiceChange({
+      ...base,
+      previousChoice: '',
+      choice: 'a:other',
+    }),
+    'responses:a:other',
+  );
+  // A builder picked on the form stays, and with no plan default nothing changes.
+  assert.equal(
+    m.builderAfterChoiceChange({ ...base, choice: 'a:other', picked: true }),
+    'responses:a:gone',
+  );
+  assert.equal(
+    m.builderAfterChoiceChange({ ...base, choice: 'a:other', defaultKey: '' }),
+    'responses:a:gone',
   );
 });
 
