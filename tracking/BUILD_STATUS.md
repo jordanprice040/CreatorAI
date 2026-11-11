@@ -1041,3 +1041,8 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
 - Merged main again (#163); conflicts were only in BUILD_STATUS.md and SESSION_HANDOFF.md.
 - Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 919
   tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests).
+
+### P18 sixth re-review nit (November 11, same PR #162; `reviews/P18_PR162_REREVIEW6.md`, review-clean, 2 optional nits)
+
+- N-6 tracking: SESSION_HANDOFF's P18 review-rounds paragraph now covers re-reviews 5 and 6. Text only; no code
+  changed since `029f684`, so its checks stand. N-7 (P19 and P22 rows) is left to those threads.

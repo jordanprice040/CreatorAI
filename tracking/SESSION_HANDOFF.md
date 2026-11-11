@@ -811,8 +811,9 @@ ADR-0081, so check main before allocating. Next eligible prompt after review: P1
 the app), which can fold Decide's remaining long sections.
 
 Review rounds on PR #162 (November 10–11; reports in the project's `reviews/P18_PR162_*`): first review 7 Lows,
-then re-reviews 1–4 (R-1..R-4, R2-1/R3-1/R3-2/N-1, R4-1/N-2, R5-1/N-3), all fixed; details in BUILD_STATUS under the
-P18 entry. Things a later thread should know:
+then re-reviews 1–4 (R-1..R-4, R2-1/R3-1/R3-2/N-1, R4-1/N-2, R5-1/N-3), all fixed; re-review 5 was review-clean
+with nits N-4/N-5 (fixed at `029f684`); re-review 6 was review-clean with nit N-6 (this paragraph, fixed) and N-7
+(P19/P22 table rows, left to their own threads). Details in BUILD_STATUS under the P18 entry. Things a later thread should know:
 - `kindAllows(kind, disposition)` in `packages/contracts/src/selection.ts` is the one rule for which dispositions an
   option's kind can ever take. The domain's kind blocks use it; Decide's summaries leave those choices out.
 - Proposal section choices are held by the Proposals page and belong to one proposal or the unsaved draft
