@@ -20,6 +20,7 @@ type Refresh = {
     plans: { in_flight: number }[],
     now: number,
     w: Watch,
+    writeOpen?: boolean,
   ) => Watch;
   withFreshCount: (prev: Settings | null, fresh: Settings) => Settings;
 };
@@ -84,6 +85,30 @@ test('a request stuck in flight cannot keep the watch going past its cap', async
   const w2 = r.watchAfterWrite(later, w);
   assert.equal(w2.cap, later + r.MAX_WATCH_MS);
   assert.equal(r.nextReadMs(later + 1, w2, false), r.FAST_MS);
+});
+
+test('a long write from this window keeps the count live past the cap until it ends', async () => {
+  // PR #170 review L-1: a qualification run is one request that can last an hour.
+  const r = await load();
+  const running = [{ in_flight: 1 }];
+  const t0 = 1_000_000;
+  let w = r.watchAfterWrite(t0, r.NO_WATCH);
+  // Eleven minutes in, with the run still open here, reads stay fast.
+  for (let now = t0; now <= t0 + 11 * 60_000; now += r.FAST_MS)
+    w = r.watchAfterRead(running, now, w, true);
+  const later = t0 + 11 * 60_000 + 1;
+  assert.equal(r.nextReadMs(later, w, false), r.FAST_MS);
+  assert.ok(w.cap > t0 + r.MAX_WATCH_MS);
+  // Once the write has ended, a request still shown in flight (stuck, or from elsewhere) keeps
+  // the watch only until the cap that is now fixed.
+  const capped = w.cap;
+  let now = later;
+  for (; now < capped + r.WATCH_MS; now += r.FAST_MS)
+    w = r.watchAfterRead(running, now, w, false);
+  assert.equal(w.cap, capped);
+  assert.equal(r.nextReadMs(now, w, false), r.REFRESH_MS);
+  // No request in flight: an open write alone does not start or move anything.
+  assert.deepEqual(r.watchAfterRead([{ in_flight: 0 }], now, w, true), w);
 });
 
 test('the chat card takes count and limit from the fresh read but keeps its version', async () => {

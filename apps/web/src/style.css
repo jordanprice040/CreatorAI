@@ -282,7 +282,9 @@ a:hover {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .nav-count {
+  display: inline-block;
   min-width: 20px;
+  height: 20px;
   padding: 0 6px;
   border-radius: 10px;
   background: var(--warn-bg);
@@ -290,6 +292,7 @@ a:hover {
   color: var(--warn);
   font-size: 12px;
   font-weight: 600;
+  line-height: 18px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -1957,15 +1960,36 @@ fieldset.flagged {
   min-width: 0;
 }
 .path-mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 26px;
   height: 26px;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
   color: var(--text-3);
   font-size: 13px;
+  line-height: 24px;
+  text-align: center;
   font-variant-numeric: tabular-nums;
+}
+/*
+ * Walkthrough items 5 and 14: a number in a badge or step circle sat off centre, because a
+ * line box centres the font's ascent and descent, not the digits. Where the browser can trim
+ * the line to the digits (cap height to baseline), the padding puts them in the exact middle.
+ */
+@supports (text-box: trim-both cap alphabetic) {
+  .nav-count {
+    text-box: trim-both cap alphabetic;
+    padding-block: calc((18px - 1cap) / 2);
+  }
+  .path-mark {
+    text-box: trim-both cap alphabetic;
+    padding-block: calc((24px - 1cap) / 2);
+  }
+  /* A skipped step's dash sits at the x-height middle, not the cap middle (PR #170 N-1). */
+  .path-stage.stage-skipped .path-mark {
+    text-box: normal;
+    padding-block: 0;
+  }
 }
 .path-stage.stage-done .path-mark {
   border-color: var(--ok-border);

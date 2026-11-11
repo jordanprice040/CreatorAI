@@ -34,14 +34,20 @@ export function watchAfterWrite(now: number, w: Watch): Watch {
 /**
  * A read that shows a plan request running keeps a watch going for WATCH_MS more, up to its
  * cap. It never starts one: requests from the CLI or another window, or one stuck in flight,
- * show at the minute's read.
+ * show at the minute's read. While a write sent from this window is still open (a
+ * qualification run is one request that can last an hour), the cap moves with it, so the
+ * count stays live for the whole run (PR #170 review L-1); once that write ends, the cap is
+ * MAX_WATCH_MS from then again.
  */
 export function watchAfterRead(
   plans: readonly { in_flight: number }[],
   now: number,
   w: Watch,
+  writeOpen = false,
 ): Watch {
-  if (now >= w.until || !plans.some((p) => p.in_flight > 0)) return w;
+  const running = plans.some((p) => p.in_flight > 0);
+  if (writeOpen && running) return watchAfterWrite(now, w);
+  if (now >= w.until || !running) return w;
   return { ...w, until: Math.min(w.cap, Math.max(w.until, now + WATCH_MS)) };
 }
 
