@@ -417,7 +417,10 @@ test('X04 owner verification, scope limits, push, review, checks and exact-head 
   );
   assert.equal((await store.listGitHubOperations(owner, ws)).length, opsBefore);
   await assert.rejects(svc.pullChecks(agent, ws, repo.id, number), /owner/i);
-  assert.equal((await svc.pullChecks(owner, ws, repo.id, 9999)).pull, null);
+  const missing = await svc.pullChecks(owner, ws, repo.id, 9999);
+  assert.equal(missing.pull, null);
+  assert.deepEqual(missing.refusals, []);
+  assert.deepEqual(read.refusals, []);
   gh.setCheck(repo.github_id, c2, 'ci', 'success');
   // Someone pushes after review: the reviewed head is stale, and so are its approval and checks.
   const c3 = local.commit('src/app.txt', 'v3');

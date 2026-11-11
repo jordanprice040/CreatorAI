@@ -84,7 +84,7 @@ Trial steps, each an operation on Integrations › GitHub (or `pnpm cli github-o
 3. Push a later commit of the same product to `creator/p22-trial` with the first commit as base.
 4. Open a pull request from `creator/p22-trial` into `creator/p22-base`.
 5. Read its checks: the repository's **Read its checks** form (or `pnpm cli github-checks <ws>
-<repository-id> <pr>`). This read is read-only and journals nothing.
+<repository-id> <pr>`). This read is read-only and journals nothing. A read GitHub refuses (expired or revoked token, rate limit, 5xx) is shown as a refusal with its status, never as "no pull request" or "no checks".
 
 The product's history is unrelated to the README commit on `main`, so the pull request goes
 between two studio branches. With a fine-grained token GitHub shows commit statuses only, not

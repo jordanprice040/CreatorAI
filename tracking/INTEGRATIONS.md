@@ -5,7 +5,7 @@
 Jordan gave the typed OK for live API and GitHub tests on November 10 (22:40 UTC). Owner steps:
 [docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md).
 
-Built in this package (local and loopback checks only so far):
+Built in this package (then run live, below):
 
 - **API key route Test connection** on Models and connections: one "Reply with exactly: ok" request
   (≤256 output tokens) under its own run, one `model.generate` grant (≤$0.05, 30 minutes, synthetic),
@@ -25,16 +25,16 @@ Live results (date, model or repository, cost, outcome). Each row is added when 
 failure. The API key route row is the first live call on the metered OpenAI route; the cost is computed
 from the documented price (retrieved 2026-10-18), not read from an OpenAI invoice.
 
-Finding (Low, follow-up): a successful plan availability recheck is recorded as an `availability_checked`
-event but Models and connections still shows only the original verified time, so the owner cannot see on
-the page that the recheck happened or when. Read back from the database by query for this record.
+Finding (review L-6, fixed in PR #160): a successful plan availability recheck was recorded but Models and
+connections showed only the original verified time; the rechecks above were read back from the database.
+The page now shows each model's last availability recheck with its time and result.
 
 | Check | When (UTC) | Target | Cost | Result |
 | --- | --- | --- | --- | --- |
 | API key route, Test connection | 2026-11-10 23:16 | openai/gpt-6-astra (dev studio, real workspace) | $0.00036 charged ($0.014275 reserved), documented price | **Connected**: replied “ok”; reservation settled ([screenshot](evidence/p22/api-key-test-connection-2026-11-10.png)) |
 | ChatGPT plan route, one approved model check | 2026-11-11 00:11:36 and 00:12:19 | gpt-6-astra | $0 (plan requests) | **Available**: both availability rechecks completed (2 characters). A third approval naming `claude-sonnet-5-5` on this connection was rejected `model_not_found` (00:13:13), as expected for a Claude model on the ChatGPT route; recorded access unchanged |
 | Claude Code route, one approved model check | 2026-11-11 00:13:36 | claude-sonnet-5-5 | $0 (plan request) | **Available**: availability recheck completed (2 characters) |
-| GitHub verify, branch, push, PR, read checks | 2026-11-10 23:18–23:21 | jordanprice040/creator-agent-p22-trial (id 1453277093), fine-grained token | $0 | **All succeeded**: verify matched the owner; 2 pushes, 1 branch, PR #1 opened (not merged); checks read: none, check runs not readable with this token ([record](evidence/p22/github-trial-2026-11-10.md)) |
+| GitHub verify, branch, push, PR, read checks | 2026-11-10 23:18–23:21 | jordanprice040/creator-agent-p22-trial (id 1453277093), fine-grained token | $0 | **All succeeded**: verify matched the owner; 2 pushes, 1 branch, PR #1 opened (not merged); checks read returned an empty list and check runs not readable with this token. The read at that time could not tell an empty statuses list from a refused statuses read (review M-1, fixed since: refusals are now reported), so "no statuses" is likely (Commit statuses read was granted and the repository has no CI) but not proven ([record](evidence/p22/github-trial-2026-11-10.md)) |
 
 ## ChatGPT plan route search test — November 10, 2026
 

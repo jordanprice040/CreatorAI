@@ -3291,8 +3291,23 @@ export class ConnectionStore extends PortfolioStore {
        order by pr.started_at, pr.id`,
       [id],
     );
+    const rechecks = await c.query(
+      `select distinct on (model_id, path) model_id, path, id, state, reason_code, finished_at
+       from plan_requests
+       where connection_id = $1 and purpose = 'availability_recheck' and finished_at is not null
+       order by model_id, path, finished_at desc, id`,
+      [id],
+    );
     return {
       connection,
+      last_rechecks: (rechecks.rows as Row[]).map((r) => ({
+        model_id: String(r.model_id),
+        path: r.path as 'responses' | 'codex',
+        request_id: String(r.id),
+        state: String(r.state),
+        reason_code: r.reason_code === null ? null : String(r.reason_code),
+        finished_at: new Date(r.finished_at as string).toISOString(),
+      })),
       model_access: await this.#access(c, id),
       qualifications: await this.#qualifications(c, id),
       grants: grants.rows.map((r) => toGrant(r as Row)),

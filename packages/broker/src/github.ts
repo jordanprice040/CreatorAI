@@ -34,6 +34,25 @@ export interface GitHubResponse {
   data: Record<string, unknown> | null;
   message: string;
 }
+export interface ReadRefusal {
+  step: 'pull' | 'check_runs' | 'statuses';
+  status: number | null;
+  message: string;
+}
+export interface PullRead {
+  pull: PullObservation | null;
+  refusal: ReadRefusal | null;
+}
+const readRefusal = (
+  step: ReadRefusal['step'],
+  r: GitHubResponse,
+): ReadRefusal => ({
+  step,
+  status: r.status,
+  message: (
+    r.message || (r.status === null ? 'no response' : `HTTP ${r.status}`)
+  ).slice(0, 300),
+});
 export interface GitHubAdapter {
   readonly live: boolean;
   identity(): Promise<{
@@ -80,10 +99,20 @@ export interface GitHubAdapter {
   ): Promise<GitHubResponse>;
   findOpenPull(repo: RepoRef, head: string): Promise<number | null>;
   pull(repo: RepoRef, number: number): Promise<PullObservation | null>;
+  /**
+   * P22 review M-1: the same read, keeping why it failed. `refusal` is null for a pull request
+   * that was read and for a plain 404 (no such pull request); any other failure is a refusal.
+   */
+  pullRead(repo: RepoRef, number: number): Promise<PullRead>;
   checks(
     repo: RepoRef,
     sha: string,
-  ): Promise<{ checks: CheckObservation[]; check_runs_readable: boolean }>;
+  ): Promise<{
+    checks: CheckObservation[];
+    check_runs_readable: boolean;
+    /** A check-runs or statuses read GitHub did not answer with 200; the list is then partial. */
+    refusals: ReadRefusal[];
+  }>;
   merge(
     repo: RepoRef,
     number: number,
@@ -370,15 +399,23 @@ export class FixtureGitHub implements GitHubAdapter {
     );
   }
   async pull(repo: RepoRef, number: number) {
-    if (this.#revoked) return null;
+    return (await this.pullRead(repo, number)).pull;
+  }
+  async pullRead(repo: RepoRef, number: number): Promise<PullRead> {
+    if (this.#revoked)
+      return {
+        pull: null,
+        refusal: { step: 'pull', status: 401, message: 'Bad credentials' },
+      };
     const p = this.#visible(repo.github_id)?.pulls.get(number);
-    return p ? { ...p } : null;
+    return { pull: p ? { ...p } : null, refusal: null };
   }
   async checks(repo: RepoRef, sha: string) {
     const r = this.#visible(repo.github_id);
     return {
       checks: (r?.checks ?? []).filter((c) => c.head_sha === sha),
       check_runs_readable: true,
+      refusals: [] as ReadRefusal[],
     };
   }
   merge(repo: RepoRef, number: number, sha: string) {
@@ -751,6 +788,9 @@ export class LiveGitHub implements GitHubAdapter {
     return typeof items[0]?.number === 'number' ? items[0].number : null;
   }
   async pull(repo: RepoRef, number: number): Promise<PullObservation | null> {
+    return (await this.pullRead(repo, number)).pull;
+  }
+  async pullRead(repo: RepoRef, number: number): Promise<PullRead> {
     const r = await this.#rest(
       'GET',
       `/repos/${repo.full_name}/pulls/${number}`,
@@ -759,8 +799,10 @@ export class LiveGitHub implements GitHubAdapter {
     const d = r.data;
     const head = d?.head as Record<string, unknown> | undefined;
     const base = d?.base as Record<string, unknown> | undefined;
-    if (r.status !== 200 || !d || typeof head?.sha !== 'string') return null;
-    return {
+    if (r.status === 404) return { pull: null, refusal: null };
+    if (r.status !== 200 || !d || typeof head?.sha !== 'string')
+      return { pull: null, refusal: readRefusal('pull', r) };
+    const pull: PullObservation = {
       number,
       state: d.state === 'open' ? 'open' : 'closed',
       merged: d.merged === true,
@@ -772,9 +814,11 @@ export class LiveGitHub implements GitHubAdapter {
           ? d.merge_commit_sha
           : null,
     };
+    return { pull, refusal: null };
   }
   async checks(repo: RepoRef, sha: string) {
     const out: CheckObservation[] = [];
+    const refusals: ReadRefusal[] = [];
     // Fine-grained personal access tokens cannot call the Checks API (GitHub docs,
     // "Fine-grained personal access tokens limitations"); they read commit statuses only.
     const readable = this.opts.credential.kind === 'app_installation';
@@ -784,6 +828,7 @@ export class LiveGitHub implements GitHubAdapter {
         `/repos/${repo.full_name}/commits/${sha}/check-runs?filter=latest&per_page=100`,
         { repo: repo.github_id, permissions: { checks: 'read' } },
       );
+      if (r.status !== 200) refusals.push(readRefusal('check_runs', r));
       for (const c of (r.data?.check_runs ?? []) as Record<string, unknown>[])
         if (typeof c.name === 'string' && c.head_sha === sha)
           out.push({
@@ -804,6 +849,7 @@ export class LiveGitHub implements GitHubAdapter {
       `/repos/${repo.full_name}/commits/${sha}/status`,
       { repo: repo.github_id, permissions: { statuses: 'read' } },
     );
+    if (s.status !== 200) refusals.push(readRefusal('statuses', s));
     if (s.data?.sha === sha)
       for (const st of (s.data?.statuses ?? []) as Record<string, unknown>[])
         if (typeof st.context === 'string')
@@ -815,7 +861,7 @@ export class LiveGitHub implements GitHubAdapter {
             conclusion:
               st.state === 'pending' ? null : String(st.state ?? 'error'),
           });
-    return { checks: out, check_runs_readable: readable };
+    return { checks: out, check_runs_readable: readable, refusals };
   }
   merge(
     repo: RepoRef,

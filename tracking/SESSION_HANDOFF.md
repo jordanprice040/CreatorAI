@@ -779,4 +779,13 @@ Owner steps: [docs/LIVE_CONNECTION_CHECKS.md](../docs/LIVE_CONNECTION_CHECKS.md)
 `creator-agent-p22-trial`; a later trial with a repository-creating token is recorded as a follow-up.
 Local checks: new loopback API test `tests/src/api-key-check-api.test.ts`, unit tests
 `tests/src/web-api-key-check.test.ts`, GitHub fixture assertions in `tests/src/github.test.ts`.
-Live results go in tracking/INTEGRATIONS.md, "P22 live connection checks"; none has run yet.
+Live results (tracking/INTEGRATIONS.md, "P22 live connection checks"): API key route connected
+(`gpt-6-astra`, $0.00036, November 10 23:16 UTC); GitHub scoped trial succeeded (verify, branch, two
+pushes, PR #1 in `creator-agent-p22-trial`, checks read); ChatGPT and Claude Code availability rechecks
+passed at $0 (November 11). The dev studio now runs from `C:\dev\creator_agent_p22`
+(`.creator\studio\start-dev-p22.ps1`); `creator_studio` was backed up and migrated 49 → 50.
+Review of PR #160 (1 Medium, 6 Lows) fixed in the same PR: refused GitHub reads are reported as
+refusals (M-1); the panel says "outcome unknown, reconcile" when no answer arrives, archives a run
+record whose registration failed, and its clean-up is tested end to end through `runCheck` (L-3–L-5);
+Models and connections shows each model's last availability recheck (L-6). Open owner clean-up: revoke
+the "P22 trial" GitHub connection, delete the token, decide about the trial repository.

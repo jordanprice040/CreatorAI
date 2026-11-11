@@ -4,11 +4,8 @@ import {
   BrokerCallResultSchema,
   BrokerStatusSchema,
   EnvelopeSchema,
-  GrantSchema,
   PricingSnapshotSchema,
   ReservationSchema,
-  RunControlSchema,
-  StoredEntitySchema,
   type Envelope,
   type PricingSnapshot,
   type Reservation,
@@ -23,15 +20,12 @@ import {
   CHECK_BUDGET_NANO,
   CHECK_MAX_OUTPUT_TOKENS,
   CHECK_PROMPT,
-  CHECK_RUN_TITLE,
-  CHECK_TIMEOUT_MS,
   checkBlockers,
-  checkGrant,
-  checkRequest,
-  describeResult,
   pickFunding,
   pickPricing,
   recentChecks,
+  runCheck,
+  type CheckCaller,
   type CheckOutcome,
 } from './api-key-check.js';
 
@@ -126,99 +120,55 @@ export function ApiKeyCheck({
     setConfirming(false);
     setError('');
     setOutcome(null);
-    let runId = '';
-    let grant: { id: string; version: number } | null = null;
-    let budget: { id: string } | null = null;
-    try {
-      const stamp = new Date().toLocaleString(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
-      setStep('Recording the check’s run and its one grant…');
-      const entity = await api(StoredEntitySchema, `${base}/entities`, {
-        csrf,
-        body: {
-          kind: 'run',
-          title: `${CHECK_RUN_TITLE} · ${stamp}`,
-          body: {
-            state: 'queued',
-            experiment_condition: 'human_in_loop',
-            discovery_method: 'structured',
-            config_hash: null,
-          },
-        },
-      });
-      const control = await api(RunControlSchema, `${base}/runs`, {
-        csrf,
-        body: {
-          run: { id: entity.id, version: 1 },
-          autonomy_mode: 'human_in_loop',
-          stage_gates: null,
-          initial_grants: [],
-        },
-      });
-      runId = control.run_id;
-      grant = await api(GrantSchema, `${base}/grants`, {
-        csrf,
-        body: checkGrant(runId, Date.now()),
-      });
-      setStep('Setting aside the run budget…');
-      budget = await api(EnvelopeSchema, `${base}/budgets`, {
-        csrf,
-        body: {
-          parent_id: funding.id,
-          kind: 'run',
-          run_id: runId,
-          name: CHECK_RUN_TITLE,
-          cap_nano_usd: CHECK_BUDGET_NANO,
-          starts_at: null,
-          ends_at: null,
-          max_in_flight: 1,
-        },
-      });
-      setStep('Sending one request…');
-      const result = await api(
-        BrokerCallResultSchema,
-        `${base}/runs/${runId}/model-calls`,
-        {
-          csrf,
-          body: checkRequest(budget.id, price.id, crypto.randomUUID()),
-          timeoutMs: CHECK_TIMEOUT_MS + 15_000,
-        },
-      );
-      setOutcome({ ...describeResult(result), at: new Date().toISOString() });
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      // Return what the check did not spend and end its authority. A call whose outcome is
-      // unknown keeps its reservation; the close is then refused and the budget stays.
-      setStep('Closing the check’s budget, grant and run…');
-      const done = 'The API key connection check finished.';
-      if (budget) {
-        const current = await api(
-          EnvelopeSchema,
-          `${base}/budgets/${budget.id}`,
-        ).catch(() => null);
-        if (current?.status === 'active')
-          await api(EnvelopeSchema, `${base}/budgets/${budget.id}/close`, {
+    // Every step goes through the server's own routes; the server parses each answer, and
+    // `api` with z.unknown() keeps ApiError (a server answer) apart from a timeout.
+    const caller: CheckCaller = {
+      post: (path, body, timeoutMs) =>
+        // The call's result is parsed in full before it is described.
+        api(
+          path.endsWith('/model-calls') ? BrokerCallResultSchema : z.unknown(),
+          path,
+          {
             csrf,
-            body: { expected_version: current.version, reason: done },
-          }).catch(() => undefined);
-      }
-      if (grant)
-        await api(GrantSchema, `${base}/grants/${grant.id}/revoke`, {
-          csrf,
-          body: { expected_version: grant.version, reason: done },
-        }).catch(() => undefined);
-      if (runId)
-        await api(RunControlSchema, `${base}/runs/${runId}/cancel`, {
-          csrf,
-          body: { reason: done },
-        }).catch(() => undefined);
-      setStep('');
-      setBusy(false);
-      await load().catch((e) => setError(message(e)));
-    }
+            body,
+            ...(timeoutMs ? { timeoutMs } : {}),
+          },
+        ),
+      get: (path) => api(z.unknown(), path),
+    };
+    const stamp = new Date().toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const r = await runCheck(
+      caller,
+      base,
+      {
+        pricingId: price.id,
+        fundingId: funding.id,
+        operationId: crypto.randomUUID(),
+      },
+      stamp,
+      Date.now,
+      setStep,
+    );
+    if (r.outcome) setOutcome({ ...r.outcome, at: new Date().toISOString() });
+    setError(
+      [
+        r.error,
+        r.cleanup.budget === 'kept_open'
+          ? 'The check’s run budget stayed open (its call is unsettled or the close was refused); see Monitor › Budgets.'
+          : null,
+        r.cleanup.grant === 'not_revoked'
+          ? 'The check’s grant could not be revoked; it ends by itself within 30 minutes, or revoke it under Decisions.'
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+    setStep('');
+    setBusy(false);
+    await load().catch((e) => setError(message(e)));
   }
 
   return (

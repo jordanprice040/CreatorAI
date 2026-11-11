@@ -889,7 +889,21 @@ export function Models({
             <ul>
               {detail.model_access.map((a) => (
                 <li key={`${a.model_id}-${a.path}`}>
-                  {a.model_id} · {a.path} · {a.access}
+                  {a.model_id} · {a.path} · {a.access} ·{' '}
+                  {new Date(a.verified_at).toLocaleString()}
+                  {(() => {
+                    // P22 review L-6: a recheck keeps the original record, so say when it ran.
+                    const r = detail.last_rechecks.find(
+                      (x) => x.model_id === a.model_id && x.path === a.path,
+                    );
+                    return r
+                      ? ` · last availability recheck ${new Date(r.finished_at).toLocaleString()}: ${
+                          r.state === 'completed'
+                            ? 'available'
+                            : `${r.state}${r.reason_code ? ` (${r.reason_code})` : ''}`
+                        }`
+                      : '';
+                  })()}
                 </li>
               ))}
             </ul>

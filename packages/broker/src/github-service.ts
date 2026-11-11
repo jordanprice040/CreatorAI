@@ -278,23 +278,25 @@ export class GitHubService {
     if (!seen)
       throw new ContractError(
         'NOT_FOUND',
-        'GitHub did not return this repository to the connection’s credential.',
+        'GitHub did not return this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed. Nothing was read.',
       );
     const ref = { github_id: repository.github_id, full_name: seen.full_name };
-    const pull = await a.pull(ref, number);
-    const c = pull
-      ? await a.checks(ref, pull.head_sha)
+    const read = await a.pullRead(ref, number);
+    const c = read.pull
+      ? await a.checks(ref, read.pull.head_sha)
       : {
           checks: [],
           check_runs_readable:
             connection.body.credential.kind !== 'fine_grained_pat',
+          refusals: [],
         };
     return {
       repository_id: repository.id,
       read_at: new Date().toISOString(),
-      pull,
+      pull: read.pull,
       checks: c.checks,
       check_runs_readable: c.check_runs_readable,
+      refusals: [...(read.refusal ? [read.refusal] : []), ...c.refusals],
     };
   }
 

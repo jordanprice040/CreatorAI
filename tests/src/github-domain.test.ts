@@ -389,3 +389,66 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
   // The credential never lands in the product repository's config.
   assert.ok(!git(src, 'config', '--list', '--local').includes('extraheader'));
 });
+
+test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no pull request"', async (t) => {
+  let mode: 'ok' | 'expired' | 'statuses_forbidden' = 'ok';
+  const gh = await loopbackGitHub((s) => {
+    if (mode === 'expired')
+      return { status: 401, body: { message: 'Bad credentials' } };
+    if (s.path.endsWith('/pulls/1'))
+      return {
+        status: 200,
+        body: {
+          state: 'open',
+          merged: false,
+          head: { sha: SHA, ref: 'creator/p22-trial' },
+          base: { ref: 'creator/p22-base' },
+        },
+      };
+    if (s.path.endsWith(`/commits/${SHA}/status`))
+      return mode === 'statuses_forbidden'
+        ? {
+            status: 403,
+            body: {
+              message: 'Resource not accessible by personal access token',
+            },
+          }
+        : { status: 200, body: { sha: SHA, statuses: [] } };
+    return { status: 404, body: { message: 'Not Found' } };
+  });
+  t.after(gh.close);
+  const a = new LiveGitHub({
+    credential: { kind: 'fine_grained_pat', token: 'pat-secret' },
+    apiBase: gh.base,
+  });
+  // Read, with no statuses: an empty list that is evidence of absence.
+  const read = await a.pullRead(repo, 1);
+  assert.equal(read.refusal, null);
+  assert.equal(read.pull?.head_sha, SHA);
+  assert.deepEqual(await a.checks(repo, SHA), {
+    checks: [],
+    check_runs_readable: false,
+    refusals: [],
+  });
+  // No such pull request: not a refusal.
+  assert.deepEqual(await a.pullRead(repo, 2), { pull: null, refusal: null });
+  // A refused statuses read is reported, not shown as "no checks".
+  mode = 'statuses_forbidden';
+  const partial = await a.checks(repo, SHA);
+  assert.deepEqual(partial.checks, []);
+  assert.deepEqual(
+    partial.refusals.map((r) => `${r.step}:${r.status}`),
+    ['statuses:403'],
+  );
+  // An expired or revoked token is a refusal, not "no pull request".
+  mode = 'expired';
+  const refused = await a.pullRead(repo, 1);
+  assert.equal(refused.pull, null);
+  assert.deepEqual(refused.refusal, {
+    step: 'pull',
+    status: 401,
+    message: 'Bad credentials',
+  });
+  // The merge gate's pull() keeps its old meaning: nothing usable was read.
+  assert.equal(await a.pull(repo, 1), null);
+});
