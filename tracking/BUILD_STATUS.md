@@ -963,3 +963,7 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257â€
   fold the person opened; N-4 the budget default note shows only while the filled-in cap is untouched. N-5 (the
   provider re-indents `main.tsx`) is left as merged, as the review allows; undoing it now would only add churn
   against P18.
+- Checks after the fixes and the merge of main through #163 (cloud container, PostgreSQL 16, no CI): `pnpm typecheck`
+  and `pnpm format:check` pass; `pnpm test:db` 919 tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper
+  tests). The browser walk was rerun on a fresh database at schema 52 and passed; its output and screens 01â€“08 in
+  `tracking/evidence/p19-standard-advanced/` are from that rerun.

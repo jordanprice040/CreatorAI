@@ -17,7 +17,8 @@ no live provider was called.
 - Folded forms in Standard, each with a visible summary of its defaults:
   - Evidence cite form: only "Kind of evidence" is folded. Basis and stance stay open.
   - Discover: routine details, response types and model access.
-  - Scorecard: unanswered checks become "unknown".
+  - Scorecard: four routine checks fold, and unanswered ones become "unknown". "Evidence against it" and "What they
+    do today" stay visible (review L-1).
   - Humility review: the three optional lists.
 - Each start or save shows "What will happen" first.
 - Budget defaults on the fund form are "Studio budget" with a cap of 100 (fixture mode only).
@@ -26,6 +27,9 @@ no live provider was called.
   was recorded again. A proposal was then saved, and Getting started went away.
 - Switching to Advanced in browser A is stored on the server (`version 1`). Browser B then opens in Advanced and shows
   the same tabs and fields with no folds (parity). B switches back to Standard and A picks that up.
+
+The walk output, `walk.json` and screens 01–08 are from the rerun after the review fixes (November 11, fresh
+database at schema 52, merged with main through #163).
 
 ## Earlier walk on a seeded workspace (screenshots 09 and 10)
 
