@@ -39,12 +39,29 @@ export async function allowTaskSequence(
   act: Act,
   report: (error: string) => void,
 ): Promise<boolean> {
+  return allowSequence(c, { tasks: after }, act, report);
+}
+
+/**
+ * ADR-0087 (P27): the same for data classes or tasks or both (`after` replaces the list it
+ * names; a list left out is kept). "Allow approved private data" uses this.
+ */
+export async function allowSequence(
+  c: AllowConnection,
+  after: { data?: readonly string[]; tasks?: readonly string[] },
+  act: Act,
+  report: (error: string) => void,
+): Promise<boolean> {
   const p = `plan-connections/${c.id}`;
   const saved = (await act(
     `${p}/settings`,
     {
       expected_version: c.version,
-      settings: { ...c.settings, allowed_task_classes: [...after] },
+      settings: {
+        ...c.settings,
+        ...(after.data ? { allowed_data_classes: [...after.data] } : {}),
+        ...(after.tasks ? { allowed_task_classes: [...after.tasks] } : {}),
+      },
     },
     undefined,
     report,
@@ -57,7 +74,7 @@ export async function allowTaskSequence(
     undefined,
     (e) =>
       report(
-        `The tasks were allowed, but the caps were not accepted again, so model calls on this connection are blocked: ${e} Press "Accept these caps and allowed work" under Models and connections.`,
+        `${after.data ? 'The change was saved' : 'The tasks were allowed'}, but the caps were not accepted again, so model calls on this connection are blocked: ${e} Press "Accept these caps and allowed work" under Models and connections.`,
       ),
   );
   return Boolean(ok);

@@ -24,7 +24,15 @@ import {
   type WorkflowDetail,
   type Workspace,
 } from '@creator/contracts';
-import { api, message, when, words } from './oversight.js';
+import { api, message, refusalsOf, when, words } from './oversight.js';
+import {
+  FixButtons,
+  FixRow,
+  canQualifyFor,
+  routeFixes,
+  type FixContext,
+} from './fix-buttons.js';
+import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { Empty, Status, useLoad, type View } from './ui.js';
@@ -166,6 +174,7 @@ export function Explore({
   const [leaveOut, setLeaveOut] = useState<Map<string, string>>(new Map());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
   const [openId, setOpenId] = useState('');
 
   const c = ctx.data;
@@ -309,6 +318,32 @@ export function Explore({
           ...(envelope ? [] : ['No active shared budget (Monitor › Budgets).']),
           ...(price ? [] : ['No pricing snapshot (Monitor › Budgets).']),
         ];
+  // ADR-0087 (P27): the owner fixes the route's refusals here, without leaving Explore.
+  const fixes: FixContext = {
+    base,
+    csrf: session.csrf_token,
+    owner: workspace.role === 'owner',
+    onDone: () => ctx.refresh(),
+  };
+  const blockerFixes =
+    resourceKind === 'subscription'
+      ? routeFixes({
+          plan,
+          dataClass,
+          model,
+          missing:
+            plan &&
+            !plan.qualifications.some(
+              (q) =>
+                q.model_id === model &&
+                q.task_class === EXPLORATION_TASK_CLASS &&
+                q.state === 'qualified',
+            )
+              ? [EXPLORATION_TASK_CLASS]
+              : [],
+          role: 'discovery',
+        })
+      : [];
   const scopeIssues = scopeCheck.success
     ? []
     : scopeCheck.error.issues.map((i) => i.message);
@@ -325,6 +360,7 @@ export function Explore({
     if (!ready) return;
     setBusy(true);
     setError('');
+    setErrorFixes([]);
     // What a refused start leaves behind is undone (PR #131 review L-1).
     let runId = '';
     let grant: { id: string; version: number } | null = null;
@@ -401,6 +437,9 @@ export function Explore({
         return;
       }
       setError(message(err));
+      setErrorFixes(
+        refusalFixes(refusalsOf(err), 'discovery', canQualifyFor('discovery')),
+      );
       // A changed preview is read again so the owner can check it before retrying.
       ctx.refresh();
       const undo = 'Explore for me did not start.';
@@ -640,6 +679,9 @@ export function Explore({
                   ))}
                 </ul>
               )}
+              {blockers.length > 0 && (
+                <FixRow acts={blockerFixes} fix={fixes} />
+              )}
               {workspace.role !== 'owner' && (
                 <p className="small">Only the workspace owner can explore.</p>
               )}
@@ -649,6 +691,7 @@ export function Explore({
               {error && (
                 <p className="error" role="alert">
                   {error}
+                  <FixButtons acts={errorFixes} fix={fixes} />
                 </p>
               )}
             </form>

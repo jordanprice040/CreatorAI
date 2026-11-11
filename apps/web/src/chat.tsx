@@ -444,6 +444,7 @@ export function Chat({
       workspaceId={workspace.id}
       fixture={facts?.fixture ?? false}
       canWrite={canWrite}
+      owner={owner}
       reload={() => loadDetail(c.conversation_id)}
       open={open}
       again={again}

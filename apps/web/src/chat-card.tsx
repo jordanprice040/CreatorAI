@@ -11,6 +11,7 @@ import { useViewMode } from './view-mode.js';
 import { WhatWillHappen } from './routine.js';
 import type { View } from './pages.js';
 import { loadCard } from './chat-card-load.js';
+import { FixRow, routeFixes } from './fix-buttons.js';
 import {
   FORM_VIEW,
   LABEL,
@@ -84,6 +85,7 @@ export function ActionCard({
   workspaceId,
   fixture,
   canWrite,
+  owner = false,
   reload,
   open,
   again,
@@ -93,6 +95,8 @@ export function ActionCard({
   workspaceId: string;
   fixture: boolean;
   canWrite: boolean;
+  /** ADR-0087: the workspace owner sees fixes for the card's blockers in place. */
+  owner?: boolean;
   /** Reads the conversation again (the card's new state). */
   reload: () => Promise<void>;
   open: (view: View) => void;
@@ -158,6 +162,10 @@ export function ActionCard({
   }, [draft, canWrite]);
 
   const view: CardView = cardView(card.kind, input, data, ctx);
+  const fixFacts =
+    card.kind === 'start_discovery' && data && 'routeFix' in data
+      ? data.routeFix
+      : undefined;
   const asking: Question | null =
     (changing ? view.questions.find((q) => q.key === changing) : null) ??
     view.current;
@@ -440,6 +448,21 @@ export function ActionCard({
                 <li key={b}>{b}</li>
               ))}
             </ul>
+          )}
+          {view.blockers.length > 0 && draft && fixFacts && (
+            <FixRow
+              acts={routeFixes({
+                ...fixFacts,
+                dataClass: 'public',
+                role: 'discovery',
+              })}
+              fix={{
+                base: `workspaces/${workspaceId}`,
+                csrf: session.csrf_token,
+                owner,
+                onDone: () => void read(),
+              }}
+            />
           )}
           {!asking && view.happen.length > 0 && (
             <WhatWillHappen

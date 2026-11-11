@@ -534,6 +534,40 @@ export const PlanOpenRequestSchema = z.strictObject({
 });
 export type PlanOpenRequest = z.infer<typeof PlanOpenRequestSchema>;
 
+/**
+ * ADR-0087 (P27): a stable code beside each plan refusal's words, so the app can offer the fix
+ * for that refusal in place without matching its wording. Only four codes have an owner fix
+ * the app offers (caps not accepted, data class or task class not allowed, not qualified);
+ * the others name the refusal so a later fix can attach to it.
+ */
+export const PlanRefusalCodeSchema = z.enum([
+  'sign_in',
+  'credits_not_off',
+  'caps_not_accepted',
+  'not_eligible',
+  'quota_exhausted',
+  'wrong_path',
+  'data_class_not_allowed',
+  'task_class_not_allowed',
+  'request_open',
+  'cap_reached',
+  'not_verified',
+  'not_qualified',
+  'grant',
+  'chat_setting',
+  'other',
+]);
+export type PlanRefusalCode = z.infer<typeof PlanRefusalCodeSchema>;
+export const PlanRefusalSchema = z.strictObject({
+  code: PlanRefusalCodeSchema,
+  text: note,
+  connection_id: id.optional(),
+  model_id: short.optional(),
+  task_class: PlanTaskClassSchema.optional(),
+  data_class: DataClassSchema.optional(),
+});
+export type PlanRefusal = z.infer<typeof PlanRefusalSchema>;
+
 export const PlanConnectionDetailSchema = z.strictObject({
   connection: PlanConnectionSchema,
   model_access: z.array(PlanModelAccessSchema),
@@ -563,6 +597,8 @@ export const PlanConnectionDetailSchema = z.strictObject({
   ),
   /** Every reason inference would be refused right now, in plain words. Empty means ready. */
   blockers: z.array(note),
+  /** ADR-0087: the same refusals as `blockers`, in the same order, each with its code. */
+  refusals: z.array(PlanRefusalSchema).optional(),
 });
 export type PlanConnectionDetail = z.infer<typeof PlanConnectionDetailSchema>;
 

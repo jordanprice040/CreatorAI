@@ -23,7 +23,22 @@ import {
   type StoredEntity,
   type Workspace,
 } from '@creator/contracts';
-import { ApiError, api, message, when, words } from './oversight.js';
+import {
+  ApiError,
+  api,
+  message,
+  refusalsOf,
+  when,
+  words,
+} from './oversight.js';
+import {
+  FixButtons,
+  FixRow,
+  canQualifyFor,
+  routeFixes,
+  type FixContext,
+} from './fix-buttons.js';
+import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { useLoad, type View } from './ui.js';
@@ -122,6 +137,7 @@ export function AutoAssess({
   >(fixture ? 'synthetic' : 'public');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
   const [openId, setOpenId] = useState('');
   const [showSent, setShowSent] = useState(false);
 
@@ -292,6 +308,32 @@ export function AutoAssess({
           ...(price ? [] : ['No pricing snapshot (Monitor › Budgets).']),
         ]),
   ];
+  // ADR-0087 (P27): the owner fixes the route's refusals here, without leaving Decide.
+  const fixes: FixContext = {
+    base,
+    csrf: session.csrf_token,
+    owner,
+    onDone: () => ctx.refresh(),
+  };
+  const blockerFixes =
+    resourceKind === 'subscription'
+      ? routeFixes({
+          plan,
+          dataClass,
+          model,
+          missing:
+            plan &&
+            model &&
+            latestDecided(
+              plan.qualifications.filter((q) => q.admits_assessment === true),
+              model,
+              ASSESSMENT_TASK_CLASS,
+            )?.state !== 'qualified'
+              ? [ASSESSMENT_TASK_CLASS]
+              : [],
+          role: 'assessment',
+        })
+      : [];
   const latest = c?.runs[0];
   const running = !!latest && LIVE.has(latest.state);
   const ready =
@@ -307,6 +349,7 @@ export function AutoAssess({
     if (!ready) return;
     setBusy(true);
     setError('');
+    setErrorFixes([]);
     let runId = '';
     let grant: { id: string; version: number } | null = null;
     try {
@@ -377,6 +420,13 @@ export function AutoAssess({
         return;
       }
       setError(message(err));
+      setErrorFixes(
+        refusalFixes(
+          refusalsOf(err),
+          'assessment',
+          canQualifyFor('assessment'),
+        ),
+      );
       ctx.refresh();
       const undo = 'The automatic assessment did not start.';
       if (grant)
@@ -567,6 +617,7 @@ export function AutoAssess({
               ))}
             </ul>
           )}
+          {blockers.length > 0 && <FixRow acts={blockerFixes} fix={fixes} />}
           {owner ? (
             <button
               type="button"
@@ -596,6 +647,7 @@ export function AutoAssess({
           {error && (
             <p className="error" role="alert">
               {error}
+              <FixButtons acts={errorFixes} fix={fixes} />
             </p>
           )}
           {shown && (

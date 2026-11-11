@@ -45,6 +45,8 @@ import {
   type View,
 } from './ui.js';
 import { Blocked, type BlockedReason } from './blocked.js';
+import { canQualifyFor, type FixContext } from './fix-buttons.js';
+import { missingTaskFixes } from './fix-here.js';
 import { Routine, WhatWillHappen } from './routine.js';
 import { unwrittenOptions } from './spec-fields.js';
 import { newestFirst, productVersions } from './versions.js';
@@ -233,6 +235,8 @@ export function BuildView({
         connection_label: c.label,
         plan: c.kind,
         data_classes: c.settings.allowed_data_classes,
+        /** ADR-0087: so a role task the connection does not allow gets "allow", not "qualify". */
+        allowed_tasks: c.settings.allowed_task_classes as readonly string[],
         build_timeout_ms: c.settings.caps.codex.build_timeout_ms,
         // ADR-0081: whether the plan roles can run on this model (both roles qualified).
         unqualified:
@@ -670,6 +674,12 @@ export function BuildView({
                       act={act}
                       post={post}
                       open={open}
+                      fixes={{
+                        base,
+                        csrf: session.csrf_token,
+                        owner,
+                        onDone: () => data.refresh(),
+                      }}
                       locked={
                         failed === p.product.id &&
                         /locked|needs reconciliation/i.test(error)
@@ -888,6 +898,7 @@ type Data = {
     plan: 'chatgpt_plan' | 'claude_code';
     /** What the connection's settings allow; a build of another class is refused. */
     data_classes: readonly ('synthetic' | 'public' | 'private_approved')[];
+    allowed_tasks: readonly string[];
     /** The connection's Codex build timeout (ADR-0062: no 30-minute maximum). */
     build_timeout_ms: number;
     /** Plan-role task classes this model is not qualified for (empty for Codex). */
@@ -911,6 +922,7 @@ function Product({
   post,
   open,
   locked,
+  fixes,
 }: {
   entry: ProductEntry;
   spec: SpecStatus | undefined;
@@ -927,6 +939,8 @@ function Product({
   open: (view: View, id?: string) => void;
   /** The last action said a product was locked. */
   locked: boolean;
+  /** ADR-0087: where the owner presses fixes for a refused build start. */
+  fixes: FixContext;
 }) {
   const p = entry.product;
   // Only the newest: once a later build ran, an old interruption needs nothing more.
@@ -1087,6 +1101,7 @@ function Product({
                 data={data}
                 fixture={fixture}
                 open={open}
+                fixes={fixes}
                 busy={busy || builds.some((b) => b.state === 'running')}
                 start={(plan) =>
                   act(
@@ -1256,6 +1271,7 @@ function StartBuild({
   busy,
   start,
   open,
+  fixes,
 }: {
   taskKey: string;
   specId: string;
@@ -1265,6 +1281,8 @@ function StartBuild({
   busy: boolean;
   open: (view: View, id?: string) => void;
   start: (plan: unknown) => Promise<void>;
+  /** ADR-0087: where the owner presses fixes for the reasons below in place. */
+  fixes?: FixContext;
 }) {
   const reviews = data.reviews.filter((r) => {
     const s = (r.body as { subject?: { id?: string; version?: number } })
@@ -1404,6 +1422,14 @@ function StartBuild({
               view: 'models' as View,
               label: 'Open Models and connections',
             },
+            acts: missingTaskFixes(
+              connection.connection_id,
+              connection.model_id,
+              connection.unqualified,
+              connection.allowed_tasks,
+              'plan',
+              canQualifyFor('plan'),
+            ),
           },
         ]
       : []),
@@ -1664,12 +1690,24 @@ function StartBuild({
                     view: 'models' as View,
                     label: 'Open Models and connections',
                   },
+                  ...(connection
+                    ? {
+                        acts: [
+                          {
+                            kind: 'allow_data' as const,
+                            connection_id: connection.connection_id,
+                            data_class: dataClass,
+                          },
+                        ],
+                      }
+                    : {}),
                 },
               ]
             : []),
           ...missing,
         ]}
         open={open}
+        fixes={fixes ?? null}
       />
       <div className="actions">
         <button

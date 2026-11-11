@@ -21,6 +21,7 @@ import {
   capChanges,
   capHint,
   capFieldsFor,
+  capsLine,
   capsToDraft,
   classChanges,
   classErrors,
@@ -481,14 +482,7 @@ export function Models({
             <dt>Caps</dt>
             <dd>
               {c.caps_accepted_at ? 'Accepted' : 'Proposed, not accepted'} ·{' '}
-              {c.settings.caps.shared.max_model_requests_per_day} requests a day
-              · {c.settings.caps.responses.max_requests_per_run} per run ·{' '}
-              {Math.round(c.settings.caps.responses.request_timeout_ms / 1000)}s
-              timeout · {c.settings.caps.responses.max_output_chars} output
-              characters
-              {claude
-                ? ''
-                : ` · ${c.settings.caps.codex.max_builds_per_day} Codex builds a day`}
+              {capsLine(c.kind, c.settings.caps)}
             </dd>
             <dt>Allowed</dt>
             <dd>

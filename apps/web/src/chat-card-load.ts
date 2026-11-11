@@ -241,6 +241,11 @@ export async function loadCard(
       const allowed = d.connection.settings
         .allowed_task_classes as readonly string[];
       const blockers = missingTaskTexts(model, missing, allowed);
+      out.routeFix = {
+        plan: { connection: d.connection, refusals: d.refusals ?? [] },
+        model: verified.includes(model) ? model : '',
+        missing: [...missing],
+      };
       out.routeBlockers.push(...blockers);
       if (blockers.length)
         out.routeBlockers.push(

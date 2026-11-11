@@ -173,6 +173,8 @@ export type SetupView = 'models' | 'budgets';
 export type Blocker = {
   text: string;
   fix?: { view: SetupView; label: string };
+  /** ADR-0087: owner fixes offered beside the text, in place (fix-buttons.tsx). */
+  acts?: FixAction[];
 };
 
 /**
@@ -183,7 +185,11 @@ export function discoverSetupBlockers(input: {
   route: RouteKind;
   connectionError: string;
   plan: {
+    /** The connection, so its fixes can name it (ADR-0087). */
+    id?: string;
     blockers: readonly string[];
+    /** ADR-0087: the same refusals with their codes, in the same order as `blockers`. */
+    refusals?: readonly { code: string; text: string }[];
     allowedDataClasses: readonly string[];
     /** P23 item 8: so a task that is not allowed is named as such, not as "not qualified". */
     allowedTaskClasses?: readonly string[];
@@ -195,6 +201,8 @@ export function discoverSetupBlockers(input: {
   usableEnvelopes: number;
   pricing: number;
   fixture: boolean;
+  /** ADR-0087: which discovery tasks the app can qualify (fix-buttons `canQualifyFor`). */
+  canQualify?: (task: string) => boolean;
 }): Blocker[] {
   const models = {
     view: 'models' as const,
@@ -210,11 +218,33 @@ export function discoverSetupBlockers(input: {
         fix: models,
       });
     else {
-      for (const b of input.plan.blockers) out.push({ text: b, fix: models });
+      const id = input.plan.id;
+      const coded = new Map(
+        (input.plan.refusals ?? []).map((r) => [r.text, r.code]),
+      );
+      for (const b of input.plan.blockers)
+        out.push({
+          text: b,
+          fix: models,
+          ...(id && coded.get(b) === 'caps_not_accepted'
+            ? { acts: [{ kind: 'accept_caps' as const, connection_id: id }] }
+            : {}),
+        });
       if (!input.plan.allowedDataClasses.includes(input.dataClass))
         out.push({
           text: 'This connection does not permit the selected evidence sharing class.',
           fix: models,
+          ...(id
+            ? {
+                acts: [
+                  {
+                    kind: 'allow_data' as const,
+                    connection_id: id,
+                    data_class: input.dataClass,
+                  },
+                ],
+              }
+            : {}),
         });
       if (!input.model && input.plan.blockers.length === 0)
         out.push({
@@ -223,13 +253,31 @@ export function discoverSetupBlockers(input: {
         });
       // P23 item 8: a task the connection does not allow is named as such, and each fix
       // named is one that exists (review of PR #172, M-1).
-      for (const text of missingTaskTexts(
-        'the model',
-        input.unqualified,
-        // Without the allowed list, every missing task is read as allowed.
-        input.plan.allowedTaskClasses ?? input.unqualified,
-      ))
-        out.push({ text, fix: models });
+      // Without the allowed list, every missing task is read as allowed.
+      const allowed = input.plan.allowedTaskClasses ?? input.unqualified;
+      const texts = missingTaskTexts('the model', input.unqualified, allowed);
+      // ADR-0087: the "not allowed" sentence comes first and gets "allow (and qualify)";
+      // the "not qualified" one gets "Qualify now" per task the app can qualify.
+      const acts =
+        id && input.model
+          ? missingTaskFixes(
+              id,
+              input.model,
+              input.unqualified,
+              allowed,
+              'discovery',
+              input.canQualify ?? (() => false),
+            )
+          : [];
+      const allow = acts.filter((a) => a.kind === 'allow_tasks');
+      const qualify = acts.filter((a) => a.kind === 'qualify');
+      const notAllowedFirst = input.unqualified.some(
+        (t) => !allowed.includes(t),
+      );
+      texts.forEach((text, i) => {
+        const mine = notAllowedFirst && i === 0 ? allow : qualify;
+        out.push({ text, fix: models, ...(mine.length ? { acts: mine } : {}) });
+      });
     }
     return out;
   }
@@ -361,3 +409,78 @@ export const missingTaskTexts = (
     missing.filter((tc) => !allowed.includes(tc)),
     missing.filter((tc) => allowed.includes(tc)),
   );
+
+/**
+ * ADR-0087 (P27): which qualifications a fix may run. Each server route counts only
+ * qualifications on a benchmark for its own role: discovery and Explore for me count only
+ * discovery benchmarks, automatic assessment only the assessment benchmark, and the build and
+ * spec roles any (connection-store `currentForDiscoveryRole`, `currentForAssessmentRole`).
+ */
+export type QualifyRole = 'discovery' | 'assessment' | 'plan';
+
+/**
+ * ADR-0087 (P27): a fix a refusal offers in place (fix-buttons.tsx draws it). Every fix is the
+ * owner's own Models and connections route with the same confirmation.
+ */
+export type FixAction =
+  /** Accept the connection's current caps and allowed work, after showing them. */
+  | { kind: 'accept_caps'; connection_id: string }
+  /** Allow one data class on the connection. */
+  | { kind: 'allow_data'; connection_id: string; data_class: string }
+  /**
+   * Allow tasks on the connection; with a model, then qualify it for `qualify` (the ones the
+   * app has a benchmark for in this role), one after another.
+   */
+  | {
+      kind: 'allow_tasks';
+      connection_id: string;
+      tasks: string[];
+      model_id: string | null;
+      qualify: string[];
+      role: QualifyRole;
+    }
+  /** Start and run the app's benchmark for this role and task. */
+  | {
+      kind: 'qualify';
+      connection_id: string;
+      model_id: string;
+      task_class: string;
+      role: QualifyRole;
+    };
+
+/**
+ * The fixes for a model missing tasks: allow the ones not allowed (and then qualify them),
+ * qualify the others. `canQualify` says which tasks the app has a benchmark for in `role`;
+ * a task without one gets no qualify button, only the words saying so.
+ */
+export function missingTaskFixes(
+  connection_id: string,
+  model_id: string,
+  missing: readonly string[],
+  allowed: readonly string[],
+  role: QualifyRole,
+  canQualify: (task: string) => boolean,
+): FixAction[] {
+  const notAllowed = missing.filter((t) => !allowed.includes(t));
+  const out: FixAction[] = [];
+  if (notAllowed.length)
+    out.push({
+      kind: 'allow_tasks',
+      connection_id,
+      tasks: notAllowed,
+      model_id: model_id || null,
+      qualify: model_id ? notAllowed.filter(canQualify) : [],
+      role,
+    });
+  if (model_id)
+    for (const t of missing)
+      if (allowed.includes(t) && canQualify(t))
+        out.push({
+          kind: 'qualify',
+          connection_id,
+          model_id,
+          task_class: t,
+          role,
+        });
+  return out;
+}

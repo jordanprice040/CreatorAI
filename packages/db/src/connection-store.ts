@@ -88,9 +88,10 @@ import {
   discoveryRoleInput,
   assessmentRoleInput,
   ASSESSMENT_ROLE_VERSION,
-  admissionBlockers,
+  admissionRefusals,
   canonicalHash,
   connectionBlockers,
+  connectionRefusals,
   qualificationDecision,
   type BuildRole,
   type PlanChatAllowance,
@@ -2694,8 +2695,8 @@ export class ConnectionStore extends PortfolioStore {
         : role === 'r08_assessment'
           ? [ASSESSMENT_TASK_CLASS]
           : [...new Set(Object.values(DISCOVERY_TASK_CLASSES))];
-    const blockers = classes.flatMap((task_class) =>
-      admissionBlockers({
+    const refusals = classes.flatMap((task_class) =>
+      admissionRefusals({
         connection: conn,
         access,
         qualifications,
@@ -2718,7 +2719,12 @@ export class ConnectionStore extends PortfolioStore {
         },
       }),
     );
-    if (blockers.length)
+    if (refusals.length) {
+      // ADR-0087: each refusal keeps its code, so the page can offer its fix in place.
+      const seen = new Set<string>();
+      const unique = refusals.filter(
+        (x) => !seen.has(x.text) && Boolean(seen.add(x.text)),
+      );
       throw new ContractError(
         'ACCESS_DENIED',
         role === 'r01_exploration'
@@ -2726,8 +2732,10 @@ export class ConnectionStore extends PortfolioStore {
           : role === 'r08_assessment'
             ? 'Assessment route is not ready.'
             : 'Discovery route is not ready.',
-        [...new Set(blockers)],
+        unique.map((x) => x.text),
+        unique,
       );
+    }
   }
 
   /**
@@ -3211,7 +3219,7 @@ export class ConnectionStore extends PortfolioStore {
         );
         grant = g.rows[0] ? toGrant(g.rows[0] as Row) : null;
       }
-      const blockers = admissionBlockers({
+      const refusals = admissionRefusals({
         connection: conn,
         request: req,
         access,
@@ -3221,11 +3229,12 @@ export class ConnectionStore extends PortfolioStore {
         chat,
         now: new Date(),
       });
-      if (blockers.length)
+      if (refusals.length)
         throw new ContractError(
           'ACCESS_DENIED',
           'This plan request is not admitted.',
-          blockers,
+          refusals.map((x) => x.text),
+          refusals,
         );
       if (workflow && wf && task) {
         const n = await c.query(
@@ -4042,6 +4051,7 @@ export class ConnectionStore extends PortfolioStore {
         };
       }),
       blockers: connectionBlockers(connection),
+      refusals: connectionRefusals(connection),
     };
   }
 

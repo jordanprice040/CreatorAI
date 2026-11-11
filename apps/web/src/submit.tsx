@@ -33,7 +33,9 @@ import {
   type Workspace,
   isQualified,
 } from '@creator/contracts';
-import { api, message, words } from './oversight.js';
+import { api, message, refusalsOf, words } from './oversight.js';
+import { FixButtons, canQualifyFor, type FixContext } from './fix-buttons.js';
+import { refusalFixes, type FixAction } from './fix-here.js';
 import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { money } from './budgets.js';
@@ -336,6 +338,7 @@ export function Submit({
   const [presetNote, setPresetNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [errorFixes, setErrorFixes] = useState<FixAction[]>([]);
   const [tried, setTried] = useState(false);
   /** A brief made from an exploration pick; reused on submit while the form still matches it. */
   const [explored, setExplored] = useState<ExploredPick['brief'] | null>(null);
@@ -474,7 +477,9 @@ export function Submit({
     connectionError: c?.connectionError ?? '',
     plan: plan
       ? {
+          id: plan.connection.id,
           blockers: plan.blockers,
+          ...(plan.refusals ? { refusals: plan.refusals } : {}),
           allowedDataClasses: plan.connection.settings.allowed_data_classes,
           allowedTaskClasses: plan.connection.settings.allowed_task_classes,
         }
@@ -490,10 +495,19 @@ export function Submit({
     usableEnvelopes: usableEnvelopes.length,
     pricing: c?.pricing.length ?? 0,
     fixture,
+    canQualify: canQualifyFor('discovery'),
   }).map((b) => ({
     text: b.text,
     ...(b.fix ? { fix: b.fix } : {}),
+    ...(b.acts ? { acts: b.acts } : {}),
   }));
+  // ADR-0087 (P27): the owner fixes a refusal here, without leaving Discover.
+  const fixes: FixContext = {
+    base,
+    csrf: session.csrf_token,
+    owner: workspace.role === 'owner',
+    onDone: () => ctx.refresh(),
+  };
   const planTimeout =
     plan?.connection.settings.caps.responses.request_timeout_ms ??
     LIMITS.call_timeout_ms;
@@ -785,6 +799,7 @@ export function Submit({
     }
     setBusy(true);
     setError('');
+    setErrorFixes([]);
     try {
       // An unedited exploration pick keeps its own brief (and its audited link to the
       // exploration); any edit saves a new brief as before.
@@ -871,6 +886,9 @@ export function Submit({
       open('runs', started.workflow.id);
     } catch (err) {
       setError(message(err));
+      setErrorFixes(
+        refusalFixes(refusalsOf(err), 'discovery', canQualifyFor('discovery')),
+      );
     } finally {
       setBusy(false);
     }
@@ -1462,6 +1480,7 @@ export function Submit({
               action="start this discovery"
               reasons={setup}
               open={(v) => open(v)}
+              fixes={fixes}
             />
             <div id="sub-issues" aria-live="polite">
               {tried && allIssues.length > 0 && (
@@ -1491,6 +1510,7 @@ export function Submit({
             {error && (
               <p className="error" role="alert">
                 {error}
+                <FixButtons acts={errorFixes} fix={fixes} />
               </p>
             )}
           </form>
