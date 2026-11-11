@@ -32,7 +32,7 @@ the record of each package and are appended to, not rewritten.
 | P16 external runbook export | Merged (PR #152; ADR-0080, no migration) |
 | P17 integrated acceptance | Not started |
 | P18 collapsible options, shorter pages | Not started (added November 10, R20) |
-| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), awaiting independent review |
+| P19 Standard/Advanced across the app | Built November 11 on branch `claude/project-thread-xdq8er` (ADR-0082, migration 52), PR #164; independent review and two fix rounds done, ready to merge once the last re-review is clean |
 | P20 whole process from Chat | Not started (added November 10, R22); Jordan approved it November 10; needs an ADR amending ADR-0057/0070 |
 | P21 quick model switch | Not started (added November 10, R23) |
 | P22 live API and GitHub checks | Not started (added November 10, R24–R25); Jordan approved the live API and GitHub tests November 10 |
@@ -967,3 +967,12 @@ line also appears when every case is held out (N-A). Bundle hash now `8648d257�
   and `pnpm format:check` pass; `pnpm test:db` 919 tests, 885 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper
   tests). The browser walk was rerun on a fresh database at schema 52 and passed; its output and screens 01–08 in
   `tracking/evidence/p19-standard-advanced/` are from that rerun.
+
+### P19 re-review fixes (November 11, same PR #164; re-review `reviews/P19_PR164_REREVIEW.md`, 1 Low, 2 nits)
+
+- L-A: Discover's model-access summary and the "Model access" option name the plan the connection runs on (Claude
+  or ChatGPT) through `routeText` and `plansOffered` in `discover-defaults.ts`, with a test; both said "ChatGPT
+  plan" for a Claude Code connection.
+- N-A: the P19 status row no longer says "awaiting independent review".
+- N-B: the scorecard's "Evidence against it" and "What they do today" start empty and must be answered (typing
+  "unknown" is a deliberate answer); only the four routine checks start as "unknown". Applies in both views.

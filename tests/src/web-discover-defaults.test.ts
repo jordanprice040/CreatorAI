@@ -228,3 +228,45 @@ test('setup blockers name the step and the tab that fixes it; defaults never cle
     [],
   );
 });
+
+test("Discover's model access names the plan the connection runs on", async () => {
+  const m = await load<{
+    routeText(
+      kind: 'api' | 'subscription',
+      plan: { kind?: string; label: string } | undefined,
+      model: string,
+      fixture: boolean,
+      budget: string | undefined,
+    ): string;
+    plansOffered(kinds: readonly string[]): string;
+  }>('discover-defaults.ts');
+  const claude = m.routeText(
+    'subscription',
+    { kind: 'claude_code', label: 'Claude Code' },
+    'claude-sonnet',
+    false,
+    undefined,
+  );
+  assert.equal(claude, 'Claude plan · Claude Code · claude-sonnet');
+  assert.equal(
+    m.routeText(
+      'subscription',
+      { kind: 'chatgpt_plan', label: 'Work' },
+      '',
+      false,
+      undefined,
+    ),
+    'ChatGPT plan · Work · no verified model',
+  );
+  assert.equal(
+    m.routeText('api', undefined, '', true, 'Studio budget'),
+    'Fixture · budget Studio budget',
+  );
+  assert.equal(m.plansOffered(['claude_code']), 'Claude plan');
+  assert.equal(m.plansOffered(['chatgpt_plan']), 'ChatGPT plan');
+  assert.equal(
+    m.plansOffered(['claude_code', 'chatgpt_plan', 'claude_code']),
+    'ChatGPT or Claude plan',
+  );
+  assert.equal(m.plansOffered([]), 'Subscription plan');
+});

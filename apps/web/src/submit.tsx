@@ -56,7 +56,9 @@ import {
   defaultPlanChoice,
   discoverSetupBlockers,
   parsePreset,
+  plansOffered,
   presetKey,
+  routeText,
   sourceOf,
   startingSettings,
   studioDefaults,
@@ -562,11 +564,14 @@ export function Submit({
     v: RoutineSettings[K],
   ) => SOURCE_TEXT[sourceOf(k, v, fixture, preset)];
   const existingRun = c?.runs.find((r) => r.run_id === runChoice);
-  const routeText =
-    resourceKind === 'subscription'
-      ? `ChatGPT plan · ${plan?.connection.label ?? 'no connection yet'} · ${model || 'no verified model'}`
-      : `${fixture ? 'Fixture' : 'API'} · budget ${usableEnvelopes.find((e) => e.id === envelope)?.name ?? 'none yet'}`;
-  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${routeText} · ${sourcesText(
+  const accessText = routeText(
+    resourceKind,
+    plan?.connection,
+    model,
+    fixture,
+    usableEnvelopes.find((e) => e.id === envelope)?.name,
+  );
+  const routeSummary = `${runChoice === 'new' ? 'New run' : 'Existing run'} · ${accessText} · ${sourcesText(
     [
       ['access', sourceText('route', resourceKind)],
       ['sharing', sourceText('dataClass', dataClass)],
@@ -642,7 +647,7 @@ export function Submit({
     },
     {
       label: 'Model access',
-      value: routeText,
+      value: accessText,
       source: sourceText('route', resourceKind),
     },
     {
@@ -1304,7 +1309,8 @@ export function Submit({
                   }
                 >
                   <option value="subscription">
-                    ChatGPT plan · subscription quota
+                    {plansOffered(c.planDetails.map((p) => p.connection.kind))}{' '}
+                    · subscription quota
                   </option>
                   <option value="api">
                     API / fixture · budget and pricing

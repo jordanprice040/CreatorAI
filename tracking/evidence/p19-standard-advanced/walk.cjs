@@ -225,6 +225,9 @@ let advancedClicks = 0;
   await p.fill('#sc-ethics-note', 'No ethical concern found in the evidence.');
   await p.selectOption('#sc-access', 'clear');
   await p.fill('#sc-access-note', 'Needs no new data access.');
+  // The judgment checks start empty and must be answered (review N-B).
+  await p.fill('#sc-check-contrary_evidence', 'None found in the cited source.');
+  await p.fill('#sc-check-current_workaround', 'Staff call patients back by hand.');
   await p.selectOption('#sc-confidence', 'low');
   await p.fill('#sc-confidence-why', 'One synthetic source.');
   note('5 scorecard folds (Standard)', await folds('form.score-form'));
