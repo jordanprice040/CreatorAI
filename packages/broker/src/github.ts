@@ -44,18 +44,33 @@ export interface RepositoryRead {
   refusal: ReadRefusal | null;
 }
 /**
- * Re-review N-L1: a repository GitHub does not show the credential (401, 403, 404) is an access
- * problem; anything else (rate limit, 5xx, no response) is GitHub not answering, so it is said
- * that way and keeps its real status.
+ * Re-review N-L1 and N2-L1: the repository lookup keeps GitHub's real status and own message.
+ * A rate limit (403 or 429 with `x-ratelimit-remaining: 0` or `retry-after`) and any other
+ * status GitHub answers without the repository (5xx, no response) mean "try again"; only a
+ * plain 401, 403 or 404 points at the credential; a 200 whose body is unusable is said as such.
  */
-export const repositoryRefusal = (status: number | null): ReadRefusal => ({
-  step: 'repository',
-  status,
-  message:
-    status === 401 || status === 403 || status === 404
-      ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
-      : 'GitHub did not answer the repository read; nothing was read. Try again later.',
-});
+export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
+  const limited =
+    (r.status === 403 || r.status === 429) &&
+    (r.headers['x-ratelimit-remaining'] === '0' ||
+      r.headers['retry-after'] !== undefined);
+  const ours =
+    r.status === 200
+      ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
+      : limited
+        ? 'GitHub is rate-limiting this credential; nothing was read. Try again later.'
+        : r.status === 401 || r.status === 403 || r.status === 404
+          ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
+          : 'GitHub did not answer the repository read; nothing was read. Try again later.';
+  return {
+    step: 'repository',
+    status: r.status,
+    message: (r.message ? `${ours} GitHub said: ${r.message}` : ours).slice(
+      0,
+      300,
+    ),
+  };
+};
 export interface PullRead {
   pull: PullObservation | null;
   refusal: ReadRefusal | null;
@@ -421,11 +436,27 @@ export class FixtureGitHub implements GitHubAdapter {
   }
   async repositoryRead(id: number): Promise<RepositoryRead> {
     if (this.#revoked)
-      return { repository: null, refusal: repositoryRefusal(401) };
+      return {
+        repository: null,
+        refusal: repositoryRefusal({
+          status: 401,
+          headers: {},
+          data: null,
+          message: 'Bad credentials',
+        }),
+      };
     const r = await this.repositoryById(id);
     return r
       ? { repository: r, refusal: null }
-      : { repository: null, refusal: repositoryRefusal(404) };
+      : {
+          repository: null,
+          refusal: repositoryRefusal({
+            status: 404,
+            headers: {},
+            data: null,
+            message: 'Not Found',
+          }),
+        };
   }
   async pullRead(repo: RepoRef, number: number): Promise<PullRead> {
     if (this.#revoked)
@@ -680,7 +711,7 @@ export class LiveGitHub implements GitHubAdapter {
     const repository = r.status === 200 ? this.#repoObs(r.data) : null;
     return repository
       ? { repository, refusal: null }
-      : { repository: null, refusal: repositoryRefusal(r.status) };
+      : { repository: null, refusal: repositoryRefusal(r) };
   }
   async repositoryByName(fullName: string) {
     const r = await this.#rest('GET', `/repos/${fullName}`, {

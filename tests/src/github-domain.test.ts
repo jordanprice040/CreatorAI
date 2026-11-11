@@ -391,12 +391,32 @@ test('X04 Git contract: pushes exact commits without force; the token stays out 
 });
 
 test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no pull request"', async (t) => {
-  let mode: 'ok' | 'expired' | 'statuses_forbidden' | 'unavailable' = 'ok';
+  let mode:
+    | 'ok'
+    | 'expired'
+    | 'statuses_forbidden'
+    | 'unavailable'
+    | 'rate_limited'
+    | 'secondary_limit'
+    | 'malformed' = 'ok';
   const gh = await loopbackGitHub((s) => {
     if (mode === 'expired')
       return { status: 401, body: { message: 'Bad credentials' } };
     if (mode === 'unavailable')
       return { status: 503, body: { message: 'Service Unavailable' } };
+    if (mode === 'rate_limited')
+      return {
+        status: 403,
+        headers: { 'x-ratelimit-remaining': '0' },
+        body: { message: 'API rate limit exceeded' },
+      };
+    if (mode === 'secondary_limit')
+      return {
+        status: 403,
+        headers: { 'retry-after': '60' },
+        body: { message: 'You have exceeded a secondary rate limit' },
+      };
+    if (mode === 'malformed') return { status: 200, body: { id: 'x' } };
     if (s.path.endsWith('/pulls/1'))
       return {
         status: 200,
@@ -465,4 +485,20 @@ test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no
   assert.equal(down.refusal?.status, 503);
   assert.match(down.refusal!.message, /did not answer.*Try again/);
   assert.doesNotMatch(down.refusal!.message, /expired|revoked/);
+  // Re-review N2-L1: GitHub answers a rate limit with 403 too; that is "try again", not the
+  // token, and GitHub's own message is kept.
+  for (const m of ['rate_limited', 'secondary_limit'] as const) {
+    mode = m;
+    const limited = await a.repositoryRead(repo.github_id);
+    assert.equal(limited.refusal?.status, 403);
+    assert.match(limited.refusal!.message, /rate-limiting.*Try again/);
+    assert.match(limited.refusal!.message, /GitHub said: .*rate limit/);
+    assert.doesNotMatch(limited.refusal!.message, /expired|revoked/);
+    assert.ok(limited.refusal!.message.length <= 300);
+  }
+  // A 200 whose body is not a repository is an unreadable reply, not "did not answer".
+  mode = 'malformed';
+  const odd = await a.repositoryRead(repo.github_id);
+  assert.equal(odd.refusal?.status, 200);
+  assert.match(odd.refusal!.message, /could not be read/);
 });

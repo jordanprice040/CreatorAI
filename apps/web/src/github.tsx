@@ -1324,7 +1324,7 @@ const STEP: Record<string, string> = {
 export function checksSummary(read: GitHubPullChecks): string {
   const refused = read.refusals.map(
     (r) =>
-      `GitHub did not return ${STEP[r.step]} (${r.status ?? 'no response'}: ${r.message}).`,
+      `Could not read ${STEP[r.step]} (${r.status ?? 'no response'}): ${r.message}`,
   );
   const pullRefused = read.refusals.some(
     (r) => r.step === 'pull' || r.step === 'repository',
