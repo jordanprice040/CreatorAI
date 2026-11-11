@@ -1,5 +1,11 @@
 # Build status — November 10, 2026
 
+## November 11 update — Creator Agent visual assets
+
+On base `e2304be`, the [brand pack](../assets/creator-agent/README.md) (Codex-made, reviewed separately) supplies the Windows icon, browser and touch icons, editable mark, horizontal logos and studio cover. It is stored byte-exact (`-text`) so `SHA256SUMS.txt` stays valid; the pack's ZIP copy is not committed. Wiring: the web favicon, Apple touch icon and the mark at both web brand placements; `icons/icon.ico` for the executable, window and tray; the mark in the desktop status window header; and the NSIS installer and uninstaller icon, header and sidebar images (`tauri.local-bundle.conf.json`). `scripts/brand-derived-assets.ps1` regenerates every app copy; the pack README lists them and `SHA256SUMS.txt` hashes them. The ICO's 256 px frame is stored as PNG (369 KB to 114 KB, all nine frames pixel-identical).
+
+Checked: `pnpm typecheck`, `pnpm format:check`, `pnpm build`, `pnpm test:db` on the throwaway test database (909 pass; 5 Windows-local failures in unchanged code: installed app holding studio ports, CRLF runner output, a `c:` ESM URL) and `bundle:windows`, which built the NSIS setup with the new icon and images. Nothing was installed and the setup was not run, so the installer pages have not been seen on screen.
+
 Current source: main `e08e0a4` (PR #150, November 6). Schema **49** (migration 42 is intentionally
 unused, see ADR-0070). No open pull requests on November 10. The installed app is still `f6e2ba0`,
 schema **41** (upgraded November 4); the dev studio on Jordan's PC runs from the worktree

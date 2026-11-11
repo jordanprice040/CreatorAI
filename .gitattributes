@@ -137,3 +137,6 @@ tracking/evidence/theme-intent-upgrade-helper-v4-2026-10-24/powershell-parse.txt
 tracking/evidence/theme-intent-upgrade-helper-v4-review-2026-10-24/check-rerun.txt -text
 tracking/evidence/theme-intent-upgrade-helper-v4-review-2026-10-24/node-version.txt -text
 tracking/evidence/theme-intent-upgrade-helper-v4-review-2026-10-24/ps5-parse.txt -text
+
+# Brand pack: SHA256SUMS.txt binds these exact bytes (the SVGs use CRLF).
+assets/creator-agent/** -text

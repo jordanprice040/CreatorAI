@@ -42,8 +42,14 @@ header {
   justify-content: space-between;
 }
 h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 22px;
   margin: 0;
+}
+h1 .mark {
+  flex: none;
 }
 h2 {
   font-size: 18px;
