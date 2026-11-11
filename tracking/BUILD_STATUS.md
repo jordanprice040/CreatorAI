@@ -2,7 +2,7 @@
 
 ## November 11 update — fix plan from the installed-app walk
 
-Docs only: [fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) for the 24 walk findings (P23–P32 planned, not started; decisions A and B pending with Jordan). Checked: `prettier --check` on the new plan.
+Docs only: [fix plan](../docs/FIX_PLAN_INSTALLED_WALK_2026-11-11.md) for the 24 walk findings (P23–P33 planned, not started; Jordan decided A (all allowed work on for new connections, plus allow buttons), B (whole-process automation after P13) and the P12 route (model connections own web search) on November 11). Checked: `prettier --check` on the new plan.
 
 ## November 11 update — Creator Agent visual assets
 

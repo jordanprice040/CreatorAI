@@ -35,7 +35,7 @@ reproduced.
 | 15  | Fetched passages are page furniture                            | P12 (online discovery, exists) |
 | 16  | Refusals should offer their fix in place                       | P27                            |
 | 17  | Allow a task from Qualify; qualify all; move it up             | P23, P24                       |
-| 18  | All allowed work on by default; Select all / Deselect all      | **Decision A**; buttons in P23 |
+| 18  | All allowed work on by default; Select all / Deselect all      | P23 + P27 (Decision A: all on) |
 | 19  | Example in the approved model check's Model box                | P26                            |
 | 20  | Copy connections between workspaces                            | P30                            |
 | 21  | Model help per step in Chat; Next step button                  | P31                            |
@@ -211,12 +211,37 @@ ADR-0074.
 1. In parallel: **P23** (qualify section), **P25** (assessment packets), **P26** (polish). Different areas:
    `qualify.tsx`/`models.tsx`, `assessment.ts`/`selection-store.ts`, and small web files.
 2. **P24** (qualify several) after P23, since both change the Qualify section.
-3. **P27** (fix it here) after P23. If Jordan decides Decision A as "all on", P27 gets smaller.
+3. **P27** (fix it here) after P23. The new all-on default (Decision A) goes in P23; P27 adds the allow buttons for
+   connections that do not have every task allowed.
 4. **P28** (API key) and **P29** (usage window), in parallel.
 5. **P30** (copy connections), then **P31** (Chat card help).
 6. **P32** when Jordan wants it and gives the live OK.
-7. **P13** as a priority once P12 is merged (Jordan, November 11), ahead of any package above that has not started,
-   then **P33** (automation levels, including the whole process) right after P13.
+7. **P12** (online discovery) through the model connections, then **P13** as a priority once P12 is merged (Jordan,
+   November 11), then **P33** (automation levels, including the whole process) right after P13.
+
+Jordan's timing (November 11): P12, P13 and the automation levels should be ready by the next user-testing phase,
+which can start once these fixes are made. So the target set before that test is P23–P31 plus P12, P13 and P33;
+P32 (GitHub sign-in) only if he gives the live OK in time.
+
+### P12 route (Jordan, November 11)
+
+"Browsing should be done through model connections rather than API calls to a browser, which can be left as a
+possibility for the future." This matches the smallest architecture in the
+[search route investigation](SEARCH_ROUTE_INVESTIGATION_2026-11-10.md) (section 7, PR #157):
+
+- Discovery uses the connected model's own web search on the plan connections (the ChatGPT plan route first, with
+  the URLs it consulted recorded separately from its text; Claude Code's web search as an optional second route).
+  The model's prose is a draft, never evidence.
+- Evidence is unchanged: the guarded fetcher re-fetches each chosen URL under the workspace's evidence-site policy,
+  stores passages with locators and hashes, and claim support must quote stored text. Item 15 (page furniture in
+  passages) is fixed in that extraction step.
+- No search or browser API is bought or turned on; the Brave adapter stays disabled as the future option. The
+  earlier paid-provider shortlist (Tavily, Mojeek, Brave) is set aside.
+- The request side already exists: PR #157 added an opt-in `web_search` option to plan requests
+  (`packages/broker/src/plan-responses.ts`), smoke-tested live on November 10 (section 13 of the report), but no route,
+  UI or workflow passes it yet. P12 wires it into discovery, records each search call and source URL, and adds the
+  claim-admission stage that P10 left for P12.
+- Live runs from the app need Jordan's typed OK, inside the $20 runtime ceiling.
 
 ## Open decisions for Jordan
 
@@ -236,6 +261,18 @@ used for work the owner chose, and nothing runs until the owner accepts the caps
 
 Why A1: it fixes what Jordan actually hit (dead ends, scrolling, one task at a time) without widening any
 connection's use. A2 is a reasonable choice too, since caps acceptance remains the gate.
+
+**Jordan, November 11 (typed in the planning thread):** A2 plus the buttons. "I like the one click allow buttons
+and I think they should be implemented for when the user does not have all of the allowed-work already selected,
+but I am still going with the decision to have all the allowed-work selected by default and the user can unselect
+and reselect them as desired." Recorded as:
+
+- New connections start with every task class allowed, including code build; the owner can untick and re-tick any of
+  them, and caps acceptance is still the gate before anything runs. This change goes in P23 with an ADR (number
+  from main) amending the least-privilege default.
+- Data classes are a separate setting and keep their current default: approved private data stays opt-in, through
+  its own "allow" button (P27).
+- Existing connections keep what they allow. Where a task is not allowed, the one-click buttons (P23, P27) offer it.
 
 ### Decision B: automation levels for a project (item 22)
 
