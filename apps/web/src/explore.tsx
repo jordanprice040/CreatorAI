@@ -29,6 +29,7 @@ import { newestFirst } from './versions.js';
 import { envelopesFor } from './build-defaults.js';
 import { Empty, Status, useLoad, type View } from './ui.js';
 import { preferredRoute } from './model-choice.js';
+import { missingTaskTexts } from './discover-defaults.js';
 import {
   ChoiceNote,
   responsesModels,
@@ -297,7 +298,25 @@ export function Explore({
               q.state === 'qualified',
           )
             ? [
-                `${model} is not qualified for research synthesis on the discovery-locator benchmark (a web-discovery qualification covers only Search the web). Qualify it under Models and connections first.`,
+                // P23 item 8: name the reason when the task is not allowed here at all,
+                // and only fixes that exist (review of PR #172, M-1).
+                ...missingTaskTexts(
+                  model,
+                  [EXPLORATION_TASK_CLASS],
+                  plan.connection.settings.allowed_task_classes,
+                ),
+                // ADR-0086: a web-discovery qualification is also research synthesis but
+                // covers only Search the web; say so, since Models lists it as qualified.
+                ...(plan.qualifications.some(
+                  (q) =>
+                    q.admits_web_discovery === true &&
+                    q.model_id === model &&
+                    q.state === 'qualified',
+                )
+                  ? [
+                      'Its web-discovery qualification covers only Search the web; Explore for me needs the discovery-locator benchmark.',
+                    ]
+                  : []),
               ]
             : []),
         ]

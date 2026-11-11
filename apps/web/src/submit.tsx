@@ -477,6 +477,7 @@ export function Submit({
       ? {
           blockers: plan.blockers,
           allowedDataClasses: plan.connection.settings.allowed_data_classes,
+          allowedTaskClasses: plan.connection.settings.allowed_task_classes,
         }
       : null,
     dataClass,

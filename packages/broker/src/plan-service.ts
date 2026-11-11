@@ -1303,11 +1303,23 @@ export class PlanConnectionService {
 
   /** Runs every not-yet-attempted case once, then decides. Stops early on any refusal. */
   async runQualification(ctx: CommandContext, ws: string, qid: string) {
-    const {
-      qualification: q,
-      manifest,
-      attempted_cases,
-    } = await this.deps.store.planQualificationManifest(ctx, ws, qid);
+    const read = await this.deps.store.planQualificationManifest(ctx, ws, qid);
+    // ADR-0084: one Run loop per qualification; a second press is refused, not run twice.
+    const release = this.deps.store.claimQualificationRun(read);
+    try {
+      return await this.#runQualification(ctx, ws, qid, read);
+    } finally {
+      release();
+    }
+  }
+
+  async #runQualification(
+    ctx: CommandContext,
+    ws: string,
+    qid: string,
+    read: Awaited<ReturnType<ConnectionStore['planQualificationManifest']>>,
+  ) {
+    const { qualification: q, manifest, attempted_cases } = read;
     const seen = new Set(attempted_cases);
     const scorer = this.deps.patchScorer;
     // Patch cases run code; without the studio's worker grader nothing is sent at all.
@@ -1385,6 +1397,7 @@ export class PlanConnectionService {
         ctx,
         ws,
         qid,
+        true,
       ),
     };
   }

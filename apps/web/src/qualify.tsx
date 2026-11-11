@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import {
   PlanQualificationResultsSchema,
+  latestDecided,
   planWaitMs,
+  type PlanConnection,
   type PlanQualification,
 } from '@creator/contracts';
 import assessment from '../../../config/connections/benchmarks/assessment-synthetic-v1.json';
@@ -10,6 +12,7 @@ import summarization from '../../../config/connections/benchmarks/summarization-
 import builder from '../../../config/connections/benchmarks/t12-builder-v1.json';
 import reviewer from '../../../config/connections/benchmarks/t12-reviewer-v2.json';
 import webDiscovery from '../../../config/connections/benchmarks/web-discovery-v2.json';
+import { AllowTasks } from './allow-tasks.js';
 import { api, words } from './oversight.js';
 
 /**
@@ -40,25 +43,21 @@ export function QualifyModel({
   base,
   connection,
   models,
-  allowed,
-  running,
+  qualifications,
   busy,
   preferred = null,
   act,
 }: {
   /** The workspace's API path, e.g. `workspaces/<id>`. */
   base: string;
-  connection: {
-    id: string;
-    version: number;
-    fixture: boolean;
-    settings: { caps: { responses: { request_timeout_ms: number } } };
-  };
+  connection: Pick<
+    PlanConnection,
+    'id' | 'kind' | 'version' | 'fixture' | 'settings' | 'caps_accepted_at'
+  >;
   /** Models verified on the Responses path of this connection. */
   models: string[];
-  /** Task classes this connection's settings allow. */
-  allowed: readonly string[];
-  running: PlanQualification[];
+  /** Every qualification on this connection, as the server last reported them. */
+  qualifications: PlanQualification[];
   busy: boolean;
   /** ADR-0081: the current model, preselected when it is verified on this connection. */
   preferred?: string | null;
@@ -77,7 +76,15 @@ export function QualifyModel({
   const [outcome, setOutcome] = useState('');
   const [runningId, setRunningId] = useState('');
   const [confirmFinish, setConfirmFinish] = useState('');
-  const locked = busy || runningId !== '';
+  const allowed = connection.settings.allowed_task_classes;
+  const running = qualifications.filter((q) => q.state === 'running');
+  // ADR-0084: whether a Run is executing comes from the server, so leaving the page, a
+  // workspace switch or a second window cannot show a running qualification as idle. The
+  // press made here counts too, until the next read reports it.
+  const executing = (q: PlanQualification) =>
+    q.executing === true || runningId === q.id;
+  const anyExecuting = running.some(executing);
+  const locked = busy || anyExecuting;
   async function run(q: PlanQualification) {
     setError('');
     setOutcome('');
@@ -136,6 +143,9 @@ export function QualifyModel({
     (preferred && models.includes(preferred) ? preferred : '') ||
     models[0] ||
     '';
+  const state = chosen
+    ? benchmarkState(qualifications, pick, chosen.task_class, allowed)
+    : null;
   return (
     <fieldset>
       <legend>Qualify a model for a task</legend>
@@ -182,48 +192,80 @@ export function QualifyModel({
             >
               <option value="">Choose a task</option>
               {BENCHMARKS.map((b) => (
-                <option
-                  key={b.name}
-                  value={b.name}
-                  disabled={!allowed.includes(b.task_class)}
-                >
+                <option key={b.name} value={b.name}>
                   {words(b.task_class)} · {b.name} ({b.development} practice +{' '}
                   {b.held_out} held out)
-                  {allowed.includes(b.task_class)
-                    ? ''
-                    : " · not allowed by this connection's settings (Allowed, above)"}
+                  {benchmarkTag(
+                    benchmarkState(qualifications, pick, b.task_class, allowed),
+                  )}
                 </option>
               ))}
             </select>
           </div>
-          {chosen && (
-            <p className="small">
-              Uses up to {chosen.development + chosen.held_out} plan requests
-              when run. Pass bar: all {chosen.held_out} held-out cases.
-            </p>
+          {chosen && state && (
+            <>
+              {state.kind === 'not_allowed' ? (
+                <p className="small">
+                  {words(chosen.task_class)} is not allowed on this connection,
+                  so it can&apos;t be qualified yet.{' '}
+                  <AllowTasks
+                    connection={connection}
+                    tasks={[chosen.task_class]}
+                    label="Allow this task"
+                    busy={locked}
+                    act={act}
+                    onError={setError}
+                  />
+                </p>
+              ) : (
+                <p className="small">
+                  {state.kind === 'qualified'
+                    ? `${pick} is qualified for ${words(chosen.task_class)} (${decidedWords(state.latest)}). A re-run is recorded as a new qualification, and the newest decided one counts, so a failed re-run replaces this pass. `
+                    : state.kind === 'failed'
+                      ? `${pick}'s last qualification for ${words(chosen.task_class)} failed (${decidedWords(state.latest)}). `
+                      : ''}
+                  {state.kind === 'started'
+                    ? 'Already started: press Run on it below.'
+                    : `Uses up to ${chosen.development + chosen.held_out} plan requests when run. Pass bar: all ${chosen.held_out} held-out cases.`}
+                </p>
+              )}
+              {state.kind !== 'not_allowed' && state.kind !== 'started' && (
+                <button
+                  type="button"
+                  disabled={locked || !pick}
+                  onClick={() => {
+                    setError('');
+                    setOutcome('');
+                    void act(
+                      `${p}/qualifications`,
+                      {
+                        expected_version: connection.version,
+                        model_id: pick,
+                        manifest: chosen.manifest,
+                        min_held_out_cases: chosen.held_out,
+                        floor: { numerator: 1, denominator: 1 },
+                      },
+                      undefined,
+                      setError,
+                    );
+                  }}
+                >
+                  {state.kind === 'qualified'
+                    ? 'Start a re-run'
+                    : state.kind === 'failed'
+                      ? 'Start qualification again'
+                      : 'Start qualification'}
+                </button>
+              )}
+              {anyExecuting && state.kind !== 'started' && (
+                <p className="small">
+                  A qualification on this connection is running; it sends one
+                  request at a time, so wait for it to finish before starting
+                  another.
+                </p>
+              )}
+            </>
           )}
-          <button
-            type="button"
-            disabled={locked || !chosen || !pick}
-            onClick={() => {
-              setError('');
-              setOutcome('');
-              void act(
-                `${p}/qualifications`,
-                {
-                  expected_version: connection.version,
-                  model_id: pick,
-                  manifest: chosen!.manifest,
-                  min_held_out_cases: chosen!.held_out,
-                  floor: { numerator: 1, denominator: 1 },
-                },
-                undefined,
-                setError,
-              );
-            }}
-          >
-            Start qualification
-          </button>
         </>
       )}
       {running.map((q) => {
@@ -235,11 +277,11 @@ export function QualifyModel({
           <div key={q.id} className="qualify-row" role="group">
             <span>
               {words(q.task_class)} on {q.model_id} is started.
-              {runningId === q.id &&
-                ' Running: one plan request per case; this can take several minutes.'}
+              {executing(q) &&
+                ' Running: one plan request per case; this can take several minutes, and it carries on if you leave this page.'}
             </span>
             <button type="button" disabled={locked} onClick={() => void run(q)}>
-              {runningId === q.id
+              {executing(q)
                 ? 'Running…'
                 : `Run${n ? ` (up to ${n} plan requests; answered cases are skipped)` : ''}`}
             </button>
@@ -314,4 +356,57 @@ export function runOutcome(
   if (o.state === 'decided' && o.qualification)
     return `${what}: ${words(o.qualification.state)} (${o.qualification.held_out.passed} of ${o.qualification.held_out.total} held-out cases passed)${o.qualification.reason ? `. ${o.qualification.reason}` : '.'}`;
   return '';
+}
+
+/**
+ * Where one benchmark's task stands for the chosen model (P23, items 11 and 17): not allowed on
+ * this connection, already started, qualified or failed by the newest decided qualification
+ * (ADR-0052), or never qualified.
+ */
+export type BenchmarkState =
+  | { kind: 'not_allowed' }
+  | { kind: 'started'; qualification: PlanQualification }
+  | { kind: 'qualified' | 'failed'; latest: PlanQualification }
+  | { kind: 'new' };
+
+export function benchmarkState(
+  qualifications: readonly PlanQualification[],
+  model: string,
+  task: string,
+  allowed: readonly string[],
+): BenchmarkState {
+  if (!allowed.includes(task)) return { kind: 'not_allowed' };
+  const started = qualifications.find(
+    (q) =>
+      q.state === 'running' && q.model_id === model && q.task_class === task,
+  );
+  if (started) return { kind: 'started', qualification: started };
+  const latest = latestDecided(qualifications, model, task);
+  if (latest?.state === 'qualified' || latest?.state === 'failed')
+    return { kind: latest.state, latest };
+  return { kind: 'new' };
+}
+
+function benchmarkTag(s: BenchmarkState): string {
+  switch (s.kind) {
+    case 'not_allowed':
+      return ' · not allowed on this connection yet';
+    case 'started':
+      return ' · started';
+    case 'qualified':
+      // Short, so the option fits the select; the line below it has the score (PR #172 N-2).
+      return ` · qualified${s.latest.decided_at ? ` ${new Date(s.latest.decided_at).toLocaleDateString()}` : ''}`;
+    case 'failed':
+      return ' · last run failed';
+    default:
+      return '';
+  }
+}
+
+/** "on 11/11/2026, 8 of 8 held-out cases passed" for a decided qualification. */
+function decidedWords(q: PlanQualification): string {
+  const when = q.decided_at
+    ? `on ${new Date(q.decided_at).toLocaleDateString()}, `
+    : '';
+  return `${when}${q.held_out.passed} of ${q.held_out.total} held-out cases passed`;
 }
