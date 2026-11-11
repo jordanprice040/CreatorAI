@@ -7,6 +7,7 @@ import {
   SelectionSchema,
   SelectionDispositionSchema,
   StoredEntitySchema,
+  kindAllows,
   WorkflowDetailSchema,
   z,
   type ClaimEvidence,
@@ -32,7 +33,7 @@ import {
 } from './ui.js';
 import { newestFirst } from './versions.js';
 import { Fold, FoldAll, useFolds } from './fold.js';
-import { firstNeeding, nameList } from './fold-state.js';
+import { firstNeeding, groupByReason, nameList } from './fold-state.js';
 import { runLabel } from './labels.js';
 import { HumilityForm } from './humility.js';
 import { ResponseExplanationPanel } from './proposals.js';
@@ -77,19 +78,6 @@ function pendingReviews(
   return out;
 }
 
-/**
- * Blocks that follow from an option's kind and that no review or score can clear (the
- * wording of packages/domain/src/selection.ts). Shown in the dropdown, not in summaries.
- */
-const KIND_BLOCKS = [
-  'has no software to build',
-  'Custom software is selected for build or validation',
-  'outcome is not a response to recommend',
-  'A failed outcome cannot be validated',
-];
-const kindBlock = (reason: string) =>
-  KIND_BLOCKS.some((k) => reason.includes(k));
-
 const FRESH_NOTE: Record<string, string> = {
   current: 'current',
   stale: 'older than the freshness limit',
@@ -98,6 +86,15 @@ const FRESH_NOTE: Record<string, string> = {
   removed: 'source removed',
   claim_changed: 'claim changed since',
   retracted: 'support retracted',
+};
+/** Short names for the one-line "Blocked by gates" summary. */
+const DISPOSITION_SHORT: Record<SelectionDisposition, string> = {
+  select_for_build: 'build',
+  proceed_to_validation: 'validate',
+  recommend_alternative: 'recommend',
+  research_further: 'research further',
+  defer: 'defer',
+  reject: 'reject',
 };
 const DISPOSITION_NOTE: Record<SelectionDisposition, string> = {
   select_for_build: 'Select for a bounded build',
@@ -477,19 +474,24 @@ export function Compare({
   const altFolds = useFolds(firstNeeding(altIds, changedSince));
   const rowFolds = useFolds(viewer ? [] : firstNeeding(altIds, needsYou));
   const historyFolds = useFolds([]);
-  const blockedCount = (id: string) =>
-    Object.values(suit.get(id)?.gates.blocked ?? {}).filter((x) =>
-      x?.some((r) => !kindBlock(r)),
-    ).length;
-  // Review L-2: which choices gates block, and the first reason for each. Re-review R-3:
-  // only reasons the person can clear; a block that follows from the option's kind (e.g.
-  // "has no software to build") stays in the dropdown, not in every summary.
+  // Review L-2, re-review R-3/R3-1/R3-2: the blocked choices a person can do something
+  // about. A choice the option's kind rules out (kindAllows) never becomes available, so it
+  // stays in the dropdown only; the rest are grouped by reason so a shared one shows once.
+  const clearable = (id: string) => {
+    const kind = String(
+      alts.find((a) => a.entity.id === id)?.entity.body?.kind ?? '',
+    );
+    return SelectionDispositionSchema.options.flatMap((o) => {
+      const why = suit.get(id)?.gates.blocked[o];
+      return why?.length && kindAllows(kind, o)
+        ? [[DISPOSITION_SHORT[o], why] as const]
+        : [];
+    });
+  };
+  const blockedCount = (id: string) => clearable(id).length;
   const blockedText = (id: string) =>
-    SelectionDispositionSchema.options
-      .flatMap((o) => {
-        const why = suit.get(id)?.gates.blocked[o]?.find((r) => !kindBlock(r));
-        return why ? [`${DISPOSITION_NOTE[o]} (${clip(why, 90)})`] : [];
-      })
+    groupByReason(clearable(id))
+      .map((g) => `${clip(g.reason, 90)} (blocks ${g.choices.join(', ')})`)
       .join('; ');
   return (
     <section className="panel" aria-labelledby="cmp-title">

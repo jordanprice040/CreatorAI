@@ -328,6 +328,8 @@ export function Proposals({
       );
       setDraft({ draft: d, eligible: e });
       setSectionChoices({});
+      // Re-review R2-1: the draft's first saved id must not count as "another proposal".
+      shownProposal.current = '';
       onFocus('');
     } catch (err) {
       setError(message(err));

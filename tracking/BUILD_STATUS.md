@@ -909,3 +909,20 @@ row arrives with docs PR #158). Web only; no data, route, gate, scoring or API c
   created through the API on the throwaway database.
 - Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 910
   tests, 876 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). `web-session.test.ts` stub gains `useOnShow`.
+
+### P18 second re-review fixes (November 11, same PR #162; `reviews/P18_PR162_REREVIEW2_2026-11-11.md`, 3 Lows and a nit)
+
+- R2-1 Proposals: starting a new draft while another proposal is open resets the remembered proposal, so the draft's
+  first save keeps the sections the person opened.
+- R3-1 Decide: a choice the option's kind rules out is left out of the summary and the "N choices blocked" count,
+  whatever its other reasons. N-1: the rule is now one function, `kindAllows` in `packages/contracts/src/selection.ts`,
+  used by the domain's kind blocks (`packages/domain/src/selection.ts`) and by the web, instead of matching the
+  domain's wording; tested in `tests/src/web-folds.test.ts`.
+- R3-2 Decide: the "Blocked by gates" line groups choices by reason ("Discovery disposition: duplicate. (blocks
+  validate, recommend)"), so a shared reason is written once.
+- Evidence: walk re-run (output replaced). Collapsed option summaries 52/73/73/52/52 px at 1280 and 110/129/111/110/91
+  px at 390 (the change-process option with a duplicate discovery went from 91 to 73 px at 1280). The revised-option
+  case (ethics not assessed) and R2-1 were checked from the code; the walk data has no revised option and no option
+  left to start a proposal for.
+- Checks (cloud container, PostgreSQL 16, no CI): `pnpm typecheck` and `pnpm format:check` pass; `pnpm test:db` 912
+  tests, 878 pass, 29 skip, 5 fail (the known no-`pwsh` wrapper tests). Domain selection tests pass with `kindAllows`.

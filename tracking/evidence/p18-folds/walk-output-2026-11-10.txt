@@ -1,4 +1,4 @@
-DECIDE height 3623 viewport 900
+DECIDE height 3605 viewport 900
 DECIDE option folds open [ false, false, false, false, false ]
 DECIDE alternative folds open [ false, false, false, false, false ]
 DECIDE claim folds open [ false ]
@@ -6,7 +6,7 @@ KEY Enter opens true
 KEY Space closes true
 EXPAND ALL [ true, true, true, true, true ]
 COLLAPSE ALL [ false, false, false, false, false ]
-BLOCKED summary Hybrid: routine workaround supported by a simple list from existing dataResearch further · Needs a disposition, reason and “would reverse if”Blocked by gates: Select for a bounded build (The opportunity assessment is incomplete; unknown is not a neutral score.)
+BLOCKED summary Hybrid: routine workaround supported by a simple list from existing dataResearch further · Needs a disposition, reason and “would reverse if”Blocked by gates: The opportunity assessment is incomplete; unknown is not a neutral score. (blocks build)
 BLOCKED line Before you can record: give a disposition, reason and “would reverse if” for 1 option (Hybrid: routine workaround supported by a simple list from…).
 RECORD disabled true
 KEPT after leaving and returning true reason still empty: true
@@ -24,6 +24,11 @@ L-7 linked decision open after Collapse all true
 R-1 same link again after closing true
 PROPOSAL none eligible
 R-2 other proposal opens with its own defaults, open count 1 of 15 (fresh first proposal had 1 )
-R-3 collapsed option summary heights [ 52, 73, 91, 52, 52 ]
+R-3 collapsed option summary heights [ 52, 73, 73, 52, 52 ]
+R3 Blocked lines [
+  'Blocked by gates: The opportunity assessment is incomplete; unknown is not a neutral score. (blocks build)',
+  'Blocked by gates: Discovery disposition: duplicate. (blocks validate, recommend)'
+]
+R3-2 collapsed option summary heights at 390 wide [ 110, 129, 111, 110, 91 ]
 EMPTY decide true expand buttons: 0
 EMPTY approvals true decision cards: 0 expand buttons: 0

@@ -295,6 +295,26 @@ const log = (...a) => console.log(...a);
     ),
   );
 
+  log(
+    'R3 Blocked lines',
+    await p.evaluate(() =>
+      [...document.querySelectorAll('details.decide-option > summary')]
+        .map((x) => x.querySelectorAll('.fold-line')[1]?.textContent ?? '')
+        .filter(Boolean),
+    ),
+  );
+  await p.setViewportSize({ width: 390, height: 844 });
+  await p.waitForTimeout(500);
+  log(
+    'R3-2 collapsed option summary heights at 390 wide',
+    await p.evaluate(() =>
+      [...document.querySelectorAll('details.decide-option > summary')].map(
+        (x) => Math.round(x.getBoundingClientRect().height),
+      ),
+    ),
+  );
+  await p.setViewportSize({ width: 1280, height: 900 });
+
   // --- Empty lists ---
   await go('projects/decide', research);
   log(

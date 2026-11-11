@@ -44,3 +44,21 @@ export function nameList(names: readonly string[], max = 3): string {
   }
   return `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
 }
+
+/**
+ * P18 re-review R3-2: blocked choices grouped by their first reason, so one shared reason
+ * (e.g. ethics not assessed) is written once with the choices it blocks.
+ */
+export function groupByReason(
+  blocked: readonly (readonly [choice: string, reasons: readonly string[]])[],
+): { reason: string; choices: string[] }[] {
+  const out: { reason: string; choices: string[] }[] = [];
+  for (const [choice, reasons] of blocked) {
+    const reason = reasons[0];
+    if (!reason) continue;
+    const group = out.find((g) => g.reason === reason);
+    if (group) group.choices.push(choice);
+    else out.push({ reason, choices: [choice] });
+  }
+  return out;
+}

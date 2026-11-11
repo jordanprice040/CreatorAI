@@ -82,3 +82,57 @@ test('blocked actions name the items they wait on', async () => {
   assert.equal(nameList(['A', 'B', 'C']), 'A, B and C');
   assert.equal(nameList(['A', 'B', 'C', 'D', 'E']), 'A, B, C and 2 more');
 });
+
+test('a reason shared by several blocked choices is written once', async () => {
+  const { groupByReason } = await load<
+    Mod & {
+      groupByReason: (
+        b: readonly (readonly [string, readonly string[]])[],
+      ) => { reason: string; choices: string[] }[];
+    }
+  >('fold-state.ts');
+  assert.deepEqual(
+    groupByReason([
+      ['build', ['Ethics not assessed.', 'Opportunity incomplete.']],
+      ['validate', ['Ethics not assessed.']],
+      ['recommend', ['Discovery: duplicate.']],
+      ['defer', []],
+    ]),
+    [
+      { reason: 'Ethics not assessed.', choices: ['build', 'validate'] },
+      { reason: 'Discovery: duplicate.', choices: ['recommend'] },
+    ],
+  );
+});
+
+test('kind blocks come from one rule the domain and the summaries share', async () => {
+  const { kindAllows } = await import('@creator/contracts');
+  const allowed = (kind: string) =>
+    (
+      [
+        'select_for_build',
+        'proceed_to_validation',
+        'recommend_alternative',
+        'research_further',
+        'defer',
+        'reject',
+      ] as const
+    ).filter((d) => kindAllows(kind, d));
+  assert.deepEqual(allowed('build'), [
+    'select_for_build',
+    'proceed_to_validation',
+    'research_further',
+    'defer',
+    'reject',
+  ]);
+  assert.deepEqual(allowed('hybrid').length, 6);
+  for (const k of ['use_existing', 'change_process', 'human_led'])
+    assert.deepEqual(allowed(k), [
+      'proceed_to_validation',
+      'recommend_alternative',
+      'research_further',
+      'defer',
+      'reject',
+    ]);
+  assert.deepEqual(allowed('failed'), ['research_further', 'defer', 'reject']);
+});
