@@ -15,7 +15,7 @@ import {
   webhookEffects,
   webhookSignatureValid,
 } from '@creator/domain';
-import { LiveGitHub } from '@creator/broker';
+import { LiveGitHub, repositoryRefusal } from '@creator/broker';
 
 test('X04 rules: branch names, workflow paths, response classes and webhook signatures', () => {
   assert.equal(branchRefusal('creator/feature-1', 'creator/'), null);
@@ -501,4 +501,29 @@ test('P22 review M-1: a refused pull or statuses read is a refusal, a 404 is "no
   const odd = await a.repositoryRead(repo.github_id);
   assert.equal(odd.refusal?.status, 200);
   assert.match(odd.refusal!.message, /could not be read/);
+});
+
+test('P22 nits: a secondary rate limit without retry-after, and a read with no answer, are worded as such', () => {
+  const r = (status: number | null, message: string, headers = {}) =>
+    repositoryRefusal({ status, headers, data: null, message });
+  const secondary = r(403, 'You have exceeded a secondary rate limit.');
+  assert.match(secondary.message, /rate-limiting.*Try again/);
+  assert.doesNotMatch(secondary.message, /expired|revoked/);
+  // A plain 403 without any rate-limit sign still points at the credential.
+  assert.match(
+    r(403, 'Resource not accessible by personal access token').message,
+    /expired or revoked/,
+  );
+  // No HTTP answer: the detail is the studio's own error, never "GitHub said".
+  const hung = r(null, 'timeout');
+  assert.equal(hung.status, null);
+  assert.match(
+    hung.message,
+    /did not answer.*Studio error, no answer from GitHub: timeout/,
+  );
+  assert.doesNotMatch(hung.message, /GitHub said/);
+  assert.match(
+    r(503, 'Service Unavailable').message,
+    /GitHub said: Service Unavailable/,
+  );
 });

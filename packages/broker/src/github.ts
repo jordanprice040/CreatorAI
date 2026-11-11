@@ -45,15 +45,17 @@ export interface RepositoryRead {
 }
 /**
  * Re-review N-L1 and N2-L1: the repository lookup keeps GitHub's real status and own message.
- * A rate limit (403 or 429 with `x-ratelimit-remaining: 0` or `retry-after`) and any other
+ * A rate limit (403 or 429 with `x-ratelimit-remaining: 0`, `retry-after` or a rate-limit message) and any other
  * status GitHub answers without the repository (5xx, no response) mean "try again"; only a
  * plain 401, 403 or 404 points at the credential; a 200 whose body is unusable is said as such.
  */
 export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
+  // A secondary rate limit may come without `retry-after`; GitHub's message names it.
   const limited =
     (r.status === 403 || r.status === 429) &&
     (r.headers['x-ratelimit-remaining'] === '0' ||
-      r.headers['retry-after'] !== undefined);
+      r.headers['retry-after'] !== undefined ||
+      /rate limit/i.test(r.message));
   const ours =
     r.status === 200
       ? 'GitHub’s reply about this repository could not be read; nothing was read. Try again later.'
@@ -62,13 +64,17 @@ export const repositoryRefusal = (r: GitHubResponse): ReadRefusal => {
         : r.status === 401 || r.status === 403 || r.status === 404
           ? 'GitHub did not show this repository to the connection’s credential: the token may be expired or revoked, or its access to the repository removed.'
           : 'GitHub did not answer the repository read; nothing was read. Try again later.';
+  // With no HTTP answer the detail is the studio's own (a timeout, a reset); otherwise it is
+  // GitHub's own message.
+  const detail = !r.message
+    ? ''
+    : r.status === null
+      ? ` Studio error, no answer from GitHub: ${r.message}`
+      : ` GitHub said: ${r.message}`;
   return {
     step: 'repository',
     status: r.status,
-    message: (r.message ? `${ours} GitHub said: ${r.message}` : ours).slice(
-      0,
-      300,
-    ),
+    message: `${ours}${detail}`.slice(0, 300),
   };
 };
 export interface PullRead {
