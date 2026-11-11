@@ -14,6 +14,7 @@ import {
   WORKFLOW_WALL_MAX_SECONDS,
   WorkflowDetailSchema,
   WorkflowSchema,
+  isDiscoveryQualified,
   z,
   type ExplorationPacket,
   type ExplorationPreview,
@@ -290,11 +291,12 @@ export function Explore({
             : []),
           ...(plan &&
           model &&
-          !plan.qualifications.some(
-            (q) =>
-              q.model_id === model &&
-              q.task_class === EXPLORATION_TASK_CLASS &&
-              q.state === 'qualified',
+          // ADR-0089: the newest decided qualification bound to the discovery role counts,
+          // as the server admits Explore.
+          !isDiscoveryQualified(
+            plan.qualifications,
+            model,
+            EXPLORATION_TASK_CLASS,
           )
             ? // P23 item 8: name the reason when the task is not allowed here at all,
               // and only fixes that exist (review of PR #172, M-1).

@@ -429,6 +429,30 @@ export const StartPlanQualificationRequestSchema = z.strictObject({
   min_held_out_cases: counter.min(3).max(200),
   floor: RateSchema,
 });
+/**
+ * ADR-0089 (P34): start a qualification on a benchmark the studio offers by name (the discovery
+ * benchmarks, served by `GET plan-benchmarks`). The server loads the frozen manifest itself and
+ * refuses a name that is not offered, so a manifest that no longer matches the current role
+ * prompts is never started from the app. The pass bar is fixed: every held-out case.
+ */
+export const StartOfferedQualificationRequestSchema = z.strictObject({
+  expected_version: version,
+  model_id: short,
+  benchmark: z.string().min(1).max(120),
+});
+/** One discovery benchmark the studio offers (ADR-0089); the manifest itself stays on the server. */
+export const DiscoveryBenchmarkSchema = z.strictObject({
+  name: z.string().min(1).max(120),
+  task_class: z.enum(['research_synthesis', 'candidate_generation', 'scoring']),
+  manifest_hash: hash,
+  data_class: z.enum(['synthetic', 'public', 'private_approved']),
+  development: counter,
+  held_out: counter,
+});
+export type DiscoveryBenchmark = z.infer<typeof DiscoveryBenchmarkSchema>;
+export const DiscoveryBenchmarksSchema = z.strictObject({
+  benchmarks: z.array(DiscoveryBenchmarkSchema).max(20),
+});
 export const PlanQualificationSchema = z.strictObject({
   id,
   connection_id: id,
@@ -448,6 +472,12 @@ export const PlanQualificationSchema = z.strictObject({
   prompt_current: z.boolean().optional(),
   /** ADR-0074 review L-4: a scoring qualification that admits automatic assessments. */
   admits_assessment: z.boolean().optional(),
+  /**
+   * ADR-0089 (P34): a research synthesis, candidate generation or scoring qualification bound to
+   * the current discovery role prompts, the only kind discovery admission counts. A scoring
+   * qualification on the assessment benchmark does not admit discovery, nor the reverse.
+   */
+  admits_discovery: z.boolean().optional(),
   /**
    * ADR-0084 (P23): on a started qualification, whether this studio is running its cases now.
    * Read from the server, so a page that was left or reloaded shows a running Run as running.
@@ -477,6 +507,20 @@ export function latestDecided(
   }
   return out;
 }
+/**
+ * ADR-0089: whether a model is qualified for a discovery step, counting only qualifications the
+ * server admits discovery with (an assessment scoring qualification does not count).
+ */
+export const isDiscoveryQualified = (
+  qualifications: readonly PlanQualification[],
+  model_id: string,
+  task_class: string,
+) =>
+  latestDecided(
+    qualifications.filter((q) => q.admits_discovery === true),
+    model_id,
+    task_class,
+  )?.state === 'qualified';
 export const isQualified = (
   qualifications: readonly PlanQualification[],
   model_id: string,

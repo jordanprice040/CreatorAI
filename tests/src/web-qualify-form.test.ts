@@ -10,6 +10,7 @@ import {
   type PlanQualification,
 } from '@creator/contracts';
 import { BUILD_ROLE_PROMPTS, BUILD_ROLE_TASK_CLASSES } from '@creator/domain';
+import { offeredDiscoveryBenchmarks } from '@creator/db';
 
 // React from the web app's own dependencies, the same copy qualify.tsx renders with.
 const webRequire = createRequire(
@@ -77,7 +78,9 @@ test('every benchmark the app offers would pass the server checks it can know ab
           .task_class,
     ),
   );
-  assert.deepEqual(inApp, [...new Set(offered)].sort());
+  // ADR-0089 (P34): plus the discovery benchmarks the server offers.
+  const discovery = offeredDiscoveryBenchmarks().map((b) => b.task_class);
+  assert.deepEqual(inApp, [...new Set([...offered, ...discovery])].sort());
 });
 
 // qualify.tsx with its sibling import stubbed; the benchmark files and React load for real.
@@ -103,6 +106,7 @@ async function loadQualify() {
       model: string,
       task: string,
       allowed: readonly string[],
+      admits?: 'assessment' | 'discovery' | null,
     ) => { kind: string };
     QualifyModel: (props: Record<string, unknown>) => unknown;
   };
@@ -252,4 +256,96 @@ test('a run that stops says why; a finished run says the result (review M-1)', a
   );
   // A failed request (null) leaves no outcome line: its error shows instead.
   assert.equal(runOutcome(q, null), '');
+});
+
+test('ADR-0089: the discovery benchmarks are listed with their own allow, start and qualified states', async () => {
+  const { QualifyModel, benchmarkState } = await loadQualify();
+  const discovery = offeredDiscoveryBenchmarks().map(
+    ({ manifest: _m, ...b }) => b,
+  );
+  const connection = (allowed: string[]) => ({
+    id: randomUUID(),
+    kind: 'chatgpt_plan',
+    version: 3,
+    fixture: false,
+    caps_accepted_at: '2026-11-11T09:00:00.000Z',
+    settings: {
+      allowed_data_classes: ['synthetic', 'public'],
+      allowed_task_classes: allowed,
+      caps: { responses: { request_timeout_ms: 120000 } },
+    },
+  });
+  const html = (allowed: string[], qualifications: PlanQualification[] = []) =>
+    renderToStaticMarkup(
+      createElement(QualifyModel, {
+        base: 'workspaces/w',
+        connection: connection(allowed),
+        models: ['gpt-6-astra'],
+        qualifications,
+        busy: false,
+        discovery,
+        act: async () => null,
+      }),
+    );
+  const some = html(['specification', 'research_synthesis']);
+  assert.match(
+    some,
+    /research synthesis for discovery · plan-discovery-research14-v2-research_synthesis \(2 practice \+ 4 held out\)<\/option>/,
+  );
+  assert.match(
+    some,
+    /candidate generation for discovery · plan-discovery-semantics-v2-candidate_generation[^<]*not allowed on this connection yet/,
+  );
+  assert.match(
+    some,
+    /scoring for discovery · plan-discovery-semantics-v2-scoring/,
+  );
+  assert.match(some, /scoring for assessments · assessment-synthetic-v1/);
+  // A started discovery qualification shows Run with that benchmark's request count.
+  const started = html(
+    ['research_synthesis'],
+    [
+      qualification({
+        task_class: 'research_synthesis',
+        manifest_hash: discovery[0]!.manifest_hash,
+      }),
+    ],
+  );
+  assert.match(started, /research synthesis on gpt-6-astra is started/);
+  assert.match(started, /Run \(up to 6 plan requests/);
+  assert.match(started, /research synthesis for discovery[^<]*· started/);
+
+  // A scoring pass on the assessment benchmark is not a discovery pass, nor the reverse.
+  const assessed = qualification({
+    task_class: 'scoring',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+    admits_assessment: true,
+    admits_discovery: false,
+  });
+  const all = ['scoring'];
+  assert.equal(
+    benchmarkState([assessed], 'gpt-6-astra', 'scoring', all, 'assessment')
+      .kind,
+    'qualified',
+  );
+  assert.equal(
+    benchmarkState([assessed], 'gpt-6-astra', 'scoring', all, 'discovery').kind,
+    'new',
+  );
+  const skeptic = qualification({
+    task_class: 'scoring',
+    state: 'qualified',
+    decided_at: '2026-11-11T10:05:00.000Z',
+    admits_assessment: false,
+    admits_discovery: true,
+  });
+  assert.equal(
+    benchmarkState([skeptic], 'gpt-6-astra', 'scoring', all, 'discovery').kind,
+    'qualified',
+  );
+  assert.equal(
+    benchmarkState([skeptic], 'gpt-6-astra', 'scoring', all, 'assessment').kind,
+    'new',
+  );
 });

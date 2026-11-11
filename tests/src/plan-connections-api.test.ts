@@ -408,6 +408,25 @@ test('plan connection API and CLI: create, block, sign in, confirm credits, acce
         created.body.id,
       );
     }
+  // ADR-0089 (P34): the discovery benchmarks Qualify a model offers, and a start by name.
+  const offered = await get(`workspaces/${ws}/plan-benchmarks`);
+  assert.deepEqual(
+    offered.benchmarks.map((b: { task_class: string }) => b.task_class),
+    ['research_synthesis', 'candidate_generation', 'scoring'],
+  );
+  assert.ok(!JSON.stringify(offered).includes('"cases"'));
+  detail = await get(`workspaces/${ws}/plan-connections/${conn.id}`);
+  const byName = await post(
+    `workspaces/${ws}/plan-connections/${conn.id}/qualifications`,
+    {
+      expected_version: detail.connection.version,
+      model_id: 'fixture-plan-model',
+      benchmark: offered.benchmarks[0].name,
+    },
+  );
+  // Real benchmarks, fixture connection: refused by the same check as a sent manifest.
+  assert.equal(byName.status, 400, JSON.stringify(byName.body));
+  assert.match(JSON.stringify(byName.body), /real ones only real ones/);
   const route = `workspaces/${ws}/plan-connections/${conn.id}/qualifications`;
   const tooBig = await post(route, { padding: 'x'.repeat(256 * 1024) });
   assert.equal(tooBig.status, 413);

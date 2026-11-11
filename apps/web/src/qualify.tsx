@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  DiscoveryBenchmarksSchema,
   PlanQualificationResultsSchema,
   latestDecided,
   planWaitMs,
+  type DiscoveryBenchmark,
   type PlanConnection,
   type PlanQualification,
 } from '@creator/contracts';
@@ -36,6 +38,68 @@ export const BENCHMARKS = [
   development: m.cases.filter((c) => c.split !== 'held_out').length,
 }));
 
+/**
+ * Which qualifications count for a benchmark's own role (ADR-0089): the assessment benchmark's
+ * scoring counts only for assessments and the discovery benchmarks' only for discovery, so a
+ * scoring pass on one never shows the other as qualified.
+ */
+export type Admits = 'assessment' | 'discovery' | null;
+
+/** One benchmark in the list: bundled with the app, or offered by the server (discovery). */
+export interface Offer {
+  name: string;
+  task_class: string;
+  development: number;
+  held_out: number;
+  admits: Admits;
+  /** Server-offered benchmarks carry their manifest hash, to match a started qualification. */
+  manifest_hash: string | null;
+  /** The start request body after `expected_version` and `model_id`. */
+  start: Record<string, unknown>;
+}
+
+/**
+ * The benchmarks Qualify a model lists: the bundled ones, then the discovery benchmarks the
+ * server offers (ADR-0089: the newest manifest per discovery task class that matches the current
+ * role prompts; the server picks them and loads the manifest itself when one is started).
+ */
+export function offers(discovery: readonly DiscoveryBenchmark[]): Offer[] {
+  return [
+    ...BENCHMARKS.map((b) => ({
+      name: b.name,
+      task_class: b.task_class,
+      development: b.development,
+      held_out: b.held_out,
+      admits: (b.manifest === assessment ? 'assessment' : null) as Admits,
+      manifest_hash: null,
+      start: {
+        manifest: b.manifest,
+        min_held_out_cases: b.held_out,
+        floor: { numerator: 1, denominator: 1 },
+      },
+    })),
+    ...discovery.map((b) => ({
+      name: b.name,
+      task_class: b.task_class,
+      development: b.development,
+      held_out: b.held_out,
+      admits: 'discovery' as const,
+      manifest_hash: b.manifest_hash,
+      start: { benchmark: b.name },
+    })),
+  ];
+}
+
+/** The task in the benchmark list, with the role when one task class serves two roles. */
+export function offerTask(o: Pick<Offer, 'task_class' | 'admits'>): string {
+  const w = o.task_class.replaceAll('_', ' ');
+  return o.admits === 'discovery'
+    ? `${w} for discovery`
+    : o.admits === 'assessment'
+      ? `${w} for assessments`
+      : w;
+}
+
 /** Start, run and finish a qualification of one verified model on one bundled benchmark. */
 export function QualifyModel({
   base,
@@ -44,6 +108,7 @@ export function QualifyModel({
   qualifications,
   busy,
   preferred = null,
+  discovery: given,
   act,
 }: {
   /** The workspace's API path, e.g. `workspaces/<id>`. */
@@ -59,6 +124,8 @@ export function QualifyModel({
   busy: boolean;
   /** ADR-0081: the current model, preselected when it is verified on this connection. */
   preferred?: string | null;
+  /** The server's discovery benchmarks; read from `plan-benchmarks` when not given. */
+  discovery?: DiscoveryBenchmark[];
   act: (
     path: string,
     body: unknown,
@@ -74,6 +141,25 @@ export function QualifyModel({
   const [outcome, setOutcome] = useState('');
   const [runningId, setRunningId] = useState('');
   const [confirmFinish, setConfirmFinish] = useState('');
+  const [loaded, setLoaded] = useState<DiscoveryBenchmark[] | null>(null);
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    if (given) return;
+    let live = true;
+    setLoadError('');
+    api(DiscoveryBenchmarksSchema, `${base}/plan-benchmarks`).then(
+      (r) => live && setLoaded(r.benchmarks),
+      (e: unknown) =>
+        live &&
+        setLoadError(
+          `Could not load the discovery benchmarks: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+    );
+    return () => {
+      live = false;
+    };
+  }, [base, given]);
+  const list = offers(given ?? loaded ?? []);
   const allowed = connection.settings.allowed_task_classes;
   const running = qualifications.filter((q) => q.state === 'running');
   // ADR-0084: whether a Run is executing comes from the server, so leaving the page, a
@@ -134,7 +220,7 @@ export function QualifyModel({
         `${words(q.task_class)} on ${q.model_id}: ${words(out.state)}${out.reason ? `. ${out.reason}` : '.'}`,
       );
   }
-  const chosen = BENCHMARKS.find((b) => b.name === bench);
+  const chosen = list.find((b) => b.name === bench);
   const p = `plan-connections/${connection.id}`;
   const pick =
     (models.includes(model) ? model : '') ||
@@ -142,7 +228,13 @@ export function QualifyModel({
     models[0] ||
     '';
   const state = chosen
-    ? benchmarkState(qualifications, pick, chosen.task_class, allowed)
+    ? benchmarkState(
+        qualifications,
+        pick,
+        chosen.task_class,
+        allowed,
+        chosen.admits,
+      )
     : null;
   return (
     <fieldset>
@@ -189,23 +281,30 @@ export function QualifyModel({
               onChange={(e) => setBench(e.target.value)}
             >
               <option value="">Choose a task</option>
-              {BENCHMARKS.map((b) => (
+              {list.map((b) => (
                 <option key={b.name} value={b.name}>
-                  {words(b.task_class)} · {b.name} ({b.development} practice +{' '}
+                  {offerTask(b)} · {b.name} ({b.development} practice +{' '}
                   {b.held_out} held out)
                   {benchmarkTag(
-                    benchmarkState(qualifications, pick, b.task_class, allowed),
+                    benchmarkState(
+                      qualifications,
+                      pick,
+                      b.task_class,
+                      allowed,
+                      b.admits,
+                    ),
                   )}
                 </option>
               ))}
             </select>
           </div>
+          {loadError && <p className="small">{loadError}</p>}
           {chosen && state && (
             <>
               {state.kind === 'not_allowed' ? (
                 <p className="small">
-                  {words(chosen.task_class)} is not allowed on this connection,
-                  so it can&apos;t be qualified yet.{' '}
+                  {offerTask(chosen)} is not allowed on this connection, so it
+                  can&apos;t be qualified yet.{' '}
                   <AllowTasks
                     connection={connection}
                     tasks={[chosen.task_class]}
@@ -218,9 +317,9 @@ export function QualifyModel({
               ) : (
                 <p className="small">
                   {state.kind === 'qualified'
-                    ? `${pick} is qualified for ${words(chosen.task_class)} (${decidedWords(state.latest)}). A re-run is recorded as a new qualification, and the newest decided one counts, so a failed re-run replaces this pass. `
+                    ? `${pick} is qualified for ${offerTask(chosen)} (${decidedWords(state.latest)}). A re-run is recorded as a new qualification, and the newest decided one counts, so a failed re-run replaces this pass. `
                     : state.kind === 'failed'
-                      ? `${pick}'s last qualification for ${words(chosen.task_class)} failed (${decidedWords(state.latest)}). `
+                      ? `${pick}'s last qualification for ${offerTask(chosen)} failed (${decidedWords(state.latest)}). `
                       : ''}
                   {state.kind === 'started'
                     ? 'Already started: press Run on it below.'
@@ -239,9 +338,7 @@ export function QualifyModel({
                       {
                         expected_version: connection.version,
                         model_id: pick,
-                        manifest: chosen.manifest,
-                        min_held_out_cases: chosen.held_out,
-                        floor: { numerator: 1, denominator: 1 },
+                        ...chosen.start,
                       },
                       undefined,
                       setError,
@@ -267,9 +364,12 @@ export function QualifyModel({
         </>
       )}
       {running.map((q) => {
-        // The bundled benchmark of this task class, if there is one: a qualification started
-        // elsewhere may use another manifest, so the count is an upper bound only (L-2).
-        const b = BENCHMARKS.find((x) => x.task_class === q.task_class);
+        // The offered benchmark with this manifest, else one of this task class: a
+        // qualification started elsewhere may use another manifest, so the count is an upper
+        // bound only (L-2).
+        const b =
+          list.find((x) => x.manifest_hash === q.manifest_hash) ??
+          list.find((x) => x.task_class === q.task_class);
         const n = b ? b.development + b.held_out : null;
         return (
           <div key={q.id} className="qualify-row" role="group">
@@ -372,6 +472,7 @@ export function benchmarkState(
   model: string,
   task: string,
   allowed: readonly string[],
+  admits: Admits = null,
 ): BenchmarkState {
   if (!allowed.includes(task)) return { kind: 'not_allowed' };
   const started = qualifications.find(
@@ -379,7 +480,17 @@ export function benchmarkState(
       q.state === 'running' && q.model_id === model && q.task_class === task,
   );
   if (started) return { kind: 'started', qualification: started };
-  const latest = latestDecided(qualifications, model, task);
+  // The server runs one qualification per model and task class at a time, so "started" counts
+  // any role; qualified or failed counts only this benchmark's role (ADR-0089).
+  const latest = latestDecided(
+    admits === 'assessment'
+      ? qualifications.filter((q) => q.admits_assessment === true)
+      : admits === 'discovery'
+        ? qualifications.filter((q) => q.admits_discovery === true)
+        : qualifications,
+    model,
+    task,
+  );
   if (latest?.state === 'qualified' || latest?.state === 'failed')
     return { kind: latest.state, latest };
   return { kind: 'new' };

@@ -13,6 +13,7 @@ import {
   PlanSettlementSchema,
   ReconcilePlanRequestSchema,
   StartPlanQualificationRequestSchema,
+  StartOfferedQualificationRequestSchema,
   UpdatePlanSettingsRequestSchema,
   WithdrawCreditsRequestSchema,
   parse,
@@ -84,8 +85,6 @@ import {
 import {
   BUILD_ROLE_PROMPTS,
   BUILD_ROLE_TASK_CLASSES,
-  DISCOVERY_ROLE_VERSION,
-  discoveryRoleInput,
   assessmentRoleInput,
   ASSESSMENT_ROLE_VERSION,
   admissionBlockers,
@@ -128,6 +127,12 @@ import {
   workspaceNote,
   workspaceNotes,
 } from './sidebar-store.js';
+import {
+  admitsDiscovery,
+  currentForDiscoveryRole,
+  offeredDiscoveryBenchmark,
+  offeredDiscoveryBenchmarks,
+} from './discovery-benchmarks.js';
 import {
   buildApprovalBlockers,
   buildApprovalScopeNote,
@@ -270,6 +275,7 @@ const toQualification = (r: Row): PlanQualification => ({
     currentForBuildRole(r) &&
     (currentForDiscoveryRole(r) || currentForAssessmentRole(r)),
   admits_assessment: currentForAssessmentRole(r),
+  admits_discovery: admitsDiscovery(r),
 });
 const toRequest = (r: Row): PlanRequest => ({
   id: String(r.id),
@@ -345,54 +351,6 @@ function currentForAssessmentRole(r: Row): boolean {
         .join('\n\n') === assessmentRoleInput(check.packet)[0]!.text
     );
   });
-}
-
-/** Same discovery prompt binding used for both admission and historical-result labels. */
-function currentForDiscoveryRole(r: Row): boolean {
-  if (
-    !['research_synthesis', 'candidate_generation', 'scoring'].includes(
-      String(r.task_class),
-    )
-  )
-    return true;
-  const manifest = r.manifest as {
-    cases?: { input?: { role: string; text: string }[]; check?: unknown }[];
-  };
-  const required =
-    r.task_class === 'candidate_generation'
-      ? ['propose', 'revise']
-      : r.task_class === 'research_synthesis'
-        ? ['locate']
-        : ['skeptic'];
-  const kinds = new Set<string>();
-  if (!manifest.cases?.length || canonicalHash(manifest) !== r.manifest_hash)
-    return false;
-  for (const item of manifest.cases) {
-    const parsed = BenchmarkCheckSchema.safeParse(item.check);
-    if (!parsed.success || parsed.data.kind !== 'discovery_contract')
-      return false;
-    const check = parsed.data;
-    if (
-      check.context.role_version !== DISCOVERY_ROLE_VERSION ||
-      check.context.packet_hash !== canonicalHash(check.packet)
-    )
-      return false;
-    const expected = discoveryRoleInput(
-      check.task_kind,
-      check.context,
-      check.packet,
-      [],
-    )[0]!.text;
-    if (
-      item.input
-        ?.filter((m) => m.role === 'system')
-        .map((m) => m.text)
-        .join('\n\n') !== expected
-    )
-      return false;
-    kinds.add(check.task_kind);
-  }
-  return required.every((k) => kinds.has(k));
 }
 
 /**
@@ -585,6 +543,20 @@ export class ConnectionStore extends PortfolioStore {
       });
       return this.#connection(c, ws, id);
     });
+  }
+
+  /**
+   * ADR-0089 (P34): the discovery benchmarks Qualify a model offers, newest current manifest per
+   * task class, without the manifests themselves. Any member may read it.
+   */
+  async planBenchmarks(ctxIn: CommandContext, ws: string) {
+    const ctx = normalize(ctxIn);
+    await this.tx((c) => this.role(c, uuid(ws), ctx.actorId, false));
+    return {
+      benchmarks: offeredDiscoveryBenchmarks().map(
+        ({ manifest: _m, ...b }) => b,
+      ),
+    };
   }
 
   async listPlanConnections(
@@ -3524,7 +3496,25 @@ export class ConnectionStore extends PortfolioStore {
     body: unknown,
   ) {
     const ctx = normalize(ctxIn);
-    const req = parse(StartPlanQualificationRequestSchema, body);
+    // ADR-0089: a benchmark named by the app is loaded here from the frozen files, only if
+    // it is the one offered (newest and current for the discovery role); every check below
+    // still applies to it.
+    const named =
+      body && typeof body === 'object' && 'benchmark' in body
+        ? parse(StartOfferedQualificationRequestSchema, body)
+        : null;
+    const req = named
+      ? (() => {
+          const b = offeredDiscoveryBenchmark(named.benchmark);
+          return parse(StartPlanQualificationRequestSchema, {
+            expected_version: named.expected_version,
+            model_id: named.model_id,
+            manifest: b.manifest,
+            min_held_out_cases: b.held_out,
+            floor: { numerator: 1, denominator: 1 },
+          });
+        })()
+      : parse(StartPlanQualificationRequestSchema, body);
     let q: PlanQualification | null = null;
     await this.#ownerChange(
       ctx,
